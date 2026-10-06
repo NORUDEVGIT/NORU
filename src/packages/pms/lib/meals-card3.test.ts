@@ -8,6 +8,13 @@ import {
   CARD3_MEALS_AUDIT_SECTION,
   CARD3_MEALS_TABS,
   evaluateMealsCard3Readiness,
+  isOwnedPackageCoverPath,
+  isValidPackageComponent,
+  PACKAGE_COVER_CONTENT_TYPES,
+  PACKAGE_COVER_MAX_BYTES,
+  packageCoverImagePath,
+  packageCoverPathPrefix,
+  previousPackageCoverToRemove,
   type MealsCard3Snapshot,
 } from "./meals-card3.server.ts";
 
@@ -315,5 +322,234 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
       "../../../../drizzle/migrations/0124_pms_package_master_phase_b.sql",
     );
     assert.equal(existsSync(drizzle0124), false, "Phase B must not introduce migration 0124");
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Phase E — Includes inside Package Master editor
+  // ────────────────────────────────────────────────────────────────────────────
+
+  it("Phase E: Section 3 — Includes is embedded inside PackageMasterEditor with live component table", () => {
+    // Section 3 container exists
+    assert.match(ui, /package-master-section-includes/);
+    // Table with required columns
+    assert.match(ui, /pkg-master-inclusions-table/);
+    assert.match(ui, /Inclusion \/ Source Name/);
+    assert.match(ui, />Type</);
+    assert.match(ui, />Quantity</);
+    assert.match(ui, />Sort Order</);
+    assert.match(ui, />Action</);
+    // Components are filtered by packageId and ordered by sortOrder
+    assert.match(ui, /components\s*\.filter\(\(c\)\s*=>\s*c\.packageId\s*===\s*value\.id\)/);
+    assert.match(ui, /a\.sortOrder\s*-\s*b\.sortOrder/);
+  });
+
+  it("Phase E: Add and Remove inclusions use canonical writers and live catalogues", () => {
+    // Add Inclusion button and form
+    assert.match(ui, /pkg-master-add-inclusion/);
+    assert.match(ui, /pkg-master-inclusion-form/);
+    assert.match(ui, /pkg-master-save-inclusion/);
+    // Canonical writers wired
+    assert.match(ui, /savePackageComponentCard3/);
+    assert.match(ui, /deletePackageComponentCard3/);
+    // Type selection maps to Meal Plan, Room Amenity, FO Service
+    assert.match(ui, /pkg-comp-kind/);
+    assert.match(ui, /PACKAGE_COMPONENT_KIND_LABELS/);
+    // Catalogues mapped per kind
+    assert.match(ui, /draftKind === "meal_plan"/);
+    assert.match(ui, /draftKind === "room_amenity"/);
+    assert.match(ui, /foServices/);
+    // Source dropdown does not expose raw IDs
+    assert.match(ui, /pkg-comp-source/);
+    assert.match(ui, /\$\{row\.code\} — \$\{row\.name\}/);
+  });
+
+  it("Phase E: quantity and sort_order validation rules are enforced", () => {
+    // Quantity > 0 validation
+    assert.match(ui, /pkg-comp-quantity/);
+    assert.match(ui, /quantity <= 0/);
+    // Sort order >= 0 validation
+    assert.match(ui, /pkg-comp-sort/);
+    assert.match(ui, /sortOrder < 0/);
+  });
+
+  it("Phase E: new unsaved package displays honest note and prevents orphan components", () => {
+    assert.match(ui, /Save the package first to manage inclusions\./);
+    assert.match(ui, /pkg-master-includes-unsaved-note/);
+  });
+
+  it("Phase E: server validation rejects invalid kind / source combinations and non-positive quantity", () => {
+    const s = snapshot({
+      mealPlans: [activeMeal],
+      packages: [activePackage],
+      components: [validComponent],
+    });
+    // Valid component passes
+    assert.equal(isValidPackageComponent(validComponent, s), true);
+    // Zero quantity fails
+    assert.equal(isValidPackageComponent({ ...validComponent, quantity: 0 }, s), false);
+    // Negative quantity fails
+    assert.equal(isValidPackageComponent({ ...validComponent, quantity: -1 }, s), false);
+    // Mismatched source FK (kind = meal_plan but mealPlanId is null) fails
+    assert.equal(
+      isValidPackageComponent({ ...validComponent, mealPlanId: null, foServiceId: "fs1" }, s),
+      false,
+    );
+    // Multiple populated FKs fails
+    assert.equal(isValidPackageComponent({ ...validComponent, roomAmenityId: "ra1" }, s), false);
+    // Foreign/non-existent FK fails
+    assert.equal(
+      isValidPackageComponent({ ...validComponent, mealPlanId: "non-existent" }, s),
+      false,
+    );
+  });
+
+  it("Phase E: no duplicate or top-level Package Components peer list reappears", () => {
+    assert.doesNotMatch(ui, /title="Package components"/);
+  });
+
+  it("Phase E: no schema changes — no new migrations beyond 0072 and 0120", () => {
+    const drizzle0124 = join(
+      here,
+      "../../../../drizzle/migrations/0124_pms_package_master_phase_e.sql",
+    );
+    assert.equal(existsSync(drizzle0124), false, "Phase E must not introduce migration 0124");
+  });
+});
+
+describe("Card 3 Phase C package cover image", () => {
+  const restaurantId = "11111111-1111-4111-8111-111111111111";
+  const packageId = "22222222-2222-4222-8222-222222222222";
+  const otherPackageId = "33333333-3333-4333-8333-333333333333";
+
+  it("adds only cover_image_path and no image table", () => {
+    const drizzle = join(here, "../../../../drizzle/migrations/0124_pms_package_cover_image.sql");
+    const supabase = join(here, "../../../../supabase/migrations/0124_pms_package_cover_image.sql");
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /ALTER TABLE public\.pms_packages/);
+    assert.match(sql, /ADD COLUMN IF NOT EXISTS cover_image_path text/);
+    assert.doesNotMatch(sql, /CREATE TABLE/);
+    assert.doesNotMatch(sql, /pms_package_images/);
+    assert.doesNotMatch(sql, /CREATE TRIGGER|CREATE POLICY|CREATE INDEX/);
+  });
+
+  it("reads cover_image_path and exposes coverUrl from a server-side signature", () => {
+    assert.match(
+      fns,
+      /select\("id, code, name, type, description, package_price, active, cover_image_path"\)/,
+    );
+    assert.match(fns, /coverImagePath/);
+    assert.match(fns, /coverUrl:/);
+    assert.match(fns, /signRoomImages/);
+    assert.doesNotMatch(fns, /cover_image_url/);
+    assert.match(server, /coverImagePath: string \| null/);
+    assert.match(server, /coverUrl: string \| null/);
+  });
+
+  it("issues a package upload ticket for jpeg, png, and webp under 8 MB", () => {
+    assert.match(fns, /export const createPackageCoverUpload/);
+    assert.match(fns, /packageCoverUploadSchema/);
+    assert.match(fns, /z\.enum\(PACKAGE_COVER_CONTENT_TYPES\)/);
+    assert.match(fns, /max\(PACKAGE_COVER_MAX_BYTES\)/);
+    assert.deepEqual([...PACKAGE_COVER_CONTENT_TYPES], ["image/jpeg", "image/png", "image/webp"]);
+    assert.equal(PACKAGE_COVER_MAX_BYTES, 8 * 1024 * 1024);
+    assert.match(fns, /createSignedUploadUrl\(path\)/);
+    assert.match(fns, /from\(ROOM_BUCKET\)/);
+    assert.doesNotMatch(fns, /from\("room_type_images"\)/);
+    const path = packageCoverImagePath(restaurantId, packageId, "jpg");
+    assert.equal(path.startsWith(packageCoverPathPrefix(restaurantId, packageId)), true);
+    assert.match(path, new RegExp(`^${restaurantId}/packages/${packageId}/[0-9a-f-]+\\.jpg$`));
+  });
+
+  it("rejects a cover path that is not owned by the restaurant and package", () => {
+    const owned = `${restaurantId}/packages/${packageId}/file.jpg`;
+    assert.equal(isOwnedPackageCoverPath(restaurantId, packageId, owned), true);
+    assert.equal(
+      isOwnedPackageCoverPath(restaurantId, packageId, `${restaurantId}/room-types/${packageId}/file.jpg`),
+      false,
+    );
+    assert.equal(
+      isOwnedPackageCoverPath(restaurantId, packageId, `${restaurantId}/packages/${otherPackageId}/file.jpg`),
+      false,
+    );
+    assert.equal(
+      isOwnedPackageCoverPath(
+        restaurantId,
+        packageId,
+        `${otherPackageId}/packages/${packageId}/file.jpg`,
+      ),
+      false,
+    );
+    assert.match(fns, /That package doesn't belong to this property/);
+    assert.match(fns, /if \(!isOwnedPackageCoverPath/);
+    assert.match(fns, /Invalid image reference/);
+    assert.match(fns, /requireRoomManager/);
+  });
+
+  it("stores the new path and removes only a different previous object", () => {
+    assert.match(fns, /export const setPackageCoverImage/);
+    assert.match(fns, /update\(\{ cover_image_path: data\.storagePath \}\)/);
+    assert.match(fns, /previousPackageCoverToRemove\(current\.cover_image_path, data\.storagePath\)/);
+    assert.match(fns, /\.remove\(\[storagePath\]\)/);
+    const next = `${restaurantId}/packages/${packageId}/next.jpg`;
+    const previous = `${restaurantId}/packages/${packageId}/old.jpg`;
+    assert.equal(previousPackageCoverToRemove(previous, next), previous);
+    assert.equal(previousPackageCoverToRemove(next, next), null);
+    assert.equal(previousPackageCoverToRemove(null, next), null);
+    assert.equal(previousPackageCoverToRemove("  ", next), null);
+  });
+
+  it("clears a cover and leaves a missing cover as a no-op", () => {
+    assert.match(fns, /export const removePackageCoverImage/);
+    assert.match(fns, /if \(!current\.cover_image_path\) return \{ ok: true as const \}/);
+    assert.match(fns, /update\(\{ cover_image_path: null \}\)/);
+    assert.match(fns, /removeStoredCover\(current\.cover_image_path\)/);
+  });
+
+  it("keeps savePackageCard3 as the package-field writer", () => {
+    const saveStart = fns.indexOf("export const savePackageCard3");
+    const saveEnd = fns.indexOf("export const savePackageComponentCard3");
+    const saveFn = fns.slice(saveStart, saveEnd);
+    assert.match(saveFn, /package_price: data\.packagePrice/);
+    assert.doesNotMatch(saveFn, /cover_image_path/);
+    assert.doesNotMatch(saveFn, /createPackageCoverUpload|setPackageCoverImage|removePackageCoverImage/);
+  });
+
+  it("shows the unsaved cover message and the saved cover actions", () => {
+    assert.match(ui, /package-master-section-cover/);
+    assert.match(ui, /Save the package first to add a cover image\./);
+    assert.match(ui, /data-testid="pkg-cover-unsaved"/);
+    assert.match(ui, /data-testid="pkg-cover-empty"/);
+    assert.match(ui, /data-testid="pkg-cover-upload"/);
+    assert.match(ui, /Upload Cover Image/);
+    assert.match(ui, /data-testid="pkg-cover-preview"/);
+    assert.match(ui, /src=\{coverUrl\}/);
+    assert.match(ui, /data-testid="pkg-cover-replace"/);
+    assert.match(ui, /Replace Image/);
+    assert.match(ui, /data-testid="pkg-cover-remove"/);
+    assert.match(ui, /Remove Image/);
+    assert.match(ui, /!packageId \?/);
+    assert.match(ui, /\{canEdit \?/);
+    assert.doesNotMatch(ui, /Package cover image upload will be available in Phase C/);
+  });
+
+  it("uploads through the signed ticket and refreshes only the Card 3 snapshot", () => {
+    assert.match(ui, /createPackageCoverUpload/);
+    assert.match(ui, /uploadToSignedUrl\(ticket\.path, ticket\.token, file\)/);
+    assert.match(ui, /\.from\("property-images"\)/);
+    assert.match(ui, /setPackageCoverImage/);
+    assert.match(ui, /removePackageCoverImage/);
+    assert.match(ui, /PACKAGE_COVER_CONTENT_TYPES/);
+    assert.match(ui, /PACKAGE_COVER_MAX_BYTES/);
+    assert.match(ui, /Use a JPG, PNG, or WebP image\./);
+    assert.match(ui, /Images must be 8 MB or smaller\./);
+    assert.match(ui, /\["pms-card3-meals", restaurantId\]/);
+    assert.match(ui, /coverImagePath: fresh\.coverImagePath/);
+    assert.match(ui, /coverUrl: fresh\.coverUrl/);
+    assert.doesNotMatch(ui, /cover_image_path:/);
+    assert.match(ui, /package-master-section-includes/);
+    assert.match(ui, /package-master-section-applicability/);
   });
 });

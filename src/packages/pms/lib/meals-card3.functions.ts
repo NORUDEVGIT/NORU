@@ -3,7 +3,13 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
+import {
+  IMAGE_EXT_BY_TYPE,
+  ROOM_BUCKET,
+  requireFrontOfficeAccess,
+  requireRoomManager,
+  signRoomImages,
+} from "./rooms.server";
 import {
   MEAL_PLAN_TYPES,
   PACKAGE_TYPES,
@@ -20,6 +26,11 @@ import {
   PACKAGE_TYPE_LABELS,
   TAX_POSTURE_LABELS,
   evaluateMealsCard3Readiness,
+  isOwnedPackageCoverPath,
+  packageCoverImagePath,
+  PACKAGE_COVER_CONTENT_TYPES,
+  PACKAGE_COVER_MAX_BYTES,
+  previousPackageCoverToRemove,
   type Card3FoServiceRef,
   type Card3RatePlanRef,
   type Card3RoomAmenityRef,
@@ -224,7 +235,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       .order("code"),
     db
       .from("pms_packages")
-      .select("id, code, name, type, description, package_price, active")
+      .select("id, code, name, type, description, package_price, active, cover_image_path")
       .eq("restaurant_id", restaurantId)
       .order("code"),
     db
@@ -266,7 +277,6 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
   for (const result of [
     restaurant,
     meals,
-    packages,
     roomMappings,
     components,
     roomTypes,
@@ -276,6 +286,19 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
   ]) {
     if (result.error) unavailable(result.error);
   }
+
+  let packageResult = packages;
+  if (
+    packages.error &&
+    (packages.error.code === "42703" || packages.error.code === "PGRST204")
+  ) {
+    packageResult = await db
+      .from("pms_packages")
+      .select("id, code, name, type, description, package_price, active")
+      .eq("restaurant_id", restaurantId)
+      .order("code");
+  }
+  if (packageResult.error) unavailable(packageResult.error);
 
   let rateMappingRows = rateMappings.data ?? [];
   if (rateMappings.error) {
@@ -316,9 +339,21 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     ratePlanLinksByPackage.set(String(row.package_id), list);
   }
 
-  const packageRows: PackageCard3Row[] = (packages.data ?? []).map((row: any) => {
+  const packageSource = packageResult.data ?? [];
+  const coverPaths = packageSource
+    .map((row: { cover_image_path?: string | null }) =>
+      typeof row.cover_image_path === "string" ? row.cover_image_path : "",
+    )
+    .filter((path: string) => path.length > 0);
+  const signedCovers = await signRoomImages(coverPaths);
+
+  const packageRows: PackageCard3Row[] = packageSource.map((row: any) => {
     const type = asPackageType(row.type);
     const ratePlanLinks = ratePlanLinksByPackage.get(row.id) ?? [];
+    const coverImagePath =
+      typeof row.cover_image_path === "string" && row.cover_image_path.trim()
+        ? row.cover_image_path
+        : null;
     return {
       id: row.id,
       code: String(row.code ?? "").toUpperCase(),
@@ -331,6 +366,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       roomTypeIds: roomTypeIdsByPackage.get(row.id) ?? [],
       ratePlanIds: ratePlanLinks.map((link) => link.ratePlanId),
       ratePlanLinks,
+      coverImagePath,
+      coverUrl: coverImagePath ? (signedCovers.get(coverImagePath) ?? null) : null,
     };
   });
 
@@ -680,4 +717,107 @@ export const deletePackageComponentCard3 = createServerFn({ method: "POST" })
     });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateMealsCard3Readiness(snapshot) };
+  });
+
+const packageCoverUploadSchema = z.object({
+  restaurantId: idSchema,
+  packageId: idSchema,
+  contentType: z.enum(PACKAGE_COVER_CONTENT_TYPES),
+  size: z.number().int().positive().max(PACKAGE_COVER_MAX_BYTES),
+});
+
+const packageCoverPathSchema = z.object({
+  restaurantId: idSchema,
+  packageId: idSchema,
+  storagePath: z.string().trim().min(1).max(500),
+});
+
+async function loadPackageCover(
+  db: DbClient,
+  restaurantId: string,
+  packageId: string,
+): Promise<{ id: string; cover_image_path: string | null }> {
+  const result = await db
+    .from("pms_packages")
+    .select("id, cover_image_path")
+    .eq("id", packageId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (result.error) unavailable(result.error);
+  if (!result.data) throw new Error("That package doesn't belong to this property.");
+  return result.data;
+}
+
+async function removeStoredCover(storagePath: string | null) {
+  if (!storagePath) return;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  await supabaseAdmin.storage.from(ROOM_BUCKET).remove([storagePath]);
+}
+
+/** Signed upload ticket only. Does not write cover_image_path. */
+export const createPackageCoverUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => packageCoverUploadSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    await requireOwnedRecord(
+      db,
+      "pms_packages",
+      data.restaurantId,
+      data.packageId,
+      "That package doesn't belong to this property.",
+    );
+    const ext = IMAGE_EXT_BY_TYPE[data.contentType];
+    if (!ext) return { ok: false as const, message: "Use a JPG, PNG, or WebP image." };
+    const path = packageCoverImagePath(data.restaurantId, data.packageId, ext);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from(ROOM_BUCKET)
+      .createSignedUploadUrl(path);
+    if (error || !signed) return { ok: false as const, message: "Could not start the upload." };
+    return { ok: true as const, path, token: signed.token };
+  });
+
+/** Registers an uploaded object as the package cover. Media only — not a package-field writer. */
+export const setPackageCoverImage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => packageCoverPathSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    if (!isOwnedPackageCoverPath(data.restaurantId, data.packageId, data.storagePath)) {
+      throw new Error("Invalid image reference.");
+    }
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const current = await loadPackageCover(db, data.restaurantId, data.packageId);
+    const updated = await db
+      .from("pms_packages")
+      .update({ cover_image_path: data.storagePath })
+      .eq("id", current.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (updated.error) unavailable(updated.error);
+    const previous = previousPackageCoverToRemove(current.cover_image_path, data.storagePath);
+    await removeStoredCover(previous);
+    return { ok: true as const };
+  });
+
+/** Clears the package cover path and deletes the stored object when one exists. */
+export const removePackageCoverImage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, packageId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const current = await loadPackageCover(db, data.restaurantId, data.packageId);
+    if (!current.cover_image_path) return { ok: true as const };
+    const updated = await db
+      .from("pms_packages")
+      .update({ cover_image_path: null })
+      .eq("id", current.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (updated.error) unavailable(updated.error);
+    await removeStoredCover(current.cover_image_path);
+    return { ok: true as const };
   });
