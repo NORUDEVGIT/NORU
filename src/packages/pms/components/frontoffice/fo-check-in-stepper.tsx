@@ -108,10 +108,6 @@ export function FoCheckInStepper({
     available: set1.data?.polish1?.paymentMethodsAvailable ?? false,
     methods: set1.data?.polish1?.paymentMethods ?? emptyPolish1Snapshot().paymentMethods,
   });
-  useEffect(() => {
-    if (!tenders.some((row) => row.code === depositMethod))
-      setDepositMethod(tenders[0]?.code ?? "");
-  }, [depositMethod, tenders]);
   const [step, setStep] = useState<CheckInStepId>(initialStep);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -142,6 +138,11 @@ export function FoCheckInStepper({
   const [keyId, setKeyId] = useState("");
   const [keyCount, setKeyCount] = useState(1);
   const [keyReason, setKeyReason] = useState("");
+
+  useEffect(() => {
+    if (!tenders.some((row) => row.code === depositMethod))
+      setDepositMethod(tenders[0]?.code ?? "");
+  }, [depositMethod, tenders]);
 
   const fetchContext = useServerFn(getCheckInContext);
   const fetchRooms = useServerFn(listAssignableRooms);

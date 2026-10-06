@@ -22,6 +22,10 @@ const ui = readFileSync(
   new URL("../components/settings/pms-property-setup-card3-meals.tsx", import.meta.url),
   "utf8",
 );
+const set3 = readFileSync(
+  new URL("../components/settings/pms-set3-section.tsx", import.meta.url),
+  "utf8",
+);
 
 function snapshot(partial?: Partial<MealsCard3Snapshot>): MealsCard3Snapshot {
   return {
@@ -152,7 +156,8 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
     assert.match(ui, /Card3OverlapSheet/);
     assert.match(ui, /Search meal plans/);
     assert.match(ui, /Search packages/);
-    assert.match(ui, /Search package components/);
+    // Phase B: "Search package components" is no longer a primary list search
+    assert.doesNotMatch(ui, /Search package components/);
     assert.match(ui, /Room types are inherited from Card 2/);
     assert.match(ui, /Rate plans are inherited from Phase 3/);
     assert.match(ui, /no reservation or\s+folio operational changes/);
@@ -160,7 +165,8 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
     assert.match(ui, /savePackageCard3/);
     assert.match(ui, /savePackageComponentCard3/);
     assert.match(ui, /deletePackageComponentCard3/);
-    assert.match(ui, /Filter components by package/);
+    // Phase B: "Filter components by package" is no longer a primary UI element
+    assert.doesNotMatch(ui, /Filter components by package/);
     assert.match(ui, /Package price \(\{currencyCode/);
     assert.match(ui, /focus-visible:ring-\[#C89933\]/);
   });
@@ -245,5 +251,69 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
     assert.doesNotMatch(sql, /INSERT INTO public\.pms_meal_plans/);
     assert.doesNotMatch(sql, /INSERT INTO public\.pms_packages/);
     assert.doesNotMatch(sql, /\breservation_id\b|\bfolio_id\b/);
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Phase B — Unified Package Master UI shell
+  // ────────────────────────────────────────────────────────────────────────────
+
+  it("Phase B: Package Master editor (Add / Edit flow) uses savePackageCard3 and has section structure", () => {
+    // The unified editor must be present in the meals UI file
+    assert.match(ui, /PackageMasterEditor/);
+    assert.match(ui, /package-master-editor/);
+    // Section 1: Basic Information — live fields
+    assert.match(ui, /package-master-section-basic/);
+    assert.match(ui, /pkg-master-code/);
+    assert.match(ui, /pkg-master-name/);
+    assert.match(ui, /pkg-master-type/);
+    assert.match(ui, /pkg-master-description/);
+    assert.match(ui, /pkg-master-active/);
+    // Section 2: Pricing — live
+    assert.match(ui, /package-master-section-pricing/);
+    assert.match(ui, /pkg-master-price/);
+    // Section 3–5: Placeholders for later phases
+    assert.match(ui, /package-master-section-includes/);
+    assert.match(ui, /package-master-section-applicability/);
+    assert.match(ui, /package-master-section-cover/);
+    // Writer: one and only one — savePackageCard3
+    assert.match(ui, /savePackageCard3/);
+  });
+
+  it("Phase B: old peer sections (Package rate plan types, Package components) are not primary UI", () => {
+    // These sections should not appear as top-level Card3ListSection titles
+    assert.doesNotMatch(ui, /title="Package rate plan types"/);
+    assert.doesNotMatch(ui, /title="Package components"/);
+    // Component functions are retained for Phase E (present in source)
+    assert.match(ui, /ComponentSheet/);
+    assert.match(ui, /savePackageComponentCard3/);
+    assert.match(ui, /deletePackageComponentCard3/);
+  });
+
+  it("Phase B: no duplicate package writer is exposed", () => {
+    // The canonical writer is savePackageCard3; savePmsPackage must not be
+    // called from the primary Add/Edit package flow in either file
+    assert.doesNotMatch(ui, /savePmsPackage/);
+    // savePmsPackage may still be imported in set3 (it is suppressed via void)
+    // but must NOT be wired to a mutation that calls it in the package path
+    assert.doesNotMatch(set3, /packageMutation\.mutate/);
+  });
+
+  it("Phase B: SET3 package editor is retired — redirect notice present, no Add Package button", () => {
+    assert.match(set3, /set3-packages-card3-redirect/);
+    // No Add package button in SET3
+    assert.doesNotMatch(set3, /Add package/);
+    // No active PackageDialog mount point
+    assert.doesNotMatch(set3, /open={packageOpen}/);
+    // No packageMutation call
+    assert.doesNotMatch(set3, /packageMutation/);
+  });
+
+  it("Phase B: no schema changes — no new migrations beyond 0072 and 0120", () => {
+    // Verify Phase B introduced no migration files
+    const drizzle0124 = join(
+      here,
+      "../../../../drizzle/migrations/0124_pms_package_master_phase_b.sql",
+    );
+    assert.equal(existsSync(drizzle0124), false, "Phase B must not introduce migration 0124");
   });
 });

@@ -134,14 +134,14 @@ export function PmsPropertySetupCard3Meals({
   const load = useServerFn(getMealsCard3);
   const saveMeal = useServerFn(saveMealPlanCard3);
   const savePackage = useServerFn(savePackageCard3);
+  // Component mutations retained for Phase E — not wired to primary UI in Phase B
   const saveComponent = useServerFn(savePackageComponentCard3);
   const deleteComponent = useServerFn(deletePackageComponentCard3);
   const [mealSearch, setMealSearch] = useState("");
   const [packageSearch, setPackageSearch] = useState("");
-  const [componentSearch, setComponentSearch] = useState("");
-  const [selectedPackageId, setSelectedPackageId] = useState("all");
   const [mealDraft, setMealDraft] = useState<MealPlanCard3Row | "new" | null>(null);
   const [packageDraft, setPackageDraft] = useState<PackageCard3Row | "new" | null>(null);
+  // componentDraft retained for Phase E
   const [componentDraft, setComponentDraft] = useState<PackageComponentCard3Row | "new" | null>(
     null,
   );
@@ -153,6 +153,7 @@ export function PmsPropertySetupCard3Meals({
   const snapshot: MealsCard3Snapshot | undefined = query.data?.snapshot;
   const mealPlans = useMemo(() => snapshot?.mealPlans ?? [], [snapshot?.mealPlans]);
   const packages = useMemo(() => snapshot?.packages ?? [], [snapshot?.packages]);
+  // components retained in scope for Phase E
   const components = useMemo(() => snapshot?.components ?? [], [snapshot?.components]);
 
   const roomTypeById = useMemo(
@@ -163,7 +164,6 @@ export function PmsPropertySetupCard3Meals({
     () => new Map((snapshot?.ratePlans ?? []).map((row) => [row.id, `${row.code} — ${row.name}`])),
     [snapshot?.ratePlans],
   );
-  const packageById = useMemo(() => new Map(packages.map((row) => [row.id, row])), [packages]);
   const filteredMeals = useMemo(
     () =>
       mealPlans.filter((row) =>
@@ -193,22 +193,6 @@ export function PmsPropertySetupCard3Meals({
       ),
     [packages, ratePlanById, roomTypeById, packageSearch],
   );
-  const filteredComponents = useMemo(
-    () =>
-      components.filter(
-        (row) =>
-          (selectedPackageId === "all" || row.packageId === selectedPackageId) &&
-          matchesQuery(
-            componentSearch,
-            packageById.get(row.packageId)?.code ?? "",
-            packageById.get(row.packageId)?.name ?? "",
-            row.kindLabel,
-            row.sourceLabel,
-            String(row.quantity),
-          ),
-      ),
-    [components, packageById, componentSearch, selectedPackageId],
-  );
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["pms-card3-meals", restaurantId] });
@@ -232,6 +216,7 @@ export function PmsPropertySetupCard3Meals({
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  // Component mutations retained for Phase E
   const componentMutation = useMutation({
     mutationFn: (input: ComponentInput) => saveComponent({ data: input }),
     onSuccess: () => {
@@ -251,6 +236,11 @@ export function PmsPropertySetupCard3Meals({
   });
 
   void CARD3_MEALS_TABS;
+  // Retain references so Phase E can wire them without re-adding imports
+  void components;
+  void componentDraft;
+  void componentMutation;
+  void deleteMutation;
 
   return (
     <PmsPropertySetupCard3Workspace domain={domain}>
@@ -269,6 +259,7 @@ export function PmsPropertySetupCard3Meals({
             folio operational changes.
           </Card3InheritedStrip>
 
+          {/* ── Meal Plans list ── */}
           <Card3ListSection
             title="Meal plans"
             icon="meal"
@@ -301,6 +292,11 @@ export function PmsPropertySetupCard3Meals({
             }))}
           />
 
+          {/* ── Package Master list — unified entry point (Phase B) ── */}
+          {/* "Package rate plan types" and "Package components" are retired as
+              peer primary lists. Their data is preserved in snapshot. They will
+              be nested inside this editor in Phase E (Includes) and Phase F
+              (Applicability). */}
           <Card3ListSection
             title="Packages"
             icon="tag"
@@ -313,11 +309,9 @@ export function PmsPropertySetupCard3Meals({
             columns={[
               "Code",
               "Name",
-              "Type",
+              "Type / Category",
               "Description",
               `Price (${snapshot.currencyCode || "currency"})`,
-              "Room types (Card 2)",
-              "Rate plans (Phase 3)",
               "Status",
             ]}
             empty="No packages saved yet."
@@ -329,87 +323,13 @@ export function PmsPropertySetupCard3Meals({
                 row.typeLabel,
                 row.description || "—",
                 `${snapshot.currencyCode} ${row.packagePrice}`.trim(),
-                row.roomTypeIds.map((id) => roomTypeById.get(id) ?? id).join(", ") ||
-                  "All / none assigned",
-                row.ratePlanLinks
-                  .map(
-                    (link) =>
-                      `${ratePlanById.get(link.ratePlanId) ?? link.ratePlanId} (${
-                        link.inclusionType === "included" ? "Included" : "Optional"
-                      })`,
-                  )
-                  .join(", ") || "All / none assigned",
                 <Card3StatusDot active={row.active} />,
               ],
               onEdit: () => setPackageDraft(row),
             }))}
           />
 
-          <Card3ListSection
-            title="Package rate plan types"
-            icon="tag"
-            search={packageSearch}
-            onSearch={setPackageSearch}
-            placeholder="Search package rate plan links"
-            canEdit={canEdit}
-            addLabel="Add package"
-            onAdd={() => setPackageDraft("new")}
-            columns={["Package", "Rate Plan", "Type"]}
-            empty="No package rate-plan links yet. Link a package to a rate plan and choose Included or Optional."
-            rows={filteredPackages.flatMap((row) =>
-              row.ratePlanLinks.map((link) => ({
-                id: `${row.id}-${link.ratePlanId}`,
-                cells: [
-                  row.name,
-                  ratePlanById.get(link.ratePlanId) ?? link.ratePlanId,
-                  link.inclusionType === "included" ? "Included" : "Optional",
-                ],
-                onEdit: () => setPackageDraft(row),
-              })),
-            )}
-          />
-
-          <div className="space-y-2">
-            <Label htmlFor="filter-components-package">Filter components by package</Label>
-            <Select value={selectedPackageId} onValueChange={setSelectedPackageId}>
-              <SelectTrigger id="filter-components-package" className={goldFocus}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All packages</SelectItem>
-                {packages.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.code} — {row.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Card3ListSection
-            title="Package components"
-            icon="service"
-            search={componentSearch}
-            onSearch={setComponentSearch}
-            placeholder="Search package components"
-            canEdit={canEdit}
-            addLabel="Add package component"
-            onAdd={() => setComponentDraft("new")}
-            columns={["Package", "Kind", "Existing source", "Quantity", "Sort order"]}
-            empty="No matching package components."
-            rows={filteredComponents.map((row) => ({
-              id: row.id,
-              cells: [
-                `${packageById.get(row.packageId)?.code ?? ""} — ${packageById.get(row.packageId)?.name ?? ""}`,
-                row.kindLabel,
-                row.sourceLabel,
-                String(row.quantity),
-                String(row.sortOrder),
-              ],
-              onEdit: () => setComponentDraft(row),
-              onDelete: () => deleteMutation.mutate(row.id),
-            }))}
-          />
-
+          {/* ── Editors ── */}
           <MealPlanSheet
             key={mealDraft === "new" ? "meal-new" : (mealDraft?.id ?? "meal-closed")}
             open={mealDraft !== null}
@@ -419,7 +339,10 @@ export function PmsPropertySetupCard3Meals({
             onClose={() => setMealDraft(null)}
             onSave={(payload) => mealMutation.mutate({ restaurantId, ...payload })}
           />
-          <PackageSheet
+
+          {/* Unified Package Master editor — replaces old PackageSheet.
+              Writer: savePackageCard3 (canonical). No second package writer. */}
+          <PackageMasterEditor
             key={packageDraft === "new" ? "package-new" : (packageDraft?.id ?? "package-closed")}
             open={packageDraft !== null}
             canEdit={canEdit}
@@ -430,21 +353,6 @@ export function PmsPropertySetupCard3Meals({
             pending={packageMutation.isPending}
             onClose={() => setPackageDraft(null)}
             onSave={(payload) => packageMutation.mutate({ restaurantId, ...payload })}
-          />
-          <ComponentSheet
-            key={
-              componentDraft === "new"
-                ? "component-new"
-                : (componentDraft?.id ?? "component-closed")
-            }
-            open={componentDraft !== null}
-            canEdit={canEdit}
-            snapshot={snapshot}
-            {...(selectedPackageId === "all" ? {} : { initialPackageId: selectedPackageId })}
-            value={componentDraft === "new" || componentDraft === null ? null : componentDraft}
-            pending={componentMutation.isPending}
-            onClose={() => setComponentDraft(null)}
-            onSave={(payload) => componentMutation.mutate({ restaurantId, ...payload })}
           />
         </div>
       )}
@@ -632,7 +540,22 @@ function MealPlanSheet({
   );
 }
 
-function PackageSheet({
+// ---------------------------------------------------------------------------
+// Package Master Editor — Phase B
+// ---------------------------------------------------------------------------
+// Section structure (see package-master-refactor-plan.md §4 Phase B):
+//   1. Basic Information  ← live (code, name, type/category, description, active)
+//   2. Pricing            ← live (package_price in property currency)
+//   3. Includes           ← placeholder — Phase E
+//   4. Applicability      ← placeholder — Phase F (room types + rate plans + inclusion_type)
+//   5. Cover Image        ← placeholder — Phase C
+//
+// Writer: savePackageCard3 (canonical). No second package writer created here.
+// Existing applicability state (roomTypeIds, ratePlanIds, ratePlanLinks) is
+// preserved on edit so live data is not clobbered before Phase F renders the UI.
+// ---------------------------------------------------------------------------
+
+function PackageMasterEditor({
   open,
   canEdit,
   currencyCode,
@@ -664,156 +587,205 @@ function PackageSheet({
     ratePlanLinks: { ratePlanId: string; inclusionType: PackageInclusionType }[];
   }) => void;
 }) {
+  // Section 1 — Basic Information
   const [code, setCode] = useState(value?.code ?? "");
   const [name, setName] = useState(value?.name ?? "");
   const [type, setType] = useState<PackageType>(value?.type ?? "accommodation");
   const [description, setDescription] = useState(value?.description ?? "");
-  const [price, setPrice] = useState(value?.packagePrice ?? 0);
   const [active, setActive] = useState(value?.active ?? true);
-  const [roomTypeIds, setRoomTypeIds] = useState(value?.roomTypeIds ?? []);
-  const [ratePlanIds, setRatePlanIds] = useState(value?.ratePlanIds ?? []);
-  const [inclusionByPlan, setInclusionByPlan] = useState<Record<string, PackageInclusionType>>(
-    Object.fromEntries(
-      (value?.ratePlanLinks ?? []).map((link) => [link.ratePlanId, link.inclusionType]),
-    ),
+
+  // Section 2 — Pricing
+  const [price, setPrice] = useState(value?.packagePrice ?? 0);
+
+  // Sections 3–4 state: retained from existing record so applicability links
+  // are not lost before Phase F wires the UI. Not rendered in Phase B.
+  const existingRoomTypeIds = value?.roomTypeIds ?? [];
+  const existingRatePlanIds = value?.ratePlanIds ?? [];
+  const existingRatePlanLinks = value?.ratePlanLinks ?? [];
+  const inclusionByPlan = Object.fromEntries(
+    existingRatePlanLinks.map((link) => [link.ratePlanId, link.inclusionType]),
   );
 
-  function toggle(
-    current: string[],
-    id: string,
-    checked: boolean,
-    setter: (ids: string[]) => void,
-  ) {
-    setter(checked ? [...new Set([...current, id])] : current.filter((row) => row !== id));
-  }
+  // Suppress unused Phase F prop warnings
+  void roomTypes;
+  void ratePlans;
 
   return (
     <Card3OverlapSheet
       open={open}
       onClose={onClose}
       title={value ? "Edit package" : "Add package"}
-      description="Applicability reuses Card 2 room types and Phase 3 rate plans."
+      description="Package Master — canonical package record."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save package"
       onSubmit={() => {
-        if (canEdit)
-          onSave({
-            ...(value ? { id: value.id } : {}),
-            code,
-            name,
-            type,
-            description,
-            packagePrice: price,
-            active,
-            roomTypeIds,
-            ratePlanIds,
-            ratePlanLinks: ratePlanIds.map((ratePlanId) => ({
-              ratePlanId,
-              inclusionType: inclusionByPlan[ratePlanId] ?? "optional",
-            })),
-          });
+        if (!canEdit) return;
+        onSave({
+          ...(value ? { id: value.id } : {}),
+          code,
+          name,
+          type,
+          description,
+          packagePrice: price,
+          active,
+          // Pass existing applicability through untouched until Phase F wires the UI
+          roomTypeIds: existingRoomTypeIds,
+          ratePlanIds: existingRatePlanIds,
+          ratePlanLinks: existingRatePlanIds.map((ratePlanId) => ({
+            ratePlanId,
+            inclusionType: inclusionByPlan[ratePlanId] ?? "optional",
+          })),
+        });
       }}
     >
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <Label htmlFor="package-code">Code</Label>
-          <Input
-            id="package-code"
-            value={code}
-            maxLength={20}
-            disabled={!canEdit}
-            className={goldFocus}
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-          />
+      <div className="space-y-4" data-testid="package-master-editor">
+        {/* ── Section 1: Basic Information ─────────────────────────────── */}
+        <div
+          className="space-y-3 rounded-xl border border-[#E6D7B8] bg-[#FDFAF5] px-4 py-3"
+          data-testid="package-master-section-basic"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#6B6458]">
+            1. Basic Information
+          </p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="pkg-master-code">Code</Label>
+              <Input
+                id="pkg-master-code"
+                value={code}
+                maxLength={20}
+                disabled={!canEdit}
+                className={goldFocus}
+                placeholder="e.g. WEEKEND"
+                onChange={(event) => setCode(event.target.value.toUpperCase())}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="pkg-master-name">Name</Label>
+              <Input
+                id="pkg-master-name"
+                value={name}
+                disabled={!canEdit}
+                className={goldFocus}
+                placeholder="e.g. Weekend Escape"
+                onChange={(event) => setName(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="pkg-master-type">Type / Category</Label>
+              <Select
+                value={type}
+                disabled={!canEdit}
+                onValueChange={(next) => setType(next as PackageType)}
+              >
+                <SelectTrigger id="pkg-master-type" className={goldFocus}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PACKAGE_TYPES.map((row) => (
+                    <SelectItem key={row} value={row}>
+                      {PACKAGE_TYPE_LABELS[row]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="pkg-master-description">Description</Label>
+              <Textarea
+                id="pkg-master-description"
+                value={description}
+                disabled={!canEdit}
+                className={goldFocus}
+                rows={3}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </div>
+            <ActiveField
+              id="pkg-master-active"
+              active={active}
+              canEdit={canEdit}
+              onChange={setActive}
+            />
+          </div>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="package-name">Name</Label>
-          <Input
-            id="package-name"
-            value={name}
-            disabled={!canEdit}
-            className={goldFocus}
-            onChange={(event) => setName(event.target.value)}
-          />
+
+        {/* ── Section 2: Pricing ────────────────────────────────────────── */}
+        <div
+          className="space-y-3 rounded-xl border border-[#E6D7B8] bg-[#FDFAF5] px-4 py-3"
+          data-testid="package-master-section-pricing"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#6B6458]">2. Pricing</p>
+          <div className="space-y-1">
+            <Label htmlFor="pkg-master-price">
+              Package price ({currencyCode || "property currency"})
+            </Label>
+            <Input
+              id="pkg-master-price"
+              type="number"
+              min={0}
+              step="any"
+              value={price}
+              disabled={!canEdit}
+              className={goldFocus}
+              onChange={(event) => setPrice(Number(event.target.value))}
+            />
+            <p className="text-xs text-muted-foreground">
+              Charge basis: per stay. Configurable charge basis (per night, per person, etc.) is
+              planned for Phase D.
+            </p>
+          </div>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="package-type">Type</Label>
-          <Select
-            value={type}
-            disabled={!canEdit}
-            onValueChange={(next) => setType(next as PackageType)}
-          >
-            <SelectTrigger id="package-type" className={goldFocus}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PACKAGE_TYPES.map((row) => (
-                <SelectItem key={row} value={row}>
-                  {PACKAGE_TYPE_LABELS[row]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+        {/* ── Section 3: Includes (placeholder — Phase E) ───────────────── */}
+        <div
+          className="space-y-1 rounded-xl border border-dashed border-[#CCCCCC] px-4 py-3"
+          data-testid="package-master-section-includes"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#9B9083]">
+            3. Includes
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Package component includes (meal plans, room amenities, front-office services) will be
+            managed here in Phase E.
+          </p>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="package-description">Description</Label>
-          <Textarea
-            id="package-description"
-            value={description}
-            disabled={!canEdit}
-            className={goldFocus}
-            onChange={(event) => setDescription(event.target.value)}
-          />
+
+        {/* ── Section 4: Applicability (placeholder — Phase F) ─────────── */}
+        <div
+          className="space-y-1 rounded-xl border border-dashed border-[#CCCCCC] px-4 py-3"
+          data-testid="package-master-section-applicability"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#9B9083]">
+            4. Applicability
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Room type and rate plan applicability (with included / optional per link) will be
+            configured here in Phase F. Existing applicability links are preserved on save.
+          </p>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="package-price">
-            Package price ({currencyCode || "property currency"})
-          </Label>
-          <Input
-            id="package-price"
-            type="number"
-            min={0}
-            step="any"
-            value={price}
-            disabled={!canEdit}
-            className={goldFocus}
-            onChange={(event) => setPrice(Number(event.target.value))}
-          />
+
+        {/* ── Section 5: Cover Image (placeholder — Phase C) ───────────── */}
+        <div
+          className="space-y-1 rounded-xl border border-dashed border-[#CCCCCC] px-4 py-3"
+          data-testid="package-master-section-cover"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#9B9083]">
+            5. Cover Image
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Package cover image upload will be available in Phase C.
+          </p>
         </div>
-        <ApplicabilityList
-          title="Room types (Card 2)"
-          prefix="package-room"
-          rows={roomTypes}
-          selected={roomTypeIds}
-          canEdit={canEdit}
-          onToggle={(id, checked) => toggle(roomTypeIds, id, checked, setRoomTypeIds)}
-        />
-        <RatePlanApplicabilityList
-          rows={ratePlans}
-          selected={ratePlanIds}
-          inclusionByPlan={inclusionByPlan}
-          canEdit={canEdit}
-          onToggle={(id, checked) => {
-            toggle(ratePlanIds, id, checked, setRatePlanIds);
-            setInclusionByPlan((current) => {
-              if (!checked) {
-                const next = { ...current };
-                delete next[id];
-                return next;
-              }
-              return { ...current, [id]: current[id] ?? "optional" };
-            });
-          }}
-          onInclusionChange={(id, inclusionType) =>
-            setInclusionByPlan((current) => ({ ...current, [id]: inclusionType }))
-          }
-        />
-        <ActiveField id="package-active" active={active} canEdit={canEdit} onChange={setActive} />
       </div>
     </Card3OverlapSheet>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Helpers retained for Phase E / Phase F wiring — not rendered in Phase B
+// ---------------------------------------------------------------------------
 
 function ApplicabilityList({
   title,
@@ -1104,3 +1076,9 @@ function ComponentSheet({
     </Card3OverlapSheet>
   );
 }
+
+// Tree-shake guard: these helpers are not rendered in Phase B but must not be
+// removed — they will be wired in Phase E and Phase F respectively.
+void ComponentSheet;
+void ApplicabilityList;
+void RatePlanApplicabilityList;

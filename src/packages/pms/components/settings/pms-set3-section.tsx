@@ -56,7 +56,6 @@ import {
   savePmsGuestProfileRules,
   savePmsGuestVipLevel,
   savePmsMealPlan,
-  savePmsPackage,
 } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
 import { WAVE4_SET3_FLAG_COPY } from "@/packages/pms/lib/guest-profile-wave4";
 import { PmsPreferenceOptionsEditor } from "@/packages/pms/components/settings/pms-preference-options-editor";
@@ -95,11 +94,8 @@ export function Set3RatesSection({
 }) {
   const queryClient = useQueryClient();
   const saveMeal = useServerFn(savePmsMealPlan);
-  const savePackage = useServerFn(savePmsPackage);
   const [mealOpen, setMealOpen] = useState(false);
-  const [packageOpen, setPackageOpen] = useState(false);
   const [editingMeal, setEditingMeal] = useState<PmsMealPlan | null>(null);
-  const [editingPackage, setEditingPackage] = useState<PmsPackage | null>(null);
 
   const mealMutation = useMutation({
     mutationFn: (input: {
@@ -120,22 +116,6 @@ export function Set3RatesSection({
     },
     onError: (error: Error) => toast.error(error.message),
   });
-  const packageMutation = useMutation({
-    mutationFn: (input: {
-      id?: string;
-      type: PackageType;
-      code: string;
-      name: string;
-      active: boolean;
-      inclusion: string[];
-    }) => savePackage({ data: { restaurantId, ...input } }),
-    onSuccess: () => {
-      toast.success("Package saved.");
-      setPackageOpen(false);
-      refreshSet3(queryClient, restaurantId);
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
 
   return (
     <section
@@ -147,8 +127,8 @@ export function Set3RatesSection({
         <div>
           <h2 className="font-display text-lg text-[#251605]">Rates &amp; meal plans</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Rate plan masters are configured in Property Setup. Meal and package catalogues are edited here.
-            Daily rates and restrictions stay in Rate &amp; Revenue.
+            Rate plan masters are configured in Property Setup. Meal and package catalogues are
+            edited here. Daily rates and restrictions stay in Rate &amp; Revenue.
           </p>
         </div>
         <ReadinessChip readiness={checklist.domains.rates.readiness} />
@@ -253,76 +233,52 @@ export function Set3RatesSection({
         )}
       </div>
 
+      {/* Phase B: Packages are now managed exclusively in Settings →
+          Financial & Commercial → Meal Plans & Packages (Package Master).
+          The SET3 PackageDialog and its writer (savePmsPackage) have been
+          retired. The underlying pms_packages table and data are unchanged. */}
       <div className="space-y-3 border-t border-border pt-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-medium text-[#251605]">Packages</h3>
-          {canEdit && snapshot.packagesAvailable ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setEditingPackage(null);
-                setPackageOpen(true);
-              }}
-            >
-              Add package
-            </Button>
-          ) : null}
         </div>
         {!snapshot.packagesAvailable ? (
           <p className="text-sm text-muted-foreground">{SET3_RATES_UNAVAILABLE}</p>
-        ) : snapshot.packages.length === 0 ? (
-          <p className="text-sm text-[#C89933]">{SET3_PACKAGES_WARNING}</p>
         ) : (
-          <ul className="space-y-2">
-            {snapshot.packages.map((row) => (
-              <li
-                key={row.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"
+          <>
+            {snapshot.packages.length === 0 ? (
+              <p className="text-sm text-[#C89933]">{SET3_PACKAGES_WARNING}</p>
+            ) : (
+              <ul className="space-y-2">
+                {snapshot.packages.map((row) => (
+                  <li
+                    key={row.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{row.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {[
+                          row.code,
+                          PACKAGE_TYPE_LABELS[row.type],
+                          row.active ? "Active" : "Inactive",
+                        ].join(" · ")}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs text-muted-foreground" data-testid="set3-packages-card3-redirect">
+              To add or edit packages, use{" "}
+              <a
+                href={SET3_RATES_HREF}
+                className="font-medium text-[#C89933] underline-offset-2 hover:underline"
               >
-                <div>
-                  <p className="text-sm font-medium">{row.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {[
-                      row.code,
-                      PACKAGE_TYPE_LABELS[row.type],
-                      row.active ? "Active" : "Inactive",
-                    ].join(" · ")}
-                  </p>
-                </div>
-                {canEdit ? (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setEditingPackage(row);
-                        setPackageOpen(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        packageMutation.mutate({
-                          id: row.id,
-                          type: row.type,
-                          code: row.code,
-                          name: row.name,
-                          active: !row.active,
-                          inclusion: row.inclusion,
-                        })
-                      }
-                    >
-                      {row.active ? "Deactivate" : "Reactivate"}
-                    </Button>
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+                Meal Plans &amp; Packages
+              </a>{" "}
+              in Financial &amp; Commercial settings.
+            </p>
+          </>
         )}
       </div>
 
@@ -332,13 +288,6 @@ export function Set3RatesSection({
         meal={editingMeal}
         saving={mealMutation.isPending}
         onSubmit={(values) => mealMutation.mutate(values)}
-      />
-      <PackageDialog
-        open={packageOpen}
-        onOpenChange={setPackageOpen}
-        row={editingPackage}
-        saving={packageMutation.isPending}
-        onSubmit={(values) => packageMutation.mutate(values)}
       />
     </section>
   );
@@ -479,115 +428,6 @@ function MealDialog({
                 chargeable: linesToList(chargeable),
                 applicableOutletIds: meal?.applicableOutletIds ?? [],
                 taxPosture,
-              })
-            }
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function PackageDialog({
-  open,
-  onOpenChange,
-  row,
-  saving,
-  onSubmit,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  row: PmsPackage | null;
-  saving: boolean;
-  onSubmit: (values: {
-    id?: string;
-    type: PackageType;
-    code: string;
-    name: string;
-    active: boolean;
-    inclusion: string[];
-  }) => void;
-}) {
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [type, setType] = useState<PackageType>("accommodation");
-  const [active, setActive] = useState(true);
-  const [inclusion, setInclusion] = useState("");
-  useEffect(() => {
-    if (!open) return;
-    setName(row?.name ?? "");
-    setCode(row?.code ?? "");
-    setType(row?.type ?? "accommodation");
-    setActive(row?.active ?? true);
-    setInclusion((row?.inclusion ?? []).join("\n"));
-  }, [open, row]);
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{row ? "Edit package" : "Add package"}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="set3-package-name">Name</Label>
-            <Input
-              id="set3-package-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="set3-package-code">Code</Label>
-              <Input
-                id="set3-package-code"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <Select value={type} onValueChange={(value) => setType(value as PackageType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PACKAGE_TYPES.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {PACKAGE_TYPE_LABELS[item]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="set3-package-inclusion">Inclusions (one per line)</Label>
-            <textarea
-              id="set3-package-inclusion"
-              className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={inclusion}
-              onChange={(event) => setInclusion(event.target.value)}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!name.trim() || !code.trim() || saving}
-            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-            onClick={() =>
-              onSubmit({
-                ...(row?.id ? { id: row.id } : {}),
-                name,
-                code,
-                type,
-                active,
-                inclusion: linesToList(inclusion),
               })
             }
           >
