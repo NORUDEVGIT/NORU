@@ -326,6 +326,138 @@ describe("Card 4 Settings field controls for Company creation", () => {
     assert.equal(detailsItemDone?.requiredRemaining, false);
     assert.equal(contactsItemDone?.requiredRemaining, false);
   });
+
+  it("strictly blocks advancing past Step 3 (Billing & Credit) when Card 4 required billing fields are missing", () => {
+    const fields = [
+      { id: "f-rule", code: "COMPANY_DEFAULT_BILLING_RULE", active: true },
+      { id: "f-pm", code: "COMPANY_SETTLEMENT_METHOD", active: true },
+      { id: "f-instr", code: "COMPANY_BILLING_INSTRUCTIONS", active: true },
+    ];
+    const profileType = {
+      id: "pt-company",
+      requiredFieldIds: ["f-rule", "f-pm", "f-instr"],
+    };
+    const rules = createCompanyFieldRules(fields, profileType, null);
+
+    const draft = filledDraft();
+    draft.paymentTiming = "due_on_arrival";
+    draft.defaultBillingRuleId = null;
+    draft.defaultPaymentMethodId = null;
+    draft.billingInstruction = "";
+
+    const issues = companyCreateFieldIssues(draft, { rules });
+    const billingIssues = issues.filter((i) => i.step === "billing");
+    assert.equal(billingIssues.length, 3, "Must produce 3 billing issues from Card 4 rules");
+
+    // Stepping into billing (step 3) is allowed since steps 1 & 2 are complete
+    const blockersBeforeBilling = issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "billing");
+    assert.equal(blockersBeforeBilling.length, 0);
+
+    // Stepping into contracts (step 4) is strictly blocked by billing issues!
+    const blockersBeforeContracts = issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "contracts");
+    assert.equal(blockersBeforeContracts.length, 3, "Missing billing fields must block advancing to contracts");
+
+    // Red highlight & error matching for Step 3 fields
+    assert.ok(matchCompanyFieldIssue(issues, "defaultBillingRuleId"));
+    assert.ok(matchCompanyFieldIssue(issues, "COMPANY_DEFAULT_BILLING_RULE"));
+    assert.ok(matchCompanyFieldIssue(issues, "defaultPaymentMethodId"));
+    assert.ok(matchCompanyFieldIssue(issues, "billingInstruction"));
+
+    // Filling the fields clears the blockers
+    draft.defaultBillingRuleId = "br-room-only";
+    draft.defaultPaymentMethodId = "pm-corp-card";
+    draft.billingInstruction = "Bill to corporate account";
+
+    const issuesResolved = companyCreateFieldIssues(draft, { rules });
+    const blockersResolved = issuesBeforeStep(issuesResolved, GUEST_COMPANY_CREATE_STEPS, "contracts");
+    assert.equal(blockersResolved.length, 0, "All billing blockers must clear once filled");
+  });
+
+  it("strictly blocks advancing past Step 4 (Contracts) to Review when Card 4 required contract fields are missing", () => {
+    const fields = [
+      { id: "f-cname", code: "COMPANY_CONTRACT_NAME", active: true },
+      { id: "f-ccode", code: "COMPANY_CONTRACT_CODE", active: true },
+      { id: "f-deposit", code: "COMPANY_CONTRACT_DEPOSIT_POLICY", active: true },
+      { id: "f-cancel", code: "COMPANY_CONTRACT_CANCEL_POLICY", active: true },
+    ];
+    const profileType = {
+      id: "pt-company",
+      requiredFieldIds: ["f-cname", "f-ccode", "f-deposit", "f-cancel"],
+    };
+    const rules = createCompanyFieldRules(fields, profileType, null);
+
+    const draft = filledDraft();
+    draft.defaultBillingRuleId = "br-room-only";
+    draft.paymentTiming = "due_on_arrival";
+    draft.contract.ratePlanScope = "all";
+    draft.contract.name = "";
+    draft.contract.code = "";
+    draft.contract.depositPolicyId = "none";
+    draft.contract.cancellationPolicyId = "none";
+
+    const issues = companyCreateFieldIssues(draft, { rules });
+    const contractIssues = issues.filter((i) => i.step === "contracts");
+    assert.equal(contractIssues.length, 4, "Must produce 4 contract issues from Card 4 rules");
+
+    // Stepping into contracts (step 4) is allowed since steps 1-3 have no gaps
+    const blockersBeforeContracts = issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "contracts");
+    assert.equal(blockersBeforeContracts.length, 0);
+
+    // Stepping into review (step 5) is strictly blocked!
+    const blockersBeforeReview = issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "review");
+    assert.equal(blockersBeforeReview.length, 4, "Missing contract fields must block advancing to review");
+
+    // Red highlight & error matching for Step 4 fields
+    assert.ok(matchCompanyFieldIssue(issues, "contractName"));
+    assert.ok(matchCompanyFieldIssue(issues, "COMPANY_CONTRACT_NAME"));
+    assert.ok(matchCompanyFieldIssue(issues, "contractCode"));
+    assert.ok(matchCompanyFieldIssue(issues, "depositPolicyId"));
+    assert.ok(matchCompanyFieldIssue(issues, "cancellationPolicyId"));
+
+    // Filling the contract fields clears all blockers
+    draft.contract.name = "Global Corp Master Agreement";
+    draft.contract.code = "AGR-2026-009";
+    draft.contract.depositPolicyId = "dep-policy-standard";
+    draft.contract.cancellationPolicyId = "cancel-policy-flexible";
+
+    const issuesResolved = companyCreateFieldIssues(draft, { rules });
+    const blockersResolved = issuesBeforeStep(issuesResolved, GUEST_COMPANY_CREATE_STEPS, "review");
+    assert.equal(blockersResolved.length, 0, "Advancing to review must be permitted once contracts are filled");
+  });
+
+  it("enforces credit limit and tax exemption rule requirements from Card 4 rules", () => {
+    const fields = [
+      { id: "f-credit-limit", code: "COMPANY_CREDIT_LIMIT", active: true },
+      { id: "f-tax-rule", code: "COMPANY_TAX_EXEMPTION_RULE", active: true },
+    ];
+    const profileType = {
+      id: "pt-company",
+      requiredFieldIds: ["f-credit-limit", "f-tax-rule"],
+    };
+    const rules = createCompanyFieldRules(fields, profileType, null);
+
+    const draft = filledDraft();
+    draft.defaultBillingRuleId = "br-room-only";
+    draft.paymentTiming = "due_on_arrival";
+    draft.creditAccountEnabled = false;
+    draft.creditLimitAmount = null;
+    draft.taxExempt = false;
+    draft.taxExemptionRuleId = null;
+
+    const issues = companyCreateFieldIssues(draft, { rules });
+    assert.ok(matchCompanyFieldIssue(issues, "creditLimitAmount"), "Credit limit must be flagged as required");
+    assert.ok(matchCompanyFieldIssue(issues, "taxExemptionRuleId"), "Tax exemption rule must be flagged as required");
+
+    // Enable and set credit + tax exemption
+    draft.creditAccountEnabled = true;
+    draft.creditStatus = "approved";
+    draft.creditLimitAmount = 50000;
+    draft.taxExempt = true;
+    draft.taxExemptionRuleId = "tax-exempt-ngo";
+
+    const issuesResolved = companyCreateFieldIssues(draft, { rules });
+    assert.equal(issuesResolved.filter((i) => i.step === "billing").length, 0);
+  });
 });
 
 describe("Company create honesty", () => {

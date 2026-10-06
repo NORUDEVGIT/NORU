@@ -1057,11 +1057,60 @@ export async function persistCompanyContract(
     description: contract.notes?.trim() || null,
   };
 
+  if (contract.cancellationPolicyId) {
+    try {
+      const exists = await db
+        .from("pms_cancellation_policies")
+        .select("id")
+        .eq("id", contract.cancellationPolicyId)
+        .maybeSingle();
+      if (!exists.data) {
+        const card2Policy = await db
+          .from("pms_rate_cancellation_policies")
+          .select("*")
+          .eq("id", contract.cancellationPolicyId)
+          .maybeSingle();
+        if (card2Policy.data) {
+          await db.from("pms_cancellation_policies").upsert(
+            {
+              id: card2Policy.data.id,
+              restaurant_id: card2Policy.data.restaurant_id,
+              code: card2Policy.data.code,
+              name: card2Policy.data.name,
+              description: card2Policy.data.description,
+              cutoff_hours: card2Policy.data.deadline_hours ?? 24,
+              penalty_type: "none",
+              penalty_value: card2Policy.data.penalty_value ?? 0,
+              active: true,
+            },
+            { onConflict: "restaurant_id,code" },
+          );
+        }
+      }
+    } catch {
+      // Non-blocking sync
+    }
+  }
+
   let agreementInsert = await db
     .from("pms_corporate_agreements")
     .insert(agreementPayload)
     .select("id")
     .single();
+
+  if (
+    agreementInsert.error &&
+    (agreementInsert.error.code === "23503" ||
+      agreementInsert.error.message?.includes("cancellation_policy") ||
+      agreementInsert.error.message?.includes("foreign key"))
+  ) {
+    const safePayload = { ...agreementPayload, cancellation_policy_id: null };
+    agreementInsert = await db
+      .from("pms_corporate_agreements")
+      .insert(safePayload)
+      .select("id")
+      .single();
+  }
 
   if (agreementInsert.error) {
     // If the live database does not have the extended columns yet, fallback seamlessly
@@ -1091,6 +1140,20 @@ export async function persistCompanyContract(
       .insert(fallbackPayload)
       .select("id")
       .single();
+
+    if (
+      agreementInsert.error &&
+      (agreementInsert.error.code === "23503" ||
+        agreementInsert.error.message?.includes("cancellation_policy") ||
+        agreementInsert.error.message?.includes("foreign key"))
+    ) {
+      const safeFallback = { ...fallbackPayload, cancellation_policy_id: null };
+      agreementInsert = await db
+        .from("pms_corporate_agreements")
+        .insert(safeFallback)
+        .select("id")
+        .single();
+    }
   }
 
   if (agreementInsert.error) {

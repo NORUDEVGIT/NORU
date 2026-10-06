@@ -19,13 +19,16 @@ import {
   CANCELLATION_WINDOW_UNITS,
   CARD2_RATES_AUDIT_SECTION,
   CARD2_RATES_UNAVAILABLE,
+  POLICY_PENALTY_TYPES,
   RATE_REFUNDABILITY_KINDS,
   evaluateRatesCard2Readiness,
   findMatchingPredefinedCategory,
   type Card2MealPlanRef,
   type Card2RoomTypeRef,
+  type PolicyPenaltyType,
   type RateCancellationPolicyRow,
   type RateCategoryRow,
+  type RateNoShowPolicyRow,
   type RatePlanRow,
   type RateRefundabilityKind,
   type RateRefundabilityRow,
@@ -132,6 +135,19 @@ const refundabilitySchema = z.object({
   active: z.boolean(),
 });
 
+const noShowPolicySchema = z.object({
+  restaurantId: idSchema,
+  id: idSchema.optional(),
+  code: setupCode,
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(500).nullable().optional(),
+  penaltyType: z.enum(POLICY_PENALTY_TYPES),
+  penaltyValue: z.number().min(0).max(10_000_000),
+  releaseHour: z.number().int().min(0).max(23),
+  isDefault: z.boolean(),
+  active: z.boolean(),
+});
+
 function unavailable(error: { code?: string; message?: string } | null): never {
   if (error?.code === "42P01" || error?.code === "PGRST205") {
     throw new Error(CARD2_RATES_UNAVAILABLE);
@@ -216,7 +232,7 @@ export async function loadRatesCard2Snapshot(
     "id, code, name, description, rate_category_id, room_type_id, currency, base_rate, valid_from, valid_to, active";
   const compositionPlanSelect = `${basePlanSelect}, meal_plan_id, cancellation_policy_id, refundability_id`;
 
-  const [types, categories, meals, cancellations, refundability, composedPlans] = await Promise.all([
+  const [types, categories, meals, cancellations, refundability, noShows, composedPlans, restaurant] = await Promise.all([
     db
       .from("room_types")
       .select("id, code, name, active")
@@ -245,10 +261,22 @@ export async function loadRatesCard2Snapshot(
       .eq("restaurant_id", restaurantId)
       .order("code"),
     db
+      .from("pms_no_show_policies")
+      .select(
+        "id, code, name, description, penalty_type, penalty_value, release_hour, is_default, active",
+      )
+      .eq("restaurant_id", restaurantId)
+      .order("code"),
+    db
       .from("hotel_rate_plans")
       .select(compositionPlanSelect)
       .eq("restaurant_id", restaurantId)
       .order("code"),
+    db
+      .from("restaurants")
+      .select("currency_code")
+      .eq("id", restaurantId)
+      .maybeSingle(),
   ]);
 
   for (const result of [types, categories]) {
@@ -296,6 +324,20 @@ export async function loadRatesCard2Snapshot(
           active: row.active !== false,
         };
       });
+
+  const noShowPolicies: RateNoShowPolicyRow[] = noShows.error
+    ? []
+    : (noShows.data ?? []).map((row: any) => ({
+        id: row.id,
+        code: String(row.code ?? "").toUpperCase(),
+        name: String(row.name ?? ""),
+        description: String(row.description ?? ""),
+        penaltyType: (row.penalty_type ?? "none") as PolicyPenaltyType,
+        penaltyValue: Number(row.penalty_value ?? 0),
+        releaseHour: Number(row.release_hour ?? 18),
+        isDefault: Boolean(row.is_default),
+        active: row.active !== false,
+      }));
 
   let planData = composedPlans.data;
   if (composedPlans.error) {
@@ -361,7 +403,9 @@ export async function loadRatesCard2Snapshot(
     mealPlans,
     cancellationPolicies,
     refundabilityCodes,
+    noShowPolicies,
     plans: planRows,
+    currencyCode: String((restaurant?.data as any)?.currency_code ?? "USD").toUpperCase(),
   };
 }
 
@@ -625,6 +669,47 @@ export const saveRateCancellationPolicyCard2 = createServerFn({ method: "POST" }
     await writeAudit(db, data.restaurantId, context.userId, "card2_rate_cancellation_saved", {
       detail: `${data.code} ${data.name}`,
     });
+
+    // Dual-write sync into pms_cancellation_policies to guarantee backward compatibility and prevent FK violations
+    try {
+      const mirrorPenalty: PolicyPenaltyType =
+        data.penaltyType === "percentage" || data.penaltyType === "percent"
+          ? "percent_stay"
+          : data.penaltyType === "fixed" || data.penaltyType === "fixed_amount"
+            ? "fixed_amount"
+            : data.penaltyType === "first_night" || data.penaltyType === "nights"
+              ? "first_night"
+              : data.penaltyType === "full_stay"
+                ? "full_stay"
+                : "none";
+      const savedRes = await db
+        .from("pms_rate_cancellation_policies")
+        .select("id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("code", data.code)
+        .maybeSingle();
+      const savedId = data.id || savedRes?.data?.id;
+      if (savedId) {
+        await db.from("pms_cancellation_policies").upsert(
+          {
+            id: savedId,
+            restaurant_id: data.restaurantId,
+            code: data.code,
+            name: data.name,
+            description: data.description?.trim() ? data.description.trim() : null,
+            cutoff_hours: payload.deadline_hours ?? 24,
+            penalty_type: mirrorPenalty,
+            penalty_value: payload.penalty_value,
+            refundable_before_cutoff: data.policyKind !== "non_refundable",
+            active: data.active,
+          },
+          { onConflict: "restaurant_id,code" },
+        );
+      }
+    } catch {
+      // Non-blocking sync
+    }
+
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
   });
@@ -654,6 +739,57 @@ export const saveRateRefundabilityCard2 = createServerFn({ method: "POST" })
     await writeAudit(db, data.restaurantId, context.userId, "card2_rate_refundability_saved", {
       detail: `${data.code} ${data.name}`,
     });
+    const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
+    return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
+  });
+
+export const saveRateNoShowPolicyCard2 = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => noShowPolicySchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+
+    // Default policy rule: If setting isDefault to true, unset any existing default first
+    if (data.isDefault) {
+      await db
+        .from("pms_no_show_policies")
+        .update({ is_default: false, updated_at: new Date().toISOString() })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("is_default", true);
+    }
+
+    const penaltyValue =
+      data.penaltyType === "none" || data.penaltyType === "first_night" || data.penaltyType === "full_stay"
+        ? 0
+        : data.penaltyValue;
+
+    const payload = {
+      restaurant_id: data.restaurantId,
+      code: data.code,
+      name: data.name,
+      description: data.description?.trim() ? data.description.trim() : null,
+      penalty_type: data.penaltyType,
+      penalty_value: penaltyValue,
+      release_hour: data.releaseHour,
+      is_default: data.isDefault,
+      active: data.active,
+    };
+
+    const result = data.id
+      ? await db
+          .from("pms_no_show_policies")
+          .update(payload)
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
+      : await db.from("pms_no_show_policies").insert(payload);
+
+    if (result.error) unavailable(result.error);
+
+    await writeAudit(db, data.restaurantId, context.userId, "card2_rate_no_show_saved", {
+      detail: `${data.code} ${data.name}`,
+    });
+
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
   });

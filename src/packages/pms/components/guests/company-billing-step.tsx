@@ -33,6 +33,7 @@ export interface CompanyBillingStepProps {
   fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
   isLoadingConfig?: boolean;
   required?: (code: string) => boolean;
+  isRuleRequired?: (code: string) => boolean;
   visible?: (code: string) => boolean;
 }
 
@@ -44,10 +45,12 @@ export function CompanyBillingStep({
   fieldError,
   isLoadingConfig = false,
   required,
+  isRuleRequired,
   visible,
 }: CompanyBillingStepProps) {
   const isReq = (code: string, fallback = false) => {
-    if (required) return required(code);
+    const fn = isRuleRequired || required;
+    if (fn) return fn(code);
     return fallback;
   };
   // Derive presets or custom for Credit Days
@@ -363,25 +366,30 @@ export function CompanyBillingStep({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2.5">
-            <Label htmlFor="allow-credit-switch" className="text-xs font-semibold text-[#251605] cursor-pointer">
-              {draft.creditAccountEnabled ? "Credit Enabled" : "Allow Credit"} {isReq("COMPANY_CREDIT_FACILITY", false) && <span className="text-destructive">*</span>}
-            </Label>
-            <Switch
-              id="allow-credit-switch"
-              checked={draft.creditAccountEnabled}
-              disabled={creditAllowed === false}
-              onCheckedChange={(checked) => {
-                set("creditAccountEnabled", checked);
-                if (checked && !draft.creditStatus) {
-                  set("creditStatus", "pending_approval");
-                }
-                if (checked && (draft.creditDays === null || draft.creditDays === undefined)) {
-                  set("creditDays", 30);
-                }
-              }}
-              data-testid="allow-credit-switch"
-            />
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2.5">
+              <Label htmlFor="allow-credit-switch" className="text-xs font-semibold text-[#251605] cursor-pointer">
+                {draft.creditAccountEnabled ? "Credit Enabled" : "Allow Credit"} {isReq("COMPANY_CREDIT_FACILITY", false) && <span className="text-destructive">*</span>}
+              </Label>
+              <Switch
+                id="allow-credit-switch"
+                checked={draft.creditAccountEnabled}
+                disabled={creditAllowed === false}
+                onCheckedChange={(checked) => {
+                  set("creditAccountEnabled", checked);
+                  if (checked && !draft.creditStatus) {
+                    set("creditStatus", "pending_approval");
+                  }
+                  if (checked && (draft.creditDays === null || draft.creditDays === undefined)) {
+                    set("creditDays", 30);
+                  }
+                }}
+                data-testid="allow-credit-switch"
+              />
+            </div>
+            {fieldError("creditAccountEnabled", "billing") && (
+              <p className="text-[11px] text-destructive">{fieldError("creditAccountEnabled", "billing")}</p>
+            )}
           </div>
         </div>
 
@@ -501,7 +509,7 @@ export function CompanyBillingStep({
             {/* Credit Status * */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-[#251605]">
-                Credit Status {(isReq("COMPANY_CREDIT_STATUS", true)) && <span className="text-destructive">*</span>}
+                Credit Status {(isReq("COMPANY_CREDIT_STATUS", Boolean(draft.creditAccountEnabled))) && <span className="text-destructive">*</span>}
               </Label>
               <Select
                 value={draft.creditStatus ?? "pending_approval"}
@@ -554,21 +562,26 @@ export function CompanyBillingStep({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2.5">
-            <Label htmlFor="tax-exempt-switch" className="text-xs font-semibold text-[#251605] cursor-pointer">
-              {draft.taxExempt ? "Tax Exempt" : "Standard (Non-Exempt)"} {isReq("COMPANY_TAX_EXEMPTION", false) && <span className="text-destructive">*</span>}
-            </Label>
-            <Switch
-              id="tax-exempt-switch"
-              checked={draft.taxExempt}
-              onCheckedChange={(checked) => {
-                set("taxExempt", checked);
-                if (checked && !draft.taxExemptionRuleId && (config?.taxExemptionRules?.length ?? 0) > 0) {
-                  set("taxExemptionRuleId", config!.taxExemptionRules[0].id);
-                }
-              }}
-              data-testid="tax-exempt-switch"
-            />
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2.5">
+              <Label htmlFor="tax-exempt-switch" className="text-xs font-semibold text-[#251605] cursor-pointer">
+                {draft.taxExempt ? "Tax Exempt" : "Standard (Non-Exempt)"} {isReq("COMPANY_TAX_EXEMPTION", false) && <span className="text-destructive">*</span>}
+              </Label>
+              <Switch
+                id="tax-exempt-switch"
+                checked={draft.taxExempt}
+                onCheckedChange={(checked) => {
+                  set("taxExempt", checked);
+                  if (checked && !draft.taxExemptionRuleId && (config?.taxExemptionRules?.length ?? 0) > 0) {
+                    set("taxExemptionRuleId", config!.taxExemptionRules[0].id);
+                  }
+                }}
+                data-testid="tax-exempt-switch"
+              />
+            </div>
+            {fieldError("taxExempt", "billing") && (
+              <p className="text-[11px] text-destructive">{fieldError("taxExempt", "billing")}</p>
+            )}
           </div>
         </div>
 
@@ -577,7 +590,7 @@ export function CompanyBillingStep({
             {/* Exemption Rule * */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-[#251605]">
-                Exemption Rule {(isReq("COMPANY_TAX_EXEMPTION_RULE", true)) && <span className="text-destructive">*</span>}
+                Exemption Rule {(isReq("COMPANY_TAX_EXEMPTION_RULE", Boolean(draft.taxExempt))) && <span className="text-destructive">*</span>}
               </Label>
               <Select
                 value={draft.taxExemptionRuleId ?? ""}

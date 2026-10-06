@@ -189,39 +189,90 @@ export const listPmsCancellationPolicies = createServerFn({ method: "POST" })
     const db: DbClient = context.supabase;
 
     let query = db
-      .from("pms_cancellation_policies")
-      .select("id, restaurant_id, code, name, description, cutoff_hours, penalty_type, penalty_value, refundable_before_cutoff, is_default, active, created_at, updated_at")
+      .from("pms_rate_cancellation_policies")
+      .select("id, restaurant_id, code, name, description, policy_kind, window_value, window_unit, cutoff_time, penalty_type, penalty_value, deadline_hours, active, created_at, updated_at")
       .eq("restaurant_id", data.restaurantId)
-      .order("is_default", { ascending: false })
       .order("name", { ascending: true });
 
     if (data.activeOnly) {
       query = query.eq("active", true);
     }
 
-    const { data: rows, error } = await query;
-    if (error) {
-      if (error.code === "42P01" || error.message?.includes("pms_cancellation_policies")) {
+    let { data: rows, error } = await query;
+    if (error || !rows?.length) {
+      const fallbackQuery = db
+        .from("pms_cancellation_policies")
+        .select("id, restaurant_id, code, name, description, cutoff_hours, penalty_type, penalty_value, refundable_before_cutoff, is_default, active, created_at, updated_at")
+        .eq("restaurant_id", data.restaurantId)
+        .order("is_default", { ascending: false })
+        .order("name", { ascending: true });
+      const fallbackRes = data.activeOnly ? await fallbackQuery.eq("active", true) : await fallbackQuery;
+      if (fallbackRes.data?.length) {
+        return (fallbackRes.data as any[]).map((r) => ({
+          id: r.id,
+          restaurantId: r.restaurant_id,
+          code: r.code,
+          name: r.name,
+          description: r.description ?? null,
+          cutoffHours: Number(r.cutoff_hours ?? 24),
+          penaltyType: r.penalty_type,
+          penaltyValue: Number(r.penalty_value ?? 0),
+          refundableBeforeCutoff: Boolean(r.refundable_before_cutoff),
+          isDefault: Boolean(r.is_default),
+          active: Boolean(r.active),
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+        }));
+      }
+      if (error && error.code !== "42P01") {
         return [];
       }
-      throw new Error(`Failed to load cancellation policies: ${error.message}`);
     }
 
-    return (rows ?? []).map((r: any) => ({
-      id: r.id,
-      restaurantId: r.restaurant_id,
-      code: r.code,
-      name: r.name,
-      description: r.description ?? null,
-      cutoffHours: Number(r.cutoff_hours ?? 24),
-      penaltyType: r.penalty_type,
-      penaltyValue: Number(r.penalty_value ?? 0),
-      refundableBeforeCutoff: Boolean(r.refundable_before_cutoff),
-      isDefault: Boolean(r.is_default),
-      active: Boolean(r.active),
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-    }));
+    return (rows ?? []).map((r: any) => {
+      const policyKind = r.policy_kind || "flexible";
+      const windowUnit = r.window_unit || "hours_before_arrival";
+      const windowValue = r.window_value != null ? Number(r.window_value) : null;
+      const cutoffHours = r.cutoff_hours != null
+        ? Number(r.cutoff_hours)
+        : r.deadline_hours != null
+          ? Number(r.deadline_hours)
+          : windowUnit === "days_before_arrival" && windowValue != null
+            ? windowValue * 24
+            : windowValue != null
+              ? windowValue
+              : (policyKind === "non_refundable" ? 0 : 24);
+
+      const rawPenalty = String(r.penalty_type ?? "none").toLowerCase();
+      const penaltyType: PolicyPenaltyType =
+        rawPenalty === "percentage" || rawPenalty === "percent" || rawPenalty === "percent_stay"
+          ? "percent_stay"
+          : rawPenalty === "fixed" || rawPenalty === "fixed_amount"
+            ? "fixed_amount"
+            : rawPenalty === "first_night" || rawPenalty === "nights"
+              ? "first_night"
+              : rawPenalty === "full_stay"
+                ? "full_stay"
+                : "none";
+
+      return {
+        id: r.id,
+        restaurantId: r.restaurant_id,
+        code: r.code,
+        name: r.name,
+        description: r.description ?? null,
+        cutoffHours,
+        penaltyType,
+        penaltyValue: Number(r.penalty_value ?? 0),
+        refundableBeforeCutoff: r.refundable_before_cutoff !== undefined
+          ? Boolean(r.refundable_before_cutoff)
+          : policyKind !== "non_refundable",
+        isDefault: Boolean(r.is_default),
+        active: Boolean(r.active),
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      };
+    });
   });
 
 export const savePmsCancellationPolicy = createServerFn({ method: "POST" })
@@ -913,14 +964,26 @@ export const getCompanyContractCreateConfig = createServerFn({ method: "POST" })
       .order("is_default", { ascending: false })
       .order("name", { ascending: true });
 
-    // Load active cancellation policies
-    const cancellationPoliciesRes = await db
-      .from("pms_cancellation_policies")
-      .select("id, code, name, cutoff_hours, penalty_type, penalty_value, refundable_before_cutoff, is_default, active, description")
+    // Load active cancellation policies from Card 2 rates catalogue
+    let cancellationPoliciesRes = await db
+      .from("pms_rate_cancellation_policies")
+      .select("id, code, name, description, policy_kind, window_value, window_unit, deadline_hours, penalty_type, penalty_value, active")
       .eq("restaurant_id", restaurantId)
       .eq("active", true)
-      .order("is_default", { ascending: false })
       .order("name", { ascending: true });
+
+    if (cancellationPoliciesRes.error || !cancellationPoliciesRes.data?.length) {
+      const fallback = await db
+        .from("pms_cancellation_policies")
+        .select("id, code, name, cutoff_hours, penalty_type, penalty_value, refundable_before_cutoff, is_default, active, description")
+        .eq("restaurant_id", restaurantId)
+        .eq("active", true)
+        .order("is_default", { ascending: false })
+        .order("name", { ascending: true });
+      if (!fallback.error && fallback.data?.length) {
+        cancellationPoliciesRes = fallback;
+      }
+    }
 
     // Load active no-show policies
     const noShowPoliciesRes = await db
@@ -996,18 +1059,47 @@ export const getCompanyContractCreateConfig = createServerFn({ method: "POST" })
         active: Boolean(dp.active),
         description: dp.description ?? null,
       })),
-      cancellationPolicies: (cancellationPoliciesRes.data ?? []).map((cp: any) => ({
-        id: cp.id,
-        code: cp.code,
-        name: cp.name,
-        cutoffHours: Number(cp.cutoff_hours ?? 24),
-        penaltyType: cp.penalty_type,
-        penaltyValue: Number(cp.penalty_value ?? 0),
-        refundableBeforeCutoff: Boolean(cp.refundable_before_cutoff),
-        isDefault: Boolean(cp.is_default),
-        active: Boolean(cp.active),
-        description: cp.description ?? null,
-      })),
+      cancellationPolicies: (cancellationPoliciesRes.data ?? []).map((cp: any) => {
+        const policyKind = cp.policy_kind || "flexible";
+        const windowUnit = cp.window_unit || "hours_before_arrival";
+        const windowValue = cp.window_value != null ? Number(cp.window_value) : null;
+        const cutoffHours = cp.cutoff_hours != null
+          ? Number(cp.cutoff_hours)
+          : cp.deadline_hours != null
+            ? Number(cp.deadline_hours)
+            : windowUnit === "days_before_arrival" && windowValue != null
+              ? windowValue * 24
+              : windowValue != null
+                ? windowValue
+                : (policyKind === "non_refundable" ? 0 : 24);
+
+        const rawPenalty = String(cp.penalty_type ?? "none").toLowerCase();
+        const penaltyType: PolicyPenaltyType =
+          rawPenalty === "percentage" || rawPenalty === "percent" || rawPenalty === "percent_stay"
+            ? "percent_stay"
+            : rawPenalty === "fixed" || rawPenalty === "fixed_amount"
+              ? "fixed_amount"
+              : rawPenalty === "first_night" || rawPenalty === "nights"
+                ? "first_night"
+                : rawPenalty === "full_stay"
+                  ? "full_stay"
+                  : "none";
+
+        return {
+          id: cp.id,
+          code: cp.code,
+          name: cp.name,
+          cutoffHours,
+          penaltyType,
+          penaltyValue: Number(cp.penalty_value ?? 0),
+          refundableBeforeCutoff: cp.refundable_before_cutoff !== undefined
+            ? Boolean(cp.refundable_before_cutoff)
+            : policyKind !== "non_refundable",
+          isDefault: Boolean(cp.is_default),
+          active: Boolean(cp.active),
+          description: cp.description ?? null,
+        };
+      }),
       noShowPolicies: (noShowPoliciesRes.data ?? []).map((nsp: any) => ({
         id: nsp.id,
         code: nsp.code,

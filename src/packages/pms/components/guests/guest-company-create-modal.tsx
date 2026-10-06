@@ -85,6 +85,8 @@ import {
   emptyAccountCreateContact,
   emptyGuestCompanyCreateDraft,
   FIELD_CODE_BY_COMPANY_PROP,
+  FIELD_CODES_BY_COMPANY_PROP,
+  FIELD_ALIASES_MAP,
   matchCompanyFieldIssue,
   filled,
   guestCompanyCreateCompletion,
@@ -397,16 +399,48 @@ export function GuestCompanyCreateModal({
     [context.data?.fields, context.data?.profileType, selectedType],
   );
 
-  const visible = (code: string) => {
+  const resolveRule = (code: string) => {
+    if (!code) return undefined;
     const c = code.toUpperCase();
+    const stripped = c.startsWith("COMPANY_") ? c.slice(8) : c;
     const canonical = c.startsWith("COMPANY_") ? c : `COMPANY_${c}`;
-    const r = rules.find((item) => item.code.toUpperCase() === canonical || item.code.toUpperCase() === c);
+
+    const propAliases = FIELD_CODES_BY_COMPANY_PROP[code] ?? [];
+    const singleMapped = FIELD_CODE_BY_COMPANY_PROP[code];
+    const mapList = FIELD_ALIASES_MAP[c] ?? FIELD_ALIASES_MAP[canonical] ?? [];
+
+    const candidates = new Set<string>([
+      c,
+      canonical,
+      stripped,
+      ...(singleMapped ? [singleMapped.toUpperCase()] : []),
+      ...propAliases.map((a) => a.toUpperCase()),
+      ...mapList.map((a) => a.toUpperCase()),
+    ]);
+
+    for (const [prop, codes] of Object.entries(FIELD_CODES_BY_COMPANY_PROP)) {
+      if (
+        codes.some(
+          (alias) =>
+            alias.toUpperCase() === c ||
+            alias.toUpperCase() === canonical ||
+            alias.toUpperCase() === stripped,
+        )
+      ) {
+        candidates.add(prop.toUpperCase());
+        for (const alias of codes) candidates.add(alias.toUpperCase());
+      }
+    }
+
+    return rules.find((item) => candidates.has(item.code.toUpperCase()));
+  };
+
+  const visible = (code: string) => {
+    const r = resolveRule(code);
     return r ? r.visible !== false : true;
   };
   const required = (code: string) => {
-    const c = code.toUpperCase();
-    const canonical = c.startsWith("COMPANY_") ? c : `COMPANY_${c}`;
-    const r = rules.find((item) => item.code.toUpperCase() === canonical || item.code.toUpperCase() === c);
+    const r = resolveRule(code);
     return Boolean(r?.required);
   };
 
@@ -860,6 +894,7 @@ export function GuestCompanyCreateModal({
                   fieldError={fieldError}
                   isLoadingConfig={billingCreditConfig.isLoading}
                   required={required}
+                  isRuleRequired={required}
                   visible={visible}
                 />
               ) : null}
@@ -874,6 +909,7 @@ export function GuestCompanyCreateModal({
                   configError={contractConfig.error instanceof Error ? contractConfig.error.message : null}
                   fieldError={fieldError}
                   required={required}
+                  isRuleRequired={required}
                   visible={visible}
                 />
               ) : null}

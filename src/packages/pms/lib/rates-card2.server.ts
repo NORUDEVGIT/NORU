@@ -125,13 +125,34 @@ export type RatePlanRow = {
   active: boolean;
 };
 
+export {
+  POLICY_PENALTY_TYPES,
+  POLICY_PENALTY_TYPE_LABELS,
+  buildNoShowPolicyPreview,
+  type PolicyPenaltyType,
+} from "./corporate-contracts.server";
+
+export type RateNoShowPolicyRow = {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  penaltyType: import("./corporate-contracts.server").PolicyPenaltyType;
+  penaltyValue: number;
+  releaseHour: number;
+  isDefault: boolean;
+  active: boolean;
+};
+
 export type RatesCard2Snapshot = {
   roomTypes: Card2RoomTypeRef[];
   categories: RateCategoryRow[];
   mealPlans: Card2MealPlanRef[];
   cancellationPolicies: RateCancellationPolicyRow[];
   refundabilityCodes: RateRefundabilityRow[];
+  noShowPolicies: RateNoShowPolicyRow[];
   plans: RatePlanRow[];
+  currencyCode?: string;
 };
 
 export type RatesCard2Readiness = {

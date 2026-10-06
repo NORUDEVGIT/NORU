@@ -850,101 +850,158 @@ export function card4CompanyCreateGaps(
   const gaps: Array<{ code: string; label: string; step: GuestCompanyCreateStepId }> = [];
   const byCode = new Map(rules.map((rule) => [rule.code.toUpperCase(), rule]));
 
-  const need = (codes: string[], ok: boolean, step: GuestCompanyCreateStepId) => {
+  const need = (codes: string[], ok: boolean, step: GuestCompanyCreateStepId, customKey?: string) => {
     for (const code of codes) {
       const rule = byCode.get(code.toUpperCase());
       if (rule?.required && !ok) {
-        gaps.push({ code: codes[codes.length - 1], label: rule.label, step });
+        gaps.push({ code: customKey || (codes.includes(rule.code) ? rule.code : codes[0]), label: rule.label, step });
         break;
       }
     }
   };
 
   // Step 1: Company Information (details)
-  need(["COMPANY_NAME"], filled(draft.name), "details");
-  need(["COMPANY_TYPE"], filled(draft.businessProfileTypeId), "details");
-  need(["COMPANY_CODE"], filled(draft.code), "details");
-  need(["COMPANY_ACCOUNT_STATUS", "ACCOUNT_STATUS"], filled(draft.accountStatus), "details");
-  need(["COMPANY_TAX_ID", "TAX_ID"], filled(draft.taxId), "details");
-  need(["COMPANY_REGISTRATION_NUMBER", "REGISTRATION_NUMBER"], filled(draft.registrationNumber), "details");
-  need(["COMPANY_INDUSTRY", "INDUSTRY"], filled(draft.industry), "details");
-  need(["COMPANY_WEBSITE", "WEBSITE"], filled(draft.website), "details");
-  need(["COMPANY_NOTES", "NOTES"], filled(draft.notes), "details");
+  need(["COMPANY_NAME", "NAME"], filled(draft.name), "details", "name");
+  need(["COMPANY_TYPE", "TYPE", "BUSINESS_PROFILE_TYPE_ID"], filled(draft.businessProfileTypeId), "details", "businessProfileTypeId");
+  need(["COMPANY_CODE", "CODE"], filled(draft.code), "details", "code");
+  need(["COMPANY_ACCOUNT_STATUS", "ACCOUNT_STATUS"], filled(draft.accountStatus), "details", "accountStatus");
+  need(["COMPANY_TAX_ID", "TAX_ID", "TIN"], filled(draft.taxId), "details", "TAX_ID");
+  need(["COMPANY_REGISTRATION_NUMBER", "REGISTRATION_NUMBER"], filled(draft.registrationNumber), "details", "registrationNumber");
+  need(["COMPANY_INDUSTRY", "INDUSTRY"], filled(draft.industry), "details", "industry");
+  need(["COMPANY_WEBSITE", "WEBSITE"], filled(draft.website), "details", "website");
+  need(["COMPANY_NOTES", "NOTES"], filled(draft.notes), "details", "notes");
 
-  need(["COMPANY_COUNTRY", "COUNTRY"], filled(draft.country), "details");
-  need(["COMPANY_REGION", "REGION"], filled(draft.region), "details");
-  need(["COMPANY_CITY", "CITY"], filled(draft.city), "details");
-  need(["COMPANY_ADDRESS_LINE1", "ADDRESS_LINE1"], filled(draft.addressLine1), "details");
-  need(["COMPANY_ADDRESS_LINE2", "ADDRESS_LINE2"], filled(draft.addressLine2), "details");
-  need(["COMPANY_POSTAL_CODE", "POSTAL_CODE"], filled(draft.postalCode), "details");
+  need(["COMPANY_COUNTRY", "COUNTRY"], filled(draft.country), "details", "country");
+  need(["COMPANY_REGION", "REGION", "STATE"], filled(draft.region), "details", "region");
+  need(["COMPANY_CITY", "CITY"], filled(draft.city), "details", "CITY");
+  need(["COMPANY_ADDRESS_LINE1", "ADDRESS_LINE1"], filled(draft.addressLine1), "details", "addressLine1");
+  need(["COMPANY_ADDRESS_LINE2", "ADDRESS_LINE2"], filled(draft.addressLine2), "details", "addressLine2");
+  need(["COMPANY_POSTAL_CODE", "POSTAL_CODE", "ZIP"], filled(draft.postalCode), "details", "postalCode");
 
   // Step 2: Contacts
-  need(["COMPANY_CONTACT_NAME", "CONTACT_NAME"], draft.contacts.some((c) => filled(c.name)), "contacts");
-  need(["COMPANY_CONTACT_POSITION", "CONTACT_POSITION"], draft.contacts.some((c) => filled(c.position)), "contacts");
-  need(["COMPANY_CONTACT_EMAIL", "CONTACT_EMAIL"], draft.contacts.some((c) => filled(c.email)), "contacts");
-  need(["COMPANY_CONTACT_PHONE", "CONTACT_PHONE"], draft.contacts.some((c) => filled(c.phone)), "contacts");
-  need(["COMPANY_CONTACT_WHATSAPP", "CONTACT_WHATSAPP"], draft.contacts.some((c) => filled(c.whatsapp)), "contacts");
-  need(["COMPANY_CONTACT_PREFERRED_METHOD", "CONTACT_PREFERRED_METHOD"], draft.contacts.some((c) => filled(c.preferredMethod)), "contacts");
-  need(["COMPANY_CONTACT_ROLE", "CONTACT_ROLE"], draft.contacts.some((c) => Array.isArray(c.roleIds) && c.roleIds.length > 0), "contacts");
+  const hasContacts = draft.contacts.length > 0;
+  need(["COMPANY_CONTACT_NAME", "CONTACT_NAME"], hasContacts && draft.contacts.some((c) => filled(c.name)), "contacts", "contactName");
+  need(["COMPANY_CONTACT_POSITION", "CONTACT_POSITION"], hasContacts && draft.contacts.some((c) => filled(c.position)), "contacts", "contactPosition");
+  need(["COMPANY_CONTACT_EMAIL", "CONTACT_EMAIL"], hasContacts && draft.contacts.some((c) => filled(c.email)), "contacts", "contactEmail");
+  need(["COMPANY_CONTACT_PHONE", "CONTACT_PHONE"], hasContacts && draft.contacts.some((c) => filled(c.phone)), "contacts", "CONTACT_PHONE");
+  need(["COMPANY_CONTACT_WHATSAPP", "CONTACT_WHATSAPP"], hasContacts && draft.contacts.some((c) => filled(c.whatsapp)), "contacts", "contactWhatsapp");
+  need(["COMPANY_CONTACT_PREFERRED_METHOD", "CONTACT_PREFERRED_METHOD"], hasContacts && draft.contacts.some((c) => filled(c.preferredMethod)), "contacts", "contactPreferredMethod");
+  need(["COMPANY_CONTACT_ROLE", "CONTACT_ROLE"], hasContacts && draft.contacts.some((c) => Array.isArray(c.roleIds) && c.roleIds.length > 0), "contacts", "contactRole");
+
+  const isContactReq = (code: string) => {
+    const upper = code.toUpperCase();
+    const canonical = upper.startsWith("COMPANY_") ? upper : `COMPANY_${upper}`;
+    const stripped = upper.startsWith("COMPANY_") ? upper.replace(/^COMPANY_/, "") : upper;
+    return Boolean(byCode.get(canonical)?.required || byCode.get(stripped)?.required || byCode.get(upper)?.required);
+  };
+
+  // Check required fields on any contacts that are partially filled
+  for (const contact of draft.contacts) {
+    if (filled(contact.name)) {
+      if (isContactReq("COMPANY_CONTACT_EMAIL") && !filled(contact.email)) {
+        gaps.push({ code: "contactEmail", label: "Contact Email", step: "contacts" });
+      }
+      if (isContactReq("COMPANY_CONTACT_PHONE") && !filled(contact.phone)) {
+        gaps.push({ code: "contactPhone", label: "Contact Phone", step: "contacts" });
+      }
+      if (isContactReq("COMPANY_CONTACT_POSITION") && !filled(contact.position)) {
+        gaps.push({ code: "contactPosition", label: "Contact Position", step: "contacts" });
+      }
+      if (isContactReq("COMPANY_CONTACT_ROLE") && (!Array.isArray(contact.roleIds) || contact.roleIds.length === 0)) {
+        gaps.push({ code: "contactRole", label: "Contact Role", step: "contacts" });
+      }
+      if (isContactReq("COMPANY_CONTACT_WHATSAPP") && !filled(contact.whatsapp)) {
+        gaps.push({ code: "contactWhatsapp", label: "Contact WhatsApp", step: "contacts" });
+      }
+      if (isContactReq("COMPANY_CONTACT_PREFERRED_METHOD") && !filled(contact.preferredMethod)) {
+        gaps.push({ code: "contactPreferredMethod", label: "Contact Preferred Method", step: "contacts" });
+      }
+      if (isContactReq("COMPANY_CONTACT_NOTES") && !filled(contact.notes)) {
+        gaps.push({ code: "contactNotes", label: "Contact Notes", step: "contacts" });
+      }
+    }
+  }
 
   // Step 3: Billing & Credit
   need(
     ["COMPANY_DEFAULT_BILLING_RULE", "COMPANY_BILLING_RULE", "DEFAULT_BILLING_RULE", "BILLING_RULE", "DEFAULT_BILLING_RULE_ID"],
     filled(draft.defaultBillingRuleId),
     "billing",
+    "defaultBillingRuleId",
   );
-  need(["COMPANY_PAYMENT_TIMING", "PAYMENT_TIMING"], filled(draft.paymentTiming), "billing");
+  need(["COMPANY_PAYMENT_TIMING", "PAYMENT_TIMING"], filled(draft.paymentTiming), "billing", "paymentTiming");
   need(
     ["COMPANY_SETTLEMENT_METHOD", "SETTLEMENT_METHOD", "PAYMENT_METHOD", "DEFAULT_PAYMENT_METHOD_ID"],
-    filled(draft.defaultPaymentMethodId),
+    filled(draft.defaultPaymentMethodId) || filled(draft.paymentMethodId),
     "billing",
+    "defaultPaymentMethodId",
   );
-  need(["COMPANY_BILLING_CURRENCY", "BILLING_CURRENCY", "BILLING_CURRENCY_CODE"], filled(draft.billingCurrencyCode), "billing");
-  need(["COMPANY_CREDIT_FACILITY", "CREDIT_FACILITY", "CREDIT_ACCOUNT_ENABLED", "ALLOW_CREDIT"], draft.creditAccountEnabled === true, "billing");
-  if (draft.creditAccountEnabled) {
-    need(["COMPANY_CREDIT_LIMIT", "CREDIT_LIMIT", "CREDIT_LIMIT_AMOUNT"], draft.creditLimitAmount !== null && draft.creditLimitAmount !== undefined, "billing");
-    need(["COMPANY_CREDIT_DAYS", "CREDIT_DAYS"], draft.creditDays !== null && draft.creditDays !== undefined && draft.creditDays > 0, "billing");
-    need(["COMPANY_CREDIT_STATUS", "CREDIT_STATUS"], filled(draft.creditStatus), "billing");
-  }
-  need(["COMPANY_TAX_EXEMPTION", "TAX_EXEMPTION", "TAX_EXEMPT"], draft.taxExempt === true, "billing");
-  if (draft.taxExempt) {
-    need(["COMPANY_TAX_EXEMPTION_RULE", "TAX_EXEMPTION_RULE", "TAX_EXEMPTION_RULE_ID"], filled(draft.taxExemptionRuleId), "billing");
-    need(
-      ["COMPANY_TAX_EXEMPT_CERT", "COMPANY_TAX_EXEMPTION_CERTIFICATE", "TAX_EXEMPTION_CERTIFICATE", "TAX_EXEMPTION_CERTIFICATE_NUMBER", "TAX_EXEMPT_CERT"],
-      filled(draft.taxExemptionCertificateNumber),
-      "billing",
-    );
-    need(
-      ["COMPANY_TAX_EXEMPT_VALID_UNTIL", "COMPANY_TAX_EXEMPTION_VALID_UNTIL", "TAX_EXEMPTION_VALID_UNTIL", "TAX_EXEMPTION_VALID_TO", "TAX_EXEMPT_VALID_UNTIL"],
-      filled(draft.taxExemptionValidTo),
-      "billing",
-    );
-  }
+  need(["COMPANY_BILLING_CURRENCY", "BILLING_CURRENCY", "BILLING_CURRENCY_CODE"], filled(draft.billingCurrencyCode) || filled(draft.currency), "billing", "billingCurrencyCode");
+  need(["COMPANY_CREDIT_FACILITY", "CREDIT_FACILITY", "CREDIT_ACCOUNT_ENABLED", "ALLOW_CREDIT"], draft.creditAccountEnabled === true, "billing", "creditAccountEnabled");
+  need(
+    ["COMPANY_CREDIT_LIMIT", "CREDIT_LIMIT", "CREDIT_LIMIT_AMOUNT"],
+    draft.creditAccountEnabled && draft.creditLimitAmount !== null && draft.creditLimitAmount !== undefined && !Number.isNaN(Number(draft.creditLimitAmount)),
+    "billing",
+    "creditLimitAmount",
+  );
+  need(
+    ["COMPANY_CREDIT_DAYS", "CREDIT_DAYS"],
+    draft.creditAccountEnabled && draft.creditDays !== null && draft.creditDays !== undefined && Number(draft.creditDays) > 0,
+    "billing",
+    "creditDays",
+  );
+  need(["COMPANY_CREDIT_STATUS", "CREDIT_STATUS"], draft.creditAccountEnabled && filled(draft.creditStatus), "billing", "creditStatus");
+  need(["COMPANY_TAX_EXEMPTION", "TAX_EXEMPTION", "TAX_EXEMPT"], draft.taxExempt === true, "billing", "taxExempt");
+  need(["COMPANY_TAX_EXEMPTION_RULE", "TAX_EXEMPTION_RULE", "TAX_EXEMPTION_RULE_ID"], draft.taxExempt && filled(draft.taxExemptionRuleId), "billing", "taxExemptionRuleId");
+  need(
+    ["COMPANY_TAX_EXEMPT_CERT", "COMPANY_TAX_EXEMPTION_CERTIFICATE", "TAX_EXEMPTION_CERTIFICATE", "TAX_EXEMPTION_CERTIFICATE_NUMBER", "TAX_EXEMPT_CERT"],
+    draft.taxExempt && filled(draft.taxExemptionCertificateNumber),
+    "billing",
+    "taxExemptionCertificateNumber",
+  );
+  need(
+    ["COMPANY_TAX_EXEMPT_VALID_UNTIL", "COMPANY_TAX_EXEMPTION_VALID_UNTIL", "TAX_EXEMPTION_VALID_UNTIL", "TAX_EXEMPTION_VALID_TO", "TAX_EXEMPT_VALID_UNTIL"],
+    draft.taxExempt && filled(draft.taxExemptionValidTo),
+    "billing",
+    "taxExemptionValidTo",
+  );
   need(
     ["COMPANY_BILLING_INSTRUCTIONS", "COMPANY_BILLING_INSTRUCTION", "BILLING_INSTRUCTIONS", "BILLING_INSTRUCTION"],
     filled(draft.billingInstruction),
     "billing",
+    "billingInstruction",
   );
 
   // Step 4: Contracts & Agreements
   const contract = draft.contract;
-  need(["COMPANY_CONTRACT_TYPE", "CONTRACT_TYPE", "CONTRACT_TYPE_ID"], filled(contract?.contractTypeId), "contracts");
-  need(["COMPANY_CONTRACT_NAME", "CONTRACT_NAME"], filled(contract?.name), "contracts");
-  need(["COMPANY_CONTRACT_CODE", "CONTRACT_CODE"], filled(contract?.code), "contracts");
-  need(["COMPANY_CONTRACT_NUMBER", "CONTRACT_NUMBER", "EXTERNAL_REFERENCE"], filled(contract?.contractNumber), "contracts");
-  need(["COMPANY_CONTRACT_VALID_FROM", "CONTRACT_VALID_FROM", "VALID_FROM"], filled(contract?.validFrom), "contracts");
-  need(["COMPANY_CONTRACT_VALID_TO", "CONTRACT_VALID_TO", "VALID_TO"], filled(contract?.validTo), "contracts");
-  need(["COMPANY_CONTRACT_CURRENCY", "CONTRACT_CURRENCY", "CURRENCY_CODE"], filled(contract?.currencyCode), "contracts");
-  need(["COMPANY_CONTRACT_STATUS", "CONTRACT_STATUS", "STATUS"], filled(contract?.status), "contracts");
-  need(["COMPANY_CONTRACT_PRICING_METHOD", "CONTRACT_PRICING_METHOD", "PRICING_METHOD"], filled(contract?.pricingMethod), "contracts");
-  need(["COMPANY_CONTRACT_DEPOSIT_POLICY", "CONTRACT_DEPOSIT_POLICY", "DEPOSIT_POLICY_ID"], filled(contract?.depositPolicyId), "contracts");
+  need(["COMPANY_CONTRACT_TYPE", "CONTRACT_TYPE", "CONTRACT_TYPE_ID"], filled(contract?.contractTypeId), "contracts", "contractTypeId");
+  need(["COMPANY_CONTRACT_NAME", "CONTRACT_NAME"], filled(contract?.name), "contracts", "contractName");
+  need(["COMPANY_CONTRACT_CODE", "CONTRACT_CODE"], filled(contract?.code), "contracts", "contractCode");
+  need(["COMPANY_CONTRACT_NUMBER", "CONTRACT_NUMBER", "EXTERNAL_REFERENCE"], filled(contract?.contractNumber), "contracts", "contractNumber");
+  need(["COMPANY_CONTRACT_VALID_FROM", "CONTRACT_VALID_FROM", "VALID_FROM"], filled(contract?.validFrom), "contracts", "validFrom");
+  need(["COMPANY_CONTRACT_VALID_TO", "CONTRACT_VALID_TO", "VALID_TO"], filled(contract?.validTo), "contracts", "validTo");
+  need(["COMPANY_CONTRACT_CURRENCY", "CONTRACT_CURRENCY", "CURRENCY_CODE"], filled(contract?.currencyCode), "contracts", "currencyCode");
+  need(["COMPANY_CONTRACT_STATUS", "CONTRACT_STATUS", "STATUS"], filled(contract?.status), "contracts", "status");
+  need(["COMPANY_CONTRACT_PRICING_METHOD", "CONTRACT_PRICING_METHOD", "PRICING_METHOD"], filled(contract?.pricingMethod), "contracts", "pricingMethod");
+  need(
+    ["COMPANY_CONTRACT_DEPOSIT_POLICY", "CONTRACT_DEPOSIT_POLICY", "DEPOSIT_POLICY_ID"],
+    filled(contract?.depositPolicyId) && contract?.depositPolicyId !== "none",
+    "contracts",
+    "depositPolicyId",
+  );
   need(
     ["COMPANY_CONTRACT_CANCEL_POLICY", "COMPANY_CONTRACT_CANCELLATION_POLICY", "CONTRACT_CANCELLATION_POLICY", "CONTRACT_CANCEL_POLICY", "CANCELLATION_POLICY_ID"],
-    filled(contract?.cancellationPolicyId),
+    filled(contract?.cancellationPolicyId) && contract?.cancellationPolicyId !== "none",
     "contracts",
+    "cancellationPolicyId",
   );
-  need(["COMPANY_CONTRACT_NOSHOW_POLICY", "CONTRACT_NOSHOW_POLICY", "NOSHOW_POLICY_ID"], filled(contract?.noShowPolicyId), "contracts");
-  need(["COMPANY_CONTRACT_NOTES", "CONTRACT_NOTES"], filled(contract?.notes), "contracts");
+  need(
+    ["COMPANY_CONTRACT_NOSHOW_POLICY", "CONTRACT_NOSHOW_POLICY", "NOSHOW_POLICY_ID"],
+    filled(contract?.noShowPolicyId) && contract?.noShowPolicyId !== "none",
+    "contracts",
+    "noShowPolicyId",
+  );
+  need(["COMPANY_CONTRACT_NOTES", "CONTRACT_NOTES"], filled(contract?.notes), "contracts", "contractNotes");
 
   return gaps;
 }
@@ -978,6 +1035,13 @@ export function matchCompanyFieldIssue(
     ...mapList.map((a) => a.toUpperCase()),
   ]);
 
+  for (const [prop, codes] of Object.entries(FIELD_CODES_BY_COMPANY_PROP)) {
+    if (codes.some((c) => c.toUpperCase() === upperKey || c.toUpperCase() === companyKey || c.toUpperCase() === strippedKey)) {
+      candidateKeys.add(prop);
+      candidateKeys.add(prop.toUpperCase());
+    }
+  }
+
   return issues.find((issue) => {
     const k = issue.key;
     if (candidateKeys.has(k)) return true;
@@ -1006,22 +1070,54 @@ export function companyCreateFieldIssues(
 ): CompanyCreateFieldIssue[] {
   const issues: CompanyCreateFieldIssue[] = [];
   const typeIds = options?.businessProfileTypeIds;
+  const hasRules = Boolean(options?.rules && options.rules.length > 0);
 
-  // Step 1: Company Information & Step 2: Contacts via Card 4 Rules
-  if (options?.rules && options.rules.length > 0) {
-    const gaps = card4CompanyCreateGaps(draft, options.rules);
+  // Step 1: Details, Step 2: Contacts, Step 3: Billing, Step 4: Contracts via Card 4 Rules
+  if (hasRules) {
+    const gaps = card4CompanyCreateGaps(draft, options!.rules!);
     for (const gap of gaps) {
-      issues.push({
-        key: gap.code,
-        message: `${gap.label} is required.`,
-        step: gap.step,
-      });
+      if (!issues.some((iss) => iss.key === gap.code && iss.step === gap.step)) {
+        issues.push({
+          key: gap.code,
+          message: `${gap.label} is required.`,
+          step: gap.step,
+        });
+      }
     }
   } else {
     // Default fallback when no rules passed (backwards compatibility)
     if (!filled(draft.name)) issues.push({ key: "name", message: "Company name is required.", step: "details" });
     if (!filled(draft.businessProfileTypeId)) {
       issues.push({ key: "businessProfileTypeId", message: "Company type is required.", step: "details" });
+    }
+    // Fallback Step 3 required checks
+    if (!filled(draft.defaultBillingRuleId)) {
+      issues.push({ key: "defaultBillingRuleId", message: "Default billing rule is required.", step: "billing" });
+    }
+    if (!draft.paymentTiming) {
+      issues.push({ key: "paymentTiming", message: "Payment timing is required.", step: "billing" });
+    }
+    // Fallback Step 4 required checks
+    const contract = draft.contract;
+    if (contract) {
+      if (!filled(contract.contractTypeId)) {
+        issues.push({ key: "contractTypeId", message: "Contract type is required.", step: "contracts" });
+      }
+      if (!filled(contract.name)) {
+        issues.push({ key: "contractName", message: "Contract name is required.", step: "contracts" });
+      }
+      if (!filled(contract.code)) {
+        issues.push({ key: "contractCode", message: "Contract code is required.", step: "contracts" });
+      }
+      if (!filled(contract.validFrom)) {
+        issues.push({ key: "validFrom", message: "Valid-from date is required.", step: "contracts" });
+      }
+      if (!filled(contract.validTo)) {
+        issues.push({ key: "validTo", message: "Valid-until date is required.", step: "contracts" });
+      }
+      if (!filled(contract.currencyCode)) {
+        issues.push({ key: "currencyCode", message: "Contract currency is required.", step: "contracts" });
+      }
     }
   }
 
@@ -1057,22 +1153,13 @@ export function companyCreateFieldIssues(
     }
   }
 
-  // Step 3: Billing & Credit
-  // Section 1: Billing Configuration
-  if (!filled(draft.defaultBillingRuleId)) {
-    issues.push({ key: "defaultBillingRuleId", message: "Default billing rule is required.", step: "billing" });
-  }
-
+  // Step 3: Billing & Credit Format / Cross-field rules
   if (filled(draft.defaultPaymentMethodId) && options?.paymentMethodIds && !options.paymentMethodIds.includes(draft.defaultPaymentMethodId)) {
     issues.push({ key: "defaultPaymentMethodId", message: "Select a configured payment method.", step: "billing" });
   }
 
   if (filled(draft.billingCurrencyCode) && options?.currencyCodes?.length && !options.currencyCodes.includes(draft.billingCurrencyCode)) {
     issues.push({ key: "billingCurrencyCode", message: "Select a configured billing currency.", step: "billing" });
-  }
-
-  if (!draft.paymentTiming) {
-    issues.push({ key: "paymentTiming", message: "Payment timing is required.", step: "billing" });
   }
 
   // Cross-conditional: Payment Timing = Credit Terms requires Credit enabled and credit days
@@ -1145,30 +1232,13 @@ export function companyCreateFieldIssues(
     issues.push({ key: "billingEmail", message: "Enter a valid billing email.", step: "billing" });
   }
 
-  // Step 4: Contracts & Agreements
+  // Step 4: Contracts & Agreements constraints
   const contract = draft.contract;
   if (contract) {
-    if (!filled(contract.contractTypeId)) {
-      issues.push({ key: "contractTypeId", message: "Contract type is required.", step: "contracts" });
-    }
-    if (!filled(contract.name)) {
-      issues.push({ key: "contractName", message: "Contract name is required.", step: "contracts" });
-    }
-    if (!filled(contract.code)) {
-      issues.push({ key: "contractCode", message: "Contract code is required.", step: "contracts" });
-    }
-    if (!filled(contract.validFrom)) {
-      issues.push({ key: "validFrom", message: "Valid-from date is required.", step: "contracts" });
-    }
-    if (!filled(contract.validTo)) {
-      issues.push({ key: "validTo", message: "Valid-until date is required.", step: "contracts" });
-    }
     if (filled(contract.validFrom) && filled(contract.validTo) && contract.validTo < contract.validFrom) {
       issues.push({ key: "validTo", message: "Valid-until must be on or after valid-from date.", step: "contracts" });
     }
-    if (!filled(contract.currencyCode)) {
-      issues.push({ key: "currencyCode", message: "Contract currency is required.", step: "contracts" });
-    } else if (options?.currencyCodes?.length && !options.currencyCodes.includes(contract.currencyCode)) {
+    if (filled(contract.currencyCode) && options?.currencyCodes?.length && !options.currencyCodes.includes(contract.currencyCode)) {
       issues.push({ key: "currencyCode", message: "Select a configured contract currency from settings.", step: "contracts" });
     }
 
@@ -1308,8 +1378,14 @@ export function guestCompanyCreateCompletion(
     {
       id: "billing",
       label: "Billing & credit",
-      complete: billingGaps.length === 0 && filled(draft.defaultBillingRuleId) && Boolean(draft.paymentTiming),
-      requiredRemaining: billingGaps.length > 0 || !filled(draft.defaultBillingRuleId) || !draft.paymentTiming,
+      complete:
+        billingGaps.length === 0 &&
+        (options?.rules
+          ? true
+          : filled(draft.defaultBillingRuleId) && Boolean(draft.paymentTiming)),
+      requiredRemaining:
+        billingGaps.length > 0 ||
+        (!options?.rules && (!filled(draft.defaultBillingRuleId) || !draft.paymentTiming)),
       step: "billing",
     },
     {
@@ -1317,10 +1393,13 @@ export function guestCompanyCreateCompletion(
       label: "Contracts & agreements",
       complete:
         contractsGaps.length === 0 &&
-        Boolean(draft.contract && filled(draft.contract.name) && filled(draft.contract.contractTypeId)),
+        (options?.rules
+          ? true
+          : Boolean(draft.contract && filled(draft.contract.name) && filled(draft.contract.contractTypeId))),
       requiredRemaining:
         contractsGaps.length > 0 ||
-        Boolean(!draft.contract || !filled(draft.contract.name) || !filled(draft.contract.contractTypeId)),
+        (!options?.rules &&
+          Boolean(!draft.contract || !filled(draft.contract.name) || !filled(draft.contract.contractTypeId))),
       step: "contracts",
     },
   ];

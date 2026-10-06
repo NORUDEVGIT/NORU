@@ -67,6 +67,7 @@ export function CompanyContractsStep({
   configError,
   fieldError,
   required,
+  isRuleRequired,
   visible,
 }: {
   draft: GuestCompanyCreateDraft;
@@ -84,10 +85,12 @@ export function CompanyContractsStep({
   configError?: string | null;
   fieldError: (key: string, stepId?: string) => string | undefined;
   required?: (code: string) => boolean;
+  isRuleRequired?: (code: string) => boolean;
   visible?: (code: string) => boolean;
 }) {
   const isReq = (code: string, fallback = false) => {
-    if (required) return required(code);
+    const fn = isRuleRequired || required;
+    if (fn) return fn(code);
     return fallback;
   };
 
@@ -566,6 +569,10 @@ export function CompanyContractsStep({
             Select exactly one commercial pricing method governing how reservations resolve contracted rates.
           </p>
         </div>
+
+        {fieldError("pricingMethod", "contracts") && (
+          <p className="text-[11px] text-destructive">{fieldError("pricingMethod", "contracts")}</p>
+        )}
 
         {/* Pricing Method Selector */}
         <div className="grid gap-3 sm:grid-cols-3" data-testid="pricing-method-selector">
@@ -1235,7 +1242,12 @@ export function CompanyContractsStep({
         <div className="grid gap-4 sm:grid-cols-3">
           {/* Guarantee Policy */}
           <div className="space-y-1.5">
-            <Field label="Guarantee / Deposit Policy" required={isReq("COMPANY_CONTRACT_DEPOSIT_POLICY", false)} helper="Reuses property deposit policy master.">
+            <Field
+              label="Guarantee / Deposit Policy"
+              required={isReq("COMPANY_CONTRACT_DEPOSIT_POLICY", false)}
+              error={fieldError("depositPolicyId", "contracts")}
+              helper="Reuses property deposit policy master."
+            >
               <Select
                 value={contract?.depositPolicyId || "none"}
                 onValueChange={(val) => setContract("depositPolicyId", val === "none" ? null : val)}
@@ -1262,7 +1274,12 @@ export function CompanyContractsStep({
 
           {/* Cancellation Policy */}
           <div className="space-y-1.5">
-            <Field label="Cancellation Policy" required={isReq("COMPANY_CONTRACT_CANCEL_POLICY", false) || isReq("COMPANY_CONTRACT_CANCELLATION_POLICY", false)} helper="Defines free cancellation cutoff and penalty.">
+            <Field
+              label="Cancellation Policy"
+              required={isReq("COMPANY_CONTRACT_CANCEL_POLICY", false) || isReq("COMPANY_CONTRACT_CANCELLATION_POLICY", false)}
+              error={fieldError("cancellationPolicyId", "contracts")}
+              helper="Defines free cancellation cutoff and penalty."
+            >
               <Select
                 value={contract?.cancellationPolicyId || "none"}
                 onValueChange={(val) => setContract("cancellationPolicyId", val === "none" ? null : val)}
@@ -1289,7 +1306,12 @@ export function CompanyContractsStep({
 
           {/* No-Show Policy */}
           <div className="space-y-1.5">
-            <Field label="No-Show Policy" required={isReq("COMPANY_CONTRACT_NOSHOW_POLICY", false)} helper="Defines charge and unclaimed room release time.">
+            <Field
+              label="No-Show Policy"
+              required={isReq("COMPANY_CONTRACT_NOSHOW_POLICY", false)}
+              error={fieldError("noShowPolicyId", "contracts")}
+              helper="Defines charge and unclaimed room release time."
+            >
               <Select
                 value={contract?.noShowPolicyId || "none"}
                 onValueChange={(val) => setContract("noShowPolicyId", val === "none" ? null : val)}
@@ -1462,7 +1484,12 @@ export function CompanyContractsStep({
           </p>
         </div>
 
-        <Field label="Contract Notes" required={isReq("COMPANY_CONTRACT_NOTES", false)} helper="Internal notes or special contract clauses.">
+        <Field
+          label="Contract Notes"
+          required={isReq("COMPANY_CONTRACT_NOTES", false)}
+          error={fieldError("contractNotes", "contracts")}
+          helper="Internal notes or special contract clauses."
+        >
           <Textarea
             value={contract?.notes || ""}
             onChange={(e) => setContract("notes", e.target.value)}

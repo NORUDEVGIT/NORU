@@ -27,6 +27,7 @@ import {
   getRatesCard2,
   saveRateCancellationPolicyCard2,
   saveRateCategoryCard2,
+  saveRateNoShowPolicyCard2,
   saveRatePlanCard2,
   saveRateRefundabilityCard2,
 } from "@/packages/pms/lib/rates-card2.functions";
@@ -38,16 +39,21 @@ import {
   CANCELLATION_WINDOW_UNIT_LABELS,
   CANCELLATION_WINDOW_UNITS,
   CARD2_RATES_ROOM_TYPES_COPY,
+  POLICY_PENALTY_TYPE_LABELS,
+  POLICY_PENALTY_TYPES,
   PREDEFINED_RATE_CATEGORIES,
   RATE_REFUNDABILITY_KINDS,
+  buildNoShowPolicyPreview,
   findMatchingPredefinedCategory,
   isPredefinedCategoryConfigured,
   type CancellationPenaltyType,
   type CancellationPolicyKind,
   type CancellationWindowUnit,
+  type PolicyPenaltyType,
   type PredefinedRateCategory,
   type RateCancellationPolicyRow,
   type RateCategoryRow,
+  type RateNoShowPolicyRow,
   type RatePlanRow,
   type RateRefundabilityKind,
   type RateRefundabilityRow,
@@ -87,16 +93,19 @@ export function PmsPropertySetupCard2Rates({
   const savePlan = useServerFn(saveRatePlanCard2);
   const saveCancellation = useServerFn(saveRateCancellationPolicyCard2);
   const saveRefundability = useServerFn(saveRateRefundabilityCard2);
+  const saveNoShow = useServerFn(saveRateNoShowPolicyCard2);
 
   const [categorySearch, setCategorySearch] = useState("");
   const [planSearch, setPlanSearch] = useState("");
   const [cancelSearch, setCancelSearch] = useState("");
   const [refundSearch, setRefundSearch] = useState("");
+  const [noShowSearch, setNoShowSearch] = useState("");
   const [categoryDraft, setCategoryDraft] = useState<RateCategoryRow | "new" | null>(null);
   const [planDraft, setPlanDraft] = useState<RatePlanRow | "new" | null>(null);
   const [batchPending, setBatchPending] = useState(false);
   const [cancelDraft, setCancelDraft] = useState<RateCancellationPolicyRow | "new" | null>(null);
   const [refundDraft, setRefundDraft] = useState<RateRefundabilityRow | "new" | null>(null);
+  const [noShowDraft, setNoShowDraft] = useState<RateNoShowPolicyRow | "new" | null>(null);
 
   const query = useQuery({
     queryKey: ["pms-card2-rates", restaurantId],
@@ -111,6 +120,8 @@ export function PmsPropertySetupCard2Rates({
   const mealPlans = snapshot?.mealPlans ?? [];
   const cancellationPolicies = snapshot?.cancellationPolicies ?? [];
   const refundabilityCodes = snapshot?.refundabilityCodes ?? [];
+  const noShowPolicies = snapshot?.noShowPolicies ?? [];
+  const currencyCode = snapshot?.currencyCode ?? "USD";
 
   useEffect(() => {
     if (readiness && onReadiness) {
@@ -146,9 +157,23 @@ export function PmsPropertySetupCard2Rates({
     () => refundabilityCodes.filter((row) => matchesQuery(refundSearch, row.code, row.name)),
     [refundabilityCodes, refundSearch],
   );
+  const filteredNoShowPolicies = useMemo(
+    () =>
+      noShowPolicies.filter((row) =>
+        matchesQuery(
+          noShowSearch,
+          row.code,
+          row.name,
+          row.description ?? "",
+          POLICY_PENALTY_TYPE_LABELS[row.penaltyType] ?? row.penaltyType,
+        ),
+      ),
+    [noShowPolicies, noShowSearch],
+  );
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["pms-card2-rates", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["pms-no-show-policies", restaurantId] });
   }
 
   const categoryMut = useMutation({
@@ -216,6 +241,17 @@ export function PmsPropertySetupCard2Rates({
     onSuccess: () => {
       toast.success("Refundability saved.");
       setRefundDraft(null);
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const noShowMut = useMutation({
+    mutationFn: (input: Parameters<typeof saveNoShow>[0]["data"]) =>
+      saveNoShow({ data: input }),
+    onSuccess: () => {
+      toast.success("No-show policy saved.");
+      setNoShowDraft(null);
       invalidate();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -357,6 +393,42 @@ export function PmsPropertySetupCard2Rates({
             }))}
           />
 
+          <Card3ListSection
+            title="No-show policies"
+            icon="checklist"
+            search={noShowSearch}
+            onSearch={setNoShowSearch}
+            placeholder="Search no-show policies"
+            addLabel="Add no-show policy"
+            onAdd={() => setNoShowDraft("new")}
+            canEdit={canEdit}
+            empty="No no-show policies yet. Defines charge and release time when a guest fails to arrive."
+            columns={[
+              "Code",
+              "Name",
+              "Release time",
+              "Penalty",
+              "Default",
+              "Status",
+            ]}
+            rows={filteredNoShowPolicies.map((row) => ({
+              id: row.id,
+              cells: [
+                row.code,
+                row.name,
+                `${String(row.releaseHour).padStart(2, "0")}:00`,
+                row.penaltyType === "percent_stay"
+                  ? `${row.penaltyValue}% stay`
+                  : row.penaltyType === "fixed_amount"
+                    ? `${currencyCode} ${row.penaltyValue}`
+                    : POLICY_PENALTY_TYPE_LABELS[row.penaltyType] ?? row.penaltyType,
+                row.isDefault ? "Default" : "—",
+                <Card3StatusDot key="status" active={row.active} />,
+              ],
+              onEdit: () => setNoShowDraft(row),
+            }))}
+          />
+
           <CategoryDrawer
             key={categoryDraft === "new" ? "cat-new" : (categoryDraft?.id ?? "cat-closed")}
             open={categoryDraft !== null}
@@ -402,6 +474,17 @@ export function PmsPropertySetupCard2Rates({
             pending={refundMut.isPending}
             onClose={() => setRefundDraft(null)}
             onSave={(payload) => refundMut.mutate({ restaurantId, ...payload })}
+          />
+
+          <NoShowDrawer
+            key={noShowDraft === "new" ? "ns-new" : (noShowDraft?.id ?? "ns-closed")}
+            open={noShowDraft !== null}
+            canEdit={canEdit}
+            value={noShowDraft === "new" || noShowDraft === null ? null : noShowDraft}
+            currencyCode={currencyCode}
+            pending={noShowMut.isPending}
+            onClose={() => setNoShowDraft(null)}
+            onSave={(payload) => noShowMut.mutate({ restaurantId, ...payload })}
           />
         </div>
       )}
@@ -1296,6 +1379,192 @@ function RefundabilityDrawer({
           <Label htmlFor="refund-active">Active</Label>
           <Switch
             id="refund-active"
+            checked={active}
+            disabled={!canEdit}
+            onCheckedChange={setActive}
+          />
+        </div>
+      </div>
+    </Card3OverlapSheet>
+  );
+}
+
+function NoShowDrawer({
+  open,
+  canEdit,
+  value,
+  currencyCode,
+  pending,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  canEdit: boolean;
+  value: RateNoShowPolicyRow | null;
+  currencyCode: string;
+  pending: boolean;
+  onClose: () => void;
+  onSave: (payload: {
+    id?: string;
+    code: string;
+    name: string;
+    description: string;
+    penaltyType: PolicyPenaltyType;
+    penaltyValue: number;
+    releaseHour: number;
+    isDefault: boolean;
+    active: boolean;
+  }) => void;
+}) {
+  const [code, setCode] = useState(value?.code ?? "");
+  const [name, setName] = useState(value?.name ?? "");
+  const [description, setDescription] = useState(value?.description ?? "");
+  const [penaltyType, setPenaltyType] = useState<PolicyPenaltyType>(
+    value?.penaltyType ?? "first_night",
+  );
+  const [penaltyValue, setPenaltyValue] = useState(String(value?.penaltyValue ?? 0));
+  const [releaseHour, setReleaseHour] = useState(String(value?.releaseHour ?? 18));
+  const [isDefault, setIsDefault] = useState(value?.isDefault ?? false);
+  const [active, setActive] = useState(value?.active ?? true);
+
+  const preview = buildNoShowPolicyPreview(
+    penaltyType,
+    Number(penaltyValue) || 0,
+    Number(releaseHour) || 18,
+  );
+
+  return (
+    <Card3OverlapSheet
+      open={open}
+      onClose={onClose}
+      title={value ? "Edit no-show policy" : "Add no-show policy"}
+      description="Defines the charge and unclaimed room release time when a guest fails to arrive."
+      canEdit={canEdit}
+      pending={pending}
+      submitLabel="Save no-show policy"
+      onSubmit={() =>
+        onSave({
+          ...(value ? { id: value.id } : {}),
+          code: code.trim().toUpperCase(),
+          name: name.trim(),
+          description: description.trim() || "",
+          penaltyType,
+          penaltyValue:
+            penaltyType === "percent_stay" || penaltyType === "fixed_amount"
+              ? Number(penaltyValue) || 0
+              : 0,
+          releaseHour: Math.max(0, Math.min(23, Number(releaseHour) || 18)),
+          isDefault,
+          active,
+        })
+      }
+    >
+      <div className="space-y-3">
+        <div className="rounded-xl border border-[#C89933]/40 bg-[#FAF8F5] p-3 text-xs text-[#251605]">
+          <p className="font-semibold text-[#8A641A] uppercase tracking-wider text-[10px]">
+            Operational Preview
+          </p>
+          <p className="mt-1 font-medium">{preview}</p>
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="ns-code">Code</Label>
+          <Input
+            id="ns-code"
+            value={code}
+            maxLength={30}
+            disabled={!canEdit}
+            placeholder="e.g. NS_1N, NS_FULL, NS_FREE"
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="ns-name">Name</Label>
+          <Input
+            id="ns-name"
+            value={name}
+            maxLength={120}
+            disabled={!canEdit}
+            placeholder="e.g. Standard First Night No-Show"
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="ns-release">Release time (hour of arrival day)</Label>
+          <Input
+            id="ns-release"
+            type="number"
+            min={0}
+            max={23}
+            value={releaseHour}
+            disabled={!canEdit}
+            placeholder="18"
+            onChange={(e) => setReleaseHour(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="ns-penalty">Penalty Type</Label>
+          <Select
+            value={penaltyType}
+            onValueChange={(val) => setPenaltyType(val as PolicyPenaltyType)}
+            disabled={!canEdit}
+          >
+            <SelectTrigger id="ns-penalty">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {POLICY_PENALTY_TYPES.map((pt) => (
+                <SelectItem key={pt} value={pt}>
+                  {POLICY_PENALTY_TYPE_LABELS[pt]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {(penaltyType === "percent_stay" || penaltyType === "fixed_amount") && (
+          <div className="space-y-1">
+            <Label htmlFor="ns-value">
+              {penaltyType === "percent_stay"
+                ? "Penalty Percentage (%)"
+                : `Fixed Penalty (${currencyCode})`}
+            </Label>
+            <Input
+              id="ns-value"
+              type="number"
+              min={0}
+              max={penaltyType === "percent_stay" ? 100 : undefined}
+              step="0.01"
+              value={penaltyValue}
+              disabled={!canEdit}
+              onChange={(e) => setPenaltyValue(e.target.value)}
+            />
+          </div>
+        )}
+        <div className="flex items-center justify-between rounded-xl border px-3 py-2">
+          <Label htmlFor="ns-default">Default Policy</Label>
+          <Switch
+            id="ns-default"
+            checked={isDefault}
+            disabled={!canEdit}
+            onCheckedChange={setIsDefault}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="ns-description">Description</Label>
+          <Textarea
+            id="ns-description"
+            value={description}
+            maxLength={500}
+            disabled={!canEdit}
+            rows={3}
+            placeholder="Operational notes or front desk instructions"
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center justify-between rounded-xl border px-3 py-2">
+          <Label htmlFor="ns-active">Active</Label>
+          <Switch
+            id="ns-active"
             checked={active}
             disabled={!canEdit}
             onCheckedChange={setActive}
