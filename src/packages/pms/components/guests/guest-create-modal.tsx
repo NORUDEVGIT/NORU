@@ -205,13 +205,13 @@ function guestProfileToCreateDraft(
 
   return {
     ...base,
-    title: (guest.title as any) ?? "",
+    title: (guest.title?.toLowerCase() as any) ?? "",
     firstName: guest.firstName ?? "",
     middleName: guest.middleName ?? "",
     lastName: guest.lastName ?? "",
     preferredName: guest.preferredName ?? "",
     dateOfBirth: guest.dateOfBirth ?? "",
-    gender: (guest.gender as any) ?? "",
+    gender: (guest.gender?.toLowerCase() as any) ?? "",
     nationality: guest.nationality ?? "",
     language: guest.language ?? "",
     country: guest.country ?? "",
@@ -224,8 +224,8 @@ function guestProfileToCreateDraft(
     phoneAlt: guest.phoneAlt ?? "",
     email: guest.email ?? "",
     emailAlt: guest.emailAlt ?? "",
-    preferredContactMethod: (guest.preferredContactMethod as any) ?? "",
-    preferredContactTime: (guest.preferredContactTime as any) ?? "",
+    preferredContactMethod: (guest.preferredContactMethod?.toLowerCase() as any) ?? "",
+    preferredContactTime: (guest.preferredContactTime?.toLowerCase() as any) ?? "",
     vipStatus: Boolean(guest.vipStatus),
     guestStatus: (guest.guestStatus as any) ?? "active",
     position: guest.position ?? "",
@@ -289,7 +289,7 @@ export function GuestCreateModal({
   const deleteDoc = useServerFn(deleteGuestDocument);
 
   const localHold = useMemo(
-    () => (!isEdit && open && !ignoreDraft ? readGuestCreateHold(restaurantId) : null),
+    () => (ignoreDraft ? null : (!isEdit && open ? readGuestCreateHold(restaurantId) : null)),
     [isEdit, open, restaurantId, ignoreDraft],
   );
   const [step, setStep] = useState<GuestCreateStepId>(() => localHold?.step ?? "basic");
@@ -302,7 +302,7 @@ export function GuestCreateModal({
     () => (!ignoreDraft && Boolean(localHold)) || (isEdit && Boolean(guest)),
   );
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(() => (isEdit && guest ? (guest.photoUrl ?? null) : null));
   const [docFiles, setDocFiles] = useState<Record<string, File | undefined>>({});
   const [deletedDocIds, setDeletedDocIds] = useState<string[]>([]);
   const [duplicates, setDuplicates] = useState<GuestSummary[] | null>(null);
@@ -344,6 +344,9 @@ export function GuestCreateModal({
       setStep("basic");
       setDefaultsApplied(true);
       setDeletedDocIds([]);
+      setPhotoFile(null);
+      setPhotoPreview(guest.photoUrl ?? null);
+      setAttemptedSteps(new Set());
       void loadCustomValues({ data: { restaurantId, guestId: guest.id } })
         .then((items) => {
           const initial: Record<string, unknown> = {};
@@ -435,12 +438,14 @@ export function GuestCreateModal({
   }, [context.data, defaultsApplied, isEdit, guest, open, restaurantId, touched, loadCustomValues, ignoreDraft]);
 
   useEffect(() => {
-    if (!open || !defaultsApplied || created || isEdit || ignoreDraft) return;
+    if (ignoreDraft) return;
+    if (!open || !defaultsApplied || created || isEdit) return;
     writeGuestCreateHold(restaurantId, { step, draft });
   }, [created, defaultsApplied, draft, isEdit, open, restaurantId, step, ignoreDraft]);
 
   useEffect(() => {
-    if (!open || !defaultsApplied || created || isEdit || ignoreDraft) return;
+    if (ignoreDraft) return;
+    if (!open || !defaultsApplied || created || isEdit) return;
     if (!guestCreateHasChanges(draft, context.data?.profileType?.defaults)) return;
     setHoldState("saving");
     const handle = window.setTimeout(() => {

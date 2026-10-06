@@ -312,6 +312,7 @@ function GuestEditFormDialog(props: {
 }) {
   return (
     <GuestCreateModal
+      key={props.open ? `guest-edit-${props.guest.id}` : "closed"}
       restaurantId={props.restaurantId}
       open={props.open}
       onOpenChange={props.onOpenChange}

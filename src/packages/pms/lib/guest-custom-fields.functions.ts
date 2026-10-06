@@ -7,6 +7,12 @@ import { recordGuestEvent, requireGuestManager } from "./guests.server";
 import { loadRequiredFieldsCard4Snapshot } from "./required-fields-card4.functions";
 import { CANONICAL_FIELD_CODE_MAP } from "./guest-field-rules";
 import {
+  isCompanyFieldCode,
+  isTravelAgencyFieldCode,
+  isGroupFieldCode,
+  isIndividualGuestFieldCode,
+} from "./guest-creation-field-definitions";
+import {
   formatCustomFieldValueForDisplay,
   normalizeCustomFieldValue,
   validateCustomFieldValue,
@@ -46,8 +52,17 @@ export const listGuestCustomFieldValues = createServerFn({ method: "POST" })
     const resolved: ResolvedCustomFieldValue[] = [];
     for (const field of fields) {
       const codeUpper = field.code.toUpperCase();
-      // Skip core mapped fields (FIRST_NAME, EMAIL, etc.) and lookup/document types
-      if (CANONICAL_FIELD_CODE_MAP[codeUpper] || field.fieldType === "document" || field.fieldType === "lookup") {
+      // Skip core mapped fields (FIRST_NAME, EMAIL, etc.) and lookup/document types,
+      // as well as Company, Travel Agency, and Group specific fields.
+      if (
+        CANONICAL_FIELD_CODE_MAP[codeUpper] ||
+        field.fieldType === "document" ||
+        field.fieldType === "lookup" ||
+        isCompanyFieldCode(codeUpper) ||
+        isTravelAgencyFieldCode(codeUpper) ||
+        isGroupFieldCode(codeUpper) ||
+        !isIndividualGuestFieldCode(codeUpper)
+      ) {
         continue;
       }
 
@@ -122,6 +137,9 @@ export async function persistGuestCustomFieldValues(
     const codeUpper = field.code.toUpperCase();
     if (CANONICAL_FIELD_CODE_MAP[codeUpper]) {
       throw new Error(`Core mapped guest field ${field.code} cannot be stored in custom field values.`);
+    }
+    if (isCompanyFieldCode(codeUpper) || isTravelAgencyFieldCode(codeUpper) || isGroupFieldCode(codeUpper)) {
+      throw new Error(`Field ${field.code} is not an individual guest custom field.`);
     }
     if (field.fieldType === "document") {
       throw new Error("Document fields must be managed via guest identity documents.");

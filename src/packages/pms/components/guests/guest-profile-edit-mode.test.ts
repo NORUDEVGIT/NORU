@@ -8,19 +8,19 @@ test("NORU PMS — Guest Profile: Edit Mode Guarantees Across All 4 Profile Type
   const guestModalSrc = fs.readFileSync(
     path.join(root, "src/packages/pms/components/guests/guest-create-modal.tsx"),
     "utf8",
-  );
+  ).replace(/\r\n/g, "\n");
   const companyModalSrc = fs.readFileSync(
     path.join(root, "src/packages/pms/components/guests/guest-company-create-modal.tsx"),
     "utf8",
-  );
+  ).replace(/\r\n/g, "\n");
   const travelAgencyModalSrc = fs.readFileSync(
     path.join(root, "src/packages/pms/components/guests/guest-travel-agency-create-modal.tsx"),
     "utf8",
-  );
+  ).replace(/\r\n/g, "\n");
   const groupModalSrc = fs.readFileSync(
     path.join(root, "src/packages/pms/components/guests/guest-group-create-modal.tsx"),
     "utf8",
-  );
+  ).replace(/\r\n/g, "\n");
 
   const guestFormDialogSrc = fs.readFileSync(
     path.join(root, "src/packages/pms/components/guests/guest-form-dialog.tsx"),

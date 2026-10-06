@@ -1627,6 +1627,7 @@ function ContactsStep({
                       error={Boolean(phoneError || (!contact.phone && required("CONTACT_PHONE")))}
                       placeholder="e.g. 911 234 567"
                     />
+                    {/* Format: +251 9... or 09... / 07... */}
                   </Field>
                   <Field
                     label="WhatsApp"

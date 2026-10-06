@@ -69,6 +69,8 @@ export type CanonicalGuestFieldKey =
   | "position"
   | "department"
   | "sourceOfBusiness"
+  | "vipStatus"
+  | "photo"
   | "documents"
   | "company";
 
@@ -130,6 +132,9 @@ export const CANONICAL_FIELD_CODE_MAP: Record<string, CanonicalGuestFieldKey> = 
   POSITION: "position",
   DEPARTMENT: "department",
   SOURCE_OF_BUSINESS: "sourceOfBusiness",
+  VIP_STATUS: "vipStatus",
+  GUEST_PHOTO: "photo",
+  PHOTO: "photo",
   IDENTITY_DOCUMENT: "documents",
   COMPANY: "company",
 };
