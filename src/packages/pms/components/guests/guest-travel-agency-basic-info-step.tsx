@@ -46,22 +46,33 @@ function StepField({
   required: isRequired,
   error,
   children,
+  hint,
 }: {
   label: string;
   required?: boolean;
   error?: string;
   children: ReactNode;
+  hint?: string;
 }) {
   return (
     <div className="space-y-1">
-      <Label className={cn("text-xs font-medium text-[#251605]", error && "text-destructive")}>
-        {label}
-        {isRequired ? " *" : ""}
-      </Label>
-      <div className={error ? "[&_input]:border-destructive [&_button]:border-destructive [&_textarea]:border-destructive" : undefined}>
+      <div className="flex items-center justify-between">
+        <Label className={cn("text-xs font-medium text-[#251605]", error && "!text-destructive font-semibold")}>
+          {label}
+          {isRequired ? <span className="text-destructive font-bold"> *</span> : null}
+        </Label>
+        {hint ? <span className="text-[10px] text-[#A89F91]">{hint}</span> : null}
+      </div>
+      <div
+        className={
+          error
+            ? "[&_input]:!border-destructive [&_input]:ring-1 [&_input]:!ring-destructive/30 [&_button]:!border-destructive [&_button]:ring-1 [&_button]:!ring-destructive/30 [&_textarea]:!border-destructive [&_textarea]:ring-1 [&_textarea]:!ring-destructive/30"
+            : undefined
+        }
+      >
         {children}
       </div>
-      {error ? <p className="text-[11px] text-destructive">{error}</p> : null}
+      {error ? <p className="text-[11px] font-medium text-destructive mt-0.5">{error}</p> : null}
     </div>
   );
 }
@@ -110,13 +121,17 @@ export function BasicInfoStep({
   catalogues,
   fieldError,
   step,
+  isRuleRequired,
 }: {
   draft: GuestTravelAgentCreateDraft;
   set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
   catalogues?: TravelAgentCreateContext["catalogues"];
   fieldError: (key: string, stepId?: GuestTravelAgentCreateStepId) => string | undefined;
   step?: "basic_info" | "contacts";
+  isRuleRequired?: (code: string) => boolean;
 }) {
+  const req = (code: string, fallback = false) => (isRuleRequired ? isRuleRequired(code) : fallback);
+
   const countryOptions = useMemo(
     () => ISO_COUNTRIES.map((row) => ({ value: row.code, label: row.name })),
     [],
@@ -134,6 +149,7 @@ export function BasicInfoStep({
 
   const showBasicInfo = !step || step === "basic_info";
   const showContacts = !step || step === "contacts";
+  const contactsError = fieldError("contacts", "contacts") || fieldError("contacts", "basic_info") || fieldError("contacts");
 
   return (
     <div className="space-y-4" data-testid="travel-agency-basic-info-step">
@@ -161,7 +177,7 @@ export function BasicInfoStep({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <StepField label="Agency name" required error={fieldError("name", "basic_info")}>
+          <StepField label="Agency name" required={req("TA_NAME", true)} error={fieldError("name", "basic_info")}>
             <Input
               data-testid="travel-agent-create-name"
               value={draft.name}
@@ -171,7 +187,7 @@ export function BasicInfoStep({
             />
           </StepField>
 
-          <StepField label="Agency type" required error={fieldError("agencyType", "basic_info")}>
+          <StepField label="Agency type" required={req("TA_AGENCY_TYPE", true)} error={fieldError("agencyType", "basic_info")}>
             <Select
               value={draft.agencyType}
               onValueChange={(val) => {
@@ -221,7 +237,16 @@ export function BasicInfoStep({
             </StepField>
           ) : null}
 
-          <StepField label="Agency code" hint="Automatically generated from agency type">
+          <StepField label="Trade name" required={req("TA_TRADE_NAME")} error={fieldError("tradeName", "basic_info")}>
+            <Input
+              value={draft.tradeName}
+              onChange={(e) => set("tradeName", e.target.value)}
+              className={CONTROL_CLASS}
+              placeholder="Commercial or trading name"
+            />
+          </StepField>
+
+          <StepField label="Agency code" required={req("TA_CODE")} error={fieldError("code", "basic_info")} hint="Automatically generated from agency type">
             <Input
               data-testid="travel-agent-create-code"
               value={draft.code}
@@ -231,7 +256,7 @@ export function BasicInfoStep({
             />
           </StepField>
 
-          <StepField label="Status">
+          <StepField label="Status" required={req("TA_ACCOUNT_STATUS")} error={fieldError("accountStatus", "basic_info")}>
             <Select
               value={draft.accountStatus === "inactive" ? "inactive" : "active"}
               onValueChange={(val) => set("accountStatus", val as GuestTravelAgentCreateDraft["accountStatus"])}
@@ -246,7 +271,7 @@ export function BasicInfoStep({
             </Select>
           </StepField>
 
-          <StepField label="Licence number">
+          <StepField label="Licence number" required={req("TA_IATA_NUMBER")} error={fieldError("iataLicenseNumber", "basic_info")}>
             <Input
               value={draft.iataLicenseNumber}
               onChange={(e) => set("iataLicenseNumber", e.target.value)}
@@ -255,7 +280,7 @@ export function BasicInfoStep({
             />
           </StepField>
 
-          <StepField label="TIN number">
+          <StepField label="TIN number" required={req("TA_TAX_ID")} error={fieldError("taxId", "basic_info")}>
             <Input
               value={draft.taxId}
               onChange={(e) => set("taxId", e.target.value)}
@@ -264,7 +289,7 @@ export function BasicInfoStep({
             />
           </StepField>
 
-          <StepField label="Website">
+          <StepField label="Website" required={req("TA_WEBSITE")} error={fieldError("website", "basic_info")}>
             <Input
               value={draft.website}
               onChange={(e) => set("website", e.target.value)}
@@ -274,7 +299,7 @@ export function BasicInfoStep({
           </StepField>
         </div>
 
-        <StepField label="Notes">
+        <StepField label="Notes" required={req("TA_NOTES")} error={fieldError("notes", "basic_info")}>
           <Textarea
             value={draft.notes}
             onChange={(e) => set("notes", e.target.value)}
@@ -291,7 +316,7 @@ export function BasicInfoStep({
         <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
           <div className="flex items-center justify-between border-b border-[#EDE6D8] pb-3">
           <div>
-            <h2 className={cn("text-sm font-semibold text-[#251605]", fieldError("contacts", "basic_info") && "text-destructive")}>
+            <h2 className={cn("text-sm font-semibold text-[#251605]", contactsError && "text-destructive")}>
               Agency Contacts
             </h2>
             <p className="text-xs text-[#756A5B]">
@@ -309,9 +334,9 @@ export function BasicInfoStep({
           </Button>
         </div>
 
-        {fieldError("contacts", "basic_info") ? (
+        {contactsError ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive font-medium">
-            {fieldError("contacts", "basic_info")}
+            {contactsError}
           </div>
         ) : null}
 
@@ -339,7 +364,11 @@ export function BasicInfoStep({
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <StepField label="Name">
+                <StepField
+                  label="Name"
+                  required={req("TA_CONTACT_NAME")}
+                  error={!contact.name && req("TA_CONTACT_NAME") ? (fieldError("contactName", "contacts") || "Contact name is required") : undefined}
+                >
                   <Input
                     value={contact.name}
                     onChange={(e) =>
@@ -353,7 +382,11 @@ export function BasicInfoStep({
                   />
                 </StepField>
 
-                <StepField label="Contact role">
+                <StepField
+                  label="Contact role"
+                  required={req("TA_CONTACT_ROLE")}
+                  error={!contact.roleId && req("TA_CONTACT_ROLE") ? (fieldError("contactRole", "contacts") || "Contact role is required") : undefined}
+                >
                   <Select
                     value={contact.roleId || "none"}
                     onValueChange={(val) => {
@@ -372,7 +405,7 @@ export function BasicInfoStep({
                       );
                     }}
                   >
-                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+                    <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, !contact.roleId && req("TA_CONTACT_ROLE") && fieldError("contactRole", "contacts") && "border-destructive")}>
                       <SelectValue placeholder="Select contact role from Settings" />
                     </SelectTrigger>
                     <SelectContent>
@@ -386,7 +419,11 @@ export function BasicInfoStep({
                   </Select>
                 </StepField>
 
-                <StepField label="Position / Title">
+                <StepField
+                  label="Position / Title"
+                  required={req("TA_CONTACT_POSITION")}
+                  error={!contact.position && req("TA_CONTACT_POSITION") ? (fieldError("contactPosition", "contacts") || "Position is required") : undefined}
+                >
                   <Input
                     value={contact.position}
                     onChange={(e) =>
@@ -400,7 +437,11 @@ export function BasicInfoStep({
                   />
                 </StepField>
 
-                <StepField label="Email">
+                <StepField
+                  label="Email"
+                  required={req("TA_CONTACT_EMAIL")}
+                  error={!contact.email && req("TA_CONTACT_EMAIL") ? (fieldError("contactEmail", "contacts") || "Email is required") : undefined}
+                >
                   <Input
                     value={contact.email}
                     onChange={(e) =>
@@ -414,7 +455,11 @@ export function BasicInfoStep({
                   />
                 </StepField>
 
-                <StepField label="Phone">
+                <StepField
+                  label="Phone"
+                  required={req("TA_CONTACT_PHONE")}
+                  error={!contact.phone && req("TA_CONTACT_PHONE") ? (fieldError("contactPhone", "contacts") || "Phone is required") : undefined}
+                >
                   <Input
                     value={contact.phone}
                     onChange={(e) =>
@@ -428,7 +473,11 @@ export function BasicInfoStep({
                   />
                 </StepField>
 
-                <StepField label="WhatsApp">
+                <StepField
+                  label="WhatsApp"
+                  required={req("TA_CONTACT_WHATSAPP")}
+                  error={!contact.whatsapp && req("TA_CONTACT_WHATSAPP") ? (fieldError("contactWhatsapp", "contacts") || "WhatsApp is required") : undefined}
+                >
                   <Input
                     value={contact.whatsapp}
                     onChange={(e) =>
@@ -441,7 +490,11 @@ export function BasicInfoStep({
                   />
                 </StepField>
 
-                <StepField label="Preferred method">
+                <StepField
+                  label="Preferred method"
+                  required={req("TA_CONTACT_PREFERRED_METHOD")}
+                  error={!contact.preferredMethod && req("TA_CONTACT_PREFERRED_METHOD") ? (fieldError("contactPreferredMethod", "contacts") || "Preferred method is required") : undefined}
+                >
                   <StepSelect
                     value={contact.preferredMethod}
                     onChange={(val) =>
@@ -452,6 +505,25 @@ export function BasicInfoStep({
                     }
                     options={CONTACT_PREFERRED_METHODS.map((row) => ({ id: row.id, name: row.label }))}
                     placeholder="Optional"
+                    error={!contact.preferredMethod && req("TA_CONTACT_PREFERRED_METHOD") ? "Preferred method is required" : undefined}
+                  />
+                </StepField>
+
+                <StepField
+                  label="Contact notes"
+                  required={req("TA_CONTACT_NOTES")}
+                  error={!contact.notes && req("TA_CONTACT_NOTES") ? (fieldError("contactNotes", "contacts") || "Contact notes are required") : undefined}
+                >
+                  <Input
+                    value={contact.notes}
+                    onChange={(e) =>
+                      set(
+                        "contacts",
+                        draft.contacts.map((row, i) => (i === index ? { ...row, notes: e.target.value } : row)),
+                      )
+                    }
+                    className={CONTROL_CLASS}
+                    placeholder="Contact notes..."
                   />
                 </StepField>
               </div>
@@ -490,7 +562,7 @@ export function BasicInfoStep({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <StepField label="Country">
+          <StepField label="Country" required={req("TA_COUNTRY")} error={fieldError("country", "basic_info")}>
             <SearchableSelect
               id="travel-agency-country"
               value={countryCode}
@@ -508,7 +580,7 @@ export function BasicInfoStep({
             />
           </StepField>
 
-          <StepField label={layout.regionLabel || "Regional state / Province"}>
+          <StepField label={layout.regionLabel || "Regional state / Province"} required={req("TA_REGION")} error={fieldError("region", "basic_info")}>
             {availableRegions.length > 0 ? (
               <SearchableSelect
                 id="travel-agency-region"
@@ -530,7 +602,7 @@ export function BasicInfoStep({
             )}
           </StepField>
 
-          <StepField label="City">
+          <StepField label="City" required={req("TA_CITY")} error={fieldError("city", "basic_info")}>
             <Input
               value={draft.city}
               onChange={(e) => set("city", e.target.value)}
@@ -539,7 +611,7 @@ export function BasicInfoStep({
             />
           </StepField>
 
-          <StepField label="Postal / ZIP code">
+          <StepField label="Postal / ZIP code" required={req("TA_POSTAL_CODE")} error={fieldError("postalCode", "basic_info")}>
             <Input
               value={draft.postalCode}
               onChange={(e) => set("postalCode", e.target.value)}
@@ -548,7 +620,7 @@ export function BasicInfoStep({
             />
           </StepField>
 
-          <StepField label="Address line 1">
+          <StepField label="Address line 1" required={req("TA_ADDRESS_LINE1")} error={fieldError("addressLine1", "basic_info")}>
             <Input
               value={draft.addressLine1}
               onChange={(e) => set("addressLine1", e.target.value)}
@@ -557,7 +629,7 @@ export function BasicInfoStep({
             />
           </StepField>
 
-          <StepField label="Address line 2">
+          <StepField label="Address line 2" required={req("TA_ADDRESS_LINE2")} error={fieldError("addressLine2", "basic_info")}>
             <Input
               value={draft.addressLine2}
               onChange={(e) => set("addressLine2", e.target.value)}
@@ -566,21 +638,42 @@ export function BasicInfoStep({
             />
           </StepField>
 
-          <StepField label="Market segment">
+          <StepField label="Registration number" required={req("TA_REGISTRATION_NUMBER")} error={fieldError("registrationNumber", "basic_info")}>
+            <Input
+              value={draft.registrationNumber}
+              onChange={(e) => set("registrationNumber", e.target.value)}
+              className={CONTROL_CLASS}
+              placeholder="Commercial business register #"
+            />
+          </StepField>
+
+          <StepField label="Market segment" required={req("TA_MARKET_SEGMENT")} error={fieldError("marketSegmentId", "basic_info")}>
             <StepSelect
               value={draft.marketSegmentId}
               onChange={(val) => set("marketSegmentId", val)}
               options={catalogues?.marketSegments ?? []}
               placeholder="Select market segment"
+              error={fieldError("marketSegmentId", "basic_info")}
             />
           </StepField>
 
-          <StepField label="Source">
+          <StepField label="Source" required={req("TA_SOURCE")} error={fieldError("sourceCodeId", "basic_info")}>
             <StepSelect
               value={draft.sourceCodeId}
               onChange={(val) => set("sourceCodeId", val)}
               options={catalogues?.sourceCodes ?? []}
               placeholder="Select source code"
+              error={fieldError("sourceCodeId", "basic_info")}
+            />
+          </StepField>
+
+          <StepField label="Account manager" required={req("TA_ACCOUNT_MANAGER")} error={fieldError("accountManagerId", "basic_info")}>
+            <StepSelect
+              value={draft.accountManagerId}
+              onChange={(val) => set("accountManagerId", val)}
+              options={catalogues?.staff ?? []}
+              placeholder="Select account manager"
+              error={fieldError("accountManagerId", "basic_info")}
             />
           </StepField>
         </div>

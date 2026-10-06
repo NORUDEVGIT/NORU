@@ -64,6 +64,7 @@ export function GuestTravelAgencyPaymentRulesStep({
   config,
   fieldError,
   restaurantId,
+  isRuleRequired,
 }: {
   draft: GuestTravelAgentCreateDraft;
   set: <K extends keyof GuestTravelAgentCreateDraft>(
@@ -73,6 +74,7 @@ export function GuestTravelAgencyPaymentRulesStep({
   config?: TravelAgencyStep4Config;
   fieldError: (field: string) => string | undefined;
   restaurantId?: string;
+  isRuleRequired?: (code: string) => boolean;
 }) {
   // Set default billing currency from config base currency if not set
   useEffect(() => {
@@ -219,7 +221,7 @@ export function GuestTravelAgencyPaymentRulesStep({
           {/* 1. Billing Currency * */}
           <div className="space-y-1">
             <Label htmlFor="ta-billing-currency" className="text-xs font-medium text-[#251605]">
-              Billing Currency <span className="text-destructive">*</span>
+              Billing Currency {isRuleRequired ? (isRuleRequired("TA_BILLING_CURRENCY") ? <span className="text-destructive">*</span> : null) : <span className="text-destructive">*</span>}
             </Label>
             <select
               id="ta-billing-currency"
@@ -252,7 +254,7 @@ export function GuestTravelAgencyPaymentRulesStep({
           {/* 2. Preferred Settlement Method */}
           <div className="space-y-1">
             <Label htmlFor="ta-settlement-method" className="text-xs font-medium text-[#251605]">
-              Preferred Settlement Method
+              Preferred Settlement Method {isRuleRequired?.("TA_PAYMENT_METHOD") && <span className="text-destructive">*</span>}
             </Label>
             <select
               id="ta-settlement-method"
@@ -271,6 +273,9 @@ export function GuestTravelAgencyPaymentRulesStep({
                 </option>
               ))}
             </select>
+            {fieldError("defaultPaymentMethodId") && (
+              <p className="text-xs text-destructive">{fieldError("defaultPaymentMethodId")}</p>
+            )}
             <p className="text-[11px] text-[#756A5B]">
               Operational default tender. Does not restrict cashiering tenders.
             </p>
@@ -279,7 +284,7 @@ export function GuestTravelAgencyPaymentRulesStep({
           {/* 3. Payment Timing * */}
           <div className="space-y-1">
             <Label htmlFor="ta-payment-timing" className="text-xs font-medium text-[#251605]">
-              Payment Timing <span className="text-destructive">*</span>
+              Payment Timing {isRuleRequired ? (isRuleRequired("TA_PAYMENT_TIMING") ? <span className="text-destructive">*</span> : null) : <span className="text-destructive">*</span>}
             </Label>
             <select
               id="ta-payment-timing"
@@ -315,7 +320,7 @@ export function GuestTravelAgencyPaymentRulesStep({
           {/* 4. Default Billing Rule * */}
           <div className="space-y-1.5">
             <Label htmlFor="ta-billing-rule" className="text-xs font-semibold text-[#251605]">
-              Default Billing Rule <span className="text-destructive">*</span>
+              Default Billing Rule {isRuleRequired ? (isRuleRequired("TA_BILLING_RULE") ? <span className="text-destructive">*</span> : null) : <span className="text-destructive">*</span>}
             </Label>
             <Select
               value={draft.defaultBillingRuleId ?? ""}
@@ -349,7 +354,7 @@ export function GuestTravelAgencyPaymentRulesStep({
         {isCustomOtherRule && (
           <div className="pt-2 border-t border-[#EDE6D8] space-y-1.5" data-testid="custom-billing-instruction-wrapper">
             <Label htmlFor="ta-billing-instruction" className="text-xs font-medium text-[#251605]">
-              Billing Instruction
+              Billing Instruction {isRuleRequired?.("TA_BILLING_INSTRUCTION") && <span className="text-destructive">*</span>}
             </Label>
             <Textarea
               id="ta-billing-instruction"
@@ -359,6 +364,9 @@ export function GuestTravelAgencyPaymentRulesStep({
               className="rounded-[6px] border border-[#CCCCCC] text-xs focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]"
               placeholder="Specify special billing routing instructions or account arrangements..."
             />
+            {fieldError("billingInstruction") && (
+              <p className="text-xs text-destructive">{fieldError("billingInstruction")}</p>
+            )}
             <p className="text-[11px] text-[#756A5B]">
               Enter specific settlement details for custom billing agreements.
             </p>
@@ -384,6 +392,7 @@ export function GuestTravelAgencyPaymentRulesStep({
           <div className="flex items-center gap-2.5">
             <Label htmlFor="allow-credit-switch" className="text-xs font-semibold text-[#251605] cursor-pointer">
               {draft.allowCredit ? "Credit Enabled" : "Allow Credit"}
+              {isRuleRequired?.("TA_ALLOW_CREDIT") && <span className="text-destructive"> *</span>}
             </Label>
             <Switch
               id="allow-credit-switch"
@@ -402,6 +411,9 @@ export function GuestTravelAgencyPaymentRulesStep({
             />
           </div>
         </div>
+        {fieldError("allowCredit") && (
+          <p className="text-xs text-destructive">{fieldError("allowCredit")}</p>
+        )}
 
         {draft.allowCredit ? (
           <div className="grid gap-4 sm:grid-cols-3 pt-1" data-testid="credit-arrangement-fields">
@@ -409,6 +421,7 @@ export function GuestTravelAgencyPaymentRulesStep({
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-[#251605]">
                 Credit Limit ({draft.billingCurrencyCode || config?.baseCurrency || "ETB"})
+                {isRuleRequired?.("TA_CREDIT_LIMIT") && <span className="text-destructive"> *</span>}
               </Label>
               <Input
                 id="ta-credit-limit"
@@ -434,7 +447,7 @@ export function GuestTravelAgencyPaymentRulesStep({
             {/* Credit Terms / Days */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-[#251605]">
-                Credit Terms / Days {draft.paymentTiming === "credit_terms" ? <span className="text-destructive">*</span> : null}
+                Credit Terms / Days {(isRuleRequired?.("TA_CREDIT_DAYS") || draft.paymentTiming === "credit_terms") ? <span className="text-destructive">*</span> : null}
               </Label>
               {daysMode === "preset" ? (
                 <div className="flex gap-1.5">
@@ -518,7 +531,7 @@ export function GuestTravelAgencyPaymentRulesStep({
             {/* Credit Status * */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-[#251605]">
-                Credit Status <span className="text-destructive">*</span>
+                Credit Status {(isRuleRequired?.("TA_CREDIT_STATUS") || draft.allowCredit) ? <span className="text-destructive">*</span> : null}
               </Label>
               <Select
                 value={draft.creditStatus ?? "pending_approval"}
@@ -576,7 +589,7 @@ export function GuestTravelAgencyPaymentRulesStep({
           {/* 1. Guarantee / Deposit Policy */}
           <div className="space-y-1">
             <Label htmlFor="ta-guarantee-policy" className="text-xs font-medium text-[#251605]">
-              Default Guarantee Policy
+              Default Guarantee Policy {isRuleRequired?.("TA_DEPOSIT_POLICY") && <span className="text-destructive">*</span>}
             </Label>
             <select
               id="ta-guarantee-policy"
@@ -591,6 +604,9 @@ export function GuestTravelAgencyPaymentRulesStep({
                 </option>
               ))}
             </select>
+            {fieldError("defaultDepositPolicyId") && (
+              <p className="text-xs text-destructive">{fieldError("defaultDepositPolicyId")}</p>
+            )}
             <p className="text-[11px] text-[#756A5B]">
               Deposit requirement applied to agency reservations.
             </p>
@@ -599,7 +615,7 @@ export function GuestTravelAgencyPaymentRulesStep({
           {/* 2. Cancellation Policy */}
           <div className="space-y-1">
             <Label htmlFor="ta-cancel-policy" className="text-xs font-medium text-[#251605]">
-              Default Cancellation Policy
+              Default Cancellation Policy {isRuleRequired?.("TA_CANCELLATION_POLICY") && <span className="text-destructive">*</span>}
             </Label>
             <select
               id="ta-cancel-policy"
@@ -614,6 +630,9 @@ export function GuestTravelAgencyPaymentRulesStep({
                 </option>
               ))}
             </select>
+            {fieldError("defaultCancellationPolicyId") && (
+              <p className="text-xs text-destructive">{fieldError("defaultCancellationPolicyId")}</p>
+            )}
             <p className="text-[11px] text-[#756A5B]">
               Cutoff window and penalty rules for reservation cancellations.
             </p>
@@ -622,7 +641,7 @@ export function GuestTravelAgencyPaymentRulesStep({
           {/* 3. No-Show Policy */}
           <div className="space-y-1">
             <Label htmlFor="ta-noshow-policy" className="text-xs font-medium text-[#251605]">
-              Default No-Show Policy
+              Default No-Show Policy {isRuleRequired?.("TA_NOSHOW_POLICY") && <span className="text-destructive">*</span>}
             </Label>
             <select
               id="ta-noshow-policy"
@@ -637,6 +656,9 @@ export function GuestTravelAgencyPaymentRulesStep({
                 </option>
               ))}
             </select>
+            {fieldError("defaultNoShowPolicyId") && (
+              <p className="text-xs text-destructive">{fieldError("defaultNoShowPolicyId")}</p>
+            )}
             <p className="text-[11px] text-[#756A5B]">
               Inventory release and fee schedule for no-shows.
             </p>
@@ -647,7 +669,7 @@ export function GuestTravelAgencyPaymentRulesStep({
         <div className="pt-2 border-t border-[#EDE6D8] space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="ta-booking-notes" className="text-xs font-medium text-[#251605]">
-              Booking Notes
+              Booking Notes {isRuleRequired?.("TA_BOOKING_NOTES") && <span className="text-destructive">*</span>}
             </Label>
             <span className="text-[10px] text-[#756A5B]">
               {draft.bookingNotes?.length || 0} / 500

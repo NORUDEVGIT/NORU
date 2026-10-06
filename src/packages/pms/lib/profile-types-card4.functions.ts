@@ -44,9 +44,9 @@ const saveSchema = z
     description: z.string().max(400).optional().default(""),
     icon: z.enum(PROFILE_TYPE_ICONS),
     active: z.boolean(),
-    requiredFieldIds: z.array(idSchema).max(40),
-    documentTypeIds: z.array(idSchema).max(40),
-    preferenceTypeIds: z.array(z.string().max(40)).max(40),
+    requiredFieldIds: z.array(idSchema).max(100),
+    documentTypeIds: z.array(idSchema).max(100),
+    preferenceTypeIds: z.array(z.string().max(40)).max(100),
     defaults: defaultsSchema,
   })
   .strict();

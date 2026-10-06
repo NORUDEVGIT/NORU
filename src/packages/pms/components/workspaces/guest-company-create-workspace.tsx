@@ -146,7 +146,7 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
       context.data?.defaultCurrency ||
       "";
     setDraft((curr) => {
-      let nextContract = { ...curr.contract };
+      const nextContract = { ...curr.contract };
       let changed = false;
       if (!nextContract.currencyCode && settingCurrency) {
         nextContract.currencyCode = settingCurrency;
@@ -547,6 +547,8 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
               creditAllowed={selectedType?.creditAccountAllowed}
               fieldError={fieldError}
               isLoadingConfig={billingCreditConfig.isLoading}
+              required={required}
+              visible={visible}
             />
           ) : null}
           {step === "contracts" ? (
@@ -558,6 +560,8 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
               isLoadingConfig={contractConfig.isLoading}
               configError={contractConfig.error instanceof Error ? contractConfig.error.message : null}
               fieldError={fieldError}
+              required={required}
+              visible={visible}
             />
           ) : null}
           {step === "review" ? (

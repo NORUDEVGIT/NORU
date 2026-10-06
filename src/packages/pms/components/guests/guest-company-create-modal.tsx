@@ -299,7 +299,7 @@ export function GuestCompanyCreateModal({
       setStep(context.data.draft.step);
     } else {
       setDraft((current) => {
-        let next = { ...current };
+        const next = { ...current };
         if (context.data?.defaultCurrency) {
           if (!next.currency) {
             next.currency = context.data.defaultCurrency;
@@ -359,7 +359,7 @@ export function GuestCompanyCreateModal({
       context.data?.defaultCurrency ||
       "";
     setDraft((curr) => {
-      let nextContract = { ...curr.contract };
+      const nextContract = { ...curr.contract };
       let changed = false;
       if (!nextContract.currencyCode && settingCurrency) {
         nextContract.currencyCode = settingCurrency;
@@ -859,6 +859,8 @@ export function GuestCompanyCreateModal({
                   creditAllowed={selectedType?.creditAccountAllowed}
                   fieldError={fieldError}
                   isLoadingConfig={billingCreditConfig.isLoading}
+                  required={required}
+                  visible={visible}
                 />
               ) : null}
 
@@ -871,6 +873,8 @@ export function GuestCompanyCreateModal({
                   isLoadingConfig={contractConfig.isLoading}
                   configError={contractConfig.error instanceof Error ? contractConfig.error.message : null}
                   fieldError={fieldError}
+                  required={required}
+                  visible={visible}
                 />
               ) : null}
 

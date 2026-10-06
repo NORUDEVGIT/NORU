@@ -32,6 +32,8 @@ export interface CompanyBillingStepProps {
   creditAllowed?: boolean;
   fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
   isLoadingConfig?: boolean;
+  required?: (code: string) => boolean;
+  visible?: (code: string) => boolean;
 }
 
 export function CompanyBillingStep({
@@ -41,7 +43,13 @@ export function CompanyBillingStep({
   creditAllowed = true,
   fieldError,
   isLoadingConfig = false,
+  required,
+  visible,
 }: CompanyBillingStepProps) {
+  const isReq = (code: string, fallback = false) => {
+    if (required) return required(code);
+    return fallback;
+  };
   // Derive presets or custom for Credit Days
   const currentDays = draft.creditDays;
   const isPresetDays = currentDays !== null && (PRESET_DAYS as readonly number[]).includes(currentDays);
@@ -125,7 +133,7 @@ export function CompanyBillingStep({
           {/* Default Billing Rule * */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-[#251605]">
-              Default Billing Rule <span className="text-destructive">*</span>
+              Default Billing Rule {isReq("COMPANY_DEFAULT_BILLING_RULE", true) && <span className="text-destructive">*</span>}
             </Label>
             <Select
               value={draft.defaultBillingRuleId ?? ""}
@@ -160,12 +168,20 @@ export function CompanyBillingStep({
 
           {/* Preferred Settlement Method */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-[#251605]">Preferred Settlement Method</Label>
+            <Label className="text-xs font-semibold text-[#251605]">
+              Preferred Settlement Method {isReq("COMPANY_SETTLEMENT_METHOD", false) && <span className="text-destructive">*</span>}
+            </Label>
             <Select
               value={draft.defaultPaymentMethodId ?? "none"}
               onValueChange={(val) => set("defaultPaymentMethodId", val === "none" ? null : val)}
             >
-              <SelectTrigger className="h-10 text-xs border-[#CCCCCC] bg-white rounded-none" data-testid="default-payment-method-select">
+              <SelectTrigger
+                className={cn(
+                  "h-10 text-xs border-[#CCCCCC] bg-white rounded-none",
+                  fieldError("defaultPaymentMethodId", "billing") && "border-destructive",
+                )}
+                data-testid="default-payment-method-select"
+              >
                 <SelectValue placeholder="Select settlement method (Optional)" />
               </SelectTrigger>
               <SelectContent>
@@ -179,19 +195,31 @@ export function CompanyBillingStep({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-[10px] text-[#756A5B]">
-              Preferred payment tender default, not a forced cashiering block.
-            </p>
+            {fieldError("defaultPaymentMethodId", "billing") ? (
+              <p className="text-[11px] text-destructive">{fieldError("defaultPaymentMethodId", "billing")}</p>
+            ) : (
+              <p className="text-[10px] text-[#756A5B]">
+                Preferred payment tender default, not a forced cashiering block.
+              </p>
+            )}
           </div>
 
           {/* Billing Currency */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-[#251605]">Billing Currency</Label>
+            <Label className="text-xs font-semibold text-[#251605]">
+              Billing Currency {isReq("COMPANY_BILLING_CURRENCY", false) && <span className="text-destructive">*</span>}
+            </Label>
             <Select
               value={draft.billingCurrencyCode || (config?.baseCurrency ?? "ETB")}
               onValueChange={(val) => set("billingCurrencyCode", val)}
             >
-              <SelectTrigger className="h-10 text-xs border-[#CCCCCC] bg-white rounded-none" data-testid="billing-currency-select">
+              <SelectTrigger
+                className={cn(
+                  "h-10 text-xs border-[#CCCCCC] bg-white rounded-none",
+                  fieldError("billingCurrencyCode", "billing") && "border-destructive",
+                )}
+                data-testid="billing-currency-select"
+              >
                 <SelectValue placeholder="Select currency…" />
               </SelectTrigger>
               <SelectContent>
@@ -202,15 +230,19 @@ export function CompanyBillingStep({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-[10px] text-[#756A5B]">
-              Company invoicing/ledger context currency. Distinct from Step 4 contract currency.
-            </p>
+            {fieldError("billingCurrencyCode", "billing") ? (
+              <p className="text-[11px] text-destructive">{fieldError("billingCurrencyCode", "billing")}</p>
+            ) : (
+              <p className="text-[10px] text-[#756A5B]">
+                Company invoicing/ledger context currency. Distinct from Step 4 contract currency.
+              </p>
+            )}
           </div>
 
           {/* Payment Timing * */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-[#251605]">
-              Payment Timing <span className="text-destructive">*</span>
+              Payment Timing {isReq("COMPANY_PAYMENT_TIMING", true) && <span className="text-destructive">*</span>}
             </Label>
             <Select
               value={draft.paymentTiming ?? ""}
@@ -290,20 +322,27 @@ export function CompanyBillingStep({
               data-testid="custom-billing-instruction-field"
             >
               <Label htmlFor="custom-billing-instruction" className="text-xs font-semibold text-[#251605]">
-                Custom Billing Instruction (Descriptive Only)
+                Custom Billing Instruction (Descriptive Only) {isReq("COMPANY_BILLING_INSTRUCTIONS", false) && <span className="text-destructive">*</span>}
               </Label>
               <Textarea
                 id="custom-billing-instruction"
                 rows={2}
                 placeholder="e.g., Specific department voucher required upon arrival; charge back to regional cost center"
                 value={draft.billingInstruction ?? ""}
-                className="text-xs border-[#CCCCCC] bg-white resize-none rounded-none"
+                className={cn(
+                  "text-xs border-[#CCCCCC] bg-white resize-none rounded-none",
+                  fieldError("billingInstruction", "billing") && "border-destructive",
+                )}
                 onChange={(e) => set("billingInstruction", e.target.value)}
                 data-testid="custom-billing-instruction-input"
               />
-              <p className="text-[10px] text-[#756A5B]">
-                Stored as descriptive metadata only. Does not alter system folio routing or cashiering logic.
-              </p>
+              {fieldError("billingInstruction", "billing") ? (
+                <p className="text-[11px] text-destructive">{fieldError("billingInstruction", "billing")}</p>
+              ) : (
+                <p className="text-[10px] text-[#756A5B]">
+                  Stored as descriptive metadata only. Does not alter system folio routing or cashiering logic.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -326,7 +365,7 @@ export function CompanyBillingStep({
           </div>
           <div className="flex items-center gap-2.5">
             <Label htmlFor="allow-credit-switch" className="text-xs font-semibold text-[#251605] cursor-pointer">
-              {draft.creditAccountEnabled ? "Credit Enabled" : "Allow Credit"}
+              {draft.creditAccountEnabled ? "Credit Enabled" : "Allow Credit"} {isReq("COMPANY_CREDIT_FACILITY", false) && <span className="text-destructive">*</span>}
             </Label>
             <Switch
               id="allow-credit-switch"
@@ -336,6 +375,9 @@ export function CompanyBillingStep({
                 set("creditAccountEnabled", checked);
                 if (checked && !draft.creditStatus) {
                   set("creditStatus", "pending_approval");
+                }
+                if (checked && (draft.creditDays === null || draft.creditDays === undefined)) {
+                  set("creditDays", 30);
                 }
               }}
               data-testid="allow-credit-switch"
@@ -356,7 +398,7 @@ export function CompanyBillingStep({
             {/* Credit Limit Amount */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-[#251605]">
-                Credit Limit ({draft.billingCurrencyCode || config?.baseCurrency || "ETB"})
+                Credit Limit ({draft.billingCurrencyCode || config?.baseCurrency || "ETB"}) {isReq("COMPANY_CREDIT_LIMIT", false) && <span className="text-destructive">*</span>}
               </Label>
               <Input
                 type="number"
@@ -384,7 +426,7 @@ export function CompanyBillingStep({
             {/* Credit Terms / Days */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-[#251605]">
-                Credit Terms / Days {draft.paymentTiming === "credit_terms" ? <span className="text-destructive">*</span> : null}
+                Credit Terms / Days {(isReq("COMPANY_CREDIT_DAYS", draft.paymentTiming === "credit_terms") || draft.paymentTiming === "credit_terms") ? <span className="text-destructive">*</span> : null}
               </Label>
               {daysMode === "preset" ? (
                 <div className="flex gap-1.5">
@@ -459,7 +501,7 @@ export function CompanyBillingStep({
             {/* Credit Status * */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-[#251605]">
-                Credit Status <span className="text-destructive">*</span>
+                Credit Status {(isReq("COMPANY_CREDIT_STATUS", true)) && <span className="text-destructive">*</span>}
               </Label>
               <Select
                 value={draft.creditStatus ?? "pending_approval"}
@@ -514,7 +556,7 @@ export function CompanyBillingStep({
           </div>
           <div className="flex items-center gap-2.5">
             <Label htmlFor="tax-exempt-switch" className="text-xs font-semibold text-[#251605] cursor-pointer">
-              {draft.taxExempt ? "Tax Exempt" : "Standard (Non-Exempt)"}
+              {draft.taxExempt ? "Tax Exempt" : "Standard (Non-Exempt)"} {isReq("COMPANY_TAX_EXEMPTION", false) && <span className="text-destructive">*</span>}
             </Label>
             <Switch
               id="tax-exempt-switch"
@@ -535,7 +577,7 @@ export function CompanyBillingStep({
             {/* Exemption Rule * */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-[#251605]">
-                Exemption Rule <span className="text-destructive">*</span>
+                Exemption Rule {(isReq("COMPANY_TAX_EXEMPTION_RULE", true)) && <span className="text-destructive">*</span>}
               </Label>
               <Select
                 value={draft.taxExemptionRuleId ?? ""}
@@ -571,7 +613,7 @@ export function CompanyBillingStep({
             {/* Certificate / Reference Number */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-[#251605]">
-                Certificate / Reference Number {isDocRequiredForExemption ? <span className="text-destructive">*</span> : null}
+                Certificate / Reference Number {(isReq("COMPANY_TAX_EXEMPT_CERT", isDocRequiredForExemption) || isReq("COMPANY_TAX_EXEMPTION_CERTIFICATE", isDocRequiredForExemption) || isDocRequiredForExemption) ? <span className="text-destructive">*</span> : null}
               </Label>
               <Input
                 value={draft.taxExemptionCertificateNumber}
@@ -596,15 +638,24 @@ export function CompanyBillingStep({
 
             {/* Valid Until */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-[#251605]">Valid Until</Label>
+              <Label className="text-xs font-semibold text-[#251605]">
+                Valid Until {(isReq("COMPANY_TAX_EXEMPT_VALID_UNTIL", false) || isReq("COMPANY_TAX_EXEMPTION_VALID_UNTIL", false)) && <span className="text-destructive">*</span>}
+              </Label>
               <Input
                 type="date"
                 value={draft.taxExemptionValidTo ?? ""}
                 onChange={(e) => set("taxExemptionValidTo", e.target.value || null)}
-                className="h-10 text-xs border-[#CCCCCC] bg-white rounded-none"
+                className={cn(
+                  "h-10 text-xs border-[#CCCCCC] bg-white rounded-none",
+                  fieldError("taxExemptionValidTo", "billing") && "border-destructive",
+                )}
                 data-testid="tax-valid-until-input"
               />
-              <p className="text-[10px] text-[#756A5B]">Optional expiration date of certificate.</p>
+              {fieldError("taxExemptionValidTo", "billing") ? (
+                <p className="text-[11px] text-destructive">{fieldError("taxExemptionValidTo", "billing")}</p>
+              ) : (
+                <p className="text-[10px] text-[#756A5B]">Optional expiration date of certificate.</p>
+              )}
             </div>
           </div>
         ) : (
@@ -629,17 +680,29 @@ export function CompanyBillingStep({
           </div>
         </div>
         <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="billing-instructions-textarea" className="text-xs font-semibold text-[#251605]">
+              Billing Instructions {isReq("COMPANY_BILLING_INSTRUCTIONS", false) && <span className="text-destructive">*</span>}
+            </Label>
+          </div>
           <Textarea
             value={draft.billingInstruction}
             onChange={(e) => set("billingInstruction", e.target.value)}
-            className="w-full rounded-none border border-[#CCCCCC] bg-white p-3 text-xs text-[#251605] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]"
+            className={cn(
+              "w-full rounded-none border border-[#CCCCCC] bg-white p-3 text-xs text-[#251605] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]",
+              fieldError("billingInstruction", "billing") && "border-destructive focus:border-destructive focus:ring-destructive",
+            )}
             rows={3}
             placeholder="e.g. Room charges billed to company master; all incidentals and minibar payable directly by guest upon checkout."
             data-testid="billing-instructions-textarea"
           />
-          <p className="text-[10px] text-[#756A5B]">
-            Persisted directly to company master billing instructions.
-          </p>
+          {fieldError("billingInstruction", "billing") ? (
+            <p className="text-[11px] text-destructive">{fieldError("billingInstruction", "billing")}</p>
+          ) : (
+            <p className="text-[10px] text-[#756A5B]">
+              Persisted directly to company master billing instructions.
+            </p>
+          )}
         </div>
       </section>
     </div>

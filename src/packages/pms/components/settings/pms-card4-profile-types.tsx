@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { MoreHorizontal, Plus, Building, SlidersHorizontal } from "lucide-react";
@@ -96,10 +96,20 @@ import {
   INDIVIDUAL_GUEST_CREATION_FIELDS,
   ESSENTIAL_GUEST_FIELD_CODES,
   COMPANY_CREATION_FIELDS,
+  COMPANY_BILLING_FIELDS,
+  COMPANY_CONTRACT_FIELDS,
+  ALL_COMPANY_CREATION_FIELDS,
   COMPANY_CREATION_CATEGORIES,
   ESSENTIAL_COMPANY_FIELD_CODES,
   GUEST_CREATION_CATEGORIES,
+  TRAVEL_AGENCY_CREATION_FIELDS,
+  TRAVEL_AGENCY_COMMISSION_FIELDS,
+  TRAVEL_AGENCY_PAYMENT_RULES_FIELDS,
+  TRAVEL_AGENCY_CREATION_CATEGORIES,
+  ESSENTIAL_TRAVEL_AGENCY_FIELD_CODES,
 } from "@/packages/pms/lib/guest-creation-field-definitions";
+import { FIELD_ALIASES_MAP } from "@/packages/pms/lib/guest-company-create-workspace";
+import { TRAVEL_AGENCY_FIELD_ALIASES_MAP } from "@/packages/pms/lib/guest-travel-agent-create-workspace";
 import { ManageGuestFieldsDrawer } from "./catalog-sheets/manage-guest-fields-drawer";
 
 function recordToDraft(row: ProfileTypeRecord): ProfileTypeDraft {
@@ -122,7 +132,16 @@ function toggleId(list: string[], id: string, on: boolean): string[] {
   return list.filter((item) => item !== id);
 }
 
-export type ProfileTypeTabId = "general" | "fields" | "documents" | "preferences" | "defaults";
+export type ProfileTypeTabId =
+  | "general"
+  | "fields"
+  | "documents"
+  | "preferences"
+  | "defaults"
+  | "billing"
+  | "contracts"
+  | "commission"
+  | "payment_rules";
 
 export function PmsCard4ProfileTypes({
   restaurantId,
@@ -163,7 +182,7 @@ export function PmsCard4ProfileTypes({
     queryFn: () => loadFields({ data: { restaurantId } }),
     retry: false,
   });
-  const allFields = fieldsQuery.data?.fields ?? [];
+  const allFields = useMemo(() => fieldsQuery.data?.fields ?? [], [fieldsQuery.data?.fields]);
 
   const docsQuery = useQuery({
     queryKey: ["pms-card4-identity-documents", restaurantId],
@@ -207,25 +226,68 @@ export function PmsCard4ProfileTypes({
     draft.code === "COMPANY" ||
     draft.name.toLowerCase().includes("company");
 
+  const isTravelAgency =
+    draft.code === "TRA" ||
+    draft.code === "TRAVEL_AGENCY" ||
+    draft.code === "TRAVEL_AGENT" ||
+    draft.name.toLowerCase().includes("travel agency") ||
+    draft.name.toLowerCase().includes("travel agent");
+
   const activeCreationFields = isCompany
     ? COMPANY_CREATION_FIELDS
-    : INDIVIDUAL_GUEST_CREATION_FIELDS;
+    : isTravelAgency
+      ? TRAVEL_AGENCY_CREATION_FIELDS
+      : INDIVIDUAL_GUEST_CREATION_FIELDS;
 
   const essentialCodes = isCompany
     ? ESSENTIAL_COMPANY_FIELD_CODES
-    : ESSENTIAL_GUEST_FIELD_CODES;
+    : isTravelAgency
+      ? ESSENTIAL_TRAVEL_AGENCY_FIELD_CODES
+      : ESSENTIAL_GUEST_FIELD_CODES;
 
   const activeCategories = isCompany
     ? COMPANY_CREATION_CATEGORIES
-    : GUEST_CREATION_CATEGORIES;
+    : isTravelAgency
+      ? TRAVEL_AGENCY_CREATION_CATEGORIES
+      : GUEST_CREATION_CATEGORIES;
+
+  const getFieldMatch = useCallback(
+    (def: { code: string }) => {
+      const codeUpper = def.code.toUpperCase();
+      const strippedCode = codeUpper.startsWith("COMPANY_")
+        ? codeUpper.replace(/^COMPANY_/, "")
+        : codeUpper.startsWith("TA_")
+          ? codeUpper.replace(/^TA_/, "")
+          : codeUpper.startsWith("TRAVEL_AGENCY_")
+            ? codeUpper.replace(/^TRAVEL_AGENCY_/, "")
+            : codeUpper;
+      const candidateAliases = isTravelAgency
+        ? (TRAVEL_AGENCY_FIELD_ALIASES_MAP[codeUpper] ?? [
+            codeUpper,
+            strippedCode,
+            `TA_${strippedCode}`,
+            `TRAVEL_AGENCY_${strippedCode}`,
+          ])
+        : (FIELD_ALIASES_MAP[codeUpper] ?? [codeUpper, strippedCode, `COMPANY_${strippedCode}`]);
+
+      const matched =
+        allFields.find((f) => f.code.toUpperCase() === codeUpper) ??
+        allFields.find((f) => candidateAliases.some((a) => a.toUpperCase() === f.code.toUpperCase())) ??
+        allFields.find((f) => f.code.toUpperCase() === strippedCode);
+
+      const targetId = matched?.id ?? def.code;
+      return { matched, candidateAliases, targetId };
+    },
+    [allFields, isTravelAgency],
+  );
 
   useEffect(() => {
     const activeAdditional = activeCreationFields
       .filter((def) => !def.essential)
       .filter((def) => {
-        const matched = allFields.find((f) => f.code.toUpperCase() === def.code.toUpperCase());
+        const { matched } = getFieldMatch(def);
         if (matched) return matched.active !== false;
-        return false;
+        return true;
       })
       .map((def) => def.code);
 
@@ -239,19 +301,29 @@ export function PmsCard4ProfileTypes({
       .filter((code) => validCodesForCurrentType.has(code) && !essentialCodes.has(code));
 
     setSelectedAdditionalCodes(new Set([...activeAdditional, ...matchingCodes]));
-  }, [selectedId, draft.code, isCompany, isIndividual, allFields, activeCreationFields, essentialCodes]);
+  }, [selectedId, draft.code, isCompany, isIndividual, isTravelAgency, allFields, activeCreationFields, essentialCodes, draft.requiredFieldIds, getFieldMatch]);
+
+  const isFieldRequired = useCallback(
+    (def: { code: string; systemRequired?: boolean }) => {
+      if (def.systemRequired) return true;
+      const { matched, candidateAliases, targetId } = getFieldMatch(def);
+      return Boolean(
+        (targetId && draft.requiredFieldIds.includes(targetId)) ||
+          (matched && draft.requiredFieldIds.includes(matched.id)) ||
+          draft.requiredFieldIds.includes(def.code) ||
+          candidateAliases.some((a) => draft.requiredFieldIds.includes(a)),
+      );
+    },
+    [getFieldMatch, draft.requiredFieldIds],
+  );
 
   const displayedFields = useMemo(() => {
-    if (!isIndividual && !isCompany) return [];
+    if (!isIndividual && !isCompany && !isTravelAgency) return [];
     return activeCreationFields.filter((def) => {
       if (def.essential) return true;
-      const matched = allFields.find((f) => f.code.toUpperCase() === def.code.toUpperCase());
-      const isRequiredInDraft = Boolean(
-        matched && draft.requiredFieldIds.includes(matched.id),
-      );
-      return selectedAdditionalCodes.has(def.code) || isRequiredInDraft;
+      return selectedAdditionalCodes.has(def.code) || isFieldRequired(def);
     });
-  }, [isIndividual, isCompany, activeCreationFields, allFields, draft.requiredFieldIds, selectedAdditionalCodes]);
+  }, [isIndividual, isCompany, isTravelAgency, activeCreationFields, selectedAdditionalCodes, isFieldRequired]);
 
   const [docEditorOpen, setDocEditorOpen] = useState(false);
   const [docCatalogOpen, setDocCatalogOpen] = useState(false);
@@ -265,7 +337,7 @@ export function PmsCard4ProfileTypes({
     if (initialTab && initialTab !== activeTab) {
       setActiveTab(initialTab);
     }
-  }, [initialTab]);
+  }, [initialTab, activeTab]);
 
   useEffect(() => {
     if (!query.data) return;
@@ -284,8 +356,53 @@ export function PmsCard4ProfileTypes({
 
   function applyRecord(row: ProfileTypeRecord | null) {
     setSelectedId(row?.id ?? null);
-    setDraft(row ? recordToDraft(row) : emptyProfileTypeDraft());
+    const newDraft = row ? recordToDraft(row) : emptyProfileTypeDraft();
+    setDraft(newDraft);
     setDirty(false);
+
+    const rowIsCompany =
+      newDraft.code === "COM" ||
+      newDraft.code === "COMPANY" ||
+      newDraft.name.toLowerCase().includes("company");
+
+    const rowIsTravelAgency =
+      newDraft.code === "TRA" ||
+      newDraft.code === "TRAVEL_AGENCY" ||
+      newDraft.code === "TRAVEL_AGENT" ||
+      newDraft.name.toLowerCase().includes("travel agency") ||
+      newDraft.name.toLowerCase().includes("travel agent");
+
+    setActiveTab((currentTab) => {
+      if (
+        rowIsCompany &&
+        (currentTab === "documents" ||
+          currentTab === "preferences" ||
+          currentTab === "commission" ||
+          currentTab === "payment_rules")
+      ) {
+        return "billing";
+      }
+      if (
+        rowIsTravelAgency &&
+        (currentTab === "documents" ||
+          currentTab === "preferences" ||
+          currentTab === "billing" ||
+          currentTab === "contracts")
+      ) {
+        return "commission";
+      }
+      if (
+        !rowIsCompany &&
+        !rowIsTravelAgency &&
+        (currentTab === "billing" ||
+          currentTab === "contracts" ||
+          currentTab === "commission" ||
+          currentTab === "payment_rules")
+      ) {
+        return "fields";
+      }
+      return currentTab;
+    });
   }
 
   function requestSelect(id: string | null) {
@@ -302,6 +419,46 @@ export function PmsCard4ProfileTypes({
     setDirty(true);
   }
 
+
+  function handleToggleRequirement(
+    def: { code: string; name: string; systemRequired?: boolean },
+    checked: boolean,
+  ) {
+    const { matched, candidateAliases, targetId } = getFieldMatch(def);
+    const removeCodes = new Set(
+      [
+        targetId,
+        def.code,
+        def.code.toUpperCase(),
+        matched?.id,
+        ...candidateAliases,
+        def.code.replace(/^COMPANY_/, ""),
+        def.code.replace(/^TA_/, ""),
+        def.code.replace(/^TRAVEL_AGENCY_/, ""),
+      ].filter(Boolean) as string[],
+    );
+
+    let nextRequiredIds: string[];
+    if (checked) {
+      const toAdd = [targetId, def.code, matched?.id, ...candidateAliases].filter(Boolean) as string[];
+      nextRequiredIds = Array.from(new Set([...draft.requiredFieldIds, ...toAdd]));
+    } else {
+      nextRequiredIds = draft.requiredFieldIds.filter((id) => !removeCodes.has(id));
+    }
+
+    mark("requiredFieldIds", nextRequiredIds);
+
+    if (canEdit) {
+      fieldFlagsMutation.mutate({
+        id: matched?.id,
+        code: def.code,
+        profileTypeId: draft.id || undefined,
+        required: checked,
+        fieldName: def.name,
+      });
+    }
+  }
+
   function handleTabChange(nextTab: string) {
     const tabId = nextTab as ProfileTypeTabId;
     setActiveTab(tabId);
@@ -312,8 +469,38 @@ export function PmsCard4ProfileTypes({
   const errorFor = (field: string) => errors.find((row) => row.field === field)?.message ?? null;
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      save({
+    mutationFn: () => {
+      const validUuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const resolvedFieldIds = new Set<string>();
+      for (const item of draft.requiredFieldIds) {
+        if (validUuidRegex.test(item)) {
+          resolvedFieldIds.add(item);
+        } else {
+          const itemUpper = item.toUpperCase();
+          const stripped = itemUpper
+            .replace(/^COMPANY_/, "")
+            .replace(/^TA_/, "")
+            .replace(/^TRAVEL_AGENCY_/, "");
+          const candidateAliases = isTravelAgency
+            ? (TRAVEL_AGENCY_FIELD_ALIASES_MAP[itemUpper] ?? [
+                itemUpper,
+                stripped,
+                `TA_${stripped}`,
+                `TRAVEL_AGENCY_${stripped}`,
+              ])
+            : (FIELD_ALIASES_MAP[itemUpper] ?? [itemUpper, stripped, `COMPANY_${stripped}`]);
+          const matched = allFields.find((f) => {
+            const fUpper = f.code.toUpperCase();
+            return candidateAliases.some((a) => a.toUpperCase() === fUpper);
+          });
+          if (matched?.id && validUuidRegex.test(matched.id)) {
+            resolvedFieldIds.add(matched.id);
+          }
+        }
+      }
+
+      return save({
         data: {
           restaurantId,
           ...(draft.id ? { id: draft.id } : {}),
@@ -322,12 +509,13 @@ export function PmsCard4ProfileTypes({
           description: draft.description,
           icon: draft.icon,
           active: draft.active,
-          requiredFieldIds: draft.requiredFieldIds,
+          requiredFieldIds: Array.from(resolvedFieldIds),
           documentTypeIds: draft.documentTypeIds,
           preferenceTypeIds: draft.preferenceTypeIds,
           defaults: draft.defaults,
         },
-      }),
+      });
+    },
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey });
       await queryClient.invalidateQueries({
@@ -342,14 +530,48 @@ export function PmsCard4ProfileTypes({
   });
 
   const fieldFlagsMutation = useMutation({
-    mutationFn: (input: { id: string; required?: boolean }) =>
-      setFieldFlags({ data: { restaurantId, ...input } }),
-    onSuccess: async () => {
+    mutationFn: (input: {
+      id?: string;
+      code?: string;
+      profileTypeId?: string;
+      required?: boolean;
+      active?: boolean;
+      fieldName?: string;
+    }) => {
+      const { fieldName: _fieldName, ...payload } = input;
+      return setFieldFlags({ data: { restaurantId, ...payload } });
+    },
+    onSuccess: async (result, input) => {
+      if (result?.id) {
+        setDraft((prev) => {
+          let updated = prev.requiredFieldIds;
+          if (input.required) {
+            const idsToAdd = [result.id, input.code].filter(Boolean) as string[];
+            updated = Array.from(new Set([...updated, ...idsToAdd]));
+          } else {
+            const removeSet = new Set([
+              result.id,
+              input.code,
+              input.code?.toUpperCase(),
+              input.code?.replace(/^COMPANY_/, ""),
+              input.code?.replace(/^TA_/, ""),
+              input.code?.replace(/^TRAVEL_AGENCY_/, ""),
+            ].filter(Boolean) as string[]);
+            updated = updated.filter((id) => !removeSet.has(id));
+          }
+          return { ...prev, requiredFieldIds: updated };
+        });
+      }
       await queryClient.invalidateQueries({
         queryKey: ["pms-card4-required-fields", restaurantId],
       });
       await queryClient.invalidateQueries({ queryKey });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
+      if (input.required !== undefined) {
+        toast.success(
+          `${input.fieldName || "Field"} is now ${input.required ? "required" : "optional"}.`,
+        );
+      }
     },
     onError: (err: Error) => toast.error(err.message || "Unable to update field requirement."),
   });
@@ -508,8 +730,22 @@ export function PmsCard4ProfileTypes({
           <TabsList>
             <TabsTrigger value="general">General Information</TabsTrigger>
             <TabsTrigger value="fields">Fields</TabsTrigger>
-            <TabsTrigger value="documents">Identity Documents</TabsTrigger>
-            <TabsTrigger value="preferences">Preferences</TabsTrigger>
+            {isCompany ? (
+              <>
+                <TabsTrigger value="billing">Billing & Credit</TabsTrigger>
+                <TabsTrigger value="contracts">Contracts & Agreements</TabsTrigger>
+              </>
+            ) : isTravelAgency ? (
+              <>
+                <TabsTrigger value="commission">Commission & Rates</TabsTrigger>
+                <TabsTrigger value="payment_rules">Payment, Credit & Reservation Rules</TabsTrigger>
+              </>
+            ) : (
+              <>
+                <TabsTrigger value="documents">Identity Documents</TabsTrigger>
+                <TabsTrigger value="preferences">Preferences</TabsTrigger>
+              </>
+            )}
             <TabsTrigger value="defaults">Defaults</TabsTrigger>
           </TabsList>
 
@@ -582,7 +818,7 @@ export function PmsCard4ProfileTypes({
 
           {/* TAB: FIELDS */}
           <TabsContent value="fields" className="space-y-4 pt-3">
-            {!isIndividual && !isCompany ? (
+            {!isIndividual && !isCompany && !isTravelAgency ? (
               <div
                 className="rounded-xl border border-dashed border-[#DDD4C5] bg-[#FAF8F5] p-8 text-center"
                 data-testid="non-individual-fields-notice"
@@ -594,7 +830,7 @@ export function PmsCard4ProfileTypes({
                   No Individual Guest Fields
                 </h4>
                 <p className="mt-1 text-xs text-muted-foreground max-w-md mx-auto">
-                  Field requirements and catalog configurations in this tab apply specifically to Individual Guest and Company profiles. {draft.name || "This profile type"} operates under its dedicated account and entity structure.
+                  Field requirements and catalog configurations in this tab apply specifically to Individual Guest, Company, and Travel Agency profiles. {draft.name || "This profile type"} operates under its dedicated account and entity structure.
                 </p>
               </div>
             ) : (
@@ -602,10 +838,10 @@ export function PmsCard4ProfileTypes({
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
                   <div>
                     <p className="text-xs font-medium text-[#251605]">
-                      Configure fields for {draft.name || (isCompany ? "Company" : "Individual Guest")}
+                      Configure fields for {draft.name || (isTravelAgency ? "Travel Agency" : isCompany ? "Company" : "Individual Guest")}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      Essential fields from the {isCompany ? "company" : "guest"} creation wizard are listed by default. Select additional fields via Manage Fields and control their requirements below.
+                      Essential fields from the {isTravelAgency ? "travel agency" : isCompany ? "company" : "guest"} creation wizard are listed by default. Select additional fields via Manage Fields and control their requirements below.
                     </p>
                   </div>
                   {canEdit ? (
@@ -641,21 +877,14 @@ export function PmsCard4ProfileTypes({
                         <TableHead>Category</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Tier</TableHead>
-                        <TableHead>Required for {draft.name || (isCompany ? "Company" : "Individual Guest")}</TableHead>
+                        <TableHead>Required for {draft.name || (isTravelAgency ? "Travel Agency" : isCompany ? "Company" : "Individual Guest")}</TableHead>
                         <TableHead className="w-16" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {displayedFields.map((def) => {
-                        const matched = allFields.find(
-                          (f) => f.code.toUpperCase() === def.code.toUpperCase(),
-                        );
-                        const isRequired =
-                          def.systemRequired ||
-                          Boolean(
-                            (matched && draft.requiredFieldIds.includes(matched.id)) ||
-                              draft.requiredFieldIds.includes(def.code),
-                          );
+                        const { matched } = getFieldMatch(def);
+                        const isRequired = isFieldRequired(def);
 
                         return (
                           <TableRow key={def.code}>
@@ -698,31 +927,8 @@ export function PmsCard4ProfileTypes({
                                     id={`field-req-${def.code}`}
                                     checked={isRequired}
                                     disabled={!canEdit || fieldFlagsMutation.isPending}
-                                    onCheckedChange={(checked) => {
-                                      const targetId = matched?.id ?? def.code;
-                                      let nextRequiredIds: string[];
-                                      if (checked) {
-                                        nextRequiredIds = draft.requiredFieldIds.includes(targetId)
-                                          ? draft.requiredFieldIds
-                                          : [...draft.requiredFieldIds, targetId];
-                                      } else {
-                                        const removeCodes = new Set([
-                                          targetId,
-                                          def.code,
-                                          def.code.toUpperCase(),
-                                          matched?.id,
-                                          def.code.replace(/^COMPANY_/, ""),
-                                        ].filter(Boolean) as string[]);
-                                        nextRequiredIds = draft.requiredFieldIds.filter((id) => !removeCodes.has(id));
-                                      }
-                                      mark("requiredFieldIds", nextRequiredIds);
-                                      if (matched && canEdit) {
-                                        fieldFlagsMutation.mutate({
-                                          id: matched.id,
-                                          required: checked,
-                                        });
-                                      }
-                                    }}
+                                    onCheckedChange={(checked) => handleToggleRequirement(def, checked)}
+                                    data-testid={`field-switch-${def.code}`}
                                   />
                                   <Label
                                     htmlFor={`field-req-${def.code}`}
@@ -779,280 +985,671 @@ export function PmsCard4ProfileTypes({
             )}
           </TabsContent>
 
-          {/* TAB: DOCUMENTS */}
-          <TabsContent value="documents" className="space-y-4 pt-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-              <div>
-                <p className="text-xs font-medium text-[#251605]">
-                  Configure identity documents accepted for {draft.name || "this profile type"}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Select which document types guests of this profile type are allowed to present.
-                </p>
-              </div>
-              {canEdit ? (
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() => setDocCatalogOpen(true)}
-                  >
-                    Manage Document Catalog
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="bg-[#C89933] text-[#251605] text-xs h-7"
-                    onClick={() => {
-                      setSelectedDoc(null);
-                      setDocEditorOpen(true);
-                    }}
-                  >
-                    <Plus className="mr-1 size-3" /> Add Document Type
-                  </Button>
+          {/* TABS FOR TRAVEL AGENCY: COMMISSION & RATES, PAYMENT, CREDIT & RESERVATION RULES */}
+          {isTravelAgency ? (
+            <>
+              {/* TAB: COMMISSION & RATES */}
+              <TabsContent value="commission" className="space-y-4 pt-3" data-testid="tab-content-commission">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                  <div>
+                    <p className="text-xs font-medium text-[#251605]">
+                      Configure commission & rates requirements for {draft.name || "Travel Agency"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Control which commercial models, commission values, and net rate parameters are mandatory when creating a travel agency profile.
+                    </p>
+                  </div>
                 </div>
-              ) : null}
-            </div>
 
-            {allDocs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No identity document types configured yet. Use "+ Add Document Type" above to create one.
-              </p>
-            ) : (
-              <div className="border rounded-xl overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Document Type</TableHead>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Check-in Required</TableHead>
-                      <TableHead>Applicable to {draft.name || "Type"}</TableHead>
-                      <TableHead className="w-10" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {allDocs.map((doc) => (
-                      <TableRow
-                        key={doc.id}
-                        className={cn(!doc.active && "opacity-70 bg-muted/20")}
-                      >
-                        <TableCell className="font-medium text-[#251605]">
-                          <div className="flex items-center gap-2">
-                            <span>{doc.name}</span>
-                            {!doc.active ? (
-                              <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
-                                Inactive
-                              </span>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{doc.code}</TableCell>
-                        <TableCell className="text-xs">
-                          {doc.requiredAtCheckIn ? "Yes" : "No"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              id={`doc-${doc.id}`}
-                              checked={draft.documentTypeIds.includes(doc.id)}
-                              disabled={!canEdit}
-                              onCheckedChange={(checked) =>
-                                mark(
-                                  "documentTypeIds",
-                                  toggleId(draft.documentTypeIds, doc.id, checked === true),
-                                )
-                              }
-                            />
-                            <Label htmlFor={`doc-${doc.id}`} className="text-xs cursor-pointer font-normal">
-                              Accepted for {draft.name}
-                            </Label>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {canEdit ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-xs px-2"
-                              onClick={() => {
-                                setSelectedDoc(doc);
-                                setDocEditorOpen(true);
-                              }}
-                            >
-                              Edit
-                            </Button>
-                          ) : null}
-                        </TableCell>
+                <div className="border rounded-xl overflow-hidden bg-white">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Field</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Tier</TableHead>
+                        <TableHead>Required for {draft.name || "Travel Agency"}</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </TabsContent>
+                    </TableHeader>
+                    <TableBody>
+                      {TRAVEL_AGENCY_COMMISSION_FIELDS.map((def) => {
+                        const isRequired = isFieldRequired(def);
 
-          {/* TAB: PREFERENCES */}
-          <TabsContent value="preferences" className="space-y-4 pt-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-              <div>
-                <p className="text-xs font-medium text-[#251605]">
-                  Configure guest preferences applicable to {draft.name || "this profile type"}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Select which preference categories and types apply to this profile type.
-                </p>
-              </div>
-              {canEdit ? (
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() =>
-                      mark(
-                        "preferenceTypeIds",
-                        allPrefs.filter((p) => p.active).map((p) => p.id),
-                      )
-                    }
-                  >
-                    Select All Active
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() => mark("preferenceTypeIds", [])}
-                  >
-                    Deselect All
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() => setPrefCatalogOpen(true)}
-                  >
-                    Manage Preference Catalog
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="bg-[#C89933] text-[#251605] text-xs h-7"
-                    onClick={() => {
-                      setSelectedPref(null);
-                      setPrefEditorOpen(true);
-                    }}
-                  >
-                    <Plus className="mr-1 size-3" /> Add Preference
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-
-            {categories.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No preference categories configured yet. Use "+ Add Preference" or "Manage Preference Catalog" above to set them up.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {categories.map((cat) => {
-                  const catTypes = allPrefs.filter((p) => p.categoryId === cat.id);
-                  return (
-                    <div key={cat.id} className="border rounded-xl p-3.5 bg-white space-y-2">
-                      <div className="font-semibold text-xs text-[#251605] flex items-center justify-between border-b pb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span>{cat.name} ({cat.code})</span>
-                          {!cat.active ? (
-                            <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
-                              Inactive Category
-                            </span>
-                          ) : null}
-                        </div>
-                        <span className="text-[11px] text-muted-foreground font-normal">
-                          {catTypes.length} type{catTypes.length === 1 ? "" : "s"}
-                        </span>
-                      </div>
-                      {catTypes.length === 0 ? (
-                        <p className="text-xs text-muted-foreground italic py-1">
-                          No preference types in this category.
-                        </p>
-                      ) : (
-                        <div className="grid sm:grid-cols-2 gap-2 pt-1">
-                          {catTypes.map((pref) => {
-                            const isChecked =
-                              draft.preferenceTypeIds.length === 0
-                                ? pref.active
-                                : draft.preferenceTypeIds.includes(pref.id);
-                            return (
-                              <div
-                                key={pref.id}
-                                className={cn(
-                                  "flex items-center justify-between border rounded-lg p-2 text-xs",
-                                  !pref.active && "opacity-70 bg-muted/20",
-                                )}
-                              >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <Checkbox
-                                    id={`pref-${pref.id}`}
-                                    checked={isChecked}
-                                    disabled={!canEdit}
-                                    onCheckedChange={(checked) => {
-                                      const baseList =
-                                        draft.preferenceTypeIds.length === 0
-                                          ? allPrefs.filter((p) => p.active).map((p) => p.id)
-                                          : draft.preferenceTypeIds;
-                                      mark(
-                                        "preferenceTypeIds",
-                                        toggleId(baseList, pref.id, checked === true),
-                                      );
-                                    }}
-                                  />
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-1.5">
-                                    <Label htmlFor={`pref-${pref.id}`} className="font-medium cursor-pointer truncate block">
-                                      {pref.name}
-                                    </Label>
-                                    {!pref.active ? (
-                                      <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-muted text-muted-foreground">
-                                        Inactive
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <span className="text-[10px] text-muted-foreground block truncate">
-                                    {PREFERENCE_VALUE_TYPE_LABELS[pref.valueType]}
+                        return (
+                          <TableRow key={def.code}>
+                            <TableCell className="font-medium text-[#251605]">
+                              <div>
+                                <span className="text-xs font-semibold">{def.name}</span>
+                                <p className="text-[10px] text-muted-foreground truncate max-w-[260px]">
+                                  {def.description}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-[11px] text-[#756A5B] font-medium">
+                                {def.categoryLabel}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {GUEST_FIELD_TYPE_LABELS[def.fieldType]}
+                            </TableCell>
+                            <TableCell>
+                              {def.essential ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                  Essential
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-medium text-muted-foreground bg-[#FAF8F5] border border-[#DDD4C5] px-1.5 py-0.5 rounded">
+                                  Additional
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {def.systemRequired ? (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Switch checked={true} disabled={true} />
+                                  <span className="italic text-[11px] font-medium text-amber-900">
+                                    System required
                                   </span>
                                 </div>
+                              ) : (
+                                <div className="flex items-center gap-2.5">
+                                  <Switch
+                                    id={`commission-req-${def.code}`}
+                                    checked={isRequired}
+                                    disabled={!canEdit || fieldFlagsMutation.isPending}
+                                    onCheckedChange={(checked) => handleToggleRequirement(def, checked)}
+                                    data-testid={`commission-switch-${def.code}`}
+                                  />
+                                  <Label
+                                    htmlFor={`commission-req-${def.code}`}
+                                    className={cn(
+                                      "text-xs cursor-pointer font-medium select-none",
+                                      isRequired ? "text-[#C89933] font-semibold" : "text-muted-foreground",
+                                    )}
+                                  >
+                                    {isRequired ? "Required" : "Optional"}
+                                  </Label>
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+
+              {/* TAB: PAYMENT, CREDIT & RESERVATION RULES */}
+              <TabsContent value="payment_rules" className="space-y-4 pt-3" data-testid="tab-content-payment-rules">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                  <div>
+                    <p className="text-xs font-medium text-[#251605]">
+                      Configure payment, credit & reservation rules requirements for {draft.name || "Travel Agency"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Control which settlement terms, credit arrangements, and default reservation policies are mandatory when creating a travel agency profile.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border rounded-xl overflow-hidden bg-white">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Field</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Tier</TableHead>
+                        <TableHead>Required for {draft.name || "Travel Agency"}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {TRAVEL_AGENCY_PAYMENT_RULES_FIELDS.map((def) => {
+                        const isRequired = isFieldRequired(def);
+
+                        return (
+                          <TableRow key={def.code}>
+                            <TableCell className="font-medium text-[#251605]">
+                              <div>
+                                <span className="text-xs font-semibold">{def.name}</span>
+                                <p className="text-[10px] text-muted-foreground truncate max-w-[260px]">
+                                  {def.description}
+                                </p>
                               </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-[11px] text-[#756A5B] font-medium">
+                                {def.categoryLabel}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {GUEST_FIELD_TYPE_LABELS[def.fieldType]}
+                            </TableCell>
+                            <TableCell>
+                              {def.essential ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                  Essential
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-medium text-muted-foreground bg-[#FAF8F5] border border-[#DDD4C5] px-1.5 py-0.5 rounded">
+                                  Additional
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {def.systemRequired ? (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Switch checked={true} disabled={true} />
+                                  <span className="italic text-[11px] font-medium text-amber-900">
+                                    System required
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2.5">
+                                  <Switch
+                                    id={`payment-rules-req-${def.code}`}
+                                    checked={isRequired}
+                                    disabled={!canEdit || fieldFlagsMutation.isPending}
+                                    onCheckedChange={(checked) => handleToggleRequirement(def, checked)}
+                                    data-testid={`payment-rules-switch-${def.code}`}
+                                  />
+                                  <Label
+                                    htmlFor={`payment-rules-req-${def.code}`}
+                                    className={cn(
+                                      "text-xs cursor-pointer font-medium select-none",
+                                      isRequired ? "text-[#C89933] font-semibold" : "text-muted-foreground",
+                                    )}
+                                  >
+                                    {isRequired ? "Required" : "Optional"}
+                                  </Label>
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+            </>
+          ) : null}
+
+          {/* TABS FOR COMPANY: BILLING & CREDIT, CONTRACTS & AGREEMENTS */}
+          {isCompany ? (
+            <>
+              {/* TAB: BILLING & CREDIT */}
+              <TabsContent value="billing" className="space-y-4 pt-3" data-testid="tab-content-billing">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                  <div>
+                    <p className="text-xs font-medium text-[#251605]">
+                      Configure billing & credit requirements for {draft.name || "Company"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Control which billing rules, payment timing schedules, and credit parameters are mandatory when creating a company profile.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border rounded-xl overflow-hidden bg-white">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Field</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Tier</TableHead>
+                        <TableHead>Required for {draft.name || "Company"}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {COMPANY_BILLING_FIELDS.map((def) => {
+                        const isRequired = isFieldRequired(def);
+
+                        return (
+                          <TableRow key={def.code}>
+                            <TableCell className="font-medium text-[#251605]">
+                              <div>
+                                <span className="text-xs font-semibold">{def.name}</span>
+                                <p className="text-[10px] text-muted-foreground truncate max-w-[260px]">
+                                  {def.description}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-[11px] text-[#756A5B] font-medium">
+                                {def.categoryLabel}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {GUEST_FIELD_TYPE_LABELS[def.fieldType]}
+                            </TableCell>
+                            <TableCell>
+                              {def.essential ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                  Essential
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-medium text-muted-foreground bg-[#FAF8F5] border border-[#DDD4C5] px-1.5 py-0.5 rounded">
+                                  Additional
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {def.systemRequired ? (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Switch checked={true} disabled={true} />
+                                  <span className="italic text-[11px] font-medium text-amber-900">
+                                    System required
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2.5">
+                                  <Switch
+                                    id={`billing-req-${def.code}`}
+                                    checked={isRequired}
+                                    disabled={!canEdit || fieldFlagsMutation.isPending}
+                                    onCheckedChange={(checked) => handleToggleRequirement(def, checked)}
+                                    data-testid={`billing-switch-${def.code}`}
+                                  />
+                                  <Label
+                                    htmlFor={`billing-req-${def.code}`}
+                                    className={cn(
+                                      "text-xs cursor-pointer font-medium select-none",
+                                      isRequired ? "text-[#C89933] font-semibold" : "text-muted-foreground",
+                                    )}
+                                  >
+                                    {isRequired ? "Required" : "Optional"}
+                                  </Label>
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+
+              {/* TAB: CONTRACTS & AGREEMENTS */}
+              <TabsContent value="contracts" className="space-y-4 pt-3" data-testid="tab-content-contracts">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                  <div>
+                    <p className="text-xs font-medium text-[#251605]">
+                      Configure contracts & agreements requirements for {draft.name || "Company"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Control which corporate agreement terms, validity dates, and policy options are mandatory when creating a company profile. Document upload requirements are governed by Company & Business Document Types.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border rounded-xl overflow-hidden bg-white">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Field</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Tier</TableHead>
+                        <TableHead>Required for {draft.name || "Company"}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {COMPANY_CONTRACT_FIELDS.map((def) => {
+                        const isRequired = isFieldRequired(def);
+
+                        return (
+                          <TableRow key={def.code}>
+                            <TableCell className="font-medium text-[#251605]">
+                              <div>
+                                <span className="text-xs font-semibold">{def.name}</span>
+                                <p className="text-[10px] text-muted-foreground truncate max-w-[260px]">
+                                  {def.description}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-[11px] text-[#756A5B] font-medium">
+                                {def.categoryLabel}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {GUEST_FIELD_TYPE_LABELS[def.fieldType]}
+                            </TableCell>
+                            <TableCell>
+                              {def.essential ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                  Essential
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-medium text-muted-foreground bg-[#FAF8F5] border border-[#DDD4C5] px-1.5 py-0.5 rounded">
+                                  Additional
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {def.systemRequired ? (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Switch checked={true} disabled={true} />
+                                  <span className="italic text-[11px] font-medium text-amber-900">
+                                    System required
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2.5">
+                                  <Switch
+                                    id={`contract-req-${def.code}`}
+                                    checked={isRequired}
+                                    disabled={!canEdit || fieldFlagsMutation.isPending}
+                                    onCheckedChange={(checked) => handleToggleRequirement(def, checked)}
+                                    data-testid={`contract-switch-${def.code}`}
+                                  />
+                                  <Label
+                                    htmlFor={`contract-req-${def.code}`}
+                                    className={cn(
+                                      "text-xs cursor-pointer font-medium select-none",
+                                      isRequired ? "text-[#C89933] font-semibold" : "text-muted-foreground",
+                                    )}
+                                  >
+                                    {isRequired ? "Required" : "Optional"}
+                                  </Label>
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+            </>
+          ) : null}
+
+          {/* TABS FOR INDIVIDUAL: IDENTITY DOCUMENTS, PREFERENCES */}
+          {!isCompany && !isTravelAgency ? (
+            <>
+              {/* TAB: DOCUMENTS (Non-Company, Non-Travel Agency) */}
+              <TabsContent value="documents" className="space-y-4 pt-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                  <div>
+                    <p className="text-xs font-medium text-[#251605]">
+                      Configure identity documents accepted for {draft.name || "this profile type"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Select which document types guests of this profile type are allowed to present.
+                    </p>
+                  </div>
+                  {canEdit ? (
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() => setDocCatalogOpen(true)}
+                      >
+                        Manage Document Catalog
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="bg-[#C89933] text-[#251605] text-xs h-7"
+                        onClick={() => {
+                          setSelectedDoc(null);
+                          setDocEditorOpen(true);
+                        }}
+                      >
+                        <Plus className="mr-1 size-3" /> Add Document Type
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+
+                {allDocs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No identity document types configured yet. Use "+ Add Document Type" above to create one.
+                  </p>
+                ) : (
+                  <div className="border rounded-xl overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Document Type</TableHead>
+                          <TableHead>Code</TableHead>
+                          <TableHead>Check-in Required</TableHead>
+                          <TableHead>Applicable to {draft.name || "Type"}</TableHead>
+                          <TableHead className="w-10" />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {allDocs.map((doc) => (
+                          <TableRow
+                            key={doc.id}
+                            className={cn(!doc.active && "opacity-70 bg-muted/20")}
+                          >
+                            <TableCell className="font-medium text-[#251605]">
+                              <div className="flex items-center gap-2">
+                                <span>{doc.name}</span>
+                                {!doc.active ? (
+                                  <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
+                                    Inactive
+                                  </span>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{doc.code}</TableCell>
+                            <TableCell className="text-xs">
+                              {doc.requiredAtCheckIn ? "Yes" : "No"}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`doc-${doc.id}`}
+                                  checked={draft.documentTypeIds.includes(doc.id)}
+                                  disabled={!canEdit}
+                                  onCheckedChange={(checked) =>
+                                    mark(
+                                      "documentTypeIds",
+                                      toggleId(draft.documentTypeIds, doc.id, checked === true),
+                                    )
+                                  }
+                                />
+                                <Label htmlFor={`doc-${doc.id}`} className="text-xs cursor-pointer font-normal">
+                                  Accepted for {draft.name}
+                                </Label>
+                              </div>
+                            </TableCell>
+                            <TableCell>
                               {canEdit ? (
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 px-1.5 text-xs ml-1"
+                                  className="h-7 text-xs px-2"
                                   onClick={() => {
-                                    setSelectedPref(pref);
-                                    setPrefEditorOpen(true);
+                                    setSelectedDoc(doc);
+                                    setDocEditorOpen(true);
                                   }}
                                 >
                                   Edit
                                 </Button>
                               ) : null}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* TAB: PREFERENCES (Non-Company) */}
+              <TabsContent value="preferences" className="space-y-4 pt-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                  <div>
+                    <p className="text-xs font-medium text-[#251605]">
+                      Configure guest preferences applicable to {draft.name || "this profile type"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Select which preference categories and types apply to this profile type.
+                    </p>
+                  </div>
+                  {canEdit ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() =>
+                          mark(
+                            "preferenceTypeIds",
+                            allPrefs.filter((p) => p.active).map((p) => p.id),
+                          )
+                        }
+                      >
+                        Select All Active
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() => mark("preferenceTypeIds", [])}
+                      >
+                        Deselect All
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() => setPrefCatalogOpen(true)}
+                      >
+                        Manage Preference Catalog
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="bg-[#C89933] text-[#251605] text-xs h-7"
+                        onClick={() => {
+                          setSelectedPref(null);
+                          setPrefEditorOpen(true);
+                        }}
+                      >
+                        <Plus className="mr-1 size-3" /> Add Preference
+                      </Button>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </TabsContent>
+                  ) : null}
+                </div>
+
+                {categories.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No preference categories configured yet. Use "+ Add Preference" or "Manage Preference Catalog" above to set them up.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {categories.map((cat) => {
+                      const catTypes = allPrefs.filter((p) => p.categoryId === cat.id);
+                      return (
+                        <div key={cat.id} className="border rounded-xl p-3.5 bg-white space-y-2">
+                          <div className="font-semibold text-xs text-[#251605] flex items-center justify-between border-b pb-1.5">
+                            <div className="flex items-center gap-2">
+                              <span>{cat.name} ({cat.code})</span>
+                              {!cat.active ? (
+                                <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
+                                  Inactive Category
+                                </span>
+                              ) : null}
+                            </div>
+                            <span className="text-[11px] text-muted-foreground font-normal">
+                              {catTypes.length} type{catTypes.length === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                          {catTypes.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic py-1">
+                              No preference types in this category.
+                            </p>
+                          ) : (
+                            <div className="grid sm:grid-cols-2 gap-2 pt-1">
+                              {catTypes.map((pref) => {
+                                const isChecked =
+                                  draft.preferenceTypeIds.length === 0
+                                    ? pref.active
+                                    : draft.preferenceTypeIds.includes(pref.id);
+                                return (
+                                  <div
+                                    key={pref.id}
+                                    className={cn(
+                                      "flex items-center justify-between border rounded-lg p-2 text-xs",
+                                      !pref.active && "opacity-70 bg-muted/20",
+                                    )}
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <Checkbox
+                                        id={`pref-${pref.id}`}
+                                        checked={isChecked}
+                                        disabled={!canEdit}
+                                        onCheckedChange={(checked) => {
+                                          const baseList =
+                                            draft.preferenceTypeIds.length === 0
+                                              ? allPrefs.filter((p) => p.active).map((p) => p.id)
+                                              : draft.preferenceTypeIds;
+                                          mark(
+                                            "preferenceTypeIds",
+                                            toggleId(baseList, pref.id, checked === true),
+                                          );
+                                        }}
+                                      />
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                          <Label htmlFor={`pref-${pref.id}`} className="font-medium cursor-pointer truncate block">
+                                            {pref.name}
+                                          </Label>
+                                          {!pref.active ? (
+                                            <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-muted text-muted-foreground">
+                                              Inactive
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                        <span className="text-[10px] text-muted-foreground block truncate">
+                                          {PREFERENCE_VALUE_TYPE_LABELS[pref.valueType]}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    {canEdit ? (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-1.5 text-xs ml-1"
+                                        onClick={() => {
+                                          setSelectedPref(pref);
+                                          setPrefEditorOpen(true);
+                                        }}
+                                      >
+                                        Edit
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </TabsContent>
+            </>
+          ) : null}
 
           {/* TAB: DEFAULTS */}
           <TabsContent value="defaults" className="grid gap-3 sm:grid-cols-2 pt-3">
@@ -1122,11 +1719,19 @@ export function PmsCard4ProfileTypes({
         selectedCodes={selectedAdditionalCodes}
         fieldDefinitions={activeCreationFields}
         categories={activeCategories}
-        title={isCompany ? "Manage Company Fields" : "Manage Guest Fields"}
+        title={
+          isTravelAgency
+            ? "Manage Travel Agency Fields"
+            : isCompany
+              ? "Manage Company Fields"
+              : "Manage Guest Fields"
+        }
         description={
-          isCompany
-            ? "Select which creation fields appear in the configuration table for Company profiles."
-            : "Select which creation fields appear in the configuration table for Individual Guests."
+          isTravelAgency
+            ? "Select which creation fields appear in the configuration table for Travel Agency profiles."
+            : isCompany
+              ? "Select which creation fields appear in the configuration table for Company profiles."
+              : "Select which creation fields appear in the configuration table for Individual Guests."
         }
         onToggleCode={(code, active) => {
           setSelectedAdditionalCodes((prev) => {
@@ -1135,7 +1740,7 @@ export function PmsCard4ProfileTypes({
             else next.delete(code);
             return next;
           });
-          const matched = allFields.find((f) => f.code.toUpperCase() === code.toUpperCase());
+          const { matched } = getFieldMatch({ code });
           if (!active) {
             if (matched && draft.requiredFieldIds.includes(matched.id)) {
               mark(
