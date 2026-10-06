@@ -191,7 +191,7 @@ export function GuestQuickViewDrawer({
       >
         {/* Drawer Header */}
         <SheetHeader className="border-b border-[#E8E4DC] bg-[#FFFFFF] px-6 py-4 text-left">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 pr-8">
             <div className="flex items-center gap-3">
               <div className="flex size-11 shrink-0 items-center justify-center rounded-full border border-[#E8E4DC] bg-[#FAF8F5] text-sm font-bold text-[#251605]">
                 {guestQuery.isLoading ? <Skeleton className="size-8 rounded-full" /> : initials}
@@ -231,16 +231,6 @@ export function GuestQuickViewDrawer({
                 </div>
               </div>
             </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={onClose}
-              className="size-8 text-[#7A6B58] hover:bg-[#FAF8F5] hover:text-[#251605]"
-              data-testid="guest-quick-view-close"
-              aria-label="Close drawer"
-            >
-              <X className="size-4" />
-            </Button>
           </div>
 
           {/* Sub-nav tabs */}

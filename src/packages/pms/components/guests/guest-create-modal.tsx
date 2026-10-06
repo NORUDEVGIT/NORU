@@ -1053,15 +1053,11 @@ export function GuestCreateModal({
       }
 
       if (Object.keys(customValues).length > 0) {
-        const formatted = Object.entries(customValues).map(([fieldId, value]) => ({
-          fieldId,
-          value_json: value,
-        }));
         await saveCustomValues({
           data: {
             restaurantId,
             guestId: guest.id,
-            values: formatted,
+            values: customValues,
           },
         });
       }

@@ -92,7 +92,7 @@ export function GuestGroupQuickViewDrawer({
       >
         {/* Header */}
         <SheetHeader className="border-b border-[#DDD4C5] bg-white px-6 py-4">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 pr-8">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <SheetTitle className="truncate font-display text-lg text-[#251605]">
@@ -113,14 +113,6 @@ export function GuestGroupQuickViewDrawer({
                 {group?.groupTypeName ? ` · ${group.groupTypeName}` : ""}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-[#756A5B] transition-colors hover:bg-[#F7F4EE] hover:text-[#251605]"
-              aria-label="Close drawer"
-            >
-              <X className="size-4" />
-            </button>
           </div>
 
           {/* Quick Actions Bar */}
