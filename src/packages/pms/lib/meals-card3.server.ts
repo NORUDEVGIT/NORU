@@ -18,10 +18,15 @@ import {
   type TaxPosture,
 } from "./pms-set3-rates-guest.ts";
 
+// Phase B: CARD3_MEALS_TABS reflects the Package Master editor structure.
+// "Package Components" and "Package rate plan types" are no longer primary tabs.
+// They will be nested inside the Package Master editor in Phase E / Phase F.
 export const CARD3_MEALS_TABS = [
   { id: "overview", label: "Overview" },
   { id: "meal-plans", label: "Meal Plans" },
+  // Phase B: one unified Packages entry replaces the old three-section layout
   { id: "packages", label: "Packages" },
+  // Phase E placeholder — will become nested includes inside the Package editor
   { id: "package-components", label: "Package Components" },
 ] as const;
 export type Card3MealsTabId = (typeof CARD3_MEALS_TABS)[number]["id"];
