@@ -293,7 +293,7 @@ describe("Card 3 Phase 2 taxes readiness", () => {
     assert.equal(EXEMPTION_REASONS.length, 13);
     for (const key of Object.keys(expectedLabels)) {
       assert.ok(
-        EXEMPTION_REASONS.includes(key as any),
+        EXEMPTION_REASONS.includes(key as (typeof EXEMPTION_REASONS)[number]),
         `Missing reason category: ${key}`,
       );
       assert.equal(
