@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -870,7 +871,11 @@ function DetailsStep({
           <Input value={draft.contactEmail} onChange={(event) => set("contactEmail", event.target.value)} />
         </Field>
         <Field label="Contact Phone">
-          <Input value={draft.contactPhone} onChange={(event) => set("contactPhone", event.target.value)} />
+          <CanonicalPhoneInput
+            value={draft.contactPhone}
+            onChange={(phone) => set("contactPhone", phone)}
+            placeholder="e.g. 911 234 567"
+          />
         </Field>
       </div>
       <Field label="Group Status">
@@ -1175,7 +1180,11 @@ function GuestsStep({
             <Input value={memberDraft.email} onChange={(event) => onMemberDraft({ ...memberDraft, email: event.target.value })} />
           </Field>
           <Field label="Phone">
-            <Input value={memberDraft.phone} onChange={(event) => onMemberDraft({ ...memberDraft, phone: event.target.value })} />
+            <CanonicalPhoneInput
+              value={memberDraft.phone}
+              onChange={(phone) => onMemberDraft({ ...memberDraft, phone })}
+              placeholder="e.g. 911 234 567"
+            />
           </Field>
           <Field label="Room type preference">
             <NoneSelect

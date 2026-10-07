@@ -79,11 +79,13 @@ export function GuestTravelAgencyCommissionRatesStep({
   set,
   config,
   fieldError,
+  isRuleRequired,
 }: {
   draft: GuestTravelAgentCreateDraft;
   set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
   config?: TravelAgencyCommissionRatesConfig;
   fieldError: (key: string, stepId?: GuestTravelAgentCreateStepId) => string | undefined;
+  isRuleRequired?: (code: string) => boolean;
 }) {
   const roomTypes = config?.roomTypes ?? [];
   const ratePlans = config?.ratePlans ?? [];
@@ -107,10 +109,17 @@ export function GuestTravelAgencyCommissionRatesStep({
       {/* 1. Commercial Model Card */}
       <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
         <div className="border-b border-[#EDE6D8] pb-3">
-          <h2 className="text-sm font-semibold text-[#251605]">1. Commercial Model *</h2>
+          <h2 className="text-sm font-semibold text-[#251605]">
+            1. Commercial Model {isRuleRequired ? (isRuleRequired("TA_COMMERCIAL_MODEL") ? "*" : "") : "*"}
+          </h2>
           <p className="text-xs text-[#756A5B]">
             Define how the hotel commercially rewards or sells rooms to this Travel Agency.
           </p>
+          {fieldError("commercialModel", "commission_rates") && (
+            <p className="text-[11px] text-destructive font-medium mt-1">
+              {fieldError("commercialModel", "commission_rates")}
+            </p>
+          )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -205,7 +214,7 @@ export function GuestTravelAgencyCommissionRatesStep({
             <div className="grid gap-3 sm:grid-cols-3">
               <StepField
                 label="Commission Currency"
-                required
+                required={isRuleRequired ? isRuleRequired("TA_COMMISSION_CURRENCY") : true}
                 error={fieldError("commissionCurrency", "commission_rates")}
               >
                 <Select
@@ -227,7 +236,7 @@ export function GuestTravelAgencyCommissionRatesStep({
 
               <StepField
                 label="Effective From"
-                required
+                required={isRuleRequired ? isRuleRequired("TA_COMMISSION_EFFECTIVE_ON") : true}
                 error={fieldError("commissionEffectiveOn", "commission_rates")}
               >
                 <Input
@@ -242,6 +251,7 @@ export function GuestTravelAgencyCommissionRatesStep({
               <StepField
                 label="Expires On"
                 hint="Optional window end"
+                required={Boolean(isRuleRequired?.("TA_COMMISSION_EXPIRES_ON"))}
                 error={fieldError("commissionExpiresOn", "commission_rates")}
               >
                 <Input
@@ -265,7 +275,12 @@ export function GuestTravelAgencyCommissionRatesStep({
               </div>
             </div>
 
-            <StepField label="Commission Notes" hint="Agency-specific remarks">
+            <StepField
+              label="Commission Notes"
+              hint="Agency-specific remarks"
+              required={Boolean(isRuleRequired?.("TA_COMMISSION_NOTES"))}
+              error={fieldError("commissionNotes", "commission_rates")}
+            >
               <Textarea
                 data-testid="commission-notes"
                 value={draft.commissionNotes}
@@ -281,10 +296,17 @@ export function GuestTravelAgencyCommissionRatesStep({
           <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
             <div className="flex items-center justify-between border-b border-[#EDE6D8] pb-3">
               <div>
-                <h2 className="text-sm font-semibold text-[#251605]">3. Commission Application Rules</h2>
+                <h2 className="text-sm font-semibold text-[#251605]">
+                  3. Commission Application Rules {isRuleRequired?.("TA_COMMISSION_APPLICATION_MODE") ? "*" : ""}
+                </h2>
                 <p className="text-xs text-[#756A5B]">
                   Configure whether commission applies to all bookings or varies by Room Type and Rate Plan.
                 </p>
+                {fieldError("commissionApplicationMode", "commission_rates") && (
+                  <p className="text-[11px] text-destructive font-medium mt-0.5">
+                    {fieldError("commissionApplicationMode", "commission_rates")}
+                  </p>
+                )}
               </div>
 
               {/* Mode Toggle */}
@@ -322,7 +344,11 @@ export function GuestTravelAgencyCommissionRatesStep({
             {draft.commissionApplicationMode === "all" ? (
               <div className="rounded-xl border border-[#E6E1D8] bg-[#FAF8F5]/60 p-4 space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <StepField label="Commission Type" required>
+                  <StepField
+                    label="Commission Type"
+                    required={isRuleRequired ? isRuleRequired("TA_COMMISSION_TYPE") : true}
+                    error={fieldError("commissionType", "commission_rates")}
+                  >
                     <Select
                       value={draft.allCommissionType}
                       onValueChange={(val: "percent" | "fixed") => {
@@ -342,7 +368,7 @@ export function GuestTravelAgencyCommissionRatesStep({
 
                   <StepField
                     label="Commission Value"
-                    required
+                    required={isRuleRequired ? isRuleRequired("TA_COMMISSION_VALUE") : true}
                     error={fieldError("commissionValue", "commission_rates")}
                   >
                     <div className="relative">
@@ -601,7 +627,11 @@ export function GuestTravelAgencyCommissionRatesStep({
           </div>
 
           {/* Pricing Method Selection */}
-          <StepField label="Pricing Method" required error={fieldError("netPricingMethod", "commission_rates")}>
+          <StepField
+            label="Pricing Method"
+            required={isRuleRequired ? isRuleRequired("TA_NET_PRICING_METHOD") : true}
+            error={fieldError("netPricingMethod", "commission_rates")}
+          >
             <Select
               value={draft.netPricingMethod || "rate_plan"}
               onValueChange={(val: "rate_plan" | "rate_plan_discount" | "contracted_rates") =>
@@ -622,7 +652,11 @@ export function GuestTravelAgencyCommissionRatesStep({
           {/* Method A: Use Existing Rate Plan */}
           {draft.netPricingMethod === "rate_plan" && (
             <div className="rounded-xl border border-[#EDE6D8] bg-[#FAF8F5]/60 p-4 grid gap-3 sm:grid-cols-2">
-              <StepField label="Room Type" required>
+              <StepField
+                label="Room Type"
+                required={Boolean(isRuleRequired?.("TA_NET_ROOM_TYPE"))}
+                error={fieldError("netRoomTypeId", "commission_rates")}
+              >
                 <Select
                   value={draft.netRoomTypeId || ""}
                   onValueChange={(val) => {
@@ -644,7 +678,11 @@ export function GuestTravelAgencyCommissionRatesStep({
                 </Select>
               </StepField>
 
-              <StepField label="Net Rate Plan" required>
+              <StepField
+                label="Net Rate Plan"
+                required={Boolean(isRuleRequired?.("TA_NET_RATE_PLAN"))}
+                error={fieldError("netRatePlanId", "commission_rates")}
+              >
                 <Select
                   value={draft.netRatePlanId || ""}
                   onValueChange={(val) => set("netRatePlanId", val)}
@@ -669,7 +707,11 @@ export function GuestTravelAgencyCommissionRatesStep({
           {draft.netPricingMethod === "rate_plan_discount" && (
             <div className="rounded-xl border border-[#EDE6D8] bg-[#FAF8F5]/60 p-4 space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
-                <StepField label="Room Type" required>
+                <StepField
+                  label="Room Type"
+                  required={Boolean(isRuleRequired?.("TA_NET_ROOM_TYPE"))}
+                  error={fieldError("netRoomTypeId", "commission_rates")}
+                >
                   <Select
                     value={draft.netRoomTypeId || ""}
                     onValueChange={(val) => {
@@ -691,7 +733,11 @@ export function GuestTravelAgencyCommissionRatesStep({
                   </Select>
                 </StepField>
 
-                <StepField label="Base Rate Plan" required>
+                <StepField
+                  label="Base Rate Plan"
+                  required={Boolean(isRuleRequired?.("TA_NET_RATE_PLAN"))}
+                  error={fieldError("netRatePlanId", "commission_rates")}
+                >
                   <Select
                     value={draft.netRatePlanId || ""}
                     onValueChange={(val) => set("netRatePlanId", val)}
@@ -712,7 +758,11 @@ export function GuestTravelAgencyCommissionRatesStep({
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <StepField label="Discount Type" required>
+                <StepField
+                  label="Discount Type"
+                  required={Boolean(isRuleRequired?.("TA_NET_DISCOUNT_TYPE"))}
+                  error={fieldError("netDiscountType", "commission_rates")}
+                >
                   <Select
                     value={draft.netDiscountType || "percent"}
                     onValueChange={(val: "percent" | "fixed") => set("netDiscountType", val)}
@@ -727,7 +777,11 @@ export function GuestTravelAgencyCommissionRatesStep({
                   </Select>
                 </StepField>
 
-                <StepField label="Discount Value" required>
+                <StepField
+                  label="Discount Value"
+                  required={isRuleRequired ? isRuleRequired("TA_NET_DISCOUNT_VALUE") : true}
+                  error={fieldError("netDiscountValue", "commission_rates")}
+                >
                   <div className="relative">
                     <Input
                       type="number"
@@ -847,7 +901,11 @@ export function GuestTravelAgencyCommissionRatesStep({
 
           {/* Net Rate Validity & Currency */}
           <div className="grid gap-3 sm:grid-cols-3 pt-2 border-t border-[#EDE6D8]">
-            <StepField label="Valid From" required error={fieldError("netValidFrom", "commission_rates")}>
+            <StepField
+              label="Valid From"
+              required={isRuleRequired ? isRuleRequired("TA_NET_VALID_FROM") : true}
+              error={fieldError("netValidFrom", "commission_rates")}
+            >
               <Input
                 type="date"
                 value={draft.netValidFrom || new Date().toISOString().slice(0, 10)}
@@ -856,7 +914,11 @@ export function GuestTravelAgencyCommissionRatesStep({
               />
             </StepField>
 
-            <StepField label="Valid Until" required error={fieldError("netValidUntil", "commission_rates")}>
+            <StepField
+              label="Valid Until"
+              required={isRuleRequired ? isRuleRequired("TA_NET_VALID_UNTIL") : true}
+              error={fieldError("netValidUntil", "commission_rates")}
+            >
               <Input
                 type="date"
                 value={draft.netValidUntil}
@@ -865,7 +927,11 @@ export function GuestTravelAgencyCommissionRatesStep({
               />
             </StepField>
 
-            <StepField label="Settlement Currency" required error={fieldError("netCurrencyCode", "commission_rates")}>
+            <StepField
+              label="Settlement Currency"
+              required={isRuleRequired ? isRuleRequired("TA_NET_CURRENCY") : true}
+              error={fieldError("netCurrencyCode", "commission_rates")}
+            >
               <Select
                 value={draft.netCurrencyCode || baseCurrency}
                 onValueChange={(val) => set("netCurrencyCode", val)}
@@ -889,20 +955,29 @@ export function GuestTravelAgencyCommissionRatesStep({
       {/* 5. Commercial Notes */}
       <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
         <div className="border-b border-[#EDE6D8] pb-3">
-          <h2 className="text-sm font-semibold text-[#251605]">Commercial Notes</h2>
+          <h2 className="text-sm font-semibold text-[#251605]">
+            Commercial Notes {isRuleRequired?.("TA_COMMERCIAL_NOTES") ? "*" : ""}
+          </h2>
           <p className="text-xs text-[#756A5B]">
             Broader commercial terms, sales manager remarks, or contract clauses.
           </p>
         </div>
 
-        <Textarea
-          data-testid="commercial-notes-input"
-          value={draft.commercialNotes}
-          onChange={(e) => set("commercialNotes", e.target.value)}
-          className={TEXTAREA_CLASS}
-          rows={3}
-          placeholder="Enter commercial relationship notes, distribution remarks..."
-        />
+        <StepField
+          label="Commercial Notes"
+          required={Boolean(isRuleRequired?.("TA_COMMERCIAL_NOTES"))}
+          hint="Agency-specific remarks"
+          error={fieldError("commercialNotes", "commission_rates")}
+        >
+          <Textarea
+            data-testid="commercial-notes-input"
+            value={draft.commercialNotes}
+            onChange={(e) => set("commercialNotes", e.target.value)}
+            className={TEXTAREA_CLASS}
+            rows={3}
+            placeholder="Enter commercial relationship notes, distribution remarks..."
+          />
+        </StepField>
       </div>
     </div>
   );

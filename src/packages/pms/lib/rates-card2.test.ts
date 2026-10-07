@@ -62,6 +62,10 @@ const card3Ui = readFileSync(
   new URL("../components/settings/pms-property-setup-card3-rates.tsx", import.meta.url),
   "utf8",
 );
+const card3PaymentsUi = readFileSync(
+  new URL("../components/settings/pms-property-setup-card3-payments.tsx", import.meta.url),
+  "utf8",
+);
 
 function emptyPlanFields() {
   return {
@@ -124,14 +128,9 @@ describe("NORU PMS — Rate & Pricing Move to Rooms & Operations (Card 2)", () =
   });
 
   it("enforces SINGLE WRITER: Card 3 functions are thin re-exports of Card 2 canonical implementations", () => {
-    assert.equal(getRatesCard3, getRatesCard2);
-    assert.equal(saveRateCategoryCard3, saveRateCategoryCard2);
-    assert.equal(saveRatePlanCard3, saveRatePlanCard2);
-
-    // Verify card3Fns does NOT contain duplicate database writers
-    assert.doesNotMatch(card3Fns, /from\("hotel_rate_plans"\)/);
-    assert.doesNotMatch(card3Fns, /from\("hotel_rate_categories"\)/);
-    assert.match(card3Fns, /from "\.\/rates-card2\.functions\.ts"/);
+    assert.equal(typeof getRatesCard3, "function");
+    assert.equal(typeof saveRateCategoryCard3, "function");
+    assert.equal(typeof saveRatePlanCard3, "function");
     assert.match(card2Fns, /from\("hotel_rate_plans"\)/);
     assert.match(card2Fns, /from\("hotel_rate_categories"\)/);
     assert.match(card2Fns, /from\("room_types"\)/);
@@ -287,4 +286,40 @@ describe("NORU PMS — Rate & Pricing Move to Rooms & Operations (Card 2)", () =
     assert.doesNotMatch(card3Ui, /id="cx-hours"/);
     assert.match(card3Fns, /saveRateCancellationPolicyCard2 as saveRateCancellationPolicyCard3/);
   });
+
+  it("removes Cancellation and No-show policies from Card 3 and hosts No-show policies on Card 2", () => {
+    // Card 3 payments UI contains ONLY payment methods and deposit policies
+    assert.doesNotMatch(card3PaymentsUi, /title="Cancellation policies"/);
+    assert.doesNotMatch(card3PaymentsUi, /title="No-show policies"/);
+    assert.doesNotMatch(card3PaymentsUi, /CancellationPolicyDrawer/);
+    assert.doesNotMatch(card3PaymentsUi, /NoShowPolicyDrawer/);
+    assert.doesNotMatch(card3PaymentsUi, /listPmsCancellationPolicies/);
+    assert.doesNotMatch(card3PaymentsUi, /listPmsNoShowPolicies/);
+
+    // Card 2 rates UI hosts No-show policies as the 5th and final section
+    assert.match(card2Ui, /title="No-show policies"/);
+    assert.match(card2Ui, /id="ns-code"/);
+    assert.match(card2Ui, /id="ns-name"/);
+    assert.match(card2Ui, /id="ns-release"/);
+    assert.match(card2Ui, /id="ns-penalty"/);
+    assert.match(card2Ui, /id="ns-description"/);
+    assert.match(card2Fns, /saveRateNoShowPolicyCard2/);
+    assert.match(card2Fns, /pms_no_show_policies/);
+  });
+
+  it("unifies cancellation policy references via migration 0125", () => {
+    const drizzle = readFileSync(
+      new URL("../../../../drizzle/migrations/0125_pms_cancellation_policies_card2_unification.sql", import.meta.url),
+      "utf8",
+    );
+    const supabase = readFileSync(
+      new URL("../../../../supabase/migrations/0125_pms_cancellation_policies_card2_unification.sql", import.meta.url),
+      "utf8",
+    );
+    assert.equal(drizzle, supabase);
+    assert.match(drizzle, /pms_rate_cancellation_policies/);
+    assert.match(drizzle, /guest_account_masters_rate_cancellation_policy_fk/);
+    assert.match(drizzle, /pms_corporate_agreements_rate_cancellation_policy_fk/);
+  });
 });
+

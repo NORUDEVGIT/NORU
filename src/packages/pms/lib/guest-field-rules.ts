@@ -29,6 +29,11 @@ import {
 } from "./guest-profile-overview.ts";
 import { ISO_COUNTRIES } from "./pms-geography.ts";
 import { guestCreateBlocked, type GuestProfileRules } from "./pms-set3-rates-guest.ts";
+import {
+  isCompanyFieldCode,
+  isTravelAgencyFieldCode,
+  isGroupFieldCode,
+} from "./guest-creation-field-definitions";
 
 export type GuestFieldContext = "profile_create" | "profile_edit" | "reservation" | "check_in";
 
@@ -64,6 +69,8 @@ export type CanonicalGuestFieldKey =
   | "position"
   | "department"
   | "sourceOfBusiness"
+  | "vipStatus"
+  | "photo"
   | "documents"
   | "company";
 
@@ -125,6 +132,9 @@ export const CANONICAL_FIELD_CODE_MAP: Record<string, CanonicalGuestFieldKey> = 
   POSITION: "position",
   DEPARTMENT: "department",
   SOURCE_OF_BUSINESS: "sourceOfBusiness",
+  VIP_STATUS: "vipStatus",
+  GUEST_PHOTO: "photo",
+  PHOTO: "photo",
   IDENTITY_DOCUMENT: "documents",
   COMPANY: "company",
 };
@@ -318,10 +328,16 @@ export function resolveGuestFieldRules(
     const canonicalKey = CANONICAL_FIELD_CODE_MAP[code] ?? null;
     const isTechnicalMinimum = TECHNICAL_MINIMUM_FIELD_CODES.has(code);
 
+    const isCompany = isCompanyFieldCode(code);
+    const isTa = isTravelAgencyFieldCode(code);
+    const isGroup = isGroupFieldCode(code);
+    const isIndividualField = !isCompany && !isTa && !isGroup;
+
     // Profile-Type participation:
-    // Required at create if field.required === true OR profileType.requiredFieldIds includes field.id
-    const isTypeRequired = typeRequiredIds.has(field.id);
-    const effectiveCreateRequired = (field.required || isTypeRequired) && field.active;
+    // Individual guest rules must NEVER enforce company, travel agency, or group fields.
+    const isTypeRequired = isIndividualField && typeRequiredIds.has(field.id);
+    const effectiveCreateRequired =
+      isIndividualField && (field.required || isTypeRequired) && field.active;
 
     let requiredForContext = false;
     switch (context) {
@@ -333,10 +349,10 @@ export function resolveGuestFieldRules(
         requiredForContext = isTechnicalMinimum;
         break;
       case "reservation":
-        requiredForContext = field.reservation && field.active;
+        requiredForContext = isIndividualField && field.reservation && field.active;
         break;
       case "check_in":
-        requiredForContext = field.checkIn && field.active;
+        requiredForContext = isIndividualField && field.checkIn && field.active;
         break;
     }
 
@@ -355,7 +371,7 @@ export function resolveGuestFieldRules(
       label: field.name,
       fieldType: field.fieldType,
       active: field.active,
-      required: field.required || isTypeRequired,
+      required: isIndividualField ? (field.required || isTypeRequired) : false,
       requiredForContext,
       displayOrder: field.displayOrder ?? 0,
       options,
@@ -428,6 +444,11 @@ export function validateGuestFields(
 
   for (const rule of rules) {
     if (!rule.requiredForContext) continue;
+
+    // Company, Travel Agency, and Group fields must NEVER block individual guest creation
+    if (isCompanyFieldCode(rule.code) || isTravelAgencyFieldCode(rule.code) || isGroupFieldCode(rule.code)) {
+      continue;
+    }
 
     // Document & relationship lookup fields are resolved in their specialized check routines
     if (rule.category === "document" || rule.category === "lookup") continue;

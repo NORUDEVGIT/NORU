@@ -25,6 +25,7 @@ import {
   type GuestTravelAgentCreateStepId,
 } from "./guest-travel-agent-create-workspace";
 import { TA_COMMISSION_PLAN_TYPES } from "./guest-travel-agent-detail-workspace";
+import { ALL_TRAVEL_AGENCY_CREATION_FIELDS } from "./guest-creation-field-definitions";
 
 const idSchema = z.string().uuid();
 
@@ -47,6 +48,22 @@ export type TravelAgentCreateContext = {
   };
   defaultCurrency: string;
   draft: { id: string; payload: GuestTravelAgentCreateDraft; step: GuestTravelAgentCreateStepId } | null;
+  fields?: Array<{
+    id: string;
+    name: string;
+    code: string;
+    fieldType: string;
+    required: boolean;
+    active: boolean;
+    displayOrder: number;
+  }>;
+  profileType?: {
+    id: string;
+    name: string;
+    code: string;
+    active: boolean;
+    requiredFieldIds: string[];
+  } | null;
 };
 
 function mapOption(row: Record<string, unknown>): AccountCreateCatalogueOption {
@@ -90,6 +107,8 @@ export const getTravelAgentCreateContext = createServerFn({ method: "POST" })
       staff,
       restaurant,
       draft,
+      fieldsRes,
+      profileTypeRes,
     ] = await Promise.all([
       loadTravelAgencyTypes(data.restaurantId, supabaseAdmin),
       loadOptionalOptions(db, "pms_business_contact_roles", data.restaurantId),
@@ -111,6 +130,17 @@ export const getTravelAgentCreateContext = createServerFn({ method: "POST" })
         .eq("restaurant_id", data.restaurantId)
         .eq("created_by_membership_id", me.id)
         .eq("account_kind", "travel_agent")
+        .maybeSingle(),
+      db
+        .from("pms_guest_fields")
+        .select("id, name, code, field_type, required, active, display_order")
+        .eq("restaurant_id", data.restaurantId)
+        .order("display_order"),
+      db
+        .from("pms_guest_profile_types")
+        .select("id, name, code, active, required_field_ids")
+        .eq("restaurant_id", data.restaurantId)
+        .in("code", ["TRA", "TRAVEL_AGENCY", "TRAVEL_AGENT"])
         .maybeSingle(),
     ]);
 
@@ -140,6 +170,63 @@ export const getTravelAgentCreateContext = createServerFn({ method: "POST" })
           active: true,
         }));
 
+    let resolvedFieldsData = (fieldsRes?.data ?? []) as Array<Record<string, unknown>>;
+    const existingFieldCodes = new Set(
+      resolvedFieldsData.map((row) => String(row.code ?? "").toUpperCase()),
+    );
+    const existingFieldNames = new Set(
+      resolvedFieldsData.map((row) => String(row.name ?? "").trim().toLowerCase()),
+    );
+
+    const missingDefs = ALL_TRAVEL_AGENCY_CREATION_FIELDS.filter(
+      (def, index, self) =>
+        !existingFieldCodes.has(def.code.toUpperCase()) &&
+        self.findIndex((d) => d.code.toUpperCase() === def.code.toUpperCase()) === index,
+    );
+
+    if (missingDefs.length > 0) {
+      const nextOrder = resolvedFieldsData.length;
+      const seedRows = missingDefs.map((def, index) => {
+        let fieldName = def.name;
+        if (existingFieldNames.has(fieldName.trim().toLowerCase())) {
+          fieldName = `Travel Agency ${def.name}`;
+        }
+        existingFieldNames.add(fieldName.trim().toLowerCase());
+        return {
+          restaurant_id: data.restaurantId,
+          name: fieldName,
+          code: def.code,
+          field_type: def.fieldType,
+          description: def.description,
+          options: [],
+          required: Boolean(def.systemRequired),
+          check_in: false,
+          reservation: false,
+          active: true,
+          display_order: nextOrder + index,
+          lookup_source: null,
+          document_type_ids: [],
+          min_value: null,
+          max_value: null,
+          updated_by: me.id || null,
+        };
+      });
+
+      try {
+        await db.from("pms_guest_fields").insert(seedRows);
+        const refreshedFields = await db
+          .from("pms_guest_fields")
+          .select("id, name, code, field_type, required, active, display_order")
+          .eq("restaurant_id", data.restaurantId)
+          .order("display_order");
+        if (!refreshedFields.error && refreshedFields.data) {
+          resolvedFieldsData = refreshedFields.data as Array<Record<string, unknown>>;
+        }
+      } catch {
+        // Fallback silently if insert fails
+      }
+    }
+
     return {
       catalogues: {
         agencyTypes,
@@ -155,6 +242,26 @@ export const getTravelAgentCreateContext = createServerFn({ method: "POST" })
       },
       defaultCurrency,
       draft: savedDraft,
+      fields: resolvedFieldsData.map((row) => ({
+        id: String(row.id),
+        name: String(row.name ?? ""),
+        code: String(row.code ?? ""),
+        fieldType: String(row.field_type ?? "text"),
+        required: Boolean(row.required),
+        active: row.active == null ? true : Boolean(row.active),
+        displayOrder: Number(row.display_order ?? 0),
+      })),
+      profileType: profileTypeRes?.data
+        ? {
+            id: String(profileTypeRes.data.id),
+            name: String(profileTypeRes.data.name ?? "Travel Agency"),
+            code: String(profileTypeRes.data.code ?? "TRA"),
+            active: Boolean(profileTypeRes.data.active),
+            requiredFieldIds: Array.isArray(profileTypeRes.data.required_field_ids)
+              ? profileTypeRes.data.required_field_ids
+              : [],
+          }
+        : null,
     };
   });
 

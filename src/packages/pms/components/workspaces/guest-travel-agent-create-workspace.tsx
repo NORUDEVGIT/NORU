@@ -47,11 +47,14 @@ import {
   agencyTypeLabel,
   billingArrangementLabel,
   clearGuestTravelAgentCreateHold,
+  createTravelAgencyFieldRules,
   emptyAccountCreateContact,
   emptyGuestTravelAgentCreateDraft,
   filled,
   guestTravelAgentCreateCompletion,
   guestTravelAgentCreateHasChanges,
+  isTravelAgencyRuleRequired,
+  matchTravelAgencyFieldIssue,
   optionLabel,
   primaryTravelAgentContact,
   readGuestTravelAgentCreateHold,
@@ -60,6 +63,7 @@ import {
   writeGuestTravelAgentCreateHold,
   type GuestTravelAgentCreateDraft,
   type GuestTravelAgentCreateStepId,
+  type TravelAgencyCreateFieldRule,
 } from "@/packages/pms/lib/guest-travel-agent-create-workspace";
 import {
   deleteTravelAgentCreateDraft,
@@ -73,12 +77,15 @@ import {
   CommercialSummaryPanel,
 } from "@/packages/pms/components/guests/guest-travel-agency-commission-rates-step";
 import { getTravelAgencyCommissionRatesConfig } from "@/packages/pms/lib/guest-travel-agency-step3-commission-rates.functions";
+import { GuestTravelAgencyPaymentRulesStep } from "@/packages/pms/components/guests/guest-travel-agency-payment-rules-step";
+import { getTravelAgencyStep4Config } from "@/packages/pms/lib/guest-travel-agency-step4.functions";
 
 export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId: string }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const load = useServerFn(getTravelAgentCreateContext);
   const loadStep3Config = useServerFn(getTravelAgencyCommissionRatesConfig);
+  const loadStep4Config = useServerFn(getTravelAgencyStep4Config);
   const saveDraftHold = useServerFn(saveTravelAgentCreateDraft);
   const clearDraft = useServerFn(deleteTravelAgentCreateDraft);
   const persist = useServerFn(persistTravelAgentCreate);
@@ -102,6 +109,11 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
   const step3ConfigQuery = useQuery({
     queryKey: ["travel-agency-step3-config", restaurantId],
     queryFn: () => loadStep3Config({ data: { restaurantId } }),
+  });
+
+  const step4ConfigQuery = useQuery({
+    queryKey: ["travel-agency-step4-config", restaurantId],
+    queryFn: () => loadStep4Config({ data: { restaurantId } }),
   });
 
   useEffect(() => {
@@ -140,8 +152,20 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
     return () => window.clearTimeout(handle);
   }, [created, defaultsApplied, draft, restaurantId, saveDraftHold, step]);
 
+  const rules = useMemo(
+    () =>
+      createTravelAgencyFieldRules(
+        context.data?.fields ?? [],
+        context.data?.profileType ?? null,
+      ),
+    [context.data?.fields, context.data?.profileType],
+  );
+
+  const isRuleRequired = (code: string) => isTravelAgencyRuleRequired(rules, code);
+
   const catalogues = context.data?.catalogues;
   const catalogueIds = {
+    rules,
     paymentMethodIds: (catalogues?.paymentMethods ?? []).map((row) => row.id),
     currencyCodes: catalogues?.currencies ?? [],
   };
@@ -160,8 +184,11 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
   }
 
   function fieldError(key: string, stepId: GuestTravelAgentCreateStepId = step) {
-    if (!attemptedSteps.has(stepId) && !attemptedSteps.has("review")) return undefined;
-    return fieldIssues.find((issue) => issue.key === key)?.message;
+    const norm = (id: string) => (id === "details" ? "basic_info" : id);
+    if (!attemptedSteps.has(stepId) && !attemptedSteps.has(norm(stepId)) && !attemptedSteps.has("review")) return undefined;
+    const stepFiltered = stepId ? fieldIssues.filter((issue) => norm(issue.step) === norm(stepId)) : fieldIssues;
+    const matched = matchTravelAgencyFieldIssue(stepFiltered, key) ?? matchTravelAgencyFieldIssue(fieldIssues, key);
+    return matched?.message;
   }
 
   function set<K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) {
@@ -366,21 +393,38 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
         <div className="min-w-0 space-y-4">
           {step === "basic_info" || step === "details" ? (
             <>
-              <DetailsStep draft={draft} set={set} fieldError={fieldError} />
-              <BusinessStep draft={draft} set={set} catalogues={catalogues} />
+              <DetailsStep draft={draft} set={set} fieldError={fieldError} isRuleRequired={isRuleRequired} />
+              <BusinessStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} isRuleRequired={isRuleRequired} />
             </>
           ) : null}
-          {step === "contacts" ? <ContactsStep draft={draft} set={set} error={fieldError("contacts", "contacts")} /> : null}
+          {step === "contacts" ? (
+            <ContactsStep
+              draft={draft}
+              set={set}
+              error={fieldError("contacts", "contacts")}
+              fieldError={fieldError}
+              catalogues={catalogues}
+              isRuleRequired={isRuleRequired}
+            />
+          ) : null}
           {step === "commission_rates" || step === "business" ? (
             <GuestTravelAgencyCommissionRatesStep
               draft={draft}
               set={set}
               config={step3ConfigQuery.data}
               fieldError={fieldError}
+              isRuleRequired={isRuleRequired}
             />
           ) : null}
-          {step === "booking_operations" ? (
-            <BookingOperationsStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} />
+          {step === "payment_rules" || step === "booking_operations" ? (
+            <GuestTravelAgencyPaymentRulesStep
+              draft={draft}
+              set={set}
+              config={step4ConfigQuery.data}
+              fieldError={fieldError}
+              restaurantId={restaurantId}
+              isRuleRequired={isRuleRequired}
+            />
           ) : null}
           {step === "billing" ? <BillingStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} /> : null}
           {step === "review" ? <ReviewStep draft={draft} catalogues={catalogues} issues={fieldIssues} onEdit={go} /> : null}
@@ -499,14 +543,14 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
 function Field({ label, required: isRequired, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <Label className={error ? "text-destructive" : undefined}>
+      <Label className={error ? "text-destructive font-semibold" : undefined}>
         {label}
-        {isRequired ? " *" : ""}
+        {isRequired ? <span className="text-destructive font-bold"> *</span> : ""}
       </Label>
       <div className={error ? "[&_input]:border-destructive [&_button]:border-destructive [&_textarea]:border-destructive" : undefined}>
         {children}
       </div>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p className="text-xs text-destructive font-medium">{error}</p> : null}
     </div>
   );
 }
@@ -554,22 +598,25 @@ function DetailsStep({
   draft,
   set,
   fieldError,
+  isRuleRequired,
 }: {
   draft: GuestTravelAgentCreateDraft;
   set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
   fieldError: (key: string, stepId?: GuestTravelAgentCreateStepId) => string | undefined;
+  isRuleRequired?: (code: string) => boolean;
 }) {
+  const req = (code: string, fallback = false) => (isRuleRequired ? isRuleRequired(code) : fallback);
   return (
     <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
       <h2 className="font-display text-lg">Agency Details</h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Agency name" required error={fieldError("name", "details")}>
+        <Field label="Agency name" required={req("TA_NAME", true)} error={fieldError("name", "basic_info")}>
           <Input data-testid="travel-agent-create-name" value={draft.name} onChange={(event) => set("name", event.target.value)} />
         </Field>
-        <Field label="Trade name">
+        <Field label="Trade name" required={req("TA_TRADE_NAME")} error={fieldError("tradeName", "basic_info")}>
           <Input value={draft.tradeName} onChange={(event) => set("tradeName", event.target.value)} />
         </Field>
-        <Field label="Agency type" required error={fieldError("agencyType", "details")}>
+        <Field label="Agency type" required={req("TA_AGENCY_TYPE", true)} error={fieldError("agencyType", "basic_info")}>
           <Select value={draft.agencyType} onValueChange={(value) => set("agencyType", value)}>
             <SelectTrigger data-testid="travel-agent-create-type">
               <SelectValue placeholder="Select agency type" />
@@ -584,14 +631,14 @@ function DetailsStep({
           </Select>
         </Field>
         {draft.agencyType === "other" ? (
-          <Field label="Agency type description" error={fieldError("agencyTypeOther", "details")}>
+          <Field label="Agency type description" error={fieldError("agencyTypeOther", "basic_info")}>
             <Input value={draft.agencyTypeOther} onChange={(event) => set("agencyTypeOther", event.target.value)} />
           </Field>
         ) : null}
-        <Field label="Agency code">
+        <Field label="Agency code" required={req("TA_CODE")} error={fieldError("code", "basic_info")}>
           <Input value={draft.code} onChange={(event) => set("code", event.target.value)} placeholder="Optional staff code" />
         </Field>
-        <Field label="Status">
+        <Field label="Status" required={req("TA_ACCOUNT_STATUS")} error={fieldError("accountStatus", "basic_info")}>
           <Select value={draft.accountStatus} onValueChange={(value) => set("accountStatus", value as GuestTravelAgentCreateDraft["accountStatus"])}>
             <SelectTrigger>
               <SelectValue />
@@ -606,17 +653,17 @@ function DetailsStep({
           </Select>
           <p className="text-xs text-muted-foreground">Travel agency create stays pending. There is no auto-approval.</p>
         </Field>
-        <Field label="IATA / license number">
+        <Field label="IATA / license number" required={req("TA_IATA_NUMBER")} error={fieldError("iataLicenseNumber", "basic_info")}>
           <Input value={draft.iataLicenseNumber} onChange={(event) => set("iataLicenseNumber", event.target.value)} />
         </Field>
-        <Field label="License expiry">
+        <Field label="License expiry" required={req("TA_LICENSE_EXPIRY")} error={fieldError("licenseExpiryDate", "basic_info")}>
           <Input type="date" value={draft.licenseExpiryDate} onChange={(event) => set("licenseExpiryDate", event.target.value)} />
         </Field>
-        <Field label="Website">
+        <Field label="Website" required={req("TA_WEBSITE")} error={fieldError("website", "basic_info")}>
           <Input value={draft.website} onChange={(event) => set("website", event.target.value)} />
         </Field>
       </div>
-      <Field label="Notes">
+      <Field label="Notes" required={req("TA_NOTES")} error={fieldError("notes", "basic_info")}>
         <Textarea value={draft.notes} onChange={(event) => set("notes", event.target.value)} />
       </Field>
     </section>
@@ -627,11 +674,19 @@ function ContactsStep({
   draft,
   set,
   error,
+  fieldError,
+  catalogues,
+  isRuleRequired,
 }: {
   draft: GuestTravelAgentCreateDraft;
   set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
   error?: string;
+  fieldError?: (key: string, stepId?: GuestTravelAgentCreateStepId) => string | undefined;
+  catalogues?: TravelAgentCreateContext["catalogues"];
+  isRuleRequired?: (code: string) => boolean;
 }) {
+  const req = (code: string) => (isRuleRequired ? isRuleRequired(code) : false);
+  const err = (key: string) => (fieldError ? fieldError(key, "contacts") : undefined);
   return (
     <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-2">
@@ -643,7 +698,7 @@ function ContactsStep({
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
       {draft.contacts.map((contact, index) => (
         <div key={contact.key} className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-2">
-          <Field label="Name">
+          <Field label="Name" required={req("TA_CONTACT_NAME")} error={!contact.name && req("TA_CONTACT_NAME") ? (err("contactName") || "Contact name is required") : undefined}>
             <Input
               value={contact.name}
               onChange={(event) =>
@@ -654,7 +709,7 @@ function ContactsStep({
               }
             />
           </Field>
-          <Field label="Position">
+          <Field label="Position" required={req("TA_CONTACT_POSITION")} error={!contact.position && req("TA_CONTACT_POSITION") ? (err("contactPosition") || "Position is required") : undefined}>
             <Input
               value={contact.position}
               onChange={(event) =>
@@ -665,7 +720,7 @@ function ContactsStep({
               }
             />
           </Field>
-          <Field label="Email">
+          <Field label="Email" required={req("TA_CONTACT_EMAIL")} error={!contact.email && req("TA_CONTACT_EMAIL") ? (err("contactEmail") || "Email is required") : undefined}>
             <Input
               value={contact.email}
               onChange={(event) =>
@@ -676,7 +731,7 @@ function ContactsStep({
               }
             />
           </Field>
-          <Field label="Phone">
+          <Field label="Phone" required={req("TA_CONTACT_PHONE")} error={!contact.phone && req("TA_CONTACT_PHONE") ? (err("contactPhone") || "Phone is required") : undefined}>
             <Input
               value={contact.phone}
               onChange={(event) =>
@@ -687,7 +742,7 @@ function ContactsStep({
               }
             />
           </Field>
-          <Field label="WhatsApp">
+          <Field label="WhatsApp" required={req("TA_CONTACT_WHATSAPP")} error={!contact.whatsapp && req("TA_CONTACT_WHATSAPP") ? (err("contactWhatsapp") || "WhatsApp is required") : undefined}>
             <Input
               value={contact.whatsapp}
               onChange={(event) =>
@@ -698,7 +753,7 @@ function ContactsStep({
               }
             />
           </Field>
-          <Field label="Preferred method">
+          <Field label="Preferred method" required={req("TA_CONTACT_PREFERRED_METHOD")} error={!contact.preferredMethod && req("TA_CONTACT_PREFERRED_METHOD") ? (err("contactPreferredMethod") || "Preferred method is required") : undefined}>
             <NoneSelect
               value={contact.preferredMethod}
               onChange={(value) =>
@@ -742,43 +797,49 @@ function BusinessStep({
   draft,
   set,
   catalogues,
+  fieldError,
+  isRuleRequired,
 }: {
   draft: GuestTravelAgentCreateDraft;
   set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
   catalogues?: TravelAgentCreateContext["catalogues"];
+  fieldError?: (key: string, stepId?: GuestTravelAgentCreateStepId) => string | undefined;
+  isRuleRequired?: (code: string) => boolean;
 }) {
+  const req = (code: string, fallback = false) => (isRuleRequired ? isRuleRequired(code) : fallback);
+  const err = (key: string) => (fieldError ? fieldError(key, "basic_info") : undefined);
   return (
     <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
       <h2 className="font-display text-lg">Business & Registration</h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Address line 1">
+        <Field label="Address line 1" required={req("TA_ADDRESS_LINE1")} error={err("addressLine1")}>
           <Input value={draft.addressLine1} onChange={(event) => set("addressLine1", event.target.value)} />
         </Field>
-        <Field label="Address line 2">
+        <Field label="Address line 2" required={req("TA_ADDRESS_LINE2")} error={err("addressLine2")}>
           <Input value={draft.addressLine2} onChange={(event) => set("addressLine2", event.target.value)} />
         </Field>
-        <Field label="City">
+        <Field label="City" required={req("TA_CITY")} error={err("city")}>
           <Input value={draft.city} onChange={(event) => set("city", event.target.value)} />
         </Field>
-        <Field label="Region">
+        <Field label="Region" required={req("TA_REGION")} error={err("region")}>
           <Input value={draft.region} onChange={(event) => set("region", event.target.value)} />
         </Field>
-        <Field label="Postal code">
+        <Field label="Postal code" required={req("TA_POSTAL_CODE")} error={err("postalCode")}>
           <Input value={draft.postalCode} onChange={(event) => set("postalCode", event.target.value)} />
         </Field>
-        <Field label="Country">
+        <Field label="Country" required={req("TA_COUNTRY")} error={err("country")}>
           <Input value={draft.country} onChange={(event) => set("country", event.target.value)} />
         </Field>
-        <Field label="Tax ID">
+        <Field label="Tax ID" required={req("TA_TAX_ID")} error={err("taxId")}>
           <Input value={draft.taxId} onChange={(event) => set("taxId", event.target.value)} />
         </Field>
-        <Field label="Registration number">
+        <Field label="Registration number" required={req("TA_REGISTRATION_NUMBER")} error={err("registrationNumber")}>
           <Input value={draft.registrationNumber} onChange={(event) => set("registrationNumber", event.target.value)} />
         </Field>
-        <Field label="Market segment">
+        <Field label="Market segment" required={req("TA_MARKET_SEGMENT")} error={err("marketSegmentId")}>
           <NoneSelect value={draft.marketSegmentId} onChange={(value) => set("marketSegmentId", value)} options={catalogues?.marketSegments ?? []} placeholder="Select segment" />
         </Field>
-        <Field label="Source">
+        <Field label="Source" required={req("TA_SOURCE")} error={err("sourceCodeId")}>
           <NoneSelect
             value={draft.sourceCodeId}
             onChange={(value) => {
@@ -790,7 +851,7 @@ function BusinessStep({
             placeholder="Select source"
           />
         </Field>
-        <Field label="Account manager">
+        <Field label="Account manager" required={req("TA_ACCOUNT_MANAGER")} error={err("accountManagerId")}>
           <NoneSelect value={draft.accountManagerId} onChange={(value) => set("accountManagerId", value)} options={catalogues?.staff ?? []} placeholder="Select staff" />
         </Field>
       </div>

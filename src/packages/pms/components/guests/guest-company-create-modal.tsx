@@ -81,8 +81,13 @@ import {
   companyCreateDraftErrorsForSave,
   companyCreateFieldIssues,
   companyTypeLabel,
+  createCompanyFieldRules,
   emptyAccountCreateContact,
   emptyGuestCompanyCreateDraft,
+  FIELD_CODE_BY_COMPANY_PROP,
+  FIELD_CODES_BY_COMPANY_PROP,
+  FIELD_ALIASES_MAP,
+  matchCompanyFieldIssue,
   filled,
   guestCompanyCreateCompletion,
   guestCompanyCreateHasChanges,
@@ -91,6 +96,7 @@ import {
   readGuestCompanyCreateHold,
   validateCompanyPhone,
   writeGuestCompanyCreateHold,
+  type CompanyCreateFieldRule,
   type GuestCompanyCreateDraft,
   type GuestCompanyCreateStepId,
 } from "@/packages/pms/lib/guest-company-create-workspace";
@@ -113,6 +119,7 @@ import {
 } from "@/packages/pms/lib/guest-company-create.functions";
 import { CompanyContractsStep } from "./company-contracts-step";
 import { CompanyBillingStep } from "./company-billing-step";
+import { CanonicalPhoneInput } from "./canonical-phone-input";
 import {
   paymentTimingLabel,
   creditStatusLabel,
@@ -295,7 +302,7 @@ export function GuestCompanyCreateModal({
       setStep(context.data.draft.step);
     } else {
       setDraft((current) => {
-        let next = { ...current };
+        const next = { ...current };
         if (context.data?.defaultCurrency) {
           if (!next.currency) {
             next.currency = context.data.defaultCurrency;
@@ -355,7 +362,7 @@ export function GuestCompanyCreateModal({
       context.data?.defaultCurrency ||
       "";
     setDraft((curr) => {
-      let nextContract = { ...curr.contract };
+      const nextContract = { ...curr.contract };
       let changed = false;
       if (!nextContract.currencyCode && settingCurrency) {
         nextContract.currencyCode = settingCurrency;
@@ -382,7 +389,64 @@ export function GuestCompanyCreateModal({
 
   const catalogues = context.data?.catalogues;
   const selectedType = (catalogues?.businessTypes ?? []).find((row) => row.id === draft.businessProfileTypeId);
+
+  const rules = useMemo(
+    () =>
+      createCompanyFieldRules(
+        context.data?.fields ?? [],
+        context.data?.profileType ?? null,
+        selectedType ?? null,
+      ),
+    [context.data?.fields, context.data?.profileType, selectedType],
+  );
+
+  const resolveRule = (code: string) => {
+    if (!code) return undefined;
+    const c = code.toUpperCase();
+    const stripped = c.startsWith("COMPANY_") ? c.slice(8) : c;
+    const canonical = c.startsWith("COMPANY_") ? c : `COMPANY_${c}`;
+
+    const propAliases = FIELD_CODES_BY_COMPANY_PROP[code] ?? [];
+    const singleMapped = FIELD_CODE_BY_COMPANY_PROP[code];
+    const mapList = FIELD_ALIASES_MAP[c] ?? FIELD_ALIASES_MAP[canonical] ?? [];
+
+    const candidates = new Set<string>([
+      c,
+      canonical,
+      stripped,
+      ...(singleMapped ? [singleMapped.toUpperCase()] : []),
+      ...propAliases.map((a) => a.toUpperCase()),
+      ...mapList.map((a) => a.toUpperCase()),
+    ]);
+
+    for (const [prop, codes] of Object.entries(FIELD_CODES_BY_COMPANY_PROP)) {
+      if (
+        codes.some(
+          (alias) =>
+            alias.toUpperCase() === c ||
+            alias.toUpperCase() === canonical ||
+            alias.toUpperCase() === stripped,
+        )
+      ) {
+        candidates.add(prop.toUpperCase());
+        for (const alias of codes) candidates.add(alias.toUpperCase());
+      }
+    }
+
+    return rules.find((item) => candidates.has(item.code.toUpperCase()));
+  };
+
+  const visible = (code: string) => {
+    const r = resolveRule(code);
+    return r ? r.visible !== false : true;
+  };
+  const required = (code: string) => {
+    const r = resolveRule(code);
+    return Boolean(r?.required);
+  };
+
   const catalogueIds = {
+    rules,
     businessProfileTypeIds: (catalogues?.businessTypes ?? []).map((row) => row.id),
     paymentMethodIds: (billingCreditConfig.data?.paymentMethods ?? catalogues?.paymentMethods ?? []).map((row) => row.id),
     currencyCodes: billingCreditConfig.data?.currencies.map((c) => c.code) ?? contractConfig.data?.currencies.map((c) => c.code) ?? catalogues?.currencies ?? [],
@@ -391,7 +455,7 @@ export function GuestCompanyCreateModal({
     billingRuleIds: billingCreditConfig.data?.billingRules.map((r) => r.id),
     taxExemptionRules: billingCreditConfig.data?.taxExemptionRules,
   };
-  const completion = guestCompanyCreateCompletion(draft);
+  const completion = guestCompanyCreateCompletion(draft, { rules });
   const stepIndex = GUEST_COMPANY_CREATE_STEPS.findIndex((item) => item.id === step);
   const primary = primaryCompanyContact(draft);
 
@@ -443,7 +507,7 @@ export function GuestCompanyCreateModal({
 
   function fieldError(key: string, stepId: GuestCompanyCreateStepId = step) {
     if (!attemptedSteps.has(stepId) && !attemptedSteps.has("review")) return undefined;
-    return fieldIssues.find((issue) => issue.key === key)?.message;
+    return matchCompanyFieldIssue(fieldIssues, key)?.message;
   }
 
   function setContract<K extends keyof CompanyContractDraft>(
@@ -805,6 +869,8 @@ export function GuestCompanyCreateModal({
                   catalogues={catalogues}
                   fieldError={fieldError}
                   nextCompanyCode={context.data?.nextCompanyCode}
+                  visible={visible}
+                  required={required}
                 />
               ) : null}
 
@@ -814,6 +880,8 @@ export function GuestCompanyCreateModal({
                   set={set}
                   catalogues={catalogues}
                   fieldError={fieldError}
+                  visible={visible}
+                  required={required}
                 />
               ) : null}
 
@@ -826,6 +894,9 @@ export function GuestCompanyCreateModal({
                   creditAllowed={selectedType?.creditAccountAllowed}
                   fieldError={fieldError}
                   isLoadingConfig={billingCreditConfig.isLoading}
+                  required={required}
+                  isRuleRequired={required}
+                  visible={visible}
                 />
               ) : null}
 
@@ -838,6 +909,9 @@ export function GuestCompanyCreateModal({
                   isLoadingConfig={contractConfig.isLoading}
                   configError={contractConfig.error instanceof Error ? contractConfig.error.message : null}
                   fieldError={fieldError}
+                  required={required}
+                  isRuleRequired={required}
+                  visible={visible}
                 />
               ) : null}
 
@@ -1106,20 +1180,20 @@ function Field({
 }) {
   return (
     <div className="space-y-1">
-      <Label className={cn("text-xs font-medium text-[#251605]", error && "text-destructive")}>
+      <Label className={cn("text-xs font-medium text-[#251605]", error && "!text-destructive font-semibold")}>
         {label}
-        {isRequired ? " *" : ""}
+        {isRequired ? <span className="text-destructive font-bold"> *</span> : null}
       </Label>
       <div
         className={
           error
-            ? "[&_input]:border-destructive [&_button]:border-destructive [&_textarea]:border-destructive"
+            ? "[&_input]:!border-destructive [&_input]:ring-1 [&_input]:!ring-destructive/30 [&_button]:!border-destructive [&_button]:ring-1 [&_button]:!ring-destructive/30 [&_textarea]:!border-destructive [&_textarea]:ring-1 [&_textarea]:!ring-destructive/30"
             : undefined
         }
       >
         {children}
       </div>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p className="text-xs font-medium text-destructive mt-1">{error}</p> : null}
     </div>
   );
 }
@@ -1168,12 +1242,16 @@ function DetailsStep({
   catalogues,
   fieldError,
   nextCompanyCode,
+  visible = () => true,
+  required = () => false,
 }: {
   draft: GuestCompanyCreateDraft;
   set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
   catalogues?: CompanyCreateContext["catalogues"];
   fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
   nextCompanyCode?: string;
+  visible?: (code: string) => boolean;
+  required?: (code: string) => boolean;
 }) {
   const types = (catalogues?.businessTypes ?? []).filter(
     (row) => row.active !== false || row.id === draft.businessProfileTypeId,
@@ -1237,7 +1315,7 @@ function DetailsStep({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Company Code">
+          <Field label="Company Code" required={required("COMPANY_CODE")} error={fieldError("code", "details")}>
             <div className="relative">
               <Input
                 value={draft.code || nextCompanyCode || "COM-0001"}
@@ -1251,7 +1329,7 @@ function DetailsStep({
               </span>
             </div>
           </Field>
-          <Field label="Account Status">
+          <Field label="Account Status" required={required("ACCOUNT_STATUS")} error={fieldError("accountStatus", "details")}>
             <Select
               value={draft.accountStatus}
               onValueChange={(value) => set("accountStatus", value as GuestCompanyCreateDraft["accountStatus"])}
@@ -1268,7 +1346,7 @@ function DetailsStep({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="TIN Number">
+          <Field label="TIN Number" required={required("TAX_ID")} error={fieldError("taxId", "details")}>
             <Input
               value={draft.taxId}
               onChange={(event) => set("taxId", event.target.value)}
@@ -1276,7 +1354,7 @@ function DetailsStep({
               placeholder="e.g. 0012345678"
             />
           </Field>
-          <Field label="Registration Number">
+          <Field label="Registration Number" required={required("REGISTRATION_NUMBER")} error={fieldError("registrationNumber", "details")}>
             <Input
               value={draft.registrationNumber}
               onChange={(event) => set("registrationNumber", event.target.value)}
@@ -1284,7 +1362,7 @@ function DetailsStep({
               placeholder="Business registry code"
             />
           </Field>
-          <Field label="Industry">
+          <Field label="Industry" required={required("INDUSTRY")} error={fieldError("industry", "details")}>
             <Input
               value={draft.industry}
               onChange={(event) => set("industry", event.target.value)}
@@ -1292,7 +1370,7 @@ function DetailsStep({
               placeholder="e.g. Technology, Finance"
             />
           </Field>
-          <Field label="Website">
+          <Field label="Website" required={required("WEBSITE")} error={fieldError("website", "details")}>
             <Input
               value={draft.website}
               onChange={(event) => set("website", event.target.value)}
@@ -1302,7 +1380,7 @@ function DetailsStep({
           </Field>
         </div>
 
-        <Field label="Notes">
+        <Field label="Notes" required={required("NOTES")} error={fieldError("notes", "details")}>
           <Textarea
             value={draft.notes}
             onChange={(event) => set("notes", event.target.value)}
@@ -1320,7 +1398,7 @@ function DetailsStep({
           <p className="text-xs text-muted-foreground">Registered address and regional location details.</p>
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Country" error={fieldError("country", "details")}>
+          <Field label="Country" required={required("COUNTRY")} error={fieldError("country", "details")}>
             <SearchableSelect
               id="company-create-country"
               value={countryCode}
@@ -1328,6 +1406,7 @@ function DetailsStep({
               placeholder="Select country"
               searchPlaceholder="Search countries..."
               className={MODAL_SELECT_TRIGGER_CLASS}
+              error={fieldError("country", "details")}
               onChange={(code) => {
                 const name = countryNameFromInput(code);
                 set("country", name);
@@ -1337,7 +1416,7 @@ function DetailsStep({
               }}
             />
           </Field>
-          <Field label={layout.regionLabel || "Region / State"} error={fieldError("region", "details")}>
+          <Field label={layout.regionLabel || "Region / State"} required={required("REGION")} error={fieldError("region", "details")}>
             {availableRegions.length > 0 ? (
               <SearchableSelect
                 id="company-create-region"
@@ -1346,6 +1425,7 @@ function DetailsStep({
                 placeholder={`Select ${(layout.regionLabel || "region").toLowerCase()}`}
                 searchPlaceholder={`Search ${(layout.regionLabel || "regions").toLowerCase()}...`}
                 className={MODAL_SELECT_TRIGGER_CLASS}
+                error={fieldError("region", "details")}
                 onChange={(val) => set("region", val)}
               />
             ) : (
@@ -1358,7 +1438,7 @@ function DetailsStep({
               />
             )}
           </Field>
-          <Field label="City" error={fieldError("city", "details")}>
+          <Field label="City" required={required("CITY")} error={fieldError("city", "details")}>
             <Input
               value={draft.city}
               onChange={(event) => set("city", event.target.value)}
@@ -1366,7 +1446,7 @@ function DetailsStep({
               placeholder="City or locality"
             />
           </Field>
-          <Field label="Address Line 1" error={fieldError("addressLine1", "details")}>
+          <Field label="Address Line 1" required={required("ADDRESS_LINE1")} error={fieldError("addressLine1", "details")}>
             <Input
               value={draft.addressLine1}
               onChange={(event) => set("addressLine1", event.target.value)}
@@ -1374,7 +1454,7 @@ function DetailsStep({
               placeholder="Street and building number"
             />
           </Field>
-          <Field label="Address Line 2" error={fieldError("addressLine2", "details")}>
+          <Field label="Address Line 2" required={required("ADDRESS_LINE2")} error={fieldError("addressLine2", "details")}>
             <Input
               value={draft.addressLine2}
               onChange={(event) => set("addressLine2", event.target.value)}
@@ -1382,7 +1462,7 @@ function DetailsStep({
               placeholder="Suite, floor, unit"
             />
           </Field>
-          <Field label="Postal Code" error={fieldError("postalCode", "details")}>
+          <Field label="Postal Code" required={required("POSTAL_CODE")} error={fieldError("postalCode", "details")}>
             <Input
               value={draft.postalCode}
               onChange={(event) => set("postalCode", event.target.value)}
@@ -1401,11 +1481,15 @@ function ContactsStep({
   set,
   catalogues,
   fieldError,
+  visible = () => true,
+  required = () => false,
 }: {
   draft: GuestCompanyCreateDraft;
   set: <K extends keyof GuestCompanyCreateDraft>(key: K, value: GuestCompanyCreateDraft[K]) => void;
   catalogues?: CompanyCreateContext["catalogues"];
   fieldError: (key: string, stepId?: GuestCompanyCreateStepId) => string | undefined;
+  visible?: (code: string) => boolean;
+  required?: (code: string) => boolean;
 }) {
   const contactsError = fieldError("contacts", "contacts");
 
@@ -1475,7 +1559,11 @@ function ContactsStep({
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <Field label="Full Name">
+                  <Field
+                    label="Full Name"
+                    required={required("CONTACT_NAME")}
+                    error={!contact.name && required("CONTACT_NAME") ? (fieldError("CONTACT_NAME", "contacts") || "Full name is required") : undefined}
+                  >
                     <Input
                       value={contact.name}
                       onChange={(event) =>
@@ -1488,7 +1576,11 @@ function ContactsStep({
                       placeholder="Contact person name"
                     />
                   </Field>
-                  <Field label="Job Title / Position">
+                  <Field
+                    label="Job Title / Position"
+                    required={required("CONTACT_POSITION")}
+                    error={!contact.position && required("CONTACT_POSITION") ? (fieldError("CONTACT_POSITION", "contacts") || "Position is required") : undefined}
+                  >
                     <Input
                       value={contact.position}
                       onChange={(event) =>
@@ -1501,7 +1593,11 @@ function ContactsStep({
                       placeholder="e.g. Travel Manager"
                     />
                   </Field>
-                  <Field label="Email">
+                  <Field
+                    label="Email"
+                    required={required("CONTACT_EMAIL")}
+                    error={!contact.email && required("CONTACT_EMAIL") ? (fieldError("CONTACT_EMAIL", "contacts") || "Email is required") : undefined}
+                  >
                     <Input
                       type="email"
                       value={contact.email}
@@ -1515,33 +1611,46 @@ function ContactsStep({
                       placeholder="name@company.com"
                     />
                   </Field>
-                  <Field label="Phone" error={phoneError || undefined}>
-                    <Input
+                  <Field
+                    label="Phone"
+                    required={required("CONTACT_PHONE")}
+                    error={phoneError || (!contact.phone && required("CONTACT_PHONE") ? (fieldError("CONTACT_PHONE", "contacts") || "Phone is required") : undefined)}
+                  >
+                    <CanonicalPhoneInput
                       value={contact.phone}
-                      onChange={(event) =>
+                      onChange={(phone) =>
                         set(
                           "contacts",
-                          draft.contacts.map((row, i) => (i === index ? { ...row, phone: event.target.value } : row)),
+                          draft.contacts.map((row, i) => (i === index ? { ...row, phone } : row)),
                         )
                       }
-                      className={MODAL_CONTROL_CLASS}
-                      placeholder="+251 9... or 09... / 07..."
+                      error={Boolean(phoneError || (!contact.phone && required("CONTACT_PHONE")))}
+                      placeholder="e.g. 911 234 567"
                     />
+                    {/* Format: +251 9... or 09... / 07... */}
                   </Field>
-                  <Field label="WhatsApp">
-                    <Input
+                  <Field
+                    label="WhatsApp"
+                    required={required("CONTACT_WHATSAPP")}
+                    error={!contact.whatsapp && required("CONTACT_WHATSAPP") ? (fieldError("CONTACT_WHATSAPP", "contacts") || "WhatsApp is required") : undefined}
+                  >
+                    <CanonicalPhoneInput
                       value={contact.whatsapp}
-                      onChange={(event) =>
+                      onChange={(whatsapp) =>
                         set(
                           "contacts",
-                          draft.contacts.map((row, i) => (i === index ? { ...row, whatsapp: event.target.value } : row)),
+                          draft.contacts.map((row, i) => (i === index ? { ...row, whatsapp } : row)),
                         )
                       }
-                      className={MODAL_CONTROL_CLASS}
-                      placeholder="+251 9... or 09... / 07..."
+                      error={Boolean(!contact.whatsapp && required("CONTACT_WHATSAPP"))}
+                      placeholder="e.g. 911 234 567"
                     />
                   </Field>
-                  <Field label="Preferred Method">
+                  <Field
+                    label="Preferred Method"
+                    required={required("CONTACT_PREFERRED_METHOD")}
+                    error={!contact.preferredMethod && required("CONTACT_PREFERRED_METHOD") ? (fieldError("CONTACT_PREFERRED_METHOD", "contacts") || "Preferred method is required") : undefined}
+                  >
                     <NoneSelect
                       value={contact.preferredMethod}
                       onChange={(value) =>
@@ -1554,7 +1663,11 @@ function ContactsStep({
                       placeholder="Select method"
                     />
                   </Field>
-                  <Field label="Contact Role">
+                  <Field
+                    label="Contact Role"
+                    required={required("CONTACT_ROLE")}
+                    error={(!contact.roleIds || contact.roleIds.length === 0) && required("CONTACT_ROLE") ? (fieldError("CONTACT_ROLE", "contacts") || "Contact role is required") : undefined}
+                  >
                     <NoneSelect
                       value={contact.roleIds[0] ?? ""}
                       onChange={(value) =>

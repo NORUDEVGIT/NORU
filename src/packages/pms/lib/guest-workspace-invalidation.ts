@@ -23,6 +23,7 @@ export const GUEST_WORKSPACE_CONFIG_QUERY_KEYS = [
   "company-contract-create-config",
   "travel-agency-step4-config",
   "guest-company-create-context",
+  "company-create-context",
   "pms-guest-travel-agent-create-context",
   "pms-corporate-contracts-context",
 ] as const;

@@ -14,6 +14,10 @@ import {
 import { GUEST_ACCOUNT_STATUSES, type GuestAccountStatus } from "./guest-profile-wave4.ts";
 import { TA_COMMISSION_PLAN_TYPES } from "./guest-travel-agent-detail-workspace.ts";
 import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
+import {
+  ALL_TRAVEL_AGENCY_CREATION_FIELDS,
+  isTravelAgencyFieldCode,
+} from "./guest-creation-field-definitions.ts";
 
 export const GUEST_TRAVEL_AGENT_CREATE_MIGRATION_FILE = "0099_pms_account_create_drafts.sql";
 
@@ -467,38 +471,462 @@ function contractDateError(start: string, end: string): string | null {
   return null;
 }
 
+export const TRAVEL_AGENCY_FIELD_ALIASES_MAP: Record<string, string[]> = {
+  TA_NAME: ["TA_NAME", "AGENCY_NAME", "TRAVEL_AGENCY_NAME", "NAME"],
+  TA_AGENCY_TYPE: ["TA_AGENCY_TYPE", "AGENCY_TYPE", "TRAVEL_AGENCY_TYPE"],
+  TA_TRADE_NAME: ["TA_TRADE_NAME", "AGENCY_TRADE_NAME", "TRAVEL_AGENCY_TRADE_NAME", "TRADE_NAME"],
+  TA_CODE: ["TA_CODE", "AGENCY_CODE", "TRAVEL_AGENCY_CODE", "CODE"],
+  TA_ACCOUNT_STATUS: ["TA_ACCOUNT_STATUS", "AGENCY_ACCOUNT_STATUS", "TRAVEL_AGENCY_ACCOUNT_STATUS", "ACCOUNT_STATUS"],
+  TA_IATA_NUMBER: ["TA_IATA_NUMBER", "TA_IATA_LICENSE_NUMBER", "AGENCY_IATA_NUMBER", "IATA_LICENSE_NUMBER", "IATA_NUMBER"],
+  TA_LICENSE_EXPIRY: ["TA_LICENSE_EXPIRY", "TA_LICENSE_EXPIRY_DATE", "AGENCY_LICENSE_EXPIRY", "LICENSE_EXPIRY_DATE", "LICENSE_EXPIRY"],
+  TA_WEBSITE: ["TA_WEBSITE", "AGENCY_WEBSITE", "TRAVEL_AGENCY_WEBSITE", "WEBSITE"],
+  TA_NOTES: ["TA_NOTES", "AGENCY_NOTES", "TRAVEL_AGENCY_NOTES", "NOTES"],
+  TA_COUNTRY: ["TA_COUNTRY", "AGENCY_COUNTRY", "TRAVEL_AGENCY_COUNTRY", "COUNTRY"],
+  TA_REGION: ["TA_REGION", "AGENCY_REGION", "TRAVEL_AGENCY_REGION", "REGION", "STATE"],
+  TA_CITY: ["TA_CITY", "AGENCY_CITY", "TRAVEL_AGENCY_CITY", "CITY"],
+  TA_POSTAL_CODE: ["TA_POSTAL_CODE", "AGENCY_POSTAL_CODE", "TRAVEL_AGENCY_POSTAL_CODE", "POSTAL_CODE", "ZIP"],
+  TA_ADDRESS_LINE1: ["TA_ADDRESS_LINE1", "AGENCY_ADDRESS_LINE1", "TRAVEL_AGENCY_ADDRESS_LINE1", "ADDRESS_LINE1", "STREET_ADDRESS"],
+  TA_ADDRESS_LINE2: ["TA_ADDRESS_LINE2", "AGENCY_ADDRESS_LINE2", "TRAVEL_AGENCY_ADDRESS_LINE2", "ADDRESS_LINE2"],
+  TA_TAX_ID: ["TA_TAX_ID", "AGENCY_TAX_ID", "TRAVEL_AGENCY_TAX_ID", "TAX_ID", "TIN"],
+  TA_REGISTRATION_NUMBER: ["TA_REGISTRATION_NUMBER", "AGENCY_REGISTRATION_NUMBER", "TRAVEL_AGENCY_REGISTRATION_NUMBER", "REGISTRATION_NUMBER"],
+  TA_MARKET_SEGMENT: ["TA_MARKET_SEGMENT", "AGENCY_MARKET_SEGMENT", "TRAVEL_AGENCY_MARKET_SEGMENT", "MARKET_SEGMENT", "MARKET_SEGMENT_ID"],
+  TA_SOURCE: ["TA_SOURCE", "AGENCY_SOURCE", "TRAVEL_AGENCY_SOURCE", "SOURCE", "SOURCE_CODE", "SOURCE_CODE_ID"],
+  TA_ACCOUNT_MANAGER: ["TA_ACCOUNT_MANAGER", "AGENCY_ACCOUNT_MANAGER", "TRAVEL_AGENCY_ACCOUNT_MANAGER", "ACCOUNT_MANAGER", "ACCOUNT_MANAGER_ID"],
+  TA_CONTACT_NAME: ["TA_CONTACT_NAME", "AGENCY_CONTACT_NAME", "TRAVEL_AGENCY_CONTACT_NAME", "CONTACT_NAME"],
+  TA_CONTACT_ROLE: ["TA_CONTACT_ROLE", "AGENCY_CONTACT_ROLE", "TRAVEL_AGENCY_CONTACT_ROLE", "CONTACT_ROLE", "CONTACT_ROLE_ID"],
+  TA_CONTACT_POSITION: ["TA_CONTACT_POSITION", "AGENCY_CONTACT_POSITION", "TRAVEL_AGENCY_CONTACT_POSITION", "CONTACT_POSITION", "POSITION"],
+  TA_CONTACT_EMAIL: ["TA_CONTACT_EMAIL", "AGENCY_CONTACT_EMAIL", "TRAVEL_AGENCY_CONTACT_EMAIL", "CONTACT_EMAIL", "EMAIL"],
+  TA_CONTACT_PHONE: ["TA_CONTACT_PHONE", "AGENCY_CONTACT_PHONE", "TRAVEL_AGENCY_CONTACT_PHONE", "CONTACT_PHONE", "PHONE"],
+  TA_CONTACT_WHATSAPP: ["TA_CONTACT_WHATSAPP", "AGENCY_CONTACT_WHATSAPP", "TRAVEL_AGENCY_CONTACT_WHATSAPP", "CONTACT_WHATSAPP", "WHATSAPP"],
+  TA_CONTACT_PREFERRED_METHOD: ["TA_CONTACT_PREFERRED_METHOD", "AGENCY_CONTACT_PREFERRED_METHOD", "TRAVEL_AGENCY_CONTACT_PREFERRED_METHOD", "CONTACT_PREFERRED_METHOD", "PREFERRED_METHOD"],
+  TA_CONTACT_NOTES: ["TA_CONTACT_NOTES", "AGENCY_CONTACT_NOTES", "TRAVEL_AGENCY_CONTACT_NOTES", "CONTACT_NOTES"],
+
+  // Step 3: Commission & Rates Aliases
+  TA_COMMERCIAL_MODEL: ["TA_COMMERCIAL_MODEL", "COMMERCIAL_MODEL"],
+  TA_COMMISSION_CURRENCY: ["TA_COMMISSION_CURRENCY", "COMMISSION_CURRENCY"],
+  TA_COMMISSION_EFFECTIVE_ON: ["TA_COMMISSION_EFFECTIVE_ON", "COMMISSION_EFFECTIVE_ON", "COMMISSION_EFFECTIVE_DATE"],
+  TA_COMMISSION_EXPIRES_ON: ["TA_COMMISSION_EXPIRES_ON", "COMMISSION_EXPIRES_ON", "COMMISSION_EXPIRY_DATE"],
+  TA_COMMISSION_NOTES: ["TA_COMMISSION_NOTES", "COMMISSION_NOTES"],
+  TA_COMMISSION_APPLICATION_MODE: ["TA_COMMISSION_APPLICATION_MODE", "COMMISSION_APPLICATION_MODE"],
+  TA_COMMISSION_TYPE: ["TA_COMMISSION_TYPE", "COMMISSION_TYPE", "ALL_COMMISSION_TYPE"],
+  TA_COMMISSION_VALUE: ["TA_COMMISSION_VALUE", "COMMISSION_VALUE", "ALL_COMMISSION_VALUE"],
+  TA_NET_PRICING_METHOD: ["TA_NET_PRICING_METHOD", "NET_PRICING_METHOD"],
+  TA_NET_ROOM_TYPE: ["TA_NET_ROOM_TYPE", "NET_ROOM_TYPE", "NET_ROOM_TYPE_ID"],
+  TA_NET_RATE_PLAN: ["TA_NET_RATE_PLAN", "NET_RATE_PLAN", "NET_RATE_PLAN_ID"],
+  TA_NET_DISCOUNT_TYPE: ["TA_NET_DISCOUNT_TYPE", "NET_DISCOUNT_TYPE"],
+  TA_NET_DISCOUNT_VALUE: ["TA_NET_DISCOUNT_VALUE", "NET_DISCOUNT_VALUE"],
+  TA_NET_VALID_FROM: ["TA_NET_VALID_FROM", "NET_VALID_FROM", "NET_RATE_VALID_FROM"],
+  TA_NET_VALID_UNTIL: ["TA_NET_VALID_UNTIL", "NET_VALID_UNTIL", "NET_RATE_VALID_UNTIL"],
+  TA_NET_CURRENCY: ["TA_NET_CURRENCY", "NET_CURRENCY", "NET_SETTLEMENT_CURRENCY"],
+  TA_COMMERCIAL_NOTES: ["TA_COMMERCIAL_NOTES", "COMMERCIAL_NOTES"],
+
+  // Step 4: Payment, Credit & Reservation Rules Aliases
+  TA_BILLING_CURRENCY: ["TA_BILLING_CURRENCY", "BILLING_CURRENCY"],
+  TA_PAYMENT_METHOD: ["TA_PAYMENT_METHOD", "PAYMENT_METHOD", "SETTLEMENT_METHOD"],
+  TA_PAYMENT_TIMING: ["TA_PAYMENT_TIMING", "PAYMENT_TIMING"],
+  TA_BILLING_RULE: ["TA_BILLING_RULE", "BILLING_RULE", "DEFAULT_BILLING_RULE"],
+  TA_BILLING_INSTRUCTION: ["TA_BILLING_INSTRUCTION", "BILLING_INSTRUCTION", "BILLING_INSTRUCTIONS"],
+  TA_ALLOW_CREDIT: ["TA_ALLOW_CREDIT", "ALLOW_CREDIT", "CREDIT_FACILITY"],
+  TA_CREDIT_LIMIT: ["TA_CREDIT_LIMIT", "CREDIT_LIMIT", "CREDIT_LIMIT_AMOUNT"],
+  TA_CREDIT_DAYS: ["TA_CREDIT_DAYS", "CREDIT_DAYS", "CREDIT_TERMS"],
+  TA_CREDIT_STATUS: ["TA_CREDIT_STATUS", "CREDIT_STATUS"],
+  TA_DEPOSIT_POLICY: ["TA_DEPOSIT_POLICY", "DEPOSIT_POLICY", "GUARANTEE_POLICY"],
+  TA_CANCELLATION_POLICY: ["TA_CANCELLATION_POLICY", "CANCELLATION_POLICY"],
+  TA_NOSHOW_POLICY: ["TA_NOSHOW_POLICY", "NOSHOW_POLICY", "NO_SHOW_POLICY"],
+  TA_BOOKING_NOTES: ["TA_BOOKING_NOTES", "BOOKING_NOTES"],
+};
+
+export type TravelAgencyCreateFieldRule = {
+  code: string;
+  label: string;
+  required: boolean;
+  visible?: boolean;
+};
+
+export function createTravelAgencyFieldRules(
+  fields: Array<{ id: string; code: string; name?: string; required?: boolean; active?: boolean }>,
+  profileType: { id?: string; requiredFieldIds?: string[] } | null,
+): TravelAgencyCreateFieldRule[] {
+  const byCode = new Map<string, { id: string; code: string; name?: string; required?: boolean; active?: boolean }>();
+  for (const f of fields) {
+    byCode.set(f.code.trim().toUpperCase(), f);
+  }
+
+  const rules: TravelAgencyCreateFieldRule[] = [];
+
+  for (const def of ALL_TRAVEL_AGENCY_CREATION_FIELDS) {
+    const code = def.code.toUpperCase();
+    const strippedCode = code.startsWith("TA_")
+      ? code.replace(/^TA_/, "")
+      : code.startsWith("TRAVEL_AGENCY_")
+        ? code.replace(/^TRAVEL_AGENCY_/, "")
+        : code;
+    const aliases = TRAVEL_AGENCY_FIELD_ALIASES_MAP[code] ?? [code, strippedCode];
+
+    let matched: { id: string; code: string; name?: string; required?: boolean; active?: boolean } | undefined;
+    for (const alias of aliases) {
+      const found = byCode.get(alias.toUpperCase());
+      if (found) {
+        matched = found;
+        break;
+      }
+    }
+    if (!matched) {
+      matched = byCode.get(code) || byCode.get(strippedCode);
+    }
+
+    const isSystem = Boolean(def.systemRequired);
+    const active = matched ? matched.active !== false : true;
+
+    let required = false;
+    if (isSystem) {
+      required = true;
+    } else if (active) {
+      const allCandidateCodes = new Set([def.code, code, strippedCode, ...aliases.map((a) => a.toUpperCase())]);
+      const inProfileType = Boolean(
+        (matched && profileType?.requiredFieldIds?.includes(matched.id)) ||
+          profileType?.requiredFieldIds?.some((id) => allCandidateCodes.has(id.toUpperCase())),
+      );
+      const isTaMatched = Boolean(matched && isTravelAgencyFieldCode(matched.code));
+      const fieldRequired = Boolean(isTaMatched && matched?.required);
+      required = inProfileType || fieldRequired;
+    }
+
+    const rule: TravelAgencyCreateFieldRule = {
+      code: def.code,
+      visible: isSystem ? true : active,
+      required,
+      label: def.name,
+    };
+    rules.push(rule);
+
+    for (const alias of aliases) {
+      rules.push({
+        ...rule,
+        code: alias,
+      });
+    }
+    if (def.code.startsWith("TA_")) {
+      rules.push({
+        ...rule,
+        code: def.code.replace(/^TA_/, ""),
+      });
+    }
+  }
+
+  return rules;
+}
+
+export function isTravelAgencyRuleRequired(
+  rules: TravelAgencyCreateFieldRule[] | undefined,
+  code: string,
+): boolean {
+  if (!rules || rules.length === 0) {
+    const upper = code.toUpperCase();
+    return upper === "TA_NAME" || upper === "NAME" || upper === "TA_AGENCY_TYPE" || upper === "AGENCY_TYPE";
+  }
+  const upper = code.toUpperCase();
+  const canonical = upper.startsWith("TA_") ? upper : `TA_${upper}`;
+  const stripped = upper.startsWith("TA_") ? upper.replace(/^TA_/, "") : upper;
+  const aliases = TRAVEL_AGENCY_FIELD_ALIASES_MAP[canonical] ?? [canonical, stripped];
+  for (const c of [canonical, stripped, upper, ...aliases]) {
+    const found = rules.find((r) => r.code.toUpperCase() === c.toUpperCase());
+    if (found) return Boolean(found.required);
+  }
+  return false;
+}
+
+export function card4TravelAgencyCreateGaps(
+  draft: GuestTravelAgentCreateDraft,
+  rules: TravelAgencyCreateFieldRule[],
+): Array<{ code: string; label: string; step: GuestTravelAgentCreateStepId }> {
+  const gaps: Array<{ code: string; label: string; step: GuestTravelAgentCreateStepId }> = [];
+  const byCode = new Map(rules.map((rule) => [rule.code.toUpperCase(), rule]));
+
+  const need = (codes: string[], ok: boolean, step: GuestTravelAgentCreateStepId, customKey?: string) => {
+    for (const code of codes) {
+      const rule = byCode.get(code.toUpperCase());
+      if (rule?.required && !ok) {
+        gaps.push({ code: customKey || codes[0], label: rule.label, step });
+        break;
+      }
+    }
+  };
+
+  // Step 1: Basic Information - Agency Details
+  need(["TA_NAME", "AGENCY_NAME", "NAME"], filled(draft.name), "basic_info", "name");
+  need(["TA_AGENCY_TYPE", "AGENCY_TYPE", "TYPE"], filled(draft.agencyType) && isAgencyType(draft.agencyType), "basic_info", "agencyType");
+  need(["TA_TRADE_NAME", "TRADE_NAME"], filled(draft.tradeName), "basic_info", "tradeName");
+  need(["TA_CODE", "CODE"], filled(draft.code), "basic_info", "code");
+  need(["TA_ACCOUNT_STATUS", "ACCOUNT_STATUS"], filled(draft.accountStatus), "basic_info", "accountStatus");
+  need(["TA_IATA_NUMBER", "IATA_NUMBER", "TA_IATA_LICENSE_NUMBER", "IATA_LICENSE_NUMBER"], filled(draft.iataLicenseNumber), "basic_info", "iataLicenseNumber");
+  need(["TA_LICENSE_EXPIRY", "LICENSE_EXPIRY", "TA_LICENSE_EXPIRY_DATE", "LICENSE_EXPIRY_DATE"], filled(draft.licenseExpiryDate), "basic_info", "licenseExpiryDate");
+  need(["TA_WEBSITE", "WEBSITE"], filled(draft.website), "basic_info", "website");
+  need(["TA_NOTES", "NOTES"], filled(draft.notes), "basic_info", "notes");
+
+  // Step 1: Basic Information - Address & Business
+  need(["TA_COUNTRY", "COUNTRY"], filled(draft.country), "basic_info", "country");
+  need(["TA_REGION", "REGION", "STATE"], filled(draft.region), "basic_info", "region");
+  need(["TA_CITY", "CITY"], filled(draft.city), "basic_info", "city");
+  need(["TA_POSTAL_CODE", "POSTAL_CODE", "ZIP"], filled(draft.postalCode), "basic_info", "postalCode");
+  need(["TA_ADDRESS_LINE1", "ADDRESS_LINE1", "STREET_ADDRESS"], filled(draft.addressLine1), "basic_info", "addressLine1");
+  need(["TA_ADDRESS_LINE2", "ADDRESS_LINE2"], filled(draft.addressLine2), "basic_info", "addressLine2");
+  need(["TA_TAX_ID", "TAX_ID", "TIN"], filled(draft.taxId), "basic_info", "taxId");
+  need(["TA_REGISTRATION_NUMBER", "REGISTRATION_NUMBER"], filled(draft.registrationNumber), "basic_info", "registrationNumber");
+  need(["TA_MARKET_SEGMENT", "MARKET_SEGMENT"], filled(draft.marketSegmentId), "basic_info", "marketSegmentId");
+  need(["TA_SOURCE", "SOURCE", "SOURCE_CODE"], filled(draft.sourceCodeId), "basic_info", "sourceCodeId");
+  need(["TA_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"], filled(draft.accountManagerId), "basic_info", "accountManagerId");
+
+  // Step 2: Contacts
+  const hasContacts = draft.contacts.length > 0;
+  need(["TA_CONTACT_NAME", "CONTACT_NAME"], hasContacts && draft.contacts.some((c) => filled(c.name)), "contacts", "contactName");
+  need(["TA_CONTACT_ROLE", "CONTACT_ROLE"], hasContacts && draft.contacts.some((c) => filled(c.roleId)), "contacts", "contactRole");
+  need(["TA_CONTACT_POSITION", "CONTACT_POSITION"], hasContacts && draft.contacts.some((c) => filled(c.position)), "contacts", "contactPosition");
+  need(["TA_CONTACT_EMAIL", "CONTACT_EMAIL"], hasContacts && draft.contacts.some((c) => filled(c.email)), "contacts", "contactEmail");
+  need(["TA_CONTACT_PHONE", "CONTACT_PHONE"], hasContacts && draft.contacts.some((c) => filled(c.phone)), "contacts", "contactPhone");
+  need(["TA_CONTACT_WHATSAPP", "CONTACT_WHATSAPP"], hasContacts && draft.contacts.some((c) => filled(c.whatsapp)), "contacts", "contactWhatsapp");
+  need(["TA_CONTACT_PREFERRED_METHOD", "CONTACT_PREFERRED_METHOD"], hasContacts && draft.contacts.some((c) => filled(c.preferredMethod)), "contacts", "contactPreferredMethod");
+  need(["TA_CONTACT_NOTES", "CONTACT_NOTES"], hasContacts && draft.contacts.some((c) => filled(c.notes)), "contacts", "contactNotes");
+
+  const isContactReq = (code: string) => {
+    const upper = code.toUpperCase();
+    const canonical = upper.startsWith("TA_") ? upper : `TA_${upper}`;
+    const stripped = upper.startsWith("TA_") ? upper.replace(/^TA_/, "") : upper;
+    return Boolean(byCode.get(canonical)?.required || byCode.get(stripped)?.required || byCode.get(upper)?.required);
+  };
+
+  // Check required fields on any contacts that are partially filled
+  for (const contact of draft.contacts) {
+    if (filled(contact.name)) {
+      if (isContactReq("TA_CONTACT_EMAIL") && !filled(contact.email)) {
+        gaps.push({ code: "contactEmail", label: "Contact Email", step: "contacts" });
+      }
+      if (isContactReq("TA_CONTACT_PHONE") && !filled(contact.phone)) {
+        gaps.push({ code: "contactPhone", label: "Contact Phone", step: "contacts" });
+      }
+      if (isContactReq("TA_CONTACT_POSITION") && !filled(contact.position)) {
+        gaps.push({ code: "contactPosition", label: "Contact Position", step: "contacts" });
+      }
+      if (isContactReq("TA_CONTACT_ROLE") && !filled(contact.roleId)) {
+        gaps.push({ code: "contactRole", label: "Contact Role", step: "contacts" });
+      }
+      if (isContactReq("TA_CONTACT_WHATSAPP") && !filled(contact.whatsapp)) {
+        gaps.push({ code: "contactWhatsapp", label: "Contact WhatsApp", step: "contacts" });
+      }
+      if (isContactReq("TA_CONTACT_PREFERRED_METHOD") && !filled(contact.preferredMethod)) {
+        gaps.push({ code: "contactPreferredMethod", label: "Contact Preferred Method", step: "contacts" });
+      }
+      if (isContactReq("TA_CONTACT_NOTES") && !filled(contact.notes)) {
+        gaps.push({ code: "contactNotes", label: "Contact Notes", step: "contacts" });
+      }
+    }
+  }
+
+  // Step 3: Commission & Rates
+  need(["TA_COMMERCIAL_MODEL", "COMMERCIAL_MODEL"], filled(draft.commercialModel), "commission_rates", "commercialModel");
+  if (draft.commercialModel === "commissionable") {
+    need(["TA_COMMISSION_CURRENCY", "COMMISSION_CURRENCY"], filled(draft.commissionCurrency), "commission_rates", "commissionCurrency");
+    need(["TA_COMMISSION_EFFECTIVE_ON", "COMMISSION_EFFECTIVE_ON", "COMMISSION_EFFECTIVE_DATE"], filled(draft.commissionEffectiveOn), "commission_rates", "commissionEffectiveOn");
+    need(["TA_COMMISSION_EXPIRES_ON", "COMMISSION_EXPIRES_ON", "COMMISSION_EXPIRY_DATE"], filled(draft.commissionExpiresOn), "commission_rates", "commissionExpiresOn");
+    need(["TA_COMMISSION_NOTES", "COMMISSION_NOTES"], filled(draft.commissionNotes), "commission_rates", "commissionNotes");
+    need(["TA_COMMISSION_APPLICATION_MODE", "COMMISSION_APPLICATION_MODE"], filled(draft.commissionApplicationMode), "commission_rates", "commissionApplicationMode");
+    need(["TA_COMMISSION_TYPE", "COMMISSION_TYPE"], filled(draft.commissionType || draft.allCommissionType), "commission_rates", "commissionType");
+    const hasCommVal = draft.commissionApplicationMode === "all"
+      ? filled(draft.allCommissionValue || draft.commissionValue)
+      : (draft.commissionRules?.length ?? 0) > 0 && draft.commissionRules.some((r) => filled(r.commissionValue));
+    need(["TA_COMMISSION_VALUE", "COMMISSION_VALUE"], hasCommVal, "commission_rates", "commissionValue");
+  } else if (draft.commercialModel === "net_rate") {
+    need(["TA_NET_PRICING_METHOD", "NET_PRICING_METHOD"], filled(draft.netPricingMethod), "commission_rates", "netPricingMethod");
+    if (draft.netPricingMethod === "rate_plan") {
+      need(["TA_NET_ROOM_TYPE", "NET_ROOM_TYPE"], filled(draft.netRoomTypeId), "commission_rates", "netRoomTypeId");
+      need(["TA_NET_RATE_PLAN", "NET_RATE_PLAN"], filled(draft.netRatePlanId), "commission_rates", "netRatePlanId");
+    } else if (draft.netPricingMethod === "rate_plan_discount") {
+      need(["TA_NET_ROOM_TYPE", "NET_ROOM_TYPE"], filled(draft.netRoomTypeId), "commission_rates", "netRoomTypeId");
+      need(["TA_NET_RATE_PLAN", "NET_RATE_PLAN"], filled(draft.netRatePlanId), "commission_rates", "netRatePlanId");
+      need(["TA_NET_DISCOUNT_TYPE", "NET_DISCOUNT_TYPE"], filled(draft.netDiscountType), "commission_rates", "netDiscountType");
+      need(["TA_NET_DISCOUNT_VALUE", "NET_DISCOUNT_VALUE"], filled(draft.netDiscountValue), "commission_rates", "netDiscountValue");
+    } else if (draft.netPricingMethod === "contracted_rates") {
+      need(["TA_NET_ROOM_TYPE", "NET_ROOM_TYPE"], (draft.contractedRates?.length ?? 0) > 0, "commission_rates", "contractedRates");
+    }
+    need(["TA_NET_VALID_FROM", "NET_VALID_FROM", "NET_RATE_VALID_FROM"], filled(draft.netValidFrom), "commission_rates", "netValidFrom");
+    need(["TA_NET_VALID_UNTIL", "NET_VALID_UNTIL", "NET_RATE_VALID_UNTIL"], filled(draft.netValidUntil), "commission_rates", "netValidUntil");
+    need(["TA_NET_CURRENCY", "NET_CURRENCY", "NET_SETTLEMENT_CURRENCY"], filled(draft.netCurrencyCode), "commission_rates", "netCurrencyCode");
+  }
+  need(["TA_COMMERCIAL_NOTES", "COMMERCIAL_NOTES"], filled(draft.commercialNotes), "commission_rates", "commercialNotes");
+
+  // Step 4: Payment, Credit & Reservation Rules
+  need(["TA_BILLING_CURRENCY", "BILLING_CURRENCY"], filled(draft.billingCurrencyCode) || filled(draft.currency), "payment_rules", "billingCurrencyCode");
+  need(["TA_PAYMENT_METHOD", "PAYMENT_METHOD", "SETTLEMENT_METHOD"], filled(draft.defaultPaymentMethodId) || filled(draft.paymentMethodId), "payment_rules", "defaultPaymentMethodId");
+  need(["TA_PAYMENT_TIMING", "PAYMENT_TIMING"], filled(draft.paymentTiming), "payment_rules", "paymentTiming");
+  need(["TA_BILLING_RULE", "BILLING_RULE", "DEFAULT_BILLING_RULE"], filled(draft.defaultBillingRuleId), "payment_rules", "defaultBillingRuleId");
+  need(["TA_BILLING_INSTRUCTION", "BILLING_INSTRUCTION", "BILLING_INSTRUCTIONS"], filled(draft.billingInstruction), "payment_rules", "billingInstruction");
+  need(["TA_ALLOW_CREDIT", "ALLOW_CREDIT", "CREDIT_FACILITY"], Boolean(draft.allowCredit), "payment_rules", "allowCredit");
+  need(["TA_CREDIT_LIMIT", "CREDIT_LIMIT", "CREDIT_LIMIT_AMOUNT"], filled(draft.creditLimitAmount), "payment_rules", "creditLimitAmount");
+  need(["TA_CREDIT_DAYS", "CREDIT_DAYS", "CREDIT_TERMS"], draft.creditDays != null && !Number.isNaN(Number(draft.creditDays)) && Number(draft.creditDays) > 0, "payment_rules", "creditDays");
+  need(["TA_CREDIT_STATUS", "CREDIT_STATUS"], filled(draft.creditStatus), "payment_rules", "creditStatus");
+  need(["TA_DEPOSIT_POLICY", "DEPOSIT_POLICY", "GUARANTEE_POLICY"], filled(draft.defaultDepositPolicyId), "payment_rules", "defaultDepositPolicyId");
+  need(["TA_CANCELLATION_POLICY", "CANCELLATION_POLICY"], filled(draft.defaultCancellationPolicyId), "payment_rules", "defaultCancellationPolicyId");
+  need(["TA_NOSHOW_POLICY", "NOSHOW_POLICY", "NO_SHOW_POLICY"], filled(draft.defaultNoShowPolicyId), "payment_rules", "defaultNoShowPolicyId");
+  need(["TA_BOOKING_NOTES", "BOOKING_NOTES"], filled(draft.bookingNotes), "payment_rules", "bookingNotes");
+
+  return gaps;
+}
+
+const FIELD_CODES_BY_TA_PROP: Record<string, string[]> = {
+  name: ["TA_NAME", "AGENCY_NAME", "NAME"],
+  agencyType: ["TA_AGENCY_TYPE", "AGENCY_TYPE"],
+  agencyTypeOther: ["TA_AGENCY_TYPE", "AGENCY_TYPE"],
+  tradeName: ["TA_TRADE_NAME", "TRADE_NAME"],
+  code: ["TA_CODE", "AGENCY_CODE", "CODE"],
+  accountStatus: ["TA_ACCOUNT_STATUS", "ACCOUNT_STATUS"],
+  iataLicenseNumber: ["TA_IATA_NUMBER", "TA_IATA_LICENSE_NUMBER", "IATA_NUMBER", "IATA_LICENSE_NUMBER"],
+  licenseExpiryDate: ["TA_LICENSE_EXPIRY", "TA_LICENSE_EXPIRY_DATE", "LICENSE_EXPIRY"],
+  website: ["TA_WEBSITE", "WEBSITE"],
+  notes: ["TA_NOTES", "NOTES"],
+  country: ["TA_COUNTRY", "COUNTRY"],
+  region: ["TA_REGION", "REGION", "STATE"],
+  city: ["TA_CITY", "CITY"],
+  postalCode: ["TA_POSTAL_CODE", "POSTAL_CODE", "ZIP"],
+  addressLine1: ["TA_ADDRESS_LINE1", "ADDRESS_LINE1", "STREET_ADDRESS"],
+  addressLine2: ["TA_ADDRESS_LINE2", "ADDRESS_LINE2"],
+  taxId: ["TA_TAX_ID", "TAX_ID", "TIN"],
+  registrationNumber: ["TA_REGISTRATION_NUMBER", "REGISTRATION_NUMBER"],
+  marketSegmentId: ["TA_MARKET_SEGMENT", "MARKET_SEGMENT"],
+  sourceCodeId: ["TA_SOURCE", "SOURCE", "SOURCE_CODE"],
+  accountManagerId: ["TA_ACCOUNT_MANAGER", "ACCOUNT_MANAGER"],
+  contacts: ["TA_CONTACT_NAME", "TA_CONTACT_EMAIL", "TA_CONTACT_PHONE", "CONTACT_NAME", "CONTACTS"],
+  contactName: ["TA_CONTACT_NAME", "CONTACT_NAME"],
+  contactEmail: ["TA_CONTACT_EMAIL", "CONTACT_EMAIL"],
+  contactPhone: ["TA_CONTACT_PHONE", "CONTACT_PHONE"],
+  contactPosition: ["TA_CONTACT_POSITION", "CONTACT_POSITION"],
+  contactRole: ["TA_CONTACT_ROLE", "CONTACT_ROLE"],
+  contactWhatsapp: ["TA_CONTACT_WHATSAPP", "CONTACT_WHATSAPP"],
+  contactPreferredMethod: ["TA_CONTACT_PREFERRED_METHOD", "CONTACT_PREFERRED_METHOD"],
+  contactNotes: ["TA_CONTACT_NOTES", "CONTACT_NOTES"],
+
+  // Step 3 properties
+  commercialModel: ["TA_COMMERCIAL_MODEL", "COMMERCIAL_MODEL"],
+  commissionCurrency: ["TA_COMMISSION_CURRENCY", "COMMISSION_CURRENCY"],
+  commissionEffectiveOn: ["TA_COMMISSION_EFFECTIVE_ON", "COMMISSION_EFFECTIVE_ON", "COMMISSION_EFFECTIVE_DATE"],
+  commissionExpiresOn: ["TA_COMMISSION_EXPIRES_ON", "COMMISSION_EXPIRES_ON", "COMMISSION_EXPIRY_DATE"],
+  commissionNotes: ["TA_COMMISSION_NOTES", "COMMISSION_NOTES"],
+  commissionApplicationMode: ["TA_COMMISSION_APPLICATION_MODE", "COMMISSION_APPLICATION_MODE"],
+  commissionType: ["TA_COMMISSION_TYPE", "COMMISSION_TYPE", "ALL_COMMISSION_TYPE"],
+  commissionValue: ["TA_COMMISSION_VALUE", "COMMISSION_VALUE", "ALL_COMMISSION_VALUE"],
+  netPricingMethod: ["TA_NET_PRICING_METHOD", "NET_PRICING_METHOD"],
+  netRoomTypeId: ["TA_NET_ROOM_TYPE", "NET_ROOM_TYPE", "NET_ROOM_TYPE_ID"],
+  netRatePlanId: ["TA_NET_RATE_PLAN", "NET_RATE_PLAN", "NET_RATE_PLAN_ID"],
+  netDiscountType: ["TA_NET_DISCOUNT_TYPE", "NET_DISCOUNT_TYPE"],
+  netDiscountValue: ["TA_NET_DISCOUNT_VALUE", "NET_DISCOUNT_VALUE"],
+  netValidFrom: ["TA_NET_VALID_FROM", "NET_VALID_FROM", "NET_RATE_VALID_FROM"],
+  netValidUntil: ["TA_NET_VALID_UNTIL", "NET_VALID_UNTIL", "NET_RATE_VALID_UNTIL"],
+  netCurrencyCode: ["TA_NET_CURRENCY", "NET_CURRENCY", "NET_SETTLEMENT_CURRENCY"],
+  commercialNotes: ["TA_COMMERCIAL_NOTES", "COMMERCIAL_NOTES"],
+
+  // Step 4 properties
+  billingCurrencyCode: ["TA_BILLING_CURRENCY", "BILLING_CURRENCY"],
+  defaultPaymentMethodId: ["TA_PAYMENT_METHOD", "PAYMENT_METHOD", "SETTLEMENT_METHOD"],
+  paymentTiming: ["TA_PAYMENT_TIMING", "PAYMENT_TIMING"],
+  defaultBillingRuleId: ["TA_BILLING_RULE", "BILLING_RULE", "DEFAULT_BILLING_RULE"],
+  billingInstruction: ["TA_BILLING_INSTRUCTION", "BILLING_INSTRUCTION", "BILLING_INSTRUCTIONS"],
+  allowCredit: ["TA_ALLOW_CREDIT", "ALLOW_CREDIT", "CREDIT_FACILITY"],
+  creditLimitAmount: ["TA_CREDIT_LIMIT", "CREDIT_LIMIT", "CREDIT_LIMIT_AMOUNT"],
+  creditDays: ["TA_CREDIT_DAYS", "CREDIT_DAYS", "CREDIT_TERMS"],
+  creditStatus: ["TA_CREDIT_STATUS", "CREDIT_STATUS"],
+  defaultDepositPolicyId: ["TA_DEPOSIT_POLICY", "DEPOSIT_POLICY", "GUARANTEE_POLICY"],
+  defaultCancellationPolicyId: ["TA_CANCELLATION_POLICY", "CANCELLATION_POLICY"],
+  defaultNoShowPolicyId: ["TA_NOSHOW_POLICY", "NOSHOW_POLICY", "NO_SHOW_POLICY"],
+  bookingNotes: ["TA_BOOKING_NOTES", "BOOKING_NOTES"],
+};
+
+export function matchTravelAgencyFieldIssue(
+  issues: TravelAgentCreateFieldIssue[],
+  key: string,
+): TravelAgentCreateFieldIssue | undefined {
+  if (!issues || issues.length === 0 || !key) return undefined;
+  const direct = issues.find((issue) => issue.key === key);
+  if (direct) return direct;
+
+  const upperKey = key.toUpperCase();
+  const strippedKey = upperKey.startsWith("TA_") ? upperKey.slice(3) : upperKey;
+  const taKey = upperKey.startsWith("TA_") ? upperKey : `TA_${upperKey}`;
+
+  const aliasList = FIELD_CODES_BY_TA_PROP[key] || [];
+  const mapList = TRAVEL_AGENCY_FIELD_ALIASES_MAP[upperKey] || TRAVEL_AGENCY_FIELD_ALIASES_MAP[taKey] || [];
+
+  const candidateKeys = new Set<string>([
+    key,
+    upperKey,
+    strippedKey,
+    taKey,
+    ...aliasList.map((a) => a.toUpperCase()),
+    ...mapList.map((a) => a.toUpperCase()),
+  ]);
+
+  return issues.find((issue) => {
+    const k = issue.key;
+    if (candidateKeys.has(k)) return true;
+    const kUpper = k.toUpperCase();
+    if (candidateKeys.has(kUpper)) return true;
+    const kStripped = kUpper.startsWith("TA_") ? kUpper.slice(3) : kUpper;
+    if (candidateKeys.has(kStripped)) return true;
+    const kTa = kUpper.startsWith("TA_") ? kUpper : `TA_${kUpper}`;
+    if (candidateKeys.has(kTa)) return true;
+    return false;
+  });
+}
+
 export type TravelAgentCreateFieldIssue = CreateFieldIssue<GuestTravelAgentCreateStepId>;
 
 export function travelAgentCreateFieldIssues(
   draft: GuestTravelAgentCreateDraft,
   options?: {
+    rules?: TravelAgencyCreateFieldRule[];
     paymentMethodIds?: string[];
     currencyCodes?: string[];
   },
 ): TravelAgentCreateFieldIssue[] {
   const issues: TravelAgentCreateFieldIssue[] = [];
-  if (!filled(draft.name)) issues.push({ key: "name", message: "Agency name is required.", step: "basic_info" });
-  if (!filled(draft.agencyType) || !isAgencyType(draft.agencyType)) {
-    issues.push({ key: "agencyType", message: "Agency type is required.", step: "basic_info" });
+
+  // Step 1: Basic Information & Step 2: Contacts via Card 4 Rules
+  if (options?.rules && options.rules.length > 0) {
+    const gaps = card4TravelAgencyCreateGaps(draft, options.rules);
+    for (const gap of gaps) {
+      if (!issues.some((iss) => iss.key === gap.code && iss.message.includes(gap.label))) {
+        issues.push({
+          key: gap.code,
+          message: `${gap.label} is required.`,
+          step: gap.step,
+        });
+      }
+    }
+  } else {
+    // Default fallback when no rules passed (backwards compatibility)
+    if (!filled(draft.name)) issues.push({ key: "name", message: "Agency name is required.", step: "basic_info" });
+    if (!filled(draft.agencyType) || !isAgencyType(draft.agencyType)) {
+      issues.push({ key: "agencyType", message: "Agency type is required.", step: "basic_info" });
+    }
   }
+
   if (
     (draft.agencyType.toLowerCase() === "other" || draft.agencyType.toUpperCase() === "OTHR") &&
     !filled(draft.agencyTypeOther)
   ) {
     issues.push({ key: "agencyTypeOther", message: "Describe the agency type when Other is selected.", step: "basic_info" });
   }
+
   const named = draft.contacts.filter((row) => filled(row.name));
   const primaries = named.filter((row) => row.isPrimary);
   if (named.length > 0 && primaries.length !== 1) {
     issues.push({
       key: "contacts",
       message: "Exactly one primary contact is required when contacts are entered.",
-      step: "basic_info",
+      step: "contacts",
     });
   }
   for (const contact of named) {
     if (!validEmail(contact.email)) {
-      issues.push({ key: "contacts", message: "Enter a valid contact email.", step: "basic_info" });
+      issues.push({ key: "contacts", message: "Enter a valid contact email.", step: "contacts" });
     }
   }
   const dateError = contractDateError(draft.contractStartDate, draft.contractEndDate);

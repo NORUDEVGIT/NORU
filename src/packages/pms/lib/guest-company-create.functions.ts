@@ -41,6 +41,7 @@ import {
   DEFAULT_BUSINESS_CONTACT_ROLES,
   DEFAULT_BUSINESS_PROFILE_TYPES,
 } from "./company-business-card4.server";
+import { ALL_COMPANY_CREATION_FIELDS } from "./guest-creation-field-definitions";
 
 export type CompanyCreateContext = {
   catalogues: {
@@ -63,6 +64,8 @@ export type CompanyCreateContext = {
   autoApproval?: boolean;
   nextCompanyCode: string;
   draft: { id: string; payload: GuestCompanyCreateDraft; step: GuestCompanyCreateStepId } | null;
+  fields?: Array<{ id: string; name: string; code: string; fieldType: string; required: boolean; active: boolean; displayOrder: number }>;
+  profileType?: { id: string; name: string; code: string; active: boolean; requiredFieldIds: string[] } | null;
 };
 
 function mapOption(row: Record<string, unknown>): AccountCreateCatalogueOption {
@@ -113,6 +116,8 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
       draft,
       businessSettingsRes,
       existingCodesRes,
+      fieldsRes,
+      profileTypeRes,
     ] = await Promise.all([
       loadOptionalOptions(
         db,
@@ -154,6 +159,17 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
         .eq("restaurant_id", data.restaurantId)
         .eq("account_type", "company")
         .not("code", "is", null),
+      db
+        .from("pms_guest_fields")
+        .select("id, name, code, field_type, required, active, display_order")
+        .eq("restaurant_id", data.restaurantId)
+        .order("display_order"),
+      db
+        .from("pms_guest_profile_types")
+        .select("id, name, code, active, required_field_ids")
+        .eq("restaurant_id", data.restaurantId)
+        .in("code", ["COM", "COMPANY"])
+        .maybeSingle(),
     ]);
 
     let maxSeq = 0;
@@ -256,6 +272,63 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
           active: true,
         }));
 
+    let resolvedFieldsData = (fieldsRes?.data ?? []) as Array<Record<string, unknown>>;
+    const existingFieldCodes = new Set(
+      resolvedFieldsData.map((row) => String(row.code ?? "").toUpperCase()),
+    );
+    const existingFieldNames = new Set(
+      resolvedFieldsData.map((row) => String(row.name ?? "").trim().toLowerCase()),
+    );
+
+    const missingCompanyDefs = ALL_COMPANY_CREATION_FIELDS.filter(
+      (def, index, self) =>
+        !existingFieldCodes.has(def.code.toUpperCase()) &&
+        self.findIndex((d) => d.code.toUpperCase() === def.code.toUpperCase()) === index,
+    );
+
+    if (missingCompanyDefs.length > 0) {
+      const nextOrder = resolvedFieldsData.length;
+      const seedRows = missingCompanyDefs.map((def, index) => {
+        let fieldName = def.name;
+        if (existingFieldNames.has(fieldName.trim().toLowerCase())) {
+          fieldName = `Company ${def.name}`;
+        }
+        existingFieldNames.add(fieldName.trim().toLowerCase());
+        return {
+          restaurant_id: data.restaurantId,
+          name: fieldName,
+          code: def.code,
+          field_type: def.fieldType,
+          description: def.description,
+          options: [],
+          required: Boolean(def.systemRequired),
+          check_in: false,
+          reservation: false,
+          active: true,
+          display_order: nextOrder + index,
+          lookup_source: null,
+          document_type_ids: [],
+          min_value: null,
+          max_value: null,
+          updated_by: me.id || null,
+        };
+      });
+
+      try {
+        await db.from("pms_guest_fields").insert(seedRows);
+        const refreshedFields = await db
+          .from("pms_guest_fields")
+          .select("id, name, code, field_type, required, active, display_order")
+          .eq("restaurant_id", data.restaurantId)
+          .order("display_order");
+        if (!refreshedFields.error && refreshedFields.data) {
+          resolvedFieldsData = refreshedFields.data as Array<Record<string, unknown>>;
+        }
+      } catch {
+        // Fallback silently if insert fails (e.g. concurrent race)
+      }
+    }
+
     return {
       catalogues: {
         businessTypes: resolvedBusinessTypes,
@@ -277,6 +350,26 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
       autoApproval,
       nextCompanyCode,
       draft: savedDraft,
+      fields: resolvedFieldsData.map((row) => ({
+        id: String(row.id),
+        name: String(row.name ?? ""),
+        code: String(row.code ?? ""),
+        fieldType: String(row.field_type ?? "text"),
+        required: Boolean(row.required),
+        active: row.active == null ? true : Boolean(row.active),
+        displayOrder: Number(row.display_order ?? 0),
+      })),
+      profileType: profileTypeRes?.data
+        ? {
+            id: String(profileTypeRes.data.id),
+            name: String(profileTypeRes.data.name ?? "Company"),
+            code: String(profileTypeRes.data.code ?? "COM"),
+            active: Boolean(profileTypeRes.data.active),
+            requiredFieldIds: Array.isArray(profileTypeRes.data.required_field_ids)
+              ? profileTypeRes.data.required_field_ids
+              : [],
+          }
+        : null,
     };
   });
 
@@ -964,11 +1057,60 @@ export async function persistCompanyContract(
     description: contract.notes?.trim() || null,
   };
 
+  if (contract.cancellationPolicyId) {
+    try {
+      const exists = await db
+        .from("pms_cancellation_policies")
+        .select("id")
+        .eq("id", contract.cancellationPolicyId)
+        .maybeSingle();
+      if (!exists.data) {
+        const card2Policy = await db
+          .from("pms_rate_cancellation_policies")
+          .select("*")
+          .eq("id", contract.cancellationPolicyId)
+          .maybeSingle();
+        if (card2Policy.data) {
+          await db.from("pms_cancellation_policies").upsert(
+            {
+              id: card2Policy.data.id,
+              restaurant_id: card2Policy.data.restaurant_id,
+              code: card2Policy.data.code,
+              name: card2Policy.data.name,
+              description: card2Policy.data.description,
+              cutoff_hours: card2Policy.data.deadline_hours ?? 24,
+              penalty_type: "none",
+              penalty_value: card2Policy.data.penalty_value ?? 0,
+              active: true,
+            },
+            { onConflict: "restaurant_id,code" },
+          );
+        }
+      }
+    } catch {
+      // Non-blocking sync
+    }
+  }
+
   let agreementInsert = await db
     .from("pms_corporate_agreements")
     .insert(agreementPayload)
     .select("id")
     .single();
+
+  if (
+    agreementInsert.error &&
+    (agreementInsert.error.code === "23503" ||
+      agreementInsert.error.message?.includes("cancellation_policy") ||
+      agreementInsert.error.message?.includes("foreign key"))
+  ) {
+    const safePayload = { ...agreementPayload, cancellation_policy_id: null };
+    agreementInsert = await db
+      .from("pms_corporate_agreements")
+      .insert(safePayload)
+      .select("id")
+      .single();
+  }
 
   if (agreementInsert.error) {
     // If the live database does not have the extended columns yet, fallback seamlessly
@@ -998,6 +1140,20 @@ export async function persistCompanyContract(
       .insert(fallbackPayload)
       .select("id")
       .single();
+
+    if (
+      agreementInsert.error &&
+      (agreementInsert.error.code === "23503" ||
+        agreementInsert.error.message?.includes("cancellation_policy") ||
+        agreementInsert.error.message?.includes("foreign key"))
+    ) {
+      const safeFallback = { ...fallbackPayload, cancellation_policy_id: null };
+      agreementInsert = await db
+        .from("pms_corporate_agreements")
+        .insert(safeFallback)
+        .select("id")
+        .single();
+    }
   }
 
   if (agreementInsert.error) {

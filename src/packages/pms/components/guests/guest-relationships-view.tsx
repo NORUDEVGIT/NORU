@@ -270,7 +270,7 @@ export function GuestRelationshipsView({
             <table className="w-full text-left text-xs" data-testid="guest-relationships-table">
               <thead className="bg-[#FAF8F5] text-[11px] font-semibold text-[#756A5B] border-b border-[#DDD4C5]">
                 <tr>
-                  <th className="px-3.5 py-2.5">Connected Account</th>
+                  <th className="px-3.5 py-2.5">Account Name</th>
                   <th className="px-3.5 py-2.5">Type</th>
                   <th className="px-3.5 py-2.5">Relationship / Role</th>
                   <th className="px-3.5 py-2.5">Billing & Settlement</th>

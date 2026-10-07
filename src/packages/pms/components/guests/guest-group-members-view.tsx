@@ -23,6 +23,7 @@ import {
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Skeleton } from "@/shared/components/ui/skeleton";
@@ -723,7 +724,14 @@ export function GuestGroupMembersView({
               </div>
               <div>
                 <Label className="text-xs text-[#756A5B]">Phone</Label>
-                <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} className="mt-1 text-xs" />
+                <div className="mt-1">
+                  <CanonicalPhoneInput
+                    value={newPhone}
+                    onChange={(phone) => setNewPhone(phone)}
+                    placeholder="e.g. 911 234 567"
+                    size="sm"
+                  />
+                </div>
               </div>
 
               <DialogFooter className="mt-4">

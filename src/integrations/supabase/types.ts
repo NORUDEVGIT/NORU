@@ -11869,6 +11869,7 @@ export type Database = {
           approval_required: boolean
           code: string
           created_at: string
+          custom_reason: string | null
           description: string | null
           documentation_required: boolean
           id: string
@@ -11882,6 +11883,7 @@ export type Database = {
           approval_required?: boolean
           code: string
           created_at?: string
+          custom_reason?: string | null
           description?: string | null
           documentation_required?: boolean
           id?: string
@@ -11895,6 +11897,7 @@ export type Database = {
           approval_required?: boolean
           code?: string
           created_at?: string
+          custom_reason?: string | null
           description?: string | null
           documentation_required?: boolean
           id?: string

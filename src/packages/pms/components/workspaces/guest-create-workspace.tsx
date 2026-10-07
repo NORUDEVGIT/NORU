@@ -7,6 +7,7 @@ import { AlertTriangle, Camera, Check, ChevronDown, ChevronRight, ChevronUp } fr
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Switch } from "@/shared/components/ui/switch";
@@ -228,6 +229,34 @@ export function GuestCreateWorkspace({
       const first = blockers[0];
       if (first && first.step !== step) setStep(first.step);
       return;
+    }
+    if (next === "identity" && draft.documents.length === 0) {
+      const available = (context.data?.documentTypes ?? []).filter(
+        (type) =>
+          type.active &&
+          (type.validForProfileTypeIds.length === 0 ||
+            !context.data?.profileType?.id ||
+            type.validForProfileTypeIds.includes(context.data.profileType.id)),
+      );
+      if (available.length > 0) {
+        setDraft((current) => ({
+          ...current,
+          documents: [
+            {
+              key: crypto.randomUUID(),
+              idTypeId: available[0].id,
+              documentNumber: "",
+              issuingCountry: "",
+              issueDate: "",
+              expiryDate: "",
+              issuingAuthority: "",
+              notes: "",
+              hasFront: false,
+              hasBack: false,
+            },
+          ],
+        }));
+      }
     }
     setStep(next);
   }
@@ -843,11 +872,21 @@ function BasicStep({
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {visible("PHONE") ? (
             <Field label="Mobile Phone" required={required("PHONE")} error={fieldError("PHONE", "basic")}>
-              <Input value={draft.phone} onChange={(event) => set("phone", event.target.value)} />
+              <CanonicalPhoneInput
+                value={draft.phone}
+                onChange={(phone) => set("phone", phone)}
+                error={Boolean(fieldError("PHONE", "basic"))}
+                placeholder="e.g. 911 234 567"
+              />
             </Field>
           ) : null}
           <Field label="Alternative Phone" required={required("PHONE_ALT")} error={fieldError("PHONE_ALT", "basic")}>
-            <Input value={draft.phoneAlt} onChange={(event) => set("phoneAlt", event.target.value)} />
+            <CanonicalPhoneInput
+              value={draft.phoneAlt}
+              onChange={(phoneAlt) => set("phoneAlt", phoneAlt)}
+              error={Boolean(fieldError("PHONE_ALT", "basic"))}
+              placeholder="e.g. 911 234 567"
+            />
           </Field>
           {visible("EMAIL") ? (
             <Field label="Email" required={required("EMAIL")} error={fieldError("EMAIL", "basic")}>
@@ -954,7 +993,14 @@ function IdentityStep({
     };
     setDraft((current) => ({ ...current, documents: [...current.documents, next] }));
   }
-  if (available.length === 0) {
+
+  useEffect(() => {
+    if (available.length > 0 && draft.documents.length === 0) {
+      add();
+    }
+  }, [available.length, draft.documents.length]);
+
+  if (available.length === 0 && draft.documents.length === 0) {
     return <p className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">{GUEST_CREATE_NO_DOC_TYPES}</p>;
   }
   return (
@@ -964,6 +1010,27 @@ function IdentityStep({
         const type = available.find((row) => row.id === document.idTypeId) ?? types.find((row) => row.id === document.idTypeId);
         return (
           <section key={document.key} className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-3">
+              <h3 className="font-display text-sm font-semibold">
+                {draft.documents.length > 1 ? `Document #${draft.documents.indexOf(document) + 1}` : "Identity Document"}
+              </h3>
+              {draft.documents.length > 1 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                  onClick={() => {
+                    setDraft((curr) => ({
+                      ...curr,
+                      documents: curr.documents.filter((d) => d.key !== document.key),
+                    }));
+                  }}
+                >
+                  Remove
+                </Button>
+              ) : null}
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Document Type" required>
                 <Select value={document.idTypeId} onValueChange={(value) => setDraft((current) => ({ ...current, documents: current.documents.map((row) => row.key === document.key ? { ...row, idTypeId: value } : row) }))}>
@@ -1040,7 +1107,6 @@ function IdentityStep({
           </section>
         );
       })}
-      <Button type="button" variant="outline" onClick={add}>Add identity document</Button>
     </div>
   );
 }
@@ -1322,7 +1388,18 @@ function AdditionalStep({
           <div key={index} className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field label="Name"><Input value={contact.name} onChange={(event) => set("emergencyContacts", draft.emergencyContacts.map((row, i) => i === index ? { ...row, name: event.target.value } : row))} /></Field>
             <Field label="Relationship"><Input value={contact.relationship} onChange={(event) => set("emergencyContacts", draft.emergencyContacts.map((row, i) => i === index ? { ...row, relationship: event.target.value } : row))} /></Field>
-            <Field label="Phone"><Input value={contact.phone} onChange={(event) => set("emergencyContacts", draft.emergencyContacts.map((row, i) => i === index ? { ...row, phone: event.target.value } : row))} /></Field>
+            <Field label="Phone">
+              <CanonicalPhoneInput
+                value={contact.phone}
+                onChange={(phone) =>
+                  set(
+                    "emergencyContacts",
+                    draft.emergencyContacts.map((row, i) => (i === index ? { ...row, phone } : row)),
+                  )
+                }
+                placeholder="e.g. 911 234 567"
+              />
+            </Field>
             <Field label="Email"><Input value={contact.email} onChange={(event) => set("emergencyContacts", draft.emergencyContacts.map((row, i) => i === index ? { ...row, email: event.target.value } : row))} /></Field>
           </div>
         ))}

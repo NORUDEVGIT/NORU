@@ -90,6 +90,7 @@ import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profil
 import { formatCreateIssuesByStep, issuesBeforeStep } from "@/packages/pms/lib/guest-create-step-issues";
 import { applyGroupTemplateToDraft, GROUP_TEMPLATE_COPY, listGroupTemplates } from "@/packages/pms/lib/guest-group-templates";
 import { getGroupDetailWorkspace } from "@/packages/pms/lib/guest-group-detail.functions";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 
 const MODAL_CONTROL_CLASS =
   "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE]";
@@ -1373,11 +1374,10 @@ function DetailsStep({
               />
             </ModalField>
             <ModalField label="Contact Phone">
-              <Input
+              <CanonicalPhoneInput
                 value={draft.contactPhone}
-                onChange={(e) => set("contactPhone", e.target.value)}
-                className={MODAL_CONTROL_CLASS}
-                placeholder="+1..."
+                onChange={(phone) => set("contactPhone", phone)}
+                placeholder="e.g. 911 234 567"
               />
             </ModalField>
           </div>
@@ -1913,11 +1913,10 @@ function GuestsStep({
             />
           </ModalField>
           <ModalField label="Phone">
-            <Input
+            <CanonicalPhoneInput
               value={memberDraft.phone}
-              onChange={(e) => onMemberDraft({ ...memberDraft, phone: e.target.value })}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="+1..."
+              onChange={(phone) => onMemberDraft({ ...memberDraft, phone })}
+              placeholder="e.g. 911 234 567"
             />
           </ModalField>
           <ModalField label="Room type preference">

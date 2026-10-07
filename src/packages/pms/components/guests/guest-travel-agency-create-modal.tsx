@@ -80,12 +80,15 @@ import {
   agencyTypeLabel,
   billingArrangementLabel,
   clearGuestTravelAgentCreateHold,
+  createTravelAgencyFieldRules,
   emptyAccountCreateContact,
   emptyGuestTravelAgentCreateDraft,
   filled,
   generateAgencyCode,
   guestTravelAgentCreateCompletion,
   guestTravelAgentCreateHasChanges,
+  isTravelAgencyRuleRequired,
+  matchTravelAgencyFieldIssue,
   optionLabel,
   primaryTravelAgentContact,
   readGuestTravelAgentCreateHold,
@@ -94,6 +97,7 @@ import {
   writeGuestTravelAgentCreateHold,
   type GuestTravelAgentCreateDraft,
   type GuestTravelAgentCreateStepId,
+  type TravelAgencyCreateFieldRule,
 } from "@/packages/pms/lib/guest-travel-agent-create-workspace";
 import {
   deleteTravelAgentCreateDraft,
@@ -355,8 +359,20 @@ export function GuestTravelAgencyCreateModal({
     return () => window.clearTimeout(handle);
   }, [created, defaultsApplied, draft, isEdit, restaurantId, saveDraftHold, step]);
 
+  const rules = useMemo(
+    () =>
+      createTravelAgencyFieldRules(
+        context.data?.fields ?? [],
+        context.data?.profileType ?? null,
+      ),
+    [context.data?.fields, context.data?.profileType],
+  );
+
+  const isRuleRequired = (code: string) => isTravelAgencyRuleRequired(rules, code);
+
   const catalogues = context.data?.catalogues;
   const catalogueIds = {
+    rules,
     paymentMethodIds: (catalogues?.paymentMethods ?? []).map((row) => row.id),
     currencyCodes: catalogues?.currencies ?? [],
   };
@@ -376,7 +392,9 @@ export function GuestTravelAgencyCreateModal({
 
   function fieldError(key: string, stepId: GuestTravelAgentCreateStepId = step) {
     if (!attemptedSteps.has(stepId) && !attemptedSteps.has("review")) return undefined;
-    return fieldIssues.find((issue) => issue.key === key)?.message;
+    const stepFiltered = stepId ? fieldIssues.filter((issue) => issue.step === stepId) : fieldIssues;
+    const matched = matchTravelAgencyFieldIssue(stepFiltered, key) ?? matchTravelAgencyFieldIssue(fieldIssues, key);
+    return matched?.message;
   }
 
   function set<K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) {
@@ -683,10 +701,23 @@ export function GuestTravelAgencyCreateModal({
                 ) : (
                   <>
                     {step === "basic_info" ? (
-                      <BasicInfoStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} step="basic_info" />
+                      <BasicInfoStep
+                        draft={draft}
+                        set={set}
+                        catalogues={catalogues}
+                        fieldError={fieldError}
+                        step="basic_info"
+                        isRuleRequired={isRuleRequired}
+                      />
                     ) : null}
                     {step === "contacts" ? (
-                      <ContactsStep draft={draft} set={set} catalogues={catalogues} fieldError={fieldError} />
+                      <ContactsStep
+                        draft={draft}
+                        set={set}
+                        catalogues={catalogues}
+                        fieldError={fieldError}
+                        isRuleRequired={isRuleRequired}
+                      />
                     ) : null}
                     {step === "commission_rates" || step === "billing" ? (
                       <GuestTravelAgencyCommissionRatesStep
@@ -694,6 +725,7 @@ export function GuestTravelAgencyCreateModal({
                         set={set}
                         config={step3ConfigQuery.data}
                         fieldError={fieldError}
+                        isRuleRequired={isRuleRequired}
                       />
                     ) : null}
                     {step === "payment_rules" || step === "booking_operations" ? (
@@ -703,6 +735,7 @@ export function GuestTravelAgencyCreateModal({
                         config={step4ConfigQuery.data}
                         fieldError={fieldError}
                         restaurantId={restaurantId}
+                        isRuleRequired={isRuleRequired}
                       />
                     ) : null}
                     {step === "review" ? (

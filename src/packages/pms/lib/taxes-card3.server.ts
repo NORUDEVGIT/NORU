@@ -18,7 +18,21 @@ export type FeeBasis = (typeof FEE_BASIS)[number];
 export const TAX_CALCULATIONS = ["inclusive", "exclusive"] as const;
 export type TaxCalculation = (typeof TAX_CALCULATIONS)[number];
 
-export const EXEMPTION_REASONS = ["diplomatic", "government", "nonprofit", "other"] as const;
+export const EXEMPTION_REASONS = [
+  "government",
+  "diplomatic",
+  "international_organization",
+  "nonprofit",
+  "tax_status",
+  "corporate_business",
+  "guest_status",
+  "long_stay",
+  "group_event",
+  "promotional",
+  "management",
+  "legal_regulatory",
+  "other",
+] as const;
 export type ExemptionReason = (typeof EXEMPTION_REASONS)[number];
 
 export const CARD3_TAXES_TABS = [
@@ -58,10 +72,19 @@ export const TAX_CALCULATION_LABELS: Record<TaxCalculation, string> = {
   exclusive: "Exclusive",
 };
 export const EXEMPTION_REASON_LABELS: Record<ExemptionReason, string> = {
-  diplomatic: "Diplomatic",
   government: "Government",
-  nonprofit: "Nonprofit",
-  other: "Other",
+  diplomatic: "Diplomatic",
+  international_organization: "International Organization",
+  nonprofit: "Non-Profit / NGO",
+  tax_status: "Tax Status",
+  corporate_business: "Corporate / Business",
+  guest_status: "Guest Status",
+  long_stay: "Long Stay",
+  group_event: "Group / Event",
+  promotional: "Promotional",
+  management: "Management",
+  legal_regulatory: "Legal / Regulatory",
+  other: "Other / Custom",
 };
 
 export type Card3TaxesAuditRow = {
@@ -116,6 +139,7 @@ export type ExemptionRuleRow = {
   name: string;
   description: string;
   reasonCategory: ExemptionReason;
+  customReason?: string | null;
   documentationRequired: boolean;
   approvalRequired: boolean;
   active: boolean;

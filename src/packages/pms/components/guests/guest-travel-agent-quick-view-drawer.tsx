@@ -108,7 +108,7 @@ export function GuestTravelAgentQuickViewDrawer({
         data-testid="travel-agent-quick-view-drawer"
       >
         <SheetHeader className="border-b border-[#DDD4C5] bg-white p-4 sm:p-5">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 pr-8">
             <div className="flex items-center gap-3 min-w-0">
               <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#F4E9D0] font-display text-lg font-bold text-[#8A641A] ring-2 ring-[#E5DECE]">
                 {agency?.name ? agency.name.slice(0, 1).toUpperCase() : <Building2 className="size-5" />}
@@ -146,16 +146,6 @@ export function GuestTravelAgentQuickViewDrawer({
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-md p-1.5 text-[#756A5B] hover:bg-[#F7F4EE] hover:text-[#251605]"
-                aria-label="Close"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
           </div>
 
           {/* Action Row */}

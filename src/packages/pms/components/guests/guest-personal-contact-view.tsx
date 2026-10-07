@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -24,6 +24,12 @@ import {
 } from "@/packages/pms/lib/guest-profile-overview";
 import { listGuestAccountLinks } from "@/packages/pms/lib/guest-accounts.functions";
 import { listGuestCustomFieldValues } from "@/packages/pms/lib/guest-custom-fields.functions";
+import { CANONICAL_FIELD_CODE_MAP } from "@/packages/pms/lib/guest-field-rules";
+import {
+  isCompanyFieldCode,
+  isTravelAgencyFieldCode,
+  isGroupFieldCode,
+} from "@/packages/pms/lib/guest-creation-field-definitions";
 import type { GuestProfile } from "@/packages/pms/lib/guests.functions";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -112,6 +118,17 @@ export function GuestPersonalContactView({
     retry: false,
   });
   const customFields = customFieldsQuery.data ?? [];
+  const filteredCustomFields = useMemo(() => {
+    return customFields.filter((field) => {
+      const codeUpper = field.code.toUpperCase();
+      return (
+        !isCompanyFieldCode(codeUpper) &&
+        !isTravelAgencyFieldCode(codeUpper) &&
+        !isGroupFieldCode(codeUpper) &&
+        !CANONICAL_FIELD_CODE_MAP[codeUpper]
+      );
+    });
+  }, [customFields]);
 
   const method =
     guest.preferredContactMethod && isPreferredContactMethod(guest.preferredContactMethod)
@@ -231,6 +248,7 @@ export function GuestPersonalContactView({
         >
           <DataRow label="Position / Title" value={guest.position} />
           <DataRow label="Department" value={guest.department} />
+          <DataRow label="Source of Business" value={guest.sourceOfBusiness} />
           {company ? (
             <DataRow
               label="Primary Company"
@@ -259,12 +277,12 @@ export function GuestPersonalContactView({
           icon={User}
           data-testid="additional-info-panel"
         >
-          {customFields.length === 0 ? (
+          {filteredCustomFields.length === 0 ? (
             <p className="text-[#8C827A] text-xs py-2">
               No additional property-specific information recorded.
             </p>
           ) : (
-            customFields.map((field) => (
+            filteredCustomFields.map((field) => (
               <div
                 key={field.fieldId}
                 className="flex items-baseline justify-between gap-4 py-1.5 border-b border-[#EFE9DF]/70 last:border-b-0"

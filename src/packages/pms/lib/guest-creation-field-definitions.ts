@@ -1,6 +1,19 @@
 import type { GuestFieldType } from "./required-fields-card4.server";
 
-export type GuestCreationFieldCategory = "personal" | "contact" | "address";
+export type GuestCreationFieldCategory =
+  | "personal"
+  | "contact"
+  | "address"
+  | "company_details"
+  | "company_address"
+  | "company_contact"
+  | "company_billing"
+  | "company_contracts"
+  | "ta_details"
+  | "ta_address"
+  | "ta_contact"
+  | "ta_commission"
+  | "ta_payment_rules";
 
 export type GuestCreationFieldDefinition = {
   code: string;
@@ -34,6 +47,53 @@ export const GUEST_CREATION_CATEGORIES: Array<{
     description: "Residential and geographic location details.",
   },
 ];
+
+export const COMPANY_CREATION_CATEGORIES: Array<{
+  id: GuestCreationFieldCategory;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "company_details",
+    label: "Company Details",
+    description: "Core company legal and commercial identification.",
+  },
+  {
+    id: "company_address",
+    label: "Company Address",
+    description: "Registered office and regional location details.",
+  },
+  {
+    id: "company_contact",
+    label: "Contact Information",
+    description: "Primary and secondary contact persons for this corporate account.",
+  },
+];
+
+export const COMPANY_BILLING_CATEGORIES: Array<{
+  id: GuestCreationFieldCategory;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "company_billing",
+    label: "Billing & Credit",
+    description: "Settlement rules, credit limits, payment timing, and tax exemption defaults.",
+  },
+];
+
+export const COMPANY_CONTRACT_CATEGORIES: Array<{
+  id: GuestCreationFieldCategory;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "company_contracts",
+    label: "Contracts & Agreements",
+    description: "Corporate agreement terms, rate plans, pricing methods, and booking policies.",
+  },
+];
+
 
 export const INDIVIDUAL_GUEST_CREATION_FIELDS: GuestCreationFieldDefinition[] = [
   // Personal Details (Basic Step)
@@ -245,3 +305,1159 @@ export const INDIVIDUAL_GUEST_CREATION_FIELDS: GuestCreationFieldDefinition[] = 
 export const ESSENTIAL_GUEST_FIELD_CODES = new Set<string>(
   INDIVIDUAL_GUEST_CREATION_FIELDS.filter((f) => f.essential).map((f) => f.code),
 );
+
+export const COMPANY_CREATION_FIELDS: GuestCreationFieldDefinition[] = [
+  // Step 1: Company Details
+  {
+    code: "COMPANY_NAME",
+    name: "Company Name",
+    category: "company_details",
+    categoryLabel: "Company Details",
+    fieldType: "text",
+    essential: true,
+    systemRequired: true,
+    description: "Official registered company name.",
+  },
+  {
+    code: "COMPANY_TYPE",
+    name: "Company Type",
+    category: "company_details",
+    categoryLabel: "Company Details",
+    fieldType: "select",
+    essential: true,
+    systemRequired: true,
+    description: "Corporate classification or business profile type.",
+  },
+  {
+    code: "COMPANY_CODE",
+    name: "Company Code",
+    category: "company_details",
+    categoryLabel: "Company Details",
+    fieldType: "text",
+    essential: false,
+    description: "Auto-generated internal company account code.",
+  },
+  {
+    code: "COMPANY_ACCOUNT_STATUS",
+    name: "Account Status",
+    category: "company_details",
+    categoryLabel: "Company Details",
+    fieldType: "select",
+    essential: false,
+    description: "Operational account standing (Active, Pending, Inactive).",
+  },
+  {
+    code: "COMPANY_TAX_ID",
+    name: "Tax ID / TIN",
+    category: "company_details",
+    categoryLabel: "Company Details",
+    fieldType: "text",
+    essential: false,
+    description: "Tax identification number / TIN.",
+  },
+  {
+    code: "COMPANY_REGISTRATION_NUMBER",
+    name: "Registration Number",
+    category: "company_details",
+    categoryLabel: "Company Details",
+    fieldType: "text",
+    essential: false,
+    description: "Commercial business registry number.",
+  },
+  {
+    code: "COMPANY_INDUSTRY",
+    name: "Industry",
+    category: "company_details",
+    categoryLabel: "Company Details",
+    fieldType: "text",
+    essential: false,
+    description: "Industry sector or commercial domain.",
+  },
+  {
+    code: "COMPANY_WEBSITE",
+    name: "Website",
+    category: "company_details",
+    categoryLabel: "Company Details",
+    fieldType: "text",
+    essential: false,
+    description: "Official corporate website URL.",
+  },
+  {
+    code: "COMPANY_NOTES",
+    name: "Notes",
+    category: "company_details",
+    categoryLabel: "Company Details",
+    fieldType: "text",
+    essential: false,
+    description: "Internal notes and comments for the company account.",
+  },
+
+  // Step 1: Company Address
+  {
+    code: "COMPANY_COUNTRY",
+    name: "Country",
+    category: "company_address",
+    categoryLabel: "Company Address",
+    fieldType: "select",
+    essential: false,
+    description: "Country of corporate registration.",
+  },
+  {
+    code: "COMPANY_REGION",
+    name: "Region / State",
+    category: "company_address",
+    categoryLabel: "Company Address",
+    fieldType: "text",
+    essential: false,
+    description: "State, province, or administrative region.",
+  },
+  {
+    code: "COMPANY_CITY",
+    name: "City",
+    category: "company_address",
+    categoryLabel: "Company Address",
+    fieldType: "text",
+    essential: false,
+    description: "City or locality of corporate office.",
+  },
+  {
+    code: "COMPANY_ADDRESS_LINE1",
+    name: "Street Address",
+    category: "company_address",
+    categoryLabel: "Company Address",
+    fieldType: "text",
+    essential: false,
+    description: "Street address line 1.",
+  },
+  {
+    code: "COMPANY_ADDRESS_LINE2",
+    name: "Address Line 2",
+    category: "company_address",
+    categoryLabel: "Company Address",
+    fieldType: "text",
+    essential: false,
+    description: "Suite, unit, floor or room number.",
+  },
+  {
+    code: "COMPANY_POSTAL_CODE",
+    name: "Postal Code",
+    category: "company_address",
+    categoryLabel: "Company Address",
+    fieldType: "text",
+    essential: false,
+    description: "Postal code or ZIP.",
+  },
+
+  // Step 2: Contacts
+  {
+    code: "COMPANY_CONTACT_NAME",
+    name: "Contact Full Name",
+    category: "company_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "text",
+    essential: true,
+    description: "Primary contact person's full name.",
+  },
+  {
+    code: "COMPANY_CONTACT_POSITION",
+    name: "Contact Position",
+    category: "company_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "text",
+    essential: true,
+    description: "Contact person's position or job role.",
+  },
+  {
+    code: "COMPANY_CONTACT_EMAIL",
+    name: "Contact Email",
+    category: "company_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "email",
+    essential: true,
+    description: "Corporate contact email address.",
+  },
+  {
+    code: "COMPANY_CONTACT_PHONE",
+    name: "Contact Phone",
+    category: "company_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "phone",
+    essential: true,
+    description: "Primary contact telephone / mobile number.",
+  },
+  {
+    code: "COMPANY_CONTACT_WHATSAPP",
+    name: "WhatsApp",
+    category: "company_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "phone",
+    essential: false,
+    description: "WhatsApp messaging phone number.",
+  },
+  {
+    code: "COMPANY_CONTACT_PREFERRED_METHOD",
+    name: "Preferred Method",
+    category: "company_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "select",
+    essential: false,
+    description: "Preferred communication channel (Phone, Email, WhatsApp).",
+  },
+  {
+    code: "COMPANY_CONTACT_ROLE",
+    name: "Role",
+    category: "company_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "select",
+    essential: false,
+    description: "Role within the organization (Booking, Finance, etc.).",
+  },
+];
+
+export const ESSENTIAL_COMPANY_FIELD_CODES = new Set<string>(
+  COMPANY_CREATION_FIELDS.filter((f) => f.essential).map((f) => f.code),
+);
+
+// Step 3: Billing & Credit Fields
+export const COMPANY_BILLING_FIELDS: GuestCreationFieldDefinition[] = [
+  {
+    code: "COMPANY_DEFAULT_BILLING_RULE",
+    name: "Default Billing Rule",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "select",
+    essential: true,
+    systemRequired: true,
+    description: "Authoritative default billing responsibility rule for folios and invoices.",
+  },
+  {
+    code: "COMPANY_PAYMENT_TIMING",
+    name: "Payment Timing",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "select",
+    essential: true,
+    systemRequired: true,
+    description: "Payment timing schedule (Due on Arrival, Due on Departure, Credit Terms).",
+  },
+  {
+    code: "COMPANY_SETTLEMENT_METHOD",
+    name: "Preferred Settlement Method",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "select",
+    essential: false,
+    description: "Preferred payment tender method at settlement.",
+  },
+  {
+    code: "COMPANY_BILLING_CURRENCY",
+    name: "Billing Currency",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "select",
+    essential: false,
+    description: "Invoicing and ledger currency context.",
+  },
+  {
+    code: "COMPANY_CREDIT_FACILITY",
+    name: "Credit Facility",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "select",
+    essential: false,
+    description: "Enable approved corporate credit facility and ledger line.",
+  },
+  {
+    code: "COMPANY_CREDIT_LIMIT",
+    name: "Credit Limit Amount",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "number",
+    essential: false,
+    description: "Approved maximum corporate credit limit ceiling.",
+  },
+  {
+    code: "COMPANY_CREDIT_DAYS",
+    name: "Credit Terms / Days",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "number",
+    essential: false,
+    description: "Payment settlement window in days (e.g. Net 30).",
+  },
+  {
+    code: "COMPANY_CREDIT_STATUS",
+    name: "Credit Status",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "select",
+    essential: false,
+    description: "Credit account workflow approval status.",
+  },
+  {
+    code: "COMPANY_TAX_EXEMPTION",
+    name: "Tax Exemption",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "select",
+    essential: false,
+    description: "Flag indicating whether company is tax-exempt.",
+  },
+  {
+    code: "COMPANY_TAX_EXEMPTION_RULE",
+    name: "Tax Exemption Rule",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "select",
+    essential: false,
+    description: "Tax exemption certificate classification rule.",
+  },
+  {
+    code: "COMPANY_TAX_EXEMPT_CERT",
+    name: "Tax Exemption Certificate Number",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "text",
+    essential: false,
+    description: "Official tax exemption certificate or waiver reference number.",
+  },
+  {
+    code: "COMPANY_TAX_EXEMPT_VALID_UNTIL",
+    name: "Tax Exemption Valid Until",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "date",
+    essential: false,
+    description: "Expiration or validity end date of tax exemption certificate.",
+  },
+  {
+    code: "COMPANY_BILLING_INSTRUCTIONS",
+    name: "Billing Notes & Instructions",
+    category: "company_billing",
+    categoryLabel: "Billing & Credit",
+    fieldType: "text",
+    essential: false,
+    description: "Operational instructions and billing caveats for front desk staff.",
+  },
+];
+
+// Step 4: Contracts & Agreements Fields (document upload requirements are handled via Document Types)
+export const COMPANY_CONTRACT_FIELDS: GuestCreationFieldDefinition[] = [
+  {
+    code: "COMPANY_CONTRACT_TYPE",
+    name: "Contract Type",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "select",
+    essential: true,
+    description: "Corporate agreement classification and terms template.",
+  },
+  {
+    code: "COMPANY_CONTRACT_NAME",
+    name: "Contract Name",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "text",
+    essential: true,
+    description: "Legal or commercial title of the corporate contract.",
+  },
+  {
+    code: "COMPANY_CONTRACT_CODE",
+    name: "Contract Code",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "text",
+    essential: true,
+    description: "Unique internal reference code for this corporate contract.",
+  },
+  {
+    code: "COMPANY_CONTRACT_NUMBER",
+    name: "External Reference / Contract No.",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "text",
+    essential: false,
+    description: "Physical signed contract or external legal agreement number.",
+  },
+  {
+    code: "COMPANY_CONTRACT_VALID_FROM",
+    name: "Valid From",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "date",
+    essential: true,
+    description: "Effective starting date of the corporate contract terms.",
+  },
+  {
+    code: "COMPANY_CONTRACT_VALID_TO",
+    name: "Valid Until",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "date",
+    essential: true,
+    description: "Contract expiration or renewal anniversary date.",
+  },
+  {
+    code: "COMPANY_CONTRACT_CURRENCY",
+    name: "Contract Currency",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "select",
+    essential: true,
+    description: "Contract pricing currency.",
+  },
+  {
+    code: "COMPANY_CONTRACT_STATUS",
+    name: "Contract Status",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "select",
+    essential: true,
+    description: "Contract activation standing (Draft, Active).",
+  },
+  {
+    code: "COMPANY_CONTRACT_PRICING_METHOD",
+    name: "Pricing Method",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "select",
+    essential: false,
+    description: "Commercial pricing mechanism (Method A, B, or C).",
+  },
+  {
+    code: "COMPANY_CONTRACT_DEPOSIT_POLICY",
+    name: "Guarantee / Deposit Policy",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "select",
+    essential: false,
+    description: "Reservation guarantee and deposit condition terms.",
+  },
+  {
+    code: "COMPANY_CONTRACT_CANCEL_POLICY",
+    name: "Cancellation Policy",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "select",
+    essential: false,
+    description: "Free cancellation window cutoff and penalty policy.",
+  },
+  {
+    code: "COMPANY_CONTRACT_NOSHOW_POLICY",
+    name: "No-Show Policy",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "select",
+    essential: false,
+    description: "No-show penalty charge and room inventory release policy.",
+  },
+  {
+    code: "COMPANY_CONTRACT_NOTES",
+    name: "Contract Notes",
+    category: "company_contracts",
+    categoryLabel: "Contracts & Agreements",
+    fieldType: "text",
+    essential: false,
+    description: "Internal contractual clauses, exceptions, and renegotiation notes.",
+  },
+];
+
+export const ALL_COMPANY_CREATION_FIELDS: GuestCreationFieldDefinition[] = [
+  ...COMPANY_CREATION_FIELDS,
+  ...COMPANY_BILLING_FIELDS,
+  ...COMPANY_CONTRACT_FIELDS,
+];
+
+export const TRAVEL_AGENCY_CREATION_CATEGORIES: Array<{
+  id: GuestCreationFieldCategory;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "ta_details",
+    label: "Agency Details",
+    description: "Core travel agency legal and commercial identification.",
+  },
+  {
+    id: "ta_address",
+    label: "Business & Location",
+    description: "Physical location, regional registration, market segment, and account manager.",
+  },
+  {
+    id: "ta_contact",
+    label: "Contact Information",
+    description: "Designated agency coordinators, account managers, and communication channels.",
+  },
+  {
+    id: "ta_commission",
+    label: "Commission & Rates",
+    description: "Commercial model, commission rules, and wholesale net pricing.",
+  },
+  {
+    id: "ta_payment_rules",
+    label: "Payment, Credit & Reservation Rules",
+    description: "Settlement terms, direct bill credit limits, and reservation policies.",
+  },
+];
+
+export const TRAVEL_AGENCY_CREATION_FIELDS: GuestCreationFieldDefinition[] = [
+  // Step 1: Agency Details
+  {
+    code: "TA_NAME",
+    name: "Agency Name",
+    category: "ta_details",
+    categoryLabel: "Agency Details",
+    fieldType: "text",
+    essential: true,
+    systemRequired: true,
+    description: "Official legal registered travel agency name.",
+  },
+  {
+    code: "TA_AGENCY_TYPE",
+    name: "Agency Type",
+    category: "ta_details",
+    categoryLabel: "Agency Details",
+    fieldType: "select",
+    essential: true,
+    systemRequired: true,
+    description: "Commercial agency classification (OTA, Retail, Corporate, DMC, Wholesaler).",
+  },
+  {
+    code: "TA_TRADE_NAME",
+    name: "Trade Name",
+    category: "ta_details",
+    categoryLabel: "Agency Details",
+    fieldType: "text",
+    essential: false,
+    description: "Commercial trading name or DBA if different from legal name.",
+  },
+  {
+    code: "TA_CODE",
+    name: "Agency Code",
+    category: "ta_details",
+    categoryLabel: "Agency Details",
+    fieldType: "text",
+    essential: false,
+    description: "Internal travel agency account code.",
+  },
+  {
+    code: "TA_ACCOUNT_STATUS",
+    name: "Account Status",
+    category: "ta_details",
+    categoryLabel: "Agency Details",
+    fieldType: "select",
+    essential: false,
+    description: "Operational standing status (Active, Pending, Inactive).",
+  },
+  {
+    code: "TA_IATA_NUMBER",
+    name: "IATA / License Number",
+    category: "ta_details",
+    categoryLabel: "Agency Details",
+    fieldType: "text",
+    essential: true,
+    description: "IATA numerical code, ARC number, or local tourism licensing credential.",
+  },
+  {
+    code: "TA_LICENSE_EXPIRY",
+    name: "License Expiry Date",
+    category: "ta_details",
+    categoryLabel: "Agency Details",
+    fieldType: "date",
+    essential: false,
+    description: "Operating license or accreditation validity anniversary date.",
+  },
+  {
+    code: "TA_WEBSITE",
+    name: "Website",
+    category: "ta_details",
+    categoryLabel: "Agency Details",
+    fieldType: "text",
+    essential: false,
+    description: "Official agency web address or portal.",
+  },
+  {
+    code: "TA_NOTES",
+    name: "Notes",
+    category: "ta_details",
+    categoryLabel: "Agency Details",
+    fieldType: "text",
+    essential: false,
+    description: "Internal notes, commercial history, and special account instructions.",
+  },
+
+  // Step 1: Business & Location / Address
+  {
+    code: "TA_COUNTRY",
+    name: "Country",
+    category: "ta_address",
+    categoryLabel: "Business & Location",
+    fieldType: "select",
+    essential: true,
+    description: "Country of principal agency business office.",
+  },
+  {
+    code: "TA_REGION",
+    name: "Region / State",
+    category: "ta_address",
+    categoryLabel: "Business & Location",
+    fieldType: "text",
+    essential: false,
+    description: "State, province, or administrative region.",
+  },
+  {
+    code: "TA_CITY",
+    name: "City",
+    category: "ta_address",
+    categoryLabel: "Business & Location",
+    fieldType: "text",
+    essential: true,
+    description: "City or locality of the agency office.",
+  },
+  {
+    code: "TA_POSTAL_CODE",
+    name: "Postal Code",
+    category: "ta_address",
+    categoryLabel: "Business & Location",
+    fieldType: "text",
+    essential: false,
+    description: "Postal code or ZIP.",
+  },
+  {
+    code: "TA_ADDRESS_LINE1",
+    name: "Street Address",
+    category: "ta_address",
+    categoryLabel: "Business & Location",
+    fieldType: "text",
+    essential: false,
+    description: "Primary physical office street address.",
+  },
+  {
+    code: "TA_ADDRESS_LINE2",
+    name: "Address Line 2",
+    category: "ta_address",
+    categoryLabel: "Business & Location",
+    fieldType: "text",
+    essential: false,
+    description: "Suite, building floor, or secondary address unit.",
+  },
+  {
+    code: "TA_TAX_ID",
+    name: "Tax ID / TIN",
+    category: "ta_address",
+    categoryLabel: "Business & Location",
+    fieldType: "text",
+    essential: false,
+    description: "Fiscal tax identification number (TIN) or VAT registration code.",
+  },
+  {
+    code: "TA_REGISTRATION_NUMBER",
+    name: "Registration Number",
+    category: "ta_address",
+    categoryLabel: "Business & Location",
+    fieldType: "text",
+    essential: false,
+    description: "Commercial business register number.",
+  },
+  {
+    code: "TA_MARKET_SEGMENT",
+    name: "Market Segment",
+    category: "ta_address",
+    categoryLabel: "Business & Location",
+    fieldType: "select",
+    essential: false,
+    description: "Default commercial market segment code for reservations.",
+  },
+  {
+    code: "TA_SOURCE",
+    name: "Source of Business",
+    category: "ta_address",
+    categoryLabel: "Business & Location",
+    fieldType: "select",
+    essential: false,
+    description: "Default booking channel source code.",
+  },
+  {
+    code: "TA_ACCOUNT_MANAGER",
+    name: "Account Manager",
+    category: "ta_address",
+    categoryLabel: "Business & Location",
+    fieldType: "select",
+    essential: false,
+    description: "Assigned hotel sales manager or agency relationship lead.",
+  },
+
+  // Step 2: Contact Information
+  {
+    code: "TA_CONTACT_NAME",
+    name: "Contact Full Name",
+    category: "ta_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "text",
+    essential: true,
+    description: "Primary contact coordinator's full name.",
+  },
+  {
+    code: "TA_CONTACT_ROLE",
+    name: "Contact Role",
+    category: "ta_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "select",
+    essential: false,
+    description: "Organizational function (Contracting, Reservations, Accounting).",
+  },
+  {
+    code: "TA_CONTACT_POSITION",
+    name: "Contact Position",
+    category: "ta_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "text",
+    essential: false,
+    description: "Job title or position description.",
+  },
+  {
+    code: "TA_CONTACT_EMAIL",
+    name: "Contact Email",
+    category: "ta_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "email",
+    essential: true,
+    description: "Direct email address for agency reservations or contracts.",
+  },
+  {
+    code: "TA_CONTACT_PHONE",
+    name: "Contact Phone",
+    category: "ta_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "phone",
+    essential: true,
+    description: "Primary telephone contact number.",
+  },
+  {
+    code: "TA_CONTACT_WHATSAPP",
+    name: "WhatsApp",
+    category: "ta_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "phone",
+    essential: false,
+    description: "WhatsApp business communication telephone number.",
+  },
+  {
+    code: "TA_CONTACT_PREFERRED_METHOD",
+    name: "Preferred Method",
+    category: "ta_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "select",
+    essential: false,
+    description: "Primary communication preference (Phone, Email, WhatsApp).",
+  },
+  {
+    code: "TA_CONTACT_NOTES",
+    name: "Contact Notes",
+    category: "ta_contact",
+    categoryLabel: "Contact Information",
+    fieldType: "text",
+    essential: false,
+    description: "Individual contact availability and communication notes.",
+  },
+];
+
+// Step 3: Commission & Rates Fields
+export const TRAVEL_AGENCY_COMMISSION_FIELDS: GuestCreationFieldDefinition[] = [
+  {
+    code: "TA_COMMERCIAL_MODEL",
+    name: "Commercial Model",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "select",
+    essential: true,
+    systemRequired: true,
+    description: "Commercial distribution model (Commissionable or Net Rate).",
+  },
+  {
+    code: "TA_COMMISSION_CURRENCY",
+    name: "Commission Currency",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "select",
+    essential: true,
+    description: "Operating currency context for calculated agency commission.",
+  },
+  {
+    code: "TA_COMMISSION_EFFECTIVE_ON",
+    name: "Commission Effective Date",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "date",
+    essential: true,
+    description: "Starting validity date of the agency commission arrangement.",
+  },
+  {
+    code: "TA_COMMISSION_EXPIRES_ON",
+    name: "Commission Expiry Date",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "date",
+    essential: false,
+    description: "Expiry end date for the agency commission plan.",
+  },
+  {
+    code: "TA_COMMISSION_NOTES",
+    name: "Commission Notes",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "text",
+    essential: false,
+    description: "Agency commission arrangement remarks and commercial notes.",
+  },
+  {
+    code: "TA_COMMISSION_APPLICATION_MODE",
+    name: "Commission Application Mode",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "select",
+    essential: false,
+    description: "Whether commission applies to all bookings or varies by room type/rate plan.",
+  },
+  {
+    code: "TA_COMMISSION_TYPE",
+    name: "Commission Type",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "select",
+    essential: false,
+    description: "Commission calculation type (Percentage or Fixed amount).",
+  },
+  {
+    code: "TA_COMMISSION_VALUE",
+    name: "Commission Value",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "number",
+    essential: true,
+    description: "Default commission percentage or fixed monetary value.",
+  },
+  {
+    code: "TA_NET_PRICING_METHOD",
+    name: "Net Pricing Method",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "select",
+    essential: true,
+    description: "Negotiated wholesale pricing mechanism (Existing Plan, Discount, or Contracted Rates).",
+  },
+  {
+    code: "TA_NET_ROOM_TYPE",
+    name: "Net Room Type",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "select",
+    essential: false,
+    description: "Associated room type for net pricing plan.",
+  },
+  {
+    code: "TA_NET_RATE_PLAN",
+    name: "Net Rate Plan",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "select",
+    essential: false,
+    description: "Associated rate plan or discount baseline for net pricing.",
+  },
+  {
+    code: "TA_NET_DISCOUNT_TYPE",
+    name: "Net Discount Type",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "select",
+    essential: false,
+    description: "Discount calculation type for rate plan discount pricing.",
+  },
+  {
+    code: "TA_NET_DISCOUNT_VALUE",
+    name: "Net Discount Value",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "number",
+    essential: false,
+    description: "Negotiated discount amount or percentage deducted from base rate plan.",
+  },
+  {
+    code: "TA_NET_VALID_FROM",
+    name: "Net Rate Valid From",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "date",
+    essential: true,
+    description: "Starting date of confidential net wholesale pricing validity.",
+  },
+  {
+    code: "TA_NET_VALID_UNTIL",
+    name: "Net Rate Valid Until",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "date",
+    essential: true,
+    description: "Expiration anniversary date of net wholesale pricing agreement.",
+  },
+  {
+    code: "TA_NET_CURRENCY",
+    name: "Net Settlement Currency",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "select",
+    essential: true,
+    description: "Settlement currency context for net wholesale rates.",
+  },
+  {
+    code: "TA_COMMERCIAL_NOTES",
+    name: "Commercial Notes",
+    category: "ta_commission",
+    categoryLabel: "Commission & Rates",
+    fieldType: "text",
+    essential: false,
+    description: "Broader commercial terms, relationship notes, and contract remarks.",
+  },
+];
+
+// Step 4: Payment, Credit & Reservation Rules Fields
+export const TRAVEL_AGENCY_PAYMENT_RULES_FIELDS: GuestCreationFieldDefinition[] = [
+  {
+    code: "TA_BILLING_CURRENCY",
+    name: "Billing Currency",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "select",
+    essential: true,
+    systemRequired: true,
+    description: "Authoritative settlement currency context for travel agency folio transactions.",
+  },
+  {
+    code: "TA_PAYMENT_METHOD",
+    name: "Preferred Settlement Method",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "select",
+    essential: false,
+    description: "Operational default tender payment method preference.",
+  },
+  {
+    code: "TA_PAYMENT_TIMING",
+    name: "Payment Timing",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "select",
+    essential: true,
+    systemRequired: true,
+    description: "Scheduled timing for reservation folio settlement (Due on Arrival, Due on Departure, Prepaid, Credit Terms).",
+  },
+  {
+    code: "TA_BILLING_RULE",
+    name: "Default Billing Rule",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "select",
+    essential: true,
+    systemRequired: true,
+    description: "Default billing routing and charge responsibility rule for folios and invoices.",
+  },
+  {
+    code: "TA_BILLING_INSTRUCTION",
+    name: "Billing Instruction",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "text",
+    essential: false,
+    description: "Specific billing caveats, routing remarks, and custom payment instructions.",
+  },
+  {
+    code: "TA_ALLOW_CREDIT",
+    name: "Credit Facility",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "select",
+    essential: false,
+    description: "Enable approved corporate credit facility and direct billing arrangement.",
+  },
+  {
+    code: "TA_CREDIT_LIMIT",
+    name: "Credit Limit Amount",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "number",
+    essential: false,
+    description: "Approved maximum credit limit ceiling amount.",
+  },
+  {
+    code: "TA_CREDIT_DAYS",
+    name: "Credit Terms / Days",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "number",
+    essential: false,
+    description: "Settlement credit window following invoice issuance (in days).",
+  },
+  {
+    code: "TA_CREDIT_STATUS",
+    name: "Credit Status",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "select",
+    essential: false,
+    description: "Credit facility approval governance status (Pending Approval, Approved, Suspended).",
+  },
+  {
+    code: "TA_DEPOSIT_POLICY",
+    name: "Default Guarantee Policy",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "select",
+    essential: false,
+    description: "Default reservation guarantee and deposit requirement policy.",
+  },
+  {
+    code: "TA_CANCELLATION_POLICY",
+    name: "Default Cancellation Policy",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "select",
+    essential: false,
+    description: "Default free cancellation window cutoff and penalty policy.",
+  },
+  {
+    code: "TA_NOSHOW_POLICY",
+    name: "Default No-Show Policy",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "select",
+    essential: false,
+    description: "Default no-show penalty charge and room inventory release policy.",
+  },
+  {
+    code: "TA_BOOKING_NOTES",
+    name: "Booking Notes",
+    category: "ta_payment_rules",
+    categoryLabel: "Payment, Credit & Reservation Rules",
+    fieldType: "text",
+    essential: false,
+    description: "Front Desk and Reservation agent instructions (voucher verification, etc.).",
+  },
+];
+
+export const ALL_TRAVEL_AGENCY_CREATION_FIELDS: GuestCreationFieldDefinition[] = [
+  ...TRAVEL_AGENCY_CREATION_FIELDS,
+  ...TRAVEL_AGENCY_COMMISSION_FIELDS,
+  ...TRAVEL_AGENCY_PAYMENT_RULES_FIELDS,
+];
+
+export const ESSENTIAL_TRAVEL_AGENCY_FIELD_CODES = new Set<string>(
+  ALL_TRAVEL_AGENCY_CREATION_FIELDS.filter((f) => f.essential).map((f) => f.code),
+);
+
+export const INDIVIDUAL_GUEST_FIELD_CODES = new Set<string>([
+  ...INDIVIDUAL_GUEST_CREATION_FIELDS.map((f) => f.code.toUpperCase()),
+  "IDENTITY_DOCUMENT",
+  "ADDRESS",
+  "COMPANY",
+]);
+
+export const COMPANY_FIELD_CODES = new Set<string>([
+  ...ALL_COMPANY_CREATION_FIELDS.map((f) => f.code.toUpperCase()),
+  "TAX_ID",
+  "TIN",
+  "COMPANY_TIN",
+  "CONTACT_PERSON",
+  "BUSINESS_ADDRESS",
+  "BUSINESS_LICENSE",
+  "EXTERNAL_REFERENCE",
+]);
+
+export const TRAVEL_AGENCY_FIELD_CODES = new Set<string>([
+  ...ALL_TRAVEL_AGENCY_CREATION_FIELDS.map((f) => f.code.toUpperCase()),
+  "AGENCY_NAME",
+  "AGENCY_TYPE",
+  "AGENCY_TRADE_NAME",
+  "AGENCY_CODE",
+  "AGENCY_ACCOUNT_STATUS",
+  "AGENCY_IATA_NUMBER",
+  "AGENCY_LICENSE_EXPIRY",
+  "AGENCY_WEBSITE",
+  "AGENCY_NOTES",
+  "AGENCY_COUNTRY",
+  "AGENCY_REGION",
+  "AGENCY_CITY",
+  "AGENCY_POSTAL_CODE",
+  "AGENCY_ADDRESS_LINE1",
+  "AGENCY_ADDRESS_LINE2",
+  "AGENCY_TAX_ID",
+  "AGENCY_REGISTRATION_NUMBER",
+  "AGENCY_MARKET_SEGMENT",
+  "AGENCY_SOURCE",
+  "AGENCY_ACCOUNT_MANAGER",
+  "AGENCY_CONTACT_NAME",
+  "AGENCY_CONTACT_ROLE",
+  "AGENCY_CONTACT_POSITION",
+  "AGENCY_CONTACT_EMAIL",
+  "AGENCY_CONTACT_PHONE",
+  "AGENCY_CONTACT_WHATSAPP",
+  "AGENCY_CONTACT_PREFERRED_METHOD",
+  "AGENCY_CONTACT_NOTES",
+  "TRAVEL_AGENCY_TAX_ID",
+  "IATA_NUMBER",
+]);
+
+/**
+ * Checks whether a given field code belongs strictly to Company profile/creation.
+ */
+export function isCompanyFieldCode(code: string | null | undefined): boolean {
+  if (!code) return false;
+  const upper = code.trim().toUpperCase();
+  if (upper.startsWith("COMPANY_")) return true;
+  return (
+    upper === "TAX_ID" ||
+    upper === "TIN" ||
+    upper === "COMPANY_TIN" ||
+    upper === "CONTACT_PERSON" ||
+    upper === "BUSINESS_ADDRESS" ||
+    upper === "BUSINESS_LICENSE" ||
+    upper === "EXTERNAL_REFERENCE" ||
+    COMPANY_FIELD_CODES.has(upper)
+  );
+}
+
+/**
+ * Checks whether a given field code belongs strictly to Travel Agency profile/creation.
+ */
+export function isTravelAgencyFieldCode(code: string | null | undefined): boolean {
+  if (!code) return false;
+  const upper = code.trim().toUpperCase();
+  if (
+    upper.startsWith("TA_") ||
+    upper.startsWith("TRAVEL_AGENCY_") ||
+    upper.startsWith("AGENCY_")
+  ) {
+    return true;
+  }
+  return TRAVEL_AGENCY_FIELD_CODES.has(upper);
+}
+
+/**
+ * Checks whether a given field code belongs to Group profile/creation.
+ */
+export function isGroupFieldCode(code: string | null | undefined): boolean {
+  if (!code) return false;
+  const upper = code.trim().toUpperCase();
+  return upper.startsWith("GRP_") || upper.startsWith("GROUP_");
+}
+
+/**
+ * Checks whether a given field code belongs to Individual Guest profile/creation.
+ */
+export function isIndividualGuestFieldCode(code: string | null | undefined): boolean {
+  if (!code) return false;
+  const upper = code.trim().toUpperCase();
+  if (isCompanyFieldCode(upper) || isTravelAgencyFieldCode(upper) || isGroupFieldCode(upper)) {
+    return false;
+  }
+  return true;
+}

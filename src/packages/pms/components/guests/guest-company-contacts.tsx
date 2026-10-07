@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import { Label } from "@/shared/components/ui/label";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Badge } from "@/shared/components/ui/badge";
@@ -743,10 +744,11 @@ export function GuestCompanyContacts({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Phone</Label>
-                <Input
-                  className="h-8 text-xs border-[#DDD4C5]"
+                <CanonicalPhoneInput
                   value={form.phone}
-                  onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
+                  onChange={(phone) => setForm((current) => ({ ...current, phone }))}
+                  size="sm"
+                  placeholder="e.g. 911 234 567"
                 />
               </div>
               <div className="space-y-1">
@@ -760,10 +762,11 @@ export function GuestCompanyContacts({
             </div>
             <div className="space-y-1">
               <Label className="text-xs">WhatsApp</Label>
-              <Input
-                className="h-8 text-xs border-[#DDD4C5]"
+              <CanonicalPhoneInput
                 value={form.whatsapp}
-                onChange={(event) => setForm((current) => ({ ...current, whatsapp: event.target.value }))}
+                onChange={(whatsapp) => setForm((current) => ({ ...current, whatsapp }))}
+                size="sm"
+                placeholder="e.g. 911 234 567"
               />
             </div>
             <div className="space-y-1">

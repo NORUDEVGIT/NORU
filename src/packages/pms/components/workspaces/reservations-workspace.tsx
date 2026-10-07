@@ -331,6 +331,10 @@ export function ReservationsWorkspace({
 
   const hydratedCreateRef = useRef(false);
   useEffect(() => {
+    if (!initialCreate) {
+      hydratedCreateRef.current = false;
+      return;
+    }
     if (initialCreate && !hydratedCreateRef.current) {
       hydratedCreateRef.current = true;
       setOverlay({
