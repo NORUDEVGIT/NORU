@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 import {
   CARD3_TAXES_AUDIT_SECTION,
   CARD3_TAXES_TABS,
+  EXEMPTION_REASONS,
+  EXEMPTION_REASON_LABELS,
   amountIsValid,
   evaluateTaxesCard3Readiness,
   isSetupCode,
@@ -270,5 +272,47 @@ describe("Card 3 Phase 2 taxes readiness", () => {
     assert.equal(withLegacyGroup.status, "complete");
     assert.equal(withLegacyGroup.blockers.length, 0);
   });
+
+  it("includes all 13 reason categories with expected labels", () => {
+    const expectedLabels: Record<string, string> = {
+      government: "Government",
+      diplomatic: "Diplomatic",
+      international_organization: "International Organization",
+      nonprofit: "Non-Profit / NGO",
+      tax_status: "Tax Status",
+      corporate_business: "Corporate / Business",
+      guest_status: "Guest Status",
+      long_stay: "Long Stay",
+      group_event: "Group / Event",
+      promotional: "Promotional",
+      management: "Management",
+      legal_regulatory: "Legal / Regulatory",
+      other: "Other / Custom",
+    };
+
+    assert.equal(EXEMPTION_REASONS.length, 13);
+    for (const key of Object.keys(expectedLabels)) {
+      assert.ok(
+        EXEMPTION_REASONS.includes(key as any),
+        `Missing reason category: ${key}`,
+      );
+      assert.equal(
+        EXEMPTION_REASON_LABELS[key as keyof typeof EXEMPTION_REASON_LABELS],
+        expectedLabels[key],
+      );
+    }
+  });
+
+  it("supports customReason field in UI and server functions", () => {
+    // UI conditionally renders custom reason field when reasonCategory is other
+    assert.match(ui, /reasonCategory === "other"/);
+    assert.match(ui, /rule-custom-reason/);
+    assert.match(ui, /Custom reason/);
+
+    // Functions schema and payload accept customReason
+    assert.match(fns, /customReason: z\.string\(\)/);
+    assert.match(fns, /custom_reason/);
+  });
 });
+
 

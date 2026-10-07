@@ -110,7 +110,15 @@ export function PmsPropertySetupCard3Taxes({
   const filteredRules = useMemo(
     () =>
       rules.filter((row) =>
-        matchesQuery(ruleSearch, row.code, row.name, row.reasonCategory, row.description),
+        matchesQuery(
+          ruleSearch,
+          row.code,
+          row.name,
+          row.reasonCategory,
+          EXEMPTION_REASON_LABELS[row.reasonCategory] ?? "",
+          row.customReason ?? "",
+          row.description,
+        ),
       ),
     [rules, ruleSearch],
   );
@@ -276,7 +284,9 @@ export function PmsPropertySetupCard3Taxes({
               cells: [
                 row.code,
                 row.name,
-                EXEMPTION_REASON_LABELS[row.reasonCategory],
+                row.reasonCategory === "other" && row.customReason
+                  ? `${EXEMPTION_REASON_LABELS.other} (${row.customReason})`
+                  : EXEMPTION_REASON_LABELS[row.reasonCategory] ?? row.reasonCategory,
                 row.documentationRequired ? "Required" : "Optional",
                 row.approvalRequired ? "Required" : "Optional",
                 <Card3StatusDot active={row.active} />,
@@ -730,8 +740,9 @@ function RuleDrawer({
   const [name, setName] = useState(value?.name ?? "");
   const [description, setDescription] = useState(value?.description ?? "");
   const [reasonCategory, setReasonCategory] = useState<ExemptionReason>(
-    value?.reasonCategory ?? "other",
+    value?.reasonCategory ?? "government",
   );
+  const [customReason, setCustomReason] = useState(value?.customReason ?? "");
   const [documentationRequired, setDocumentationRequired] = useState(
     value?.documentationRequired ?? false,
   );
@@ -754,6 +765,7 @@ function RuleDrawer({
           name,
           description,
           reasonCategory,
+          customReason: reasonCategory === "other" && customReason.trim() ? customReason.trim() : null,
           documentationRequired,
           approvalRequired,
           active,
@@ -788,6 +800,18 @@ function RuleDrawer({
             </SelectContent>
           </Select>
         </div>
+        {reasonCategory === "other" && (
+          <div className="space-y-1">
+            <Label htmlFor="rule-custom-reason">Custom reason</Label>
+            <Input
+              id="rule-custom-reason"
+              placeholder="Enter custom reason"
+              value={customReason}
+              disabled={!canEdit}
+              onChange={(event) => setCustomReason(event.target.value)}
+            />
+          </div>
+        )}
         <div className="space-y-1">
           <Label htmlFor="rule-desc">Description</Label>
           <Input
