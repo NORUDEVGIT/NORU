@@ -83,6 +83,7 @@ export type PackageCard3Row = {
   typeLabel: string;
   description: string;
   packagePrice: number;
+  chargeBasis: PackageChargeBasis;
   active: boolean;
   roomTypeIds: string[];
   ratePlanIds: string[];
@@ -90,6 +91,32 @@ export type PackageCard3Row = {
   coverImagePath: string | null;
   coverUrl: string | null;
 };
+
+export const PACKAGE_CHARGE_BASES = [
+  "per_stay",
+  "per_night",
+  "per_person",
+  "per_room",
+  "per_unit",
+] as const;
+
+export type PackageChargeBasis = (typeof PACKAGE_CHARGE_BASES)[number];
+
+export const PACKAGE_CHARGE_BASIS_LABELS: Record<PackageChargeBasis, string> = {
+  per_stay: "Per stay",
+  per_night: "Per night",
+  per_person: "Per person",
+  per_room: "Per room",
+  per_unit: "Per unit",
+};
+
+export const PACKAGE_CHARGE_BASIS_DEFAULT: PackageChargeBasis = "per_stay";
+
+export function parsePackageChargeBasis(value: unknown): PackageChargeBasis {
+  return (PACKAGE_CHARGE_BASES as readonly string[]).includes(String(value))
+    ? (value as PackageChargeBasis)
+    : PACKAGE_CHARGE_BASIS_DEFAULT;
+}
 
 export const PACKAGE_COVER_MAX_BYTES = 8 * 1024 * 1024;
 export const PACKAGE_COVER_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;

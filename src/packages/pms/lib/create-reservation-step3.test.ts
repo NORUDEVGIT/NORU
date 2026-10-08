@@ -97,8 +97,11 @@ describe("Create reservation Step 3 identity and payload", () => {
     assert.match(details, /listAccountRatePlanHints/);
     assert.match(functions, /commercialSalesChannel/);
     assert.match(page, /canAdvanceFromBookingDetails/);
-    assert.match(page, /CreateReservationContext/);
-    assert.match(page, /CreateReservationAssociations/);
+    assert.doesNotMatch(page, /CreateReservationContext/);
+    assert.match(page, /CreateReservationBookingDetails/);
+    assert.match(details, /booking-details-source-classification/);
+    assert.match(details, /data-testid="booking-agent"/);
+    assert.match(details, /booking-details-relationships/);
     assert.doesNotMatch(page, /group block/);
   });
 

@@ -42,12 +42,11 @@ describe("Create Reservation Step 5 review dashboard", () => {
   });
 
   it("routes Edit actions to existing wizard steps", () => {
-    assert.equal(CREATE_REVIEW_STEPS.guestStay, 0);
-    assert.equal(CREATE_REVIEW_STEPS.availability, 1);
-    assert.equal(CREATE_REVIEW_STEPS.bookingDetails, 2);
-    assert.equal(CREATE_REVIEW_STEPS.policies, 3);
-    assert.match(reviewUi, /onEdit\(CREATE_REVIEW_STEPS.guestStay\)/);
-    assert.match(reviewUi, /onEdit\(CREATE_REVIEW_STEPS.availability\)/);
+    assert.equal(CREATE_REVIEW_STEPS.guestStayAvailability, 0);
+    assert.equal(CREATE_REVIEW_STEPS.bookingDetails, 1);
+    assert.equal(CREATE_REVIEW_STEPS.policies, 2);
+    assert.equal(CREATE_REVIEW_STEPS.review, 3);
+    assert.match(reviewUi, /onEdit\(CREATE_REVIEW_STEPS.guestStayAvailability\)/);
     assert.match(reviewUi, /onEdit\(CREATE_REVIEW_STEPS.bookingDetails\)/);
     assert.match(reviewUi, /onEdit\(CREATE_REVIEW_STEPS.policies\)/);
     assert.match(page, /onEdit=\{setWorkflowStep\}/);

@@ -7,7 +7,6 @@ import {
   CalendarDays,
   CreditCard,
   FileText,
-  Package,
   Pencil,
   Plus,
   Search,
@@ -41,19 +40,24 @@ import {
   snapshotDisplayName,
   snapshotField,
 } from "@/packages/pms/lib/reservation-detail-overview";
+import { ReservationPackageMerchandiseGrid } from "@/packages/pms/components/bookings/reservation-package-merchandise";
 import {
   appliedPackageDescription,
   appliedPackagesTotal,
   buildAvailablePackageCards,
+  cataloguePackageById,
+  chargeBasisHonestyCopy,
   chargeTypeLabel,
   emptyPackageFilters,
   filterAvailablePackages,
+  packageInclusionLabel,
   PACKAGE_BIND_GAP_COPY,
   PACKAGE_NOTES_GAP_COPY,
   PACKAGE_NOTES_MAX,
   uniquePackageFilterOptions,
   type PackageFilters,
 } from "@/packages/pms/lib/reservation-detail-packages";
+import { parsePackageChargeBasis } from "@/packages/pms/lib/meals-card3.server";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 import {
   getReservationCommercialAttribution,
@@ -161,6 +165,7 @@ export function ReservationDetailPackagesTab({
           <AppliedPackagesCard
             applied={applied}
             catalogue={catalogue}
+            ratePlanId={reservation.ratePlanId}
             money={money}
             currency={currency}
             arrival={reservation.arrivalDate}
@@ -171,6 +176,14 @@ export function ReservationDetailPackagesTab({
             onEdit={refuseBind}
             onRemove={refuseBind}
           />
+          {!reservation.ratePlanId ? (
+            <p
+              className="text-xs text-muted-foreground"
+              data-testid="packages-rate-plan-unevaluated"
+            >
+              Package activation eligibility needs a rate plan on this reservation.
+            </p>
+          ) : null}
           <AvailablePackagesCard
             cards={visible}
             filters={filters}
@@ -224,6 +237,7 @@ export function ReservationDetailPackagesTab({
 function AppliedPackagesCard({
   applied,
   catalogue,
+  ratePlanId,
   money,
   currency,
   arrival,
@@ -246,6 +260,7 @@ function AppliedPackagesCard({
     components: Array<{ componentType?: string }>;
   }>;
   catalogue: Parameters<typeof appliedPackageDescription>[1];
+  ratePlanId: string | null;
   money: (value: number) => string;
   currency: string;
   arrival: string;
@@ -293,46 +308,63 @@ function AppliedPackagesCard({
               </tr>
             </thead>
             <tbody>
-              {applied.map((row, index) => (
-                <tr key={row.id} className="border-b border-[#F4EEE4]">
-                  <td className="py-2 pr-2">{index + 1}</td>
-                  <td className="py-2 pr-2">{reviewDash(row.packageName)}</td>
-                  <td className="py-2 pr-2">
-                    {reviewDash(appliedPackageDescription(row, catalogue))}
-                  </td>
-                  <td className="py-2 pr-2">{reviewDash(chargeTypeLabel(row.chargeBasis))}</td>
-                  <td className="py-2 pr-2 text-right">{money(row.unitAmount)}</td>
-                  <td className="py-2 pr-2 text-right">{row.quantity}</td>
-                  <td className="py-2 pr-2 text-right">{money(row.appliedAmount)}</td>
-                  <td className="py-2 pr-2">
-                    {formatStayDate(arrival)} – {formatStayDate(departure)}
-                  </td>
-                  <td className="py-2">
-                    <div className="flex gap-1">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        disabled={!editable}
-                        onClick={onEdit}
-                        aria-label="Edit package"
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        disabled={!editable}
-                        onClick={onRemove}
-                        aria-label="Remove package"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {applied.map((row, index) => {
+                const master = cataloguePackageById(catalogue, row.packageId);
+                const configuredBasis = parsePackageChargeBasis(
+                  master?.chargeBasis ?? row.chargeBasis,
+                );
+                const honesty = chargeBasisHonestyCopy(configuredBasis);
+                const inclusion = master ? packageInclusionLabel(master, ratePlanId) : null;
+                return (
+                  <tr key={row.id} className="border-b border-[#F4EEE4]">
+                    <td className="py-2 pr-2">{index + 1}</td>
+                    <td className="py-2 pr-2">
+                      <p>{reviewDash(row.packageName)}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {reviewDash(row.packageCode)}
+                      </p>
+                      {inclusion ? <p className="text-[10px] text-[#5C4A2A]">{inclusion}</p> : null}
+                    </td>
+                    <td className="py-2 pr-2">
+                      {reviewDash(appliedPackageDescription(row, catalogue))}
+                      {honesty ? (
+                        <p className="mt-0.5 text-[10px] text-amber-900/80">{honesty}</p>
+                      ) : null}
+                    </td>
+                    <td className="py-2 pr-2">{reviewDash(chargeTypeLabel(configuredBasis))}</td>
+                    <td className="py-2 pr-2 text-right">{money(row.unitAmount)}</td>
+                    <td className="py-2 pr-2 text-right">{row.quantity}</td>
+                    <td className="py-2 pr-2 text-right">{money(row.appliedAmount)}</td>
+                    <td className="py-2 pr-2">
+                      {formatStayDate(arrival)} – {formatStayDate(departure)}
+                    </td>
+                    <td className="py-2">
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          disabled={!editable}
+                          onClick={onEdit}
+                          aria-label="Edit package"
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          disabled={!editable}
+                          onClick={onRemove}
+                          aria-label="Remove package"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               <tr className="font-medium">
                 <td className="py-2 pr-2" colSpan={6}>
                   Total
@@ -412,49 +444,24 @@ function AvailablePackagesCard({
         </div>
       </div>
       {cards.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground" data-testid="available-packages-empty">
+        <p
+          className="py-6 text-center text-sm text-muted-foreground"
+          data-testid="available-packages-empty"
+        >
           No active packages match this stay.
         </p>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {cards.map((card) => (
-            <article
-              key={card.id}
-              className="rounded-xl border border-[#EEE6D8] bg-[#FFFcf7] p-3"
-            >
-              <div className="mb-2 flex h-16 items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68]">
-                <Package className="size-7" />
-              </div>
-              <div className="flex items-start justify-between gap-2">
-                <p className="font-medium text-[#251605]">{card.name}</p>
-                <span className="rounded-full bg-[#F4E9D0] px-2 py-0.5 text-[10px] font-semibold text-[#765719]">
-                  {card.category}
-                </span>
-              </div>
-              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                {reviewDash(card.description)}
-              </p>
-              <ul className="mt-2 space-y-0.5 text-xs text-[#251605]">
-                {card.components.length === 0 ? (
-                  <li className="text-muted-foreground">{DETAIL_DASH}</li>
-                ) : (
-                  card.components.slice(0, 3).map((item) => <li key={item}>• {item}</li>)
-                )}
-              </ul>
-              <div className="mt-3 flex items-end justify-between gap-2">
-                <p className="text-sm font-medium text-[#251605]">
-                  {card.price == null ? DETAIL_DASH : `${money(card.price)}`}
-                  <span className="ml-1 text-[11px] font-normal text-muted-foreground">
-                    {currency} / {card.chargeType === DETAIL_DASH ? "package" : card.chargeType.toLowerCase()}
-                  </span>
-                </p>
-                <Button type="button" size="sm" variant="outline" disabled={!editable} onClick={onAdd}>
-                  Add Package
-                </Button>
-              </div>
-            </article>
-          ))}
-        </div>
+        <ReservationPackageMerchandiseGrid
+          cards={cards}
+          currency={currency}
+          money={money}
+          emptyCopy="No active packages match this stay."
+          renderFooter={() => (
+            <Button type="button" size="sm" variant="outline" disabled={!editable} onClick={onAdd}>
+              Add Package
+            </Button>
+          )}
+        />
       )}
     </section>
   );
@@ -586,7 +593,10 @@ function PackagesSummaryRail({
           </p>
         </div>
       </div>
-      <SummaryBlock icon={<CalendarDays className="size-3.5 text-[#B8954F]" />} title="Stay Information">
+      <SummaryBlock
+        icon={<CalendarDays className="size-3.5 text-[#B8954F]" />}
+        title="Stay Information"
+      >
         <p>
           {formatStayDate(reservation.arrivalDate)} → {formatStayDate(reservation.departureDate)} (
           {stayNightsLabel} night{stayNightsLabel === 1 ? "" : "s"})
@@ -597,7 +607,10 @@ function PackagesSummaryRail({
         </p>
         <p>Purpose: {reviewDash(reservation.purposeOfStay)}</p>
       </SummaryBlock>
-      <SummaryBlock icon={<BedDouble className="size-3.5 text-[#B8954F]" />} title="Room Information">
+      <SummaryBlock
+        icon={<BedDouble className="size-3.5 text-[#B8954F]" />}
+        title="Room Information"
+      >
         <div className="flex gap-2">
           {coverUrl ? (
             <img src={coverUrl} alt="" className="h-12 w-16 rounded-md object-cover" />
@@ -624,7 +637,10 @@ function PackagesSummaryRail({
           {reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
         </p>
       </SummaryBlock>
-      <SummaryBlock icon={<CreditCard className="size-3.5 text-[#B8954F]" />} title="Guarantee & Deposit">
+      <SummaryBlock
+        icon={<CreditCard className="size-3.5 text-[#B8954F]" />}
+        title="Guarantee & Deposit"
+      >
         <p>{reviewDash(reservation.guaranteeMethod)}</p>
         <p>
           Deposit {deposit?.amount == null ? DETAIL_DASH : money(deposit.amount)} ·{" "}

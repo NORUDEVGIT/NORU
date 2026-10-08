@@ -66,6 +66,14 @@ import {
   repriceReservation,
   type RatePlan,
 } from "@/packages/pms/lib/rates.functions";
+import { getMealsCard3 } from "@/packages/pms/lib/meals-card3.functions";
+import { parsePackageChargeBasis } from "@/packages/pms/lib/meals-card3.server";
+import {
+  cataloguePackageById,
+  chargeBasisHonestyCopy,
+  chargeTypeLabel,
+  packageInclusionLabel,
+} from "@/packages/pms/lib/reservation-detail-packages";
 import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 import { cn } from "@/shared/lib/utils";
@@ -94,6 +102,7 @@ export function ReservationDetailRatesTab({
 }) {
   const fetchPlans = useServerFn(listRatePlans);
   const fetchCommercial = useServerFn(getReservationCommercialAttribution);
+  const fetchCatalogue = useServerFn(getMealsCard3);
   const submitReprice = useServerFn(repriceReservation);
   const [rateNotes, setRateNotes] = useState("");
   const [planOpen, setPlanOpen] = useState(false);
@@ -121,6 +130,12 @@ export function ReservationDetailRatesTab({
           roomSubtotal: reservation.roomSubtotal,
         },
       }),
+    retry: false,
+  });
+
+  const catalogueQuery = useQuery({
+    queryKey: ["meals-card3", restaurantId, "reservation-detail-rates"],
+    queryFn: () => fetchCatalogue({ data: { restaurantId } }),
     retry: false,
   });
 
@@ -191,6 +206,8 @@ export function ReservationDetailRatesTab({
           <div className="grid gap-4 lg:grid-cols-2">
             <PackagesCard
               packages={packages}
+              catalogue={catalogueQuery.data?.snapshot.packages ?? []}
+              ratePlanId={reservation.ratePlanId}
               stayNights={reservation.nights}
               money={money}
               editable={editable}
@@ -558,6 +575,8 @@ function DiscountsCard({
 
 function PackagesCard({
   packages,
+  catalogue,
+  ratePlanId,
   stayNights,
   money,
   editable,
@@ -565,12 +584,15 @@ function PackagesCard({
 }: {
   packages: Array<{
     id: string;
+    packageId: string;
     packageName: string;
     packageCode: string;
     chargeBasis: string;
     quantity: number;
     appliedAmount: number;
   }>;
+  catalogue: Parameters<typeof cataloguePackageById>[0];
+  ratePlanId: string | null;
   stayNights: number;
   money: (value: number) => string;
   editable: boolean;
@@ -607,16 +629,36 @@ function PackagesCard({
             </tr>
           </thead>
           <tbody>
-            {packages.map((row) => (
-              <tr key={row.id}>
-                <td className="py-2 pr-2">{reviewDash(row.packageName)}</td>
-                <td className="py-2 pr-2">{reviewDash(row.packageCode || row.chargeBasis)}</td>
-                <td className="py-2 pr-2 text-right">{money(row.appliedAmount)}</td>
-                <td className="py-2">
-                  {packageNightsLabel(row.chargeBasis, row.quantity, stayNights)}
-                </td>
-              </tr>
-            ))}
+            {packages.map((row) => {
+              const master = cataloguePackageById(catalogue, row.packageId);
+              const configuredBasis = parsePackageChargeBasis(
+                master?.chargeBasis ?? row.chargeBasis,
+              );
+              const honesty = chargeBasisHonestyCopy(configuredBasis);
+              const inclusion = master ? packageInclusionLabel(master, ratePlanId) : null;
+              const description =
+                master?.description?.trim() ||
+                reviewDash(row.packageCode) ||
+                chargeTypeLabel(configuredBasis);
+              return (
+                <tr key={row.id}>
+                  <td className="py-2 pr-2">
+                    <p>{reviewDash(row.packageName)}</p>
+                    {inclusion ? <p className="text-[10px] text-[#5C4A2A]">{inclusion}</p> : null}
+                  </td>
+                  <td className="py-2 pr-2">
+                    <p>{description}</p>
+                    {honesty ? (
+                      <p className="mt-0.5 text-[10px] text-amber-900/80">{honesty}</p>
+                    ) : null}
+                  </td>
+                  <td className="py-2 pr-2 text-right">{money(row.appliedAmount)}</td>
+                  <td className="py-2">
+                    {packageNightsLabel(configuredBasis, row.quantity, stayNights)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

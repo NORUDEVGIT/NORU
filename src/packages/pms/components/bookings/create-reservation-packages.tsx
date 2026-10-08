@@ -1,12 +1,15 @@
+import { ReservationPackageMerchandiseGrid } from "@/packages/pms/components/bookings/reservation-package-merchandise";
 import { Button } from "@/shared/components/ui/button";
 import {
   CREATE_RESERVATION_PACKAGES_GATE_BADGE,
+  CREATE_RESERVATION_PACKAGES_NOT_ATTACHED,
   CREATE_RESERVATION_PACKAGES_SETTINGS_HREF,
   CREATE_RESERVATION_PACKAGES_SETTINGS_LINK,
   canShowPackagesSettingsLink,
   packagesGateCopy,
   resolveCreatePackagesGateView,
 } from "@/packages/pms/lib/create-reservation-phase1-section8";
+import type { AvailablePackageCard } from "@/packages/pms/lib/reservation-detail-packages";
 
 export function CreateReservationPackages({
   loading,
@@ -15,6 +18,10 @@ export function CreateReservationPackages({
   activePackageCount,
   canEditSet3,
   operational = false,
+  merchandiseCards,
+  merchandiseCurrency = "ETB",
+  money,
+  merchandiseContextReady = false,
 }: {
   loading: boolean;
   error: boolean;
@@ -22,6 +29,10 @@ export function CreateReservationPackages({
   activePackageCount: number;
   canEditSet3: boolean;
   operational?: boolean;
+  merchandiseCards?: AvailablePackageCard[];
+  merchandiseCurrency?: string;
+  money?: (value: number) => string;
+  merchandiseContextReady?: boolean;
 }) {
   const view = resolveCreatePackagesGateView({
     loading,
@@ -62,6 +73,35 @@ export function CreateReservationPackages({
             </a>
           </Button>
         </div>
+      ) : null}
+      {view.kind === "active_not_attached" &&
+      merchandiseContextReady &&
+      money &&
+      merchandiseCards ? (
+        <div
+          className="mt-4 border-t border-border pt-4"
+          data-testid="create-reservation-package-merch"
+        >
+          <p className="text-xs font-medium text-[#251605]">Stay packages (information only)</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {CREATE_RESERVATION_PACKAGES_NOT_ATTACHED}
+          </p>
+          <div className="mt-3">
+            <ReservationPackageMerchandiseGrid
+              cards={merchandiseCards}
+              currency={merchandiseCurrency}
+              money={money}
+              emptyCopy="No packages match this room type and rate plan."
+            />
+          </div>
+        </div>
+      ) : view.kind === "active_not_attached" && !merchandiseContextReady ? (
+        <p
+          className="mt-3 text-xs text-muted-foreground"
+          data-testid="create-reservation-package-merch-wait"
+        >
+          Select room type and rate plan to preview package catalogue details.
+        </p>
       ) : null}
     </section>
   );

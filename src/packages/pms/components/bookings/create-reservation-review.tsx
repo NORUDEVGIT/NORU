@@ -85,7 +85,7 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
         <ReviewCard
           title="Guest & Booker Information"
           icon={<UserRound className="size-4 text-[#B8954F]" />}
-          onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.guestStay)}
+          onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.guestStayAvailability)}
           testId="review-card-guest"
         >
           <div className="flex items-start gap-3">
@@ -125,7 +125,7 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
         <ReviewCard
           title="Stay Information"
           icon={<CalendarDays className="size-4 text-[#B8954F]" />}
-          onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.guestStay)}
+          onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.guestStayAvailability)}
           testId="review-card-stay"
         >
           <ReviewFields
@@ -145,7 +145,7 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
         <ReviewCard
           title="Room & Rate Information"
           icon={<BedDouble className="size-4 text-[#B8954F]" />}
-          onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.availability)}
+          onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.guestStayAvailability)}
           testId="review-card-rate"
         >
           <div className="flex gap-3">
