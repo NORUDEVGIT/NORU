@@ -28,6 +28,10 @@ import {
 } from "lucide-react";
 
 import { FolioActionMenu } from "@/packages/pms/components/cashiering/folio-action-menu";
+import {
+  FolioSearchFolioStatusBadge,
+  FolioSearchStayStatusBadge,
+} from "@/packages/pms/components/cashiering/folio-bits";
 import { FolioSearchMoreFilters as FolioSearchMoreFiltersSheet } from "@/packages/pms/components/cashiering/folio-search-more-filters";
 import { FolioSearchStayDates } from "@/packages/pms/components/cashiering/folio-search-stay-dates";
 import {
@@ -98,35 +102,6 @@ const DRAWER_CARD = "rounded-xl border border-[#E8E1D7] bg-card p-3 shadow-sm";
 const TOOLBAR_SELECT = "h-9 min-h-9 w-full bg-background sm:min-w-[130px] sm:max-w-[160px]";
 const TOOLBAR_DATES = "h-9 min-h-9 w-full bg-background sm:min-w-[150px] sm:max-w-[180px]";
 const TOOLBAR_SORT = "h-9 min-h-9 w-full bg-background sm:min-w-[160px] sm:max-w-[190px]";
-
-function stayStatusTone(
-  status: string | null | undefined,
-): "neutral" | "success" | "warning" | "danger" | "info" {
-  if (!status) return "neutral";
-  if (status === "checked_in") return "success";
-  if (status === "confirmed" || status === "pending") return "info";
-  if (status === "checked_out") return "neutral";
-  if (status === "cancelled") return "danger";
-  if (status === "no_show") return "warning";
-  return "neutral";
-}
-
-function FolioSearchFolioStatusBadge({ status }: { status: "open" | "closed" }) {
-  return (
-    <InventoryStatusBadge tone={status === "open" ? "info" : "neutral"}>
-      {status === "open" ? "Open" : "Closed"}
-    </InventoryStatusBadge>
-  );
-}
-
-function FolioSearchStayStatusBadge({ status }: { status: string | null | undefined }) {
-  if (!status) return <span className="text-muted-foreground">—</span>;
-  return (
-    <InventoryStatusBadge tone={stayStatusTone(status)}>
-      {reservationStatusLabel(status)}
-    </InventoryStatusBadge>
-  );
-}
 
 type BalanceState = "settled" | "outstanding" | "credit";
 

@@ -18,6 +18,7 @@ export function CashieringChrome({
   onNavigate,
   onSearch,
   onPostPayment,
+  bodyClassName = "space-y-4 p-4 sm:p-5 lg:p-6",
   children,
 }: {
   membership: RestaurantMembership;
@@ -25,6 +26,7 @@ export function CashieringChrome({
   onNavigate: (id: CashieringTabId) => void;
   onSearch: (value: string) => void;
   onPostPayment: () => void;
+  bodyClassName?: string;
   children: ReactNode;
 }) {
   return (
@@ -88,7 +90,7 @@ export function CashieringChrome({
             ))}
           </nav>
         </header>
-        <div className="space-y-4 p-4 sm:p-5 lg:p-6">{children}</div>
+        <div className={bodyClassName}>{children}</div>
       </div>
     </RoomInventoryChrome>
   );

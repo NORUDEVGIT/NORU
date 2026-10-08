@@ -40,7 +40,7 @@ const LEDGER_LINE = "This records a ledger line on the guest folio.";
 const COPY: Record<TransactionType, { title: string; description: string; cta: string }> = {
   charge: {
     title: "Post a charge",
-    description: `${LEDGER_LINE} No tax amount is added.`,
+    description: `${LEDGER_LINE} Active tax and service charges from Settings post as linked lines.`,
     cta: "Post charge",
   },
   payment: {
@@ -79,12 +79,14 @@ export function FolioEntryDialog({
   depositPolicySummary,
   authorizerNote,
   thresholdNote,
+  initialSourceId,
   onClose,
   onDone,
 }: {
   restaurantId: string;
   folioId: string;
   type: TransactionType | null;
+  initialSourceId?: string | null;
   open: boolean;
   sources: Array<{
     id: string;
@@ -120,9 +122,9 @@ export function FolioEntryDialog({
   useEffect(() => {
     if (open) {
       setIdempotencyKey(crypto.randomUUID());
-      setSourceId("none");
+      setSourceId(initialSourceId ?? "none");
     }
-  }, [open, type]);
+  }, [open, type, initialSourceId]);
 
   const post = useServerFn(postFolioEntry);
   const copy = type ? COPY[type] : null;

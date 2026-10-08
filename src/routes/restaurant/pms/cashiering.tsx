@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { CashieringWorkspace } from "@/packages/pms/components/workspaces/cashiering-workspace";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,6 +65,11 @@ export const Route = createFileRoute("/restaurant/pms/cashiering")({
 
 function CashieringPmsRoute() {
   const search = Route.useSearch();
+  const isFolioWorkspace = useRouterState({
+    select: (state) => /\/cashiering\/folios\/[^/]+/.test(state.location.pathname),
+  });
+  // The folio page is a child route and already renders its own shell.
+  if (isFolioWorkspace) return <Outlet />;
   return (
     <RestaurantShell
       active="Cashiering"

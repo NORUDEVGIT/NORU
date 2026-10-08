@@ -15772,6 +15772,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      preview_folio_charge: {
+        Args: {
+          _amount: number
+          _folio_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
       post_folio_transaction: {
         Args: {
           _amount: number

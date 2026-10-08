@@ -26,6 +26,19 @@ import { isMissingSchemaError } from "./pms-set2-structure";
 import { formatDepositPolicyResult, type DepositPolicyType } from "./payments-card3.server";
 import { loadGuestFolioInvoice } from "./cashiering-invoices.functions";
 import type { IssuedFolioInvoiceRow } from "./cashiering-invoices.server";
+import {
+  buildDepositLines,
+  depositSummaryFromLines,
+  folioCapabilities,
+  groupChargeRows,
+  recentPayments,
+  summarizeFolioLedger,
+  type FolioAllocationInput,
+  type FolioCapabilities,
+  type FolioChargeGroup,
+  type FolioDepositLine,
+  type FolioFinancialSummary,
+} from "./folio-workspace";
 
 const idSchema = z.string().uuid();
 
@@ -59,7 +72,7 @@ export interface FolioRow {
 
 export interface FolioTransactionRow {
   id: string;
-  type: TransactionType;
+  type: TransactionType | "transfer_out" | "transfer_in";
   category: string;
   description: string;
   amount: number;
@@ -69,15 +82,26 @@ export interface FolioTransactionRow {
   postedBy: string | null;
   originalTransactionId: string | null;
   sourceDescription: string | null;
+  taxSnapshot?: Record<string, string | number | boolean | null> | null;
+  transferId?: string | null;
+  transferDirection?: "in" | "out" | null;
 }
 
 export interface FolioDetail extends FolioRow {
   guestId: string;
   guestEmail: string | null;
   guestPhone: string | null;
+  guestFirstName?: string | null;
+  guestLastName?: string | null;
+  guestNationality?: string | null;
+  guestVip?: boolean;
   arrivalDate: string | null;
   departureDate: string | null;
   reservationStatus: string | null;
+  guaranteeMethod?: string | null;
+  salesChannel?: string | null;
+  ratePlanId?: string | null;
+  ratePlanCode?: string | null;
   transactions: FolioTransactionRow[];
   issuedInvoice: IssuedFolioInvoiceRow | null;
 }
@@ -251,6 +275,9 @@ type TxnRow = {
   payment_method?: string | null;
   posted_by_membership_id?: string | null;
   original_transaction_id?: string | null;
+  tax_snapshot?: Record<string, string | number | boolean | null> | null;
+  transfer_id?: string | null;
+  transfer_direction?: string | null;
 };
 
 function totals(rows: { amount: number }[]): { charges: number; credits: number; balance: number } {
@@ -418,6 +445,265 @@ export const listFolios = createServerFn({ method: "GET" })
       );
   });
 
+const FOLIO_TXN_SELECT =
+  "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, payment_method, posted_by_membership_id, original_transaction_id, tax_snapshot, transfer_id, transfer_direction";
+const FOLIO_TXN_SELECT_BASE =
+  "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, payment_method, posted_by_membership_id, original_transaction_id";
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CATALOGUE_NOT_CONFIGURED = "Not configured";
+
+/** Reservation commercial fields store a catalogue id (older rows may store the code). */
+async function resolveCatalogueLabel(
+  supabaseAdmin: SupabaseAdmin,
+  restaurantId: string,
+  table: "pms_market_segments" | "pms_source_codes" | "pms_sales_channel_labels",
+  value: string | null | undefined,
+): Promise<string | null> {
+  const raw = value?.trim();
+  if (!raw) return null;
+  const { data, error } = await supabaseAdmin
+    .from(table)
+    .select("name, code")
+    .eq("restaurant_id", restaurantId)
+    .eq(UUID_PATTERN.test(raw) ? "id" : "code", raw)
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return UUID_PATTERN.test(raw) ? CATALOGUE_NOT_CONFIGURED : raw;
+  const row = data as { name: string | null; code: string | null };
+  return row.name?.trim() || row.code?.trim() || CATALOGUE_NOT_CONFIGURED;
+}
+
+async function loadGuestFolio(
+  supabaseAdmin: SupabaseAdmin,
+  restaurantId: string,
+  folioId: string,
+): Promise<FolioDetail | null> {
+  const { data: row, error } = await supabaseAdmin
+    .from("guest_folios")
+    .select(
+      "id, folio_number, status, currency, opened_at, closed_at, reservation_id, guest_id, settlement_exception, " +
+        "guest_profiles!guest_folios_guest_same_property(first_name, last_name, email, phone, nationality, vip_status), " +
+        "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, arrival_date, departure_date, status, market_segment, commercial_booking_source, commercial_sales_channel, guarantee_method, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name), rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property(id, code, name))",
+    )
+    .eq("id", folioId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (error) throw cashierError(error.message);
+  if (!row) return null;
+
+  const f = row as unknown as {
+    id: string;
+    folio_number: string;
+    status: FolioStatus;
+    currency: string;
+    opened_at: string;
+    closed_at: string | null;
+    reservation_id: string | null;
+    guest_id: string;
+    settlement_exception: string | null;
+    guest_profiles: {
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+      phone: string | null;
+      nationality: string | null;
+      vip_status: boolean | null;
+    } | null;
+    hotel_reservations: {
+      confirmation_number: string;
+      arrival_date: string;
+      departure_date: string;
+      status: string;
+      market_segment: string | null;
+      commercial_booking_source: string | null;
+      commercial_sales_channel: string | null;
+      guarantee_method: string | null;
+      hotel_rooms: { room_number: string } | null;
+      room_types: { name: string } | null;
+      rate_plan: { id: string; code: string | null; name: string } | null;
+    } | null;
+  };
+
+  let txnResult = await supabaseAdmin
+    .from("folio_transactions")
+    .select(FOLIO_TXN_SELECT)
+    .eq("restaurant_id", restaurantId)
+    .eq("folio_id", f.id)
+    .order("posted_at", { ascending: true });
+  if (txnResult.error && isMissingSchemaError(txnResult.error)) {
+    txnResult = await supabaseAdmin
+      .from("folio_transactions")
+      .select(FOLIO_TXN_SELECT_BASE)
+      .eq("restaurant_id", restaurantId)
+      .eq("folio_id", f.id)
+      .order("posted_at", { ascending: true });
+  }
+  if (txnResult.error) throw cashierError(txnResult.error.message);
+
+  const txnRows = (txnResult.data ?? []) as TxnRow[];
+  const names = await staffNames(
+    supabaseAdmin,
+    restaurantId,
+    txnRows.map((t) => t.posted_by_membership_id),
+  );
+  const descriptions = new Map(txnRows.map((t) => [t.id, t.description]));
+  const transactions: FolioTransactionRow[] = txnRows.map((t) => ({
+    id: t.id,
+    type: t.transaction_type as FolioTransactionRow["type"],
+    category: t.category,
+    description: t.description,
+    amount: Number(t.amount),
+    postedAt: t.posted_at,
+    referenceType: t.reference_type,
+    paymentMethod: t.payment_method ?? null,
+    postedBy: t.posted_by_membership_id ? (names.get(t.posted_by_membership_id) ?? null) : null,
+    originalTransactionId: t.original_transaction_id ?? null,
+    sourceDescription: t.original_transaction_id
+      ? (descriptions.get(t.original_transaction_id) ?? null)
+      : null,
+    taxSnapshot: t.tax_snapshot ?? null,
+    transferId: t.transfer_id ?? null,
+    transferDirection:
+      t.transfer_direction === "in" || t.transfer_direction === "out" ? t.transfer_direction : null,
+  }));
+
+  const reservation = f.hotel_reservations;
+  const [issuedInvoice, marketSegment, bookingSource, salesChannel] = await Promise.all([
+    loadGuestFolioInvoice(supabaseAdmin, restaurantId, f.id),
+    resolveCatalogueLabel(supabaseAdmin, restaurantId, "pms_market_segments", reservation?.market_segment),
+    resolveCatalogueLabel(
+      supabaseAdmin,
+      restaurantId,
+      "pms_source_codes",
+      reservation?.commercial_booking_source,
+    ),
+    resolveCatalogueLabel(
+      supabaseAdmin,
+      restaurantId,
+      "pms_sales_channel_labels",
+      reservation?.commercial_sales_channel,
+    ),
+  ]);
+
+  return {
+    id: f.id,
+    folioNumber: f.folio_number,
+    status: f.status,
+    currency: f.currency,
+    guestId: f.guest_id,
+    guestName: guestName(f.guest_profiles),
+    guestFirstName: f.guest_profiles?.first_name ?? null,
+    guestLastName: f.guest_profiles?.last_name ?? null,
+    guestEmail: f.guest_profiles?.email ?? null,
+    guestPhone: f.guest_profiles?.phone ?? null,
+    guestNationality: f.guest_profiles?.nationality ?? null,
+    guestVip: Boolean(f.guest_profiles?.vip_status),
+    reservationId: f.reservation_id,
+    confirmationNumber: f.hotel_reservations?.confirmation_number ?? null,
+    arrivalDate: f.hotel_reservations?.arrival_date ?? null,
+    departureDate: f.hotel_reservations?.departure_date ?? null,
+    reservationStatus: f.hotel_reservations?.status ?? null,
+    guaranteeMethod: f.hotel_reservations?.guarantee_method ?? null,
+    salesChannel,
+    openedAt: f.opened_at,
+    closedAt: f.closed_at,
+    unsettledCheckout: f.settlement_exception === "unsettled_checkout" && f.status === "open",
+    roomNumber: f.hotel_reservations?.hotel_rooms?.room_number ?? null,
+    roomTypeName: f.hotel_reservations?.room_types?.name ?? null,
+    ratePlanId: f.hotel_reservations?.rate_plan?.id ?? null,
+    ratePlanName: f.hotel_reservations?.rate_plan?.name ?? null,
+    ratePlanCode: f.hotel_reservations?.rate_plan?.code ?? null,
+    marketSegment,
+    bookingSource,
+    transactions,
+    issuedInvoice,
+    ...totals(transactions.map((t) => ({ amount: t.amount }))),
+  };
+}
+
+async function loadDepositAllocations(
+  supabaseAdmin: SupabaseAdmin,
+  restaurantId: string,
+  depositIds: string[],
+): Promise<FolioAllocationInput[]> {
+  if (depositIds.length === 0) return [];
+  const { data, error } = await supabaseAdmin
+    .from("folio_deposit_allocations")
+    .select("deposit_transaction_id, amount")
+    .eq("restaurant_id", restaurantId)
+    .in("deposit_transaction_id", depositIds);
+  if (error) {
+    if (isMissingSchemaError(error)) return [];
+    throw cashierError(error.message);
+  }
+  return ((data ?? []) as Array<{ deposit_transaction_id: string; amount: number | string }>).map(
+    (row) => ({
+      depositTransactionId: row.deposit_transaction_id,
+      amount: Number(row.amount),
+    }),
+  );
+}
+
+async function loadTransferCounterparts(
+  supabaseAdmin: SupabaseAdmin,
+  restaurantId: string,
+  folioId: string,
+  transferIds: string[],
+): Promise<Record<string, { folioId: string; folioNumber: string }>> {
+  if (transferIds.length === 0) return {};
+  const { data, error } = await supabaseAdmin
+    .from("folio_transactions")
+    .select("transfer_id, folio_id")
+    .eq("restaurant_id", restaurantId)
+    .in("transfer_id", transferIds)
+    .neq("folio_id", folioId);
+  if (error) {
+    if (isMissingSchemaError(error)) return {};
+    throw cashierError(error.message);
+  }
+  const pairs = ((data ?? []) as Array<{ transfer_id: string; folio_id: string | null }>).filter(
+    (row): row is { transfer_id: string; folio_id: string } => Boolean(row.folio_id),
+  );
+  if (pairs.length === 0) return {};
+  const { data: folios } = await supabaseAdmin
+    .from("guest_folios")
+    .select("id, folio_number")
+    .eq("restaurant_id", restaurantId)
+    .in(
+      "id",
+      [...new Set(pairs.map((row) => row.folio_id))],
+    );
+  const numbers = new Map(
+    ((folios ?? []) as Array<{ id: string; folio_number: string }>).map((f) => [
+      f.id,
+      f.folio_number,
+    ]),
+  );
+  const result: Record<string, { folioId: string; folioNumber: string }> = {};
+  for (const row of pairs) {
+    result[row.transfer_id] = {
+      folioId: row.folio_id,
+      folioNumber: numbers.get(row.folio_id) ?? "Other folio",
+    };
+  }
+  return result;
+}
+
+export interface FolioWorkspace {
+  folio: FolioDetail;
+  financialSummary: FolioFinancialSummary;
+  depositLines: FolioDepositLine[];
+  depositSummary: { received: number; applied: number; available: number };
+  chargeGroups: FolioChargeGroup[];
+  recentPayments: FolioTransactionRow[];
+  transferCounterparts: Record<string, { folioId: string; folioNumber: string }>;
+  invoiceSettingsAvailable: boolean;
+  canManage: boolean;
+  canOperate: boolean;
+  capabilities: FolioCapabilities;
+}
+
 export const getFolio = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string; folioId: string }) =>
@@ -426,108 +712,65 @@ export const getFolio = createServerFn({ method: "GET" })
   .handler(async ({ data, context }): Promise<FolioDetail | null> => {
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return loadGuestFolio(supabaseAdmin, data.restaurantId, data.folioId);
+  });
 
-    const { data: row, error } = await supabaseAdmin
-      .from("guest_folios")
-      .select(
-        "id, folio_number, status, currency, opened_at, closed_at, reservation_id, guest_id, settlement_exception, " +
-          "guest_profiles!guest_folios_guest_same_property(first_name, last_name, email, phone), " +
-          "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, arrival_date, departure_date, status, market_segment, commercial_booking_source, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name), rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property(name))",
-      )
-      .eq("id", data.folioId)
-      .eq("restaurant_id", data.restaurantId)
-      .maybeSingle();
-    if (error) throw cashierError(error.message);
-    if (!row) return null;
+export const getFolioWorkspace = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string; folioId: string }) =>
+    z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
+  )
+  .handler(async ({ data, context }): Promise<FolioWorkspace | null> => {
+    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const folio = await loadGuestFolio(supabaseAdmin, data.restaurantId, data.folioId);
+    if (!folio) return null;
 
-    const f = row as unknown as {
-      id: string;
-      folio_number: string;
-      status: FolioStatus;
-      currency: string;
-      opened_at: string;
-      closed_at: string | null;
-      reservation_id: string | null;
-      guest_id: string;
-      settlement_exception: string | null;
-      guest_profiles: {
-        first_name: string | null;
-        last_name: string | null;
-        email: string | null;
-        phone: string | null;
-      } | null;
-      hotel_reservations: {
-        confirmation_number: string;
-        arrival_date: string;
-        departure_date: string;
-        status: string;
-        market_segment: string | null;
-        commercial_booking_source: string | null;
-        hotel_rooms: { room_number: string } | null;
-        room_types: { name: string } | null;
-        rate_plan: { name: string } | null;
-      } | null;
-    };
-
-    const { data: txns } = await supabaseAdmin
-      .from("folio_transactions")
-      .select(
-        "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, payment_method, posted_by_membership_id, original_transaction_id",
-      )
-      .eq("restaurant_id", data.restaurantId)
-      .eq("folio_id", f.id)
-      .order("posted_at", { ascending: true });
-
-    const txnRows = (txns ?? []) as TxnRow[];
-    const names = await staffNames(
-      supabaseAdmin,
-      data.restaurantId,
-      txnRows.map((t) => t.posted_by_membership_id),
-    );
-    const descriptions = new Map(txnRows.map((t) => [t.id, t.description]));
-    const transactions: FolioTransactionRow[] = txnRows.map((t) => ({
-      id: t.id,
-      type: t.transaction_type as TransactionType,
-      category: t.category,
-      description: t.description,
-      amount: Number(t.amount),
-      postedAt: t.posted_at,
-      referenceType: t.reference_type,
-      paymentMethod: t.payment_method ?? null,
-      postedBy: t.posted_by_membership_id ? (names.get(t.posted_by_membership_id) ?? null) : null,
-      originalTransactionId: t.original_transaction_id ?? null,
-      sourceDescription: t.original_transaction_id
-        ? (descriptions.get(t.original_transaction_id) ?? null)
-        : null,
-    }));
-
-    const issuedInvoice = await loadGuestFolioInvoice(supabaseAdmin, data.restaurantId, f.id);
+    const transferIds = [
+      ...new Set(
+        folio.transactions
+          .map((row) => row.transferId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const [allocations, settings, counterparts] = await Promise.all([
+      loadDepositAllocations(
+        supabaseAdmin,
+        data.restaurantId,
+        folio.transactions.filter((row) => row.type === "deposit").map((row) => row.id),
+      ),
+      supabaseAdmin
+        .from("pms_invoice_settings")
+        .select("restaurant_id")
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle(),
+      loadTransferCounterparts(supabaseAdmin, data.restaurantId, folio.id, transferIds),
+    ]);
+    const invoiceSettingsAvailable = !settings.error && Boolean(settings.data);
+    const depositLines = buildDepositLines(folio.transactions, allocations);
+    const canManage = canManageCashiering(me.role);
+    const canOperate = (CASHIER_OPERATE_ROLES as readonly string[]).includes(me.role);
 
     return {
-      id: f.id,
-      folioNumber: f.folio_number,
-      status: f.status,
-      currency: f.currency,
-      guestId: f.guest_id,
-      guestName: guestName(f.guest_profiles),
-      guestEmail: f.guest_profiles?.email ?? null,
-      guestPhone: f.guest_profiles?.phone ?? null,
-      reservationId: f.reservation_id,
-      confirmationNumber: f.hotel_reservations?.confirmation_number ?? null,
-      arrivalDate: f.hotel_reservations?.arrival_date ?? null,
-      departureDate: f.hotel_reservations?.departure_date ?? null,
-      reservationStatus: f.hotel_reservations?.status ?? null,
-      openedAt: f.opened_at,
-      closedAt: f.closed_at,
-      unsettledCheckout: f.settlement_exception === "unsettled_checkout" && f.status === "open",
-      roomNumber: f.hotel_reservations?.hotel_rooms?.room_number ?? null,
-      roomTypeName: f.hotel_reservations?.room_types?.name ?? null,
-      ratePlanName: f.hotel_reservations?.rate_plan?.name ?? null,
-      marketSegment: f.hotel_reservations?.market_segment ?? null,
-      bookingSource: f.hotel_reservations?.commercial_booking_source ?? null,
-      transactions,
-      issuedInvoice,
-      ...totals(transactions.map((t) => ({ amount: t.amount }))),
+      folio,
+      financialSummary: summarizeFolioLedger(folio.transactions),
+      depositLines,
+      depositSummary: depositSummaryFromLines(depositLines),
+      chargeGroups: groupChargeRows(folio.transactions),
+      recentPayments: recentPayments(folio.transactions, 3),
+      transferCounterparts: counterparts,
+      invoiceSettingsAvailable,
+      canManage,
+      canOperate,
+      capabilities: folioCapabilities({
+        open: folio.status === "open",
+        balance: folio.balance,
+        canManage,
+        canOperate,
+        hasInvoice: Boolean(folio.issuedInvoice),
+        hasLines: folio.transactions.length > 0,
+        invoiceSettingsAvailable,
+      }),
     };
   });
 
@@ -807,6 +1050,73 @@ export const postFolioEntry = createServerFn({ method: "POST" })
     } catch (error) {
       return { ok: false, message: (error as Error).message };
     }
+  });
+
+export interface FolioChargePreviewLine {
+  name: string;
+  code: string;
+  chargeType: string;
+  rate: number;
+  calculation: string | null;
+  amount: number;
+}
+
+export interface FolioChargePreview {
+  currency: string;
+  enteredAmount: number;
+  netAmount: number;
+  taxLines: FolioChargePreviewLine[];
+  serviceLines: FolioChargePreviewLine[];
+  total: number;
+}
+
+function readPreviewLine(value: unknown): FolioChargePreviewLine {
+  const line = (value ?? {}) as Record<string, unknown>;
+  return {
+    name: String(line.name ?? ""),
+    code: String(line.code ?? ""),
+    chargeType: String(line.chargeType ?? ""),
+    rate: Number(line.rate ?? 0),
+    calculation: line.calculation == null ? null : String(line.calculation),
+    amount: Number(line.amount ?? 0),
+  };
+}
+
+function readChargePreview(value: unknown): FolioChargePreview {
+  const row = (value ?? {}) as Record<string, unknown>;
+  const lines = (raw: unknown) => (Array.isArray(raw) ? raw.map(readPreviewLine) : []);
+  return {
+    currency: String(row.currency ?? ""),
+    enteredAmount: Number(row.enteredAmount ?? 0),
+    netAmount: Number(row.netAmount ?? 0),
+    taxLines: lines(row.taxLines),
+    serviceLines: lines(row.serviceLines),
+    total: Number(row.total ?? 0),
+  };
+}
+
+/** Read-only tax and service preview for a manual charge. Does not post. */
+export const previewFolioCharge = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string; folioId: string; amount: number }) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        folioId: idSchema,
+        amount: z.number().finite().positive(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<FolioChargePreview> => {
+    await requireCashierManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: preview, error } = await supabaseAdmin.rpc("preview_folio_charge", {
+      _restaurant_id: data.restaurantId,
+      _folio_id: data.folioId,
+      _amount: Math.round(data.amount * 100) / 100,
+    });
+    if (error) throw cashierError(error.message);
+    return readChargePreview(preview);
   });
 
 export const closeFolio = createServerFn({ method: "POST" })

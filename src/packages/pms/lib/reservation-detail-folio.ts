@@ -91,7 +91,15 @@ export function sumAbsByType(
 
 export function folioLedgerSummary(folio: FolioDetail | null): FolioLedgerSummary | null {
   if (!folio) return null;
-  const charges = folio.transactions.filter((row) => row.type === "charge");
+  const allCharges = folio.transactions.filter((row) => row.type === "charge");
+  const charges = allCharges.filter(
+    (row) => row.category !== "tax" && row.category !== "service_charge",
+  );
+  const taxes = roundMoney(
+    allCharges
+      .filter((row) => row.category === "tax" || row.category === "service_charge")
+      .reduce((sum, row) => sum + Number(row.amount), 0),
+  );
   const roomCharges = roundMoney(
     charges.filter(isRoomCharge).reduce((sum, row) => sum + Number(row.amount), 0),
   );
@@ -108,7 +116,7 @@ export function folioLedgerSummary(folio: FolioDetail | null): FolioLedgerSummar
     packageCharges,
     otherCharges,
     discounts: sumAbsByType(folio.transactions, "discount"),
-    taxes: null,
+    taxes,
     totalCharges: folio.charges,
     payments: sumAbsByType(folio.transactions, "payment"),
     adjustments: roundMoney(

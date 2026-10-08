@@ -107,7 +107,22 @@ describe("Reservation Detail Folio & Payments tab", () => {
     expect(summary?.roomCharges).toBe(4500);
     expect(summary?.otherCharges).toBe(1200);
     expect(summary?.packageCharges).toBe(0);
-    expect(summary?.taxes).toBeNull();
+    expect(summary?.taxes).toBe(0);
+    const taxed = folioLedgerSummary({
+      ...folio,
+      transactions: [
+        ...folio.transactions,
+        txn({
+          id: "5",
+          type: "charge",
+          category: "tax",
+          amount: 675,
+          originalTransactionId: "1",
+        }),
+      ],
+    });
+    expect(taxed?.taxes).toBe(675);
+    expect(taxed?.otherCharges).toBe(1200);
     expect(summary?.depositCredits).toBe(4500);
     const cards = folioKpiCards(folio, summary);
     expect(cards.find((card) => card.id === "room")?.realFolio).toBe(true);

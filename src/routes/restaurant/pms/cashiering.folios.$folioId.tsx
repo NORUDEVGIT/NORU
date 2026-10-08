@@ -9,6 +9,7 @@ export const Route = createFileRoute("/restaurant/pms/cashiering/folios/$folioId
   ssr: false,
   validateSearch: (search: Record<string, unknown>) => ({
     ...(typeof search.action === "string" ? { action: search.action } : {}),
+    ...(typeof search.tab === "string" ? { tab: search.tab } : {}),
   }),
   beforeLoad: async ({ params }) => {
     const { data, error } = await supabase.auth.getUser();
@@ -23,7 +24,10 @@ export const Route = createFileRoute("/restaurant/pms/cashiering/folios/$folioId
   head: () => ({
     meta: [
       { title: "Guest Folio — NORU PMS" },
-      { name: "description", content: "Guest folio ledger lines, balance and statement print." },
+      {
+        name: "description",
+        content: "Guest folio workspace: charges, payments, deposits, invoices and settlement.",
+      },
       { property: "og:title", content: "Guest Folio — NORU PMS" },
       { name: "robots", content: "noindex" },
     ],
@@ -44,7 +48,12 @@ function GuestFolioRoute() {
       hideTopHeader
     >
       {(membership) => (
-        <GuestFolioPage membership={membership} folioId={folioId} initialAction={search.action} />
+        <GuestFolioPage
+          membership={membership}
+          folioId={folioId}
+          initialAction={search.action}
+          initialTab={search.tab}
+        />
       )}
     </RestaurantShell>
   );
