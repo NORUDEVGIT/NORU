@@ -9,8 +9,11 @@ import { StayCountInput } from "@/packages/pms/components/bookings/create-reserv
 import { addDays } from "@/packages/pms/components/bookings/reservation-bits";
 import {
   CREATE_RESERVATION_MIN_NIGHTS,
+  RESERVATION_TYPE_LABELS,
+  RESERVATION_TYPE_MODES,
   type ContextPickOption,
   type PickedReservationMaster,
+  type ReservationTypeMode,
 } from "@/packages/pms/lib/create-reservation-phase1";
 import { type PickedReservationGuest } from "@/packages/pms/components/bookings/create-reservation-guest";
 import {
@@ -27,12 +30,28 @@ import {
   nationalityStoredName,
 } from "@/packages/pms/lib/create-reservation-step3";
 import { listCompanyContacts } from "@/packages/pms/lib/guest-company-detail.functions";
-import { listTravelAgentCommissionPlans, listTravelAgentContacts } from "@/packages/pms/lib/guest-travel-agent-detail.functions";
-import { getGuestReservationPreferenceDefaults, updateGuest } from "@/packages/pms/lib/guests.functions";
+import {
+  listTravelAgentCommissionPlans,
+  listTravelAgentContacts,
+} from "@/packages/pms/lib/guest-travel-agent-detail.functions";
+import {
+  getGuestReservationPreferenceDefaults,
+  updateGuest,
+} from "@/packages/pms/lib/guests.functions";
 import { applyPreferenceDefaults } from "@/packages/pms/lib/guest-preferences-workspace";
 import { getGroup, listGroups } from "@/packages/pms/lib/groups.functions";
-import { listPurposeOfStay, purposeOptionsFromRows } from "@/packages/pms/lib/purpose-of-stay.functions";
+import {
+  listPurposeOfStay,
+  purposeOptionsFromRows,
+} from "@/packages/pms/lib/purpose-of-stay.functions";
 import { listAccountRatePlanHints, quoteFlexibleStay } from "@/packages/pms/lib/rates.functions";
+import {
+  PMS_OP_INPUT,
+  PMS_OP_LABEL,
+  PMS_OP_PANEL,
+  PMS_OP_SELECT_TRIGGER,
+  PMS_OP_TEXTAREA,
+} from "@/packages/pms/lib/pms-operational-surface";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
@@ -58,8 +77,8 @@ const ROOM_PREFERENCE_OPTIONS = [
   { id: "early_check_in", label: "Early Check-In" },
 ] as const;
 
-const CONTROL =
-  "h-8 w-full rounded-md border border-[#DDD4C5] bg-white px-2 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#F7F2EA] disabled:text-muted-foreground";
+const CONTROL = cn(PMS_OP_INPUT, "!h-8 px-2 py-1");
+const SELECT_CONTROL = cn(PMS_OP_SELECT_TRIGGER, "!h-8 px-2 py-0 text-xs");
 
 const SWITCH_GOLD = "data-[state=checked]:bg-[#B8954F] data-[state=unchecked]:bg-[#DDD4C5]";
 
@@ -67,6 +86,9 @@ export function CreateReservationBookingDetails({
   restaurantId,
   canCreateMaster,
   guest,
+  reservationType,
+  onRequestTypeChange,
+  bookingAgentName,
   bookingSource,
   onBookingSourceChange,
   sourceOptions,
@@ -132,6 +154,9 @@ export function CreateReservationBookingDetails({
   restaurantId: string;
   canCreateMaster: boolean;
   guest: PickedReservationGuest | null;
+  reservationType: ReservationTypeMode;
+  onRequestTypeChange: (next: ReservationTypeMode) => void;
+  bookingAgentName: string;
   bookingSource: string;
   onBookingSourceChange: (value: string) => void;
   sourceOptions: ContextPickOption[];
@@ -217,7 +242,6 @@ export function CreateReservationBookingDetails({
   const [groupEnabled, setGroupEnabled] = useState(Boolean(linkedGroupId));
   const [groupQuery, setGroupQuery] = useState("");
   const [flexibleDates, setFlexibleDates] = useState(false);
-  const [preferences, setPreferences] = useState<Record<string, boolean>>({});
   const [prefilledGuestId, setPrefilledGuestId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -268,8 +292,7 @@ export function CreateReservationBookingDetails({
 
   const commissionQuery = useQuery({
     queryKey: ["travel-agent-commission-plans", restaurantId, travelAgentMaster?.id],
-    queryFn: () =>
-      loadCommissionPlans({ data: { restaurantId, agencyId: travelAgentMaster!.id } }),
+    queryFn: () => loadCommissionPlans({ data: { restaurantId, agencyId: travelAgentMaster!.id } }),
     enabled: Boolean(travelAgentMaster?.id),
     retry: false,
   });
@@ -278,15 +301,13 @@ export function CreateReservationBookingDetails({
 
   const companyHintsQuery = useQuery({
     queryKey: ["account-rate-hints", restaurantId, companyMaster?.id],
-    queryFn: () =>
-      loadCompanyHints({ data: { restaurantId, accountId: companyMaster!.id } }),
+    queryFn: () => loadCompanyHints({ data: { restaurantId, accountId: companyMaster!.id } }),
     enabled: Boolean(companyMaster?.id),
     retry: false,
   });
   const agencyHintsQuery = useQuery({
     queryKey: ["account-rate-hints", restaurantId, travelAgentMaster?.id],
-    queryFn: () =>
-      loadCompanyHints({ data: { restaurantId, accountId: travelAgentMaster!.id } }),
+    queryFn: () => loadCompanyHints({ data: { restaurantId, accountId: travelAgentMaster!.id } }),
     enabled: Boolean(travelAgentMaster?.id),
     retry: false,
   });
@@ -311,7 +332,8 @@ export function CreateReservationBookingDetails({
     pickup?.blockedRooms ?? selectedBlocks.reduce((sum, row) => sum + row.totals.allotted, 0);
   const pickupPicked =
     pickup?.pickedUp ?? selectedBlocks.reduce((sum, row) => sum + row.totals.pickedUp, 0);
-  const pickupPct = pickupBlocked > 0 ? Math.min(100, Math.round((pickupPicked / pickupBlocked) * 100)) : 0;
+  const pickupPct =
+    pickupBlocked > 0 ? Math.min(100, Math.round((pickupPicked / pickupBlocked) * 100)) : 0;
   const cutoffDate = selectedBlock?.cutoffDate ?? selectedGroup?.cutoffDate ?? "";
 
   const appliedGroupRateFor = useRef<string | null>(null);
@@ -337,7 +359,13 @@ export function CreateReservationBookingDetails({
     if (!text) return;
     if (!specialRequests.trim()) onSpecialRequestsChange(text);
     setPrefilledGuestId(guest.id);
-  }, [guest?.id, onSpecialRequestsChange, prefQuery.data?.specialRequests, prefilledGuestId, specialRequests]);
+  }, [
+    guest?.id,
+    onSpecialRequestsChange,
+    prefQuery.data?.specialRequests,
+    prefilledGuestId,
+    specialRequests,
+  ]);
 
   const flexibleQuery = useQuery({
     queryKey: [
@@ -396,6 +424,7 @@ export function CreateReservationBookingDetails({
   const displayContactPhone = sameAsGuest ? (guest?.phone ?? "") : "";
   const displayContactCompany = sameAsGuest ? (companyMaster?.name ?? "") : "";
   const displayContactEmail = sameAsGuest ? (guest?.email ?? "") : "";
+  const classificationGroupLabel = linkedGroupId ? (selectedGroup?.name ?? linkedGroupId) : "—";
   const nationalityCode = nationalitySelectCode(guest?.nationality);
   const nationalityOptions = nationalitySelectOptions(guest?.nationality);
   const usingRateLabel = selectedQuote
@@ -412,6 +441,7 @@ export function CreateReservationBookingDetails({
     <div className="space-y-3" data-testid="create-reservation-booking-details">
       <div className="grid gap-3 lg:grid-cols-2">
         <BookingCard
+          testId="booking-details-guest-booker"
           title="Guest & Booker Information"
           subtitle="Review and update guest and booking information."
         >
@@ -425,6 +455,7 @@ export function CreateReservationBookingDetails({
                   <Input
                     className={CONTROL}
                     readOnly
+                    data-testid="booking-details-guest-name"
                     value={guest?.fullName ?? "—"}
                     aria-label="Guest Name"
                   />
@@ -512,16 +543,28 @@ export function CreateReservationBookingDetails({
                     checked={sameAsGuest}
                     onCheckedChange={onSameAsGuestChange}
                     aria-label="Same as guest"
+                    data-testid="booker-same-as-guest"
                   />
                 </label>
               </div>
+              {!sameAsGuest ? (
+                <p
+                  className="text-[10px] leading-snug text-muted-foreground"
+                  data-testid="booker-not-persisted-hint"
+                >
+                  Separate booker contact fields are display-only. Create saves a booker only when
+                  Same as guest is on.
+                </p>
+              ) : null}
               <Field label="Contact Name">
                 <Input
                   className={CONTROL}
                   disabled={bookerDisabled}
                   readOnly
                   value={displayContactName}
-                  placeholder={sameAsGuest ? undefined : "Select a guest profile to persist a booker"}
+                  placeholder={
+                    sameAsGuest ? undefined : "Select a guest profile to persist a booker"
+                  }
                 />
               </Field>
               <Field label="Phone">
@@ -553,13 +596,41 @@ export function CreateReservationBookingDetails({
         </BookingCard>
 
         <BookingCard
+          testId="booking-details-source-classification"
           title="Booking Source & Classification"
           subtitle="Define how this reservation was made."
         >
+          <div className="mb-3 space-y-1 border-b border-[#E7E0D4] pb-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
+              Reservation type
+            </p>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Reservation type">
+              {RESERVATION_TYPE_MODES.map((mode) => {
+                const selected = reservationType === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    data-testid={`reservation-type-${mode}`}
+                    aria-pressed={selected}
+                    onClick={() => onRequestTypeChange(mode)}
+                    className={cn(
+                      "!rounded-[6px] border px-3 py-1.5 text-xs transition-colors",
+                      selected
+                        ? "border-[#C89933] bg-[#F6F3EC] font-medium text-[#251605]"
+                        : "border-[#CCCCCC] bg-white text-[#251605] hover:bg-[#F6F3EC]/60",
+                    )}
+                  >
+                    {RESERVATION_TYPE_LABELS[mode]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div className="grid gap-2 sm:grid-cols-2">
             <Field label="Source">
               <Select value={bookingSource || undefined} onValueChange={onBookingSourceChange}>
-                <SelectTrigger className="h-8" data-testid="booking-details-source">
+                <SelectTrigger className={SELECT_CONTROL} data-testid="booking-details-source">
                   <SelectValue placeholder="Select source" />
                 </SelectTrigger>
                 <SelectContent>
@@ -573,7 +644,7 @@ export function CreateReservationBookingDetails({
             </Field>
             <Field label="Market Segment">
               <Select value={marketSegment || undefined} onValueChange={onMarketSegmentChange}>
-                <SelectTrigger className="h-8" data-testid="booking-details-segment">
+                <SelectTrigger className={SELECT_CONTROL} data-testid="booking-details-segment">
                   <SelectValue placeholder="Select segment" />
                 </SelectTrigger>
                 <SelectContent>
@@ -586,93 +657,59 @@ export function CreateReservationBookingDetails({
               </Select>
             </Field>
             <Field label="Channel">
-              <select
-                className={CONTROL}
-                value={salesChannel}
-                onChange={(event) => onSalesChannelChange(event.target.value)}
-                aria-label="Channel"
-              >
-                <option value="">—</option>
-                {salesChannelOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <Select value={salesChannel || undefined} onValueChange={onSalesChannelChange}>
+                <SelectTrigger className={SELECT_CONTROL} aria-label="Channel">
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  {salesChannelOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
-            <CreateReservationMasterPicker
-              restaurantId={restaurantId}
-              kind="company"
-              canCreate={canCreateMaster}
-              hideCreate
-              compact
-              master={companyMaster}
-              onMasterChange={(next) => {
-                onCompanyMasterChange(next);
-                if (next) setCompanyEnabled(true);
-              }}
-            />
-            <CreateReservationMasterPicker
-              restaurantId={restaurantId}
-              kind="travel_agent"
-              canCreate={canCreateMaster}
-              hideCreate
-              compact
-              master={travelAgentMaster}
-              onMasterChange={(next) => {
-                onTravelAgentMasterChange(next);
-                if (next) setTravelEnabled(true);
-              }}
-            />
+            <Field label="Company">
+              <Input
+                className={CONTROL}
+                readOnly
+                data-testid="classification-company-summary"
+                value={companyMaster?.name ?? "—"}
+                aria-label="Company"
+              />
+            </Field>
+            <Field label="Travel Agency">
+              <Input
+                className={CONTROL}
+                readOnly
+                data-testid="classification-travel-agent-summary"
+                value={travelAgentMaster?.name ?? "—"}
+                aria-label="Travel Agency"
+              />
+            </Field>
             <Field label="Group">
               <Input
                 className={CONTROL}
-                value={linkedGroupId ? (selectedGroup?.name ?? linkedGroupId) : groupQuery}
-                onChange={(event) => {
-                  setGroupQuery(event.target.value);
-                  if (linkedGroupId) onLinkedGroupChange(null, null);
-                }}
-                placeholder="Search group"
-                list="booking-details-group-suggestions"
+                readOnly
+                data-testid="classification-group-summary"
+                value={classificationGroupLabel}
+                aria-label="Group"
               />
-              <datalist id="booking-details-group-suggestions">
-                {(groupsQuery.data?.groups ?? []).map((row) => (
-                  <option key={row.id} value={row.name} />
-                ))}
-              </datalist>
-              {(groupsQuery.data?.groups ?? []).length > 0 && !linkedGroupId ? (
-                <div className="mt-1 max-h-24 overflow-auto rounded border border-[#E7E0D4] bg-white">
-                  {(groupsQuery.data?.groups ?? []).map((row) => (
-                    <button
-                      key={row.id}
-                      type="button"
-                      className="block w-full px-2 py-1 text-left text-[11px] hover:bg-[#F6F3EC]"
-                      onClick={() => {
-                        onLinkedGroupChange(row.id, null);
-                        setGroupQuery(row.name);
-                        setGroupEnabled(true);
-                      }}
-                    >
-                      {row.name}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
             </Field>
             <Field label="Purpose of Stay">
-              <select
-                className={CONTROL}
-                value={purposeOfStay}
-                onChange={(event) => onPurposeOfStayChange(event.target.value)}
-                aria-label="Purpose of Stay"
-              >
-                <option value="">—</option>
-                {purposeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <Select value={purposeOfStay || undefined} onValueChange={onPurposeOfStayChange}>
+                <SelectTrigger className={SELECT_CONTROL} aria-label="Purpose of Stay">
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  {purposeOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
             <Field label="External Reference">
               <Input
@@ -684,11 +721,22 @@ export function CreateReservationBookingDetails({
                 placeholder="Optional"
               />
             </Field>
+            <Field label="Booking Agent">
+              <Input
+                className={CONTROL}
+                id="booking-agent"
+                data-testid="booking-agent"
+                value={bookingAgentName}
+                readOnly
+                aria-label="Booking agent"
+              />
+            </Field>
           </div>
         </BookingCard>
       </div>
 
       <BookingCard
+        testId="booking-details-relationships"
         title="Booking Relationships (Optional)"
         subtitle="Link this reservation to a company, travel agent, or group for billing and reporting."
         icon={<Building2 className="size-4 text-[#B8954F]" />}
@@ -767,7 +815,9 @@ export function CreateReservationBookingDetails({
                   ))}
                 </select>
                 {billingHintCopy ? (
-                  <p className="text-[10px] text-muted-foreground">{billingHintCopy}. Folios post in Cashiering.</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {billingHintCopy}. Folios post in Cashiering.
+                  </p>
                 ) : null}
               </Field>
               <Field label="Travel Purpose">
@@ -950,9 +1000,7 @@ export function CreateReservationBookingDetails({
                 />
               </div>
               <p className="mt-1 text-[10px] text-muted-foreground">
-                {linkedGroupId
-                  ? `${pickupPicked} of ${pickupBlocked || "—"} rooms picked up`
-                  : "—"}
+                {linkedGroupId ? `${pickupPicked} of ${pickupBlocked || "—"} rooms picked up` : "—"}
               </p>
             </div>
           </RelationshipPanel>
@@ -961,6 +1009,7 @@ export function CreateReservationBookingDetails({
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <BookingCard
+          testId="booking-details-room-rate"
           title="Room & Rate Details"
           subtitle="Selected room and rate from availability search."
         >
@@ -1011,12 +1060,17 @@ export function CreateReservationBookingDetails({
             size="sm"
             className="mt-2 h-8"
             onClick={onChangeRoomRate}
+            data-testid="booking-details-change-room-rate"
           >
             Change Room / Rate
           </Button>
         </BookingCard>
 
-        <BookingCard title="Stay Details" subtitle="Update stay information if needed.">
+        <BookingCard
+          testId="booking-details-stay"
+          title="Stay Details"
+          subtitle="Update stay information if needed."
+        >
           {/* TODO: stay edits already clear ratePlanId; backend re-quote/revalidation must complete before treating totals as confirmed. */}
           <div className="grid grid-cols-3 gap-2">
             <Field label="Arrival Date">
@@ -1079,7 +1133,10 @@ export function CreateReservationBookingDetails({
             </Field>
           </div>
           <div className="mt-3 space-y-2">
-            <label className="flex items-center gap-2 text-sm text-[#251605]">
+            <label
+              className="flex items-center gap-2 text-sm text-[#251605]"
+              data-testid="flexible-dates-toggle"
+            >
               <Checkbox
                 checked={flexibleDates}
                 onCheckedChange={(value) => setFlexibleDates(value === true)}
@@ -1130,12 +1187,13 @@ export function CreateReservationBookingDetails({
         </BookingCard>
 
         <BookingCard
+          testId="booking-details-special-requests"
           title="Special Requests & Preferences"
           subtitle="Add guest preferences and special requests."
         >
           <Field label="Special Requests">
             <Textarea
-              className="min-h-[88px] resize-none text-sm"
+              className={cn(PMS_OP_TEXTAREA, "min-h-[88px] resize-none text-sm")}
               maxLength={SPECIAL_REQUEST_MAX}
               value={specialRequests}
               onChange={(event) =>
@@ -1147,20 +1205,18 @@ export function CreateReservationBookingDetails({
               {requestLength}/{SPECIAL_REQUEST_MAX}
             </p>
           </Field>
-          <div className="mt-2">
+          <div className="mt-2" data-testid="room-preferences-ui-only">
             <p className="text-[11px] font-medium text-[#6B5E4E]">Room Preferences</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              Reference only — not included in the reservation create payload.
+            </p>
             <div className="mt-2 grid grid-cols-2 gap-2">
               {ROOM_PREFERENCE_OPTIONS.map((option) => (
                 <label
                   key={option.id}
-                  className="flex items-center gap-2 text-[12px] text-[#251605]"
+                  className="flex items-center gap-2 text-[12px] text-[#251605] opacity-60"
                 >
-                  <Checkbox
-                    checked={Boolean(preferences[option.id])}
-                    onCheckedChange={(value) =>
-                      setPreferences((current) => ({ ...current, [option.id]: value === true }))
-                    }
-                  />
+                  <Checkbox checked={false} disabled aria-label={option.label} />
                   {option.label}
                 </label>
               ))}
@@ -1193,18 +1249,20 @@ function rateCopyFromQuote(
 }
 
 function BookingCard({
+  testId,
   title,
   subtitle,
   icon,
   children,
 }: {
+  testId?: string;
   title: string;
   subtitle?: string;
   icon?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
+    <section className={cn(PMS_OP_PANEL, "p-3")} data-testid={testId}>
       <div className="flex items-start gap-2">
         {icon}
         <div>
@@ -1233,7 +1291,7 @@ function RelationshipPanel({
   children: ReactNode;
 }) {
   return (
-    <div className={cn("rounded-lg border border-[#E7E0D4] p-3", tint, !enabled && "opacity-70")}>
+    <div className={cn("rounded-md border border-[#DDD4C5] p-3", tint, !enabled && "opacity-70")}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-sm font-medium text-[#251605]">
           {icon}
@@ -1254,7 +1312,7 @@ function RelationshipPanel({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid gap-1">
-      <p className="text-[11px] font-medium text-[#6B5E4E]">{label}</p>
+      <p className={cn(PMS_OP_LABEL, "text-[11px] text-[#6B5E4E]")}>{label}</p>
       {children}
     </div>
   );

@@ -28,8 +28,11 @@ import {
   evaluateMealsCard3Readiness,
   isOwnedPackageCoverPath,
   packageCoverImagePath,
+  PACKAGE_CHARGE_BASES,
+  PACKAGE_CHARGE_BASIS_DEFAULT,
   PACKAGE_COVER_CONTENT_TYPES,
   PACKAGE_COVER_MAX_BYTES,
+  parsePackageChargeBasis,
   previousPackageCoverToRemove,
   type Card3FoServiceRef,
   type Card3RatePlanRef,
@@ -79,6 +82,7 @@ const packageSchema = z.object({
   type: z.enum(PACKAGE_TYPES),
   description: descriptionSchema,
   packagePrice: z.number().min(0, "Package price cannot be negative.").max(10_000_000),
+  chargeBasis: z.enum(PACKAGE_CHARGE_BASES),
   active: z.boolean(),
   roomTypeIds: z.array(idSchema).max(200),
   ratePlanIds: z.array(idSchema).max(200),
@@ -235,7 +239,9 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       .order("code"),
     db
       .from("pms_packages")
-      .select("id, code, name, type, description, package_price, active, cover_image_path")
+      .select(
+        "id, code, name, type, description, package_price, active, cover_image_path, charge_basis",
+      )
       .eq("restaurant_id", restaurantId)
       .order("code"),
     db
@@ -362,6 +368,10 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       typeLabel: PACKAGE_TYPE_LABELS[type],
       description: String(row.description ?? ""),
       packagePrice: Number(row.package_price ?? 0),
+      chargeBasis:
+        row.charge_basis === undefined || row.charge_basis === null
+          ? PACKAGE_CHARGE_BASIS_DEFAULT
+          : parsePackageChargeBasis(row.charge_basis),
       active: row.active !== false,
       roomTypeIds: roomTypeIdsByPackage.get(row.id) ?? [],
       ratePlanIds: ratePlanLinks.map((link) => link.ratePlanId),
@@ -555,6 +565,7 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
       type: data.type,
       description: data.description?.trim() ? data.description.trim() : null,
       package_price: data.packagePrice,
+      charge_basis: data.chargeBasis,
       active: data.active,
     };
     let packageId = data.id;

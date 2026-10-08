@@ -483,7 +483,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
     assert.ok(submitStart > 0);
     const submitBlock = page.slice(submitStart, page.indexOf("});", submitStart));
     assert.doesNotMatch(submitBlock, /package/);
-    assert.match(page, /CreateReservationAssociations/);
+    assert.match(page, /CreateReservationBookingDetails/);
     assert.match(page, /const UNASSIGNED = "unassigned"/);
     assert.match(page, /data-testid="summary-unpriced-badge"|summary-stay-total/);
   });

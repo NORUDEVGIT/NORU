@@ -76,9 +76,17 @@ import {
 
   CARD3_MEALS_TABS,
 
+  PACKAGE_CHARGE_BASES,
+
+  PACKAGE_CHARGE_BASIS_DEFAULT,
+
+  PACKAGE_CHARGE_BASIS_LABELS,
+
   PACKAGE_COVER_CONTENT_TYPES,
 
   PACKAGE_COVER_MAX_BYTES,
+
+  type PackageChargeBasis,
 
   MEAL_PLAN_TYPE_LABELS,
 
@@ -175,6 +183,8 @@ type PackageInput = {
   description?: string;
 
   packagePrice: number;
+
+  chargeBasis: PackageChargeBasis;
 
   active: boolean;
 
@@ -1429,6 +1439,8 @@ function PackageMasterEditor({
 
     packagePrice: number;
 
+    chargeBasis: PackageChargeBasis;
+
     active: boolean;
 
     roomTypeIds: string[];
@@ -1514,6 +1526,10 @@ function PackageMasterEditor({
   // Section 2 — Pricing
 
   const [price, setPrice] = useState(value?.packagePrice ?? 0);
+
+  const [chargeBasis, setChargeBasis] = useState<PackageChargeBasis>(
+    value?.chargeBasis ?? PACKAGE_CHARGE_BASIS_DEFAULT,
+  );
 
 
 
@@ -1831,6 +1847,8 @@ function PackageMasterEditor({
 
           packagePrice: price,
 
+          chargeBasis,
+
           active,
 
           roomTypeIds: roomTypeMode === "all" ? [] : selectedRoomTypeIds,
@@ -2035,13 +2053,48 @@ function PackageMasterEditor({
 
             />
 
-            <p className="text-xs text-muted-foreground">
+          </div>
 
-              Charge basis: per stay. Configurable charge basis (per night, per person, etc.) is
+          <div className="space-y-1">
 
-              planned for Phase D.
+            <Label htmlFor="pkg-master-charge-basis">Charge basis</Label>
 
-            </p>
+            <Select
+              value={chargeBasis}
+              disabled={!canEdit}
+              onValueChange={(next) => setChargeBasis(next as PackageChargeBasis)}
+            >
+              <SelectTrigger id="pkg-master-charge-basis" data-testid="pkg-master-charge-basis">
+                <SelectValue placeholder="Select charge basis" />
+              </SelectTrigger>
+
+              <SelectContent>
+
+                {PACKAGE_CHARGE_BASES.map((basis) => (
+
+                  <SelectItem key={basis} value={basis}>
+
+                    {PACKAGE_CHARGE_BASIS_LABELS[basis]}
+
+                  </SelectItem>
+
+                ))}
+
+              </SelectContent>
+
+            </Select>
+
+            {chargeBasis !== "per_stay" ? (
+
+              <p className="text-xs text-muted-foreground" data-testid="pkg-charge-basis-limit">
+
+                Configured charge basis is stored for package setup. Operational charging currently
+
+                supports Per stay only; other bases are not yet applied automatically.
+
+              </p>
+
+            ) : null}
 
           </div>
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
-import { useMutation, useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueries } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
@@ -37,15 +37,21 @@ import {
   formatStayDate,
   propertyToday,
 } from "@/packages/pms/components/bookings/reservation-bits";
-import { CreateReservationContext } from "@/packages/pms/components/bookings/create-reservation-context";
-import { CreateReservationAssociations } from "@/packages/pms/components/bookings/create-reservation-associations";
 import {
   CreateReservationGuest,
   toPickedGuest,
   type PickedReservationGuest,
 } from "@/packages/pms/components/bookings/create-reservation-guest";
 import { CreateReservationStay } from "@/packages/pms/components/bookings/create-reservation-stay";
-import { CreateReservationSearchCriteria } from "@/packages/pms/components/bookings/create-reservation-search-criteria";
+import { PMS_OP_LABEL, PMS_OP_SELECT_TRIGGER } from "@/packages/pms/lib/pms-operational-surface";
+import { Label } from "@/shared/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import { CreateReservationAlternatives } from "@/packages/pms/components/bookings/create-reservation-alternatives";
 import {
   getGuest,
@@ -68,6 +74,9 @@ import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distributi
 import { getPmsSet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
 import { getPmsPolish1Snapshot } from "@/packages/pms/lib/pms-polish1-payment-admin.functions";
 import { getPaymentsCard3 } from "@/packages/pms/lib/payments-card3.functions";
+import { getMealsCard3 } from "@/packages/pms/lib/meals-card3.functions";
+import { buildAvailablePackageCards } from "@/packages/pms/lib/reservation-detail-packages";
+import { listEligiblePackageActivations } from "@/packages/pms/lib/revenue/commercial-package.functions";
 import {
   activeDepositPolicies,
   computeDepositRequirementAmount,
@@ -96,6 +105,7 @@ import {
   resolveBookingSourceOptions,
   resolveMarketSegmentOptions,
   toPickedReservationMaster,
+  canAdvanceFromGuestStayAvailability,
   type PickedReservationMaster,
   type ReservationTypeMode,
 } from "@/packages/pms/lib/create-reservation-phase1";
@@ -155,8 +165,11 @@ const UNASSIGNED = "unassigned";
    CREATE_RESERVATION_SECTION7_SCOPE CREATE_RESERVATION_SECTION8_SCOPE
 */
 const CREATE_WORKFLOW_STEPS = [
-  { id: "guest-stay", label: "Guest & Stay", continueLabel: "Search Availability" },
-  { id: "availability", label: "Availability", continueLabel: "Continue to Booking Details" },
+  {
+    id: "guest-stay-availability",
+    label: "Guest, Stay & Availability",
+    continueLabel: "Continue to Booking Details",
+  },
   { id: "details", label: "Booking Details", continueLabel: "Continue to Policies & Guarantee" },
   { id: "policies", label: "Policies & Guarantee", continueLabel: "Continue to Review & Confirm" },
   { id: "review", label: "Review & Confirm", continueLabel: null },
@@ -211,8 +224,8 @@ export function CreateReservationPage({
   const fetchQuotes = useServerFn(quoteStay);
   const fetchRoomTypes = useServerFn(listRoomTypes);
   const fetchCurrencies = useServerFn(getCurrencyCard3);
-  const queryClient = useQueryClient();
-
+  const fetchMealsCard3 = useServerFn(getMealsCard3);
+  const fetchEligiblePackages = useServerFn(listEligiblePackageActivations);
   const [reservationType, setReservationType] = useState<ReservationTypeMode>("individual");
   const [pendingType, setPendingType] = useState<ReservationTypeMode | null>(null);
   const [bookingSource, setBookingSource] = useState("");
@@ -283,15 +296,21 @@ export function CreateReservationPage({
 
   const initialCompanyQuery = useQuery({
     queryKey: ["initial-reservation-company", restaurantId, initialCompanyMasterId],
-    queryFn: () => fetchGuestAccount({ data: { restaurantId, accountId: initialCompanyMasterId! } }),
+    queryFn: () =>
+      fetchGuestAccount({ data: { restaurantId, accountId: initialCompanyMasterId! } }),
     enabled: canManage && Boolean(initialCompanyMasterId) && !companyMaster && !companyOverride,
     staleTime: 60_000,
   });
 
   const initialTravelAgentQuery = useQuery({
     queryKey: ["initial-reservation-travel-agent", restaurantId, initialTravelAgentMasterId],
-    queryFn: () => fetchGuestAccount({ data: { restaurantId, accountId: initialTravelAgentMasterId! } }),
-    enabled: canManage && Boolean(initialTravelAgentMasterId) && !travelAgentMaster && !travelAgentOverride,
+    queryFn: () =>
+      fetchGuestAccount({ data: { restaurantId, accountId: initialTravelAgentMasterId! } }),
+    enabled:
+      canManage &&
+      Boolean(initialTravelAgentMasterId) &&
+      !travelAgentMaster &&
+      !travelAgentOverride,
     staleTime: 60_000,
   });
 
@@ -331,12 +350,7 @@ export function CreateReservationPage({
       setCompanyMaster(toPickedReservationMaster(account));
       setReservationType((prev) => (prev === "individual" ? "corporate" : prev));
     }
-  }, [
-    initialCompanyMasterId,
-    companyOverride,
-    companyMaster,
-    initialCompanyQuery.data,
-  ]);
+  }, [initialCompanyMasterId, companyOverride, companyMaster, initialCompanyQuery.data]);
 
   useEffect(() => {
     if (!initialTravelAgentMasterId || travelAgentOverride || travelAgentMaster) return;
@@ -371,17 +385,13 @@ export function CreateReservationPage({
 
     const isGroupType = account.accountType === "group";
     const isNotAnonymized = !account.anonymisedAt;
-    const isOperational = account.accountStatus !== "deleted" && account.accountStatus !== "inactive";
+    const isOperational =
+      account.accountStatus !== "deleted" && account.accountStatus !== "inactive";
 
     if (isGroupType && isNotAnonymized && isOperational) {
       setGroupMaster(toPickedReservationMaster(account));
     }
-  }, [
-    initialGroupMasterId,
-    groupOverride,
-    groupMaster,
-    initialGroupQuery.data,
-  ]);
+  }, [initialGroupMasterId, groupOverride, groupMaster, initialGroupQuery.data]);
 
   useEffect(() => {
     if (initialPrefQuery.data?.applyToFutureReservations && initialPrefQuery.data.specialRequests) {
@@ -423,6 +433,54 @@ export function CreateReservationPage({
 
   const datesValid = isStayRangeValid(arrival, departure);
   const nights = nightsBetween(arrival, departure);
+  const createActivePackageCount = activePackageCountFromRows(
+    set3Query.data?.snapshot.packages ?? [],
+  );
+  const createPackageMerchContextReady = datesValid && !!roomTypeId && !!ratePlanId;
+  const createPackageMerchEnabled =
+    canManage &&
+    createPackageMerchContextReady &&
+    (set3Query.data?.snapshot.packagesAvailable ?? false) &&
+    createActivePackageCount > 0;
+  const mealsCard3MerchQuery = useQuery({
+    queryKey: ["meals-card3", restaurantId, "create-reservation-merch"],
+    queryFn: () => fetchMealsCard3({ data: { restaurantId } }),
+    enabled: createPackageMerchEnabled,
+    retry: false,
+  });
+  const eligiblePackagesMerchQuery = useQuery({
+    queryKey: [
+      "eligible-packages",
+      restaurantId,
+      ratePlanId,
+      roomTypeId,
+      arrival,
+      departure,
+      "create-merch",
+    ],
+    queryFn: () =>
+      fetchEligiblePackages({
+        data: {
+          restaurantId,
+          ratePlanId,
+          roomTypeId,
+          arrivalDate: arrival,
+          departureDate: departure,
+        },
+      }),
+    enabled: createPackageMerchEnabled && mealsCard3MerchQuery.isSuccess,
+    retry: false,
+  });
+  const createPackageMerchandiseCards = useMemo(() => {
+    if (!mealsCard3MerchQuery.data) return [];
+    return buildAvailablePackageCards({
+      catalogue: mealsCard3MerchQuery.data.snapshot.packages,
+      components: mealsCard3MerchQuery.data.snapshot.components,
+      eligible: eligiblePackagesMerchQuery.data ?? [],
+      roomTypeId,
+      ratePlanId,
+    });
+  }, [eligiblePackagesMerchQuery.data, mealsCard3MerchQuery.data, ratePlanId, roomTypeId]);
 
   function handleArrivalChange(next: string) {
     if (!next) {
@@ -864,6 +922,15 @@ export function CreateReservationPage({
         ratePlanId: selectedQuote.quote.ratePlanId,
       }
     : null;
+  const canContinueGuestStayAvailability = canAdvanceFromGuestStayAvailability({
+    datesValid,
+    hasGuest: !!guest,
+    roomTypeId,
+    occupancyOk,
+    priced,
+    canCreateUnpriced,
+    available: selectedType?.available ?? 0,
+  });
   const canContinueBookingDetails = canAdvanceFromBookingDetails({
     quotesFetching: quotesQuery.isFetching,
     roomTypeId,
@@ -983,11 +1050,6 @@ export function CreateReservationPage({
     return Boolean(catalogQuoteQueries[index]?.isError);
   }
 
-  function modifyAvailabilitySearch() {
-    void queryClient.invalidateQueries({ queryKey: ["room-type-availability", restaurantId] });
-    void queryClient.invalidateQueries({ queryKey: ["stay-quotes", restaurantId] });
-  }
-
   function handleRoomChange(nextId: string) {
     setRoomId(nextId);
     if (nextId === UNASSIGNED) {
@@ -1082,46 +1144,58 @@ export function CreateReservationPage({
 
   const preferenceExtras = (
     <>
-      <div className="min-w-0 space-y-1">
-        <label className="text-sm font-medium" htmlFor="room-type-preference">
+      <div className="min-w-0 space-y-1.5">
+        <Label htmlFor="room-type-preference" className={PMS_OP_LABEL}>
           Room Type Preference
-        </label>
-        <select
-          id="room-type-preference"
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-          value={roomTypeId}
+        </Label>
+        <Select
+          value={roomTypeId || undefined}
           disabled={!datesValid || availability.length === 0}
-          onChange={(event) => {
-            const next = availability.find((row) => row.roomTypeId === event.target.value);
+          onValueChange={(value) => {
+            const next = availability.find((row) => row.roomTypeId === value);
             if (next) selectRoomType(next);
           }}
         >
-          <option value="">Select room type</option>
-          {availability.map((row) => (
-            <option key={row.roomTypeId} value={row.roomTypeId}>
-              {row.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            id="room-type-preference"
+            className={PMS_OP_SELECT_TRIGGER}
+            data-testid="room-type-preference"
+          >
+            <SelectValue placeholder="Select room type" />
+          </SelectTrigger>
+          <SelectContent>
+            {availability.map((row) => (
+              <SelectItem key={row.roomTypeId} value={row.roomTypeId}>
+                {row.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-      <div className="min-w-0 space-y-1">
-        <label className="text-sm font-medium" htmlFor="rate-preference">
+      <div className="min-w-0 space-y-1.5">
+        <Label htmlFor="rate-preference" className={PMS_OP_LABEL}>
           Rate Preference
-        </label>
-        <select
-          id="rate-preference"
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-          value={ratePlanId}
+        </Label>
+        <Select
+          value={ratePlanId || undefined}
           disabled={!roomTypeId || quotes.length === 0}
-          onChange={(event) => setRatePlanId(event.target.value)}
+          onValueChange={setRatePlanId}
         >
-          <option value="">Select rate plan</option>
-          {quotes.map((row) => (
-            <option key={row.plan.id} value={row.plan.id} disabled={!row.quote}>
-              {row.plan.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            id="rate-preference"
+            className={PMS_OP_SELECT_TRIGGER}
+            data-testid="rate-preference"
+          >
+            <SelectValue placeholder="Select rate plan" />
+          </SelectTrigger>
+          <SelectContent>
+            {quotes.map((row) => (
+              <SelectItem key={row.plan.id} value={row.plan.id} disabled={!row.quote}>
+                {row.plan.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </>
   );
@@ -1165,51 +1239,6 @@ export function CreateReservationPage({
     </WorkspaceCard>
   );
 
-  const guestSection = (
-    <div className="space-y-4">
-      <WorkspaceCard>
-        <CreateReservationContext
-          restaurantId={restaurantId}
-          canCreateMaster={guestAccessQuery.data?.canManage ?? false}
-          reservationType={reservationType}
-          onRequestTypeChange={requestTypeChange}
-          bookingSource={bookingSource}
-          onBookingSourceChange={setBookingSource}
-          sourceOptions={sourceOptions}
-          marketSegment={marketSegment}
-          onMarketSegmentChange={setMarketSegment}
-          segmentOptions={segmentOptions}
-          externalReference={externalReference}
-          onExternalReferenceChange={setExternalReference}
-          bookingAgentName={bookingAgentName}
-          companyMaster={companyMaster}
-          onCompanyMasterChange={handleCompanyMasterChange}
-          travelAgentMaster={travelAgentMaster}
-          onTravelAgentMasterChange={handleTravelAgentMasterChange}
-        />
-      </WorkspaceCard>
-      <div
-        className={cn(
-          "grid gap-4",
-          reservationType === "individual" ? "lg:grid-cols-2 lg:items-start" : "",
-        )}
-      >
-        {reservationType === "individual" ? (
-          <WorkspaceCard>
-            <CreateReservationAssociations
-              restaurantId={restaurantId}
-              canCreateMaster={guestAccessQuery.data?.canManage ?? false}
-              companyMaster={companyMaster}
-              onCompanyMasterChange={handleCompanyMasterChange}
-              travelAgentMaster={travelAgentMaster}
-              onTravelAgentMasterChange={handleTravelAgentMasterChange}
-            />
-          </WorkspaceCard>
-        ) : null}
-      </div>
-    </div>
-  );
-
   const roomsAndRates = (
     <CreateReservationRoomType
       datesValid={datesValid}
@@ -1249,7 +1278,26 @@ export function CreateReservationPage({
     />
   );
 
-  const roomSection = <div className="space-y-4">{roomsAndRates}</div>;
+  const roomSection = (
+    <div className="space-y-4">
+      {roomsAndRates}
+      {availability.length === 0 ? (
+        <CreateReservationRate
+          datesValid={datesValid}
+          roomTypeId={roomTypeId}
+          loading={quotesQuery.isLoading || quotesQuery.isFetching}
+          error={quotesQuery.isError}
+          quotes={quotes}
+          ratePlanId={ratePlanId}
+          canCreateUnpriced={canCreateUnpriced}
+          money={money}
+          nights={nights}
+          onSelect={setRatePlanId}
+        />
+      ) : null}
+      <CreateReservationAlternatives />
+    </div>
+  );
 
   const policiesSection = (
     <CreateReservationPoliciesGuarantee
@@ -1280,9 +1328,7 @@ export function CreateReservationPage({
         />
       }
       policies={step4Policies}
-      onPoliciesChange={(patch) =>
-        setStep4Policies((current) => ({ ...current, ...patch }))
-      }
+      onPoliciesChange={(patch) => setStep4Policies((current) => ({ ...current, ...patch }))}
       notes={notes}
       onNotesChange={setNotes}
       money={money}
@@ -1384,8 +1430,8 @@ export function CreateReservationPage({
       depositPaymentMethod={
         step4Policies.depositPaymentMethod === "same_as_guarantee"
           ? "Same as Guarantee"
-          : guaranteeOptions.find((row) => row.value === step4Policies.depositPaymentMethod)
-              ?.label ?? step4Policies.depositPaymentMethod
+          : (guaranteeOptions.find((row) => row.value === step4Policies.depositPaymentMethod)
+              ?.label ?? step4Policies.depositPaymentMethod)
       }
       noShowPolicy={stayPolicyLabel(step4Policies.noShowPolicy)}
       earlyDeparturePolicy={stayPolicyLabel(step4Policies.earlyDeparturePolicy)}
@@ -1402,193 +1448,137 @@ export function CreateReservationPage({
           loading={set3Query.isLoading || set3Query.isFetching}
           error={set3Query.isError}
           packagesAvailable={set3Query.data?.snapshot.packagesAvailable ?? false}
-          activePackageCount={activePackageCountFromRows(set3Query.data?.snapshot.packages ?? [])}
+          activePackageCount={createActivePackageCount}
           canEditSet3={set3Query.data?.canEdit ?? false}
           operational
+          merchandiseContextReady={createPackageMerchContextReady}
+          merchandiseCards={createPackageMerchandiseCards}
+          merchandiseCurrency={displayCurrencyCode || propertyCurrencyCode}
+          money={money}
         />
       }
     />
   );
 
-  const guestOnly = (
-    <WorkspaceCard>
+  const guestStayAvailabilitySection = (
+    <div className="space-y-4" data-testid="create-reservation-step-guest-stay-availability">
+      {staySection}
+      {roomSection}
       <CreateReservationGuest
         restaurantId={restaurantId}
         canCreateGuest={guestAccessQuery.data?.canManage ?? false}
         guest={guest}
         onGuestChange={setGuest}
+        listEnabled={workflowStep === 0 && !guest}
       />
-    </WorkspaceCard>
+    </div>
   );
 
-  const availabilitySection = (
-    <div className="space-y-4">
-      <CreateReservationSearchCriteria
+  const bookingDetailsSection = (
+    <div data-testid="create-reservation-booking-details-step">
+      <CreateReservationBookingDetails
+        restaurantId={restaurantId}
+        canCreateMaster={guestAccessQuery.data?.canManage ?? false}
+        guest={guest}
+        reservationType={reservationType}
+        onRequestTypeChange={requestTypeChange}
+        bookingAgentName={bookingAgentName}
+        bookingSource={bookingSource}
+        onBookingSourceChange={setBookingSource}
+        sourceOptions={sourceOptions}
+        marketSegment={marketSegment}
+        onMarketSegmentChange={setMarketSegment}
+        segmentOptions={segmentOptions}
+        externalReference={externalReference}
+        onExternalReferenceChange={setExternalReference}
+        companyMaster={companyMaster}
+        onCompanyMasterChange={handleCompanyMasterChange}
+        travelAgentMaster={travelAgentMaster}
+        onTravelAgentMasterChange={handleTravelAgentMasterChange}
+        linkedGroupId={linkedGroupId}
+        linkedBlockId={linkedBlockId}
+        salesChannel={salesChannel}
+        onSalesChannelChange={setSalesChannel}
+        salesChannelOptions={salesChannelOptions}
+        purposeOfStay={purposeOfStay}
+        onPurposeOfStayChange={setPurposeOfStay}
+        billingRuleId={billingRuleId}
+        onBillingRuleIdChange={setBillingRuleId}
+        companyContactId={companyContactId}
+        onCompanyContactIdChange={setCompanyContactId}
+        travelAgentContactId={travelAgentContactId}
+        onTravelAgentContactIdChange={setTravelAgentContactId}
+        sameAsGuest={sameAsGuest}
+        onSameAsGuestChange={setSameAsGuest}
+        onGuestChange={setGuest}
+        onApplyRatePlan={setRatePlanId}
+        onLinkedGroupChange={(groupId, blockId) => {
+          setLinkedGroupId(groupId);
+          setLinkedBlockId(blockId);
+        }}
+        quoteCurrency={displayCurrencyCode}
+        ratePlanId={ratePlanId}
+        roomTypeId={roomTypeId}
+        roomTypeName={stickyRoomTypeLabel(selectedMeta)}
+        roomTypeCode={selectedMeta?.code ?? null}
+        catalog={catalogRow}
+        adultCapacity={selectedMeta?.adultCapacity ?? null}
+        assignedRoomLabel={stickyRoomAssignmentLabel({
+          roomTypeId,
+          roomId,
+          unassignedValue: UNASSIGNED,
+          room: selectedAssignedRoom,
+        })}
+        roomAssignment={
+          <CreateReservationRoomAssignment
+            compact
+            title="Room assignment (optional)"
+            emptyCopy="No free rooms of this type for those dates — the stay can still be booked and assigned later."
+            datesValid={datesValid}
+            roomTypeId={roomTypeId}
+            loading={roomsQuery.isLoading || roomsQuery.isFetching}
+            rooms={rooms}
+            roomId={roomId}
+            unassignedValue={UNASSIGNED}
+            onSelect={handleRoomChange}
+          />
+        }
+        selectedQuote={selectedQuote}
+        money={money}
+        nights={nights}
+        onChangeRoomRate={() => setWorkflowStep(0)}
         arrival={arrival}
         departure={departure}
-        nights={nights}
-        rooms={roomsRequested}
+        datesValid={datesValid}
+        roomsRequested={roomsRequested}
         adults={adults}
         children={children}
-        roomTypeFilter={searchRoomTypeFilter}
-        roomTypes={availability}
+        infants={infants}
+        roomUnassigned={roomId === UNASSIGNED}
         onArrivalChange={handleArrivalChange}
         onDepartureChange={handleDepartureChange}
         onNightsChange={handleNightsChange}
         onRoomsChange={setRoomsRequested}
         onAdultsChange={setAdults}
         onChildrenChange={setChildren}
-        infants={infants}
         onInfantsChange={setInfants}
-        onRoomTypeFilterChange={setSearchRoomTypeFilter}
-        onModifySearch={modifyAvailabilitySearch}
+        onKeepUnassigned={(unassigned) => {
+          if (unassigned) handleRoomChange(UNASSIGNED);
+        }}
+        specialRequests={specialRequests}
+        onSpecialRequestsChange={setSpecialRequests}
       />
-      {roomsAndRates}
-      {availability.length === 0 ? (
-        <CreateReservationRate
-          datesValid={datesValid}
-          roomTypeId={roomTypeId}
-          loading={quotesQuery.isLoading || quotesQuery.isFetching}
-          error={quotesQuery.isError}
-          quotes={quotes}
-          ratePlanId={ratePlanId}
-          canCreateUnpriced={canCreateUnpriced}
-          money={money}
-          nights={nights}
-          onSelect={setRatePlanId}
-        />
-      ) : null}
-      <CreateReservationAlternatives />
     </div>
-  );
-
-  const guestStaySection = (
-    <div className="space-y-4">
-      {staySection}
-      {guestOnly}
-    </div>
-  );
-
-  const bookingDetailsSection = (
-    <CreateReservationBookingDetails
-      restaurantId={restaurantId}
-      canCreateMaster={guestAccessQuery.data?.canManage ?? false}
-      guest={guest}
-      bookingSource={bookingSource}
-      onBookingSourceChange={setBookingSource}
-      sourceOptions={sourceOptions}
-      marketSegment={marketSegment}
-      onMarketSegmentChange={setMarketSegment}
-      segmentOptions={segmentOptions}
-      externalReference={externalReference}
-      onExternalReferenceChange={setExternalReference}
-      companyMaster={companyMaster}
-      onCompanyMasterChange={handleCompanyMasterChange}
-      travelAgentMaster={travelAgentMaster}
-      onTravelAgentMasterChange={handleTravelAgentMasterChange}
-      linkedGroupId={linkedGroupId}
-      linkedBlockId={linkedBlockId}
-      salesChannel={salesChannel}
-      onSalesChannelChange={setSalesChannel}
-      salesChannelOptions={salesChannelOptions}
-      purposeOfStay={purposeOfStay}
-      onPurposeOfStayChange={setPurposeOfStay}
-      billingRuleId={billingRuleId}
-      onBillingRuleIdChange={setBillingRuleId}
-      companyContactId={companyContactId}
-      onCompanyContactIdChange={setCompanyContactId}
-      travelAgentContactId={travelAgentContactId}
-      onTravelAgentContactIdChange={setTravelAgentContactId}
-      sameAsGuest={sameAsGuest}
-      onSameAsGuestChange={setSameAsGuest}
-      onGuestChange={setGuest}
-      onApplyRatePlan={setRatePlanId}
-      onLinkedGroupChange={(groupId, blockId) => {
-        setLinkedGroupId(groupId);
-        setLinkedBlockId(blockId);
-      }}
-      quoteCurrency={displayCurrencyCode}
-      ratePlanId={ratePlanId}
-      roomTypeId={roomTypeId}
-      roomTypeName={stickyRoomTypeLabel(selectedMeta)}
-      roomTypeCode={selectedMeta?.code ?? null}
-      catalog={catalogRow}
-      adultCapacity={selectedMeta?.adultCapacity ?? null}
-      assignedRoomLabel={stickyRoomAssignmentLabel({
-        roomTypeId,
-        roomId,
-        unassignedValue: UNASSIGNED,
-        room: selectedAssignedRoom,
-      })}
-      roomAssignment={
-        <CreateReservationRoomAssignment
-          compact
-          title="Room assignment (optional)"
-          emptyCopy="No free rooms of this type for those dates — the stay can still be booked and assigned later."
-          datesValid={datesValid}
-          roomTypeId={roomTypeId}
-          loading={roomsQuery.isLoading || roomsQuery.isFetching}
-          rooms={rooms}
-          roomId={roomId}
-          unassignedValue={UNASSIGNED}
-          onSelect={handleRoomChange}
-        />
-      }
-      selectedQuote={selectedQuote}
-      money={money}
-      nights={nights}
-      onChangeRoomRate={() => setWorkflowStep(1)}
-      arrival={arrival}
-      departure={departure}
-      datesValid={datesValid}
-      roomsRequested={roomsRequested}
-      adults={adults}
-      children={children}
-      infants={infants}
-      roomUnassigned={roomId === UNASSIGNED}
-      onArrivalChange={handleArrivalChange}
-      onDepartureChange={handleDepartureChange}
-      onNightsChange={handleNightsChange}
-      onRoomsChange={setRoomsRequested}
-      onAdultsChange={setAdults}
-      onChildrenChange={setChildren}
-      onInfantsChange={setInfants}
-      onKeepUnassigned={(unassigned) => {
-        if (unassigned) handleRoomChange(UNASSIGNED);
-      }}
-      specialRequests={specialRequests}
-      onSpecialRequestsChange={setSpecialRequests}
-    />
   );
 
   const stepSections = [
-    guestStaySection,
-    availabilitySection,
+    guestStayAvailabilitySection,
     bookingDetailsSection,
     policiesSection,
     reviewSection,
   ];
   const currentStep = CREATE_WORKFLOW_STEPS[workflowStep] ?? CREATE_WORKFLOW_STEPS[0];
-  const mainContent = embedded ? (
-    stepSections[workflowStep]
-  ) : (
-    <div className="space-y-4">
-      {embedded ? null : (
-        <div>
-          <h1 className="font-display text-2xl">New Reservation</h1>
-          <p className="text-sm text-muted-foreground">
-            Create a stay for {membership.restaurant.name}. Availability updates as you change the
-            dates.
-          </p>
-        </div>
-      )}
-      {staySection}
-      {guestOnly}
-      {guestSection}
-      {roomSection}
-      {policiesSection}
-    </div>
-  );
+  const mainContent = stepSections[workflowStep];
 
   const summaryCard = (
     <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
@@ -1908,25 +1898,41 @@ export function CreateReservationPage({
     </AlertDialog>
   );
 
-  if (embedded) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <CreateWorkflowStepper
-          steps={CREATE_WORKFLOW_STEPS}
-          current={workflowStep}
-          onSelect={setWorkflowStep}
-        />
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 xl:flex-row xl:items-start">
-          <div className="min-w-0 flex-[3]">{mainContent}</div>
-          <aside
-            className={
-              summaryOpen
+  return (
+    <div className={cn(embedded ? "flex min-h-0 flex-1 flex-col" : "flex flex-col gap-4 p-4")}>
+      {!embedded ? (
+        <div>
+          <h1 className="font-display text-2xl">New Reservation</h1>
+          <p className="text-sm text-muted-foreground">
+            Create a stay for {membership.restaurant.name}. Availability updates as you change the
+            dates.
+          </p>
+        </div>
+      ) : null}
+      <CreateWorkflowStepper
+        steps={CREATE_WORKFLOW_STEPS}
+        current={workflowStep}
+        onSelect={setWorkflowStep}
+      />
+      <div
+        className={cn(
+          "flex flex-col gap-4 xl:flex-row xl:items-start",
+          embedded && "min-h-0 flex-1 overflow-y-auto p-4",
+        )}
+      >
+        <div className="min-w-0 flex-[3]">{mainContent}</div>
+        <aside
+          className={
+            embedded
+              ? summaryOpen
                 ? "min-w-0 w-full shrink-0 space-y-4 xl:sticky xl:top-4 xl:w-[320px]"
                 : "xl:sticky xl:top-4 xl:block xl:w-14"
-            }
-            data-testid="create-reservation-summary"
-          >
-            {summaryOpen ? (
+              : "min-w-0 w-full shrink-0 space-y-4 xl:sticky xl:top-4 xl:w-80"
+          }
+          data-testid="create-reservation-summary"
+        >
+          {embedded ? (
+            summaryOpen ? (
               <>
                 <div className="flex justify-end">
                   <Button
@@ -1950,65 +1956,53 @@ export function CreateReservationPage({
               >
                 <ChevronLeft className="size-4" />
               </button>
-            )}
-          </aside>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#DDD4C5] bg-white px-4 py-3">
-          <div className="flex flex-wrap gap-2">
-            {onCancel ? (
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-            ) : null}
-            {workflowStep > 0 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setWorkflowStep((step) => step - 1)}
-              >
-                ← Back
-              </Button>
-            ) : null}
-          </div>
-          {workflowStep < CREATE_WORKFLOW_STEPS.length - 1 ? (
-            <Button
-              className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-              disabled={
-                (workflowStep === 1 &&
-                  !(
-                    roomTypeId &&
-                    occupancyOk &&
-                    (priced || canCreateUnpriced) &&
-                    (selectedType?.available ?? 0) > 0
-                  )) ||
-                (workflowStep === 2 && !canContinueBookingDetails)
-              }
-              onClick={() => setWorkflowStep((step) => step + 1)}
-            >
-              {currentStep.continueLabel} →
-            </Button>
+            )
           ) : (
-            actions
+            summaryCard
           )}
-        </div>
-        {typeWarn}
+        </aside>
       </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-6 p-4 xl:flex-row xl:items-start">
-      <div className="min-w-0 flex-1 space-y-4">
-        {mainContent}
-        <div className="xl:hidden">{actions}</div>
-      </div>
-      <aside
-        className="space-y-4 xl:sticky xl:top-4 xl:w-80"
-        data-testid="create-reservation-summary"
+      <div
+        className={cn(
+          "flex shrink-0 flex-wrap items-center justify-between gap-3 border-[#DDD4C5] bg-white px-4 py-3",
+          embedded ? "border-t" : "rounded-xl border",
+        )}
       >
-        {summaryCard}
-        <div className="hidden xl:block">{actions}</div>
-      </aside>
+        <div className="flex flex-wrap gap-2">
+          {onCancel ? (
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+          ) : !embedded ? (
+            <Button asChild variant="outline">
+              <Link to="/restaurant/pms/reservations">Cancel</Link>
+            </Button>
+          ) : null}
+          {workflowStep > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setWorkflowStep((step) => step - 1)}
+            >
+              ← Back
+            </Button>
+          ) : null}
+        </div>
+        {workflowStep < CREATE_WORKFLOW_STEPS.length - 1 ? (
+          <Button
+            className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+            disabled={
+              (workflowStep === 0 && !canContinueGuestStayAvailability) ||
+              (workflowStep === 1 && !canContinueBookingDetails)
+            }
+            onClick={() => setWorkflowStep((step) => step + 1)}
+          >
+            {currentStep.continueLabel} →
+          </Button>
+        ) : (
+          actions
+        )}
+      </div>
       {typeWarn}
     </div>
   );

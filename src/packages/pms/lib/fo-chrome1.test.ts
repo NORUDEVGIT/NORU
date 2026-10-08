@@ -149,7 +149,7 @@ describe("FO large-screen chrome — Legend, HK glyph, Filters", () => {
     assert.match(calendar, /title="Reservation"/);
   });
 
-  it("places a Live HK glyph beside the room number and never invents Clean", () => {
+  it("shows Live HK in the HK column and never invents Clean", () => {
     assert.equal(liveHkStatus(null), null);
     assert.equal(liveHkStatus(undefined), null);
     assert.equal(liveHkStatus("clean"), "clean");
@@ -165,6 +165,8 @@ describe("FO large-screen chrome — Legend, HK glyph, Filters", () => {
     const calendar = readRel("../components/frontoffice/room-rack-calendar.tsx");
     assert.match(calendar, /FoHkStatusGlyph/);
     assert.match(calendar, /fo-hk-glyph/);
+    assert.match(calendar, /data-testid="fo-room-hk"/);
+    assert.match(calendar, /RackHkCell/);
     assert.match(calendar, /size-3\.5/);
     assert.doesNotMatch(calendar, /invent Clean/);
     assert.doesNotMatch(calendar, /in_progress|In progress/);
