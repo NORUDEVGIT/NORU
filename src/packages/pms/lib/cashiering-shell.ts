@@ -6,21 +6,24 @@ export const CASHIERING_TABS = [
   { id: "payments", label: "Payments" },
   { id: "deposits", label: "Deposits" },
   { id: "refunds", label: "Refunds" },
+  { id: "transfers", label: "Transfers" },
+  { id: "accounts", label: "Accounts" },
+  { id: "exceptions", label: "Exceptions" },
+  { id: "reports", label: "Reports" },
   { id: "cashier-shift", label: "Cashier Shift" },
 ] as const;
 
 export type CashieringTabId = (typeof CASHIERING_TABS)[number]["id"];
 
 export const CASHIERING_DESK_EYEBROW = "Operations";
-export const CASHIERING_DESK_TITLE = "Cashiering Desk";
+export const CASHIERING_DESK_TITLE = "Cashiering";
 export const CASHIERING_DESK_DESCRIPTION =
-  "Manage guest folios, recorded payments and settlement activity.";
+  "Manage folios, financial activity, settlement and cashier operations across the property.";
 
 const TAB_ALIASES: Record<string, CashieringTabId> = {
   dashboard: "overview",
   shifts: "cashier-shift",
   "cashier-shifts": "cashier-shift",
-  transfers: "overview",
 };
 
 const FOLIO_ACTIONS = [
@@ -45,12 +48,28 @@ export function resolveCashieringTab(value: string | undefined | null): Cashieri
   return TAB_ALIASES[value] ?? "overview";
 }
 
+export type CashieringSearchParams = {
+  tab?: CashieringTabId;
+  folio?: string;
+  account?: "all" | "guest" | "company" | "group";
+  q?: string;
+  page?: number;
+  pageSize?: number;
+  folioStatus?: string;
+  stayStatus?: string;
+  stayFrom?: string;
+  stayTo?: string;
+  paymentState?: string;
+  sort?: string;
+};
+
 export function cashieringTabSearch(
   tab: CashieringTabId,
   folio?: string | null,
-): {
-  tab: CashieringTabId;
-  folio?: string;
-} {
-  return folio ? { tab, folio } : { tab };
+  extra?: Omit<CashieringSearchParams, "tab" | "folio">,
+): CashieringSearchParams {
+  const next: CashieringSearchParams = { ...(extra ?? {}), tab };
+  if (folio) next.folio = folio;
+  else if (folio === null) delete next.folio;
+  return next;
 }

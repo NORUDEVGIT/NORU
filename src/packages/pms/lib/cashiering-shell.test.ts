@@ -7,6 +7,7 @@ import {
   CASHIERING_DESK_EYEBROW,
   CASHIERING_DESK_TITLE,
   CASHIERING_TABS,
+  cashieringTabSearch,
   resolveCashieringTab,
 } from "./cashiering-shell.ts";
 
@@ -15,22 +16,47 @@ function read(path: string): string {
 }
 
 describe("cashiering desk shell", () => {
-  it("keeps the six URL tabs and maps the old names", () => {
+  it("keeps the desk URL tabs and maps the old names", () => {
     assert.deepEqual(
       CASHIERING_TABS.map((tab) => tab.id),
-      ["overview", "folios", "payments", "deposits", "refunds", "cashier-shift"],
+      [
+        "overview",
+        "folios",
+        "payments",
+        "deposits",
+        "refunds",
+        "transfers",
+        "accounts",
+        "exceptions",
+        "reports",
+        "cashier-shift",
+      ],
     );
     assert.equal(CASHIERING_DESK_EYEBROW, "Operations");
-    assert.equal(CASHIERING_DESK_TITLE, "Cashiering Desk");
+    assert.equal(CASHIERING_DESK_TITLE, "Cashiering");
     assert.equal(
       CASHIERING_DESK_DESCRIPTION,
-      "Manage guest folios, recorded payments and settlement activity.",
+      "Manage folios, financial activity, settlement and cashier operations across the property.",
     );
     assert.equal(resolveCashieringTab(undefined), "overview");
     assert.equal(resolveCashieringTab("dashboard"), "overview");
     assert.equal(resolveCashieringTab("shifts"), "cashier-shift");
-    assert.equal(resolveCashieringTab("transfers"), "overview");
+    assert.equal(resolveCashieringTab("transfers"), "transfers");
     assert.equal(resolveCashieringTab("folios"), "folios");
+  });
+
+  it("keeps the requested tab when building search params", () => {
+    assert.deepEqual(
+      cashieringTabSearch("payments", null, { tab: "overview", q: "401" }),
+      { q: "401", tab: "payments" },
+    );
+    assert.deepEqual(cashieringTabSearch("folios", "folio-1", { tab: "overview" }), {
+      tab: "folios",
+      folio: "folio-1",
+    });
+    assert.deepEqual(cashieringTabSearch("overview", null, { folio: "folio-1" }), {
+      tab: "overview",
+    });
   });
 
   it("uses the shared PMS chrome and does not keep a cashiering sidebar", () => {
@@ -44,7 +70,7 @@ describe("cashiering desk shell", () => {
     assert.match(chrome, /cashiering-workspace-nav/);
     assert.match(chrome, /\+ Post Payment/);
     assert.doesNotMatch(workspace, /FoundationPanel/);
-    assert.doesNotMatch(workspace, /transfers/);
+    assert.match(read("../components/cashiering/cashiering-phase-panels.tsx"), /TransfersPanel/);
     assert.match(route, /hidePackageRail/);
     assert.match(route, /hideTopHeader/);
     assert.match(nav, /label: "Cashiering", to: "\/restaurant\/pms\/cashiering"/);

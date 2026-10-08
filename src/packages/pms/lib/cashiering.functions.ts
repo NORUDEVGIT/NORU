@@ -50,6 +50,9 @@ export interface FolioRow {
   reservationStatus: string | null;
   arrivalDate: string | null;
   departureDate: string | null;
+  ratePlanName?: string | null;
+  marketSegment?: string | null;
+  bookingSource?: string | null;
 }
 
 export interface FolioTransactionRow {
@@ -101,7 +104,7 @@ export interface CashieringDashboard {
   todayCharges: number;
   todayDeposits: number;
   todayRefunds: number;
-  /** Folio-to-folio transfers are not represented in the ledger yet. */
+  /** Folio-to-folio transfers post via post_folio_transfer (Phase 7). */
   transfersSupported: boolean;
   openShifts: number;
   myOpenShiftId: string | null;
@@ -426,7 +429,7 @@ export const getFolio = createServerFn({ method: "GET" })
       .select(
         "id, folio_number, status, currency, opened_at, closed_at, reservation_id, guest_id, settlement_exception, " +
           "guest_profiles!guest_folios_guest_same_property(first_name, last_name, email, phone), " +
-          "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, arrival_date, departure_date, status, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name))",
+          "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, arrival_date, departure_date, status, market_segment, commercial_booking_source, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name), rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property(name))",
       )
       .eq("id", data.folioId)
       .eq("restaurant_id", data.restaurantId)
@@ -455,8 +458,11 @@ export const getFolio = createServerFn({ method: "GET" })
         arrival_date: string;
         departure_date: string;
         status: string;
+        market_segment: string | null;
+        commercial_booking_source: string | null;
         hotel_rooms: { room_number: string } | null;
         room_types: { name: string } | null;
+        rate_plan: { name: string } | null;
       } | null;
     };
 
@@ -511,6 +517,9 @@ export const getFolio = createServerFn({ method: "GET" })
       unsettledCheckout: f.settlement_exception === "unsettled_checkout" && f.status === "open",
       roomNumber: f.hotel_reservations?.hotel_rooms?.room_number ?? null,
       roomTypeName: f.hotel_reservations?.room_types?.name ?? null,
+      ratePlanName: f.hotel_reservations?.rate_plan?.name ?? null,
+      marketSegment: f.hotel_reservations?.market_segment ?? null,
+      bookingSource: f.hotel_reservations?.commercial_booking_source ?? null,
       transactions,
       ...totals(transactions.map((t) => ({ amount: t.amount }))),
     };
@@ -622,7 +631,7 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
       todayCharges: round2(todayCharges),
       todayDeposits: round2(todayDeposits),
       todayRefunds: round2(todayRefunds),
-      transfersSupported: false,
+      transfersSupported: true,
       openShifts: openShiftRows.length,
       myOpenShiftId: openShiftRows.find((s) => s.membership_id === me.id)?.id ?? null,
     };

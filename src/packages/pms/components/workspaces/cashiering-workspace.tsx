@@ -10,31 +10,31 @@ import { getCashieringAccess } from "@/packages/pms/lib/cashiering.functions";
 import {
   cashieringTabSearch,
   resolveCashieringTab,
+  type CashieringSearchParams,
   type CashieringTabId,
 } from "@/packages/pms/lib/cashiering-shell";
 
 export function CashieringWorkspace({
   membership,
-  initialTab,
-  initialFolioSearch,
+  search,
 }: {
   membership: RestaurantMembership;
-  initialTab?: string | undefined;
-  initialFolioSearch?: string | undefined;
+  search: CashieringSearchParams;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
-  const tab = resolveCashieringTab(initialTab);
-  const [moduleSearch, setModuleSearch] = useState("");
+  const tab = resolveCashieringTab(search.tab);
+  const [moduleSearch, setModuleSearch] = useState(search.q ?? "");
 
   useEffect(() => {
-    if (initialTab === tab) return;
+    if (search.tab === tab || (!search.tab && tab === "overview")) return;
+    const { tab: _tab, folio, ...rest } = search;
     void navigate({
       to: "/restaurant/pms/cashiering",
-      search: cashieringTabSearch(tab, initialFolioSearch),
+      search: cashieringTabSearch(tab, folio, rest),
       replace: true,
     });
-  }, [initialFolioSearch, initialTab, navigate, tab]);
+  }, [navigate, search, tab]);
 
   const fetchAccess = useServerFn(getCashieringAccess);
   const accessQuery = useQuery({
@@ -43,10 +43,20 @@ export function CashieringWorkspace({
     retry: false,
   });
 
-  function go(next: CashieringTabId, folio?: string | null) {
+  function go(next: CashieringTabId, folio?: string | null, extra?: Partial<CashieringSearchParams>) {
+    const { tab: _tab, folio: currentFolio, ...rest } = search;
+    const nextFolio =
+      folio === null ? null : folio !== undefined ? folio : next === "folios" ? currentFolio : null;
     void navigate({
       to: "/restaurant/pms/cashiering",
-      search: cashieringTabSearch(next, folio ?? initialFolioSearch),
+      search: cashieringTabSearch(next, nextFolio, { ...rest, ...extra }),
+    });
+  }
+
+  function setSearchParams(next: CashieringSearchParams) {
+    void navigate({
+      to: "/restaurant/pms/cashiering",
+      search: next,
     });
   }
 
@@ -71,7 +81,7 @@ export function CashieringWorkspace({
       onNavigate={(id) => go(id)}
       onSearch={(value) => {
         setModuleSearch(value);
-        if (tab !== "overview" && tab !== "folios") go("folios");
+        go("folios", search.folio, { q: value, tab: "folios" });
       }}
       onPostPayment={() => go("payments")}
     >
@@ -79,7 +89,9 @@ export function CashieringWorkspace({
         restaurantId={restaurantId}
         timezone={membership.restaurant.timezone}
         tab={tab}
-        folioQuery={initialFolioSearch ?? ""}
+        searchParams={search}
+        onSearchParams={setSearchParams}
+        folioQuery={search.folio ?? ""}
         moduleSearch={moduleSearch}
         canOperate={accessQuery.data.canOperate}
         canManage={accessQuery.data.canManage}

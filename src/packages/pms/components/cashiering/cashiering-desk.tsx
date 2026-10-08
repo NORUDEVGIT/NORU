@@ -16,6 +16,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { FolioSearchPanel } from "@/packages/pms/components/cashiering/folio-search-panel";
+import {
+  AccountsPanel,
+  DepositAllocationForm,
+  ExceptionsPanel,
+  ReportsPanel,
+  TransfersPanel,
+} from "@/packages/pms/components/cashiering/cashiering-phase-panels";
+import {
+  Kpi,
+  SummaryTile,
+  TxnMark,
+  methodLabel,
+  shortRef,
+  type KpiTone,
+} from "@/packages/pms/components/cashiering/cashiering-desk-shared";
 import { labelTransactionType } from "@/packages/pms/components/cashiering/folio-bits";
 import { ShiftDialog } from "@/packages/pms/components/cashiering/cashiering-tabs";
 import {
@@ -32,7 +48,7 @@ import {
   type FolioRow,
   type LedgerEntryRow,
 } from "@/packages/pms/lib/cashiering.functions";
-import type { CashieringTabId } from "@/packages/pms/lib/cashiering-shell";
+import type { CashieringSearchParams, CashieringTabId } from "@/packages/pms/lib/cashiering-shell";
 import { remainingOnPaymentSource } from "@/packages/pms/lib/cashiering.server";
 import {
   POLISH1_PAYMENT_METHODS_HREF,
@@ -90,106 +106,10 @@ function propertyDate(iso: string, timezone: string): string {
   }
 }
 
-function methodLabel(code: string | null): string {
-  if (!code) return "—";
-  return code.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
 function stayLabel(folio: FolioRow): string {
   if (folio.reservationStatus === "checked_in") return "In House";
   if (folio.reservationStatus === "checked_out") return "Checked Out";
   return folio.status === "closed" ? "Closed" : "Open";
-}
-
-function shortRef(id: string): string {
-  return id.slice(0, 8).toUpperCase();
-}
-
-const KPI_TONE = {
-  blue: "border-sky-200 bg-sky-50/80",
-  amber: "border-amber-200 bg-amber-50/80",
-  green: "border-emerald-200 bg-emerald-50/80",
-  gold: "border-[#E4D3A8] bg-[#FBF6EA]",
-  rose: "border-rose-200 bg-rose-50/80",
-  teal: "border-teal-200 bg-teal-50/80",
-} as const;
-
-const KPI_ICON = {
-  blue: "bg-sky-100 text-sky-700",
-  amber: "bg-amber-100 text-amber-800",
-  green: "bg-emerald-100 text-emerald-700",
-  gold: "bg-[#F3E6C4] text-[#8A6A24]",
-  rose: "bg-rose-100 text-rose-700",
-  teal: "bg-teal-100 text-teal-700",
-} as const;
-
-type KpiTone = keyof typeof KPI_TONE;
-
-const TXN_MARK: Record<string, { icon: LucideIcon; className: string }> = {
-  charge: { icon: Plus, className: "bg-sky-100 text-sky-700" },
-  payment: { icon: Banknote, className: "bg-emerald-100 text-emerald-700" },
-  deposit: { icon: Coins, className: "bg-[#F3E6C4] text-[#8A6A24]" },
-  refund: { icon: Undo2, className: "bg-rose-100 text-rose-700" },
-  adjustment: { icon: SlidersHorizontal, className: "bg-violet-100 text-violet-700" },
-  discount: { icon: SlidersHorizontal, className: "bg-muted text-muted-foreground" },
-};
-
-function Kpi({
-  label,
-  value,
-  hint,
-  tone = "blue",
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: KpiTone;
-  icon?: LucideIcon;
-}) {
-  return (
-    <div className={cn("rounded-xl border px-3 py-2.5 shadow-sm", KPI_TONE[tone])}>
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          {label}
-        </p>
-        {Icon ? (
-          <span
-            className={cn("grid size-7 shrink-0 place-items-center rounded-md", KPI_ICON[tone])}
-          >
-            <Icon className="size-3.5" aria-hidden />
-          </span>
-        ) : null}
-      </div>
-      <p className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
-        {value}
-      </p>
-      {hint ? <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p> : null}
-    </div>
-  );
-}
-
-function SummaryTile({ label, value, tone }: { label: string; value: string; tone: KpiTone }) {
-  return (
-    <div className={cn("rounded-lg border px-2.5 py-2", KPI_TONE[tone])}>
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-0.5 text-sm font-semibold tabular-nums">{value}</p>
-    </div>
-  );
-}
-
-function TxnMark({ type }: { type: string }) {
-  const mark = TXN_MARK[type] ?? TXN_MARK.charge;
-  const Icon = mark?.icon ?? Plus;
-  return (
-    <span
-      className={cn("mt-0.5 grid size-6 shrink-0 place-items-center rounded-md", mark?.className)}
-    >
-      <Icon className="size-3.5" aria-hidden />
-    </span>
-  );
 }
 
 function FilterBar({
@@ -242,6 +162,8 @@ export function CashieringDesk({
   restaurantId,
   timezone,
   tab,
+  searchParams,
+  onSearchParams,
   folioQuery,
   moduleSearch,
   canOperate,
@@ -251,6 +173,8 @@ export function CashieringDesk({
   restaurantId: string;
   timezone: string;
   tab: CashieringTabId;
+  searchParams: CashieringSearchParams;
+  onSearchParams: (next: CashieringSearchParams) => void;
   folioQuery: string;
   moduleSearch: string;
   canOperate: boolean;
@@ -286,6 +210,7 @@ export function CashieringDesk({
   const foliosQuery = useQuery({
     queryKey: ["cashiering-folios", restaurantId],
     queryFn: () => fetchFolios({ data: { restaurantId, status: "all" } }),
+    enabled: tab === "overview" || tab === "transfers",
     retry: false,
   });
   const ledgerQuery = useQuery({
@@ -369,6 +294,7 @@ export function CashieringDesk({
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ["cashiering-dashboard", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["cashiering-folios", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["folio-search-guest", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["cashiering-ledger", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["cashiering-folio", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["cashier-shifts", restaurantId] });
@@ -418,42 +344,15 @@ export function CashieringDesk({
       ) : null}
 
       {tab === "folios" ? (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-          <section className="min-w-0 space-y-3">
-            <FilterBar
-              search={search}
-              onSearch={(value) => {
-                setSearch(value);
-                setPage(1);
-              }}
-              filter={filter}
-              onFilter={(value) => {
-                setFilter(value);
-                setPage(1);
-              }}
-            />
-            <FolioTable
-              rows={pageRows}
-              total={filtered.length}
-              page={safePage}
-              pageCount={pageCount}
-              onPage={setPage}
-              loading={foliosQuery.isLoading}
-              error={foliosQuery.isError ? (foliosQuery.error as Error).message : null}
-              money={money}
-              selectedId={selected?.id ?? null}
-              canOperate={canOperate}
-              canManage={canManage}
-              onSelect={selectFolio}
-            />
-          </section>
-          <FolioQuickView
-            folio={detailQuery.data ?? null}
-            loading={Boolean(selected) && detailQuery.isLoading}
-            money={money}
-            dateTime={dateTime}
-          />
-        </div>
+        <FolioSearchPanel
+          restaurantId={restaurantId}
+          searchParams={{ ...searchParams, tab: "folios" }}
+          onSearchParams={onSearchParams}
+          canOperate={canOperate}
+          canManage={canManage}
+          money={money}
+          dateTime={dateTime}
+        />
       ) : null}
 
       {tab === "payments" ? (
@@ -488,6 +387,15 @@ export function CashieringDesk({
           depositPolicySummary={depositPolicyQuery.data?.summary ?? null}
           onSelect={(row) => onTab("deposits", row.folioId)}
           onPosted={refresh}
+          sidebarExtra={
+            <DepositAllocationForm
+              restaurantId={restaurantId}
+              selected={detailQuery.data ?? null}
+              canManage={canManage}
+              money={money}
+              onRefresh={refresh}
+            />
+          }
         />
       ) : null}
 
@@ -508,6 +416,36 @@ export function CashieringDesk({
           onSelect={(row) => onTab("refunds", row.folioId)}
           onPosted={refresh}
         />
+      ) : null}
+
+      {tab === "transfers" ? (
+        <TransfersPanel
+          restaurantId={restaurantId}
+          folios={folios.map((f) => ({
+            id: f.id,
+            folioNumber: f.folioNumber,
+            guestName: f.guestName,
+          }))}
+          selected={detailQuery.data ?? null}
+          canManage={canManage}
+          money={money}
+          dateTime={dateTime}
+          dashboard={dashboardQuery.data}
+          onRefresh={refresh}
+          onSelectFolio={(folioId) => onTab("transfers", folioId)}
+        />
+      ) : null}
+
+      {tab === "accounts" ? (
+        <AccountsPanel restaurantId={restaurantId} canManage={canManage} money={money} />
+      ) : null}
+
+      {tab === "exceptions" ? (
+        <ExceptionsPanel restaurantId={restaurantId} money={money} dateTime={dateTime} />
+      ) : null}
+
+      {tab === "reports" ? (
+        <ReportsPanel restaurantId={restaurantId} money={money} timezone={timezone} />
       ) : null}
 
       {tab === "cashier-shift" ? (
@@ -1286,6 +1224,7 @@ function CreditPanel({
   authorizerNote,
   onSelect,
   onPosted,
+  sidebarExtra,
 }: {
   kind: "deposit" | "refund";
   title: string;
@@ -1302,6 +1241,7 @@ function CreditPanel({
   authorizerNote?: string | null;
   onSelect: (row: LedgerEntryRow) => void;
   onPosted: () => void;
+  sidebarExtra?: ReactNode;
 }) {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
@@ -1315,16 +1255,19 @@ function CreditPanel({
         dateTime={dateTime}
         onSelect={onSelect}
       />
-      <ReceivePanel
-        kind={kind}
-        restaurantId={restaurantId}
-        folio={selected ?? null}
-        canPost={canPost}
-        money={money}
-        depositPolicySummary={depositPolicySummary}
-        authorizerNote={authorizerNote}
-        onPosted={onPosted}
-      />
+      <div className="space-y-4">
+        <ReceivePanel
+          kind={kind}
+          restaurantId={restaurantId}
+          folio={selected ?? null}
+          canPost={canPost}
+          money={money}
+          depositPolicySummary={depositPolicySummary}
+          authorizerNote={authorizerNote}
+          onPosted={onPosted}
+        />
+        {sidebarExtra}
+      </div>
     </div>
   );
 }

@@ -124,6 +124,17 @@ const CASHIER_ERRORS: Record<string, string> = {
   INVALID_CLOSING_CASH: "Enter the cash counted at close.",
   INVALID_MOVEMENT: "That drawer movement is not supported.",
   HOTEL_DRAWER_MOVEMENT_IMMUTABLE: "A drawer movement cannot be changed. Post another movement.",
+  SOURCE_NOT_A_CHARGE: "A transfer must name a charge line on the source folio.",
+  TRANSFER_EXCEEDS_REMAINDER: "That amount exceeds what remains on the charge line.",
+  TARGET_WINDOW_NOT_FOUND: "Choose a target window on the destination folio.",
+  ACCOUNT_NOT_FOUND: "Financial account not found for this property.",
+  ACCOUNT_CLOSED: "This financial account is closed.",
+  MASTER_NOT_FOUND: "Company or group master not found for this property.",
+  ALLOCATION_EXCEEDS_UNALLOCATED: "That amount exceeds the unallocated deposit remainder.",
+  ALLOCATION_SAME_FOLIO_ONLY: "Deposit allocation must stay on the same folio for now.",
+  SOURCE_NOT_A_DEPOSIT: "Choose a deposit line to allocate.",
+  INVALID_WRITE_OFF_AMOUNT: "Write-off amount must match the outstanding balance.",
+  WRITE_OFF_TARGET_REQUIRED: "Choose a folio or financial account for the write-off.",
 };
 
 /** Map RAISE EXCEPTION codes from the cashiering functions to user-facing text. */
