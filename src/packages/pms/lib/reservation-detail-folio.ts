@@ -10,7 +10,7 @@ export const FOLIO_NOTES_GAP_COPY =
   "Folio notes are not stored on the reservation. Stay notes remain on Notes & Traces.";
 
 export const FOLIO_INVOICE_GAP_COPY =
-  "Create Invoice is not available. Cashiering print statement is not an issued invoice.";
+  "Issue invoice from Cashiering on the guest folio. Print statement there is not an issued invoice.";
 
 export const FOLIO_BILLING_EDIT_GAP_COPY =
   "Billing and routing are not editable in this workspace. Company and travel agent stay on the reservation record.";

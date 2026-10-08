@@ -23,6 +23,7 @@ import {
 import type { Card3Domain } from "@/packages/pms/lib/pms-property-setup-card3";
 import {
   getTaxesCard3,
+  saveDefaultRoomTaxGroupCard3,
   saveExemptionRuleCard3,
   saveFeeCard3,
   saveServiceChargeCard3,
@@ -71,6 +72,7 @@ export function PmsPropertySetupCard3Taxes({
 }) {
   const queryClient = useQueryClient();
   const load = useServerFn(getTaxesCard3);
+  const saveDefaultRoomTaxGroup = useServerFn(saveDefaultRoomTaxGroupCard3);
   const saveTax = useServerFn(saveTaxCard3);
   const saveService = useServerFn(saveServiceChargeCard3);
   const saveFee = useServerFn(saveFeeCard3);
@@ -90,6 +92,7 @@ export function PmsPropertySetupCard3Taxes({
   });
   const snapshot: TaxesCard3Snapshot | undefined = query.data?.snapshot;
   const taxes = snapshot?.taxes ?? [];
+  const groups = snapshot?.groups ?? [];
   const services = snapshot?.serviceCharges ?? [];
   const fees = snapshot?.fees ?? [];
   const rules = snapshot?.exemptionRules ?? [];
@@ -179,6 +182,15 @@ export function PmsPropertySetupCard3Taxes({
     },
     onError: (error: Error) => toast.error(friendlyValidationError(error)),
   });
+  const defaultRoomTaxGroupMut = useMutation({
+    mutationFn: (taxGroupId: string | null) =>
+      saveDefaultRoomTaxGroup({ data: { restaurantId, taxGroupId } }),
+    onSuccess: () => {
+      toast.success("Default room tax group saved.");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(friendlyValidationError(error)),
+  });
 
   void CARD3_TAXES_TABS;
 
@@ -193,6 +205,39 @@ export function PmsPropertySetupCard3Taxes({
       ) : (
         <div className="space-y-4" data-testid="pms-card3-taxes">
           <Card3InheritedStrip>{CARD3_TAXES_SET1_COPY}</Card3InheritedStrip>
+          <section
+            className="rounded-xl border border-border bg-card p-4 shadow-sm"
+            data-testid="card3-default-room-tax-group"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="default-room-tax-group">Default room tax group</Label>
+              <p className="text-xs text-muted-foreground">
+                Used when posting room charges if set; otherwise taxes with room or all basis apply.
+              </p>
+              <Select
+                value={snapshot.defaultRoomTaxGroupId ?? "__none__"}
+                onValueChange={(value) => {
+                  if (!canEdit || defaultRoomTaxGroupMut.isPending) return;
+                  defaultRoomTaxGroupMut.mutate(value === "__none__" ? null : value);
+                }}
+                disabled={!canEdit || defaultRoomTaxGroupMut.isPending}
+              >
+                <SelectTrigger id="default-room-tax-group" className="max-w-md">
+                  <SelectValue placeholder="No default group" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No default group</SelectItem>
+                  {groups
+                    .filter((group) => group.active)
+                    .map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.code} — {group.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </section>
           <Card3ListSection
             title="Taxes"
             icon="tax"

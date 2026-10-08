@@ -18,8 +18,29 @@ const TYPE_LABEL: Record<string, string> = {
   discount: "Discount",
 };
 
+const CATEGORY_LABEL: Record<string, string> = {
+  room: "Room",
+  manual: "Manual",
+  tax: "Tax",
+  service_charge: "Service charge",
+  payment: "Payment",
+  deposit: "Deposit",
+  refund: "Refund",
+  adjustment: "Adjustment",
+  discount: "Discount",
+  transfer: "Transfer",
+};
+
 export function labelTransactionType(type: string): string {
   return TYPE_LABEL[type] ?? type;
+}
+
+export function labelTransactionCategory(category: string): string {
+  return CATEGORY_LABEL[category] ?? category;
+}
+
+export function isTaxRelatedCategory(category: string): boolean {
+  return category === "tax" || category === "service_charge";
 }
 
 /** Charges and refunds increase the balance; payments, deposits and discounts reduce it. */

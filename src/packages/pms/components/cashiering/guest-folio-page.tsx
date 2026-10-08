@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, FileText, Printer } from "lucide-react";
+import { toast } from "sonner";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { CashieringChrome } from "@/packages/pms/components/cashiering/cashiering-chrome";
 import {
   FolioStatusBadge,
+  isTaxRelatedCategory,
+  labelTransactionCategory,
   labelTransactionType,
   splitLedger,
 } from "@/packages/pms/components/cashiering/folio-bits";
@@ -15,6 +18,14 @@ import {
   CloseFolioDialog,
   FolioEntryDialog,
 } from "@/packages/pms/components/cashiering/folio-dialogs";
+import {
+  FolioInvoicePanel,
+  FolioInvoicePreview,
+} from "@/packages/pms/components/cashiering/folio-invoice-panel";
+import {
+  issueGuestFolioInvoice,
+  reprintGuestFolioInvoice,
+} from "@/packages/pms/lib/cashiering-invoices.functions";
 import {
   getCashieringAccess,
   getCashieringCorrectionNotice,
@@ -122,6 +133,7 @@ export function GuestFolioPage({
       ) : null}
       {folio ? (
         <FolioBody
+          restaurantId={restaurantId}
           folio={folio}
           money={money}
           dateTime={dateTime}
@@ -129,6 +141,7 @@ export function GuestFolioPage({
           canManage={canManage}
           onAction={setEntryType}
           onClose={() => setCloseOpen(true)}
+          onInvoiceChange={refresh}
         />
       ) : null}
       {folio ? (
@@ -166,6 +179,7 @@ export function GuestFolioPage({
 }
 
 function FolioBody({
+  restaurantId,
   folio,
   money,
   dateTime,
@@ -173,7 +187,9 @@ function FolioBody({
   canManage,
   onAction,
   onClose,
+  onInvoiceChange,
 }: {
+  restaurantId: string;
   folio: FolioDetail;
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
@@ -181,13 +197,54 @@ function FolioBody({
   canManage: boolean;
   onAction: (type: TransactionType) => void;
   onClose: () => void;
+  onInvoiceChange: () => void;
 }) {
+  const issueInvoice = useServerFn(issueGuestFolioInvoice);
+  const reprintInvoice = useServerFn(reprintGuestFolioInvoice);
+  const issueMut = useMutation({
+    mutationFn: () =>
+      issueInvoice({
+        data: {
+          restaurantId,
+          folioId: folio.id,
+          idempotencyKey: `issue:${folio.id}:${Date.now()}`,
+        },
+      }),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(`Invoice ${result.invoice.issuedNumber} issued.`);
+      onInvoiceChange();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const reprintMut = useMutation({
+    mutationFn: () =>
+      reprintInvoice({
+        data: { restaurantId, invoiceId: folio.issuedInvoice!.id },
+      }),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(`Reprint recorded for ${result.invoice.issuedNumber}.`);
+      onInvoiceChange();
+      window.print();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const { charges, credits } = splitLedger(folio.transactions);
   const open = folio.status === "open";
   const settled = Math.abs(folio.balance) < 0.01;
+  const invoice = folio.issuedInvoice;
   return (
     <div className="space-y-4" data-testid="guest-folio-page">
-      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
+      <div className="space-y-4 print:hidden">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Button asChild variant="ghost" size="sm" className="-ml-2 min-h-11">
             <Link to="/restaurant/pms/cashiering" search={{ tab: "folios", folio: folio.id }}>
@@ -208,17 +265,44 @@ function FolioBody({
             </p>
           ) : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <FolioStatusBadge status={folio.status} />
+          {canManage && !invoice ? (
+            <Button
+              size="sm"
+              className="min-h-11"
+              disabled={issueMut.isPending || folio.transactions.length === 0}
+              onClick={() => issueMut.mutate()}
+              data-testid="folio-invoice-issue"
+            >
+              <FileText className="size-4" /> Issue invoice
+            </Button>
+          ) : null}
+          {canManage && invoice ? (
+            <Button
+              variant="default"
+              size="sm"
+              className="min-h-11"
+              disabled={reprintMut.isPending}
+              onClick={() => reprintMut.mutate()}
+              data-testid="reprint-invoice"
+            >
+              <Printer className="size-4" /> Reprint invoice
+            </Button>
+          ) : null}
           <Button variant="outline" size="sm" className="min-h-11" onClick={() => window.print()}>
             <Printer className="size-4" /> Print statement
           </Button>
         </div>
       </div>
       <p className="text-xs text-muted-foreground print:hidden">
-        Print statement prints this screen. It is not an issued invoice. Each posting records a
-        ledger line. A deposit is a folio credit. Close is available only when the balance is zero.
+        Print statement prints the live folio screen and is not an issued invoice. Issue invoice
+        freezes a numbered document from the ledger at that moment. Each posting records a ledger
+        line. A deposit is a folio credit. Close is available only when the balance is zero.
       </p>
+      {invoice ? (
+        <FolioInvoicePreview invoice={invoice} money={money} dateTime={dateTime} />
+      ) : null}
       {open ? (
         <div className="flex flex-wrap gap-2 print:hidden">
           {canManage ? (
@@ -308,11 +392,14 @@ function FolioBody({
             <Row label="Balance" value={money(folio.balance)} strong={!settled} />
           </div>
           <p className="pt-2 text-xs text-muted-foreground">
-            Balance is the sum of ledger lines. {folio.currency}
+            Balance is the sum of ledger lines. Tax and service lines reflect Settings at post time.{" "}
+            {folio.currency}
           </p>
         </aside>
       </section>
       <HistoryList rows={folio.transactions} money={money} dateTime={dateTime} />
+      </div>
+      {invoice ? <FolioInvoicePanel invoice={invoice} money={money} dateTime={dateTime} /> : null}
     </div>
   );
 }
@@ -342,7 +429,8 @@ function HistoryList({
       <div className="border-b border-border px-4 py-3">
         <h3 className="text-sm font-semibold">History</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Each posted line, who posted it, and the source line when a correction names one.
+          Each posted line, who posted it, and the source line when a correction names one. Tax and
+          service lines are frozen from Settings at post time.
         </p>
       </div>
       {rows.length === 0 ? (
@@ -364,8 +452,17 @@ function HistoryList({
             {rows.map((row) => (
               <tr key={row.id} className="border-t border-border">
                 <td className="px-3 py-2 text-muted-foreground">{dateTime(row.postedAt)}</td>
-                <td className="px-3 py-2">{labelTransactionType(row.type)}</td>
-                <td className="px-3 py-2">{row.description}</td>
+                <td className="px-3 py-2">
+                  {isTaxRelatedCategory(row.category)
+                    ? labelTransactionCategory(row.category)
+                    : labelTransactionType(row.type)}
+                </td>
+                <td className={`px-3 py-2 ${row.originalTransactionId ? "pl-6" : ""}`}>
+                  {row.originalTransactionId && isTaxRelatedCategory(row.category) ? (
+                    <span className="text-muted-foreground">↳ </span>
+                  ) : null}
+                  {row.description}
+                </td>
                 <td className="px-3 py-2">
                   {row.paymentMethod ? (METHOD_LABEL[row.paymentMethod] ?? "—") : "—"}
                 </td>
@@ -399,7 +496,15 @@ function LedgerTable({
   dateTime,
 }: {
   title: string;
-  rows: { id: string; type: string; description: string; amount: number; postedAt: string }[];
+  rows: {
+    id: string;
+    type: string;
+    category: string;
+    description: string;
+    amount: number;
+    postedAt: string;
+    originalTransactionId?: string | null;
+  }[];
   money: (value: number) => string;
   dateTime: (iso: string) => string;
 }) {
@@ -424,8 +529,17 @@ function LedgerTable({
             {rows.map((row) => (
               <tr key={row.id} className="border-t border-border">
                 <td className="px-3 py-2 text-muted-foreground">{dateTime(row.postedAt)}</td>
-                <td className="px-3 py-2">{labelTransactionType(row.type)}</td>
-                <td className="px-3 py-2">{row.description}</td>
+                <td className="px-3 py-2">
+                  {isTaxRelatedCategory(row.category)
+                    ? labelTransactionCategory(row.category)
+                    : labelTransactionType(row.type)}
+                </td>
+                <td className={`px-3 py-2 ${row.originalTransactionId ? "pl-6" : ""}`}>
+                  {row.originalTransactionId && isTaxRelatedCategory(row.category) ? (
+                    <span className="text-muted-foreground">↳ </span>
+                  ) : null}
+                  {row.description}
+                </td>
                 <td className="px-3 py-2 text-right tabular-nums">{money(row.amount)}</td>
               </tr>
             ))}

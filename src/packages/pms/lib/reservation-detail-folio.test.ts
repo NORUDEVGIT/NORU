@@ -62,6 +62,7 @@ const folio: FolioDetail = {
   guestId: "guest-1",
   guestEmail: "maria@email.com",
   guestPhone: "+351",
+  issuedInvoice: null,
   transactions: [
     txn({ id: "1", type: "charge", category: "room", amount: 4500, description: "Deluxe King" }),
     txn({

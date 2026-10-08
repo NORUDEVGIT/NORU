@@ -24,6 +24,8 @@ import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { formatDepositPolicyResult, type DepositPolicyType } from "./payments-card3.server";
+import { loadGuestFolioInvoice } from "./cashiering-invoices.functions";
+import type { IssuedFolioInvoiceRow } from "./cashiering-invoices.server";
 
 const idSchema = z.string().uuid();
 
@@ -77,6 +79,7 @@ export interface FolioDetail extends FolioRow {
   departureDate: string | null;
   reservationStatus: string | null;
   transactions: FolioTransactionRow[];
+  issuedInvoice: IssuedFolioInvoiceRow | null;
 }
 
 export interface CashierShiftRow {
@@ -498,6 +501,8 @@ export const getFolio = createServerFn({ method: "GET" })
         : null,
     }));
 
+    const issuedInvoice = await loadGuestFolioInvoice(supabaseAdmin, data.restaurantId, f.id);
+
     return {
       id: f.id,
       folioNumber: f.folio_number,
@@ -521,6 +526,7 @@ export const getFolio = createServerFn({ method: "GET" })
       marketSegment: f.hotel_reservations?.market_segment ?? null,
       bookingSource: f.hotel_reservations?.commercial_booking_source ?? null,
       transactions,
+      issuedInvoice,
       ...totals(transactions.map((t) => ({ amount: t.amount }))),
     };
   });
