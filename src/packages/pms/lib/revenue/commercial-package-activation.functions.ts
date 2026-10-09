@@ -30,6 +30,10 @@ const previewSchema = z.object({
   expectedVersion: z.string().min(1).optional(),
 });
 
+const applySchema = previewSchema.extend({
+  applyImmediately: z.boolean().optional(),
+});
+
 export const previewPackageActivation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => previewSchema.parse(input))
@@ -45,7 +49,7 @@ export const previewPackageActivation = createServerFn({ method: "POST" })
 
 export const applyPackageActivation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => previewSchema.parse(input))
+  .inputValidator((input: unknown) => applySchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

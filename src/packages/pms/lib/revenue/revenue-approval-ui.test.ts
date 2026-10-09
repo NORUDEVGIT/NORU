@@ -210,6 +210,8 @@ describe("P7-STEP-03 approval UI", () => {
     assert.match(promo, /PROMOTION_SUBMITTED_TOAST/);
     assert.match(promo, /SUBMIT_FOR_APPROVAL_LABEL/);
     assert.match(pkg, /PACKAGE_SUBMITTED_TOAST/);
+    assert.match(pkg, /APPROVE_APPLY_LABEL/);
+    assert.match(pkg, /mutate\(true\)/);
     assert.equal(SUBMIT_FOR_APPROVAL_LABEL, "Submit for Approval");
     assert.equal(RATE_SUBMITTED_TOAST, "Rate change submitted for approval.");
     assert.equal(BULK_RATE_SUBMITTED_TOAST, "Bulk rate change submitted for approval.");

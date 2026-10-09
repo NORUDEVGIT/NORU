@@ -151,6 +151,8 @@ export type TaxesCard3Snapshot = {
   serviceCharges: ServiceChargeRow[];
   fees: FeeRow[];
   exemptionRules: ExemptionRuleRow[];
+  /** Card 3 tax group applied when posting room charges (optional). */
+  defaultRoomTaxGroupId?: string | null;
 };
 
 export type TaxesCard3Readiness = {

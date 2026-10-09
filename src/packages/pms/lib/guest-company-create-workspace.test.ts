@@ -9,11 +9,13 @@ import {
   GUEST_COMPANY_CREATE_HOLD_KEY_PREFIX,
   GUEST_COMPANY_CREATE_MIGRATION_FILE,
   GUEST_COMPANY_CREATE_STEPS,
+  companyContractPersistBlocker,
   companyCreateDraftErrors,
   companyCreateDraftErrorsForSave,
   companyCreateFieldIssues,
   companyCreateStepErrors,
   createCompanyFieldRules,
+  companySavedRecordToDraft,
   emptyGuestCompanyCreateDraft,
   guestCompanyCreateCompletion,
   guestCompanyCreateHoldKey,
@@ -37,6 +39,56 @@ function filledDraft() {
 }
 
 describe("Company create workflow helpers", () => {
+  it("rebuilds contacts, billing, and the saved contract for edit", () => {
+    const draft = companySavedRecordToDraft({
+      account: {
+        id: "company-1",
+        name: "test company",
+        code: "COM-0002",
+        account_status: "active",
+        default_billing_rule_id: "rule-1",
+        billing_currency_code: "ETB",
+        payment_timing: "credit_terms",
+        credit_account_enabled: true,
+        credit_limit_amount: "5000",
+      },
+      contacts: [
+        {
+          id: "contact-1",
+          name: "chala",
+          phone: "+251911000000",
+          email: "chala@example.com",
+          isPrimary: true,
+          roleIds: ["role-1"],
+        },
+      ],
+      agreement: {
+        id: "agreement-1",
+        contractTypeId: "type-1",
+        name: "corporate agreement",
+        code: "CORP_2026_001",
+        contractNumber: "CORP-2026-001",
+        validFrom: "2026-10-02",
+        validTo: "2027-10-31",
+        currencyCode: "ETB",
+        status: "active",
+        pricingMethod: "rate_plan",
+        ratePlanScope: "selected",
+        ratePlanId: "plan-1",
+        ratePlanIds: ["plan-1", "plan-2"],
+      },
+    });
+    assert.equal(draft.contacts[0]?.name, "chala");
+    assert.equal(draft.contacts[0]?.phone, "+251911000000");
+    assert.equal(draft.defaultBillingRuleId, "rule-1");
+    assert.equal(draft.billingCurrencyCode, "ETB");
+    assert.equal(draft.paymentTiming, "credit_terms");
+    assert.equal(draft.creditLimitAmount, 5000);
+    assert.equal(draft.contract.name, "corporate agreement");
+    assert.equal(draft.contract.agreementId, "agreement-1");
+    assert.deepEqual(draft.contract.ratePlanIds, ["plan-1", "plan-2"]);
+  });
+
   it("keeps exactly five dedicated steps", () => {
     assert.deepEqual(
       GUEST_COMPANY_CREATE_STEPS.map((step) => step.id),
@@ -390,6 +442,7 @@ describe("Card 4 Settings field controls for Company creation", () => {
     draft.defaultBillingRuleId = "br-room-only";
     draft.paymentTiming = "due_on_arrival";
     draft.contract.ratePlanScope = "all";
+    draft.contract.contractTypeId = "type-1";
     draft.contract.name = "";
     draft.contract.code = "";
     draft.contract.depositPolicyId = "none";
@@ -423,6 +476,55 @@ describe("Card 4 Settings field controls for Company creation", () => {
     const issuesResolved = companyCreateFieldIssues(draft, { rules });
     const blockersResolved = issuesBeforeStep(issuesResolved, GUEST_COMPANY_CREATE_STEPS, "review");
     assert.equal(blockersResolved.length, 0, "Advancing to review must be permitted once contracts are filled");
+  });
+
+  it("requires contract name and type before selected rate plans can be saved", () => {
+    const fields = [{ id: "f-tax", code: "TAX_ID", active: true }];
+    const rules = createCompanyFieldRules(fields, { id: "pt-company", requiredFieldIds: ["f-tax"] }, null);
+    const draft = filledDraft();
+    draft.taxId = "1234567890";
+    draft.contract.pricingMethod = "rate_plan";
+    draft.contract.ratePlanScope = "selected";
+    draft.contract.ratePlanIds = ["plan-a", "plan-b"];
+    draft.contract.name = "";
+    draft.contract.contractTypeId = null;
+
+    const issues = companyCreateFieldIssues(draft, { rules });
+    assert.ok(matchCompanyFieldIssue(issues, "contractName"));
+    assert.ok(matchCompanyFieldIssue(issues, "contractTypeId"));
+    assert.match(companyContractPersistBlocker(draft.contract) ?? "", /Contract name and contract type/);
+
+    const blockers = issuesBeforeStep(issues, GUEST_COMPANY_CREATE_STEPS, "review");
+    assert.ok(blockers.some((issue) => issue.step === "contracts"));
+
+    draft.contract.name = "Noru corporate";
+    draft.contract.contractTypeId = "type-1";
+    const resolved = companyCreateFieldIssues(draft, { rules });
+    assert.equal(matchCompanyFieldIssue(resolved, "contractName"), undefined);
+    assert.equal(matchCompanyFieldIssue(resolved, "contractTypeId"), undefined);
+    assert.equal(companyContractPersistBlocker(draft.contract), null);
+
+    const allPlans = filledDraft();
+    allPlans.contract.pricingMethod = "rate_plan";
+    allPlans.contract.ratePlanScope = "all";
+    allPlans.contract.ratePlanIds = [];
+    assert.match(companyContractPersistBlocker(allPlans.contract) ?? "", /Contract name and contract type/);
+
+    const discount = filledDraft();
+    discount.contract.pricingMethod = "rate_plan_discount";
+    discount.contract.ratePlanScope = "all";
+    discount.contract.discountType = "percent";
+    discount.contract.discountValue = 10;
+    assert.match(companyContractPersistBlocker(discount.contract) ?? "", /Contract name and contract type/);
+
+    const negotiated = filledDraft();
+    negotiated.contract.pricingMethod = "contracted_rates";
+    negotiated.contract.ratePlanScope = "selected";
+    negotiated.contract.contractRates = [{ roomTypeId: "room-1", amount: 1500 }];
+    assert.match(companyContractPersistBlocker(negotiated.contract) ?? "", /Contract name and contract type/);
+    negotiated.contract.name = "Negotiated";
+    negotiated.contract.contractTypeId = "type-1";
+    assert.equal(companyContractPersistBlocker(negotiated.contract), null);
   });
 
   it("enforces credit limit and tax exemption rule requirements from Card 4 rules", () => {

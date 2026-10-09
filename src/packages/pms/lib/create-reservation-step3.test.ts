@@ -9,6 +9,11 @@ import {
   canAdvanceFromBookingDetails,
   payloadHasForbiddenStep3Keys,
   quoteIdentityMatches,
+  agencyRateDisplayLabel,
+  companyContactOptionLabel,
+  formatCompanyContractRate,
+  formatCompanyAgreementRateLabel,
+  selectCompanyBookingDefaults,
 } from "./create-reservation-step3.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -103,6 +108,121 @@ describe("Create reservation Step 3 identity and payload", () => {
     assert.match(details, /data-testid="booking-agent"/);
     assert.match(details, /booking-details-company-agent-group/);
     assert.doesNotMatch(page, /group block/);
+  });
+
+  it("prefills a reservation from the company's saved agreement and billing rule", () => {
+    const selected = selectCompanyBookingDefaults({
+      arrival: "2026-10-12",
+      defaultBillingRuleId: "rule-1",
+      negotiatedReference: null,
+      accountCode: "COM-0001",
+      plans: [
+        { id: "plan-bar", code: "BAR", name: "Best Available" },
+        { id: "plan-corp", code: "CORP", name: "Corporate" },
+      ],
+      agreements: [
+        {
+          id: "agr-old",
+          name: "Expired",
+          code: "OLD",
+          active: true,
+          status: "active",
+          validFrom: "2025-01-01",
+          validTo: "2025-12-31",
+          ratePlanId: "plan-bar",
+          ratePlanIds: [],
+        },
+        {
+          id: "agr-live",
+          name: "Annual Corporate Agreement",
+          code: "ACA",
+          active: true,
+          status: "active",
+          validFrom: "2026-01-01",
+          validTo: "2026-12-31",
+          ratePlanId: "plan-corp",
+          ratePlanIds: ["plan-bar"],
+        },
+      ],
+    });
+    assert.equal(selected.defaultBillingRuleId, "rule-1");
+    assert.equal(selected.agreementLabel, "Annual Corporate Agreement (ACA)");
+    assert.equal(selected.hints[0]?.planId, "plan-corp");
+    assert.match(selected.hints[0]?.label ?? "", /Annual Corporate Agreement/);
+    assert.equal(selected.hints[1]?.planId, "plan-bar");
+    assert.equal(
+      companyContactOptionLabel({
+        name: "abebe",
+        phone: "+25199999999",
+        email: "ererer@gmail.com",
+        whatsapp: "+251999999999",
+      }),
+      "abebe · +25199999999 · +251999999999 · ererer@gmail.com",
+    );
+    assert.equal(
+      formatCompanyContractRate({
+        roomTypeId: "rt",
+        roomTypeName: "Delux",
+        amount: 1999.79,
+        currency: "ETB",
+      }),
+      "Delux · 1,999.79 ETB",
+    );
+    assert.equal(
+      formatCompanyAgreementRateLabel({
+        name: "Annual Corporate Agreement",
+        pricingMethod: "rate_plan",
+        ratePlanScope: "all",
+      }),
+      "Annual Corporate Agreement · All rate plans",
+    );
+    assert.equal(
+      formatCompanyAgreementRateLabel({
+        name: "Annual Corporate Agreement",
+        pricingMethod: "rate_plan_discount",
+        ratePlanScope: "all",
+        discountType: "percent",
+        discountValue: 10,
+      }),
+      "Annual Corporate Agreement · All rate plans · 10% off",
+    );
+    const allPlans = selectCompanyBookingDefaults({
+      defaultBillingRuleId: null,
+      plans: [],
+      agreements: [
+        {
+          id: "agr-all",
+          name: "Annual Corporate Agreement",
+          code: "ACA",
+          active: true,
+          status: "active",
+          validFrom: "2026-01-01",
+          validTo: "2026-12-31",
+          ratePlanId: null,
+          ratePlanIds: [],
+          pricingMethod: "rate_plan_discount",
+          ratePlanScope: "all",
+          discountType: "percent",
+          discountValue: 10,
+        },
+      ],
+    });
+    assert.equal(allPlans.hints[0]?.label, "Annual Corporate Agreement · All rate plans · 10% off");
+  });
+
+  it("shows Applies to all when an agency commission covers every rate plan", () => {
+    assert.equal(
+      agencyRateDisplayLabel({ appliesToAll: true }),
+      "Applies to all",
+    );
+    assert.equal(
+      agencyRateDisplayLabel({
+        appliesToAll: true,
+        contractLabel: "Delux · 1,999.79 ETB",
+      }),
+      "Delux · 1,999.79 ETB",
+    );
+    assert.equal(agencyRateDisplayLabel({ appliesToAll: false }), "—");
   });
 
   it("wires purpose catalogue, flexible reader, and cashiering hint without create posting", () => {

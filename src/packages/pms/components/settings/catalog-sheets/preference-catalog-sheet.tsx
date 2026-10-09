@@ -147,7 +147,11 @@ export function PreferenceTypeEditorSheet({
     }
   }, [preferenceType, open, categories, types]);
 
-  const errors = validatePreferenceTypeDraft(draft, types, categories);
+  const errors = validatePreferenceTypeDraft(
+    draft,
+    types,
+    categories.map((row) => row.id),
+  );
   const errorFor = (f: string) => errors.find((r) => r.field === f)?.message ?? null;
 
   const saveMutation = useMutation({

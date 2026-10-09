@@ -288,7 +288,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.doesNotMatch(links, /family graph|folio routed|create_hotel_reservation_priced/i);
     assert.doesNotMatch(functions, /from\("guest_family_links"|from\("guest_to_guest"/);
     assert.doesNotMatch(migration, /CREATE TABLE.*guest_account_links|folio_routing/);
-    assert.match(cashiering, /transfersSupported: false/);
+    assert.match(cashiering, /transfersSupported: true/);
     assert.match(migration, /No folio routing/);
     assert.match(migration, /No guest↔guest family graph/);
     assert.doesNotMatch(form, /guest_pending_links/);

@@ -262,6 +262,7 @@ export function packageApplyPayload(
   restaurantId: string,
   preview: PackageActivationPreview,
   reason: string,
+  applyImmediately?: boolean,
 ) {
   const proposed = preview.proposedActivation;
   if (!proposed) return null;
@@ -275,6 +276,7 @@ export function packageApplyPayload(
     ratePlanIds: proposed.ratePlanIds,
     reason: reason.trim() || proposed.reason,
     expectedVersion: preview.expectedVersion,
+    ...(applyImmediately ? { applyImmediately: true as const } : {}),
   };
 }
 

@@ -70,17 +70,15 @@ describe("Cashiering Phase 4 settings-backed posting", () => {
     assert.match(entry, /if \(!tender\.ok\) return/);
   });
 
-  it("posts the entered amount only while tax and charge codes stay held", () => {
+  it("requires a payment method and stores the entered signed amount for tenders", () => {
     const entry = poster.slice(
       poster.indexOf("export const postFolioEntry"),
       poster.indexOf("export const closeFolio"),
     );
     assert.match(entry, /Math\.round\(data\.amount \* 100\) \/ 100/);
-    assert.doesNotMatch(entry, /pms_taxes|tax_rate|charge_code|pms_charge/);
     assert.equal(sql, supabaseSql);
     assert.match(sql, /PAYMENT_METHOD_REQUIRED/);
     assert.match(sql, /signed := _amount/);
-    assert.doesNotMatch(sql, /pms_taxes|tax_rate/);
     assert.doesNotMatch(sql, /guest_folios\.balance/);
   });
 

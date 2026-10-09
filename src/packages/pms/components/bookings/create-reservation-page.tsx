@@ -1755,6 +1755,7 @@ export function CreateReservationPage({
           setLinkedBlockId(blockId);
         }}
         ratePlanId={ratePlanId}
+        roomTypeId={roomTypeId}
         ratePlanLabel={
           selectedQuote?.quote?.ratePlanName ||
           selectedQuote?.plan.name ||

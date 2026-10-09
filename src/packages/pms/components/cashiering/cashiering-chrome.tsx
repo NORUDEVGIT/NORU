@@ -18,6 +18,7 @@ export function CashieringChrome({
   onNavigate,
   onSearch,
   onPostPayment,
+  bodyClassName = "space-y-4 p-4 sm:p-5 lg:p-6",
   children,
 }: {
   membership: RestaurantMembership;
@@ -25,6 +26,7 @@ export function CashieringChrome({
   onNavigate: (id: CashieringTabId) => void;
   onSearch: (value: string) => void;
   onPostPayment: () => void;
+  bodyClassName?: string;
   children: ReactNode;
 }) {
   return (
@@ -33,7 +35,7 @@ export function CashieringChrome({
       activeModule="Cashiering"
       searchPlaceholder="Search rooms, guests, tasks…"
       searchTestId="cashiering-module-search"
-      helpLabel="Cashiering Desk operational workspace"
+      helpLabel="Cashiering operational workspace"
       shellTestId="cashiering-command-shell"
       onRoomSearch={onSearch}
     >
@@ -74,7 +76,7 @@ export function CashieringChrome({
                 onClick={() => onNavigate(item.id)}
                 aria-current={active === item.id ? "page" : undefined}
                 className={cn(
-                  "relative flex h-11 min-h-11 shrink-0 items-center px-3 text-xs font-medium transition-colors",
+                  "relative flex h-10 shrink-0 items-center px-2.5 text-xs font-medium transition-colors",
                   active === item.id
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground",
@@ -88,7 +90,7 @@ export function CashieringChrome({
             ))}
           </nav>
         </header>
-        <div className="space-y-4 p-4 sm:p-5 lg:p-6">{children}</div>
+        <div className={bodyClassName}>{children}</div>
       </div>
     </RoomInventoryChrome>
   );

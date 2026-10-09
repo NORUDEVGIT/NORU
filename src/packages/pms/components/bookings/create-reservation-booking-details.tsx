@@ -13,7 +13,10 @@ import { getBillingCard3 } from "@/packages/pms/lib/billing-card3.functions";
 import { reservationBillingHintFromRule } from "@/packages/pms/lib/cashiering-billing-hint";
 import {
   activeCommissionPlan,
+  agencyRateDisplayLabel,
   commissionPercentLabel,
+  companyContactOptionLabel,
+  formatCompanyContractRate,
 } from "@/packages/pms/lib/create-reservation-step3";
 import { listCompanyContacts } from "@/packages/pms/lib/guest-company-detail.functions";
 import {
@@ -113,6 +116,7 @@ export function CreateReservationBookingDetails({
   onLinkedGroupChange,
   ratePlanId,
   ratePlanLabel,
+  roomTypeId,
 }: {
   restaurantId: string;
   canCreateMaster: boolean;
@@ -149,6 +153,7 @@ export function CreateReservationBookingDetails({
   onLinkedGroupChange: (groupId: string | null, blockId: string | null) => void;
   ratePlanId: string;
   ratePlanLabel: string;
+  roomTypeId: string;
   roomAssignment: ReactNode;
   arrival: string;
   specialRequests: string;
@@ -227,14 +232,29 @@ export function CreateReservationBookingDetails({
   const commissionDisplay = commissionPercentLabel(activePlan);
 
   const companyHintsQuery = useQuery({
-    queryKey: ["account-rate-hints", restaurantId, companyMaster?.id],
-    queryFn: () => loadCompanyHints({ data: { restaurantId, accountId: companyMaster!.id } }),
+    queryKey: ["account-rate-hints", restaurantId, companyMaster?.id, arrival],
+    queryFn: () =>
+      loadCompanyHints({
+        data: {
+          restaurantId,
+          accountId: companyMaster!.id,
+          ...(arrival ? { arrival } : {}),
+        },
+      }),
     enabled: Boolean(companyMaster?.id),
     retry: false,
   });
   const agencyHintsQuery = useQuery({
-    queryKey: ["account-rate-hints", restaurantId, travelAgentMaster?.id],
-    queryFn: () => loadCompanyHints({ data: { restaurantId, accountId: travelAgentMaster!.id } }),
+    queryKey: ["account-rate-hints", restaurantId, travelAgentMaster?.id, arrival, roomTypeId],
+    queryFn: () =>
+      loadCompanyHints({
+        data: {
+          restaurantId,
+          accountId: travelAgentMaster!.id,
+          ...(arrival ? { arrival } : {}),
+          ...(roomTypeId ? { roomTypeId } : {}),
+        },
+      }),
     enabled: Boolean(travelAgentMaster?.id),
     retry: false,
   });
@@ -262,6 +282,61 @@ export function CreateReservationBookingDetails({
   const pickupPct =
     pickupBlocked > 0 ? Math.min(100, Math.round((pickupPicked / pickupBlocked) * 100)) : 0;
   const cutoffDate = selectedBlock?.cutoffDate ?? selectedGroup?.cutoffDate ?? "";
+
+  const appliedCompanyDefaultsFor = useRef<string | null>(null);
+  useEffect(() => {
+    const companyId = companyMaster?.id ?? null;
+    if (!companyId) {
+      appliedCompanyDefaultsFor.current = null;
+      return;
+    }
+    const defaults = companyHintsQuery.data;
+    if (!defaults || appliedCompanyDefaultsFor.current === companyId) return;
+    appliedCompanyDefaultsFor.current = companyId;
+    onBillingRuleIdChange(defaults.defaultBillingRuleId ?? "");
+    const planId = defaults.hints.find((row) => row.planId)?.planId;
+    if (planId) onApplyRatePlan(planId);
+  }, [companyHintsQuery.data, companyMaster?.id, onApplyRatePlan, onBillingRuleIdChange]);
+
+  const appliedCompanyContactFor = useRef<string | null>(null);
+  useEffect(() => {
+    const companyId = companyMaster?.id ?? null;
+    if (!companyId) {
+      appliedCompanyContactFor.current = null;
+      return;
+    }
+    if (companyContacts.length === 0 || appliedCompanyContactFor.current === companyId) return;
+    appliedCompanyContactFor.current = companyId;
+    const primary = companyContacts.find((row) => row.isPrimary) ?? companyContacts[0];
+    if (primary) onCompanyContactIdChange(primary.id);
+  }, [companyContacts, companyMaster?.id, onCompanyContactIdChange]);
+
+  const appliedAgencyDefaultsFor = useRef<string | null>(null);
+  useEffect(() => {
+    const agencyId = travelAgentMaster?.id ?? null;
+    if (!agencyId || relationTab !== "travel_agent") {
+      if (!agencyId) appliedAgencyDefaultsFor.current = null;
+      return;
+    }
+    const defaults = agencyHintsQuery.data;
+    if (!defaults || appliedAgencyDefaultsFor.current === agencyId) return;
+    appliedAgencyDefaultsFor.current = agencyId;
+    const planId = defaults.hints.find((row) => row.planId)?.planId;
+    if (planId) onApplyRatePlan(planId);
+  }, [agencyHintsQuery.data, onApplyRatePlan, relationTab, travelAgentMaster?.id]);
+
+  const appliedAgencyContactFor = useRef<string | null>(null);
+  useEffect(() => {
+    const agencyId = travelAgentMaster?.id ?? null;
+    if (!agencyId) {
+      appliedAgencyContactFor.current = null;
+      return;
+    }
+    if (agentContacts.length === 0 || appliedAgencyContactFor.current === agencyId) return;
+    appliedAgencyContactFor.current = agencyId;
+    const primary = agentContacts.find((row) => row.isPrimary) ?? agentContacts[0];
+    if (primary) onTravelAgentContactIdChange(primary.id);
+  }, [agentContacts, onTravelAgentContactIdChange, travelAgentMaster?.id]);
 
   const appliedGroupRateFor = useRef<string | null>(null);
   useEffect(() => {
@@ -300,7 +375,33 @@ export function CreateReservationBookingDetails({
     specialRequests,
   ]);
 
-  const usingRateLabel = ratePlanLabel.trim() || "—";
+  const companyHints = companyHintsQuery.data?.hints ?? [];
+  const contractRates = companyHintsQuery.data?.contractRates ?? [];
+  const matchedContractRate =
+    contractRates.find((row) => row.roomTypeId === roomTypeId) ?? contractRates[0] ?? null;
+  const selectedCompanyHint = companyHints.find((row) => row.planId && row.planId === ratePlanId);
+  const openAgreementHint = companyHints.find((row) => !row.planId);
+  const usingRateLabel =
+    (matchedContractRate ? formatCompanyContractRate(matchedContractRate) : "") ||
+    selectedCompanyHint?.label ||
+    openAgreementHint?.label ||
+    ratePlanLabel.trim() ||
+    "—";
+  const companyAgreementLabel = companyHintsQuery.data?.agreementLabel ?? null;
+  const agencyHints = agencyHintsQuery.data?.hints ?? [];
+  const agencyContractRates = agencyHintsQuery.data?.contractRates ?? [];
+  const matchedAgencyRate =
+    agencyContractRates.find((row) => row.roomTypeId === roomTypeId) ?? agencyContractRates[0] ?? null;
+  const selectedAgencyHint = agencyHints.find((row) => row.planId && row.planId === ratePlanId);
+  const openAgencyHint = agencyHints.find((row) => !row.planId);
+  const agencyRateLabel = agencyRateDisplayLabel({
+    contractLabel: matchedAgencyRate ? formatCompanyContractRate(matchedAgencyRate) : "",
+    selectedHint: selectedAgencyHint?.label,
+    openHint: openAgencyHint?.label,
+    ratePlanLabel,
+    appliesToAll: Boolean(activePlan?.appliesToAll),
+  });
+  const agencyAgreementLabel = agencyHintsQuery.data?.agreementLabel ?? null;
   const billingHint = billingRules.find((row) => row.id === billingRuleId);
   const billingHintCopy = billingHint
     ? `${billingHint.name} · ${billingHint.payerKindLabel} · ${reservationBillingHintFromRule(billingHint).paymentTerms}`
@@ -437,7 +538,7 @@ export function CreateReservationBookingDetails({
                       <option value="">—</option>
                       {companyContacts.map((row) => (
                         <option key={row.id} value={row.id}>
-                          {row.name}
+                          {companyContactOptionLabel(row)}
                         </option>
                       ))}
                     </select>
@@ -447,12 +548,20 @@ export function CreateReservationBookingDetails({
                       className={CONTROL}
                       value={ratePlanId}
                       onChange={(event) => {
-                        if (event.target.value) onApplyRatePlan(event.target.value);
+                        const value = event.target.value;
+                        if (value && !value.startsWith("contract:")) onApplyRatePlan(value);
                       }}
                       aria-label="Corporate Rate"
                     >
                       <option value={ratePlanId || ""}>{usingRateLabel}</option>
-                      {(companyHintsQuery.data?.hints ?? [])
+                      {contractRates
+                        .filter((row) => row.roomTypeId !== matchedContractRate?.roomTypeId)
+                        .map((row) => (
+                          <option key={row.roomTypeId} value={`contract:${row.roomTypeId}`}>
+                            {formatCompanyContractRate(row)}
+                          </option>
+                        ))}
+                      {companyHints
                         .filter((row) => row.planId && row.planId !== ratePlanId)
                         .map((row) => (
                           <option key={row.planId} value={row.planId!}>
@@ -460,6 +569,9 @@ export function CreateReservationBookingDetails({
                           </option>
                         ))}
                     </select>
+                    {companyAgreementLabel ? (
+                      <p className="text-[10px] text-muted-foreground">{companyAgreementLabel}</p>
+                    ) : null}
                   </Field>
                   <div className="grid grid-cols-2 gap-2">
                     <Field label="Billing Arrangement">
@@ -526,7 +638,7 @@ export function CreateReservationBookingDetails({
                       <option value="">—</option>
                       {agentContacts.map((row) => (
                         <option key={row.id} value={row.id}>
-                          {row.name}
+                          {companyContactOptionLabel(row)}
                         </option>
                       ))}
                     </select>
@@ -536,12 +648,20 @@ export function CreateReservationBookingDetails({
                       className={CONTROL}
                       value={ratePlanId}
                       onChange={(event) => {
-                        if (event.target.value) onApplyRatePlan(event.target.value);
+                        const value = event.target.value;
+                        if (value && !value.startsWith("contract:")) onApplyRatePlan(value);
                       }}
                       aria-label="Agency Rate"
                     >
-                      <option value={ratePlanId || ""}>{usingRateLabel}</option>
-                      {(agencyHintsQuery.data?.hints ?? [])
+                      <option value={ratePlanId || ""}>{agencyRateLabel}</option>
+                      {agencyContractRates
+                        .filter((row) => row.roomTypeId !== matchedAgencyRate?.roomTypeId)
+                        .map((row) => (
+                          <option key={row.roomTypeId} value={`contract:${row.roomTypeId}`}>
+                            {formatCompanyContractRate(row)}
+                          </option>
+                        ))}
+                      {agencyHints
                         .filter((row) => row.planId && row.planId !== ratePlanId)
                         .map((row) => (
                           <option key={row.planId} value={row.planId!}>
@@ -549,6 +669,9 @@ export function CreateReservationBookingDetails({
                           </option>
                         ))}
                     </select>
+                    {agencyAgreementLabel ? (
+                      <p className="text-[10px] text-muted-foreground">{agencyAgreementLabel}</p>
+                    ) : null}
                   </Field>
                   <Field label="Agency Reference">
                     <Input

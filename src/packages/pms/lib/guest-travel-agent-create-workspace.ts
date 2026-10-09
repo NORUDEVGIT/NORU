@@ -116,9 +116,29 @@ export type AccountCreateContactDraft = {
 };
 
 export function generateAgencyCode(typeCode: string, sequence = 1): string {
-  const prefix = (typeCode || "TA").trim().toUpperCase();
+  const prefix = (typeCode || "TA").trim().toUpperCase().replace(/[^A-Z0-9_]/g, "") || "TA";
   const padded = String(sequence).padStart(3, "0");
   return `${prefix}-${padded}`;
+}
+
+export function nextAgencyCode(typeCode: string, usedCodes: Iterable<string> = []): string {
+  const prefix = (typeCode || "TA").trim().toUpperCase().replace(/[^A-Z0-9_]/g, "") || "TA";
+  const used = new Set(Array.from(usedCodes, (code) => code.trim().toUpperCase()).filter(Boolean));
+  const pattern = new RegExp(`^${prefix}-(\\d+)$`);
+  let maxSeq = 0;
+  for (const code of used) {
+    const match = code.match(pattern);
+    if (!match) continue;
+    const num = parseInt(match[1], 10);
+    if (!Number.isNaN(num) && num > maxSeq) maxSeq = num;
+  }
+  let seq = maxSeq + 1;
+  let candidate = generateAgencyCode(prefix, seq);
+  while (used.has(candidate)) {
+    seq += 1;
+    candidate = generateAgencyCode(prefix, seq);
+  }
+  return candidate;
 }
 
 export type TravelAgencyDraftDocument = {

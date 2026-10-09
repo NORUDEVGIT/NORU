@@ -266,14 +266,14 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     );
   });
 
-  it("AC-W4-12 bill-to is association only while transfersSupported is false", () => {
+  it("AC-W4-12 bill-to is association only while company accounts are separate rows", () => {
     const relationships = readRel("../components/guests/guest-relationships-card.tsx");
     const cashiering = readRel("./cashiering.functions.ts");
     assert.equal(ROLE_ACCOUNT_TYPE.bill_to, "company");
     assert.match(WAVE4_BILL_TO_COPY, /association only/);
     assert.doesNotMatch(WAVE4_BILL_TO_COPY, /folio routed to company|split-folio is live/i);
     assert.match(relationships, /WAVE4_BILL_TO_COPY/);
-    assert.match(cashiering, /transfersSupported: false/);
+    assert.match(cashiering, /transfersSupported: true/);
   });
 
   it("AC-W4-13 Group account is not an S&E block", () => {
@@ -499,6 +499,6 @@ describe("Guest Profile Wave 4 catalogue, honesty and gates", () => {
       assert.doesNotMatch(source, /allotment live|rooming list product/i);
     }
     const cashiering = readRel("./cashiering.functions.ts");
-    assert.match(cashiering, /transfersSupported: false/);
+    assert.match(cashiering, /transfersSupported: true/);
   });
 });

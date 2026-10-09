@@ -71,6 +71,7 @@ function recordToDraft(row: ServiceTypeRecord): ServiceTypeDraft {
     code: row.code,
     description: row.description ?? "",
     active: row.active,
+    chargeableToFolio: row.chargeableToFolio,
     displayOrder: row.displayOrder,
   };
 }
@@ -138,6 +139,7 @@ export function PmsCard4ServiceTypes({
           code: normalizeServiceTypeCode(draft.code),
           description: draft.description,
           active: draft.active,
+          chargeableToFolio: draft.chargeableToFolio,
           displayOrder: draft.displayOrder,
         },
       }),
@@ -332,6 +334,7 @@ export function PmsCard4ServiceTypes({
                     <TableHead>Description</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Active</TableHead>
+                    <TableHead>Folio</TableHead>
                     <TableHead className="w-12">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -355,6 +358,9 @@ export function PmsCard4ServiceTypes({
                         >
                           {row.active ? "Active" : "Inactive"}
                         </span>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {row.chargeableToFolio ? "Chargeable" : "—"}
                       </TableCell>
                       <TableCell>
                         <Switch
@@ -500,6 +506,20 @@ export function PmsCard4ServiceTypes({
               {errorFor("displayOrder") ? (
                 <p className="text-xs text-destructive">{errorFor("displayOrder")}</p>
               ) : null}
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="st-chargeable">Chargeable to folio</Label>
+                <p className="text-xs text-muted-foreground">
+                  Cashiers can post this service only when it also has a price and one billing department.
+                </p>
+              </div>
+              <Switch
+                id="st-chargeable"
+                checked={draft.chargeableToFolio}
+                disabled={!canEdit}
+                onCheckedChange={(chargeableToFolio) => mark("chargeableToFolio", chargeableToFolio)}
+              />
             </div>
             <div className="flex items-center justify-between gap-3">
               <Label htmlFor="st-active">Active</Label>

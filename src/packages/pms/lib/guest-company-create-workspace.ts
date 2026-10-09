@@ -80,6 +80,7 @@ export type CompanyContractDraft = {
   noShowPolicyId: string | null;
   documents: CompanyContractDocumentItem[];
   notes: string;
+  agreementId?: string | null;
 };
 
 export function emptyCompanyContractDraft(defaultCurrency = ""): CompanyContractDraft {
@@ -108,6 +109,7 @@ export function emptyCompanyContractDraft(defaultCurrency = ""): CompanyContract
     noShowPolicyId: null,
     documents: [],
     notes: "",
+    agreementId: null,
   };
 }
 
@@ -462,8 +464,248 @@ export function normalizeCompanyCreateDraft(draft: GuestCompanyCreateDraft): Gue
   };
 }
 
+const COMPANY_BILLING_TIMING_IDS = new Set<string>(COMPANY_BILLING_TIMINGS.map((row) => row.id));
+const COMPANY_CREDIT_STATUS_IDS = new Set<string>(COMPANY_CREDIT_STATUSES.map((row) => row.id));
+
+function savedText(value: unknown): string {
+  return value == null ? "" : String(value).trim();
+}
+
+function savedDate(value: unknown): string {
+  const match = savedText(value).match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] ?? "";
+}
+
+function savedNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const num = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function savedRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+export type CompanySavedContact = {
+  id: string;
+  name: string;
+  position?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+  isPrimary?: boolean;
+  preferredMethod?: string | null;
+  notes?: string | null;
+  roleIds?: string[];
+};
+
+export type CompanySavedAgreement = {
+  id: string;
+  contractTypeId?: string | null;
+  name?: string | null;
+  code?: string | null;
+  contractNumber?: string | null;
+  validFrom?: string | null;
+  validTo?: string | null;
+  currencyCode?: string | null;
+  status?: string | null;
+  pricingMethod?: string | null;
+  ratePlanId?: string | null;
+  ratePlanScope?: string | null;
+  ratePlanIds?: string[] | null;
+  discountApplication?: string | null;
+  discountType?: string | null;
+  discountValue?: number | string | null;
+  ratePlanDiscounts?: Array<{
+    ratePlanId?: string | null;
+    discountType?: string | null;
+    discountValue?: number | string | null;
+  }> | null;
+  depositPolicyId?: string | null;
+  cancellationPolicyId?: string | null;
+  noShowPolicyId?: string | null;
+  notes?: string | null;
+};
+
+/** Rebuild the create/edit form from the company row, its contacts, billing columns, and agreement. */
+export function companySavedRecordToDraft(input: {
+  account: Record<string, unknown>;
+  contacts?: CompanySavedContact[];
+  agreement?: CompanySavedAgreement | null;
+  contractRates?: Array<{ roomTypeId?: string | null; amount?: number | string | null }>;
+  documents?: CompanyContractDocumentItem[];
+  countryCode?: string;
+}): GuestCompanyCreateDraft {
+  const account = input.account;
+  const ops = savedRecord(account.accountOperations ?? account.account_operations);
+  const opsBilling = savedRecord(ops.billing);
+  const opsDefaults = savedRecord(ops.defaults);
+  const opsContract = savedRecord(ops.contract);
+  const methodById = new Map(
+    (Array.isArray(ops.contactPreferredMethods) ? ops.contactPreferredMethods : [])
+      .map((row) => savedRecord(row))
+      .filter((row) => savedText(row.id))
+      .map((row) => [savedText(row.id), savedText(row.method)]),
+  );
+  const contacts = (input.contacts ?? [])
+    .filter((row) => savedText(row.name))
+    .map((row) => ({
+      key: row.id,
+      id: row.id,
+      name: savedText(row.name),
+      position: savedText(row.position),
+      email: savedText(row.email),
+      phone: savedText(row.phone),
+      whatsapp: savedText(row.whatsapp),
+      roleIds: row.roleIds ?? [],
+      isPrimary: Boolean(row.isPrimary),
+      preferredMethod: savedText(row.preferredMethod) || methodById.get(row.id) || "",
+      notes: savedText(row.notes),
+    }));
+  const timing = savedText(account.paymentTiming ?? account.payment_timing);
+  const creditStatus = savedText(account.creditStatus ?? account.credit_status);
+  const status = savedText(account.accountStatus ?? account.account_status);
+  const agreement = input.agreement ?? null;
+  const ratePlanIds = [
+    ...new Set(
+      [...(agreement?.ratePlanIds ?? []), agreement?.ratePlanId ?? ""].map((id) => savedText(id)).filter(Boolean),
+    ),
+  ];
+  const pricing = savedText(agreement?.pricingMethod);
+  const base = emptyGuestCompanyCreateDraft();
+  return normalizeCompanyCreateDraft({
+    ...base,
+    accountId: savedText(account.id) || null,
+    name: savedText(account.name),
+    tradeName: savedText(account.tradeName ?? account.trade_name),
+    code: savedText(account.code),
+    businessProfileTypeId: savedText(account.businessProfileTypeId ?? account.business_profile_type_id),
+    companyType: savedText(account.companyType ?? account.company_type),
+    companyTypeOther: savedText(account.companyTypeOther ?? account.company_type_other),
+    accountStatus: status === "pending" || status === "active" || status === "inactive" ? status : "active",
+    industry: savedText(account.industry) || savedText(ops.industry),
+    taxId: savedText(account.taxId ?? account.tax_id),
+    registrationNumber: savedText(
+      account.registrationNumber ?? account.businessRegistrationNumber ?? account.business_registration_number,
+    ),
+    website: savedText(account.website),
+    notes: savedText(account.notes),
+    contacts: contacts.length > 0 ? contacts : base.contacts,
+    addressLine1: savedText(account.addressLine1 ?? account.address_line1),
+    addressLine2: savedText(account.addressLine2 ?? account.address_line2),
+    city: savedText(account.city) || base.city,
+    region: savedText(account.region) || base.region,
+    postalCode: savedText(account.postalCode ?? account.postal_code),
+    country: input.countryCode || savedText(account.country) || base.country,
+    marketSegmentId: savedText(account.marketSegmentId) || savedText(ops.marketSegmentId),
+    sourceCodeId: savedText(account.sourceCodeId) || savedText(ops.sourceCodeId),
+    sourceOfBusiness: savedText(account.sourceOfBusiness ?? account.source_of_business) || savedText(ops.sourceOfBusiness),
+    accountManagerId: savedText(account.accountManagerId) || savedText(ops.accountManagerMembershipId),
+    contractReference:
+      savedText(account.contractReference ?? account.corporateAccountReference ?? account.corporate_account_reference) ||
+      savedText(opsContract.reference),
+    contractStartDate: savedDate(account.contractStartDate ?? account.contract_start_date) || savedDate(opsContract.startDate),
+    contractEndDate: savedDate(account.contractEndDate ?? account.contract_end_date) || savedDate(opsContract.endDate),
+    ratePlanId: savedText(account.ratePlanId) || savedText(opsDefaults.ratePlanId),
+    packageId: savedText(account.packageId) || savedText(opsDefaults.packageId),
+    mealPlanId: savedText(account.mealPlanId) || savedText(opsDefaults.mealPlanId),
+    defaultBillingRuleId: savedText(account.defaultBillingRuleId ?? account.default_billing_rule_id) || null,
+    defaultPaymentMethodId:
+      savedText(account.defaultPaymentMethodId ?? account.default_payment_method_id) ||
+      savedText(opsBilling.paymentMethodId) ||
+      null,
+    billingCurrencyCode: savedText(account.billingCurrencyCode ?? account.billing_currency_code) || savedText(opsBilling.currency),
+    paymentTiming: COMPANY_BILLING_TIMING_IDS.has(timing) ? (timing as CompanyBillingTiming) : null,
+    creditDays: savedNumber(account.creditDays ?? account.credit_days),
+    creditStatus: COMPANY_CREDIT_STATUS_IDS.has(creditStatus) ? (creditStatus as CompanyCreditStatus) : null,
+    creditLimitAmount: savedNumber(account.creditLimitAmount ?? account.credit_limit_amount),
+    taxExempt: Boolean(account.taxExempt ?? account.tax_exempt),
+    taxExemptionRuleId: savedText(account.taxExemptionRuleId ?? account.tax_exemption_rule_id) || null,
+    taxExemptionCertificateNumber: savedText(
+      account.taxExemptionCertificateNumber ?? account.tax_exemption_certificate_number,
+    ),
+    taxExemptionValidTo: savedDate(account.taxExemptionValidTo ?? account.tax_exemption_valid_to) || null,
+    billingArrangement: savedText(account.billingArrangement) || savedText(opsBilling.arrangement),
+    billingContactName: savedText(account.billingContactName ?? account.billing_contact_name) || savedText(opsBilling.contactName),
+    billingEmail: savedText(account.billingEmail) || savedText(opsBilling.contactEmail),
+    paymentMethodId: savedText(account.paymentMethodId) || savedText(opsBilling.paymentMethodId),
+    currency: savedText(account.currency) || savedText(opsBilling.currency),
+    paymentTerms: savedText(account.paymentTerms ?? account.payment_terms),
+    billingInstruction: savedText(account.billingInstruction ?? account.billing_instruction),
+    creditAccountEnabled: Boolean(account.creditAccountEnabled ?? account.credit_account_enabled),
+    creditLimitNote: savedText(account.creditLimitNote ?? account.credit_limit_note),
+    taxExemptionNote: savedText(account.taxExemptionNote) || savedText(ops.taxExemptionNote),
+    taxNote: savedText(account.taxNote) || savedText(ops.taxNote),
+    contract: agreement
+      ? {
+          ...emptyCompanyContractDraft(savedText(agreement.currencyCode)),
+          agreementId: agreement.id,
+          contractTypeId: savedText(agreement.contractTypeId) || null,
+          name: savedText(agreement.name),
+          code: savedText(agreement.code),
+          contractNumber: savedText(agreement.contractNumber),
+          validFrom: savedDate(agreement.validFrom) || base.contract.validFrom,
+          validTo: savedDate(agreement.validTo) || base.contract.validTo,
+          currencyCode: savedText(agreement.currencyCode),
+          status: savedText(agreement.status) === "draft" ? "draft" : "active",
+          pricingMethod:
+            pricing === "rate_plan_discount" || pricing === "contracted_rates" ? pricing : "rate_plan",
+          ratePlanScope: savedText(agreement.ratePlanScope) === "all" ? "all" : "selected",
+          ratePlanIds,
+          ratePlanId: savedText(agreement.ratePlanId) || ratePlanIds[0] || null,
+          discountApplication: savedText(agreement.discountApplication) === "custom" ? "custom" : "uniform",
+          discountType:
+            savedText(agreement.discountType) === "fixed"
+              ? "fixed"
+              : savedText(agreement.discountType) === "percent"
+                ? "percent"
+                : null,
+          discountValue: savedNumber(agreement.discountValue),
+          ratePlanDiscounts: (agreement.ratePlanDiscounts ?? [])
+            .map((row) => ({
+              ratePlanId: savedText(row.ratePlanId),
+              discountType: savedText(row.discountType) === "fixed" ? ("fixed" as const) : ("percent" as const),
+              discountValue: savedNumber(row.discountValue),
+            }))
+            .filter((row) => row.ratePlanId),
+          contractRates: (input.contractRates ?? [])
+            .map((row) => ({ roomTypeId: savedText(row.roomTypeId), amount: savedNumber(row.amount) }))
+            .filter((row) => row.roomTypeId),
+          depositPolicyId: savedText(agreement.depositPolicyId) || null,
+          cancellationPolicyId: savedText(agreement.cancellationPolicyId) || null,
+          noShowPolicyId: savedText(agreement.noShowPolicyId) || null,
+          documents: input.documents ?? [],
+          notes: savedText(agreement.notes),
+        }
+      : base.contract,
+  });
+}
+
 export function filled(value: string | null | undefined): boolean {
   return Boolean(value?.trim());
+}
+
+/** True when the user chose plans, all plans, a discount, or contracted room rates. */
+export function companyContractHasSelectedPricing(contract: CompanyContractDraft | null | undefined): boolean {
+  if (!contract) return false;
+  if (contract.ratePlanScope === "all") return true;
+  if ((contract.ratePlanIds?.length ?? 0) > 0 || filled(contract.ratePlanId)) return true;
+  if (contract.pricingMethod === "rate_plan_discount") {
+    if (contract.discountValue !== null && contract.discountValue !== undefined) return true;
+    if ((contract.ratePlanDiscounts ?? []).some((row) => filled(row.ratePlanId))) return true;
+  }
+  return (contract.contractRates ?? []).some(
+    (row) => filled(row.roomTypeId) || (row.amount !== null && row.amount !== undefined),
+  );
+}
+
+/** Chosen pricing is stored on the agreement, which needs a name and a contract type. */
+export function companyContractPersistBlocker(contract: CompanyContractDraft | null | undefined): string | null {
+  if (!companyContractHasSelectedPricing(contract) || !contract) return null;
+  if (!filled(contract.name) || !filled(contract.contractTypeId)) {
+    return "Contract name and contract type are required to save this contract pricing.";
+  }
+  return null;
 }
 
 function blank(value: string): string | null {
@@ -1301,6 +1543,26 @@ export function companyCreateFieldIssues(
       }
     }
 
+    if (companyContractHasSelectedPricing(contract)) {
+      if (!filled(contract.name) && !issues.some((issue) => issue.key === "contractName" && issue.step === "contracts")) {
+        issues.push({
+          key: "contractName",
+          message: "Contract name is required to save this contract pricing.",
+          step: "contracts",
+        });
+      }
+      if (
+        !filled(contract.contractTypeId) &&
+        !issues.some((issue) => issue.key === "contractTypeId" && issue.step === "contracts")
+      ) {
+        issues.push({
+          key: "contractTypeId",
+          message: "Contract type is required to save this contract pricing.",
+          step: "contracts",
+        });
+      }
+    }
+
     // Required Contract Documents Validation (enforced for Active status)
     if (contract.status === "active" && options?.contractDocumentTypes) {
       for (const docType of options.contractDocumentTypes) {
@@ -1355,6 +1617,7 @@ export function guestCompanyCreateCompletion(
   items: GuestCompanyCreateCompletionItem[];
 } {
   const gaps = options?.rules ? card4CompanyCreateGaps(draft, options.rules) : [];
+  const pricingNeedsIdentity = Boolean(companyContractPersistBlocker(draft.contract));
   const detailsGaps = gaps.filter((g) => g.step === "details");
   const contactsGaps = gaps.filter((g) => g.step === "contacts");
   const billingGaps = gaps.filter((g) => g.step === "billing");
@@ -1395,11 +1658,13 @@ export function guestCompanyCreateCompletion(
       label: "Contracts & agreements",
       complete:
         contractsGaps.length === 0 &&
+        !pricingNeedsIdentity &&
         (options?.rules
           ? true
           : Boolean(draft.contract && filled(draft.contract.name) && filled(draft.contract.contractTypeId))),
       requiredRemaining:
         contractsGaps.length > 0 ||
+        pricingNeedsIdentity ||
         (!options?.rules &&
           Boolean(!draft.contract || !filled(draft.contract.name) || !filled(draft.contract.contractTypeId))),
       step: "contracts",

@@ -15772,6 +15772,51 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      preview_folio_charge: {
+        Args: {
+          _amount: number
+          _folio_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      list_chargeable_guest_services: {
+        Args: {
+          _folio_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      preview_folio_service_charge: {
+        Args: {
+          _folio_id: string
+          _quantity: number
+          _restaurant_id: string
+          _service_type_id: string
+        }
+        Returns: Json
+      }
+      post_folio_service_charge: {
+        Args: {
+          _description: string
+          _folio_id: string
+          _idempotency_key: string
+          _membership_id: string
+          _quantity: number
+          _restaurant_id: string
+          _service_type_id: string
+        }
+        Returns: Json
+      }
+      resolve_chargeable_guest_service: {
+        Args: {
+          _folio_currency: string
+          _quantity: number
+          _restaurant_id: string
+          _service_type_id: string
+        }
+        Returns: Json
+      }
       post_folio_transaction: {
         Args: {
           _amount: number

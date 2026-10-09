@@ -84,7 +84,7 @@ import {
   emptyAccountCreateContact,
   emptyGuestTravelAgentCreateDraft,
   filled,
-  generateAgencyCode,
+  nextAgencyCode,
   guestTravelAgentCreateCompletion,
   guestTravelAgentCreateHasChanges,
   isTravelAgencyRuleRequired,
@@ -327,17 +327,20 @@ export function GuestTravelAgencyCreateModal({
     } else if (context.data.draft) {
       setDraft(context.data.draft.payload);
       setStep(context.data.draft.step);
-    } else if (context.data.defaultCurrency) {
-      setDraft((current) =>
-        current.currency
-          ? current
-          : {
-              ...current,
-              currency: context.data.defaultCurrency,
-              billingCurrencyCode: context.data.defaultCurrency,
-              commissionCurrency: context.data.defaultCurrency,
-            },
-      );
+    } else if (context.data.defaultCurrency || context.data.usedAgencyCodes) {
+      setDraft((current) => {
+        const nextCode =
+          !current.accountId && (!current.code || current.code === "TA-001")
+            ? nextAgencyCode("TA", context.data.usedAgencyCodes ?? [])
+            : current.code;
+        return {
+          ...current,
+          code: nextCode,
+          currency: current.currency || context.data.defaultCurrency,
+          billingCurrencyCode: current.billingCurrencyCode || context.data.defaultCurrency,
+          commissionCurrency: current.commissionCurrency || context.data.defaultCurrency,
+        };
+      });
     }
     setDefaultsApplied(true);
   }, [context.data, currentAgency, defaultsApplied, isEdit, open, restaurantId]);
@@ -500,7 +503,7 @@ export function GuestTravelAgencyCreateModal({
     onSuccess: (result) => {
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       toast.success("Travel agency created.");
-      setCreated({ id: result.id!, name: draft.name, code: draft.code || null });
+      setCreated({ id: result.id!, name: draft.name, code: result.code || draft.code || null });
       if (onCreated && result.id) {
         onCreated(result.id);
       } else if (result.id) {
@@ -708,6 +711,7 @@ export function GuestTravelAgencyCreateModal({
                         fieldError={fieldError}
                         step="basic_info"
                         isRuleRequired={isRuleRequired}
+                        usedAgencyCodes={context.data?.usedAgencyCodes}
                       />
                     ) : null}
                     {step === "contacts" ? (

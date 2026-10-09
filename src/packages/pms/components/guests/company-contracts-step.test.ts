@@ -316,9 +316,9 @@ describe("PHASE 2: Company Contracts & Agreements Step 4 Domain & UI Specificati
       assert.match(functionsCode, /await persistCompanyContract\([\s\S]*?data\.restaurantId[\s\S]*?draft\.contract/);
     });
 
-    it("generates property-scoped contract code CORP-YYYY-NNN", () => {
+    it("generates property-scoped contract code CORP_YYYY_NNN", () => {
       assert.match(functionsCode, /export const getNextCorporateContractCode/);
-      assert.match(functionsCode, /CORP-\$\{year\}-/);
+      assert.match(functionsCode, /CORP_\$\{year\}_/);
     });
 
     it("does NOT write new contract data to guest_account_masters.account_operations.contract", () => {

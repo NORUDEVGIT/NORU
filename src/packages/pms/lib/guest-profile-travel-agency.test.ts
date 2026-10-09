@@ -354,7 +354,7 @@ describe("Guest Profile Travel Agency enrichment lock — AC-GE3-1…18", () => 
     assert.doesNotMatch(functions, /from\("guest_family_links"|from\("ta_commission_ledger"/);
     assert.doesNotMatch(migration, /CREATE TABLE/);
     assert.match(migration, /No commission settlement engine/);
-    assert.match(cashiering, /transfersSupported: false/);
+    assert.match(cashiering, /transfersSupported: true/);
     assert.equal(
       taDirectorySecondary("Northwind", "ota"),
       "Northwind · OTA",

@@ -430,7 +430,9 @@ export function validateCorporateAgreementPayload(
       if (isSelected && !hasPlan) {
         errors.push("Method A requires selecting an active Rate Plan.");
       }
-      if (payload.discountType || (payload.discountValue !== null && payload.discountValue !== undefined) || (payload.ratePlanDiscounts && payload.ratePlanDiscounts.length > 0)) {
+      const discountValue = payload.discountValue;
+      const hasDiscountValue = typeof discountValue === "number" && Number.isFinite(discountValue) && discountValue !== 0;
+      if (payload.discountType || hasDiscountValue || (payload.ratePlanDiscounts && payload.ratePlanDiscounts.length > 0)) {
         errors.push("Method A does not accept discount type or discount value.");
       }
       break;

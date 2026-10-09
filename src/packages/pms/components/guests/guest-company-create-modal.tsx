@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -103,6 +103,7 @@ import {
 import {
   deleteCompanyCreateDraft,
   getCompanyCreateContext,
+  getCompanyEditDraft,
   persistCompanyCreate,
   saveCompanyCreateDraft,
   getNextCorporateContractCode,
@@ -239,6 +240,7 @@ export function GuestCompanyCreateModal({
   const saveDraftHold = useServerFn(saveCompanyCreateDraft);
   const clearDraft = useServerFn(deleteCompanyCreateDraft);
   const persist = useServerFn(persistCompanyCreate);
+  const loadEditDraft = useServerFn(getCompanyEditDraft);
   const fetchDuplicates = useServerFn(findCompanyDuplicates);
   const fetchContractConfig = useServerFn(getCompanyContractCreateConfig);
   const fetchNextContractCode = useServerFn(getNextCorporateContractCode);
@@ -276,6 +278,14 @@ export function GuestCompanyCreateModal({
   const [created, setCreated] = useState<{ id: string; name: string; code: string | null } | null>(null);
   const [holdState, setHoldState] = useState<"idle" | "saving" | "saved">(localHold ? "saved" : "idle");
   const [attemptedSteps, setAttemptedSteps] = useState<Set<string>>(new Set());
+  const editHydratedFor = useRef<string | null>(null);
+
+  const editDraftQuery = useQuery({
+    queryKey: ["company-edit-draft", restaurantId, companyId],
+    queryFn: () => loadEditDraft({ data: { restaurantId, companyId: companyId! } }),
+    enabled: open && isEdit && Boolean(companyId),
+    retry: false,
+  });
 
   const context = useQuery({
     queryKey: ["company-create-context", restaurantId],
@@ -283,15 +293,29 @@ export function GuestCompanyCreateModal({
   });
 
   useEffect(() => {
-    if (!open) return;
-    if (isEdit) {
-      if (currentCompany) {
-        setDraft(companyProfileToCreateDraft(currentCompany));
-        setStep("basic");
-        setDefaultsApplied(true);
-      }
+    if (!open) {
+      editHydratedFor.current = null;
       return;
     }
+    if (!isEdit || !companyId) return;
+    if (editHydratedFor.current === companyId) return;
+    if (editDraftQuery.data) {
+      setDraft(editDraftQuery.data);
+      setStep("details");
+      setDefaultsApplied(true);
+      editHydratedFor.current = companyId;
+      return;
+    }
+    if (editDraftQuery.isError && currentCompany) {
+      setDraft(companyProfileToCreateDraft(currentCompany));
+      setStep("details");
+      setDefaultsApplied(true);
+      editHydratedFor.current = companyId;
+    }
+  }, [companyId, currentCompany, editDraftQuery.data, editDraftQuery.isError, isEdit, open]);
+
+  useEffect(() => {
+    if (!open || isEdit) return;
     if (!context.data || defaultsApplied) return;
     const local = readGuestCompanyCreateHold(restaurantId);
     if (local) {
@@ -670,7 +694,7 @@ export function GuestCompanyCreateModal({
     onSuccess: (result) => {
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       toast.success("Company created.");
-      setCreated({ id: result.id!, name: draft.name, code: draft.code || null });
+      setCreated({ id: result.id!, name: draft.name, code: result.code || draft.code || null });
       if (onCreated && result.id) {
         onCreated(result.id);
       } else if (result.id) {
@@ -816,6 +840,11 @@ export function GuestCompanyCreateModal({
           <div className="grid min-h-0 flex-1 grid-cols-1 items-start gap-5 overflow-y-auto p-5 xl:grid-cols-[minmax(0,1fr)_300px]">
             {/* Left: Step Form Content */}
             <div className="min-w-0 space-y-4">
+              {isEdit && editDraftQuery.isLoading ? (
+                <p className="rounded-xl border border-[#EDE6D8] bg-white px-4 py-3 text-sm text-[#756A5B]">
+                  Loading saved contacts, billing, and contract…
+                </p>
+              ) : null}
               {duplicates.data && duplicates.data.length > 0 ? (
                 <section className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
                   <p className="flex items-center gap-2 font-medium text-amber-900">

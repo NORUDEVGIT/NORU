@@ -678,7 +678,7 @@ export async function executeOrSubmitPackageActivation(
   }>
 > {
   const policy = await getRevenueApprovalPolicy(db, input.restaurantId);
-  if (!policy.enabled) {
+  if (!policy.enabled || input.applyImmediately === true) {
     const applied = await applyStoredPackageActivation(db, input, actor.membershipId);
     return {
       mode: "applied",

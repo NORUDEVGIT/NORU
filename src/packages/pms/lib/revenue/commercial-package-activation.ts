@@ -53,6 +53,7 @@ export type PackageActivationPreviewInput = {
   ratePlanIds?: string[] | undefined;
   reason?: string | null | undefined;
   expectedVersion?: string | undefined;
+  applyImmediately?: boolean | undefined;
 };
 
 export type PackageMasterPreview = {

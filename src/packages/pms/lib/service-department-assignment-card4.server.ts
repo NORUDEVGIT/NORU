@@ -21,6 +21,7 @@ export type ServiceDepartmentAssignmentRecord = {
   serviceTypeId: string;
   departmentId: string;
   active: boolean;
+  isBillingDepartment: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -30,6 +31,7 @@ export type ServiceDepartmentAssignmentDraft = {
   serviceTypeId: string;
   departmentId: string;
   active: boolean;
+  isBillingDepartment: boolean;
 };
 
 export type ServiceDepartmentAssignmentSnapshot = {
@@ -51,6 +53,7 @@ export function emptyServiceDepartmentAssignmentDraft(
     serviceTypeId,
     departmentId,
     active: true,
+    isBillingDepartment: false,
   };
 }
 

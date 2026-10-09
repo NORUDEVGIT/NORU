@@ -13,6 +13,8 @@ import { loadBusinessSnapshot } from "./guest-companies.functions";
 import { createGuestAccount, updateGuestAccount } from "./guest-accounts.functions";
 import { saveCompanyContact } from "./guest-company-detail.functions";
 import {
+  companyContractPersistBlocker,
+  companySavedRecordToDraft,
   draftToAccountOperations,
   draftToCompanyAccountInput,
   filled,
@@ -24,6 +26,7 @@ import {
   type GuestCompanyCreateStepId,
 } from "./guest-company-create-workspace";
 import { validateCorporateAgreementPayload } from "./corporate-contracts.server";
+import { countryCodeFromInput } from "./pms-geography";
 import {
   CANONICAL_BILLING_RULES,
   isBillingRuleApplicableToProfile,
@@ -673,9 +676,9 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    const me = await requireGuestManager(context as never, data.restaurantId);
     const draft = { ...data.draft };
-    if (!draft.accountId && !draft.code?.trim()) {
+    if (!draft.accountId) {
       try {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const existingCodesRes = await admin(supabaseAdmin)
@@ -684,21 +687,34 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
           .eq("restaurant_id", data.restaurantId)
           .eq("account_type", "company")
           .not("code", "is", null);
+        const used = new Set<string>();
         let maxSeq = 0;
         if (Array.isArray(existingCodesRes.data)) {
           for (const row of existingCodesRes.data) {
-            const match = String(row.code ?? "").trim().match(/^COM-(\d+)$/i);
+            const code = String(row.code ?? "").trim().toUpperCase();
+            if (!code) continue;
+            used.add(code);
+            const match = code.match(/^COM-(\d+)$/);
             if (match) {
               const num = parseInt(match[1], 10);
-              if (!Number.isNaN(num) && num > maxSeq) {
-                maxSeq = num;
-              }
+              if (!Number.isNaN(num) && num > maxSeq) maxSeq = num;
             }
           }
         }
-        draft.code = `COM-${String(maxSeq + 1).padStart(4, "0")}`;
+        const wanted = draft.code?.trim().toUpperCase() ?? "";
+        if (!wanted || used.has(wanted)) {
+          let seq = maxSeq + 1;
+          let candidate = `COM-${String(seq).padStart(4, "0")}`;
+          while (used.has(candidate)) {
+            seq += 1;
+            candidate = `COM-${String(seq).padStart(4, "0")}`;
+          }
+          draft.code = candidate;
+        } else {
+          draft.code = wanted;
+        }
       } catch {
-        draft.code = "COM-0001";
+        if (!draft.code?.trim()) draft.code = "COM-0001";
       }
     }
     if (!draft.accountId) {
@@ -801,6 +817,9 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
           throw new Error("Certificate or reference number is required for this exemption rule.");
         }
       }
+
+      const contractBlocker = companyContractPersistBlocker(draft.contract);
+      if (contractBlocker) throw new Error(contractBlocker);
     }
 
     const snapshot = await loadBusinessSnapshot(data.restaurantId);
@@ -875,7 +894,12 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
     }
 
     let agreementId: string | null = null;
-    if (draft.contract && (filled(draft.contract.name) || filled(draft.contract.contractTypeId))) {
+    const contract = draft.contract;
+    const contractRequested = Boolean(
+      contract &&
+        (filled(contract.name) || filled(contract.contractTypeId) || companyContractHasSelectedPricing(contract)),
+    );
+    if (contractRequested && contract) {
       try {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         agreementId = await persistCompanyContract(
@@ -885,6 +909,12 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
           draft.contract,
           me.id,
         );
+        if (data.mode === "complete" && !agreementId) {
+          throw new Error(
+            companyContractPersistBlocker(contract) ??
+              "The selected rate plans were not saved on the company contract.",
+          );
+        }
       } catch (caught) {
         const contractErr = caught instanceof Error ? caught.message : "Contract could not be saved.";
         if (data.mode === "complete") {
@@ -895,7 +925,182 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
       }
     }
 
-    return { id: accountId, contacts, agreementId, created: true as const, error };
+    return { id: accountId, contacts, agreementId, code: draft.code?.trim() || null, created: true as const, error };
+  });
+
+export const getCompanyEditDraft = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, companyId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<GuestCompanyCreateDraft> => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = admin(supabaseAdmin);
+    const accountRes = await db
+      .from("guest_account_masters")
+      .select("*")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.companyId)
+      .eq("account_type", "company")
+      .maybeSingle();
+    if (accountRes.error) throw new Error(accountRes.error.message);
+    if (!accountRes.data) throw new Error("That company could not be found.");
+    const account = accountRes.data as Record<string, unknown>;
+
+    let contactRows: Array<Record<string, unknown>> = [];
+    const contactsRes = await db
+      .from("guest_company_contacts")
+      .select("id, name, position, phone, email, whatsapp, is_primary, notes, preferred_method")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("company_master_id", data.companyId)
+      .order("is_primary", { ascending: false })
+      .order("name");
+    if (contactsRes.error) {
+      const fallback = await db
+        .from("guest_company_contacts")
+        .select("id, name, position, phone, email, is_primary, notes")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("company_master_id", data.companyId)
+        .order("is_primary", { ascending: false })
+        .order("name");
+      if (!fallback.error && Array.isArray(fallback.data)) contactRows = fallback.data as Array<Record<string, unknown>>;
+    } else if (Array.isArray(contactsRes.data)) {
+      contactRows = contactsRes.data as Array<Record<string, unknown>>;
+    }
+
+    const rolesByContact = new Map<string, string[]>();
+    const contactIds = contactRows.map((row) => String(row.id)).filter(Boolean);
+    if (contactIds.length > 0) {
+      const rolesRes = await db
+        .from("guest_company_contact_roles")
+        .select("contact_id, role_id")
+        .in("contact_id", contactIds);
+      if (!rolesRes.error && Array.isArray(rolesRes.data)) {
+        for (const role of rolesRes.data as Array<{ contact_id?: string; role_id?: string }>) {
+          const contactId = String(role.contact_id ?? "");
+          const roleId = String(role.role_id ?? "");
+          if (!contactId || !roleId) continue;
+          const list = rolesByContact.get(contactId) ?? [];
+          list.push(roleId);
+          rolesByContact.set(contactId, list);
+        }
+      }
+    }
+
+    const agreementColumns =
+      "id, contract_type_id, name, code, contract_number, valid_from, valid_to, currency_code, status, pricing_method, rate_plan_id, rate_plan_scope, rate_plan_ids, discount_application, discount_type, discount_value, rate_plan_discounts, deposit_policy_id, cancellation_policy_id, no_show_policy_id, description, created_at";
+    let agreementRow: Record<string, unknown> | null = null;
+    const agreementRes = await db
+      .from("pms_corporate_agreements")
+      .select(agreementColumns)
+      .eq("restaurant_id", data.restaurantId)
+      .eq("company_id", data.companyId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (agreementRes.error) {
+      const fallback = await db
+        .from("pms_corporate_agreements")
+        .select(
+          "id, contract_type_id, name, code, contract_number, valid_from, valid_to, currency_code, status, pricing_method, rate_plan_id, discount_type, discount_value, deposit_policy_id, cancellation_policy_id, no_show_policy_id, description, created_at",
+        )
+        .eq("restaurant_id", data.restaurantId)
+        .eq("company_id", data.companyId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (!fallback.error && Array.isArray(fallback.data)) {
+        agreementRow = (fallback.data[0] as Record<string, unknown> | undefined) ?? null;
+      }
+    } else if (Array.isArray(agreementRes.data)) {
+      agreementRow = (agreementRes.data[0] as Record<string, unknown> | undefined) ?? null;
+    }
+
+    let contractRates: Array<{ roomTypeId: string; amount: number | null }> = [];
+    let documents: Array<{ documentTypeId: string; fileStoragePath: string; fileName: string }> = [];
+    const agreementId = agreementRow ? String(agreementRow.id ?? "") : "";
+    if (agreementId) {
+      const ratesRes = await db
+        .from("pms_contract_rates")
+        .select("room_type_id, amount")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("agreement_id", agreementId);
+      if (!ratesRes.error && Array.isArray(ratesRes.data)) {
+        contractRates = (ratesRes.data as Array<{ room_type_id?: string; amount?: number | null }>).map((row) => ({
+          roomTypeId: String(row.room_type_id ?? ""),
+          amount: row.amount == null ? null : Number(row.amount),
+        }));
+      }
+      const docsRes = await db
+        .from("guest_company_documents")
+        .select("document_type_id, name, storage_path")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("agreement_id", agreementId);
+      if (!docsRes.error && Array.isArray(docsRes.data)) {
+        documents = (docsRes.data as Array<{ document_type_id?: string; name?: string; storage_path?: string }>)
+          .filter((row) => row.document_type_id && row.storage_path)
+          .map((row) => ({
+            documentTypeId: String(row.document_type_id),
+            fileName: String(row.name ?? "Document"),
+            fileStoragePath: String(row.storage_path),
+          }));
+      }
+    }
+
+    const ratePlanIds = Array.isArray(agreementRow?.rate_plan_ids)
+      ? (agreementRow?.rate_plan_ids as unknown[]).map((id) => String(id))
+      : [];
+    const discounts = Array.isArray(agreementRow?.rate_plan_discounts)
+      ? (agreementRow?.rate_plan_discounts as Array<Record<string, unknown>>).map((row) => ({
+          ratePlanId: String(row.ratePlanId ?? row.rate_plan_id ?? ""),
+          discountType: String(row.discountType ?? row.discount_type ?? "percent"),
+          discountValue: (row.discountValue ?? row.discount_value) as number | string | null,
+        }))
+      : [];
+
+    return companySavedRecordToDraft({
+      account,
+      countryCode: countryCodeFromInput(String(account.country ?? "")),
+      contacts: contactRows.map((row) => ({
+        id: String(row.id),
+        name: String(row.name ?? ""),
+        position: row.position == null ? null : String(row.position),
+        email: row.email == null ? null : String(row.email),
+        phone: row.phone == null ? null : String(row.phone),
+        whatsapp: row.whatsapp == null ? null : String(row.whatsapp),
+        isPrimary: Boolean(row.is_primary),
+        preferredMethod: row.preferred_method == null ? null : String(row.preferred_method),
+        notes: row.notes == null ? null : String(row.notes),
+        roleIds: rolesByContact.get(String(row.id)) ?? [],
+      })),
+      agreement: agreementRow
+        ? {
+            id: agreementId,
+            contractTypeId: agreementRow.contract_type_id == null ? null : String(agreementRow.contract_type_id),
+            name: agreementRow.name == null ? null : String(agreementRow.name),
+            code: agreementRow.code == null ? null : String(agreementRow.code),
+            contractNumber: agreementRow.contract_number == null ? null : String(agreementRow.contract_number),
+            validFrom: agreementRow.valid_from == null ? null : String(agreementRow.valid_from),
+            validTo: agreementRow.valid_to == null ? null : String(agreementRow.valid_to),
+            currencyCode: agreementRow.currency_code == null ? null : String(agreementRow.currency_code),
+            status: agreementRow.status == null ? null : String(agreementRow.status),
+            pricingMethod: agreementRow.pricing_method == null ? null : String(agreementRow.pricing_method),
+            ratePlanId: agreementRow.rate_plan_id == null ? null : String(agreementRow.rate_plan_id),
+            ratePlanScope: agreementRow.rate_plan_scope == null ? null : String(agreementRow.rate_plan_scope),
+            ratePlanIds,
+            discountApplication: agreementRow.discount_application == null ? null : String(agreementRow.discount_application),
+            discountType: agreementRow.discount_type == null ? null : String(agreementRow.discount_type),
+            discountValue: agreementRow.discount_value as number | string | null,
+            ratePlanDiscounts: discounts,
+            depositPolicyId: agreementRow.deposit_policy_id == null ? null : String(agreementRow.deposit_policy_id),
+            cancellationPolicyId:
+              agreementRow.cancellation_policy_id == null ? null : String(agreementRow.cancellation_policy_id),
+            noShowPolicyId: agreementRow.no_show_policy_id == null ? null : String(agreementRow.no_show_policy_id),
+            notes: agreementRow.description == null ? null : String(agreementRow.description),
+          }
+        : null,
+      contractRates,
+      documents,
+    });
   });
 
 export const getNextCorporateContractCode = createServerFn({ method: "POST" })
@@ -913,13 +1118,13 @@ export const getNextCorporateContractCode = createServerFn({ method: "POST" })
     let maxSeq = 0;
     const year = new Date().getFullYear();
     for (const row of existingCodesRes.data ?? []) {
-      const match = String(row.code ?? "").match(/^CORP-\d{4}-(\d+)$/i);
-      if (match) {
-        const num = parseInt(match[1], 10);
+      const match = String(row.code ?? "").match(/^CORP[_-](\d{4})[_-](\d+)$/i);
+        if (match) {
+        const num = parseInt(match[2], 10);
         if (!Number.isNaN(num) && num > maxSeq) maxSeq = num;
       }
     }
-    return { code: `CORP-${year}-${String(maxSeq + 1).padStart(3, "0")}` };
+    return { code: `CORP_${year}_${String(maxSeq + 1).padStart(3, "0")}` };
   });
 
 export async function persistCompanyContract(
@@ -934,7 +1139,7 @@ export async function persistCompanyContract(
   }
 
   // Check code
-  let code = contract.code?.trim().toUpperCase();
+  let code = contract.code?.trim().toUpperCase().replace(/-/g, "_").replace(/[^A-Z0-9_]/g, "").slice(0, 20);
   if (!code) {
     const existingCodesRes = await db
       .from("pms_corporate_agreements")
@@ -944,13 +1149,13 @@ export async function persistCompanyContract(
     let maxSeq = 0;
     const year = new Date().getFullYear();
     for (const row of existingCodesRes.data ?? []) {
-      const match = String(row.code ?? "").match(/^CORP-\d{4}-(\d+)$/i);
-      if (match) {
-        const num = parseInt(match[1], 10);
+      const match = String(row.code ?? "").match(/^CORP[_-](\d{4})[_-](\d+)$/i);
+        if (match) {
+        const num = parseInt(match[2], 10);
         if (!Number.isNaN(num) && num > maxSeq) maxSeq = num;
       }
     }
-    code = `CORP-${year}-${String(maxSeq + 1).padStart(3, "0")}`;
+    code = `CORP_${year}_${String(maxSeq + 1).padStart(3, "0")}`;
   }
 
   // Resolve currency from contract or property setting
@@ -1092,7 +1297,76 @@ export async function persistCompanyContract(
     }
   }
 
-  let agreementInsert = await db
+  let replacedExisting = false;
+  let agreementInsert: { data: { id: string } | null; error: { message?: string; code?: string } | null } = {
+    data: null,
+    error: null,
+  };
+  if (contract.agreementId) {
+    const { restaurant_id: _restaurantId, company_id: _companyId, ...updatePayload } = agreementPayload;
+    let updated = await db
+      .from("pms_corporate_agreements")
+      .update(updatePayload)
+      .eq("id", contract.agreementId)
+      .eq("restaurant_id", restaurantId)
+      .eq("company_id", companyId)
+      .select("id")
+      .maybeSingle();
+    if (
+      updated.error &&
+      (updated.error.code === "23503" ||
+        updated.error.message?.includes("cancellation_policy") ||
+        updated.error.message?.includes("foreign key"))
+    ) {
+      updated = await db
+        .from("pms_corporate_agreements")
+        .update({ ...updatePayload, cancellation_policy_id: null })
+        .eq("id", contract.agreementId)
+        .eq("restaurant_id", restaurantId)
+        .eq("company_id", companyId)
+        .select("id")
+        .maybeSingle();
+    }
+    if (updated.error && (updated.error.code === "42703" || updated.error.code === "PGRST204")) {
+      const fallbackUpdate = {
+        contract_type_id: contract.contractTypeId,
+        name: contract.name.trim(),
+        code,
+        contract_number: (contract.contractNumber || code).trim(),
+        valid_from: contract.validFrom,
+        valid_to: contract.validTo,
+        currency_code: currencyCode,
+        status: contract.status || "active",
+        active: contract.status === "active",
+        pricing_method: contract.pricingMethod,
+        rate_plan_id: primaryRatePlanId,
+        discount_type: primaryDiscountType,
+        discount_value: primaryDiscountValue,
+        deposit_policy_id: contract.depositPolicyId || null,
+        cancellation_policy_id: contract.cancellationPolicyId || null,
+        no_show_policy_id: contract.noShowPolicyId || null,
+        description: contract.notes?.trim() || null,
+      };
+      updated = await db
+        .from("pms_corporate_agreements")
+        .update(fallbackUpdate)
+        .eq("id", contract.agreementId)
+        .eq("restaurant_id", restaurantId)
+        .eq("company_id", companyId)
+        .select("id")
+        .maybeSingle();
+    }
+    if (updated.error) {
+      throw new Error(`Failed to update contract agreement: ${updated.error.message}`);
+    }
+    if (updated.data?.id) {
+      replacedExisting = true;
+      agreementInsert = { data: { id: updated.data.id as string }, error: null };
+    }
+  }
+
+  if (!replacedExisting) {
+  agreementInsert = await db
     .from("pms_corporate_agreements")
     .insert(agreementPayload)
     .select("id")
@@ -1155,12 +1429,24 @@ export async function persistCompanyContract(
         .single();
     }
   }
+  }
 
   if (agreementInsert.error) {
     throw new Error(`Failed to create contract agreement: ${agreementInsert.error.message}`);
   }
 
   const agreementId = agreementInsert.data.id as string;
+
+  if (replacedExisting) {
+    const cleared = await db
+      .from("pms_contract_rates")
+      .delete()
+      .eq("restaurant_id", restaurantId)
+      .eq("agreement_id", agreementId);
+    if (cleared.error && !isMissingSchemaError(cleared.error) && cleared.error.code !== "42P01") {
+      throw new Error(`Failed to update contracted room rates: ${cleared.error.message}`);
+    }
+  }
 
   // 4. Method C: Persist pms_contract_rates
   if (contract.pricingMethod === "contracted_rates" && contract.contractRates?.length > 0) {
@@ -1181,8 +1467,24 @@ export async function persistCompanyContract(
   }
 
   // 5. Link contract documents
-  if (contract.documents && contract.documents.length > 0) {
-    const docRows = contract.documents.map((doc) => ({
+  let documentsToLink = contract.documents ?? [];
+  if (replacedExisting && documentsToLink.length > 0) {
+    const existingDocs = await db
+      .from("guest_company_documents")
+      .select("document_type_id, storage_path")
+      .eq("restaurant_id", restaurantId)
+      .eq("agreement_id", agreementId);
+    if (!existingDocs.error && Array.isArray(existingDocs.data)) {
+      const linked = new Set(
+        (existingDocs.data as Array<{ document_type_id?: string; storage_path?: string }>).map(
+          (row) => `${row.document_type_id}:${row.storage_path}`,
+        ),
+      );
+      documentsToLink = documentsToLink.filter((doc) => !linked.has(`${doc.documentTypeId}:${doc.fileStoragePath}`));
+    }
+  }
+  if (documentsToLink.length > 0) {
+    const docRows = documentsToLink.map((doc) => ({
       restaurant_id: restaurantId,
       company_master_id: companyId,
       agreement_id: agreementId,

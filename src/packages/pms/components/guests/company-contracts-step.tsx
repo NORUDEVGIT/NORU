@@ -21,6 +21,7 @@ import {
 } from "@/packages/pms/lib/corporate-contracts.server";
 import type { CompanyContractCreateConfig } from "@/packages/pms/lib/corporate-contracts.functions";
 import {
+  companyContractHasSelectedPricing,
   emptyCompanyContractDraft,
   type CompanyContractDraft,
   type GuestCompanyCreateDraft,
@@ -425,7 +426,7 @@ export function CompanyContractsStep({
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {/* 1. Contract Type */}
-          <Field label="Contract Type" required={isReq("COMPANY_CONTRACT_TYPE", true)} error={fieldError("contractTypeId", "contracts")}>
+          <Field label="Contract Type" required={isReq("COMPANY_CONTRACT_TYPE", true) || companyContractHasSelectedPricing(contract)} error={fieldError("contractTypeId", "contracts")}>
             <Select
               value={contract?.contractTypeId || ""}
               onValueChange={(val) => setContract("contractTypeId", val)}
@@ -444,7 +445,7 @@ export function CompanyContractsStep({
           </Field>
 
           {/* 2. Contract Name */}
-          <Field label="Contract Name" required={isReq("COMPANY_CONTRACT_NAME", true)} error={fieldError("contractName", "contracts")}>
+          <Field label="Contract Name" required={isReq("COMPANY_CONTRACT_NAME", true) || companyContractHasSelectedPricing(contract)} error={fieldError("contractName", "contracts")}>
             <Input
               value={contract?.name || ""}
               onChange={(e) => setContract("name", e.target.value)}
@@ -464,7 +465,7 @@ export function CompanyContractsStep({
               value={contract?.code || ""}
               onChange={(e) => setContract("code", e.target.value.toUpperCase())}
               className={cn(MODAL_CONTROL_CLASS, "font-mono uppercase")}
-              placeholder="e.g. CORP-2026-001"
+              placeholder="e.g. CORP_2026_001"
             />
           </Field>
 
