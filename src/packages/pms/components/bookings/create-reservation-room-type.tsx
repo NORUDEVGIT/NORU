@@ -1,6 +1,8 @@
-import { type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AlertTriangle, BedDouble, Check } from "lucide-react";
 
+import { AvailabilityFilterSidebar } from "@/packages/pms/components/bookings/create-reservation-availability-filters";
+import { AvailabilityRateFilterProvider } from "@/packages/pms/components/bookings/create-reservation-rate";
 import { cn } from "@/shared/lib/utils";
 import type { RoomTypeAvailability } from "@/packages/pms/lib/reservations.functions";
 import {
@@ -12,11 +14,10 @@ import {
   ROOM_TYPE_AVAILABILITY_LABELS,
   isRoomTypeSelectable,
   occupancySoftWarn,
-  roomTypeAvailabilityCopy,
   roomTypeAvailabilityState,
-  roomTypeCapacityDisplay,
   type RoomTypeAvailabilityState,
 } from "@/packages/pms/lib/create-reservation-phase1-section4";
+import { PMS_OP_BTN_COMPACT, PMS_OP_PANEL } from "@/packages/pms/lib/pms-operational-surface";
 import { Button } from "@/shared/components/ui/button";
 
 export type RoomTypeCatalogDetails = {
@@ -25,6 +26,7 @@ export type RoomTypeCatalogDetails = {
   roomSize: string | null;
   roomView: string | null;
   coverUrl: string | null;
+  amenityLabels?: string[];
 };
 
 function AvailabilityBadge({
@@ -39,16 +41,16 @@ function AvailabilityBadge({
       data-testid={`availability-state-${state}`}
       data-availability-state={state}
       className={cn(
-        "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+        "inline-flex min-h-8 items-center justify-center rounded-[6px] px-2 py-1 text-center text-[10px] font-semibold uppercase leading-tight tracking-wide",
         state === "available" && "bg-emerald-500/15 text-emerald-800",
         state === "limited" && "bg-amber-500/15 text-amber-800",
         state === "none" && "bg-muted text-muted-foreground",
       )}
     >
       {state === "none"
-        ? ROOM_TYPE_AVAILABILITY_LABELS[state]
+        ? ROOM_TYPE_AVAILABILITY_LABELS.none
         : state === "limited"
-          ? `${available} Available · ${ROOM_TYPE_AVAILABILITY_LABELS.limited}`
+          ? `${available} Available - ${ROOM_TYPE_AVAILABILITY_LABELS.limited}`
           : `${available} Available`}
     </span>
   );
@@ -83,15 +85,6 @@ export function OccupancySoftWarn({
   );
 }
 
-function RoomDetailLine({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value?.trim()) return null;
-  return (
-    <span>
-      {label} {value}
-    </span>
-  );
-}
-
 export function CreateReservationRoomType({
   datesValid,
   loading,
@@ -108,6 +101,11 @@ export function CreateReservationRoomType({
   onCurrencyChange,
   onSelect,
   renderRates,
+  headerSummary,
+  onModifySearch,
+  statusMessage,
+  ratePlanOptions = [],
+  selectedPlanId = "",
 }: {
   datesValid: boolean;
   loading: boolean;
@@ -124,30 +122,86 @@ export function CreateReservationRoomType({
   onCurrencyChange?: (code: string) => void;
   onSelect: (type: RoomTypeAvailability) => void;
   renderRates?: (type: RoomTypeAvailability) => ReactNode;
+  headerSummary?: ReactNode;
+  onModifySearch?: () => void;
+  statusMessage?: string | null;
+  ratePlanOptions?: Array<{ id: string; name: string }>;
+  selectedPlanId?: string;
 }) {
   const selected = availability.find((row) => row.roomTypeId === roomTypeId);
   const occupancyCeiling = selected?.maxOccupancy ?? selectedMaxOccupancy;
   const rows = filterRoomTypeId
     ? availability.filter((row) => row.roomTypeId === filterRoomTypeId)
     : availability;
+  const [excludedRoomTypeIds, setExcludedRoomTypeIds] = useState<string[]>([]);
+  const [excludedRatePlanIds, setExcludedRatePlanIds] = useState<string[]>([]);
+  const [excludedAmenityLabels, setExcludedAmenityLabels] = useState<string[]>([]);
+  const availabilityKey = rows.map((row) => row.roomTypeId).join("\n");
+  useEffect(() => {
+    setExcludedRoomTypeIds([]);
+    setExcludedRatePlanIds([]);
+    setExcludedAmenityLabels([]);
+  }, [availabilityKey]);
+  const amenityOptions = [
+    ...new Set(
+      rows
+        .flatMap((row) => catalog?.[row.roomTypeId]?.amenityLabels ?? [])
+        .filter((label) => label.trim()),
+    ),
+  ];
+  const visibleRows = rows.filter((row) => {
+    if (excludedRoomTypeIds.includes(row.roomTypeId)) return false;
+    if (excludedAmenityLabels.length === 0) return true;
+    const labels = catalog?.[row.roomTypeId]?.amenityLabels ?? [];
+    return excludedAmenityLabels.every((label) => !labels.includes(label));
+  });
+  const selectionHiddenByFilters =
+    (!!roomTypeId && excludedRoomTypeIds.includes(roomTypeId)) ||
+    (!!selectedPlanId && excludedRatePlanIds.includes(selectedPlanId)) ||
+    (!!roomTypeId &&
+      excludedAmenityLabels.some((label) =>
+        (catalog?.[roomTypeId]?.amenityLabels ?? []).includes(label),
+      ));
+
+  function toggleId(current: string[], id: string, setCurrent: (next: string[]) => void) {
+    setCurrent(current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
+  }
 
   return (
     <section
-      className="rounded-xl border border-[#DDD4C5] bg-white shadow-sm"
+      id="create-reservation-availability"
+      className={cn(PMS_OP_PANEL, "!shadow-none min-w-0")}
       data-testid="create-reservation-room-type"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E7E0D4] px-4 py-3">
-        <div>
-          <h2 className="font-display text-lg text-[#251605]">Available Rooms & Rates</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Select a room type and rate plan that best fits your guest's needs.
-          </p>
+      <div
+        className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E7E0D4] px-3 py-3"
+        data-testid="availability-header"
+      >
+        <div className="min-w-0">
+          <h2 className="font-display text-base text-[#251605]">Availability & Room Selection</h2>
+          {headerSummary ?? (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Select a room type and rate plan that best fits your guest&apos;s needs.
+            </p>
+          )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2 xl:flex-nowrap">
+          {onModifySearch ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={PMS_OP_BTN_COMPACT}
+              data-testid="modify-stay-search"
+              onClick={onModifySearch}
+            >
+              Modify Search
+            </Button>
+          ) : null}
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
             Show rates in
             <select
-              className="h-8 rounded-md border border-input bg-transparent px-2 text-sm text-[#251605]"
+              className="h-8 !rounded-[6px] border border-[#CCCCCC] bg-white px-2 text-sm text-[#251605]"
               value={currencyCode ?? ""}
               disabled={!onCurrencyChange}
               aria-label="Show rates in currency"
@@ -168,14 +222,24 @@ export function CreateReservationRoomType({
             </select>
           </label>
           {/* TODO: wire Rate & Revenue comparison read */}
-          <Button type="button" variant="outline" size="sm" disabled>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(PMS_OP_BTN_COMPACT, "text-muted-foreground")}
+            disabled
+          >
             Compare Rates
           </Button>
         </div>
       </div>
       {/* CREATE_RESERVATION_SECTION4_SCOPE */}
 
-      {!datesValid ? (
+      {statusMessage ? (
+        <p className="px-4 py-6 text-sm text-muted-foreground" data-testid="availability-status">
+          {statusMessage}
+        </p>
+      ) : !datesValid ? (
         <p className="px-4 py-6 text-sm text-muted-foreground">
           {CREATE_RESERVATION_AVAILABILITY_NEEDS_DATES}
         </p>
@@ -188,85 +252,122 @@ export function CreateReservationRoomType({
           {CREATE_RESERVATION_EMPTY_CATALOGUE}
         </p>
       ) : (
-        <ul className="divide-y divide-[#E7E0D4]">
-          {rows.map((row) => {
-            const state = roomTypeAvailabilityState(row.available);
-            const disabled = !isRoomTypeSelectable(row.available);
-            const selectedCard = row.roomTypeId === roomTypeId;
-            const details = catalog?.[row.roomTypeId];
-            const bedLabel = details?.bedType?.trim() || null;
-            const coverUrl = details?.coverUrl ?? row.coverUrl;
-            return (
-              <li key={row.roomTypeId} className={cn(selectedCard && "bg-[#FAF7EF]")}>
-                <div className="grid gap-0 lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
-                  <div className="border-b border-[#E7E0D4] p-4 lg:border-b-0 lg:border-r">
-                    <button
-                      type="button"
-                      data-testid={`room-type-${row.roomTypeId}`}
-                      data-availability={row.available}
-                      disabled={disabled}
-                      onClick={() => onSelect(row)}
-                      className={cn(
-                        "w-full text-left",
-                        disabled && "cursor-not-allowed opacity-60",
-                      )}
-                    >
-                      {coverUrl ? (
-                        <img
-                          src={coverUrl}
-                          alt=""
-                          className="mb-3 h-24 w-full rounded-lg object-cover"
-                        />
-                      ) : (
-                        <div className="mb-3 flex h-24 items-center justify-center rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F4] text-muted-foreground">
-                          <BedDouble className="size-6" />
+        <AvailabilityRateFilterProvider excludedRatePlanIds={excludedRatePlanIds}>
+          <div className="xl:grid xl:grid-cols-[210px_minmax(0,1fr)]">
+            <AvailabilityFilterSidebar
+              roomTypes={rows.map((row) => ({
+                id: row.roomTypeId,
+                name: row.name,
+                count: row.available,
+              }))}
+              ratePlans={ratePlanOptions}
+              amenities={amenityOptions}
+              excludedRoomTypeIds={excludedRoomTypeIds}
+              excludedRatePlanIds={excludedRatePlanIds}
+              excludedAmenityLabels={excludedAmenityLabels}
+              onToggleRoomType={(id) => toggleId(excludedRoomTypeIds, id, setExcludedRoomTypeIds)}
+              onToggleRatePlan={(id) => toggleId(excludedRatePlanIds, id, setExcludedRatePlanIds)}
+              onToggleAmenity={(label) =>
+                toggleId(excludedAmenityLabels, label, setExcludedAmenityLabels)
+              }
+              onClear={() => {
+                setExcludedRoomTypeIds([]);
+                setExcludedRatePlanIds([]);
+                setExcludedAmenityLabels([]);
+              }}
+            />
+            <div className="min-w-0" data-testid="availability-results">
+              {selectionHiddenByFilters ? (
+                <p
+                  className="border-b border-[#E7E0D4] bg-[#FAF8F4] px-3 py-2 text-xs text-[#251605]"
+                  data-testid="availability-selection-hidden-by-filters"
+                >
+                  Current selected room/rate is hidden by filters.
+                </p>
+              ) : null}
+              {visibleRows.length === 0 ? (
+                <p
+                  className="px-4 py-6 text-sm text-muted-foreground"
+                  data-testid="availability-filter-empty"
+                >
+                  No rooms match the selected filters.
+                </p>
+              ) : (
+                <ul className="divide-y divide-[#E7E0D4]">
+                  {visibleRows.map((row) => {
+                    const state = roomTypeAvailabilityState(row.available);
+                    const disabled = !isRoomTypeSelectable(row.available);
+                    const selectedCard = row.roomTypeId === roomTypeId;
+                    const details = catalog?.[row.roomTypeId];
+                    const amenityLabels = (details?.amenityLabels ?? []).filter((label) =>
+                      label.trim(),
+                    );
+                    const coverUrl = details?.coverUrl ?? row.coverUrl;
+                    return (
+                      <li
+                        key={row.roomTypeId}
+                        className={cn(selectedCard && "bg-[#FAF7EF]")}
+                        data-testid="availability-room-block"
+                      >
+                        <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(13.5rem,17rem)_minmax(8.75rem,11rem)_minmax(0,1fr)]">
+                          <div className="min-w-0 border-b border-[#E7E0D4] p-3 lg:border-b-0 lg:border-r">
+                            <button
+                              type="button"
+                              data-testid={`room-type-${row.roomTypeId}`}
+                              data-availability={row.available}
+                              disabled={disabled}
+                              onClick={() => onSelect(row)}
+                              className={cn(
+                                "flex w-full min-w-0 gap-3 text-left",
+                                disabled && "cursor-not-allowed opacity-60",
+                              )}
+                            >
+                              {coverUrl ? (
+                                <img
+                                  src={coverUrl}
+                                  alt=""
+                                  className="h-14 w-20 shrink-0 rounded-[6px] object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-14 w-20 shrink-0 items-center justify-center rounded-[6px] border border-dashed border-[#DDD4C5] bg-[#FAF8F4] text-muted-foreground">
+                                  <BedDouble className="size-5" />
+                                </div>
+                              )}
+                              <span className="min-w-0 flex-1">
+                                <span className="flex min-w-0 items-center gap-2">
+                                  <span className="truncate font-medium text-[#251605]">
+                                    {row.name}
+                                  </span>
+                                  {selectedCard ? (
+                                    <Check className="size-4 shrink-0 text-[#C89933]" />
+                                  ) : null}
+                                </span>
+                                {details?.description ? (
+                                  <span className="mt-1 line-clamp-2 block text-xs text-muted-foreground">
+                                    {details.description}
+                                  </span>
+                                ) : null}
+                                {amenityLabels.length > 0 ? (
+                                  <span className="mt-1 line-clamp-2 block text-xs text-muted-foreground">
+                                    {amenityLabels.join(" · ")}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </button>
+                          </div>
+                          <div className="flex items-center justify-center border-b border-[#E7E0D4] px-2 py-2 lg:border-b-0 lg:border-r">
+                            <AvailabilityBadge state={state} available={row.available} />
+                          </div>
+                          <div className="min-w-0">{renderRates?.(row)}</div>
                         </div>
-                      )}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-[#251605]">{row.name}</span>
-                        <span className="text-xs text-muted-foreground">{row.code}</span>
-                        {selectedCard ? <Check className="ml-auto size-4 text-[#C89933]" /> : null}
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <AvailabilityBadge state={state} available={row.available} />
-                        <span className="text-[11px] text-muted-foreground">
-                          Total: {row.totalRooms}
-                        </span>
-                      </div>
-                      {details?.description ? (
-                        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                          {details.description}
-                        </p>
-                      ) : null}
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {roomTypeCapacityDisplay(row.adultCapacity, row.childCapacity)}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {roomTypeAvailabilityCopy(row.available, row.totalRooms)}
-                      </p>
-                      <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                        {/* TODO: wire remaining Rooms & Inventory details when a field is absent */}
-                        <RoomDetailLine label="" value={bedLabel} />
-                        <RoomDetailLine label="" value={details?.roomSize} />
-                        <RoomDetailLine label="" value={details?.roomView} />
-                      </p>
-                    </button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="mt-2 h-7 px-2 text-xs"
-                      disabled
-                    >
-                      View Room Details
-                    </Button>
-                  </div>
-                  <div className="min-w-0">{renderRates?.(row)}</div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </AvailabilityRateFilterProvider>
       )}
 
       {roomTypeId ? (

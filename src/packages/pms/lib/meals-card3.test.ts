@@ -10,9 +10,12 @@ import {
   evaluateMealsCard3Readiness,
   isOwnedPackageCoverPath,
   isValidPackageComponent,
+  PACKAGE_CHARGE_BASIS_DEFAULT,
+  PACKAGE_CHARGE_BASIS_LABELS,
   PACKAGE_COVER_CONTENT_TYPES,
   PACKAGE_COVER_MAX_BYTES,
   packageCoverImagePath,
+  parsePackageChargeBasis,
   packageCoverPathPrefix,
   previousPackageCoverToRemove,
   type MealsCard3Snapshot,
@@ -71,10 +74,13 @@ const activePackage = {
   typeLabel: "Accommodation",
   description: "Weekend package",
   packagePrice: 2500,
+  chargeBasis: "per_stay" as const,
   active: true,
   roomTypeIds: ["rt1"],
   ratePlanIds: [],
   ratePlanLinks: [],
+  coverImagePath: null,
+  coverUrl: null,
 };
 
 const validComponent = {
@@ -436,10 +442,8 @@ describe("Card 3 Phase C package cover image", () => {
   });
 
   it("reads cover_image_path and exposes coverUrl from a server-side signature", () => {
-    assert.match(
-      fns,
-      /select\("id, code, name, type, description, package_price, active, cover_image_path"\)/,
-    );
+    assert.match(fns, /cover_image_path, charge_basis/);
+    assert.match(fns, /package_price, active, cover_image_path/);
     assert.match(fns, /coverImagePath/);
     assert.match(fns, /coverUrl:/);
     assert.match(fns, /signRoomImages/);
@@ -551,5 +555,66 @@ describe("Card 3 Phase C package cover image", () => {
     assert.doesNotMatch(ui, /cover_image_path:/);
     assert.match(ui, /package-master-section-includes/);
     assert.match(ui, /package-master-section-applicability/);
+  });
+});
+
+describe("Card 3 Phase D package charge basis", () => {
+  it("adds only charge_basis with per_stay default and allowed values", () => {
+    const drizzle = join(here, "../../../../drizzle/migrations/0125_pms_package_charge_basis.sql");
+    const supabase = join(here, "../../../../supabase/migrations/0125_pms_package_charge_basis.sql");
+    assert.equal(existsSync(drizzle), true);
+    assert.equal(existsSync(supabase), true);
+    const sql = readFileSync(drizzle, "utf8");
+    assert.equal(sql, readFileSync(supabase, "utf8"));
+    assert.match(sql, /ADD COLUMN IF NOT EXISTS charge_basis text NOT NULL DEFAULT 'per_stay'/);
+    assert.match(sql, /pms_packages_charge_basis_check/);
+    assert.match(sql, /'per_stay', 'per_night', 'per_person', 'per_room', 'per_unit'/);
+    assert.doesNotMatch(sql, /hotel_package_activations/);
+    assert.doesNotMatch(sql, /hotel_reservation_packages/);
+    assert.doesNotMatch(sql, /CREATE TABLE/);
+  });
+
+  it("maps charge_basis on read and defaults when the column is missing", () => {
+    assert.match(fns, /charge_basis/);
+    assert.match(fns, /chargeBasis:/);
+    assert.match(fns, /parsePackageChargeBasis/);
+    assert.match(fns, /PACKAGE_CHARGE_BASIS_DEFAULT/);
+    assert.equal(parsePackageChargeBasis("per_night"), "per_night");
+    assert.equal(parsePackageChargeBasis("invalid"), "per_stay");
+    assert.equal(PACKAGE_CHARGE_BASIS_DEFAULT, "per_stay");
+  });
+
+  it("persists chargeBasis through savePackageCard3 and rejects invalid values in schema", () => {
+    assert.match(fns, /chargeBasis: z\.enum\(PACKAGE_CHARGE_BASES\)/);
+    assert.match(fns, /charge_basis: data\.chargeBasis/);
+    const saveStart = fns.indexOf("export const savePackageCard3");
+    const saveEnd = fns.indexOf("export const savePackageComponentCard3");
+    const saveFn = fns.slice(saveStart, saveEnd);
+    assert.match(saveFn, /package_price: data\.packagePrice/);
+    assert.doesNotMatch(fns, /hotel_package_activations/);
+    assert.doesNotMatch(fns, /hotel_reservation_packages/);
+    assert.doesNotMatch(fns, /COMMERCIAL_V1_PACKAGE_CHARGE_BASIS/);
+  });
+
+  it("shows the charge basis selector, defaults, zero price, and execution limitation note", () => {
+    assert.match(ui, /pkg-master-charge-basis/);
+    assert.match(ui, /PACKAGE_CHARGE_BASIS_LABELS/);
+    assert.match(ui, /PACKAGE_CHARGE_BASIS_DEFAULT/);
+    assert.match(ui, /chargeBasis/);
+    assert.match(ui, /packagePrice: price/);
+    assert.match(ui, /min=\{0\}/);
+    assert.match(ui, /pkg-charge-basis-limit/);
+    assert.match(ui, /Operational charging currently[\s\S]*supports Per stay only/);
+    assert.doesNotMatch(ui, /planned for Phase D/);
+    assert.match(ui, /package-master-section-includes/);
+    assert.match(ui, /package-master-section-applicability/);
+    assert.match(ui, /package-master-section-cover/);
+    assert.deepEqual(Object.values(PACKAGE_CHARGE_BASIS_LABELS), [
+      "Per stay",
+      "Per night",
+      "Per person",
+      "Per room",
+      "Per unit",
+    ]);
   });
 });

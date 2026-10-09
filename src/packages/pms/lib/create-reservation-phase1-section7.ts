@@ -356,4 +356,8 @@ export type CreatedReservationConfirmation = {
   bookingSource: string | null;
   marketSegment: string | null;
   externalReference: string | null;
+  /** Names and individual prices captured from the selection at submit. */
+  selectedPackageLines?: string[];
+  selectedServiceLines?: string[];
+  savedPreferenceLines?: string[];
 };

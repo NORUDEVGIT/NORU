@@ -24,7 +24,7 @@ const createFns = readFileSync(new URL("./reservations.functions.ts", import.met
 describe("Create Reservation Step 5 review dashboard", () => {
   it("renders the compact six-card layout, summary rail, and acknowledgements", () => {
     assert.match(page, /CreateReservationReview/);
-    assert.match(page, /data-testid="create-reservation-summary"/);
+    assert.doesNotMatch(page, /data-testid="create-reservation-summary"/);
     assert.match(reviewUi, /data-testid="create-reservation-review"/);
     assert.match(reviewUi, /testId="review-card-guest"/);
     assert.match(reviewUi, /testId="review-card-stay"/);
@@ -34,7 +34,7 @@ describe("Create Reservation Step 5 review dashboard", () => {
     assert.match(reviewUi, /testId="review-card-policies"/);
     assert.match(reviewUi, /lg:grid-cols-3/);
     assert.match(reviewUi, /data-testid="review-policy-ack"/);
-    assert.match(page, /data-testid="summary-cancellation"/);
+    assert.match(page, /cancellationLabel=\{selectedQuote\?\.cancellationLabel/);
     assert.match(page, /data-testid="create-reservation-actions"/);
     assert.match(page, /data-testid="save-as-pending"/);
     assert.match(page, /data-testid="confirm-guarantee"/);
@@ -42,15 +42,31 @@ describe("Create Reservation Step 5 review dashboard", () => {
   });
 
   it("routes Edit actions to existing wizard steps", () => {
-    assert.equal(CREATE_REVIEW_STEPS.guestStay, 0);
-    assert.equal(CREATE_REVIEW_STEPS.availability, 1);
-    assert.equal(CREATE_REVIEW_STEPS.bookingDetails, 2);
-    assert.equal(CREATE_REVIEW_STEPS.policies, 3);
-    assert.match(reviewUi, /onEdit\(CREATE_REVIEW_STEPS.guestStay\)/);
-    assert.match(reviewUi, /onEdit\(CREATE_REVIEW_STEPS.availability\)/);
+    assert.equal(CREATE_REVIEW_STEPS.guestStayAvailability, 0);
+    assert.equal(CREATE_REVIEW_STEPS.bookingDetails, 1);
+    assert.equal(CREATE_REVIEW_STEPS.policies, 2);
+    assert.equal(CREATE_REVIEW_STEPS.review, 3);
+    assert.match(reviewUi, /onEdit\(CREATE_REVIEW_STEPS.guestStayAvailability\)/);
     assert.match(reviewUi, /onEdit\(CREATE_REVIEW_STEPS.bookingDetails\)/);
     assert.match(reviewUi, /onEdit\(CREATE_REVIEW_STEPS.policies\)/);
     assert.match(page, /onEdit=\{setWorkflowStep\}/);
+    assert.match(reviewUi, /testId="review-card-packages"/);
+    assert.match(reviewUi, /No packages selected/);
+    assert.match(reviewUi, /Includes:/);
+    assert.match(reviewUi, /Package prices are separate from the room total/);
+    const packagesCard = reviewUi.slice(reviewUi.indexOf('testId="review-card-packages"') - 220);
+    assert.match(packagesCard.slice(0, 260), /CREATE_REVIEW_STEPS\.bookingDetails/);
+    assert.match(page, /selectedPackages=/);
+    assert.match(reviewUi, /testId="review-card-requests"/);
+    assert.match(reviewUi, /No saved preferences/);
+    assert.match(reviewUi, /No service requests selected/);
+    assert.match(page, /savedPreferences=\{savedPreferenceRows\}/);
+    assert.match(page, /selectedServiceRequests=\{selectedServiceRequests\}/);
+    assert.match(
+      page,
+      /stayTotal=\{pricingState\.kind === "priced" \? money\(pricingState\.quote\.subtotal\) : "—"\}/,
+    );
+    assert.doesNotMatch(reviewUi, /Grand Total|grandCommercialSubtotal|card\.price \*/);
     assert.doesNotMatch(reviewUi, /\/restaurant\/pms\/reservations\/new/);
     assert.doesNotMatch(reviewUi, /createFileRoute/);
   });

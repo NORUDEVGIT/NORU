@@ -32,7 +32,9 @@ export function CreateReservationConfirmation({
 
       <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Reservation number</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+            Reservation number
+          </dt>
           <dd data-testid="confirmation-number">{view.confirmationNumber}</dd>
         </div>
         <div>
@@ -119,6 +121,52 @@ export function CreateReservationConfirmation({
             <dd>{view.externalReference}</dd>
           </div>
         ) : null}
+        <div className="sm:col-span-2">
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Packages</dt>
+          <dd data-testid="confirmation-packages">
+            {view.selectedPackageLines && view.selectedPackageLines.length > 0 ? (
+              <ul className="space-y-0.5">
+                {view.selectedPackageLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ) : (
+              "No packages selected"
+            )}
+          </dd>
+        </div>
+        <div className="sm:col-span-2">
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+            Saved preferences
+          </dt>
+          <dd data-testid="confirmation-preferences">
+            {view.savedPreferenceLines && view.savedPreferenceLines.length > 0 ? (
+              <ul className="space-y-0.5">
+                {view.savedPreferenceLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ) : (
+              "No saved preferences"
+            )}
+          </dd>
+        </div>
+        <div className="sm:col-span-2">
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+            Service requests
+          </dt>
+          <dd data-testid="confirmation-services">
+            {view.selectedServiceLines && view.selectedServiceLines.length > 0 ? (
+              <ul className="space-y-0.5">
+                {view.selectedServiceLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ) : (
+              "No service requests submitted"
+            )}
+          </dd>
+        </div>
       </dl>
 
       <div className="create-reservation-confirmation-actions mt-6 flex flex-wrap gap-3">

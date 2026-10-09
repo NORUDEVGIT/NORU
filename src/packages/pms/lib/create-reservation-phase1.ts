@@ -46,10 +46,15 @@ export const CREATE_RESERVATION_MODULE_DONE = false;
 export const CREATE_RESERVATION_SECTION1_MIGRATION = "NONE";
 export const CREATE_RESERVATION_SECTION2_MIGRATION = "0059_pms_create_reservation_company_ta.sql";
 export const CREATE_RESERVATION_SECTION2_APPLY = "HELD";
-export const CREATE_RESERVATION_SECTION2A_MIGRATION = "0060_pms_create_reservation_individual_associations.sql";
+export const CREATE_RESERVATION_SECTION2A_MIGRATION =
+  "0060_pms_create_reservation_individual_associations.sql";
 export const CREATE_RESERVATION_SECTION2A_APPLY = "HELD";
 export const CREATE_RESERVATION_SECTION3_MIGRATION = "NONE";
 export const CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS = 300;
+/** Historical directory page size for `guestPickerPageCount`. Step 1 search does not paginate. */
+export const CREATE_RESERVATION_GUEST_PAGE_SIZE = 10;
+/** Step 1 guest search cap. `listGuests` returns matches only — not the directory. */
+export const CREATE_RESERVATION_GUEST_SEARCH_LIMIT = 8;
 /** AC-CR1-21 — collapse the existing RestaurantShell rail on this route only. */
 export const CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED = true;
 
@@ -100,8 +105,25 @@ export const CREATE_RESERVATION_SECTION2_ACCEPTANCE_CRITERIA = [
 
 export const CREATE_RESERVATION_TIP_AC_MAP = {
   "plan-context-ui": ["AC-CR1-1", "AC-CR1-8", "AC-CR1-9", "AC-CR1-10", "AC-CR1-14"],
-  "plan-guest-search-create": ["AC-CR1-2", "AC-CR1-3", "AC-CR1-4", "AC-CR1-5", "AC-CR1-6", "AC-CR1-11", "AC-CR1-12", "AC-CR1-13"],
-  "plan-gates-honesty": ["AC-CR1-7", "AC-CR1-15", "AC-CR1-16", "AC-CR1-17", "AC-CR1-18", "AC-CR1-19", "AC-CR1-20"],
+  "plan-guest-search-create": [
+    "AC-CR1-2",
+    "AC-CR1-3",
+    "AC-CR1-4",
+    "AC-CR1-5",
+    "AC-CR1-6",
+    "AC-CR1-11",
+    "AC-CR1-12",
+    "AC-CR1-13",
+  ],
+  "plan-gates-honesty": [
+    "AC-CR1-7",
+    "AC-CR1-15",
+    "AC-CR1-16",
+    "AC-CR1-17",
+    "AC-CR1-18",
+    "AC-CR1-19",
+    "AC-CR1-20",
+  ],
   "plan-sidebar-collapse": ["AC-CR1-21"],
 } as const;
 
@@ -109,7 +131,18 @@ export const CREATE_RESERVATION_SECTION2_TIP_AC_MAP = {
   "plan-pickers": ["AC-CR2-1", "AC-CR2-2", "AC-CR2-3"],
   "plan-bind-w4-5": ["AC-CR2-4", "AC-CR2-7"],
   "plan-inline-prefill-terms": ["AC-CR2-5", "AC-CR2-6", "AC-CR2-8"],
-  "plan-gates-honesty": ["AC-CR2-9", "AC-CR2-10", "AC-CR2-11", "AC-CR2-12", "AC-CR2-13", "AC-CR2-14", "AC-CR2-15", "AC-CR2-16", "AC-CR2-17", "AC-CR2-18"],
+  "plan-gates-honesty": [
+    "AC-CR2-9",
+    "AC-CR2-10",
+    "AC-CR2-11",
+    "AC-CR2-12",
+    "AC-CR2-13",
+    "AC-CR2-14",
+    "AC-CR2-15",
+    "AC-CR2-16",
+    "AC-CR2-17",
+    "AC-CR2-18",
+  ],
 } as const;
 
 export const CREATE_RESERVATION_SECTION2A_ACCEPTANCE_CRITERIA = [
@@ -133,7 +166,14 @@ export const CREATE_RESERVATION_SECTION2A_ACCEPTANCE_CRITERIA = [
 export const CREATE_RESERVATION_SECTION2A_TIP_AC_MAP = {
   "plan-associations-ui": ["AC-CR2A-1", "AC-CR2A-2", "AC-CR2A-3", "AC-CR2A-7", "AC-CR2A-9"],
   "plan-prefill-persist-dualbind": ["AC-CR2A-4", "AC-CR2A-5", "AC-CR2A-6", "AC-CR2A-13"],
-  "plan-gates-honesty": ["AC-CR2A-8", "AC-CR2A-10", "AC-CR2A-11", "AC-CR2A-12", "AC-CR2A-14", "AC-CR2A-15"],
+  "plan-gates-honesty": [
+    "AC-CR2A-8",
+    "AC-CR2A-10",
+    "AC-CR2A-11",
+    "AC-CR2A-12",
+    "AC-CR2A-14",
+    "AC-CR2A-15",
+  ],
 } as const;
 
 export const CREATE_RESERVATION_SECTION3_ACCEPTANCE_CRITERIA = [
@@ -159,7 +199,15 @@ export const CREATE_RESERVATION_SECTION3_TIP_AC_MAP = {
   "plan-arrival-linked-invalid": ["AC-CR3-1", "AC-CR3-2", "AC-CR3-3"],
   "plan-occupancy-notes": ["AC-CR3-4", "AC-CR3-5", "AC-CR3-6"],
   "plan-sticky-writer-gates": ["AC-CR3-7", "AC-CR3-8", "AC-CR3-9"],
-  "plan-honesty-helpers": ["AC-CR3-10", "AC-CR3-11", "AC-CR3-12", "AC-CR3-13", "AC-CR3-14", "AC-CR3-15", "AC-CR3-16"],
+  "plan-honesty-helpers": [
+    "AC-CR3-10",
+    "AC-CR3-11",
+    "AC-CR3-12",
+    "AC-CR3-13",
+    "AC-CR3-14",
+    "AC-CR3-15",
+    "AC-CR3-16",
+  ],
 } as const;
 
 export const RESERVATION_TYPE_MODES = ["individual", "corporate", "travel_agency"] as const;
@@ -351,7 +399,9 @@ export function pickPrefillMasterId(
 ): string | null {
   const expectedType = role === "employer" ? "company" : "travel_agent";
   const matches = links
-    .filter((link) => link.role === role && (link.masterType == null || link.masterType === expectedType))
+    .filter(
+      (link) => link.role === role && (link.masterType == null || link.masterType === expectedType),
+    )
     .slice()
     .sort((a, b) => {
       if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
@@ -392,7 +442,9 @@ export function typeSwitchDiscardsMaster(
   return companyMasterId != null || travelAgentMasterId != null;
 }
 
-export function activeSet6Options(rows: PmsSet6CatalogueItem[] | null | undefined): ContextPickOption[] {
+export function activeSet6Options(
+  rows: PmsSet6CatalogueItem[] | null | undefined,
+): ContextPickOption[] {
   return (rows ?? [])
     .filter((row) => row.active)
     .map((row) => ({ value: row.id, label: row.name, origin: "set6" as const }));
@@ -485,10 +537,18 @@ export function occupancyCapacityIssues(
   if (!capacity) return [];
   const issues: OccupancyCapacityIssue[] = [];
   const total = Math.max(0, adults) + Math.max(0, children);
-  if (Number.isFinite(capacity.maxOccupancy) && capacity.maxOccupancy > 0 && total > capacity.maxOccupancy) {
+  if (
+    Number.isFinite(capacity.maxOccupancy) &&
+    capacity.maxOccupancy > 0 &&
+    total > capacity.maxOccupancy
+  ) {
     issues.push("maxOccupancy");
   }
-  if (Number.isFinite(capacity.adultCapacity) && capacity.adultCapacity > 0 && adults > capacity.adultCapacity) {
+  if (
+    Number.isFinite(capacity.adultCapacity) &&
+    capacity.adultCapacity > 0 &&
+    adults > capacity.adultCapacity
+  ) {
     issues.push("adultCapacity");
   }
   if (Number.isFinite(capacity.childCapacity) && children > capacity.childCapacity) {
@@ -517,4 +577,29 @@ export function occupancyCapacitySoftWarn(
     parts.push(`${children} children vs child capacity ${capacity.childCapacity}`);
   }
   return `${CREATE_RESERVATION_OCCUPANCY_SOFT_WARN} (${parts.join("; ")}).`;
+}
+
+/** Step 0 (Guest, Stay & Availability) — same pricing/occupancy rules as legacy availability step, plus guest + dates. */
+export function canAdvanceFromGuestStayAvailability(args: {
+  datesValid: boolean;
+  hasGuest: boolean;
+  roomTypeId: string;
+  occupancyOk: boolean;
+  priced: boolean;
+  canCreateUnpriced: boolean;
+  available: number;
+}): boolean {
+  return (
+    args.datesValid &&
+    args.hasGuest &&
+    !!args.roomTypeId &&
+    args.occupancyOk &&
+    (args.priced || args.canCreateUnpriced) &&
+    args.available > 0
+  );
+}
+
+export function guestPickerPageCount(total: number, pageSize: number): number {
+  if (pageSize <= 0) return 1;
+  return Math.max(1, Math.ceil(Math.max(0, total) / pageSize));
 }

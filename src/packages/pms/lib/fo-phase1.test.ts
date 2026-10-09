@@ -34,6 +34,12 @@ const stay: FoRoomStaySnippet = {
   roomTypeId: "type-a",
   roomTypeName: "Deluxe",
   ratePlanName: null,
+  adults: 2,
+  children: 0,
+  nights: 2,
+  rateLabel: null,
+  packageName: null,
+  specialRequests: null,
 };
 
 describe("FO Phase 1 — Room Quick View honesty", () => {

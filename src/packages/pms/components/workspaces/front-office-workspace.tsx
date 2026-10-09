@@ -4,9 +4,21 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { FrontOfficeChrome } from "@/packages/pms/components/frontoffice/front-office-chrome";
-import { ComingSoonPanel, PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
+import {
+  ComingSoonPanel,
+  PermissionDeniedPanel,
+} from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { RoomRackCalendar } from "@/packages/pms/components/frontoffice/room-rack-calendar";
-import { ReservationSideSheet, type SideSheetAction } from "@/packages/pms/components/frontoffice/reservation-side-sheet";
+import {
+  ReservationSideSheet,
+  type SideSheetAction,
+} from "@/packages/pms/components/frontoffice/reservation-side-sheet";
+import { FoCheckInWorkspaceSheet } from "@/packages/pms/components/frontoffice/fo-check-in-workspace-sheet";
+import {
+  foCheckInWorkspaceInitialStep,
+  foOpensPreArrivalCheckInWorkspace,
+} from "@/packages/pms/lib/fo-check-in-workspace";
+import { cashieringRefundHref } from "@/packages/pms/lib/fo-check-out";
 import {
   AmendmentsFrame,
   CancellationsFrame,
@@ -14,7 +26,10 @@ import {
   NoShowsFrame,
   StayPickerDialog,
 } from "@/packages/pms/components/frontoffice/front-office-frames";
-import { ExceptionsFrame, useFoExceptionDesk } from "@/packages/pms/components/frontoffice/fo-exceptions-frame";
+import {
+  ExceptionsFrame,
+  useFoExceptionDesk,
+} from "@/packages/pms/components/frontoffice/fo-exceptions-frame";
 import { FoAuditViewer } from "@/packages/pms/components/frontoffice/fo-audit-viewer";
 import {
   AssignRoomDialog,
@@ -25,23 +40,49 @@ import {
   StayDatesDialog,
   WalkInDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
-import { FoAmendKindSheet, type FoAmendKind } from "@/packages/pms/components/frontoffice/fo-amend-sheet";
+import {
+  FoAmendKindSheet,
+  type FoAmendKind,
+} from "@/packages/pms/components/frontoffice/fo-amend-sheet";
 import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
 import { ArrivalsWorkspace } from "@/packages/pms/components/workspaces/arrivals-workspace";
 import { DeparturesWorkspace } from "@/packages/pms/components/workspaces/departures-workspace";
 import { InHouseWorkspace } from "@/packages/pms/components/workspaces/in-house-workspace";
 import { WalkInsWorkspace } from "@/packages/pms/components/workspaces/walk-ins-workspace";
-import { RoomQuickViewSheet, RoomOperationsHistorySheet, type RoomQuickViewAction } from "@/packages/pms/components/frontoffice/room-quick-view";
+import {
+  RoomQuickViewSheet,
+  RoomOperationsHistorySheet,
+  type RoomQuickViewAction,
+} from "@/packages/pms/components/frontoffice/room-quick-view";
 import type { FoRoomQuickView } from "@/packages/pms/lib/front-office-room-operations";
-import { LIST_COMING_SOON_COLUMNS, foRackSearchSlice, invokeFoAction, resolveFoNav, type FoNavId, type FoSearch } from "@/packages/pms/lib/front-office-shell";
+import {
+  LIST_COMING_SOON_COLUMNS,
+  foRackSearchSlice,
+  invokeFoAction,
+  resolveFoNav,
+  type FoNavId,
+  type FoSearch,
+} from "@/packages/pms/lib/front-office-shell";
 import { ComingSoonChip } from "@/packages/pms/components/frontoffice/coming-soon-panel";
-import { listArrivals, listInHouse, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
+import {
+  listArrivals,
+  listInHouse,
+  type FrontOfficeStay,
+} from "@/packages/pms/lib/frontoffice.functions";
 import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
 import { getCashieringAccess } from "@/packages/pms/lib/cashiering.functions";
 import type { FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
 import type { FoControlAction, FrontOfficeExceptionItem } from "@/packages/pms/lib/fo-control";
-import { HK_HREF, INVENTORY_HREF, MAINTENANCE_HREF } from "@/packages/pms/lib/front-office-room-operations";
-import { GUEST_PROFILE_DETAIL_PATH, guestProfileSearch } from "@/packages/pms/lib/guest-profile-wave1";
+import {
+  HK_HREF,
+  INVENTORY_HREF,
+  MAINTENANCE_HREF,
+} from "@/packages/pms/lib/front-office-room-operations";
+import {
+  GUEST_PROFILE_DETAIL_PATH,
+  guestProfileSearch,
+} from "@/packages/pms/lib/guest-profile-wave1";
+import { SET2_RI_ROOMS_HREF } from "@/packages/pms/lib/pms-set2-structure";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useRestaurantTimezone } from "@/core/state/property-format";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -96,7 +137,11 @@ export function FrontOfficeWorkspace({
   const [historyRoomId, setHistoryRoomId] = useState<string | null>(null);
 
   const onRackSearchChange = useCallback(
-    (next: { horizon: FoSearch["horizon"]; date: string; group: NonNullable<FoSearch["group"]> | "none" }) => {
+    (next: {
+      horizon: FoSearch["horizon"];
+      date: string;
+      group: NonNullable<FoSearch["group"]> | "none";
+    }) => {
       void navigate({
         to: "/restaurant/pms/front-office",
         search: {
@@ -144,9 +189,69 @@ export function FrontOfficeWorkspace({
     fn();
   }
 
-  function onRoomQuickViewAction(action: RoomQuickViewAction, stay: FrontOfficeStay | null, view: FoRoomQuickView) {
-    if (action === "open_housekeeping" || action === "open_maintenance" || action === "view_block") {
+  function onRoomQuickViewAction(
+    action: RoomQuickViewAction,
+    stay: FrontOfficeStay | null,
+    view: FoRoomQuickView,
+  ) {
+    if (
+      action === "open_housekeeping" ||
+      action === "open_maintenance" ||
+      action === "view_block"
+    ) {
       setRoomQvId(null);
+      return;
+    }
+    if (action === "edit_room") {
+      setRoomQvId(null);
+      void navigate({ to: SET2_RI_ROOMS_HREF });
+      return;
+    }
+    if (action === "view_profile" && view.inHouseGuest) {
+      setRoomQvId(null);
+      void navigate({
+        to: GUEST_PROFILE_DETAIL_PATH,
+        params: { guestId: view.inHouseGuest.guestId },
+      });
+      return;
+    }
+    if (action === "view_folio" || action === "open_folio") {
+      if (canOpenCashiering && view.folio.folioNumber) {
+        setRoomQvId(null);
+        void navigate({ to: cashieringRefundHref(view.folio.folioNumber) });
+        return;
+      }
+      if (canOpenCashiering) {
+        setRoomQvId(null);
+        void navigate({ to: "/restaurant/pms/cashiering", search: { tab: "folios" } });
+        return;
+      }
+      if (stay) runAfterRoomQuickView(() => setSheetStay(stay));
+      return;
+    }
+    if (action === "view_reservation" && stay) {
+      setRoomQvId(null);
+      void navigate({
+        to: "/restaurant/pms/reservations/$reservationId",
+        params: { reservationId: stay.id },
+      });
+      return;
+    }
+    if (action === "view_all_requests" && stay) {
+      setRoomQvId(null);
+      void navigate({
+        to: "/restaurant/pms/reservations/$reservationId",
+        params: { reservationId: stay.id },
+      });
+      return;
+    }
+    if (action === "guest_services" && view.inHouseGuest) {
+      setRoomQvId(null);
+      void navigate({
+        to: GUEST_PROFILE_DETAIL_PATH,
+        params: { guestId: view.inHouseGuest.guestId },
+        search: guestProfileSearch({ card: "services" }),
+      });
       return;
     }
     if (action === "view_history") {
@@ -157,11 +262,37 @@ export function FrontOfficeWorkspace({
       runAfterRoomQuickView(() => setSheetStay(stay));
       return;
     }
+    if (action === "edit_stay" && stay) {
+      runAfterRoomQuickView(() => openDialog("stay", stay));
+      return;
+    }
+    if (action === "extend_stay" && stay) {
+      runAfterRoomQuickView(() => openDialog("stay", stay));
+      return;
+    }
+    if (action === "add_guest" && stay) {
+      runAfterRoomQuickView(() => {
+        setAmendStay(stay);
+        setAmendKind("guests");
+      });
+      return;
+    }
+    if (action === "add_note" && stay) {
+      runAfterRoomQuickView(() => {
+        setAmendStay(stay);
+        setAmendKind("special");
+      });
+      return;
+    }
     if ((action === "assign" || action === "reassign") && stay) {
       runAfterRoomQuickView(() => openDialog("assign", stay));
       return;
     }
-    if (action === "move" && stay) {
+    if ((action === "move" || action === "change_room") && stay) {
+      if (action === "change_room" && view.actionHints.canReassign) {
+        runAfterRoomQuickView(() => openDialog("assign", stay));
+        return;
+      }
       runAfterRoomQuickView(() => openDialog("move", stay));
       return;
     }
@@ -219,7 +350,12 @@ export function FrontOfficeWorkspace({
   const inHouseQuery = useQuery({
     queryKey: ["front-office", "in-house", restaurantId, today, ""],
     queryFn: () => fetchInHouse({ data: { restaurantId, today } }),
-    enabled: canManage && (picker === "room_move" || picker === "extend_stay" || picker === "check_out" || picker === "guest_request"),
+    enabled:
+      canManage &&
+      (picker === "room_move" ||
+        picker === "extend_stay" ||
+        picker === "check_out" ||
+        picker === "guest_request"),
     retry: false,
   });
 
@@ -247,7 +383,12 @@ export function FrontOfficeWorkspace({
       setSearchOpen(true);
       return;
     }
-    if (actionId === "check_in" || actionId === "room_move" || actionId === "extend_stay" || actionId === "check_out") {
+    if (
+      actionId === "check_in" ||
+      actionId === "room_move" ||
+      actionId === "extend_stay" ||
+      actionId === "check_out"
+    ) {
       setPicker(actionId);
     }
     if (actionId === "guest_request") {
@@ -255,7 +396,11 @@ export function FrontOfficeWorkspace({
     }
   }
 
-  function onExceptionAction(action: FoControlAction, stay: FrontOfficeStay | null, row: FrontOfficeExceptionItem) {
+  function onExceptionAction(
+    action: FoControlAction,
+    stay: FrontOfficeStay | null,
+    row: FrontOfficeExceptionItem,
+  ) {
     if (action === "open_housekeeping") {
       void navigate({ to: HK_HREF });
       return;
@@ -340,11 +485,18 @@ export function FrontOfficeWorkspace({
       return;
     }
     if (action === "view") {
-      void navigate({ to: "/restaurant/pms/reservations/$reservationId", params: { reservationId: stay.id } });
+      void navigate({
+        to: "/restaurant/pms/reservations/$reservationId",
+        params: { reservationId: stay.id },
+      });
       return;
     }
     if (action === "view_folio") {
-      setSheetStay(stay);
+      if (canOpenCashiering) {
+        setSheetStay(null);
+        void navigate({ to: "/restaurant/pms/cashiering", search: { tab: "folios" } });
+        return;
+      }
       return;
     }
     const map: Record<
@@ -383,9 +535,15 @@ export function FrontOfficeWorkspace({
     const kind = map[action as keyof typeof map];
     if (kind) setSheetStay(null);
     if (kind === "checkin") {
-      setCheckInStep("stay");
+      setCheckInStep(foCheckInWorkspaceInitialStep(stay));
     }
     if (kind) openDialog(kind, stay);
+  }
+
+  function onContinueCheckInFromWorkspace(stay: FrontOfficeStay) {
+    setSheetStay(null);
+    setCheckInStep(foCheckInWorkspaceInitialStep(stay));
+    openDialog("checkin", stay);
   }
 
   if (accessQuery.isLoading) {
@@ -473,12 +631,27 @@ export function FrontOfficeWorkspace({
         />
       ) : null}
 
-      {sheetStay ? (
+      {sheetStay && foOpensPreArrivalCheckInWorkspace(sheetStay) ? (
+        <FoCheckInWorkspaceSheet
+          restaurantId={restaurantId}
+          stay={sheetStay}
+          open
+          canOpenCashiering={canOpenCashiering}
+          hasOpenDiscrepancy={Boolean(
+            sheetStay.roomId && exceptionDesk.openDiscrepancyRoomIds.has(sheetStay.roomId),
+          )}
+          onOpenChange={(open) => !open && setSheetStay(null)}
+          onAction={onSheetAction}
+          onContinueCheckIn={onContinueCheckInFromWorkspace}
+        />
+      ) : sheetStay ? (
         <ReservationSideSheet
           restaurantId={restaurantId}
           stay={sheetStay}
           open
-          hasOpenDiscrepancy={Boolean(sheetStay.roomId && exceptionDesk.openDiscrepancyRoomIds.has(sheetStay.roomId))}
+          hasOpenDiscrepancy={Boolean(
+            sheetStay.roomId && exceptionDesk.openDiscrepancyRoomIds.has(sheetStay.roomId),
+          )}
           onOpenChange={(open) => !open && setSheetStay(null)}
           onAction={onSheetAction}
         />
@@ -588,7 +761,12 @@ export function FrontOfficeWorkspace({
       />
 
       {dialogStay && dialog === "assign" ? (
-        <AssignRoomDialog restaurantId={restaurantId} stay={dialogStay} open onOpenChange={(v) => !v && setDialog(null)} />
+        <AssignRoomDialog
+          restaurantId={restaurantId}
+          stay={dialogStay}
+          open
+          onOpenChange={(v) => !v && setDialog(null)}
+        />
       ) : null}
       {dialogStay && dialog === "checkin" ? (
         <CheckInDialog
@@ -605,13 +783,28 @@ export function FrontOfficeWorkspace({
         />
       ) : null}
       {dialogStay && dialog === "move" ? (
-        <RoomMoveDialog restaurantId={restaurantId} stay={dialogStay} open onOpenChange={(v) => !v && setDialog(null)} />
+        <RoomMoveDialog
+          restaurantId={restaurantId}
+          stay={dialogStay}
+          open
+          onOpenChange={(v) => !v && setDialog(null)}
+        />
       ) : null}
       {dialogStay && dialog === "stay" ? (
-        <StayDatesDialog restaurantId={restaurantId} stay={dialogStay} open onOpenChange={(v) => !v && setDialog(null)} />
+        <StayDatesDialog
+          restaurantId={restaurantId}
+          stay={dialogStay}
+          open
+          onOpenChange={(v) => !v && setDialog(null)}
+        />
       ) : null}
       {dialogStay && dialog === "checkout" ? (
-        <CheckOutDialog restaurantId={restaurantId} stay={dialogStay} open onOpenChange={(v) => !v && setDialog(null)} />
+        <CheckOutDialog
+          restaurantId={restaurantId}
+          stay={dialogStay}
+          open
+          onOpenChange={(v) => !v && setDialog(null)}
+        />
       ) : null}
       {dialogStay && dialog === "noshow" ? (
         <NoShowDialog

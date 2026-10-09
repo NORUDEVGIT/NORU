@@ -14,7 +14,11 @@ import {
   contactDefaultChips,
   normalizePreferenceAnswers,
   preferenceNeedsOptions,
+  mergeSpecialRequests,
+  preferenceApplyText,
   reservationDefaultsFromWorkspace,
+  resolvePreferenceValueLabel,
+  savedPreferencesForProfileType,
   validatePreferenceAnswer,
 } from "./guest-preferences-workspace.ts";
 
@@ -35,7 +39,9 @@ describe("Guest preference workspace helpers", () => {
       valueType: "text" as const,
     };
     assert.equal(
-      validatePreferenceTypeDraft(textDraft, [], ["cat"]).some((error) => error.field === "options"),
+      validatePreferenceTypeDraft(textDraft, [], ["cat"]).some(
+        (error) => error.field === "options",
+      ),
       false,
     );
   });
@@ -86,21 +92,102 @@ describe("Guest preference workspace helpers", () => {
     assert.match(on.specialRequests ?? "", /Quiet please/);
   });
 
+  it("filters saved preferences to the Individual Guest type list", () => {
+    const categories = [
+      {
+        types: [
+          { id: "bed", name: "Bed Type", values: ["King"] },
+          { id: "floor", name: "Floor", values: ["  "] },
+          { id: "diet", name: "Diet", values: ["Vegetarian"] },
+        ],
+      },
+    ];
+    assert.deepEqual(
+      savedPreferencesForProfileType({ categories, preferenceTypeIds: ["bed"] }).map(
+        (row) => row.label,
+      ),
+      ["Bed Type"],
+    );
+    assert.deepEqual(
+      savedPreferencesForProfileType({ categories, preferenceTypeIds: [] }).map((row) => row.label),
+      ["Bed Type", "Diet"],
+    );
+    const roomId = "eb1c2369-d85a-4f1a-8c1a-111111111111";
+    const rateId = "616a0339-00c8-4b2a-9d2a-222222222222";
+    const resolved = savedPreferencesForProfileType({
+      categories: [
+        {
+          types: [
+            {
+              id: "room",
+              name: "Room Type",
+              code: "ROOM_TYPE",
+              values: [roomId],
+              options: [{ label: "Deluxe King", value: roomId }],
+            },
+            {
+              id: "rate",
+              name: "Rate Plan",
+              code: "RATE_PLAN",
+              values: [rateId],
+            },
+            { id: "floor", name: "Floor", code: "FLOOR", values: ["1"] },
+          ],
+        },
+      ],
+      preferenceTypeIds: [],
+      roomTypes: [{ id: roomId, label: "Deluxe King" }],
+      ratePlans: [{ id: rateId, label: "BAR" }],
+    });
+    assert.deepEqual(
+      resolved.map((row) => row.value),
+      ["Deluxe King", "BAR", "1"],
+    );
+    assert.equal(
+      resolved.some((row) => row.value.includes(roomId)),
+      false,
+    );
+    assert.equal(
+      resolved.some((row) => row.value.includes(rateId)),
+      false,
+    );
+    assert.equal(
+      resolvePreferenceValueLabel({ code: "ROOM_TYPE", value: roomId, roomTypes: [] }),
+      null,
+    );
+    assert.equal(preferenceApplyText([{ label: "Bed Type", value: "King" }]), "Bed Type: King");
+    assert.equal(mergeSpecialRequests("", "Bed Type: King", 500), "Bed Type: King");
+    assert.equal(
+      mergeSpecialRequests("Late arrival", "Bed Type: King", 500),
+      "Late arrival\nBed Type: King",
+    );
+  });
+
   it("keeps contact defaults off the catalogue chips source", () => {
     const chips = contactDefaultChips({
       language: "English",
       preferredContactMethod: "email",
       preferredContactTime: "morning",
     });
-    assert.equal(chips.every((chip) => chip.source === "contact"), true);
-    assert.equal(chips.some((chip) => chip.code === "PROFILE_LANGUAGE"), true);
+    assert.equal(
+      chips.every((chip) => chip.source === "contact"),
+      true,
+    );
+    assert.equal(
+      chips.some((chip) => chip.code === "PROFILE_LANGUAGE"),
+      true,
+    );
   });
 });
 
 describe("Guest preference workspace lock", () => {
   it("extends the existing Card 4 / guest_preference_values architecture", () => {
-    const supabaseSql = readRel(`../../../../supabase/migrations/${PREFERENCES_WORKSPACE_MIGRATION_FILE}`);
-    const drizzleSql = readRel(`../../../../drizzle/migrations/${PREFERENCES_WORKSPACE_MIGRATION_FILE}`);
+    const supabaseSql = readRel(
+      `../../../../supabase/migrations/${PREFERENCES_WORKSPACE_MIGRATION_FILE}`,
+    );
+    const drizzleSql = readRel(
+      `../../../../drizzle/migrations/${PREFERENCES_WORKSPACE_MIGRATION_FILE}`,
+    );
     for (const sql of [supabaseSql, drizzleSql]) {
       assert.match(sql, /yes_no', 'text', 'number/);
       assert.match(sql, /apply_to_future_reservations/);

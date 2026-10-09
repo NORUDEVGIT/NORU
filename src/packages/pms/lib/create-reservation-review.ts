@@ -50,9 +50,8 @@ export function yesNoFromBoolean(value: boolean | null | undefined): string {
 }
 
 export const CREATE_REVIEW_STEPS = {
-  guestStay: 0,
-  availability: 1,
-  bookingDetails: 2,
-  policies: 3,
-  review: 4,
+  guestStayAvailability: 0,
+  bookingDetails: 1,
+  policies: 2,
+  review: 3,
 } as const;

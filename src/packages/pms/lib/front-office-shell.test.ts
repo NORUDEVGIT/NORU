@@ -20,6 +20,13 @@ import {
   menuHasVoid,
   navHasRoomMoves,
   reservationBarPlacement,
+  rackFrozenGridTemplate,
+  rackFrozenStickyLeftPx,
+  rackGroupHeaderColumnSpan,
+  rackFloorSecondaryLabel,
+  rackRoomStatusDisplay,
+  RACK_FROZEN_COLUMN_COUNT,
+  RACK_DATE_TRACK_GRID_COLUMN,
   resolveFoNav,
   RESERVED_BADGE_SLOTS,
   shouldShowDragHandle,
@@ -279,5 +286,29 @@ describe("exceptions", () => {
     assert.equal(live.rows.length, 1);
     assert.equal(live.rows[0]?.type, "unassigned");
     assert.ok(live.comingSoon.some((item) => item.id === "payment_issue"));
+  });
+});
+
+describe("FO rack frozen columns", () => {
+  it("uses four frozen tracks and starts date bars at column five", () => {
+    assert.equal(RACK_FROZEN_COLUMN_COUNT, 4);
+    assert.equal(RACK_DATE_TRACK_GRID_COLUMN, 5);
+    assert.match(rackFrozenGridTemplate(7, 128), /^80px 155px 105px 95px repeat\(7,/);
+    assert.equal(rackGroupHeaderColumnSpan(7), 11);
+    assert.equal(rackFrozenStickyLeftPx(0), 0);
+    assert.equal(rackFrozenStickyLeftPx(1), 80);
+    assert.equal(rackFrozenStickyLeftPx(3), 340);
+  });
+
+  it("derives rack status labels from restriction or occupancy", () => {
+    assert.equal(rackRoomStatusDisplay({ status: "out_of_order", occupancy: "vacant" }).key, "out_of_order");
+    assert.equal(rackRoomStatusDisplay({ status: "available", occupancy: "occupied" }).label, "Occupied");
+    assert.equal(rackRoomStatusDisplay({ status: "available", occupancy: "vacant" }).label, "Vacant");
+  });
+
+  it("formats floor secondary labels without Fl. prefix", () => {
+    assert.equal(rackFloorSecondaryLabel("1"), "Floor 1");
+    assert.equal(rackFloorSecondaryLabel("Floor 1"), "Floor 1");
+    assert.equal(rackFloorSecondaryLabel(null), null);
   });
 });

@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, BedDouble, History, Wrench } from "lucide-react";
+import { AlertTriangle, BedDouble, History, ImageIcon, Wrench } from "lucide-react";
 
-import { ReservationStatusBadge } from "@/packages/pms/components/bookings/reservation-bits";
-import { VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -26,13 +24,25 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 import {
   filterRoomOpsHistory,
+  FO_ROOM_QV_ACTIVITY_PAGE_SIZE,
+  FO_ROOM_QUICK_VIEW_MAIN_GRID_CLASS,
+  FO_ROOM_QUICK_VIEW_RIGHT_GRID_CLASS,
+  FO_ROOM_QUICK_VIEW_SHEET_MAX_CLASS,
+  formatFoRoomHistoryTableRow,
+  foRoomQuickViewHousekeepingLabel,
+  foRoomQuickViewLayoutMode,
+  foRoomQuickViewMaintenanceLabel,
+  foRoomQuickViewQuickActionVisibility,
+  foRoomQuickViewSellableLabel,
+  foRoomQuickViewStatusPill,
+  paginateFoRoomHistory,
   HK_HREF,
   INVENTORY_HREF,
   MAINTENANCE_HREF,
   ROOM_OPS_HISTORY_EVENTS,
-  vacantQuickViewHasNoStay,
   type FoRoomHistoryRow,
   type FoRoomQuickView,
+  type FoRoomQuickViewQuickActionKey,
   type FoRoomStaySnippet,
   type RoomOpsQueueItem,
 } from "@/packages/pms/lib/front-office-room-operations";
@@ -42,6 +52,7 @@ import {
   getFrontOfficeRoomQuickView,
 } from "@/packages/pms/lib/front-office-room-operations.functions";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
+import { rackFloorSecondaryLabel } from "@/packages/pms/lib/front-office-shell";
 
 export type RoomQuickViewAction =
   | "assign"
@@ -53,13 +64,34 @@ export type RoomQuickViewAction =
   | "open_housekeeping"
   | "open_maintenance"
   | "view_block"
-  | "view_history";
+  | "view_history"
+  | "edit_room"
+  | "view_profile"
+  | "edit_stay"
+  | "view_folio"
+  | "view_all_requests"
+  | "extend_stay"
+  | "add_guest"
+  | "guest_services"
+  | "view_reservation"
+  | "open_folio"
+  | "add_note"
+  | "change_room";
 
 export function stayFromRoomSnippet(
   stay: FoRoomStaySnippet,
   room: { roomId: string; roomNumber: string; roomTypeId: string; roomTypeName: string },
 ): FrontOfficeStay {
-  const nights = Math.max(0, Math.round((Date.parse(`${stay.departureDate}T00:00:00Z`) - Date.parse(`${stay.arrivalDate}T00:00:00Z`)) / 86_400_000));
+  const nights =
+    stay.nights ??
+    Math.max(
+      0,
+      Math.round(
+        (Date.parse(`${stay.departureDate}T00:00:00Z`) -
+          Date.parse(`${stay.arrivalDate}T00:00:00Z`)) /
+          86_400_000,
+      ),
+    );
   return {
     id: stay.id,
     confirmationNumber: stay.confirmationNumber,
@@ -75,10 +107,10 @@ export function stayFromRoomSnippet(
     arrivalDate: stay.arrivalDate,
     departureDate: stay.departureDate,
     nights,
-    adults: 1,
-    children: 0,
+    adults: stay.adults ?? 1,
+    children: stay.children ?? 0,
     status: stay.status,
-    specialRequests: null,
+    specialRequests: stay.specialRequests,
     overstay: false,
     walkInIncomplete: false,
   };
@@ -101,7 +133,11 @@ export function RoomQuickViewSheet({
   open: boolean;
   phone: boolean;
   onOpenChange: (open: boolean) => void;
-  onAction: (action: RoomQuickViewAction, stay: FrontOfficeStay | null, view: FoRoomQuickView) => void;
+  onAction: (
+    action: RoomQuickViewAction,
+    stay: FrontOfficeStay | null,
+    view: FoRoomQuickView,
+  ) => void;
 }) {
   const fetchView = useServerFn(getFrontOfficeRoomQuickView);
   const query = useQuery({
@@ -118,41 +154,51 @@ export function RoomQuickViewSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-full flex-col overflow-y-auto sm:max-w-md"
+        className={cn(
+          "flex w-full flex-col gap-0 overflow-hidden p-0",
+          FO_ROOM_QUICK_VIEW_SHEET_MAX_CLASS,
+        )}
         data-testid="fo-room-quick-view"
       >
-        <SheetHeader>
+        <SheetHeader className="sr-only">
           <SheetTitle>Room Quick View</SheetTitle>
-          <SheetDescription>Room context for this rack row. Stay bars still open the stay sheet.</SheetDescription>
+          <SheetDescription>
+            Operational room context from the rack. Stay bars open the stay sheet.
+          </SheetDescription>
         </SheetHeader>
-        {query.isLoading ? (
-          <div className="space-y-3 p-1">
-            <Skeleton className="h-8 w-40" />
-            <Skeleton className="h-24 w-full" />
-          </div>
-        ) : query.error ? (
-          <p className="text-sm text-destructive">{query.error instanceof Error ? query.error.message : "Could not load this room."}</p>
-        ) : query.data ? (
-          <RoomQuickViewBody
-            view={query.data}
-            phone={phone}
-            onAction={(action) => {
-              const stay = query.data.currentStay ?? query.data.assignedArrival;
-              onAction(
-                action,
-                stay
-                  ? stayFromRoomSnippet(stay, {
-                      roomId: query.data.roomId,
-                      roomNumber: query.data.roomNumber,
-                      roomTypeId: query.data.roomTypeId,
-                      roomTypeName: query.data.roomTypeName,
-                    })
-                  : null,
-                query.data,
-              );
-            }}
-          />
-        ) : null}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {query.isLoading ? (
+            <div className="space-y-3 p-4">
+              <Skeleton className="h-10 w-48" />
+              <Skeleton className="h-40 w-full" />
+              <Skeleton className="h-64 w-full" />
+            </div>
+          ) : query.error ? (
+            <p className="p-4 text-sm text-destructive">
+              {query.error instanceof Error ? query.error.message : "Could not load this room."}
+            </p>
+          ) : query.data ? (
+            <RoomQuickViewBody
+              view={query.data}
+              phone={phone}
+              onAction={(action) => {
+                const stay = query.data.currentStay ?? query.data.assignedArrival;
+                onAction(
+                  action,
+                  stay
+                    ? stayFromRoomSnippet(stay, {
+                        roomId: query.data.roomId,
+                        roomNumber: query.data.roomNumber,
+                        roomTypeId: query.data.roomTypeId,
+                        roomTypeName: query.data.roomTypeName,
+                      })
+                    : null,
+                  query.data,
+                );
+              }}
+            />
+          ) : null}
+        </div>
       </SheetContent>
     </Sheet>
   );
@@ -168,171 +214,524 @@ function RoomQuickViewBody({
   onAction: (action: RoomQuickViewAction) => void;
 }) {
   const hints = view.actionHints;
+  const layoutMode = foRoomQuickViewLayoutMode(view);
+  const actionVisible = foRoomQuickViewQuickActionVisibility({
+    hints,
+    layoutMode,
+    inHouseGuest: view.inHouseGuest,
+    folio: view.folio,
+  });
+  const statusPill = foRoomQuickViewStatusPill(view);
+  const floorLabel = rackFloorSecondaryLabel(view.floor);
+  const secondaryParts = [view.roomTypeName, view.building?.trim(), floorLabel].filter(Boolean);
+  const [activityPage, setActivityPage] = useState(1);
+
+  useEffect(() => {
+    setActivityPage(1);
+  }, [view.roomId]);
+
+  const requestLines = useMemo(() => {
+    const lines: string[] = [];
+    if (view.specialRequests.reservationText) lines.push(view.specialRequests.reservationText);
+    if (view.specialRequests.guestPreferencesText)
+      lines.push(view.specialRequests.guestPreferencesText);
+    return lines;
+  }, [view.specialRequests]);
+
+  const activityPageData = useMemo(
+    () => paginateFoRoomHistory(view.recentHistory, activityPage, FO_ROOM_QV_ACTIVITY_PAGE_SIZE),
+    [view.recentHistory, activityPage],
+  );
+
+  const roomInfoCard = (
+    <InfoCard
+      title="Room Information"
+      actionLabel="Edit"
+      onAction={() => onAction("edit_room")}
+      testId="fo-room-qv-room-info"
+    >
+      <FieldGrid
+        rows={[
+          ["Room type", view.roomTypeName],
+          ["Building", view.building?.trim() || "—"],
+          ["Floor", floorLabel ?? "—"],
+          ["View", view.roomInfo.view ?? "—"],
+          ["Size", view.roomInfo.size ?? "—"],
+          ["Max occupancy", view.maxOccupancy != null ? String(view.maxOccupancy) : "—"],
+          ["Bed type", view.roomInfo.bedType ?? "—"],
+          [
+            "Amenities",
+            view.roomInfo.amenities.length > 0 ? view.roomInfo.amenities.join(", ") : "—",
+          ],
+        ]}
+      />
+    </InfoCard>
+  );
+
+  const roomStatusCard = (
+    <InfoCard title="Room Status" testId="fo-room-qv-room-status">
+      <StatusRow label="Occupancy" value={view.occupancy === "occupied" ? "Occupied" : "Vacant"} />
+      <StatusRow
+        label="Housekeeping"
+        value={foRoomQuickViewHousekeepingLabel(view.housekeepingStatus)}
+      />
+      <StatusRow
+        label="Maintenance"
+        value={foRoomQuickViewMaintenanceLabel(view.maintenanceStatus)}
+      />
+      <StatusRow label="Sellable" value={foRoomQuickViewSellableLabel(view)} />
+    </InfoCard>
+  );
+
   return (
-    <div className="space-y-4 px-1 pb-4">
-      <header className="rounded-xl border border-[#DDD4C5] bg-[#FAF8F4] p-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Room</p>
-        <h2 className="font-display text-2xl font-semibold tracking-tight text-[#251605]">{view.roomNumber}</h2>
-        <p className="text-sm text-muted-foreground">
-          {view.roomTypeName}
-          {view.floor ? ` · Floor ${view.floor}` : ""}
-          {view.building ? ` · ${view.building}` : ""}
-          {view.wing ? ` · ${view.wing}` : ""}
-        </p>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <StatusChip label={view.occupancy} />
-          <StatusChip label={view.physicalStatus.replaceAll("_", " ")} />
-          {view.housekeepingStatus ? <StatusChip label={view.housekeepingStatus} /> : null}
-          {view.maintenanceStatus && view.maintenanceStatus !== "normal" ? <StatusChip label={view.maintenanceStatus.replaceAll("_", " ")} /> : null}
-          <StatusChip label={view.ready ? "ready" : "not ready"} />
+    <div className="pb-6" data-testid="fo-room-qv-body">
+      <header
+        className="border-b border-[#DDD4C5] bg-[#FAF8F4] px-4 py-3 pr-12 sm:px-6"
+        data-testid="fo-room-qv-header"
+      >
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Room
+            </p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2">
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-[#251605]">
+                {view.roomNumber}
+              </h2>
+              <span
+                className="inline-flex min-h-6 items-center rounded-full px-3 py-0.5 text-[11px] font-semibold text-white"
+                style={{ backgroundColor: statusPill.color }}
+                data-testid="fo-room-qv-status-pill"
+              >
+                {statusPill.label}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">{secondaryParts.join(" · ")}</p>
+          </div>
         </div>
       </header>
 
-      <section>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current stay</h3>
-        {view.currentStay && !vacantQuickViewHasNoStay(view) ? (
-          <StayCard stay={view.currentStay} />
-        ) : (
-          <p className="text-sm text-muted-foreground" data-testid="fo-room-qv-vacant">
-            Vacant — no in-house guest.
+      {layoutMode === "occupied" ? (
+        <div
+          className={cn("grid grid-cols-1 gap-3 p-4 sm:p-5", FO_ROOM_QUICK_VIEW_MAIN_GRID_CLASS)}
+          data-testid="fo-room-qv-main-grid"
+        >
+          <div className="flex min-w-0 flex-col gap-3">
+            <RoomImageBlock imageUrl={view.roomInfo.imageUrl} roomNumber={view.roomNumber} />
+            {roomInfoCard}
+            {roomStatusCard}
+          </div>
+          <div
+            className={cn("grid grid-cols-1 gap-3", FO_ROOM_QUICK_VIEW_RIGHT_GRID_CLASS)}
+            data-testid="fo-room-qv-right-grid"
+          >
+            <InfoCard
+              title="Guest Information"
+              compact
+              actionLabel="View Profile"
+              onAction={() => onAction("view_profile")}
+              testId="fo-room-qv-guest"
+            >
+              {view.inHouseGuest ? (
+                <FieldGrid
+                  rows={[
+                    ["Guest name", view.inHouseGuest.fullName],
+                    ["Nationality", view.inHouseGuest.nationality ?? "—"],
+                    ["Phone", view.inHouseGuest.phone ?? "—"],
+                    ["Email", view.inHouseGuest.email ?? "—"],
+                    ["Company", view.inHouseGuest.company ?? "—"],
+                  ]}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">No in-house guest.</p>
+              )}
+            </InfoCard>
+            <InfoCard
+              title="Stay Details"
+              actionLabel="Edit"
+              compact
+              onAction={() => onAction("edit_stay")}
+              testId="fo-room-qv-stay"
+            >
+              {view.currentStay ? (
+                <StayDetailsGrid stay={view.currentStay} />
+              ) : (
+                <p className="text-sm text-muted-foreground">No active stay.</p>
+              )}
+            </InfoCard>
+            <InfoCard
+              title="Folio Summary"
+              actionLabel="View Folio"
+              compact
+              actionDisabled={!view.folio.folioId || view.folio.lane === "permission_denied"}
+              onAction={() => onAction("view_folio")}
+              testId="fo-room-qv-folio"
+            >
+              {view.folio.lane === "permission_denied" ? (
+                <p className="text-sm text-muted-foreground">
+                  Folio access unavailable for your role.
+                </p>
+              ) : view.folio.folioId ? (
+                <FieldGrid
+                  rows={[
+                    ["Total Charges", formatMoney(view.folio.totalCharges)],
+                    ["Total Payments", formatMoney(view.folio.totalPayments)],
+                    ["Balance", formatMoney(view.folio.balance)],
+                  ]}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">No folio opened for this stay yet.</p>
+              )}
+            </InfoCard>
+            <InfoCard
+              title="Special Requests"
+              actionLabel="View All"
+              compact
+              actionDisabled={requestLines.length === 0}
+              onAction={() => onAction("view_all_requests")}
+              testId="fo-room-qv-requests"
+            >
+              {requestLines.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No special requests.</p>
+              ) : (
+                <ul className="space-y-1.5 text-sm">
+                  {requestLines.map((line) => (
+                    <li
+                      key={line}
+                      className="rounded-md border border-[#EEE8DC] bg-white px-2.5 py-1.5"
+                    >
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </InfoCard>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 p-4 sm:p-5" data-testid="fo-room-qv-vacant-layout">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <RoomImageBlock imageUrl={view.roomInfo.imageUrl} roomNumber={view.roomNumber} />
+            {roomInfoCard}
+          </div>
+          {roomStatusCard}
+          {layoutMode === "vacant_assigned" && view.assignedArrival ? (
+            <InfoCard
+              title="Stay Details"
+              actionLabel="Edit"
+              onAction={() => onAction("edit_stay")}
+              testId="fo-room-qv-stay"
+            >
+              <StayDetailsGrid stay={view.assignedArrival} />
+            </InfoCard>
+          ) : null}
+        </div>
+      )}
+
+      <section
+        className="space-y-3 border-t border-[#EEE8DC] px-4 pt-4 sm:px-5"
+        data-testid="fo-room-qv-quick-actions"
+      >
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Quick Actions
+        </h3>
+        <div
+          className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4"
+          data-testid="fo-room-qv-quick-actions-grid"
+        >
+          <RoomQuickViewQuickActions actionVisible={actionVisible} onAction={onAction} />
+        </div>
+        {phone ? (
+          <p className="text-xs text-muted-foreground">
+            This sheet closes before a large Front Office workflow opens.
           </p>
-        )}
+        ) : null}
       </section>
 
-      {view.assignedArrival ? (
-        <section>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Assigned arrival</h3>
-          <StayCard stay={view.assignedArrival} />
-        </section>
-      ) : null}
-
-      {view.nextStay ? (
-        <section>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Upcoming</h3>
-          <StayCard stay={view.nextStay} />
-        </section>
-      ) : null}
-
-      <section>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Readiness</h3>
-        <p className="text-sm">{view.readinessReason ?? (view.ready ? "Ready for arrival." : "Not ready.")}</p>
-        {view.restrictionReason ? <p className="mt-1 text-sm text-muted-foreground">{view.restrictionReason}</p> : null}
+      <section className="mt-3 px-4 pb-2 sm:px-5" data-testid="fo-room-qv-activity">
+        <InfoCard title="Recent Activity" compact>
+          {view.recentHistory.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No recent room activity.</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-0 text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-[#EEE8DC] text-[11px] uppercase tracking-wide text-muted-foreground">
+                      <th className="py-1.5 pr-2 font-semibold">Date / Time</th>
+                      <th className="py-1.5 pr-2 font-semibold">User</th>
+                      <th className="py-1.5 pr-2 font-semibold">Action</th>
+                      <th className="py-1.5 font-semibold">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activityPageData.rows.map((row) => {
+                      const cells = formatFoRoomHistoryTableRow(row);
+                      return (
+                        <tr
+                          key={`${row.source}:${row.id}`}
+                          className="border-b border-[#F5F0E8] last:border-0"
+                        >
+                          <td className="py-1.5 pr-2 text-xs text-muted-foreground">
+                            {cells.when}
+                          </td>
+                          <td className="py-1.5 pr-2">{cells.user}</td>
+                          <td className="py-1.5 pr-2 capitalize">{cells.action}</td>
+                          <td className="py-1.5">{cells.details}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {activityPageData.totalPages > 1 ? (
+                <div
+                  className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#EEE8DC] pt-2"
+                  data-testid="fo-room-qv-activity-pagination"
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={activityPageData.page <= 1}
+                    onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Page {activityPageData.page} of {activityPageData.totalPages}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={activityPageData.page >= activityPageData.totalPages}
+                    onClick={() => setActivityPage((p) => p + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          )}
+        </InfoCard>
       </section>
+    </div>
+  );
+}
 
-      <section>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Blocks / restrictions</h3>
-        {view.blocks.length === 0 && view.physicalStatus === "available" ? (
-          <p className="text-sm text-muted-foreground">No active inventory block on this room.</p>
-        ) : (
-          <ul className="space-y-1 text-sm">
-            {view.physicalStatus !== "available" ? (
-              <li>
-                Physical status: {view.physicalStatus.replaceAll("_", " ")}
-                {view.restrictionExpectedReturn ? ` · return ${view.restrictionExpectedReturn}` : ""}
-              </li>
-            ) : null}
-            {view.blocks.map((block) => (
-              <li key={block.id}>
-                {block.blockType} · {block.reason} ({block.startDate} → {block.endDate})
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+function RoomImageBlock({ imageUrl, roomNumber }: { imageUrl: string | null; roomNumber: string }) {
+  return (
+    <div
+      className="overflow-hidden rounded-lg border border-[#DDD4C5] bg-[#F5F0E8]"
+      data-testid="fo-room-qv-image"
+    >
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={`Room ${roomNumber}`}
+          className="aspect-[4/3] w-full object-cover"
+          data-testid="fo-room-qv-cover-image"
+        />
+      ) : (
+        <div className="flex aspect-[4/3] min-h-[200px] flex-col items-center justify-center gap-2 text-muted-foreground">
+          <ImageIcon className="size-8 opacity-60" aria-hidden />
+          <span className="text-xs">No room image</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
-      {view.recentHistory.length > 0 ? (
-        <section>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent history</h3>
-          <ul className="mt-2 space-y-2 text-sm">
-            {view.recentHistory.slice(0, 5).map((row) => (
-              <li key={row.id} className="flex items-start justify-between gap-2 rounded-lg border border-[#EEE8DC] bg-white px-2.5 py-1.5">
-                <span>{row.summary}</span>
-                {row.confirmationNumber ? <span className="shrink-0 text-xs text-muted-foreground">{row.confirmationNumber}</span> : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+const QUICK_ACTION_LABELS: Record<
+  Exclude<
+    FoRoomQuickViewQuickActionKey,
+    "housekeeping" | "maintenance" | "view_block" | "view_history"
+  >,
+  { label: string; action: RoomQuickViewAction }
+> = {
+  move: { label: "Room Move", action: "move" },
+  change_room: { label: "Change Room", action: "change_room" },
+  extend_stay: { label: "Extend Stay", action: "extend_stay" },
+  add_guest: { label: "Add Guest", action: "add_guest" },
+  guest_services: { label: "Guest Services", action: "guest_services" },
+  view_reservation: { label: "View Reservation", action: "view_reservation" },
+  open_folio: { label: "Open Folio", action: "open_folio" },
+  add_note: { label: "Add Note", action: "add_note" },
+  assign: { label: "Assign room", action: "assign" },
+  check_in: { label: "Check-in", action: "check_in" },
+  check_out: { label: "Check-out", action: "check_out" },
+};
 
-      <div className="flex flex-wrap gap-2">
-        {hints.canAssign ? (
-          <Button size="sm" onClick={() => onAction("assign")}>
-            Assign room
-          </Button>
-        ) : null}
-        {hints.canReassign ? (
-          <Button size="sm" onClick={() => onAction("reassign")}>
-            Reassign
-          </Button>
-        ) : null}
-        {hints.canMoveGuest ? (
-          <Button size="sm" onClick={() => onAction("move")}>
-            Move guest
-          </Button>
-        ) : null}
-        {hints.canCheckIn ? (
-          <Button size="sm" onClick={() => onAction("check_in")}>
-            Check-in
-          </Button>
-        ) : null}
-        {hints.canCheckOut ? (
-          <Button size="sm" onClick={() => onAction("check_out")}>
-            Check-out
-          </Button>
-        ) : null}
-        {hints.canOpenStay ? (
-          <Button size="sm" variant="outline" onClick={() => onAction("open_stay")}>
-            Open stay
-          </Button>
-        ) : null}
-        <Button size="sm" variant="outline" asChild>
+function RoomQuickViewQuickActions({
+  actionVisible,
+  onAction,
+}: {
+  actionVisible: Record<FoRoomQuickViewQuickActionKey, boolean>;
+  onAction: (action: RoomQuickViewAction) => void;
+}) {
+  return (
+    <>
+      {(Object.keys(QUICK_ACTION_LABELS) as Array<keyof typeof QUICK_ACTION_LABELS>).map((key) =>
+        actionVisible[key] ? (
+          <QuickAction key={key} onClick={() => onAction(QUICK_ACTION_LABELS[key].action)}>
+            {QUICK_ACTION_LABELS[key].label}
+          </QuickAction>
+        ) : null,
+      )}
+      {actionVisible.housekeeping ? (
+        <QuickAction variant="outline" asChild>
           <Link to={HK_HREF} onClick={() => onAction("open_housekeeping")}>
             Housekeeping
           </Link>
-        </Button>
-        <Button size="sm" variant="outline" asChild>
+        </QuickAction>
+      ) : null}
+      {actionVisible.maintenance ? (
+        <QuickAction variant="outline" asChild>
           <Link to={MAINTENANCE_HREF} onClick={() => onAction("open_maintenance")}>
             <Wrench className="mr-1 size-3.5" />
             Maintenance
           </Link>
-        </Button>
-        {hints.hasBlock ? (
-          <Button size="sm" variant="outline" asChild>
-            <Link to={INVENTORY_HREF} onClick={() => onAction("view_block")}>
-              View block
-            </Link>
-          </Button>
-        ) : null}
-        <Button size="sm" variant="outline" onClick={() => onAction("view_history")}>
+        </QuickAction>
+      ) : null}
+      {actionVisible.view_block ? (
+        <QuickAction variant="outline" asChild>
+          <Link to={INVENTORY_HREF} onClick={() => onAction("view_block")}>
+            View block
+          </Link>
+        </QuickAction>
+      ) : null}
+      {actionVisible.view_history ? (
+        <QuickAction variant="outline" onClick={() => onAction("view_history")}>
           <History className="mr-1 size-3.5" />
           Room history
-        </Button>
+        </QuickAction>
+      ) : null}
+    </>
+  );
+}
+
+function InfoCard({
+  title,
+  actionLabel,
+  actionDisabled,
+  onAction,
+  testId,
+  compact,
+  children,
+}: {
+  title: string;
+  actionLabel?: string;
+  actionDisabled?: boolean;
+  onAction?: () => void;
+  testId?: string;
+  compact?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className={cn(
+        "h-full rounded-lg border border-[#DDD4C5] bg-white shadow-sm",
+        compact ? "p-2.5" : "p-3",
+      )}
+      data-testid={testId}
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-[#251605]">{title}</h3>
+        {actionLabel && onAction ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-[#765719]"
+            disabled={actionDisabled}
+            onClick={onAction}
+          >
+            {actionLabel}
+          </Button>
+        ) : null}
       </div>
-      {phone ? <p className="text-xs text-muted-foreground">This sheet closes before a large Front Office workflow opens.</p> : null}
+      {children}
+    </section>
+  );
+}
+
+function FieldGrid({ rows }: { rows: Array<[string, string]> }) {
+  return (
+    <dl className="grid grid-cols-1 gap-x-2 gap-y-1.5 text-sm">
+      {rows.map(([label, value]) => (
+        <div key={label}>
+          <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {label}
+          </dt>
+          <dd className="mt-0.5 text-[#251605]">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function StatusRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-b border-[#F5F0E8] py-1.5 text-sm last:border-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium capitalize text-[#251605]">{value}</span>
     </div>
   );
 }
 
-function StayCard({ stay }: { stay: FoRoomStaySnippet }) {
+function StayDetailsGrid({ stay }: { stay: FoRoomStaySnippet }) {
   return (
-    <div className="mt-1 rounded-lg border border-[#DDD4C5] bg-white p-3 text-sm">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium">{stay.guestName}</span>
-        {stay.guestVip ? <VipBadge /> : null}
-        <ReservationStatusBadge status={stay.status} />
-      </div>
-      <p className="text-xs text-muted-foreground">
-        {stay.confirmationNumber} · {stay.arrivalDate} → {stay.departureDate}
-      </p>
-    </div>
+    <FieldGrid
+      rows={[
+        ["Reservation No.", stay.confirmationNumber],
+        ["Arrival", stay.arrivalDate],
+        ["Departure", stay.departureDate],
+        ["Nights", stay.nights != null ? String(stay.nights) : "—"],
+        [
+          "Adults / Children",
+          stay.adults != null || stay.children != null
+            ? `${stay.adults ?? "—"} / ${stay.children ?? "—"}`
+            : "—",
+        ],
+        ["Rate Plan", stay.ratePlanName ?? "—"],
+        ["Rate", stay.rateLabel ?? "—"],
+        ["Package", stay.packageName ?? "—"],
+      ]}
+    />
   );
 }
 
-function StatusChip({ label }: { label: string }) {
+function formatMoney(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return value.toFixed(2);
+}
+
+function QuickAction({
+  children,
+  disabled,
+  onClick,
+  variant = "default",
+  asChild,
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  onClick?: () => void;
+  variant?: "default" | "outline";
+  asChild?: boolean;
+}) {
   return (
-    <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-medium capitalize text-[#251605] ring-1 ring-[#DDD4C5]">
-      {label}
-    </span>
+    <Button
+      type="button"
+      size="sm"
+      variant={variant}
+      disabled={disabled}
+      onClick={onClick}
+      asChild={asChild}
+      className={asChild ? undefined : "h-9 w-full justify-center"}
+    >
+      {children}
+    </Button>
   );
 }
 
@@ -357,18 +756,21 @@ export function RoomOperationsQueuePanel({
   const empty = !query.isLoading && items.length === 0;
   return (
     <section
-      className={cn(
-        "rounded-xl border border-[#DDD4C5] bg-white",
-        empty ? "px-3 py-1.5" : "p-3",
-      )}
+      className={cn("rounded-xl border border-[#DDD4C5] bg-white", empty ? "px-3 py-1.5" : "p-3")}
       data-testid="fo-room-ops-queue"
     >
       <div className="flex items-center gap-2">
-        <AlertTriangle className={cn("size-4", empty ? "text-muted-foreground" : "text-[#C89933]")} />
+        <AlertTriangle
+          className={cn("size-4", empty ? "text-muted-foreground" : "text-[#C89933]")}
+        />
         <h3 className="text-sm font-semibold text-[#251605]">Room operations</h3>
-        <span className="text-xs text-muted-foreground">{query.isLoading ? "…" : items.length}</span>
+        <span className="text-xs text-muted-foreground">
+          {query.isLoading ? "…" : items.length}
+        </span>
         {empty ? (
-          <p className="min-w-0 truncate text-xs text-muted-foreground">No room-operation issues on this business date.</p>
+          <p className="min-w-0 truncate text-xs text-muted-foreground">
+            No room-operation issues on this business date.
+          </p>
         ) : null}
       </div>
       {empty ? null : (
@@ -377,11 +779,18 @@ export function RoomOperationsQueuePanel({
             Derived from live stays, HK readiness, discrepancies and inventory blocks.
           </p>
           {query.error ? (
-            <p className="mt-2 text-sm text-destructive">{query.error instanceof Error ? query.error.message : "Queue unavailable."}</p>
+            <p className="mt-2 text-sm text-destructive">
+              {query.error instanceof Error ? query.error.message : "Queue unavailable."}
+            </p>
           ) : (
             <ul className="mt-2 space-y-1">
               {items.slice(0, 12).map((item) => (
-                <QueueRow key={item.id} item={item} onOpenRoom={onOpenRoom} onOpenStay={onOpenStay} />
+                <QueueRow
+                  key={item.id}
+                  item={item}
+                  onOpenRoom={onOpenRoom}
+                  onOpenStay={onOpenStay}
+                />
               ))}
             </ul>
           )}
@@ -454,13 +863,25 @@ export function RoomOperationsHistorySheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg" data-testid="fo-room-ops-history">
+      <SheetContent
+        side="right"
+        className="w-full overflow-y-auto sm:max-w-lg"
+        data-testid="fo-room-ops-history"
+      >
         <SheetHeader>
           <SheetTitle>Room operations history</SheetTitle>
-          <SheetDescription>Existing reservation and housekeeping history for this room. No second audit log.</SheetDescription>
+          <SheetDescription>
+            Existing reservation and housekeeping history for this room. No second audit log.
+          </SheetDescription>
         </SheetHeader>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40" aria-label="Filter by date" />
+          <Input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-40"
+            aria-label="Filter by date"
+          />
           <Select value={eventType} onValueChange={setEventType}>
             <SelectTrigger className="w-44">
               <SelectValue placeholder="Event" />
@@ -482,7 +903,10 @@ export function RoomOperationsHistorySheet({
         ) : (
           <ul className="mt-3 space-y-2">
             {rows.map((row: FoRoomHistoryRow) => (
-              <li key={`${row.source}:${row.id}`} className="rounded-lg border border-border p-2 text-sm">
+              <li
+                key={`${row.source}:${row.id}`}
+                className="rounded-lg border border-border p-2 text-sm"
+              >
                 <p className="font-medium capitalize">{row.summary}</p>
                 <p className="text-xs text-muted-foreground">
                   {row.createdAt.slice(0, 16).replace("T", " ")}
@@ -508,7 +932,10 @@ export function RoomQuickViewPanel({
 }) {
   if (!view) return null;
   return (
-    <aside className={cn("rounded-xl border border-[#DDD4C5] bg-white p-3", className)} data-testid="fo-room-quick-view-panel">
+    <aside
+      className={cn("rounded-xl border border-[#DDD4C5] bg-white p-3", className)}
+      data-testid="fo-room-quick-view-panel"
+    >
       <p className="inline-flex items-center gap-1 text-xs font-semibold text-[#765719]">
         <BedDouble className="size-3.5" /> Room {view.roomNumber}
       </p>

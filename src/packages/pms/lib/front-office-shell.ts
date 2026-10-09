@@ -4,7 +4,8 @@
  * Presentation contract only. Every Live action maps to an existing dialog or
  * server function. Coming soon actions never invoke a write.
  */
-type ReservationStatus = "pending" | "confirmed" | "cancelled" | "checked_in" | "checked_out" | "no_show";
+type ReservationStatus =
+  "pending" | "confirmed" | "cancelled" | "checked_in" | "checked_out" | "no_show";
 
 function addDays(date: string, days: number): string {
   const [y, m, d] = date.split("-").map(Number);
@@ -126,15 +127,14 @@ export function foRackSearchSlice(input: {
   return slice;
 }
 
-export function groupRackRooms<T extends { id: string; floor: string | null; roomTypeName: string }>(
-  rooms: T[],
-  groupBy: RackGroupBy,
-): Array<{ key: string; label: string; rooms: T[] }> {
+export function groupRackRooms<
+  T extends { id: string; floor: string | null; roomTypeName: string },
+>(rooms: T[], groupBy: RackGroupBy): Array<{ key: string; label: string; rooms: T[] }> {
   if (groupBy === "none") return [{ key: "all", label: "All rooms", rooms }];
   const groups: Array<{ key: string; label: string; rooms: T[] }> = [];
   const index = new Map<string, number>();
   for (const room of rooms) {
-    const label = groupBy === "floor" ? (room.floor?.trim() || "No floor") : room.roomTypeName;
+    const label = groupBy === "floor" ? room.floor?.trim() || "No floor" : room.roomTypeName;
     const key = `${groupBy}:${label}`;
     const existing = index.get(key);
     if (existing === undefined) {
@@ -193,23 +193,95 @@ export type FoActionDef = {
 };
 
 export const FO_ACTIONS: FoActionDef[] = [
-  { id: "new_reservation", label: "New Reservation", lane: "live", write: "createReservation", menus: ["quick"] },
+  {
+    id: "new_reservation",
+    label: "New Reservation",
+    lane: "live",
+    write: "createReservation",
+    menus: ["quick"],
+  },
   { id: "walk_in", label: "Walk-in", lane: "live", write: "createReservation", menus: ["quick"] },
-  { id: "check_in", label: "Check-in", lane: "live", write: "completeFoCheckIn", menus: ["quick", "bar", "sheet"] },
-  { id: "room_move", label: "Room Move", lane: "live", write: "moveReservationRoom", menus: ["quick", "bar", "sheet"] },
-  { id: "extend_stay", label: "Extend Stay", lane: "live", write: "changeStayDates", menus: ["quick", "bar", "sheet"] },
-  { id: "check_out", label: "Check-out", lane: "live", write: "completeFoCheckOut", menus: ["quick", "bar", "sheet"] },
+  {
+    id: "check_in",
+    label: "Check-in",
+    lane: "live",
+    write: "completeFoCheckIn",
+    menus: ["quick", "bar", "sheet"],
+  },
+  {
+    id: "room_move",
+    label: "Room Move",
+    lane: "live",
+    write: "moveReservationRoom",
+    menus: ["quick", "bar", "sheet"],
+  },
+  {
+    id: "extend_stay",
+    label: "Extend Stay",
+    lane: "live",
+    write: "changeStayDates",
+    menus: ["quick", "bar", "sheet"],
+  },
+  {
+    id: "check_out",
+    label: "Check-out",
+    lane: "live",
+    write: "completeFoCheckOut",
+    menus: ["quick", "bar", "sheet"],
+  },
   { id: "guest_search", label: "Guest Search", lane: "live", menus: ["quick"] },
   { id: "guest_request", label: "Guest Request", lane: "live", menus: ["quick"] },
   { id: "view", label: "View", lane: "live", menus: ["bar", "sheet"] },
-  { id: "assign", label: "Assign Room", lane: "live", write: "assignReservationRoom", menus: ["bar", "sheet"] },
-  { id: "no_show", label: "No-show", lane: "live", write: "completeFoNoShow", menus: ["bar", "sheet"] },
-  { id: "amend_notes", label: "Amend notes", lane: "live", write: "amendReservation", menus: ["sheet"] },
-  { id: "upgrade_downgrade", label: "Upgrade / Downgrade", lane: "live", write: "amendReservation", menus: ["sheet"] },
-  { id: "add_remove_guest", label: "Add / Remove Guest", lane: "live", write: "amendReservation", menus: ["sheet"] },
+  {
+    id: "assign",
+    label: "Assign Room",
+    lane: "live",
+    write: "assignReservationRoom",
+    menus: ["bar", "sheet"],
+  },
+  {
+    id: "no_show",
+    label: "No-show",
+    lane: "live",
+    write: "completeFoNoShow",
+    menus: ["bar", "sheet"],
+  },
+  {
+    id: "amend_notes",
+    label: "Amend notes",
+    lane: "live",
+    write: "amendReservation",
+    menus: ["sheet"],
+  },
+  {
+    id: "upgrade_downgrade",
+    label: "Upgrade / Downgrade",
+    lane: "live",
+    write: "amendReservation",
+    menus: ["sheet"],
+  },
+  {
+    id: "add_remove_guest",
+    label: "Add / Remove Guest",
+    lane: "live",
+    write: "amendReservation",
+    menus: ["sheet"],
+  },
   { id: "add_service", label: "Add Service", lane: "live", menus: ["sheet"] },
-  { id: "add_special_request", label: "Add Special Request", lane: "live", write: "amendReservation", menus: ["sheet"] },
-  { id: "cancel_fees", label: "Cancel policy / fees", lane: "live", write: "completeFoCancel", menus: ["sheet"] },
+  {
+    id: "add_special_request",
+    label: "Add Special Request",
+    lane: "live",
+    write: "amendReservation",
+    menus: ["sheet"],
+  },
+  {
+    id: "cancel_fees",
+    label: "Cancel policy / fees",
+    lane: "live",
+    write: "completeFoCancel",
+    menus: ["sheet"],
+  },
   { id: "view_folio", label: "View Folio", lane: "live", menus: ["sheet"] },
 ];
 
@@ -352,7 +424,9 @@ export function handleReservationBarDrop(
 
 export type UnavailableKind = "permission_denied" | "coming_soon" | "empty";
 
-export function classifyUnavailable(reason: "permission" | "coming_soon" | "empty"): UnavailableKind {
+export function classifyUnavailable(
+  reason: "permission" | "coming_soon" | "empty",
+): UnavailableKind {
   if (reason === "permission") return "permission_denied";
   if (reason === "empty") return "empty";
   return "coming_soon";
@@ -360,7 +434,9 @@ export function classifyUnavailable(reason: "permission" | "coming_soon" | "empt
 
 export function isPermissionDeniedMessage(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error ?? "");
-  return /permission|don't have access|do not have access|not authorized|forbidden|access denied/i.test(msg);
+  return /permission|don't have access|do not have access|not authorized|forbidden|access denied/i.test(
+    msg,
+  );
 }
 
 export function isLiveHorizon(days: CalendarHorizon): boolean {
@@ -388,7 +464,12 @@ export function reservationBarPlacement(
   };
 }
 
-export function stayOverlapsRange(arrival: string, departure: string, rangeStart: string, days: number): boolean {
+export function stayOverlapsRange(
+  arrival: string,
+  departure: string,
+  rangeStart: string,
+  days: number,
+): boolean {
   return reservationBarPlacement(arrival, departure, rangeStart, days) !== null;
 }
 
@@ -453,7 +534,10 @@ export const EMPTY_RACK_FILTERS: RackFilters = {
   discrepancy: "all",
 };
 
-export function isOpsStripFilterActive(filters: RackFilters, applied: Partial<RackFilters>): boolean {
+export function isOpsStripFilterActive(
+  filters: RackFilters,
+  applied: Partial<RackFilters>,
+): boolean {
   const keys = Object.keys(applied) as Array<keyof RackFilters>;
   if (keys.length === 0) return false;
   return keys.every((key) => filters[key] === applied[key]);
@@ -501,13 +585,70 @@ export const HK_DIRTY_COLOR = "#B42318";
 export const HK_INSPECTED_COLOR = "#2F5D8A";
 export const HK_PICKUP_COLOR = "#D97706";
 
-export const ROOM_LEGEND: { key: RoomLegendKey; label: string; color: string; shape: LegendShape }[] = [
+export const ROOM_LEGEND: {
+  key: RoomLegendKey;
+  label: string;
+  color: string;
+  shape: LegendShape;
+}[] = [
   { key: "vacant", label: "Vacant", color: "#E8E0D4", shape: ROOM_LEGEND_SHAPE },
   { key: "occupied", label: "Occupied", color: FO_BRAND.chrome, shape: ROOM_LEGEND_SHAPE },
   { key: "available", label: "Available", color: "#D9D3C7", shape: ROOM_LEGEND_SHAPE },
   { key: "out_of_order", label: "Out of order", color: "#7A5C3A", shape: ROOM_LEGEND_SHAPE },
   { key: "out_of_service", label: "Out of service", color: "#B0A394", shape: ROOM_LEGEND_SHAPE },
 ];
+
+/** Fixed widths for Room Rack frozen columns: Room | Type | Status | HK */
+export const RACK_FROZEN_COLUMN_WIDTHS_PX = [80, 155, 105, 95] as const;
+export const RACK_FROZEN_COLUMN_COUNT = RACK_FROZEN_COLUMN_WIDTHS_PX.length;
+export const RACK_DATE_TRACK_GRID_COLUMN = RACK_FROZEN_COLUMN_COUNT + 1;
+
+export function rackFrozenGridTemplate(days: number, colMinPx: number): string {
+  const frozen = RACK_FROZEN_COLUMN_WIDTHS_PX.map((w) => `${w}px`).join(" ");
+  return `${frozen} repeat(${days}, minmax(${colMinPx}px, 1fr))`;
+}
+
+export function rackGroupHeaderColumnSpan(days: number): number {
+  return days + RACK_FROZEN_COLUMN_COUNT;
+}
+
+export function rackFrozenStickyLeftPx(columnIndex: number): number {
+  let sum = 0;
+  for (let i = 0; i < columnIndex && i < RACK_FROZEN_COLUMN_WIDTHS_PX.length; i++) {
+    sum += RACK_FROZEN_COLUMN_WIDTHS_PX[i]!;
+  }
+  return sum;
+}
+
+export function rackFloorSecondaryLabel(floor: string | null | undefined): string | null {
+  const raw = String(floor ?? "").trim();
+  if (!raw) return null;
+  if (/^floor\b/i.test(raw)) return raw;
+  return `Floor ${raw}`;
+}
+
+export function rackRoomStatusDisplay(room: { status: string; occupancy: "vacant" | "occupied" }): {
+  key: RoomLegendKey;
+  label: string;
+  color: string;
+} {
+  if (room.status === "out_of_order" || room.status === "out_of_service") {
+    const key = room.status;
+    const item = ROOM_LEGEND.find((row) => row.key === key);
+    return {
+      key,
+      label: item?.label ?? key.replace(/_/g, " "),
+      color: item?.color ?? FO_BRAND.gray,
+    };
+  }
+  const key: RoomLegendKey = room.occupancy === "occupied" ? "occupied" : "vacant";
+  const item = ROOM_LEGEND.find((row) => row.key === key);
+  return {
+    key,
+    label: item?.label ?? key,
+    color: item?.color ?? FO_BRAND.gray,
+  };
+}
 
 export const HK_LEGEND: { key: HkLegendKey; label: string; color: string; shape: LegendShape }[] = [
   { key: "clean", label: "Clean", color: FO_BRAND.green, shape: HK_LEGEND_SHAPE },
@@ -516,7 +657,12 @@ export const HK_LEGEND: { key: HkLegendKey; label: string; color: string; shape:
   { key: "pickup", label: "Pickup", color: HK_PICKUP_COLOR, shape: HK_LEGEND_SHAPE },
 ];
 
-export const RESERVATION_LEGEND: { key: ReservationLegendKey; label: string; color: string; shape: LegendShape }[] = [
+export const RESERVATION_LEGEND: {
+  key: ReservationLegendKey;
+  label: string;
+  color: string;
+  shape: LegendShape;
+}[] = [
   { key: "pending", label: "Pending", color: FO_BRAND.gray, shape: RESERVATION_LEGEND_SHAPE },
   { key: "confirmed", label: "Confirmed", color: FO_BRAND.gold, shape: RESERVATION_LEGEND_SHAPE },
   { key: "checked_in", label: "In-house", color: FO_BRAND.green, shape: RESERVATION_LEGEND_SHAPE },
@@ -562,11 +708,7 @@ export function countActiveRackFilters(filters: RackFilters): number {
   return (Object.values(filters) as string[]).filter((value) => value !== "all").length;
 }
 
-export {
-  deriveExceptionRows,
-  exceptionBadgeCount,
-  exceptionHighCount,
-} from "./fo-exceptions.ts";
+export { deriveExceptionRows, exceptionBadgeCount, exceptionHighCount } from "./fo-exceptions.ts";
 
 export const RESERVED_BADGE_SLOTS = [
   { id: "vip_badge", label: "VIP", lane: "live" as const },
@@ -616,7 +758,8 @@ export function roomMatchesFilters(
 ): boolean {
   if (filters.floor !== "all" && (room.floor ?? "") !== filters.floor) return false;
   if (filters.roomType !== "all" && room.roomTypeName !== filters.roomType) return false;
-  if (filters.hkStatus !== "all" && (room.housekeepingStatus ?? "") !== filters.hkStatus) return false;
+  if (filters.hkStatus !== "all" && (room.housekeepingStatus ?? "") !== filters.hkStatus)
+    return false;
   if (filters.discrepancy === "open" && !room.hasOpenDiscrepancy) return false;
   if (filters.roomStatus !== "all") {
     if (filters.roomStatus === "vacant" || filters.roomStatus === "occupied") {
@@ -645,11 +788,15 @@ export function stayMatchesFilters(
   if (filters.source !== "all" && (stay.source ?? "") !== filters.source) return false;
   if (filters.group === "group" && !sourceIsGroup(stay.source)) return false;
   if (filters.corporate === "corporate" && !sourceIsCorporate(stay.source)) return false;
-  if (filters.specialRequest === "special" && !hasSpecialRequestText(stay.specialRequests)) return false;
+  if (filters.specialRequest === "special" && !hasSpecialRequestText(stay.specialRequests))
+    return false;
   if (filters.staySlice === "arrival" && stay.arrivalDate !== focusDate) return false;
   if (filters.staySlice === "departure" && stay.departureDate !== focusDate) return false;
   if (filters.staySlice === "in_house") {
-    const inHouse = stay.status === "checked_in" && stay.arrivalDate <= focusDate && stay.departureDate > focusDate;
+    const inHouse =
+      stay.status === "checked_in" &&
+      stay.arrivalDate <= focusDate &&
+      stay.departureDate > focusDate;
     if (!inHouse) return false;
   }
   return true;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Building2, Briefcase, Search } from "lucide-react";
@@ -94,6 +94,8 @@ export function CreateReservationMasterPicker({
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const returnFocus = useRef(false);
   const Icon = kind === "company" ? Building2 : Briefcase;
 
   useEffect(() => {
@@ -104,8 +106,15 @@ export function CreateReservationMasterPicker({
     return () => window.clearTimeout(handle);
   }, [search]);
 
+  useEffect(() => {
+    if (master || !returnFocus.current) return;
+    searchInputRef.current?.focus();
+    returnFocus.current = false;
+  }, [master]);
+
+  const searchTerm = debouncedSearch.trim();
   const accountsQuery = useQuery({
-    queryKey: ["guest-accounts", restaurantId, kind, debouncedSearch, "create-reservation-picker"],
+    queryKey: ["guest-accounts", restaurantId, kind, searchTerm, "create-reservation-picker"],
     queryFn: () =>
       fetchAccounts({
         data: {
@@ -113,9 +122,10 @@ export function CreateReservationMasterPicker({
           accountType: kind,
           status: "active",
           limit: 8,
-          ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+          search: searchTerm,
         },
       }),
+    enabled: searchTerm.length > 0,
   });
 
   async function selectById(accountId: string) {
@@ -177,6 +187,7 @@ export function CreateReservationMasterPicker({
             data-testid={copy.changeTestId}
             disabled={disabled}
             onClick={() => {
+              returnFocus.current = true;
               onMasterChange(null);
               setSearch("");
             }}
@@ -190,6 +201,7 @@ export function CreateReservationMasterPicker({
             <div className="relative min-w-0 flex-1">
               <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
+                ref={searchInputRef}
                 className={cn("pl-9", compact && "h-8")}
                 data-testid={copy.searchTestId}
                 placeholder={copy.searchPlaceholder}
@@ -210,31 +222,33 @@ export function CreateReservationMasterPicker({
               </Button>
             ) : null}
           </div>
-          <ul className="space-y-2" data-testid={copy.resultsTestId}>
-            {accountListItems(accountsQuery.data).map((row) => (
-              <li key={row.id}>
-                <button
-                  type="button"
-                  onClick={() => void selectById(row.id)}
-                  className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/40"
-                >
-                  <span className="font-medium">{row.name}</span>
-                  {row.code ? (
-                    <span className="ml-2 text-xs text-muted-foreground">{row.code}</span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-            {accountsQuery.data?.length === 0 ? (
-              <li className="text-sm text-muted-foreground">
-                {showCreate
-                  ? copy.empty
-                  : kind === "company"
-                    ? "No matching companies."
-                    : "No matching travel agencies."}
-              </li>
-            ) : null}
-          </ul>
+          {searchTerm.length > 0 ? (
+            <ul className="space-y-2" data-testid={copy.resultsTestId}>
+              {accountListItems(accountsQuery.data).map((row) => (
+                <li key={row.id}>
+                  <button
+                    type="button"
+                    onClick={() => void selectById(row.id)}
+                    className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/40"
+                  >
+                    <span className="font-medium">{row.name}</span>
+                    {row.code ? (
+                      <span className="ml-2 text-xs text-muted-foreground">{row.code}</span>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+              {accountsQuery.data?.length === 0 ? (
+                <li className="text-sm text-muted-foreground">
+                  {showCreate
+                    ? copy.empty
+                    : kind === "company"
+                      ? "No matching companies."
+                      : "No matching travel agencies."}
+                </li>
+              ) : null}
+            </ul>
+          ) : null}
           {showCreate ? (
             <p className="text-xs text-muted-foreground">
               {CREATE_RESERVATION_MASTER_CONFIRM_COPY}

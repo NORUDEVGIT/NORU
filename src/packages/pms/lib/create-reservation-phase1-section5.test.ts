@@ -136,14 +136,14 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
       readRel("../components/bookings/create-reservation-page.tsx") +
       readRel("../../../routes/restaurant/bookings/new.tsx");
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
-    assert.match(page, /data-testid="create-reservation-summary"/);
-    assert.match(page, /data-testid="summary-rate"/);
-    assert.match(page, /data-testid="summary-stay-total"/);
+    assert.match(page, /CreateReservationSelectedRoom/);
+    assert.match(page, /selectedQuote=\{selectedQuote\}/);
+    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
     assert.match(page, /selectedQuote/);
     assert.match(page, /pricingState\.quote\.subtotal/);
     assert.match(page, /selectedQuote\?\.quote/);
     assert.match(rate, /row\.quote\.subtotal/);
-    assert.match(rate, /selected\.quote\.subtotal/);
+    assert.doesNotMatch(rate, /selected\.quote\.subtotal/);
     assert.equal(fromNightlyRate(sampleQuote), 110);
     const priced = resolveCreatePricingState({
       datesValid: true,
@@ -163,7 +163,7 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     const functions = readRel("./reservations.functions.ts");
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
     assert.match(functions, /browser totals are ignored/);
-    assert.match(rate, /CREATE_RESERVATION_QUOTE_SERVER_COPY/);
+    assert.doesNotMatch(rate, /CREATE_RESERVATION_QUOTE_SERVER_COPY/);
     assert.match(CREATE_RESERVATION_QUOTE_SERVER_COPY, /Browser totals are ignored/);
     assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal|clientSubtotal/);
     assert.doesNotMatch(page, /quote\.nightly\.reduce|sumNightly|adr \*/);
@@ -188,7 +188,7 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     assert.match(rate, /CREATE_RESERVATION_UNPRICED_BADGE/);
     assert.equal(CREATE_RESERVATION_UNPRICED_BADGE, "Unpriced");
     assert.match(page, /canCreateUnpricedPending/);
-    assert.match(page, /summary-no-fake-total|summary-pricing-state/);
+    assert.match(page, /stayTotal=\{pricingState\.kind === "priced" \? money\(pricingState\.quote\.subtotal\) : "—"\}/);
     assert.match(functions, /assertCreateReservationPricing/);
     assert.throws(
       () =>
@@ -312,7 +312,7 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     });
     assert.equal(loading.kind, "loading");
     assert.doesNotMatch(stickyPricingCopy(loading), /0\.00/);
-    assert.match(page, /summary-no-fake-total/);
+    assert.match(page, /stayTotal=\{pricingState\.kind === "priced" \? money\(pricingState\.quote\.subtotal\) : "—"\}/);
     assert.doesNotMatch(page, /money\(0\)|stay total 0\.00|fake 0\.00/i);
   });
 
@@ -563,13 +563,13 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     const page =
       readRel("../components/bookings/create-reservation-page.tsx") +
       readRel("../../../routes/restaurant/bookings/new.tsx");
-    assert.match(page, /data-testid="summary-rate"/);
-    assert.match(page, /data-testid="summary-stay-total"/);
-    assert.match(page, /Rate & Total|Stay total/);
+    assert.match(page, /ratePlan=/);
+    assert.match(page, /stayTotal=/);
+    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
     assert.doesNotMatch(page, /Fixed Rate LIVE|legacy Individual create chrome/i);
   });
 
-    it("Step 2 merchandising reads quoteStay plan breakfast, cancellation, and refundability", () => {
+  it("Step 2 merchandising reads quoteStay plan breakfast, cancellation, and refundability", () => {
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
     const functions = readRel("./rates.functions.ts");
     assert.match(functions, /hydrateRatePlanMerchandising/);
@@ -584,8 +584,11 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     assert.doesNotMatch(rate, /formatRatePlanValidity/);
     assert.doesNotMatch(rate, /Included Services/);
     assert.doesNotMatch(rate, /Optional Add-ons/);
-    assert.match(rate, /row\.cancellationLabel/);
-    assert.match(rate, /row\.breakfastLabel/);
+    const selectedRoom = readRel("../components/bookings/create-reservation-selected-room.tsx");
+    assert.doesNotMatch(rate, /row\.cancellationLabel/);
+    assert.doesNotMatch(rate, /row\.breakfastLabel/);
+    assert.match(selectedRoom, /quote\.breakfastLabel/);
+    assert.match(selectedRoom, /rateCopy\.cancellationPolicy/);
     assert.match(rate, /money\(row\.quote\.subtotal\)/);
     assert.deepEqual(
       ratePlanMerchandisingLines({

@@ -122,9 +122,9 @@ describe("Phase 1 workspace overlay routing", () => {
     expect(createPage).not.toMatch(/CREATE_RESERVATION_SECTION\d+_SCOPE<\/p>/);
   });
 
-  it("uses a five-step New Reservation workflow in the overlay", () => {
-    expect(createPage).toContain("Guest & Stay");
-    expect(createPage).toContain("Availability");
+  it("uses a four-step New Reservation workflow in the overlay", () => {
+    expect(createPage).toContain("Guest, Stay & Availability");
+    expect(createPage).not.toContain('id: "availability"');
     expect(createPage).toContain("Booking Details");
     expect(createPage).toContain("Policies & Guarantee");
     expect(createPage).toContain("Review & Confirm");

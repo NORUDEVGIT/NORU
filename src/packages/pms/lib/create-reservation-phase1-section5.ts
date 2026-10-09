@@ -231,6 +231,25 @@ export function fromNightlyRate(quote: CreateStayQuoteView): number | null {
   return Math.min(...quote.nightly.map((night) => night.rate));
 }
 
+/** Display copy for a quoteStay row. Does not recompute the stay total. */
+export function rateCopyFromQuote(
+  selectedQuote: CreateRateQuoteRow | null,
+  money: (value: number) => string,
+) {
+  const quote = selectedQuote?.quote ?? null;
+  return {
+    ratePlanLabel: quote
+      ? quote.ratePlanName || quote.ratePlanCode
+      : selectedQuote?.plan.name || "—",
+    ratePerNight: quote && fromNightlyRate(quote) != null ? money(fromNightlyRate(quote)!) : "—",
+    totalAmount: quote ? money(quote.subtotal) : "—",
+    cancellationPolicy:
+      selectedQuote?.cancellationLabel && selectedQuote.cancellationLabel !== "—"
+        ? selectedQuote.cancellationLabel
+        : "—",
+  };
+}
+
 export function ratePlanMerchandisingLines(plan: CreateRateQuoteRow["plan"]): string[] {
   const lines: string[] = [];
   const description = plan.description?.trim();

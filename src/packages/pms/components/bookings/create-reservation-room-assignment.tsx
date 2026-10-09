@@ -1,5 +1,3 @@
-import { Check } from "lucide-react";
-
 import {
   CREATE_RESERVATION_ASSIGN_LATER,
   CREATE_RESERVATION_ROOM_CHECKING,
@@ -8,6 +6,14 @@ import {
   formatAssignedRoomLabel,
   type AssignedRoomView,
 } from "@/packages/pms/lib/create-reservation-phase1-section6";
+import { PMS_OP_SELECT_TRIGGER } from "@/packages/pms/lib/pms-operational-surface";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
 
 export function CreateReservationRoomAssignment({
@@ -40,7 +46,7 @@ export function CreateReservationRoomAssignment({
     <section
       className={cn(
         compact
-          ? "rounded-lg border border-[#E7E0D4] bg-[#FBF8F2] p-2"
+          ? "rounded-[6px] border border-[#CCCCCC] bg-white px-3 py-2"
           : "rounded-2xl border border-border bg-card p-4",
       )}
       data-testid="create-reservation-room-assignment"
@@ -57,71 +63,39 @@ export function CreateReservationRoomAssignment({
       {/* CREATE_RESERVATION_SECTION6_SCOPE */}
 
       {!ready ? (
-        <p className="mt-3 text-sm text-muted-foreground" data-testid="room-assignment-needs-type">
+        <p className="mt-1 text-xs text-muted-foreground" data-testid="room-assignment-needs-type">
           {CREATE_RESERVATION_ROOM_NEEDS_TYPE}
         </p>
       ) : loading ? (
-        <p className="mt-3 text-sm text-muted-foreground" data-testid="room-assignment-loading">
+        <p className="mt-1 text-xs text-muted-foreground" data-testid="room-assignment-loading">
           {CREATE_RESERVATION_ROOM_CHECKING}
         </p>
       ) : (
-        <ul
-          className={cn(compact ? "mt-1 grid gap-1" : "mt-3 grid gap-3 md:grid-cols-2")}
-          data-testid="room-assignment-list"
-        >
-          <li>
-            <button
-              type="button"
-              data-testid="room-assignment-unassigned"
-              onClick={() => onSelect(unassignedValue)}
-              className={cn(
-                "w-full rounded-xl border text-left transition-colors",
-                compact ? "px-2 py-1.5" : "p-3",
-                roomId === unassignedValue
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:bg-accent/40",
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{CREATE_RESERVATION_ASSIGN_LATER}</span>
-                {roomId === unassignedValue ? (
-                  <Check className="ml-auto size-4 text-primary" />
-                ) : null}
-              </div>
-              {compact ? null : (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Unassigned — bind a room later.
-                </p>
-              )}
-            </button>
-          </li>
-          {rooms.map((room) => {
-            const selected = room.id === roomId;
-            return (
-              <li key={room.id}>
-                <button
-                  type="button"
+        <div className="mt-1" data-testid="room-assignment-list">
+          <Select value={roomId || unassignedValue} onValueChange={onSelect}>
+            <SelectTrigger className={cn(PMS_OP_SELECT_TRIGGER, "!h-8 px-2 text-xs")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={unassignedValue} data-testid="room-assignment-unassigned">
+                {CREATE_RESERVATION_ASSIGN_LATER}
+              </SelectItem>
+              {rooms.map((room) => (
+                <SelectItem
+                  key={room.id}
+                  value={room.id}
                   data-testid={`room-assignment-${room.id}`}
-                  onClick={() => onSelect(room.id)}
-                  className={cn(
-                    "w-full rounded-xl border text-left transition-colors",
-                    compact ? "px-2 py-1.5" : "p-3",
-                    selected ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
-                  )}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{formatAssignedRoomLabel(room)}</span>
-                    {selected ? <Check className="ml-auto size-4 text-primary" /> : null}
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                  {formatAssignedRoomLabel(room)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       )}
 
       {showEmpty ? (
-        <p className="mt-3 text-xs text-muted-foreground" data-testid="room-assignment-empty">
+        <p className="mt-1 text-xs text-muted-foreground" data-testid="room-assignment-empty">
           {emptyCopy}
         </p>
       ) : null}

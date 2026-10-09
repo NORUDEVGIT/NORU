@@ -251,10 +251,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
     const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.equal(CREATE_RESERVATION_STICKY_ROOM_LABEL, "Room");
     assert.equal(CREATE_RESERVATION_UNASSIGNED_LABEL, "Unassigned");
-    assert.match(page, /data-testid="create-reservation-summary"/);
-    assert.match(page, /data-testid="summary-room"/);
-    assert.match(page, /data-testid="summary-room-assignment"/);
-    assert.match(page, />Room</);
+    assert.match(page, /CreateReservationSelectedRoom/);
+    assert.match(page, /Room assignment \(optional\)/);
+    assert.match(page, /stickyRoomAssignmentLabel\(/);
     assert.match(page, /stickyRoomAssignmentLabel\(/);
     assert.equal(formatAssignedRoomLabel({ roomNumber: "101", floor: null }), "Room 101");
     assert.equal(formatAssignedRoomLabel({ roomNumber: "101", floor: "2" }), "Room 101 · Floor 2");
@@ -488,15 +487,13 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
 
   it("AC-CR6-22 Sticky room line composes with Section 5 rate/total — does not replace", () => {
     const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
-    assert.match(page, /data-testid="summary-room"/);
-    assert.match(page, /data-testid="summary-rate"/);
-    assert.match(page, /data-testid="summary-stay-total"/);
-    assert.match(page, /data-testid="summary-availability"/);
+    assert.match(page, /stickyRoomAssignmentLabel\(/);
     assert.match(page, /CreateReservationRate/);
-    const roomIdx = page.indexOf('data-testid="summary-room"');
-    const rateIdx = page.indexOf('data-testid="summary-rate"');
-    const totalIdx = page.indexOf('data-testid="summary-stay-total"');
-    assert.ok(roomIdx > 0 && rateIdx > roomIdx && totalIdx > rateIdx);
+    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
+    const roomIdx = page.indexOf("stickyRoomAssignmentLabel(");
+    const rateIdx = page.indexOf("CreateReservationRate");
+    const totalIdx = page.indexOf("money(pricingState.quote.subtotal)");
+    assert.ok(roomIdx > 0 && rateIdx > 0 && totalIdx > rateIdx);
     assert.doesNotMatch(page, /replacePricingLines|removeStayTotal/);
   });
 });

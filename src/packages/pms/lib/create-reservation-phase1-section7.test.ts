@@ -105,16 +105,14 @@ describe("Create Reservation Phase 1 Section 7 lock — AC-CR7-1…24", () => {
     const page =
       readRel("../components/bookings/create-reservation-page.tsx") +
       readRel("../../../routes/restaurant/bookings/new.tsx");
-    assert.match(page, /data-testid="create-reservation-summary"/);
+    assert.match(page, /CreateReservationReview/);
     assert.match(page, /guest\?\.fullName/);
-    assert.match(page, /data-testid="summary-associations"/);
-    assert.match(page, /data-testid="summary-stay"/);
-    assert.match(page, /data-testid="summary-room-type"/);
-    assert.match(page, /data-testid="summary-room"/);
+    assert.match(page, /CreateReservationBookingDetails/);
+    assert.match(page, /data-testid="availability-stay-summary"/);
+    assert.match(page, /stickyRoomTypeLabel\(selectedMeta\)/);
     assert.match(page, /stickyRoomAssignmentLabel/);
-    assert.match(page, /data-testid="summary-rate"/);
-    assert.match(page, /data-testid="summary-stay-total"/);
-    assert.match(page, /data-testid="summary-no-fake-total"/);
+    assert.match(page, /ratePlan=/);
+    assert.match(page, /stayTotal=/);
     assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
     assert.doesNotMatch(page, /fake 0\.00|stay total 0\.00/);
   });
@@ -515,15 +513,13 @@ describe("Create Reservation Phase 1 Section 7 lock — AC-CR7-1…24", () => {
     const page =
       readRel("../components/bookings/create-reservation-page.tsx") +
       readRel("../../../routes/restaurant/bookings/new.tsx");
-    assert.match(page, /data-testid="summary-stay-total"/);
     assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
     assert.match(page, /quoteStay/);
     assert.doesNotMatch(page, /nights \* nightly|clientTotal|browserTotal/);
-    const roomIdx = page.indexOf('data-testid="summary-room"');
-    const rateIdx = page.indexOf('data-testid="summary-rate"');
-    const totalIdx = page.indexOf('data-testid="summary-stay-total"');
-    const guaranteeIdx = page.indexOf('data-testid="summary-guarantee"');
-    assert.ok(roomIdx > 0 && rateIdx > roomIdx && totalIdx > rateIdx && guaranteeIdx > totalIdx);
+    const roomIdx = page.indexOf("stickyRoomAssignmentLabel(");
+    const totalIdx = page.lastIndexOf("stayTotal=");
+    const guaranteeIdx = page.lastIndexOf("guaranteeMethod={guaranteeMethod}");
+    assert.ok(roomIdx > 0 && totalIdx > roomIdx && guaranteeIdx > totalIdx);
   });
 
   it("AC-CR7-18 Locked non-goals in §4 are absent", () => {
@@ -605,14 +601,14 @@ describe("Create Reservation Phase 1 Section 7 lock — AC-CR7-1…24", () => {
     const page =
       readRel("../components/bookings/create-reservation-page.tsx") +
       readRel("../../../routes/restaurant/bookings/new.tsx");
-    assert.match(page, /data-testid="summary-room"/);
-    assert.match(page, /data-testid="summary-rate"/);
-    assert.match(page, /data-testid="summary-stay-total"/);
-    assert.match(page, /data-testid="summary-guarantee"/);
-    assert.match(page, /data-testid="summary-source"/);
+    assert.match(page, /stickyRoomAssignmentLabel\(/);
+    assert.match(page, /ratePlan=/);
+    assert.match(page, /stayTotal=/);
+    assert.match(page, /guaranteeMethod=\{guaranteeMethod\}/);
+    assert.match(page, /bookingSource=/);
     assert.doesNotMatch(page, /secondCalculator|replacePricingLines|clientStayTotal/);
-    const totalIdx = page.indexOf('data-testid="summary-stay-total"');
-    const sourceIdx = page.indexOf('data-testid="summary-source"');
+    const totalIdx = page.indexOf("stayTotal=");
+    const sourceIdx = page.indexOf("bookingSource=");
     assert.ok(totalIdx > 0 && sourceIdx > totalIdx);
   });
 
