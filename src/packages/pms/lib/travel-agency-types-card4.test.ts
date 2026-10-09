@@ -116,5 +116,21 @@ describe("Card 4 Travel Agency Types catalogue", () => {
     );
     assert.match(basicStepSrc, /type\.active !== false/);
   });
+
+  it("accepts catalogue agency type codes on guest account masters", () => {
+    const migration = readFileSync(
+      new URL("../../../../supabase/migrations/0140_guest_account_agency_type_catalogue.sql", import.meta.url),
+      "utf8",
+    );
+    const drizzle = readFileSync(
+      new URL("../../../../drizzle/migrations/0140_guest_account_agency_type_catalogue.sql", import.meta.url),
+      "utf8",
+    );
+    assert.equal(drizzle.replace(/\r\n/g, "\n"), migration.replace(/\r\n/g, "\n"));
+    assert.match(migration, /guest_account_masters_agency_type_check/);
+    assert.match(migration, /\^\[A-Za-z\]\[A-Za-z0-9_\]\{1,39\}\$/);
+    assert.match(migration, /OTHR/);
+    assert.doesNotMatch(migration, /'ota',\s*'local',\s*'online',\s*'other'/);
+  });
 });
 

@@ -471,6 +471,7 @@ describe("P7-STEP-02 — schema and engine safety", () => {
     assert.match(server, /applyRestrictionChanges/);
     assert.match(server, /applyStoredPromotionActivation/);
     assert.match(server, /applyStoredPackageActivation/);
+    assert.match(server, /input\.applyImmediately === true/);
     assert.match(adapters, /previewRateChanges/);
     assert.match(adapters, /previewRestrictionChanges/);
     assert.match(adapters, /previewStoredPromotionActivation/);

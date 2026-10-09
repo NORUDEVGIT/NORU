@@ -102,6 +102,8 @@ function IssuedInvoiceDocument({
             <th className="py-1 font-medium">Posted</th>
             <th className="py-1 font-medium">Type</th>
             <th className="py-1 font-medium">Description</th>
+            <th className="py-1 text-right font-medium">Qty</th>
+            <th className="py-1 text-right font-medium">Unit</th>
             <th className="py-1 text-right font-medium">Amount</th>
           </tr>
         </thead>
@@ -117,6 +119,10 @@ function IssuedInvoiceDocument({
               <td className={`py-1 ${line.originalTransactionId ? "pl-4" : ""}`}>
                 {line.originalTransactionId && isTaxRelatedCategory(line.category) ? "↳ " : ""}
                 {line.description}
+              </td>
+              <td className="py-1 text-right tabular-nums">{line.quantity == null ? "—" : String(line.quantity)}</td>
+              <td className="py-1 text-right tabular-nums">
+                {line.unitAmount == null ? "—" : money(line.unitAmount)}
               </td>
               <td className="py-1 text-right tabular-nums">{money(line.amount)}</td>
             </tr>

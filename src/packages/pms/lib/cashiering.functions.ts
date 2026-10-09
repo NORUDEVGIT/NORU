@@ -78,6 +78,7 @@ export interface FolioTransactionRow {
   amount: number;
   postedAt: string;
   referenceType: string | null;
+  referenceId?: string | null;
   paymentMethod: string | null;
   postedBy: string | null;
   originalTransactionId: string | null;
@@ -85,6 +86,21 @@ export interface FolioTransactionRow {
   taxSnapshot?: Record<string, string | number | boolean | null> | null;
   transferId?: string | null;
   transferDirection?: "in" | "out" | null;
+  chargeSource?: string | null;
+  departmentName?: string | null;
+  quantity?: number | null;
+  unitAmount?: number | null;
+  chargeSnapshot?: Record<string, unknown> | null;
+  /** Original charge behind a correction or transfer, including a charge on another folio. */
+  sourceCharge?: {
+    description: string;
+    category: string;
+    quantity: number | null;
+    unitAmount: number | null;
+    departmentName: string | null;
+    chargeSource: string | null;
+    chargeSnapshot: Record<string, unknown> | null;
+  } | null;
 }
 
 export interface FolioDetail extends FolioRow {
@@ -272,13 +288,44 @@ type TxnRow = {
   amount: number | string;
   posted_at: string;
   reference_type: string | null;
+  reference_id?: string | null;
   payment_method?: string | null;
   posted_by_membership_id?: string | null;
   original_transaction_id?: string | null;
   tax_snapshot?: Record<string, string | number | boolean | null> | null;
   transfer_id?: string | null;
   transfer_direction?: string | null;
+  charge_source?: string | null;
+  quantity?: number | string | null;
+  unit_amount?: number | string | null;
+  charge_snapshot?: Record<string, unknown> | null;
 };
+
+function departmentNameFromSnapshot(snapshot: Record<string, unknown> | null | undefined): string | null {
+  const name = snapshot?.departmentName;
+  return typeof name === "string" && name.trim() !== "" ? name : null;
+}
+
+function sourceChargeFromRow(row: {
+  description: string;
+  category: string;
+  quantity?: number | string | null;
+  unit_amount?: number | string | null;
+  charge_snapshot?: Record<string, unknown> | null;
+  charge_source?: string | null;
+}): NonNullable<FolioTransactionRow["sourceCharge"]> {
+  const quantity = row.quantity == null || row.quantity === "" ? null : Number(row.quantity);
+  const unitAmount = row.unit_amount == null || row.unit_amount === "" ? null : Number(row.unit_amount);
+  return {
+    description: row.description,
+    category: row.category,
+    quantity: quantity != null && Number.isFinite(quantity) ? quantity : null,
+    unitAmount: unitAmount != null && Number.isFinite(unitAmount) ? unitAmount : null,
+    departmentName: departmentNameFromSnapshot(row.charge_snapshot),
+    chargeSource: row.charge_source ?? null,
+    chargeSnapshot: row.charge_snapshot ?? null,
+  };
+}
 
 function totals(rows: { amount: number }[]): { charges: number; credits: number; balance: number } {
   let charges = 0;
@@ -358,6 +405,7 @@ export const listFolios = createServerFn({ method: "GET" })
   .handler(async ({ data, context }): Promise<FolioRow[]> => {
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const term = (data.search ?? "").trim().toLowerCase();
 
     let query = supabaseAdmin
       .from("guest_folios")
@@ -368,7 +416,7 @@ export const listFolios = createServerFn({ method: "GET" })
       )
       .eq("restaurant_id", data.restaurantId)
       .order("opened_at", { ascending: false })
-      .limit(200);
+      .limit(term ? 1000 : 200);
 
     if (data.status && data.status !== "all") query = query.eq("status", data.status);
 
@@ -411,8 +459,6 @@ export const listFolios = createServerFn({ method: "GET" })
       }
     }
 
-    const term = (data.search ?? "").trim().toLowerCase();
-
     return list
       .map((f) => {
         const sums = totals(byFolio.get(f.id) ?? []);
@@ -442,13 +488,14 @@ export const listFolios = createServerFn({ method: "GET" })
           f.guestName.toLowerCase().includes(term) ||
           (f.confirmationNumber ?? "").toLowerCase().includes(term) ||
           (f.roomNumber ?? "").toLowerCase().includes(term),
-      );
+      )
+      .slice(0, term === "" ? undefined : 25);
   });
 
 const FOLIO_TXN_SELECT =
-  "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, payment_method, posted_by_membership_id, original_transaction_id, tax_snapshot, transfer_id, transfer_direction";
+  "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id, tax_snapshot, transfer_id, transfer_direction, charge_source, quantity, unit_amount, charge_snapshot";
 const FOLIO_TXN_SELECT_BASE =
-  "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, payment_method, posted_by_membership_id, original_transaction_id";
+  "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CATALOGUE_NOT_CONFIGURED = "Not configured";
@@ -542,12 +589,33 @@ async function loadGuestFolio(
   if (txnResult.error) throw cashierError(txnResult.error.message);
 
   const txnRows = (txnResult.data ?? []) as TxnRow[];
+  const localById = new Map(txnRows.map((row) => [row.id, row]));
+  const missingSourceIds = [
+    ...new Set(
+      txnRows
+        .map((row) => row.original_transaction_id)
+        .filter((id): id is string => Boolean(id) && !localById.has(id)),
+    ),
+  ];
+  const externalSources = new Map<string, TxnRow>();
+  if (missingSourceIds.length > 0) {
+    const { data: sourceRows, error: sourceError } = await supabaseAdmin
+      .from("folio_transactions")
+      .select(
+        "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, quantity, unit_amount, charge_snapshot, charge_source",
+      )
+      .eq("restaurant_id", restaurantId)
+      .in("id", missingSourceIds);
+    if (sourceError && !isMissingSchemaError(sourceError)) throw cashierError(sourceError.message);
+    for (const row of (sourceRows ?? []) as TxnRow[]) externalSources.set(row.id, row);
+  }
   const names = await staffNames(
     supabaseAdmin,
     restaurantId,
     txnRows.map((t) => t.posted_by_membership_id),
   );
   const descriptions = new Map(txnRows.map((t) => [t.id, t.description]));
+  for (const [id, row] of externalSources) descriptions.set(id, row.description);
   const transactions: FolioTransactionRow[] = txnRows.map((t) => ({
     id: t.id,
     type: t.transaction_type as FolioTransactionRow["type"],
@@ -556,6 +624,7 @@ async function loadGuestFolio(
     amount: Number(t.amount),
     postedAt: t.posted_at,
     referenceType: t.reference_type,
+    referenceId: t.reference_id ?? null,
     paymentMethod: t.payment_method ?? null,
     postedBy: t.posted_by_membership_id ? (names.get(t.posted_by_membership_id) ?? null) : null,
     originalTransactionId: t.original_transaction_id ?? null,
@@ -566,6 +635,20 @@ async function loadGuestFolio(
     transferId: t.transfer_id ?? null,
     transferDirection:
       t.transfer_direction === "in" || t.transfer_direction === "out" ? t.transfer_direction : null,
+    chargeSource: t.charge_source ?? null,
+    departmentName: departmentNameFromSnapshot(t.charge_snapshot),
+    quantity: t.quantity == null || t.quantity === "" ? null : Number(t.quantity),
+    unitAmount: t.unit_amount == null || t.unit_amount === "" ? null : Number(t.unit_amount),
+    chargeSnapshot: t.charge_snapshot ?? null,
+    sourceCharge: t.original_transaction_id
+      ? sourceChargeFromRow(
+          localById.get(t.original_transaction_id) ??
+            externalSources.get(t.original_transaction_id) ?? {
+              description: descriptions.get(t.original_transaction_id) ?? t.description,
+              category: t.category,
+            },
+        )
+      : null,
   }));
 
   const reservation = f.hotel_reservations;
@@ -1117,6 +1200,186 @@ export const previewFolioCharge = createServerFn({ method: "GET" })
     });
     if (error) throw cashierError(error.message);
     return readChargePreview(preview);
+  });
+
+const PRICING_UNITS = ["per_service", "per_person", "per_room", "per_night", "per_item"] as const;
+export type ChargePricingUnit = (typeof PRICING_UNITS)[number];
+
+export interface ChargeableGuestService {
+  serviceTypeId: string;
+  code: string;
+  name: string;
+  categoryId: string;
+  categoryCode: string;
+  categoryName: string;
+  departmentId: string;
+  departmentCode: string;
+  departmentName: string;
+  pricingUnit: ChargePricingUnit | null;
+  currency: string;
+  unitAmount: number | null;
+  quantityMode: "fixed" | "editable";
+  chargeable: boolean;
+  priced: boolean;
+  currencyMatches: boolean;
+}
+
+export function servicePostBlockReason(item: ChargeableGuestService): string | null {
+  if (!item.chargeable) return "Turn on Chargeable to folio in Guest & Services.";
+  if (!item.priced) return "Add an active price in the folio currency.";
+  if (!item.currencyMatches) return "This price is in a different currency than the folio.";
+  return null;
+}
+
+export interface FolioServiceChargePreview extends FolioChargePreview {
+  serviceTypeId: string;
+  code: string;
+  name: string;
+  categoryName: string;
+  departmentId: string;
+  departmentName: string;
+  pricingUnit: string;
+  unitAmount: number;
+  quantity: number;
+}
+
+function readChargeableService(value: unknown): ChargeableGuestService | null {
+  const row = (value ?? {}) as Record<string, unknown>;
+  const serviceTypeId = String(row.serviceTypeId ?? "");
+  const departmentId = String(row.departmentId ?? "");
+  if (!serviceTypeId || !departmentId) return null;
+  const rawUnit = row.pricingUnit == null || row.pricingUnit === "" ? null : String(row.pricingUnit);
+  if (rawUnit && !PRICING_UNITS.includes(rawUnit as ChargePricingUnit)) return null;
+  const pricingUnit = rawUnit as ChargePricingUnit | null;
+  const fixed = pricingUnit == null || pricingUnit === "per_service" || pricingUnit === "per_room";
+  return {
+    serviceTypeId,
+    code: String(row.code ?? ""),
+    name: String(row.name ?? ""),
+    categoryId: String(row.categoryId ?? ""),
+    categoryCode: String(row.categoryCode ?? ""),
+    categoryName: String(row.categoryName ?? ""),
+    departmentId,
+    departmentCode: String(row.departmentCode ?? ""),
+    departmentName: String(row.departmentName ?? ""),
+    pricingUnit,
+    currency: String(row.currency ?? ""),
+    unitAmount: row.unitAmount == null || row.unitAmount === "" ? null : Number(row.unitAmount),
+    quantityMode: fixed ? "fixed" : "editable",
+    chargeable: row.chargeable === true,
+    priced: row.priced === true,
+    currencyMatches: row.currencyMatches === true,
+  };
+}
+
+function readServiceChargePreview(value: unknown): FolioServiceChargePreview {
+  const row = (value ?? {}) as Record<string, unknown>;
+  return {
+    ...readChargePreview(value),
+    serviceTypeId: String(row.serviceTypeId ?? ""),
+    code: String(row.code ?? ""),
+    name: String(row.name ?? ""),
+    categoryName: String(row.categoryName ?? ""),
+    departmentId: String(row.departmentId ?? ""),
+    departmentName: String(row.departmentName ?? ""),
+    pricingUnit: String(row.pricingUnit ?? ""),
+    unitAmount: Number(row.unitAmount ?? 0),
+    quantity: Number(row.quantity ?? 0),
+  };
+}
+
+/** Guest services with one billing department, including rows that still need a price. Does not post. */
+export const listChargeableGuestServices = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string; folioId: string }) =>
+    z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
+  )
+  .handler(async ({ data, context }): Promise<ChargeableGuestService[]> => {
+    await requireCashierManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: listed, error } = await supabaseAdmin.rpc("list_chargeable_guest_services", {
+      _restaurant_id: data.restaurantId,
+      _folio_id: data.folioId,
+    });
+    if (error) throw cashierError(error.message);
+    const rows = Array.isArray(listed) ? listed : [];
+    return rows.flatMap((row) => {
+      const item = readChargeableService(row);
+      return item ? [item] : [];
+    });
+  });
+
+/** Read-only tax preview for a guest-service charge. Price is re-derived on the server. */
+export const previewFolioServiceCharge = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string; folioId: string; serviceTypeId: string; quantity: number }) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        folioId: idSchema,
+        serviceTypeId: idSchema,
+        quantity: z.number().int().min(1).max(99),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<FolioServiceChargePreview> => {
+    await requireCashierManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: preview, error } = await supabaseAdmin.rpc("preview_folio_service_charge", {
+      _restaurant_id: data.restaurantId,
+      _folio_id: data.folioId,
+      _service_type_id: data.serviceTypeId,
+      _quantity: data.quantity,
+    });
+    if (error) throw cashierError(error.message);
+    return readServiceChargePreview(preview);
+  });
+
+/** Posts a guest service. The browser does not send price, department, or total. */
+export const postFolioServiceCharge = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d: {
+      restaurantId: string;
+      folioId: string;
+      serviceTypeId: string;
+      quantity: number;
+      description: string;
+      idempotencyKey: string;
+    }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          folioId: idSchema,
+          serviceTypeId: idSchema,
+          quantity: z.number().int().min(1).max(99),
+          description: z.string().max(200),
+          idempotencyKey: z.string().min(8).max(80),
+        })
+        .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<CashierResult> => {
+    const me = await requireCashierManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let idempotencyKey: string;
+    try {
+      idempotencyKey = assertIdempotencyKey(data.idempotencyKey);
+    } catch (error) {
+      return { ok: false, message: (error as Error).message };
+    }
+    const { data: txn, error } = await supabaseAdmin.rpc("post_folio_service_charge", {
+      _restaurant_id: data.restaurantId,
+      _folio_id: data.folioId,
+      _service_type_id: data.serviceTypeId,
+      _quantity: data.quantity,
+      _description: data.description.trim(),
+      _membership_id: me.id,
+      _idempotency_key: idempotencyKey,
+    });
+    if (error) return { ok: false, message: cashierError(error.message).message };
+    const id = txn && typeof txn === "object" && "id" in txn ? String((txn as { id: string }).id) : "";
+    if (!id) return { ok: false, message: "The charge did not post." };
+    return { ok: true, id };
   });
 
 export const closeFolio = createServerFn({ method: "POST" })

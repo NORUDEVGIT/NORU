@@ -37,6 +37,8 @@ import {
   CloseFolioDialog,
   FolioEntryDialog,
 } from "@/packages/pms/components/cashiering/folio-dialogs";
+import { ChargeDetailsSheet } from "@/packages/pms/components/cashiering/charge-details-sheet";
+import { TransferChargeDialog } from "@/packages/pms/components/cashiering/transfer-charge-dialog";
 import { PostChargeDialog } from "@/packages/pms/components/cashiering/post-charge-dialog";
 import {
   FolioInvoicePanel,
@@ -52,7 +54,6 @@ import {
   PaymentsDepositsTab,
   SettlementTab,
   TransactionDetailDialog,
-  TransferChargeDialog,
   TransfersTab,
   WriteOffDialog,
   formatBalance,
@@ -328,6 +329,7 @@ function FolioWorkspaceBody({
   const [applyDepositId, setApplyDepositId] = useState<string | null>(null);
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<FolioTransactionRow | null>(null);
+  const [chargeId, setChargeId] = useState<string | null>(null);
   const [printMode, setPrintMode] = useState<"statement" | "invoice">("statement");
   const [showPreview, setShowPreview] = useState(false);
 
@@ -421,8 +423,20 @@ function FolioWorkspaceBody({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const chargeGroup = chargeId
+    ? (workspace.chargeGroups.find((group) => group.parent.id === chargeId) ?? null)
+    : null;
+
   const rowActions: RowActions = {
-    onDetails: setDetailRow,
+    onDetails: (row) => {
+      if (row.type === "charge") {
+        setDetailRow(null);
+        setChargeId(row.id);
+        return;
+      }
+      setChargeId(null);
+      setDetailRow(row);
+    },
     onTransfer: (row) => openTransfer(row.id),
     onCorrect: (type, row) => openEntry(type, row.id),
   };
@@ -658,6 +672,7 @@ function FolioWorkspaceBody({
                 money={money}
                 dateTime={dateTime}
                 actions={rowActions}
+                selectedChargeId={chargeId}
                 onPostCharge={() => openEntry("charge")}
                 onPostAdjustment={() => openEntry("adjustment")}
                 onTransferCharge={() => openTransfer(null)}
@@ -822,6 +837,25 @@ function FolioWorkspaceBody({
         money={money}
         dateTime={dateTime}
         onClose={() => setDetailRow(null)}
+      />
+      <ChargeDetailsSheet
+        group={chargeGroup}
+        workspace={workspace}
+        money={money}
+        dateTime={dateTime}
+        onClose={() => setChargeId(null)}
+        onPostAdjustment={() => {
+          if (!chargeGroup) return;
+          openEntry("adjustment", chargeGroup.parent.id);
+        }}
+        onApplyDiscount={() => {
+          if (!chargeGroup) return;
+          openEntry("discount", chargeGroup.parent.id);
+        }}
+        onTransferCharge={() => {
+          if (!chargeGroup) return;
+          openTransfer(chargeGroup.parent.id);
+        }}
       />
     </div>
   );

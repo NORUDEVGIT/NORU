@@ -290,6 +290,7 @@ describe("Card 4 Preferences catalogue", () => {
     assert.match(card4SettingsSource, /ChevronDown/);
 
     // Catalog Sheet controls
+    assert.match(catalogSheetSource, /categories\.map\(\(row\) => row\.id\)/);
     assert.match(catalogSheetSource, /reorderCategoriesMutation/);
     assert.match(catalogSheetSource, /reorderTypesMutation/);
     assert.match(catalogSheetSource, /handleMoveCategory/);

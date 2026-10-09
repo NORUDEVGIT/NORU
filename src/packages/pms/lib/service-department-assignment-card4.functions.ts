@@ -26,6 +26,7 @@ const saveSchema = z
     serviceTypeId: idSchema,
     departmentId: idSchema,
     active: z.boolean(),
+    isBillingDepartment: z.boolean(),
   })
   .strict();
 
@@ -78,6 +79,7 @@ function mapServiceType(row: {
     code: row.code,
     description: row.description,
     active: row.active,
+    chargeableToFolio: false,
     displayOrder: row.display_order,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -103,6 +105,7 @@ function mapAssignment(row: {
   service_type_id: string;
   department_id: string;
   active: boolean;
+  is_billing_department?: boolean;
   created_at: string;
   updated_at: string;
 }): ServiceDepartmentAssignmentRecord {
@@ -111,6 +114,7 @@ function mapAssignment(row: {
     serviceTypeId: row.service_type_id,
     departmentId: row.department_id,
     active: row.active,
+    isBillingDepartment: row.is_billing_department === true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -159,7 +163,9 @@ async function loadSnapshot(
       .order("name"),
     db
       .from("pms_guest_service_department_assignments")
-      .select("id, service_type_id, department_id, active, created_at, updated_at")
+      .select(
+        "id, service_type_id, department_id, active, is_billing_department, created_at, updated_at",
+      )
       .eq("restaurant_id", restaurantId)
       .order("created_at"),
   ]);
@@ -214,6 +220,7 @@ export const savePmsCard4ServiceDepartmentAssignment = createServerFn({ method: 
         serviceTypeId: data.serviceTypeId,
         departmentId: data.departmentId,
         active: data.active,
+        isBillingDepartment: data.isBillingDepartment,
       },
       snapshot.assignments,
       snapshot.serviceTypes,
@@ -223,11 +230,23 @@ export const savePmsCard4ServiceDepartmentAssignment = createServerFn({ method: 
       throw new Error(errors[0]?.message ?? "Fix the assignment before saving.");
     }
 
+    if (data.isBillingDepartment) {
+      const clear = db
+        .from("pms_guest_service_department_assignments")
+        .update({ is_billing_department: false, updated_by: context.userId })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("service_type_id", data.serviceTypeId)
+        .eq("is_billing_department", true);
+      const cleared = data.id ? await clear.neq("id", data.id) : await clear;
+      if (cleared.error) unavailable(cleared.error);
+    }
+
     const payload = {
       restaurant_id: data.restaurantId,
       service_type_id: data.serviceTypeId,
       department_id: data.departmentId,
       active: data.active,
+      is_billing_department: data.isBillingDepartment,
       updated_by: context.userId,
     };
     const result = data.id

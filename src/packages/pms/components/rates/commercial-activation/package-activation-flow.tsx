@@ -34,6 +34,7 @@ import { revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
 import { useRevenueApprovalPolicy } from "../approvals/use-revenue-approval-policy";
 import { commercialGoldButton, commercialOutlineButton, isCommercialStaleMessage } from "../commercial/commercial-ui";
 import {
+  APPROVE_APPLY_LABEL,
   PACKAGE_SUBMITTED_TOAST,
   SUBMIT_FOR_APPROVAL_LABEL,
   approvalRequestSearch,
@@ -123,9 +124,9 @@ export function PackageActivationFlow({
   });
 
   const applyMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (applyImmediately: boolean) => {
       if (!preview || !previewMatches) throw new Error("Validate this activation again before activating.");
-      const payload = packageApplyPayload(restaurantId, preview, draft.reason);
+      const payload = packageApplyPayload(restaurantId, preview, draft.reason, applyImmediately);
       if (!payload) throw new Error("Validate this activation again before activating.");
       return applyFn({ data: payload });
     },
@@ -312,14 +313,35 @@ export function PackageActivationFlow({
           </>
         ) : null}
         {step === 5 || step === 6 ? (
-          <button
-            type="button"
-            className={commercialGoldButton(!canNext || !canManage || applyMutation.isPending)}
-            disabled={!canManage || !canNext || applyMutation.isPending}
-            onClick={() => applyMutation.mutate()}
-          >
-            {policyQuery.data?.enabled ? SUBMIT_FOR_APPROVAL_LABEL : "Activate Package"}
-          </button>
+          policyQuery.data?.enabled ? (
+            <>
+              <button
+                type="button"
+                className={commercialOutlineButton()}
+                disabled={!canManage || !canNext || applyMutation.isPending}
+                onClick={() => applyMutation.mutate(false)}
+              >
+                {SUBMIT_FOR_APPROVAL_LABEL}
+              </button>
+              <button
+                type="button"
+                className={commercialGoldButton(!canNext || !canManage || applyMutation.isPending)}
+                disabled={!canManage || !canNext || applyMutation.isPending}
+                onClick={() => applyMutation.mutate(true)}
+              >
+                {APPROVE_APPLY_LABEL}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className={commercialGoldButton(!canNext || !canManage || applyMutation.isPending)}
+              disabled={!canManage || !canNext || applyMutation.isPending}
+              onClick={() => applyMutation.mutate(true)}
+            >
+              Activate Package
+            </button>
+          )
         ) : null}
         {step < 4 ? (
           <button

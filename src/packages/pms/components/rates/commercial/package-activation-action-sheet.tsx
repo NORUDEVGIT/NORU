@@ -22,6 +22,7 @@ import type { RevenueRatePlan, RevenueRoomType } from "@/packages/pms/lib/revenu
 import { revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
 import { formatHistoryMoney } from "@/packages/pms/lib/revenue/rate-history";
 import {
+  APPROVE_APPLY_LABEL,
   PACKAGE_SUBMITTED_TOAST,
   SUBMIT_FOR_APPROVAL_LABEL,
   approvalRequestSearch,
@@ -116,7 +117,7 @@ export function PackageActivationActionSheet({
     void queryClient.invalidateQueries({ queryKey: ["commercial-change-history"] });
   }
 
-  function payload() {
+  function payload(applyImmediately = false) {
     const operation = action === "deactivate" ? "DEACTIVATE" : "EDIT";
     return {
       restaurantId,
@@ -128,6 +129,7 @@ export function PackageActivationActionSheet({
       ratePlanIds,
       reason: reason.trim() || null,
       expectedVersion: detailQuery.data?.expectedVersion,
+      ...(applyImmediately ? { applyImmediately: true as const } : {}),
     };
   }
 
@@ -145,7 +147,7 @@ export function PackageActivationActionSheet({
   });
 
   const applyMutation = useMutation({
-    mutationFn: () => applyFn({ data: payload() }),
+    mutationFn: (applyImmediately: boolean) => applyFn({ data: payload(applyImmediately) }),
     onSuccess: (result) => {
       const handled = handleRevenueMutationResult(result);
       if (handled.submitted) {
@@ -314,14 +316,33 @@ export function PackageActivationActionSheet({
               >
                 Review
               </button>
+            ) : policyQuery.data?.enabled ? (
+              <>
+                <button
+                  type="button"
+                  className={commercialOutlineButton()}
+                  disabled={!canManage || preview.errors.length > 0 || applyMutation.isPending}
+                  onClick={() => applyMutation.mutate(false)}
+                >
+                  {SUBMIT_FOR_APPROVAL_LABEL}
+                </button>
+                <button
+                  type="button"
+                  className={commercialGoldButton(preview.errors.length > 0 || applyMutation.isPending)}
+                  disabled={!canManage || preview.errors.length > 0 || applyMutation.isPending}
+                  onClick={() => applyMutation.mutate(true)}
+                >
+                  {APPROVE_APPLY_LABEL}
+                </button>
+              </>
             ) : (
               <button
                 type="button"
                 className={commercialGoldButton(preview.errors.length > 0)}
                 disabled={!canManage || preview.errors.length > 0 || applyMutation.isPending}
-                onClick={() => applyMutation.mutate()}
+                onClick={() => applyMutation.mutate(true)}
               >
-                {policyQuery.data?.enabled ? SUBMIT_FOR_APPROVAL_LABEL : "Confirm"}
+                Confirm
               </button>
             )}
           </div>

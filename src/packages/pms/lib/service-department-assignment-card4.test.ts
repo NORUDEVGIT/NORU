@@ -38,6 +38,7 @@ const serviceType: ServiceTypeRecord = {
   code: "HK_TOWELS",
   description: null,
   active: true,
+  chargeableToFolio: false,
   displayOrder: 1,
   createdAt: "2026-09-19T00:00:00.000Z",
   updatedAt: "2026-09-19T00:00:00.000Z",
@@ -55,6 +56,7 @@ const assignment: ServiceDepartmentAssignmentRecord = {
   serviceTypeId: serviceType.id,
   departmentId: department.id,
   active: true,
+  isBillingDepartment: false,
   createdAt: "2026-09-19T00:00:00.000Z",
   updatedAt: "2026-09-19T00:00:00.000Z",
 };

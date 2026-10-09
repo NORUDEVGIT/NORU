@@ -68,6 +68,7 @@ function recordToDraft(row: ServiceDepartmentAssignmentRecord): ServiceDepartmen
     serviceTypeId: row.serviceTypeId,
     departmentId: row.departmentId,
     active: row.active,
+    isBillingDepartment: row.isBillingDepartment,
   };
 }
 
@@ -154,6 +155,7 @@ export function PmsCard4ServiceDepartmentAssignment({
           serviceTypeId: draft.serviceTypeId,
           departmentId: draft.departmentId,
           active: draft.active,
+          isBillingDepartment: draft.isBillingDepartment,
         },
       }),
     onSuccess: async () => {
@@ -331,6 +333,7 @@ export function PmsCard4ServiceDepartmentAssignment({
                     <TableHead>Department</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Active</TableHead>
+                    <TableHead>Billing</TableHead>
                     <TableHead className="w-12">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -363,6 +366,9 @@ export function PmsCard4ServiceDepartmentAssignment({
                           >
                             {row.active ? "Active" : "Inactive"}
                           </span>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {row.isBillingDepartment ? "Billing" : "—"}
                         </TableCell>
                         <TableCell>
                           <Switch
@@ -486,6 +492,20 @@ export function PmsCard4ServiceDepartmentAssignment({
               {errorFor("departmentId") ? (
                 <p className="text-xs text-destructive">{errorFor("departmentId")}</p>
               ) : null}
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="da-billing">Billing department</Label>
+                <p className="text-xs text-muted-foreground">
+                  Cashiering uses this department for the service. Only one assignment can be the billing department.
+                </p>
+              </div>
+              <Switch
+                id="da-billing"
+                checked={draft.isBillingDepartment}
+                disabled={!canEdit}
+                onCheckedChange={(isBillingDepartment) => mark("isBillingDepartment", isBillingDepartment)}
+              />
             </div>
             <div className="flex items-center justify-between gap-3">
               <Label htmlFor="da-active">Active</Label>

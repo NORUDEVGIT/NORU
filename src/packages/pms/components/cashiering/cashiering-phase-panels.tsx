@@ -41,6 +41,7 @@ import {
 } from "@/packages/pms/lib/cashiering-phases.functions";
 import type { CashieringDashboard, FolioDetail } from "@/packages/pms/lib/cashiering.functions";
 import { BILLING_ROUTING_EXECUTABLE } from "@/packages/pms/lib/cashiering-transfer-model";
+import { chargeGroupRemainder, isParentTransferCharge } from "@/packages/pms/lib/folio-workspace";
 import { labelTransactionType } from "@/packages/pms/components/cashiering/folio-bits";
 import type { GuestAccountSummary } from "@/packages/pms/lib/guest-profile-wave4";
 import { Button } from "@/shared/components/ui/button";
@@ -146,7 +147,13 @@ export function TransfersPanel({
 
   const sourceFolioDetail = selected && selected.id === sourceFolioId ? selected : null;
   const chargeLines = sourceFolioDetail
-    ? sourceFolioDetail.transactions.filter((t) => t.type === "charge")
+    ? sourceFolioDetail.transactions
+        .filter((line) => isParentTransferCharge(line))
+        .map((line) => ({
+          line,
+          gross: chargeGroupRemainder(line.id, sourceFolioDetail.transactions).grossRemaining,
+        }))
+        .filter((entry) => entry.gross > 0.009)
     : [];
   const transferLines = (sourceFolioDetail?.transactions ?? []).filter(
     (t) => t.type === "transfer_out" || t.type === "transfer_in",
@@ -264,14 +271,21 @@ export function TransfersPanel({
             </div>
             <div>
               <Label>Source charge line</Label>
-              <Select value={sourceTxnId} onValueChange={setSourceTxnId}>
+              <Select
+                value={sourceTxnId}
+                onValueChange={(value) => {
+                  setSourceTxnId(value);
+                  const entry = chargeLines.find((item) => item.line.id === value);
+                  if (entry) setAmount(String(entry.gross));
+                }}
+              >
                 <SelectTrigger className="min-h-11">
                   <SelectValue placeholder="Choose charge to transfer from" />
                 </SelectTrigger>
                 <SelectContent>
-                  {chargeLines.map((line) => (
-                    <SelectItem key={line.id} value={line.id}>
-                      {line.description} ({money(line.amount)})
+                  {chargeLines.map((entry) => (
+                    <SelectItem key={entry.line.id} value={entry.line.id}>
+                      {entry.line.description} ({money(entry.gross)})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -295,7 +309,7 @@ export function TransfersPanel({
               </div>
             ) : null}
             <div>
-              <Label htmlFor="transfer-amount">Amount</Label>
+              <Label htmlFor="transfer-amount">Gross amount</Label>
               <Input
                 id="transfer-amount"
                 value={amount}

@@ -61,7 +61,7 @@ describe("manual charge preview", () => {
     assert.match(dialog, /postFolioEntry/);
     assert.match(dialog, /previewFolioCharge/);
     assert.match(dialog, /No tax or service charge applies/);
-    assert.doesNotMatch(dialog, /Save as Draft|Unit Price|Department|Quantity/);
+    assert.doesNotMatch(dialog, /Save as Draft/);
     assert.doesNotMatch(dialog, /allocated|captured|tax calculated/i);
   });
 });

@@ -125,7 +125,11 @@ const CASHIER_ERRORS: Record<string, string> = {
   INVALID_MOVEMENT: "That drawer movement is not supported.",
   HOTEL_DRAWER_MOVEMENT_IMMUTABLE: "A drawer movement cannot be changed. Post another movement.",
   SOURCE_NOT_A_CHARGE: "A transfer must name a charge line on the source folio.",
-  TRANSFER_EXCEEDS_REMAINDER: "That amount exceeds what remains on the charge line.",
+  TRANSFER_EXCEEDS_REMAINDER: "That amount exceeds what remains on this charge.",
+  TRANSFER_SAME_FOLIO: "Choose a different guest folio.",
+  TRANSFER_CURRENCY_MISMATCH: "The destination folio uses a different currency.",
+  TRANSFER_CHILD_NOT_ALLOWED: "Transfer the posted charge. Tax and service lines move with it.",
+  TRANSFER_ALLOCATION_MISMATCH: "The transfer amount could not be split across the posted charge.",
   TARGET_WINDOW_NOT_FOUND: "Choose a target window on the destination folio.",
   ACCOUNT_NOT_FOUND: "Financial account not found for this property.",
   ACCOUNT_CLOSED: "This financial account is closed.",
@@ -135,6 +139,14 @@ const CASHIER_ERRORS: Record<string, string> = {
   SOURCE_NOT_A_DEPOSIT: "Choose a deposit line to allocate.",
   INVALID_WRITE_OFF_AMOUNT: "Write-off amount must match the outstanding balance.",
   WRITE_OFF_TARGET_REQUIRED: "Choose a folio or financial account for the write-off.",
+  SERVICE_NOT_FOUND: "That guest service is not on this property.",
+  SERVICE_INACTIVE: "That guest service is inactive.",
+  SERVICE_NOT_CHARGEABLE: "That guest service is not chargeable to a folio.",
+  SERVICE_PRICE_MISSING: "That guest service has no active price.",
+  CURRENCY_MISMATCH: "That guest service price uses a different currency than this folio.",
+  BILLING_DEPARTMENT_REQUIRED: "That guest service needs one billing department.",
+  BILLING_DEPARTMENT_AMBIGUOUS: "That guest service has more than one billing department.",
+  INVALID_QUANTITY: "Quantity must be a whole number from 1 to 99.",
 };
 
 /** Map RAISE EXCEPTION codes from the cashiering functions to user-facing text. */

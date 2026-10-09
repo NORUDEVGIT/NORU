@@ -1,14 +1,12 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowDownToLine,
   ArrowLeftRight,
   ArrowRight,
-  BadgeDollarSign,
-  BedDouble,
   CalendarDays,
   CheckCircle2,
   Coins,
@@ -21,8 +19,6 @@ import {
   MoreVertical,
   Percent,
   Phone,
-  Receipt,
-  ReceiptText,
   ShieldAlert,
   SlidersHorizontal,
   Tag,
@@ -38,29 +34,33 @@ import {
   InventoryStatusBadge,
 } from "@/packages/pms/components/rooms/room-inventory-shared";
 import {
+  chargeDepartment,
+  chargeItemTitle,
+  chargeQuantity,
+  chargeSourceLabel,
+  chargeUnitAmount,
+} from "@/packages/pms/components/cashiering/charge-details-sheet";
+import {
   labelTransactionCategory,
   labelTransactionType,
 } from "@/packages/pms/components/cashiering/folio-bits";
 import {
-  listFolios,
   type FolioTransactionRow,
   type FolioWorkspace,
 } from "@/packages/pms/lib/cashiering.functions";
 import {
   allocateFolioDeposit,
-  listFolioWindows,
-  postFolioTransfer,
   postSettlementWriteOff,
 } from "@/packages/pms/lib/cashiering-phases.functions";
 import { remainingOnPaymentSource } from "@/packages/pms/lib/cashiering.server";
 import {
   balanceTone,
+  chargeGroupRemainder,
   guestInitials,
+  isParentTransferCharge,
   isTaxOrServiceCategory,
-  referenceLabel,
   roundFolioMoney,
   stayNights,
-  transferableRemainder,
   type FolioChargeGroup,
   type FolioDepositLine,
   type FolioFinancialSummary,
@@ -332,16 +332,6 @@ function EmptyCompact({ icon: Icon, title }: { icon: LucideIcon; title: string }
   );
 }
 
-function categoryVisual(row: FolioTransactionRow): { icon: LucideIcon; label: string } {
-  if (row.type === "transfer_in" || row.type === "transfer_out" || row.category === "transfer")
-    return { icon: ArrowLeftRight, label: "Transfer" };
-  if (row.category === "room") return { icon: BedDouble, label: "Room" };
-  if (row.category === "tax") return { icon: Percent, label: "Tax" };
-  if (row.category === "service_charge") return { icon: BadgeDollarSign, label: "Service" };
-  if (row.category === "manual") return { icon: Receipt, label: "Manual" };
-  return { icon: ReceiptText, label: labelTransactionCategory(row.category) };
-}
-
 function rowLabel(row: FolioTransactionRow): string {
   return isTaxOrServiceCategory(row.category) || row.type === "charge"
     ? labelTransactionCategory(row.category)
@@ -375,8 +365,8 @@ function legalCorrections(
 }
 
 const CORRECTION_ITEM: Record<CorrectionType, { label: string; icon: LucideIcon; className: string }> = {
-  adjustment: { label: "Adjustment", icon: SlidersHorizontal, className: "text-amber-700" },
-  discount: { label: "Discount", icon: Tag, className: "text-purple-700" },
+  adjustment: { label: "Post Adjustment", icon: SlidersHorizontal, className: "text-amber-700" },
+  discount: { label: "Apply Discount", icon: Tag, className: "text-purple-700" },
   refund: { label: "Refund", icon: Undo2, className: "text-destructive" },
 };
 
@@ -393,8 +383,8 @@ function RowMenu({
   const corrections = legalCorrections(row, rows, workspace);
   const canTransfer =
     workspace.capabilities.canTransfer &&
-    row.type === "charge" &&
-    transferableRemainder(row.id, rows) > 0.009;
+    isParentTransferCharge(row) &&
+    chargeGroupRemainder(row.id, rows).grossRemaining > 0.009;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -413,7 +403,7 @@ function RowMenu({
         </DropdownMenuItem>
         {canTransfer ? (
           <DropdownMenuItem onSelect={() => actions.onTransfer(row)}>
-            <ArrowLeftRight className="size-4" /> Transfer
+            <ArrowLeftRight className="size-4" /> Transfer Charge
           </DropdownMenuItem>
         ) : null}
         {corrections.length > 0 ? (
@@ -452,6 +442,7 @@ function ChargeRow({
   money,
   dateTime,
   actions,
+  selected,
 }: {
   row: FolioTransactionRow;
   child?: boolean;
@@ -462,38 +453,55 @@ function ChargeRow({
   money: Money;
   dateTime: DateTimeFormat;
   actions: RowActions;
+  selected?: boolean;
 }) {
-  const visual = categoryVisual(row);
-  const Icon = visual.icon;
+  const source = child ? null : chargeSourceLabel(row);
+  const department = child ? null : chargeDepartment(row);
+  const quantity = child ? null : chargeQuantity(row);
+  const unitAmount = child ? null : chargeUnitAmount(row);
   return (
     <tr
       className={cn(
         TABLE_ROW,
-        child ? "bg-muted/10 text-xs text-muted-foreground" : "text-foreground",
+        child ? "bg-muted/10 text-xs text-muted-foreground" : "cursor-pointer text-foreground",
+        selected && "bg-[#C89933]/8 hover:bg-[#C89933]/10",
       )}
+      onClick={child ? undefined : () => actions.onDetails(row)}
+      data-selected={selected ? "true" : undefined}
     >
-      <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
+      <td
+        className={cn(
+          "whitespace-nowrap px-3 py-2 text-xs text-muted-foreground",
+          selected && "border-l-2 border-l-[#C89933]",
+        )}
+      >
         {child ? "" : dateTime(row.postedAt)}
       </td>
-      <td className="whitespace-nowrap px-3 py-2">
-        <span className={cn("inline-flex items-center gap-1.5", child && "pl-3")}>
-          {child ? <span aria-hidden className="text-muted-foreground/70">↳</span> : null}
-          <Icon
-            className={cn(
-              "size-3.5",
-              row.category === "tax"
-                ? "text-blue-600"
-                : row.category === "service_charge"
-                  ? "text-purple-600"
-                  : "text-muted-foreground",
-            )}
-          />
-          <span className={child ? "" : "text-xs font-medium"}>{visual.label}</span>
-        </span>
+      <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
+        {child ? "" : (department ?? "—")}
       </td>
-      <td className={cn("px-3 py-2", child ? "pl-7" : "font-medium")}>{row.description}</td>
-      <td className="whitespace-nowrap px-3 py-2 text-xs capitalize text-muted-foreground">
-        {child ? "" : referenceLabel(row)}
+      <td className={cn("px-3 py-2", child ? "pl-7 text-muted-foreground" : "font-medium")}>
+        {child ? (
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="text-muted-foreground/70">↳</span>
+            {row.description}
+          </span>
+        ) : (
+          <span className="block">
+            <span className="block">{chargeItemTitle(row)}</span>
+            {source ? (
+              <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {source}
+              </span>
+            ) : null}
+          </span>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right text-xs tabular-nums">
+        {child ? "" : quantity == null ? "—" : String(quantity)}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-right text-xs tabular-nums">
+        {child ? "" : unitAmount == null ? "—" : money(unitAmount)}
       </td>
       <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
         {net === null ? "" : money(net)}
@@ -511,7 +519,7 @@ function ChargeRow({
       <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
         {child ? "" : (row.postedBy ?? "—")}
       </td>
-      <td className="px-1 py-1 text-right">
+      <td className="px-1 py-1 text-right" onClick={(event) => event.stopPropagation()}>
         {child ? null : <RowMenu row={row} workspace={workspace} actions={actions} />}
       </td>
     </tr>
@@ -523,6 +531,7 @@ export function ChargesTab({
   money,
   dateTime,
   actions,
+  selectedChargeId,
   onPostCharge,
   onPostAdjustment,
   onTransferCharge,
@@ -532,6 +541,7 @@ export function ChargesTab({
   money: Money;
   dateTime: DateTimeFormat;
   actions: RowActions;
+  selectedChargeId: string | null;
   onPostCharge: () => void;
   onPostAdjustment: () => void;
   onTransferCharge: () => void;
@@ -604,13 +614,14 @@ export function ChargesTab({
             <thead className={TABLE_HEAD}>
               <tr>
                 <Th>Posted</Th>
-                <Th>Category</Th>
-                <Th>Description</Th>
-                <Th>Reference</Th>
+                <Th>Department</Th>
+                <Th>Charge item</Th>
+                <Th right>Qty</Th>
+                <Th right>Unit price</Th>
                 <Th right>Net</Th>
                 <Th right>Tax / Service</Th>
                 <Th right>Total</Th>
-                <Th>Posted By</Th>
+                <Th>Posted by</Th>
                 <th className="w-10" aria-label="Actions" />
               </tr>
             </thead>
@@ -623,12 +634,13 @@ export function ChargesTab({
                   money={money}
                   dateTime={dateTime}
                   actions={actions}
+                  selectedChargeId={selectedChargeId}
                 />
               ))}
             </tbody>
             <tfoot>
               <tr className="border-t border-[#E8E1D7] bg-muted/20 text-sm font-semibold">
-                <td className="px-3 py-2.5" colSpan={4}>
+                <td className="px-3 py-2.5" colSpan={5}>
                   Total charges
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums">
@@ -698,12 +710,14 @@ function ChargeGroupRows({
   money,
   dateTime,
   actions,
+  selectedChargeId,
 }: {
   group: FolioChargeGroup;
   workspace: FolioWorkspace;
   money: Money;
   dateTime: DateTimeFormat;
   actions: RowActions;
+  selectedChargeId: string | null;
 }) {
   const taxOnly = isTaxOrServiceCategory(group.parent.category);
   return (
@@ -717,6 +731,7 @@ function ChargeGroupRows({
         money={money}
         dateTime={dateTime}
         actions={actions}
+        selected={group.parent.id === selectedChargeId}
       />
       {group.children.map((child) => (
         <ChargeRow
@@ -944,8 +959,8 @@ export function PaymentsDepositsTab({
                       <td className="whitespace-nowrap px-3 py-2">
                         <div className="flex flex-wrap gap-1">
                           {workspace.canManage &&
-                          workspace.folio.status === "open" &&
-                          line.available > 0.009 ? (
+                            workspace.folio.status === "open" &&
+                            line.available > 0.009 ? (
                             <Button
                               size="sm"
                               variant="outline"
@@ -1092,7 +1107,42 @@ export function TransfersTab({
   const rows = folio.transactions.filter(
     (row) => row.type === "transfer_out" || row.type === "transfer_in",
   );
-  const sourceById = new Map(folio.transactions.map((row) => [row.id, row]));
+  const groups = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const key = row.transferId ?? row.id;
+    const bucket = groups.get(key) ?? [];
+    bucket.push(row);
+    groups.set(key, bucket);
+  }
+  const entries = [...groups.entries()].map(([id, lines]) => {
+    const first = [...lines].sort((a, b) => a.postedAt.localeCompare(b.postedAt))[0];
+    const out = lines.some((line) => line.type === "transfer_out");
+    const other = first.transferId ? workspace.transferCounterparts[first.transferId] : undefined;
+    const otherLabel = other?.folioNumber ?? "—";
+    const parentLine =
+      lines.find((line) => line.sourceCharge && !isTaxOrServiceCategory(line.sourceCharge.category)) ??
+      lines[0];
+    const source = parentLine.sourceCharge;
+    const charge = source?.description ?? parentLine.sourceDescription ?? parentLine.description;
+    const detail = [
+      source?.departmentName,
+      source?.quantity != null ? `Qty ${source.quantity}` : null,
+      source?.unitAmount != null ? money(source.unitAmount) : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    return {
+      id,
+      postedAt: first.postedAt,
+      from: out ? folio.folioNumber : otherLabel,
+      to: out ? otherLabel : folio.folioNumber,
+      charge,
+      detail,
+      amount: Math.abs(roundFolioMoney(lines.reduce((sum, line) => sum + line.amount, 0))),
+      postedBy: first.postedBy,
+      reason: first.description,
+    };
+  });
   return (
     <SectionCard
       title="Transfers"
@@ -1110,48 +1160,37 @@ export function TransfersTab({
       ) : (
         <TableScroll>
           <thead className={TABLE_HEAD}>
-            <tr>
-              <Th>Date</Th>
-              <Th>Transfer ID</Th>
-              <Th>From</Th>
-              <Th>To</Th>
-              <Th>Source Transaction</Th>
-              <Th right>Amount</Th>
-              <Th>Posted By</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const other = row.transferId ? workspace.transferCounterparts[row.transferId] : undefined;
-              const otherLabel = other?.folioNumber ?? "—";
-              const out = row.type === "transfer_out";
-              const source = row.originalTransactionId
-                ? sourceById.get(row.originalTransactionId)
-                : undefined;
-              return (
-                <tr key={row.id} className={TABLE_ROW}>
+              <tr>
+                <Th>Date</Th>
+                <Th>From</Th>
+                <Th>To</Th>
+                <Th>Charge / Description</Th>
+                <Th right>Amount</Th>
+                <Th>Posted by</Th>
+                <Th>Reason</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => (
+                <tr key={entry.id} className={TABLE_ROW}>
                   <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
-                    {dateTime(row.postedAt)}
+                    {dateTime(entry.postedAt)}
                   </td>
-                  <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-                    {row.transferId ? row.transferId.slice(0, 8).toUpperCase() : "—"}
-                  </td>
-                  <td className={cn("px-3 py-2", out && "font-medium")}>
-                    {out ? folio.folioNumber : otherLabel}
-                  </td>
-                  <td className={cn("px-3 py-2", !out && "font-medium")}>
-                    {out ? otherLabel : folio.folioNumber}
-                  </td>
+                  <td className="px-3 py-2">{entry.from}</td>
+                  <td className="px-3 py-2">{entry.to}</td>
                   <td className="px-3 py-2 text-xs">
-                    {source?.description ?? row.sourceDescription ?? row.description}
+                    <span className="block font-medium text-foreground">{entry.charge}</span>
+                    {entry.detail ? (
+                      <span className="text-muted-foreground">{entry.detail}</span>
+                    ) : null}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">
-                    {money(row.amount)}
+                    {money(entry.amount)}
                   </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{row.postedBy ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">{entry.postedBy ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs">{entry.reason}</td>
                 </tr>
-              );
-            })}
+              ))}
           </tbody>
         </TableScroll>
       )}
@@ -1572,6 +1611,9 @@ export function TransactionDetailDialog({
             <DetailRow label="Posted by" value={row.postedBy ?? "—"} />
             <DetailRow label="Type" value={labelTransactionType(row.type)} />
             <DetailRow label="Category" value={labelTransactionCategory(row.category)} />
+            <DetailRow label="Department" value={row.departmentName?.trim() || "—"} />
+            <DetailRow label="Quantity" value={row.quantity == null ? "—" : String(row.quantity)} />
+            <DetailRow label="Unit price" value={row.unitAmount == null ? "—" : money(row.unitAmount)} />
             {row.paymentMethod ? (
               <DetailRow label="Method" value={methodLabel(row.paymentMethod)} />
             ) : null}
@@ -1604,192 +1646,6 @@ export function TransactionDetailDialog({
   );
 }
 
-export function TransferChargeDialog({
-  restaurantId,
-  workspace,
-  initialSourceId,
-  open,
-  onClose,
-  onDone,
-}: {
-  restaurantId: string;
-  workspace: FolioWorkspace;
-  initialSourceId: string | null;
-  open: boolean;
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const money = useMoney();
-  const folio = workspace.folio;
-  const sources = useMemo(
-    () =>
-      folio.transactions
-        .filter((row) => row.type === "charge")
-        .map((row) => ({ row, remainder: transferableRemainder(row.id, folio.transactions) }))
-        .filter((entry) => entry.remainder > 0.009),
-    [folio.transactions],
-  );
-  const [sourceId, setSourceId] = useState("");
-  const [targetId, setTargetId] = useState("");
-  const [windowId, setWindowId] = useState("");
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-    const first = sources.find((entry) => entry.row.id === initialSourceId) ?? sources[0];
-    setSourceId(first?.row.id ?? "");
-    setAmount(first ? String(first.remainder) : "");
-    setDescription(first ? `Transfer: ${first.row.description}` : "");
-    setTargetId("");
-    setWindowId("");
-  }, [open, initialSourceId, sources]);
-
-  const fetchFolios = useServerFn(listFolios);
-  const fetchWindows = useServerFn(listFolioWindows);
-  const foliosQuery = useQuery({
-    queryKey: ["cashiering-folios", restaurantId, "open-transfer-targets"],
-    queryFn: () => fetchFolios({ data: { restaurantId, status: "open" } }),
-    enabled: open,
-    retry: false,
-  });
-  const targets = (foliosQuery.data ?? []).filter((row) => row.id !== folio.id);
-  const windowsQuery = useQuery({
-    queryKey: ["folio-windows", restaurantId, targetId],
-    queryFn: () => fetchWindows({ data: { restaurantId, folioId: targetId } }),
-    enabled: open && Boolean(targetId),
-    retry: false,
-  });
-  useEffect(() => {
-    const windows = windowsQuery.data ?? [];
-    if (windows.length === 0) return;
-    if (windows.some((w) => w.id === windowId)) return;
-    setWindowId((windows.find((w) => w.isPrimary) ?? windows[0]).id);
-  }, [windowsQuery.data, windowId]);
-
-  const selected = sources.find((entry) => entry.row.id === sourceId) ?? null;
-  const post = useServerFn(postFolioTransfer);
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const value = Number(amount);
-      if (!selected) throw new Error("Choose a charge to transfer.");
-      if (!targetId) throw new Error("Choose a target folio.");
-      if (!windowId) throw new Error("The target folio has no billing window.");
-      if (!Number.isFinite(value) || value <= 0) throw new Error("Enter an amount greater than zero.");
-      if (value > selected.remainder + 0.001)
-        throw new Error(`Amount cannot exceed ${money(selected.remainder)}.`);
-      if (!description.trim()) throw new Error("Enter a description.");
-      return post({
-        data: {
-          restaurantId,
-          sourceFolioId: folio.id,
-          targetFolioId: targetId,
-          sourceTransactionId: selected.row.id,
-          targetWindowId: windowId,
-          amount: value,
-          description: description.trim(),
-          idempotencyKey: idempotencyKey("xfer"),
-        },
-      });
-    },
-    onSuccess: (result) => {
-      if (!result.ok) {
-        toast.error(result.message);
-        return;
-      }
-      toast.success("Transfer posted");
-      onDone();
-      onClose();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Transfer a charge</DialogTitle>
-          <DialogDescription>
-            Moves part or all of a charge to another open guest folio. Both folios record a ledger
-            line.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div>
-            <Label>Charge</Label>
-            <Select
-              value={sourceId}
-              onValueChange={(value) => {
-                setSourceId(value);
-                const entry = sources.find((e) => e.row.id === value);
-                if (entry) setAmount(String(entry.remainder));
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a charge" />
-              </SelectTrigger>
-              <SelectContent>
-                {sources.map((entry) => (
-                  <SelectItem key={entry.row.id} value={entry.row.id}>
-                    {entry.row.description} · {money(entry.remainder)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Target folio</Label>
-            <Select
-              value={targetId}
-              onValueChange={(value) => {
-                setTargetId(value);
-                setWindowId("");
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={foliosQuery.isLoading ? "Loading…" : "Choose an open folio"} />
-              </SelectTrigger>
-              <SelectContent>
-                {targets.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.folioNumber} · {row.guestName}
-                    {row.roomNumber ? ` · Room ${row.roomNumber}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="xfer-amount">Amount</Label>
-            <Input
-              id="xfer-amount"
-              type="number"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="xfer-description">Description</Label>
-            <Input
-              id="xfer-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
-            Post transfer
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export function ApplyDepositDialog({
   restaurantId,

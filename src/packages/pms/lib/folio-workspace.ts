@@ -5,6 +5,13 @@
 
 import type { FolioTransactionRow } from "@/packages/pms/lib/cashiering.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
+import {
+  chargeGroupRemainder as groupRemainder,
+  lineTransferRemainder,
+  type ChargeGroupRemainder as GroupRemainder,
+} from "./cashiering-transfer-allocate";
+
+export type ChargeGroupRemainder = GroupRemainder;
 
 export const FOLIO_WORKSPACE_TABS = [
   { id: "charges", label: "Charges" },
@@ -234,12 +241,21 @@ export function depositSummaryFromLines(lines: FolioDepositLine[]): {
 }
 
 export function transferableRemainder(chargeId: string, rows: FolioTransactionRow[]): number {
-  const charge = rows.find((row) => row.id === chargeId);
-  if (!charge || charge.type !== "charge") return 0;
-  const moved = rows
-    .filter((row) => row.type === "transfer_out" && row.originalTransactionId === chargeId)
-    .reduce((sum, row) => sum + Math.abs(row.amount), 0);
-  return roundFolioMoney(charge.amount - moved);
+  return lineTransferRemainder(chargeId, rows);
+}
+
+export function isParentTransferCharge(
+  row: Pick<FolioTransactionRow, "type" | "category">,
+): boolean {
+  return row.type === "charge" && !isTaxOrServiceCategory(row.category);
+}
+
+/** Gross still movable for a parent charge, using posted children only. */
+export function chargeGroupRemainder(
+  parentId: string,
+  rows: FolioTransactionRow[],
+): ChargeGroupRemainder {
+  return groupRemainder(parentId, rows);
 }
 
 export function folioCapabilities(input: {

@@ -32,6 +32,7 @@ const saveSchema = z
     code: z.string().max(20),
     description: z.string().max(400).optional().default(""),
     active: z.boolean(),
+    chargeableToFolio: z.boolean(),
     displayOrder: z.number().int().min(1).max(999),
   })
   .strict();
@@ -72,6 +73,7 @@ function mapType(row: {
   code: string;
   description: string | null;
   active: boolean;
+  chargeable_to_folio?: boolean;
   display_order: number;
   created_at: string;
   updated_at: string;
@@ -83,6 +85,7 @@ function mapType(row: {
     code: row.code,
     description: row.description,
     active: row.active,
+    chargeableToFolio: row.chargeable_to_folio === true,
     displayOrder: row.display_order,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -164,7 +167,7 @@ async function loadTypes(db: DbClient, restaurantId: string) {
   return db
     .from("pms_guest_service_types")
     .select(
-      "id, category_id, name, code, description, active, display_order, created_at, updated_at",
+      "id, category_id, name, code, description, active, chargeable_to_folio, display_order, created_at, updated_at",
     )
     .eq("restaurant_id", restaurantId)
     .order("display_order")
@@ -241,6 +244,7 @@ export const savePmsCard4ServiceType = createServerFn({ method: "POST" })
         code,
         description: data.description,
         active: data.active,
+        chargeableToFolio: data.chargeableToFolio,
         displayOrder: data.displayOrder,
       },
       snapshot.types,
@@ -255,6 +259,7 @@ export const savePmsCard4ServiceType = createServerFn({ method: "POST" })
       code,
       description: data.description.trim() || null,
       active: data.active,
+      chargeable_to_folio: data.chargeableToFolio,
       display_order: data.displayOrder,
       updated_by: context.userId,
     };

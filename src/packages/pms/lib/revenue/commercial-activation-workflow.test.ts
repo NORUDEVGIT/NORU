@@ -199,6 +199,11 @@ describe("RR-P5-UI-03 commercial activation workflow", () => {
     assert.equal(packagePayload?.operation, "CREATE");
     assert.equal(packagePayload?.expectedVersion, COMMERCIAL_ABSENT_VERSION);
     assert.equal(packagePayload?.packageId, packagePreview.proposedActivation?.packageId);
+    assert.equal(packagePayload?.applyImmediately, undefined);
+    assert.equal(
+      packageApplyPayload("11111111-1111-4111-8111-111111111111", packagePreview, "", true)?.applyImmediately,
+      true,
+    );
     assert.equal(packagePreviewPayload("11111111-1111-4111-8111-111111111111", emptyPackageDraft()).operation, "CREATE");
     assert.equal(isStaleActivationError("COMMERCIAL_ACTIVATION_STALE"), true);
   });

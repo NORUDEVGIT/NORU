@@ -14,8 +14,12 @@
  * (positive on target), sharing transfer_id and linking the source charge via
  * original_transaction_id on the transfer_out row.
  *
- * Partial transfer remainder on a charge =
- *   charge.amount − sum(abs(transfer_out.amount)) linked to that charge.
+ * A guest-folio transfer moves the remaining gross of one parent charge group:
+ * the parent line plus its posted tax and service-charge children.
+ * Each component's remainder is
+ *   line.amount − sum(abs(transfer_out.amount)) linked to that line.
+ * The cashier amount is that gross remainder, split in the database.
+ * Company, group, outlet, and department are not transfer destinations.
  */
 
 export const TRANSFER_TARGET_KINDS = ["folio_window", "guest_folio", "financial_account"] as const;

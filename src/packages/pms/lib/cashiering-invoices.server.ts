@@ -10,6 +10,10 @@ export type FolioInvoiceLine = {
   paymentMethod: string | null;
   taxSnapshot: Record<string, unknown> | null;
   originalTransactionId: string | null;
+  chargeSource?: string | null;
+  quantity?: number | null;
+  unitAmount?: number | null;
+  chargeSnapshot?: Record<string, unknown> | null;
 };
 
 export type FolioInvoiceSnapshot = {
@@ -122,6 +126,13 @@ export function mapFolioInvoiceSnapshot(raw: unknown): FolioInvoiceSnapshot {
             ? (l.taxSnapshot as Record<string, unknown>)
             : null,
         originalTransactionId: l.originalTransactionId ? String(l.originalTransactionId) : null,
+        chargeSource: l.chargeSource ? String(l.chargeSource) : null,
+        quantity: l.quantity == null || l.quantity === "" ? null : Number(l.quantity),
+        unitAmount: l.unitAmount == null || l.unitAmount === "" ? null : Number(l.unitAmount),
+        chargeSnapshot:
+          l.chargeSnapshot && typeof l.chargeSnapshot === "object"
+            ? (l.chargeSnapshot as Record<string, unknown>)
+            : null,
       };
     }),
     totals: {
