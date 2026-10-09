@@ -1,5 +1,14 @@
 import type { ReactNode } from "react";
-import { BedDouble, CalendarDays, CreditCard, FileText, Share2, UserRound } from "lucide-react";
+import {
+  BedDouble,
+  CalendarDays,
+  ClipboardList,
+  CreditCard,
+  FileText,
+  Package,
+  Share2,
+  UserRound,
+} from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
@@ -72,6 +81,18 @@ export type CreateReservationReviewProps = {
   }) => void;
   onEdit: (step: number) => void;
   packagesSlot?: ReactNode;
+  selectedPackages?: ReviewSelectedPackage[];
+  savedPreferences?: Array<{ typeId: string; label: string; value: string }>;
+  selectedServiceRequests?: Array<{ serviceTypeId: string; name: string; description: string }>;
+};
+
+export type ReviewSelectedPackage = {
+  key: string;
+  name: string;
+  category: string;
+  priceLabel: string;
+  chargeBasisLabel: string;
+  inclusions: string;
 };
 
 export function CreateReservationReview(props: CreateReservationReviewProps) {
@@ -240,15 +261,9 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
               ["No-Show Policy", reviewDash(props.noShowPolicy)],
               ["Early Departure Policy", reviewDash(props.earlyDeparturePolicy)],
               ["Special Requests", reviewDash(props.specialRequests)],
-              [
-                "Room Preferences",
-                preferenceSummary(props.specialRequests),
-              ],
+              ["Room Preferences", preferenceSummary(props.specialRequests)],
               ["VIP Treatment", yesNoFromBoolean(props.guestVip)],
-              [
-                "Late Check-in",
-                preferenceFlagFromRequests(props.specialRequests, "Late Check-In"),
-              ],
+              ["Late Check-in", preferenceFlagFromRequests(props.specialRequests, "Late Check-In")],
               [
                 "Early Check-in",
                 preferenceFlagFromRequests(props.specialRequests, "Early Check-In"),
@@ -262,13 +277,66 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
         </ReviewCard>
       </div>
 
+      <ReviewCard
+        title="Packages & Add-ons"
+        icon={<Package className="size-4 text-[#B8954F]" />}
+        onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.bookingDetails)}
+        testId="review-card-packages"
+      >
+        <ReviewPackages packages={props.selectedPackages ?? []} />
+      </ReviewCard>
+
+      <ReviewCard
+        title="Guest Requests & Preferences"
+        icon={<ClipboardList className="size-4 text-[#B8954F]" />}
+        onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.bookingDetails)}
+        testId="review-card-requests"
+      >
+        <div className="space-y-2 text-sm">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Saved preferences
+            </p>
+            {(props.savedPreferences ?? []).length === 0 ? (
+              <p className="text-muted-foreground">No saved preferences</p>
+            ) : (
+              <ul className="mt-1 space-y-0.5">
+                {(props.savedPreferences ?? []).map((row) => (
+                  <li key={row.typeId}>
+                    {row.label}: {row.value}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Service requests
+            </p>
+            {(props.selectedServiceRequests ?? []).length === 0 ? (
+              <p className="text-muted-foreground">No service requests selected</p>
+            ) : (
+              <ul className="mt-1 space-y-0.5">
+                {(props.selectedServiceRequests ?? []).map((row) => (
+                  <li key={row.serviceTypeId}>
+                    {row.name}
+                    {row.description.trim() ? ` — ${row.description.trim()}` : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </ReviewCard>
+
       <section
         className="rounded-xl border border-[#DDD4C5] bg-white px-4 py-3 shadow-sm"
         data-testid="review-policy-ack"
       >
         <h2 className="font-display text-sm text-[#251605]">Policy Acknowledgment</h2>
         <p className="mt-0.5 text-[11px] text-muted-foreground">
-          Confirm that you have informed the guest about the policies and obtained necessary consent.
+          Confirm that you have informed the guest about the policies and obtained necessary
+          consent.
         </p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <Ack
@@ -344,12 +412,49 @@ function ReviewCard({
           {icon}
           <h2 className="font-display text-sm text-[#251605]">{title}</h2>
         </div>
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onEdit}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={onEdit}
+        >
           Edit
         </Button>
       </div>
       <div className="mt-3 space-y-3 text-sm text-[#251605]">{children}</div>
     </section>
+  );
+}
+
+function ReviewPackages({ packages }: { packages: ReviewSelectedPackage[] }) {
+  if (packages.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground" data-testid="review-packages-empty">
+        No packages selected
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <ul className="space-y-2" data-testid="review-packages-list">
+        {packages.map((row) => (
+          <li key={row.key} data-testid="review-package-row">
+            <p className="font-medium text-[#251605]">{row.name}</p>
+            {row.category ? <p className="text-[11px] text-[#6B5E4E]">{row.category}</p> : null}
+            <p className="text-[12px] text-[#251605]">
+              {row.priceLabel} · {row.chargeBasisLabel}
+            </p>
+            {row.inclusions ? (
+              <p className="text-[11px] text-muted-foreground">Includes: {row.inclusions}</p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] text-muted-foreground">
+        Package prices are separate from the room total.
+      </p>
+    </div>
   );
 }
 
@@ -359,7 +464,12 @@ function ReviewFields({ rows }: { rows: Array<[string, string]> }) {
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
           <dt className="text-[#6B5E4E]">{label}</dt>
-          <dd className={cn("min-w-0 break-words text-[#251605]", value === "—" && "text-muted-foreground")}>
+          <dd
+            className={cn(
+              "min-w-0 break-words text-[#251605]",
+              value === "—" && "text-muted-foreground",
+            )}
+          >
             {value}
           </dd>
         </div>

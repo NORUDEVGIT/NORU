@@ -941,6 +941,7 @@ export const createReservation = createServerFn({ method: "POST" })
         _membership_id: me.id,
         _rooms: data.rooms ?? 1,
         _infants: data.infants ?? 0,
+        _quote_currency: (data.quoteCurrency ?? null) as unknown as string,
         ...(data.companyMasterId ? { _company_master_id: data.companyMasterId } : {}),
         ...(data.travelAgentMasterId ? { _travel_agent_master_id: data.travelAgentMasterId } : {}),
         ...(persistApplied

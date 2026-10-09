@@ -37,8 +37,8 @@ export const CREATE_RESERVATION_PACKAGES_DETECT_API = "getPmsSet3Snapshot";
 /** TIP pick 3: Settings deep-link only when actor can edit SET3. */
 export const CREATE_RESERVATION_PACKAGES_SETTINGS_LINK_RULE = "set3-editors-only";
 
-/** TIP pick 4: bind stays OUT this section. */
-export const CREATE_RESERVATION_PACKAGES_BIND = "out";
+/** Create sends hotel_package_activations ids. Room quote and folio stay unchanged. */
+export const CREATE_RESERVATION_PACKAGES_BIND = "activation-ids";
 
 /** TIP pick 5: sticky honesty without replacing §5/§6 lines. */
 export const CREATE_RESERVATION_PACKAGES_STICKY = "not-attached-not-in-quote";
@@ -122,7 +122,7 @@ export const CREATE_RESERVATION_SECTION8_MIGRATION_REASON =
   "Setup pms_packages already exists (0049). createReservation → create_hotel_reservation_priced has no package arg. hotel_reservations has no package column. quoteStay / price_hotel_stay are room-plan only. Section 8 is catalog detect + gated honesty UX only. No new columns. No SECURITY DEFINER replace. Dual-lane APPLY not required. Flag Abel: NOT required.";
 
 export const CREATE_RESERVATION_SECTION8_PERMISSION_DOC =
-  "Detect uses getPmsSet3Snapshot (PMS package + membership). Settings deep-link only when canEditSet1 (owner|manager). Receptionist sees honesty without a Settings editor link. requireRoutePackage(\"pms\") and requireReservationManager unchanged. Capability-only — no RLS / entitlement model change.";
+  'Detect uses getPmsSet3Snapshot (PMS package + membership). Settings deep-link only when canEditSet1 (owner|manager). Receptionist sees honesty without a Settings editor link. requireRoutePackage("pms") and requireReservationManager unchanged. Capability-only — no RLS / entitlement model change.';
 
 export const CREATE_RESERVATION_SECTION8_PARALLEL_OK =
   "Section 6 room assign and Section 7 Spec drafting are not blocked by this gate.";

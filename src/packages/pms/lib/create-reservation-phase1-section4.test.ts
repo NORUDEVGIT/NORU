@@ -189,7 +189,7 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     assert.match(helpers, /assertRoomTypeOccupancy/);
     assert.match(roomType, /OccupancySoftWarn/);
     assert.match(roomType, /data-testid=\{testId\}/);
-    assert.match(page, /summary-occupancy-warn/);
+    assert.match(page, /stay-occupancy-warn/);
     assert.match(page, /occupancyOk/);
     assert.match(CREATE_RESERVATION_OCCUPANCY_WARN_CONTINUE, /blocked until occupancy fits/);
     assert.throws(() => assertRoomTypeOccupancy(3, 0, 2), /maximum occupancy/);
@@ -255,14 +255,11 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     const page =
       readRel("../components/bookings/create-reservation-page.tsx") +
       readRel("../../../routes/restaurant/bookings/new.tsx");
-    assert.match(page, /data-testid="create-reservation-summary"/);
-    assert.match(page, /data-testid="summary-room-type"/);
-    assert.match(page, /data-testid="summary-availability"/);
+    assert.match(page, /CreateReservationSelectedRoom/);
     assert.match(page, /stickyRoomTypeLabel\(selectedMeta\)/);
-    assert.match(page, /stickyAvailabilityCopy\(summaryAvailability\)/);
     assert.equal(stickyRoomTypeLabel(null), CREATE_RESERVATION_NO_ROOM_TYPE);
     assert.equal(stickyRoomTypeLabel({ name: "Deluxe", code: "DLX" }), "Deluxe (DLX)");
-    assert.match(page, /summary-no-fake-total/);
+    assert.doesNotMatch(page, /create-reservation-summary|Collapse summary/);
     assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal/);
   });
 
@@ -478,7 +475,8 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     const amendments = readRel("./fo-amendments.ts");
     assert.match(CREATE_RESERVATION_CAPACITY_DISPLAY_ONLY, /display-only/);
     assert.match(roomTypeCapacityDisplay(2, 1), /display only/);
-    assert.match(roomType, /roomTypeCapacityDisplay\(row\.adultCapacity, row\.childCapacity\)/);
+    assert.match(roomType, /CREATE_RESERVATION_CAPACITY_DISPLAY_ONLY/);
+    assert.doesNotMatch(roomType, /roomTypeCapacityDisplay\(row\.adultCapacity/);
     const occupancyFnStart = helpers.indexOf("export function occupancySoftWarn");
     const occupancyFn = helpers.slice(occupancyFnStart);
     assert.match(occupancyFn, /occupancyExceeded\(adults, children, maxOccupancy\)/);

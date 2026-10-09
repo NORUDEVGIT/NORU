@@ -51,8 +51,10 @@ export const CREATE_RESERVATION_SECTION2A_MIGRATION =
 export const CREATE_RESERVATION_SECTION2A_APPLY = "HELD";
 export const CREATE_RESERVATION_SECTION3_MIGRATION = "NONE";
 export const CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS = 300;
-/** Server page size for the create-reservation guest picker table. */
+/** Historical directory page size for `guestPickerPageCount`. Step 1 search does not paginate. */
 export const CREATE_RESERVATION_GUEST_PAGE_SIZE = 10;
+/** Step 1 guest search cap. `listGuests` returns matches only — not the directory. */
+export const CREATE_RESERVATION_GUEST_SEARCH_LIMIT = 8;
 /** AC-CR1-21 — collapse the existing RestaurantShell rail on this route only. */
 export const CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED = true;
 
