@@ -284,6 +284,15 @@ export function folioCapabilities(input: {
   };
 }
 
+export {
+  filterTenderRows,
+  projectedFolioBalance,
+  refundedAgainst,
+  tenderDisplayState,
+  type TenderDisplayState,
+  type TenderTypeFilter,
+} from "./cashiering-tender-state";
+
 export function recentPayments(rows: FolioTransactionRow[], limit = 3): FolioTransactionRow[] {
   return rows
     .filter((row) => row.type === "payment")

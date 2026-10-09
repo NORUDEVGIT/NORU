@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
+  Activity,
+  ArrowUpRight,
   Banknote,
+  CheckCircle2,
   CircleAlert,
   Clock3,
   Coins,
   FileText,
   MoreHorizontal,
   Plus,
+  Search,
   SlidersHorizontal,
   Undo2,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -26,6 +31,7 @@ import {
 } from "@/packages/pms/components/cashiering/cashiering-phase-panels";
 import {
   Kpi,
+  StatusChip,
   SummaryTile,
   TxnMark,
   methodLabel,
@@ -33,6 +39,10 @@ import {
   type KpiTone,
 } from "@/packages/pms/components/cashiering/cashiering-desk-shared";
 import { labelTransactionType } from "@/packages/pms/components/cashiering/folio-bits";
+import {
+  InventoryState,
+  InventoryStatusBadge,
+} from "@/packages/pms/components/rooms/room-inventory-shared";
 import { ShiftDialog } from "@/packages/pms/components/cashiering/cashiering-tabs";
 import {
   getCashieringCorrectionNotice,
@@ -112,6 +122,13 @@ function stayLabel(folio: FolioRow): string {
   return folio.status === "closed" ? "Closed" : "Open";
 }
 
+function stayTone(folio: FolioRow): "neutral" | "success" | "warning" | "danger" | "info" {
+  if (folio.reservationStatus === "checked_in") return "success";
+  if (folio.reservationStatus === "checked_out") return "neutral";
+  if (folio.status === "open") return "info";
+  return "neutral";
+}
+
 function FilterBar({
   search,
   onSearch,
@@ -124,15 +141,28 @@ function FilterBar({
   onFilter: (value: FolioFilter) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-      <Input
-        value={search}
-        onChange={(event) => onSearch(event.target.value)}
-        placeholder="Search guest name, folio no, room no, reservation no..."
-        className="h-11 min-h-11 bg-card lg:max-w-md"
-        data-testid="cashiering-folio-search"
-      />
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Folio filters">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-[#DDD4C5] bg-card p-2.5 shadow-xs">
+      <div className="relative flex-1 sm:max-w-md">
+        <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#7A7167]" />
+        <Input
+          value={search}
+          onChange={(event) => onSearch(event.target.value)}
+          placeholder="Search guest name, folio no, room no, reservation no…"
+          className="h-10 min-h-10 border-[#DDD4C5] bg-[#FAF8F4]/50 pl-10 pr-9 text-sm text-[#251605] placeholder:text-[#9A9187] focus-visible:border-[#C89933] focus-visible:ring-1 focus-visible:ring-[#C89933]"
+          data-testid="cashiering-folio-search"
+        />
+        {search ? (
+          <button
+            type="button"
+            onClick={() => onSearch("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#7A7167] hover:bg-muted/80 hover:text-[#251605]"
+            aria-label="Clear search"
+          >
+            <X className="size-3.5" />
+          </button>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Folio filters">
         {FILTERS.map((item) => {
           const active = filter === item.id;
           return (
@@ -143,10 +173,10 @@ function FilterBar({
               data-testid={`cashiering-filter-${item.id}`}
               onClick={() => onFilter(active ? "all" : item.id)}
               className={cn(
-                "inline-flex h-11 min-h-11 items-center rounded-full border px-3 text-xs font-medium",
+                "inline-flex h-9 items-center rounded-full border px-3 text-xs font-semibold transition-all duration-150",
                 active
-                  ? "border-[#C89933] bg-[#C89933] text-[#251605] shadow-sm"
-                  : "border-border bg-card text-muted-foreground hover:border-[#C89933]/60 hover:text-foreground",
+                  ? "border-[#C89933] bg-[#C89933] text-[#251605] shadow-xs ring-1 ring-[#C89933]"
+                  : "border-[#DDD4C5] bg-[#FAF8F4]/70 text-[#5F554B] hover:border-[#C89933]/60 hover:bg-white hover:text-[#251605]",
               )}
             >
               {item.label}
@@ -537,8 +567,16 @@ function Overview({
 }) {
   return (
     <div className="space-y-4">
-      {loading ? <p className="text-sm text-muted-foreground">Loading cashiering…</p> : null}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {loading ? (
+        <div className="rounded-xl border border-[#DDD4C5] bg-card p-4 text-sm text-[#7A7167]">
+          Loading cashiering…
+        </div>
+      ) : null}
+      {error ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
       {dashboard ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6" data-testid="cashiering-kpis">
           <Kpi
@@ -583,7 +621,7 @@ function Overview({
         </div>
       ) : null}
       <FilterBar search={search} onSearch={onSearch} filter={filter} onFilter={onFilter} />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(260px,0.85fr)]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,0.85fr)]">
         <FolioTable
           rows={folios}
           total={folioCount}
@@ -598,33 +636,37 @@ function Overview({
           canManage={canManage}
           onSelect={onSelect}
         />
-        <aside className="space-y-3">
+        <aside className="space-y-3.5">
           <SideCard title="Today’s Activity">
             {dashboard ? (
-              <ul className="space-y-2 text-sm">
+              <ul className="space-y-1 text-sm">
                 <ActivityRow
                   label="Total Charges"
                   value={money(dashboard.todayCharges)}
+                  icon={Plus}
                   onClick={() => onActivity("folios")}
                 />
                 <ActivityRow
                   label="Payments Received"
                   value={money(dashboard.todayPayments)}
+                  icon={Banknote}
                   onClick={() => onActivity("payments")}
                 />
                 <ActivityRow
                   label="Deposits Collected"
                   value={money(dashboard.todayDeposits)}
+                  icon={Coins}
                   onClick={() => onActivity("deposits")}
                 />
                 <ActivityRow
                   label="Refunds Processed"
                   value={money(dashboard.todayRefunds)}
+                  icon={Undo2}
                   onClick={() => onActivity("refunds")}
                 />
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">No activity loaded.</p>
+              <p className="p-3 text-center text-xs text-[#7A7167]">No activity loaded.</p>
             )}
           </SideCard>
           <SideCard
@@ -633,22 +675,32 @@ function Overview({
             onAction={() => onActivity("payments")}
           >
             {recent.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No folio transactions recorded yet.</p>
+              <div className="rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F4]/50 p-4 text-center">
+                <FileText className="mx-auto size-5 text-[#7A7167]" />
+                <p className="mt-1.5 text-xs font-medium text-[#7A7167]">
+                  No folio transactions recorded yet.
+                </p>
+              </div>
             ) : (
               <ul className="space-y-2">
                 {recent.map((row) => (
-                  <li key={row.id} className="flex items-start justify-between gap-3 text-sm">
+                  <li
+                    key={row.id}
+                    className="flex items-start justify-between gap-2.5 rounded-lg border border-[#E8E1D7] bg-[#FAF8F4]/40 p-2 text-xs transition-colors hover:bg-white hover:shadow-2xs"
+                  >
                     <TxnMark type={row.type} />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{row.guestName}</p>
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className="truncate font-semibold text-[#251605]">{row.guestName}</p>
+                      <p className="truncate text-[11px] text-[#7A7167]">
                         {methodLabel(row.type)} · {row.folioNumber}
                         {row.roomNumber ? ` · Room ${row.roomNumber}` : ""}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="tabular-nums">{money(row.amount)}</p>
-                      <p className="text-xs text-muted-foreground">{dateTime(row.postedAt)}</p>
+                    <div className="shrink-0 text-right">
+                      <p className="font-semibold tabular-nums text-[#251605]">
+                        {money(row.amount)}
+                      </p>
+                      <p className="text-[10px] text-[#7A7167]">{dateTime(row.postedAt)}</p>
                     </div>
                   </li>
                 ))}
@@ -662,7 +714,10 @@ function Overview({
           >
             {openShift ? (
               <dl className="space-y-1 text-sm">
-                <SnapshotRow label="Status" value="Open" />
+                <SnapshotRow
+                  label="Status"
+                  value={<StatusChip label="Open" tone="green" />}
+                />
                 <SnapshotRow label="Cashier" value={openShift.staffName} />
                 <SnapshotRow label="Shift opened" value={dateTime(openShift.openedAt)} />
                 <SnapshotRow
@@ -671,10 +726,18 @@ function Overview({
                 />
               </dl>
             ) : (
-              <p className="text-sm text-muted-foreground">No cashier shift is open.</p>
+              <div className="rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F4]/50 p-4 text-center">
+                <Clock3 className="mx-auto size-5 text-[#7A7167]" />
+                <p className="mt-1.5 text-xs font-medium text-[#7A7167]">
+                  No cashier shift is open.
+                </p>
+              </div>
             )}
-            <p className="mt-2 text-xs text-muted-foreground">
-              Opening cash is the hotel drawer float. Restaurant sales are not included.
+            <p className="mt-3 flex items-start gap-1.5 text-[11px] text-[#7A7167]">
+              <CircleAlert className="mt-0.5 size-3 shrink-0 text-[#8A6A24]" />
+              <span>
+                Opening cash is the hotel drawer float. Restaurant sales are not included.
+              </span>
             </p>
           </SideCard>
         </aside>
@@ -687,30 +750,41 @@ function ActivityRow({
   label,
   value,
   onClick,
+  icon: Icon = Plus,
 }: {
   label: string;
   value: string;
   onClick: () => void;
+  icon?: LucideIcon;
 }) {
   return (
     <li>
       <button
         type="button"
         onClick={onClick}
-        className="flex min-h-11 w-full items-center justify-between gap-3 text-left"
+        className="group flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[#FAF8F4]"
       >
-        <span>{label}</span>
-        <span className="tabular-nums font-medium">{value}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="grid size-6 shrink-0 place-items-center rounded border border-[#E8DCC4]/80 bg-[#FAF4E6] text-[#8A6A24]">
+            <Icon className="size-3.5" />
+          </span>
+          <span className="truncate text-xs font-medium text-[#5F554B] group-hover:text-[#251605]">
+            {label}
+          </span>
+        </div>
+        <span className="font-display text-sm font-bold tabular-nums text-[#251605]">
+          {value}
+        </span>
       </button>
     </li>
   );
 }
 
-function SnapshotRow({ label, value }: { label: string; value: string }) {
+function SnapshotRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right font-medium">{value}</dd>
+    <div className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-[#FAF8F4]/60">
+      <dt className="text-xs font-medium text-[#7A7167]">{label}</dt>
+      <dd className="text-right text-xs font-semibold text-[#251605]">{value}</dd>
     </div>
   );
 }
@@ -727,20 +801,23 @@ function SideCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">{title}</h2>
+    <section className="overflow-hidden rounded-xl border border-[#DDD4C5] bg-card shadow-xs">
+      <div className="flex items-center justify-between border-b border-[#DDD4C5] bg-[#FAF8F4]/80 px-4 py-2.5">
+        <h2 className="font-display text-xs font-bold uppercase tracking-wider text-[#765719]">
+          {title}
+        </h2>
         {action && onAction ? (
           <button
             type="button"
             onClick={onAction}
-            className="text-xs font-medium text-[#8A6A24] hover:underline"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[#8A6A24] transition-colors hover:text-[#251605] hover:underline"
           >
-            {action}
+            <span>{action}</span>
+            <ArrowUpRight className="size-3" />
           </button>
         ) : null}
       </div>
-      {children}
+      <div className="p-3.5">{children}</div>
     </section>
   );
 }
@@ -762,7 +839,7 @@ function FolioActionMenu({
           type="button"
           variant="ghost"
           size="icon"
-          className="size-11"
+          className="size-8 rounded-lg text-[#7A7167] hover:bg-muted/80 hover:text-[#251605]"
           aria-label={`Actions for ${folio.folioNumber}`}
           data-testid="folio-row-actions"
           onClick={(event) => event.stopPropagation()}
@@ -770,48 +847,55 @@ function FolioActionMenu({
           <MoreHorizontal className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
-        <FolioPageItem folioId={folio.id} label="Open folio" />
+      <DropdownMenuContent align="end" className="w-48 border-[#DDD4C5]" onClick={(event) => event.stopPropagation()}>
+        <FolioPageItem folioId={folio.id} label="Open folio" icon={FileText} />
         <FolioPageItem
           folioId={folio.id}
           action="charge"
           label="Post Charge"
+          icon={Plus}
           disabled={!canManage || !open}
         />
         <FolioPageItem
           folioId={folio.id}
           action="payment"
           label="Receive Payment"
+          icon={Banknote}
           disabled={!canOperate || !open}
         />
         <FolioPageItem
           folioId={folio.id}
           action="deposit"
           label="Add Deposit"
+          icon={Coins}
           disabled={!canOperate || !open}
         />
         <FolioPageItem
           folioId={folio.id}
           action="refund"
           label="Refund"
+          icon={Undo2}
           disabled={!canManage || !open}
         />
         <FolioPageItem
           folioId={folio.id}
           action="discount"
           label="Discount"
+          icon={SlidersHorizontal}
           disabled={!canManage || !open}
         />
         <FolioPageItem
           folioId={folio.id}
           action="adjustment"
           label="Adjust"
+          icon={SlidersHorizontal}
           disabled={!canManage || !open}
         />
         <FolioPageItem
           folioId={folio.id}
           action="close"
           label="Close Folio"
+          icon={CircleAlert}
           disabled={!canManage || !open}
         />
       </DropdownMenuContent>
@@ -823,24 +907,32 @@ function FolioPageItem({
   folioId,
   label,
   action,
+  icon: Icon,
   disabled,
 }: {
   folioId: string;
   label: string;
   action?: string;
+  icon?: LucideIcon;
   disabled?: boolean;
 }) {
   if (disabled) {
-    return <DropdownMenuItem disabled>{label}</DropdownMenuItem>;
+    return (
+      <DropdownMenuItem disabled className="gap-2 text-xs">
+        {Icon ? <Icon className="size-3.5" /> : null}
+        <span>{label}</span>
+      </DropdownMenuItem>
+    );
   }
   return (
-    <DropdownMenuItem asChild>
+    <DropdownMenuItem asChild className="cursor-pointer gap-2 text-xs">
       <Link
         to="/restaurant/pms/cashiering/folios/$folioId"
         params={{ folioId }}
         search={action ? { action } : {}}
       >
-        {label}
+        {Icon ? <Icon className="size-3.5 text-[#8A6A24]" /> : null}
+        <span>{label}</span>
       </Link>
     </DropdownMenuItem>
   );
@@ -874,72 +966,118 @@ function FolioTable({
   onSelect: (folio: FolioRow) => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold">Guest Folios ({total})</h2>
+    <section className="overflow-hidden rounded-xl border border-[#DDD4C5] bg-card shadow-xs">
+      <div className="flex items-center justify-between border-b border-[#DDD4C5] bg-[#FAF8F4]/80 px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <h2 className="font-display text-sm font-bold text-[#251605]">Guest Folios</h2>
+          <span className="rounded-full border border-[#DDD4C5] bg-white px-2 py-0.5 text-xs font-semibold tabular-nums text-[#765719]">
+            {total}
+          </span>
+        </div>
+        <span className="text-xs text-[#7A7167]">
+          Click any row to inspect folio
+        </span>
       </div>
-      {loading ? <p className="p-4 text-sm text-muted-foreground">Loading folios…</p> : null}
+      {loading ? <p className="p-4 text-sm text-[#7A7167]">Loading folios…</p> : null}
       {error ? <p className="p-4 text-sm text-destructive">{error}</p> : null}
       {!loading && !error && rows.length === 0 ? (
-        <p className="p-8 text-center text-sm text-muted-foreground">No folios match this view.</p>
+        <div className="p-8">
+          <InventoryState
+            state="empty"
+            title="No folios match this view"
+            description="Try adjusting your search criteria or switching the filter pills."
+          />
+        </div>
       ) : null}
       {rows.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
-            <thead className="bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+            <thead className="border-b border-[#DDD4C5] bg-[#F8F5F0] text-left text-[11px] font-semibold uppercase tracking-wider text-[#765719]">
               <tr>
-                <th className="px-3 py-2 font-medium">Folio No</th>
-                <th className="px-3 py-2 font-medium">Guest</th>
-                <th className="px-3 py-2 font-medium">Room</th>
-                <th className="px-3 py-2 font-medium">Reservation</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-3 py-2 text-right font-medium">Balance</th>
-                <th className="px-3 py-2 font-medium">Currency</th>
-                <th className="px-3 py-2 font-medium">Action</th>
+                <th className="px-3.5 py-2.5 font-semibold">Folio No</th>
+                <th className="px-3.5 py-2.5 font-semibold">Guest</th>
+                <th className="px-3.5 py-2.5 font-semibold">Room</th>
+                <th className="px-3.5 py-2.5 font-semibold">Reservation</th>
+                <th className="px-3.5 py-2.5 font-semibold">Status</th>
+                <th className="px-3.5 py-2.5 text-right font-semibold">Balance</th>
+                <th className="px-3.5 py-2.5 font-semibold">Currency</th>
+                <th className="px-3.5 py-2.5 text-center font-semibold">Action</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-[#E8E1D7]/70">
               {rows.map((folio) => {
                 const settled = Math.abs(folio.balance) < 0.01;
+                const isSelected = selectedId === folio.id;
                 return (
                   <tr
                     key={folio.id}
                     data-testid="folio-row"
                     onClick={() => onSelect(folio)}
                     className={cn(
-                      "cursor-pointer border-t border-border transition-colors hover:bg-muted/50",
-                      selectedId === folio.id && "bg-[#C89933]/15 hover:bg-[#C89933]/20",
+                      "cursor-pointer transition-colors",
+                      isSelected
+                        ? "bg-[#C89933]/12 border-l-[3px] border-l-[#C89933]"
+                        : "hover:bg-[#FDFBF7]",
                     )}
                   >
-                    <td className="px-3 py-2 font-medium">{folio.folioNumber}</td>
-                    <td className="px-3 py-2">{folio.guestName}</td>
-                    <td className="px-3 py-2">
-                      <div>{folio.roomNumber ?? "—"}</div>
-                      {folio.roomTypeName ? (
-                        <div className="text-xs text-muted-foreground">{folio.roomTypeName}</div>
-                      ) : null}
+                    <td className="px-3.5 py-3 font-semibold text-[#251605]">
+                      {folio.folioNumber}
                     </td>
-                    <td className="px-3 py-2">{folio.confirmationNumber ?? "—"}</td>
-                    <td className="px-3 py-2">
-                      <span className="inline-flex rounded-full border border-border px-2 py-0.5 text-[11px] font-medium">
-                        {stayLabel(folio)}
-                      </span>
-                      {folio.unsettledCheckout ? (
-                        <div className="mt-1 text-[11px] font-medium text-destructive">
-                          Unsettled checkout
+                    <td className="px-3.5 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="grid size-7 shrink-0 place-items-center rounded-full border border-[#E8DCC4] bg-[#FAF0DC] text-[10px] font-bold text-[#765719]">
+                          {folio.guestName.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-[#251605]">{folio.guestName}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3.5 py-3">
+                      <div className="font-medium text-[#251605]">{folio.roomNumber ?? "—"}</div>
+                      {folio.roomTypeName ? (
+                        <div className="truncate text-[11px] text-[#7A7167]">
+                          {folio.roomTypeName}
                         </div>
                       ) : null}
                     </td>
-                    <td
-                      className={cn(
-                        "px-3 py-2 text-right tabular-nums",
-                        settled ? "text-muted-foreground" : "font-medium text-destructive",
-                      )}
-                    >
-                      {money(folio.balance)}
+                    <td className="px-3.5 py-3 font-mono text-xs text-[#5F554B]">
+                      {folio.confirmationNumber ?? "—"}
                     </td>
-                    <td className="px-3 py-2">{folio.currency}</td>
-                    <td className="px-3 py-2" onClick={(event) => event.stopPropagation()}>
+                    <td className="px-3.5 py-3">
+                      <InventoryStatusBadge tone={stayTone(folio)}>
+                        {stayLabel(folio)}
+                      </InventoryStatusBadge>
+                      {folio.unsettledCheckout ? (
+                        <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-destructive">
+                          <CircleAlert className="size-3 shrink-0" />
+                          <span>Unsettled checkout</span>
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-3.5 py-3 text-right">
+                      <span
+                        className={cn(
+                          "tabular-nums text-sm font-semibold",
+                          settled
+                            ? "text-[#7A7167]"
+                            : folio.balance > 0
+                              ? "text-rose-600"
+                              : "text-emerald-700",
+                        )}
+                      >
+                        {money(folio.balance)}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-3">
+                      <span className="rounded bg-muted/60 px-1.5 py-0.5 text-[11px] font-medium text-[#5F554B]">
+                        {folio.currency}
+                      </span>
+                    </td>
+                    <td
+                      className="px-3.5 py-3 text-center"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <FolioActionMenu
                         folio={folio}
                         canOperate={canOperate}
@@ -953,7 +1091,7 @@ function FolioTable({
           </table>
         </div>
       ) : null}
-      <div className="flex items-center justify-between border-t border-border px-4 py-2 text-xs text-muted-foreground">
+      <div className="flex items-center justify-between border-t border-[#DDD4C5] bg-[#FAF8F4]/60 px-4 py-2.5 text-xs text-[#7A7167]">
         <span>
           Showing {rows.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–
           {(page - 1) * PAGE_SIZE + rows.length} of {total}
@@ -963,6 +1101,7 @@ function FolioTable({
             type="button"
             size="sm"
             variant="outline"
+            className="h-8 border-[#DDD4C5] bg-white text-xs hover:border-[#C89933]/60 hover:text-[#251605]"
             disabled={page <= 1}
             onClick={() => onPage(page - 1)}
           >
@@ -972,6 +1111,7 @@ function FolioTable({
             type="button"
             size="sm"
             variant="outline"
+            className="h-8 border-[#DDD4C5] bg-white text-xs hover:border-[#C89933]/60 hover:text-[#251605]"
             disabled={page >= pageCount}
             onClick={() => onPage(page + 1)}
           >
@@ -996,14 +1136,14 @@ function FolioQuickView({
 }) {
   if (loading) {
     return (
-      <aside className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground shadow-sm">
+      <aside className="rounded-xl border border-[#DDD4C5] bg-card p-5 text-sm text-[#7A7167] shadow-xs">
         Loading folio…
       </aside>
     );
   }
   if (!folio) {
     return (
-      <aside className="rounded-xl border border-dashed border-border bg-card p-4 text-sm text-muted-foreground shadow-sm">
+      <aside className="rounded-xl border border-dashed border-[#DDD4C5] bg-[#FAF8F4]/50 p-6 text-center text-sm text-[#7A7167] shadow-xs">
         Select a folio to see charges, payments and the outstanding balance.
       </aside>
     );
@@ -1015,35 +1155,43 @@ function FolioQuickView({
   const refundsAndAdjustments = sumType("refund") + sumType("adjustment") + sumType("discount");
   return (
     <aside
-      className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm"
+      className="space-y-4 rounded-xl border border-[#DDD4C5] bg-card p-4 shadow-xs"
       data-testid="folio-quick-view"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="font-display text-lg leading-tight">{folio.guestName}</h2>
-          <p className="mt-1 text-sm font-medium">{folio.folioNumber}</p>
-          <p className="text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <div className="grid size-7 shrink-0 place-items-center rounded-full border border-[#E8DCC4] bg-[#FAF0DC] text-[10px] font-bold text-[#765719]">
+              {folio.guestName.slice(0, 2).toUpperCase()}
+            </div>
+            <h2 className="font-display text-lg font-bold leading-tight text-[#251605]">
+              {folio.guestName}
+            </h2>
+          </div>
+          <p className="mt-1 text-sm font-semibold text-[#251605]">{folio.folioNumber}</p>
+          <p className="text-xs text-[#7A7167]">
             {folio.roomNumber ? `Room ${folio.roomNumber}` : "No room"}
             {folio.roomTypeName ? ` · ${folio.roomTypeName}` : ""}
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#7A7167]">
             {folio.confirmationNumber
               ? `Reservation ${folio.confirmationNumber}`
               : "No reservation"}
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#7A7167]">
             {folio.arrivalDate ? formatStayDate(folio.arrivalDate) : "—"} –{" "}
             {folio.departureDate ? formatStayDate(folio.departureDate) : "—"}
           </p>
         </div>
-        <span className="inline-flex shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium">
+        <InventoryStatusBadge tone={stayTone(folio)}>
           {stayLabel(folio)}
-        </span>
+        </InventoryStatusBadge>
       </div>
       {folio.unsettledCheckout ? (
-        <p className="text-xs font-medium text-destructive">
-          Unsettled checkout exception. The folio is still open.
-        </p>
+        <div className="flex items-center gap-1.5 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
+          <CircleAlert className="size-4 shrink-0" />
+          <span>Unsettled checkout exception. The folio is still open.</span>
+        </div>
       ) : null}
       <div className="grid grid-cols-2 gap-2">
         <SummaryTile label="Charges" value={money(sumType("charge"))} tone="blue" />
@@ -1055,45 +1203,59 @@ function FolioQuickView({
           tone="rose"
         />
       </div>
-      <div className={cn("rounded-xl px-3 py-3", settled ? "bg-muted/40" : "bg-destructive/10")}>
-        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <div
+        className={cn(
+          "rounded-xl border px-3.5 py-3",
+          settled
+            ? "border-[#DDD4C5] bg-[#FAF8F4]/80"
+            : "border-destructive/20 bg-destructive/10",
+        )}
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#765719]">
           Outstanding Balance
         </p>
         <p
           className={cn(
-            "mt-1 font-display text-2xl tabular-nums",
-            settled ? "text-foreground" : "text-destructive",
+            "mt-1 font-display text-2xl font-bold tabular-nums",
+            settled ? "text-[#251605]" : "text-destructive",
           )}
         >
           {money(folio.balance)}
         </p>
       </div>
       <div>
-        <h3 className="mb-2 text-sm font-semibold">Recent transactions</h3>
+        <h3 className="mb-2 font-display text-xs font-bold uppercase tracking-wider text-[#765719]">
+          Recent transactions
+        </h3>
         {recent.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing posted on this folio yet.</p>
+          <p className="rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F4]/40 p-3 text-center text-xs text-[#7A7167]">
+            Nothing posted on this folio yet.
+          </p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {recent.map((row) => (
-              <li key={row.id} className="flex items-start gap-2 text-sm">
+              <li
+                key={row.id}
+                className="flex items-start gap-2.5 rounded-lg border border-[#E8E1D7] bg-[#FAF8F4]/40 p-2 text-xs transition-colors hover:bg-white hover:shadow-2xs"
+              >
                 <TxnMark type={row.type} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate">{row.description}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="truncate font-semibold text-[#251605]">{row.description}</p>
+                  <p className="text-[11px] text-[#7A7167]">
                     {methodLabel(row.type)} · {dateTime(row.postedAt)}
                   </p>
                 </div>
-                <span className="tabular-nums">{money(row.amount)}</span>
+                <span className="font-semibold tabular-nums text-[#251605]">{money(row.amount)}</span>
               </li>
             ))}
           </ul>
         )}
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 pt-1">
         <Button
           asChild
           size="sm"
-          className="min-h-11 bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
+          className="min-h-9 bg-[#C89933] px-4 font-semibold text-[#251605] hover:bg-[#B5882D]"
         >
           <Link
             to="/restaurant/pms/cashiering/folios/$folioId"
@@ -1107,13 +1269,13 @@ function FolioQuickView({
           type="button"
           size="sm"
           variant="outline"
-          className="min-h-11"
+          className="min-h-9 border-[#DDD4C5] bg-white text-xs hover:border-[#C89933]/60 hover:text-[#251605]"
           onClick={() => window.print()}
         >
           Print statement
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-[11px] text-[#7A7167]">
         Posting is on the folio page. Print statement prints this screen and is not an issued
         invoice.
       </p>

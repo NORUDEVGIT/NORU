@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -45,6 +45,7 @@ import {
   labelTransactionType,
 } from "@/packages/pms/components/cashiering/folio-bits";
 import {
+  listFolioTenderHistory,
   type FolioTransactionRow,
   type FolioWorkspace,
 } from "@/packages/pms/lib/cashiering.functions";
@@ -57,15 +58,18 @@ import { remainingOnPaymentSource } from "@/packages/pms/lib/cashiering.server";
 import {
   balanceTone,
   chargeGroupRemainder,
+  filterTenderRows,
   guestInitials,
   isParentTransferCharge,
   isTaxOrServiceCategory,
   roundFolioMoney,
   stayNights,
+  tenderDisplayState,
   type FolioChargeGroup,
   type FolioDepositLine,
   type FolioFinancialSummary,
   type FolioWorkspaceTabId,
+  type TenderTypeFilter,
 } from "@/packages/pms/lib/folio-workspace";
 import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
 import { useMoney } from "@/core/state/property-format";
@@ -98,6 +102,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/shared/components/ui/sheet";
 import { cn } from "@/shared/lib/utils";
 
 export type Money = (value: number) => string;
@@ -374,13 +386,23 @@ function RowMenu({
   row,
   workspace,
   actions,
+  onApply,
 }: {
   row: FolioTransactionRow;
   workspace: FolioWorkspace;
   actions: RowActions;
+  onApply?: (row: FolioTransactionRow) => void;
 }) {
   const rows = workspace.folio.transactions;
   const corrections = legalCorrections(row, rows, workspace);
+  const depositLine = workspace.depositLines.find((line) => line.transaction.id === row.id);
+  const canApply =
+    Boolean(onApply) &&
+    row.type === "deposit" &&
+    workspace.canManage &&
+    workspace.folio.status === "open" &&
+    (depositLine?.available ?? 0) > 0.009;
+  const refundLabel = row.type === "deposit" ? "Refund Deposit" : "Refund Payment";
   const canTransfer =
     workspace.capabilities.canTransfer &&
     isParentTransferCharge(row) &&
@@ -413,7 +435,16 @@ function RowMenu({
             <SlidersHorizontal className="size-4 text-amber-700" /> Correct Charge
           </DropdownMenuItem>
         ) : null}
-        {corrections.length > 0 ? (
+        {canApply ? (
+          <DropdownMenuItem onSelect={() => onApply?.(row)}>
+            <WalletCards className="size-4" /> Apply deposit
+          </DropdownMenuItem>
+        ) : null}
+        {corrections.length === 1 && corrections[0] === "refund" ? (
+          <DropdownMenuItem onSelect={() => actions.onCorrect("refund", row)}>
+            <Undo2 className="size-4 text-destructive" /> {refundLabel}
+          </DropdownMenuItem>
+        ) : corrections.length > 0 ? (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuSub>
@@ -802,29 +833,26 @@ function DepositTotals({
 
 /* ---------------------------------------------------- Payments & Deposits */
 
-function SubTab({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean;
-  children: ReactNode;
-  onClick: () => void;
-}) {
+const TENDER_STATE_CLASS: Record<string, string> = {
+  Posted: "border-[#E8E1D7] bg-muted/40 text-muted-foreground",
+  Unapplied: "border-blue-500/20 bg-blue-500/10 text-blue-800",
+  "Partially applied": "border-amber-500/20 bg-amber-500/10 text-amber-800",
+  "Partially refunded": "border-amber-500/20 bg-amber-500/10 text-amber-800",
+  "Fully applied": "border-emerald-500/20 bg-emerald-500/10 text-emerald-800",
+  Refunded: "border-destructive/20 bg-destructive/10 text-destructive",
+};
+
+function TenderStateBadge({ state }: { state: string | null }) {
+  if (!state) return <span className="text-xs text-muted-foreground">—</span>;
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <span
       className={cn(
-        "relative flex h-9 items-center px-2.5 text-xs font-medium transition-colors",
-        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+        "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium",
+        TENDER_STATE_CLASS[state] ?? TENDER_STATE_CLASS.Posted,
       )}
     >
-      {children}
-      {active ? (
-        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
-      ) : null}
-    </button>
+      {state}
+    </span>
   );
 }
 
@@ -845,167 +873,223 @@ export function PaymentsDepositsTab({
   onAddDeposit: () => void;
   onAllocate: (line: FolioDepositLine) => void;
 }) {
-  const [sub, setSub] = useState<"payments" | "deposits">("payments");
   const caps = workspace.capabilities;
-  const rows = workspace.folio.transactions;
-  const payments = rows.filter((row) => row.type === "payment");
-  const totalPaid = roundFolioMoney(payments.reduce((sum, row) => sum + Math.abs(row.amount), 0));
-  return (
-    <section className={cn(CARD, "overflow-hidden")}>
-      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-[#E8E1D7] px-2">
-        <div className="flex items-end">
-          <SubTab active={sub === "payments"} onClick={() => setSub("payments")}>
-            Payments
-          </SubTab>
-          <SubTab active={sub === "deposits"} onClick={() => setSub("deposits")}>
-            Deposits
-          </SubTab>
-        </div>
-        <div className="flex items-center gap-3 py-1.5 pr-2">
-          {sub === "payments" ? (
-            <span className="text-xs text-muted-foreground">
-              Total Paid{" "}
-              <span className="font-semibold tabular-nums text-foreground">{money(totalPaid)}</span>
-            </span>
-          ) : null}
-          {sub === "payments" && caps.canPostPayment ? (
-            <Button size="sm" className="h-8" onClick={onReceivePayment}>
-              Receive Payment
-            </Button>
-          ) : null}
-          {sub === "deposits" && caps.canPostDeposit ? (
-            <Button size="sm" className="h-8" onClick={onAddDeposit}>
-              Add Deposit
-            </Button>
-          ) : null}
-        </div>
-      </div>
+  const [search, setSearch] = useState("");
+  const [type, setType] = useState<TenderTypeFilter>("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const depositById = useMemo(() => {
+    const map = new Map<string, FolioDepositLine>();
+    for (const line of workspace.depositLines) map.set(line.transaction.id, line);
+    return map;
+  }, [workspace.depositLines]);
+  const rows = useMemo(
+    () =>
+      filterTenderRows(workspace.folio.transactions, { search, type, from, to }).sort((a, b) =>
+        a.postedAt < b.postedAt ? 1 : -1,
+      ),
+    [workspace.folio.transactions, search, type, from, to],
+  );
+  const unapplied = workspace.depositLines.filter((line) => line.available > 0.009);
+  const applyRow = (row: FolioTransactionRow) => {
+    const line = depositById.get(row.id);
+    if (line) onAllocate(line);
+  };
 
-      {sub === "payments" ? (
-        payments.length === 0 ? (
-          <EmptyCompact icon={CreditCard} title="No payments received yet." />
+  return (
+    <div className="space-y-4" data-testid="payments-deposits">
+      <section className={cn(CARD, "overflow-hidden")}>
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#E8E1D7] px-4 py-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-end gap-2">
+            <div className="min-w-[180px] flex-1">
+              <Label htmlFor="tender-search" className="text-[11px] text-muted-foreground">
+                Search
+              </Label>
+              <Input
+                id="tender-search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Notes, method, or posted by"
+                className="h-8"
+              />
+            </div>
+            <div className="w-[140px]">
+              <Label className="text-[11px] text-muted-foreground">Type</Label>
+              <Select value={type} onValueChange={(value) => setType(value as TenderTypeFilter)}>
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  <SelectItem value="payment">Payment</SelectItem>
+                  <SelectItem value="deposit">Deposit</SelectItem>
+                  <SelectItem value="refund">Refund</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="tender-from" className="text-[11px] text-muted-foreground">
+                From
+              </Label>
+              <Input
+                id="tender-from"
+                type="date"
+                value={from}
+                onChange={(event) => setFrom(event.target.value)}
+                className="h-8 w-[148px]"
+              />
+            </div>
+            <div>
+              <Label htmlFor="tender-to" className="text-[11px] text-muted-foreground">
+                To
+              </Label>
+              <Input
+                id="tender-to"
+                type="date"
+                value={to}
+                onChange={(event) => setTo(event.target.value)}
+                className="h-8 w-[148px]"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {caps.canPostPayment ? (
+              <Button size="sm" className="h-8" onClick={onReceivePayment}>
+                Receive Payment
+              </Button>
+            ) : null}
+            {caps.canPostDeposit ? (
+              <Button size="sm" variant="outline" className="h-8" onClick={onAddDeposit}>
+                Record Deposit
+              </Button>
+            ) : null}
+          </div>
+        </div>
+        {rows.length === 0 ? (
+          <EmptyCompact icon={CreditCard} title="No payments, deposits, or refunds match." />
         ) : (
-          <TableScroll minWidth="min-w-[640px]">
+          <TableScroll minWidth="min-w-[860px]">
             <thead className={TABLE_HEAD}>
               <tr>
                 <Th>Date</Th>
+                <Th>Type</Th>
                 <Th>Method</Th>
-                <Th>Reference</Th>
+                <Th>Notes</Th>
                 <Th right>Amount</Th>
-                <Th>Posted By</Th>
+                <Th right>Remaining</Th>
+                <Th>Status</Th>
+                <Th>Posted by</Th>
                 <th className="w-10" aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
-              {payments.map((row) => (
-                <tr key={row.id} className={TABLE_ROW}>
-                  <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
-                    {dateTime(row.postedAt)}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className="inline-flex items-center gap-1.5 font-medium">
-                      <CreditCard className="size-3.5 text-emerald-600" />
-                      {methodLabel(row.paymentMethod)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{row.description}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">
-                    {money(Math.abs(row.amount))}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{row.postedBy ?? "—"}</td>
-                  <td className="px-1 py-1 text-right">
-                    <RowMenu row={row} workspace={workspace} actions={actions} />
-                  </td>
-                </tr>
-              ))}
+              {rows.map((row) => {
+                const deposit = depositById.get(row.id) ?? null;
+                const state = tenderDisplayState(row, workspace.folio.transactions, deposit);
+                const refundable = remainingOnPaymentSource(row, workspace.folio.transactions);
+                const remaining =
+                  row.type === "deposit"
+                    ? (deposit?.available ?? null)
+                    : row.type === "payment"
+                      ? refundable
+                      : null;
+                return (
+                  <tr key={row.id} className={TABLE_ROW}>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
+                      {dateTime(row.postedAt)}
+                    </td>
+                    <td className="px-3 py-2 text-xs font-medium">{labelTransactionType(row.type)}</td>
+                    <td className="px-3 py-2 text-xs">{methodLabel(row.paymentMethod)}</td>
+                    <td className="max-w-[220px] truncate px-3 py-2 text-xs">{row.description}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">
+                      {money(Math.abs(row.amount))}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                      {remaining == null ? "—" : money(remaining)}
+                    </td>
+                    <td className="px-3 py-2">
+                      <TenderStateBadge state={state} />
+                    </td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{row.postedBy ?? "—"}</td>
+                    <td className="px-1 py-1 text-right">
+                      <RowMenu
+                        row={row}
+                        workspace={workspace}
+                        actions={actions}
+                        onApply={applyRow}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </TableScroll>
-        )
-      ) : (
-        <div>
-          <DepositTotals summary={workspace.depositSummary} money={money} />
-          {workspace.folio.guaranteeMethod ? (
-            <p className="border-t border-[#E8E1D7]/80 px-4 py-2 text-xs text-muted-foreground">
-              Guarantee method ·{" "}
-              <span className="font-medium text-foreground">
-                {titleCase(workspace.folio.guaranteeMethod.toLowerCase())}
-              </span>
-            </p>
-          ) : null}
-          {workspace.depositLines.length === 0 ? (
-            <div className="border-t border-[#E8E1D7]/80">
-              <EmptyCompact icon={Landmark} title="No deposit credits on this folio." />
-            </div>
-          ) : (
-            <div className="border-t border-[#E8E1D7]">
-              <TableScroll>
-                <thead className={TABLE_HEAD}>
-                  <tr>
-                    <Th>Date</Th>
-                    <Th>Method</Th>
-                    <Th>Description</Th>
-                    <Th right>Received</Th>
-                    <Th right>Applied</Th>
-                    <Th right>Available</Th>
-                    <Th>Actions</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {workspace.depositLines.map((line) => (
-                    <tr key={line.transaction.id} className={TABLE_ROW}>
-                      <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
-                        {dateTime(line.transaction.postedAt)}
-                      </td>
-                      <td className="px-3 py-2">{methodLabel(line.transaction.paymentMethod)}</td>
-                      <td className="px-3 py-2 text-xs">{line.transaction.description}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{money(line.received)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{money(line.applied)}</td>
-                      <td className="px-3 py-2 text-right font-semibold tabular-nums">
-                        {money(line.available)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2">
-                        <div className="flex flex-wrap gap-1">
-                          {workspace.canManage &&
-                            workspace.folio.status === "open" &&
-                            line.available > 0.009 ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7"
-                              onClick={() => onAllocate(line)}
-                            >
-                              Allocate
-                            </Button>
-                          ) : null}
-                          {caps.canRefund && line.available > 0.009 ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7"
-                              onClick={() => actions.onCorrect("refund", line.transaction)}
-                            >
-                              Refund unused
-                            </Button>
-                          ) : null}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7"
-                            onClick={() => actions.onDetails(line.transaction)}
-                          >
-                            View details
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </TableScroll>
-            </div>
-          )}
+        )}
+      </section>
+
+      <section className={cn(CARD, "overflow-hidden")} data-testid="unapplied-deposits">
+        <div className="border-b border-[#E8E1D7] px-4 py-3">
+          <h3 className="text-sm font-semibold">Unapplied deposits</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Cash already on this folio. Applying a deposit to a charge does not change the balance.
+          </p>
         </div>
-      )}
-    </section>
+        <DepositTotals summary={workspace.depositSummary} money={money} />
+        {unapplied.length === 0 ? (
+          <div className="border-t border-[#E8E1D7]/80">
+            <EmptyCompact icon={Landmark} title="No unapplied deposit credit." />
+          </div>
+        ) : (
+          <div className="border-t border-[#E8E1D7]">
+            <TableScroll minWidth="min-w-[720px]">
+              <thead className={TABLE_HEAD}>
+                <tr>
+                  <Th>Date</Th>
+                  <Th>Notes</Th>
+                  <Th right>Original</Th>
+                  <Th right>Applied</Th>
+                  <Th right>Remaining</Th>
+                  <Th>Status</Th>
+                  <th className="w-10" aria-label="Actions" />
+                </tr>
+              </thead>
+              <tbody>
+                {unapplied.map((line) => (
+                  <tr key={line.transaction.id} className={TABLE_ROW}>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
+                      {dateTime(line.transaction.postedAt)}
+                    </td>
+                    <td className="px-3 py-2 text-xs">{line.transaction.description}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{money(line.received)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{money(line.applied)}</td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                      {money(line.available)}
+                    </td>
+                    <td className="px-3 py-2">
+                      <TenderStateBadge
+                        state={tenderDisplayState(
+                          line.transaction,
+                          workspace.folio.transactions,
+                          line,
+                        )}
+                      />
+                    </td>
+                    <td className="px-1 py-1 text-right">
+                      <RowMenu
+                        row={line.transaction}
+                        workspace={workspace}
+                        actions={actions}
+                        onApply={applyRow}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </TableScroll>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -1273,7 +1357,7 @@ export function SettlementTab({
         <div className="flex flex-wrap items-center gap-2 p-4">
           {canAllocate ? (
             <Button size="sm" variant="outline" onClick={onAllocate}>
-              <WalletCards className="size-4" /> Allocate Deposit
+              <WalletCards className="size-4" /> Apply deposit
             </Button>
           ) : null}
           {caps.canPostPayment ? (
@@ -1587,71 +1671,154 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function historyLabel(eventType: string): string {
+  if (eventType === "payment_received") return "Payment received";
+  if (eventType === "deposit_received") return "Deposit received";
+  if (eventType === "refund_posted") return "Refund posted";
+  if (eventType.includes("alloc")) return "Deposit applied";
+  return eventType.replace(/_/g, " ");
+}
+
 export function TransactionDetailDialog({
+  restaurantId,
+  folioId,
   row,
   rows,
+  depositLine = null,
   money,
   dateTime,
   onClose,
 }: {
+  restaurantId?: string;
+  folioId?: string;
   row: FolioTransactionRow | null;
   rows: FolioTransactionRow[];
+  depositLine?: FolioDepositLine | null;
   money: Money;
   dateTime: DateTimeFormat;
   onClose: () => void;
 }) {
+  const history = useServerFn(listFolioTenderHistory);
+  const tender = row?.type === "payment" || row?.type === "deposit" || row?.type === "refund";
+  const historyQuery = useQuery({
+    queryKey: ["folio-tender-history", restaurantId, folioId, row?.id],
+    queryFn: () => history({ data: { restaurantId: restaurantId!, folioId: folioId! } }),
+    enabled: Boolean(tender && restaurantId && folioId && row),
+  });
   const linked = row ? rows.filter((other) => other.originalTransactionId === row.id) : [];
+  const refundable = row ? remainingOnPaymentSource(row, rows) : null;
+  const refunded =
+    row && refundable != null
+      ? roundFolioMoney(Math.abs(row.amount) - refundable)
+      : null;
+  const state = row ? tenderDisplayState(row, rows, depositLine) : null;
+  const events = (historyQuery.data ?? []).filter((event) => {
+    if (!row) return false;
+    return (
+      event.transactionId === row.id ||
+      event.depositTransactionId === row.id ||
+      event.originalTransactionId === row.id
+    );
+  });
   const snapshot = row?.taxSnapshot as
     | { code?: string; name?: string; calculation?: string; amount?: number }
     | null
     | undefined;
   return (
-    <Dialog open={row !== null} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{row ? rowLabel(row) : "Line"}</DialogTitle>
-          <DialogDescription>Posted ledger lines cannot be edited or removed.</DialogDescription>
-        </DialogHeader>
+    <Sheet open={row !== null} onOpenChange={(open) => (open ? null : onClose())}>
+      <SheetContent
+        className="flex w-full max-w-none flex-col gap-0 overflow-hidden border-[#E8E1D7] bg-card p-0 sm:w-[70vw] sm:max-w-[70vw] md:max-w-[460px]"
+        data-testid="tender-details-sheet"
+      >
+        <SheetHeader className="space-y-2 border-b border-[#E8E1D7] px-5 pb-4 pr-12 pt-5 text-left">
+          <SheetTitle className="text-base">{row ? rowLabel(row) : "Line"}</SheetTitle>
+          <SheetDescription>Posted lines stay as they were. A refund is a new line.</SheetDescription>
+        </SheetHeader>
         {row ? (
-          <dl className="space-y-1.5 text-sm">
-            <DetailRow label="Description" value={row.description} />
-            <DetailRow label="Amount" value={money(row.amount)} />
-            <DetailRow label="Posted" value={dateTime(row.postedAt)} />
-            <DetailRow label="Posted by" value={row.postedBy ?? "—"} />
-            <DetailRow label="Type" value={labelTransactionType(row.type)} />
-            <DetailRow label="Category" value={labelTransactionCategory(row.category)} />
-            <DetailRow label="Department" value={row.departmentName?.trim() || "—"} />
-            <DetailRow label="Quantity" value={row.quantity == null ? "—" : String(row.quantity)} />
-            <DetailRow label="Unit price" value={row.unitAmount == null ? "—" : money(row.unitAmount)} />
-            {row.paymentMethod ? (
-              <DetailRow label="Method" value={methodLabel(row.paymentMethod)} />
-            ) : null}
-            {row.sourceDescription ? (
-              <DetailRow label="Source line" value={row.sourceDescription} />
-            ) : null}
-            {snapshot?.name || snapshot?.code ? (
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <dl className="space-y-1.5 text-sm">
               <DetailRow
-                label="Tax rule"
-                value={`${snapshot.name ?? snapshot.code}${snapshot.calculation ? ` · ${snapshot.calculation}` : ""}`}
+                label="Amount"
+                value={money(
+                  row.type === "payment" || row.type === "deposit" || row.type === "refund"
+                    ? Math.abs(row.amount)
+                    : row.amount,
+                )}
               />
-            ) : null}
+              <DetailRow label="Type" value={labelTransactionType(row.type)} />
+              {state ? <DetailRow label="Status" value={state} /> : null}
+              {row.paymentMethod ? (
+                <DetailRow label="Method" value={methodLabel(row.paymentMethod)} />
+              ) : null}
+              <DetailRow label="Notes" value={row.description} />
+              <DetailRow label="Posted" value={dateTime(row.postedAt)} />
+              <DetailRow label="Posted by" value={row.postedBy ?? "—"} />
+              {row.type === "deposit" && depositLine ? (
+                <>
+                  <DetailRow label="Applied" value={money(depositLine.applied)} />
+                  <DetailRow label="Remaining" value={money(depositLine.available)} />
+                </>
+              ) : null}
+              {refunded != null && refundable != null && (row.type === "payment" || row.type === "deposit") ? (
+                <>
+                  <DetailRow label="Refunded" value={money(refunded)} />
+                  <DetailRow label="Refundable" value={money(refundable)} />
+                </>
+              ) : null}
+              {row.sourceDescription ? (
+                <DetailRow label="Source line" value={row.sourceDescription} />
+              ) : null}
+              {row.departmentName ? (
+                <DetailRow label="Department" value={row.departmentName} />
+              ) : null}
+              {snapshot?.name || snapshot?.code ? (
+                <DetailRow
+                  label="Tax rule"
+                  value={`${snapshot.name ?? snapshot.code}${snapshot.calculation ? ` · ${snapshot.calculation}` : ""}`}
+                />
+              ) : null}
+            </dl>
             {linked.length > 0 ? (
-              <div className="border-t border-[#E8E1D7] pt-2">
+              <div className="border-t border-[#E8E1D7] pt-3">
                 <p className="mb-1 text-xs font-medium text-muted-foreground">Linked lines</p>
                 {linked.map((other) => (
                   <DetailRow key={other.id} label={rowLabel(other)} value={money(other.amount)} />
                 ))}
               </div>
             ) : null}
-          </dl>
+            {tender ? (
+              <div className="border-t border-[#E8E1D7] pt-3">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">History</p>
+                {historyQuery.isLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading history…</p>
+                ) : events.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No separate history events for this line.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {events.map((event) => (
+                      <li key={event.id} className="text-xs">
+                        <span className="font-medium">
+                          {historyLabel(event.eventType)}
+                        </span>
+                        <span className="text-muted-foreground"> · {dateTime(event.createdAt)}</span>
+                        {event.notes ? (
+                          <span className="mt-0.5 block text-muted-foreground">{event.notes}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
+          </div>
         ) : null}
-        <DialogFooter>
+        <SheetFooter className="border-t border-[#E8E1D7] px-5 py-3">
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -1723,10 +1890,10 @@ export function ApplyDepositDialog({
     <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Allocate deposit</DialogTitle>
+          <DialogTitle>Apply deposit</DialogTitle>
           <DialogDescription>
-            Applies available deposit credit to a charge on this folio. The folio balance does not
-            change; the deposit was already credited.
+            Links available deposit credit to a charge on this folio. The folio balance does not
+            change. The deposit was already credited when it was posted.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -1776,7 +1943,7 @@ export function ApplyDepositDialog({
             Cancel
           </Button>
           <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
-            Allocate
+            Apply
           </Button>
         </DialogFooter>
       </DialogContent>

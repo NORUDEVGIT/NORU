@@ -785,6 +785,8 @@ function FolioWorkspaceBody({
         sources={folio.transactions}
         initialSourceId={entrySourceId}
         depositPolicySummary={depositPolicySummary}
+        currentBalance={workspace.financialSummary.currentBalance}
+        currencyCode={folio.currency}
         authorizerNote={correctionNotice?.authorizer ?? null}
         thresholdNote={
           (entryType === "adjustment"
@@ -838,8 +840,15 @@ function FolioWorkspaceBody({
         />
       ) : null}
       <TransactionDetailDialog
+        restaurantId={restaurantId}
+        folioId={folio.id}
         row={detailRow}
         rows={folio.transactions}
+        depositLine={
+          detailRow
+            ? (workspace.depositLines.find((line) => line.transaction.id === detailRow.id) ?? null)
+            : null
+        }
         money={money}
         dateTime={dateTime}
         onClose={() => setDetailRow(null)}

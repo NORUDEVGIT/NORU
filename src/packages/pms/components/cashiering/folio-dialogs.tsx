@@ -27,6 +27,7 @@ import {
   remainingOnPaymentSource,
   type TransactionType,
 } from "@/packages/pms/lib/cashiering.server";
+import { projectedFolioBalance } from "@/packages/pms/lib/cashiering-tender-state";
 import { useMoney } from "@/core/state/property-format";
 import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
 import {
@@ -44,14 +45,15 @@ const COPY: Record<TransactionType, { title: string; description: string; cta: s
     cta: "Post charge",
   },
   payment: {
-    title: "Receive a payment",
-    description: `${LEDGER_LINE} Partial payments are additional payment lines.`,
+    title: "Receive payment",
+    description: "Posts a payment on this open folio. The folio stays open.",
     cta: "Receive payment",
   },
   deposit: {
-    title: "Add a deposit credit",
-    description: `${LEDGER_LINE} A deposit is a folio credit.`,
-    cta: "Add deposit credit",
+    title: "Record deposit",
+    description:
+      "This amount reduces the folio balance now. Applying it to a charge later does not change the balance again.",
+    cta: "Record deposit",
   },
   refund: {
     title: "Post a refund",
@@ -80,6 +82,8 @@ export function FolioEntryDialog({
   authorizerNote,
   thresholdNote,
   initialSourceId,
+  currentBalance = null,
+  currencyCode = null,
   onClose,
   onDone,
 }: {
@@ -98,6 +102,8 @@ export function FolioEntryDialog({
   depositPolicySummary?: string | null;
   authorizerNote?: string | null;
   thresholdNote?: string | null;
+  currentBalance?: number | null;
+  currencyCode?: string | null;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -129,7 +135,14 @@ export function FolioEntryDialog({
   const post = useServerFn(postFolioEntry);
   const copy = type ? COPY[type] : null;
   const needsMethod = type === "payment" || type === "deposit" || type === "refund";
+  const isTenderReceipt = type === "payment" || type === "deposit";
   const needsSource = type === "refund" || type === "adjustment" || type === "discount";
+  const enteredAmount = Number(amount);
+  const projected =
+    currentBalance == null
+      ? null
+      : projectedFolioBalance(currentBalance, Number.isFinite(enteredAmount) ? enteredAmount : 0);
+  const creditWarning = isTenderReceipt && projected != null && projected < -0.009;
   const sourceChoices = useMemo(() => {
     if (type === "refund")
       return sources.filter((line) => line.type === "payment" || line.type === "deposit");
@@ -208,7 +221,9 @@ export function FolioEntryDialog({
             />
           </div>
           <div>
-            <Label htmlFor="entry-description">{needsSource ? "Reason" : "Description"}</Label>
+            <Label htmlFor="entry-description">
+              {needsSource ? "Reason" : isTenderReceipt ? "Notes" : "Description"}
+            </Label>
             <Input
               id="entry-description"
               value={description}
@@ -218,10 +233,50 @@ export function FolioEntryDialog({
                   ? "Why this correction is posted"
                   : type === "charge"
                     ? "Laundry service"
-                    : "Reference or note"
+                    : "Note for this posting"
               }
             />
           </div>
+          {isTenderReceipt ? (
+            <div className="space-y-1 rounded-xl border border-[#E8E1D7] bg-[#F7F4EE] px-3 py-2 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Currency</span>
+                <span className="font-medium">{currencyCode?.trim() || "Folio currency"}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Posting</span>
+                <span className="font-medium">Posting now</span>
+              </div>
+              {currentBalance != null ? (
+                <>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Current balance</span>
+                    <span className="font-medium tabular-nums">{money(currentBalance)}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">
+                      {type === "deposit" ? "Deposit amount" : "Payment amount"}
+                    </span>
+                    <span className="font-medium tabular-nums">
+                      {Number.isFinite(enteredAmount) && enteredAmount > 0
+                        ? money(enteredAmount)
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Projected balance</span>
+                    <span className="font-semibold tabular-nums">{money(projected ?? currentBalance)}</span>
+                  </div>
+                </>
+              ) : null}
+              {creditWarning ? (
+                <p className="pt-1 text-xs text-amber-800">
+                  This amount is larger than the balance. The folio will show a folio credit of{" "}
+                  {money(Math.abs(projected ?? 0))}. The folio stays open until the balance is zero.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {needsMethod ? (
             <div>
               <Label htmlFor="entry-method">Method</Label>

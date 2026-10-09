@@ -2014,3 +2014,65 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
           r.id.toLowerCase().includes(term),
       );
   });
+
+export interface FolioTenderHistoryEvent {
+  id: string;
+  eventType: string;
+  notes: string | null;
+  createdAt: string;
+  transactionId: string | null;
+  depositTransactionId: string | null;
+  originalTransactionId: string | null;
+}
+
+const TENDER_HISTORY_EVENTS = [
+  "payment_received",
+  "deposit_received",
+  "refund_posted",
+  "deposit_allocated",
+] as const;
+
+/** Read-only folio_history rows for payment, deposit, refund, and deposit application. */
+export const listFolioTenderHistory = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string; folioId: string }) =>
+    z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
+  )
+  .handler(async ({ data, context }): Promise<FolioTenderHistoryEvent[]> => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin
+      .from("folio_history")
+      .select("id, event_type, notes, new_values, created_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("folio_id", data.folioId)
+      .in("event_type", [...TENDER_HISTORY_EVENTS])
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) {
+      if (isMissingSchemaError(error)) return [];
+      throw cashierError(error.message);
+    }
+    return ((rows ?? []) as Array<{
+      id: string;
+      event_type: string;
+      notes: string | null;
+      new_values: Record<string, unknown> | null;
+      created_at: string;
+    }>).map((row) => {
+      const values = row.new_values ?? {};
+      const text = (key: string) => {
+        const value = values[key];
+        return typeof value === "string" && value.trim() !== "" ? value : null;
+      };
+      return {
+        id: row.id,
+        eventType: row.event_type,
+        notes: row.notes,
+        createdAt: row.created_at,
+        transactionId: text("transaction_id"),
+        depositTransactionId: text("deposit_transaction_id"),
+        originalTransactionId: text("original_transaction_id"),
+      };
+    });
+  });

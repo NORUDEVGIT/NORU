@@ -282,6 +282,8 @@ export function ReservationDetailFolioTab({
             open={entryType !== null}
             sources={folio.transactions}
             depositPolicySummary={depositPolicyQuery.data?.summary ?? null}
+            currentBalance={folio.balance}
+            currencyCode={folio.currency}
             authorizerNote={correctionNoticeQuery.data?.authorizer ?? null}
             thresholdNote={
               entryType === "adjustment"

@@ -11,34 +11,34 @@ import {
 import { cn } from "@/shared/lib/utils";
 
 export const KPI_TONE = {
-  blue: "border-sky-200 bg-sky-50/80",
-  amber: "border-amber-200 bg-amber-50/80",
-  green: "border-emerald-200 bg-emerald-50/80",
-  gold: "border-[#E4D3A8] bg-[#FBF6EA]",
-  rose: "border-rose-200 bg-rose-50/80",
-  teal: "border-teal-200 bg-teal-50/80",
+  blue: "border-[#DDD4C5] bg-card hover:border-sky-300/80 hover:bg-sky-50/30",
+  amber: "border-[#DDD4C5] bg-card hover:border-amber-300/80 hover:bg-amber-50/30",
+  green: "border-[#DDD4C5] bg-card hover:border-emerald-300/80 hover:bg-emerald-50/30",
+  gold: "border-[#DDD4C5] bg-card hover:border-[#C89933]/80 hover:bg-[#FAF6EE]",
+  rose: "border-[#DDD4C5] bg-card hover:border-rose-300/80 hover:bg-rose-50/30",
+  teal: "border-[#DDD4C5] bg-card hover:border-teal-300/80 hover:bg-teal-50/30",
 } as const;
 
 export const KPI_ICON = {
-  blue: "bg-sky-100 text-sky-700",
-  amber: "bg-amber-100 text-amber-800",
-  green: "bg-emerald-100 text-emerald-700",
-  gold: "bg-[#F3E6C4] text-[#8A6A24]",
-  rose: "bg-rose-100 text-rose-700",
-  teal: "bg-teal-100 text-teal-700",
+  blue: "border border-sky-200/80 bg-sky-50 text-sky-700",
+  amber: "border border-amber-200/80 bg-amber-50 text-amber-800",
+  green: "border border-emerald-200/80 bg-emerald-50 text-emerald-700",
+  gold: "border border-[#E5D7B7] bg-[#FAF3E3] text-[#8A6A24]",
+  rose: "border border-rose-200/80 bg-rose-50 text-rose-700",
+  teal: "border border-teal-200/80 bg-teal-50 text-teal-700",
 } as const;
 
 export type KpiTone = keyof typeof KPI_TONE;
 
 const TXN_MARK: Record<string, { icon: LucideIcon; className: string }> = {
-  charge: { icon: Plus, className: "bg-sky-100 text-sky-700" },
-  payment: { icon: Banknote, className: "bg-emerald-100 text-emerald-700" },
-  deposit: { icon: Coins, className: "bg-[#F3E6C4] text-[#8A6A24]" },
-  refund: { icon: Undo2, className: "bg-rose-100 text-rose-700" },
-  adjustment: { icon: SlidersHorizontal, className: "bg-violet-100 text-violet-700" },
-  discount: { icon: SlidersHorizontal, className: "bg-muted text-muted-foreground" },
-  transfer_out: { icon: Undo2, className: "bg-violet-100 text-violet-700" },
-  transfer_in: { icon: Plus, className: "bg-teal-100 text-teal-700" },
+  charge: { icon: Plus, className: "border border-sky-200/80 bg-sky-50 text-sky-700" },
+  payment: { icon: Banknote, className: "border border-emerald-200/80 bg-emerald-50 text-emerald-700" },
+  deposit: { icon: Coins, className: "border border-[#E5D7B7] bg-[#FAF3E3] text-[#8A6A24]" },
+  refund: { icon: Undo2, className: "border border-rose-200/80 bg-rose-50 text-rose-700" },
+  adjustment: { icon: SlidersHorizontal, className: "border border-violet-200/80 bg-violet-50 text-violet-700" },
+  discount: { icon: SlidersHorizontal, className: "border border-border bg-muted/60 text-muted-foreground" },
+  transfer_out: { icon: Undo2, className: "border border-violet-200/80 bg-violet-50 text-violet-700" },
+  transfer_in: { icon: Plus, className: "border border-teal-200/80 bg-teal-50 text-teal-700" },
 };
 
 export function methodLabel(code: string | null): string {
@@ -64,34 +64,48 @@ export function Kpi({
   icon?: LucideIcon;
 }) {
   return (
-    <div className={cn("rounded-xl border px-3 py-2.5 shadow-sm", KPI_TONE[tone])}>
+    <div
+      className={cn(
+        "group relative flex flex-col justify-between rounded-xl border p-3.5 shadow-xs transition-all duration-150 hover:shadow-sm",
+        KPI_TONE[tone],
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#765719]">
           {label}
         </p>
         {Icon ? (
           <span
-            className={cn("grid size-7 shrink-0 place-items-center rounded-md", KPI_ICON[tone])}
+            className={cn(
+              "grid size-7 shrink-0 place-items-center rounded-lg shadow-2xs transition-transform duration-150 group-hover:scale-105",
+              KPI_ICON[tone],
+            )}
           >
             <Icon className="size-3.5" aria-hidden />
           </span>
         ) : null}
       </div>
-      <p className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
-        {value}
-      </p>
-      {hint ? <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p> : null}
+      <div className="mt-2">
+        <p className="font-display text-xl font-bold tracking-tight tabular-nums text-[#251605]">
+          {value}
+        </p>
+        {hint ? (
+          <p className="mt-0.5 truncate text-[11px] font-medium text-[#7A7167]">
+            {hint}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
 
 export function SummaryTile({ label, value, tone }: { label: string; value: string; tone: KpiTone }) {
   return (
-    <div className={cn("rounded-lg border px-2.5 py-2", KPI_TONE[tone])}>
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+    <div className={cn("rounded-lg border px-3 py-2", KPI_TONE[tone])}>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#765719]">
         {label}
       </p>
-      <p className="mt-0.5 text-sm font-semibold tabular-nums">{value}</p>
+      <p className="mt-0.5 font-display text-sm font-bold tabular-nums text-[#251605]">{value}</p>
     </div>
   );
 }
@@ -101,7 +115,10 @@ export function TxnMark({ type }: { type: string }) {
   const Icon = mark?.icon ?? Plus;
   return (
     <span
-      className={cn("mt-0.5 grid size-6 shrink-0 place-items-center rounded-md", mark?.className)}
+      className={cn(
+        "mt-0.5 grid size-6 shrink-0 place-items-center rounded-md shadow-2xs",
+        mark?.className,
+      )}
     >
       <Icon className="size-3.5" aria-hidden />
     </span>
@@ -127,16 +144,16 @@ export function DeskSection({
 }) {
   return (
     <section
-      className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+      className="overflow-hidden rounded-xl border border-[#DDD4C5] bg-card shadow-xs"
       data-testid={testId}
     >
-      <div className="border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
+      <div className="border-b border-[#DDD4C5] bg-[#FAF8F4]/90 px-4 py-3">
+        <h2 className="font-display text-sm font-semibold text-[#251605]">{title}</h2>
       </div>
-      {loading ? <p className="p-4 text-sm text-muted-foreground">Loading…</p> : null}
+      {loading ? <p className="p-4 text-sm text-[#7A7167]">Loading…</p> : null}
       {error ? <p className="p-4 text-sm text-destructive">{error}</p> : null}
       {!loading && !error && isEmpty && empty ? (
-        <p className="p-8 text-center text-sm text-muted-foreground">{empty}</p>
+        <p className="p-8 text-center text-sm text-[#7A7167]">{empty}</p>
       ) : null}
       {!loading && !error && !isEmpty ? children : null}
     </section>
@@ -146,12 +163,12 @@ export function DeskSection({
 export type DeskActionBorderTone = "payment" | "deposit" | "refund" | "transfer" | "account" | "neutral";
 
 const ACTION_BORDER: Record<DeskActionBorderTone, string> = {
-  payment: "border-emerald-200",
+  payment: "border-emerald-200/90",
   deposit: "border-[#E4D3A8]",
-  refund: "border-rose-200",
-  transfer: "border-violet-200",
-  account: "border-sky-200",
-  neutral: "border-border",
+  refund: "border-rose-200/90",
+  transfer: "border-violet-200/90",
+  account: "border-sky-200/90",
+  neutral: "border-[#DDD4C5]",
 };
 
 export function DeskActionPanel({
@@ -172,17 +189,17 @@ export function DeskActionPanel({
   return (
     <section
       className={cn(
-        "space-y-4 rounded-xl border bg-card p-4 shadow-sm",
+        "space-y-4 rounded-xl border bg-card p-4 shadow-xs",
         ACTION_BORDER[borderTone],
       )}
       data-testid={testId}
     >
       <div>
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {note ? <p className="mt-1 text-xs text-muted-foreground">{note}</p> : null}
+        <h2 className="font-display text-sm font-semibold text-[#251605]">{title}</h2>
+        {note ? <p className="mt-1 text-xs text-[#7A7167]">{note}</p> : null}
       </div>
       {children}
-      {footer ? <p className="text-xs text-muted-foreground">{footer}</p> : null}
+      {footer ? <p className="text-xs text-[#7A7167]">{footer}</p> : null}
     </section>
   );
 }
@@ -196,12 +213,21 @@ export function FolioBalanceBlock({
 }) {
   const unsettled = balance > 0.009;
   return (
-    <div className={cn("rounded-lg px-3 py-2", unsettled ? "bg-destructive/10" : "bg-muted/40")}>
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Outstanding Balance</p>
+    <div
+      className={cn(
+        "rounded-lg border px-3 py-2",
+        unsettled
+          ? "border-destructive/20 bg-destructive/10"
+          : "border-[#DDD4C5] bg-[#FAF8F4]/80",
+      )}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#765719]">
+        Outstanding Balance
+      </p>
       <p
         className={cn(
-          "font-display text-xl tabular-nums",
-          unsettled ? "text-destructive" : "text-foreground",
+          "font-display text-xl font-bold tabular-nums",
+          unsettled ? "text-destructive" : "text-[#251605]",
         )}
       >
         {money(balance)}
@@ -219,14 +245,14 @@ export function StatusChip({
 }) {
   const styles = {
     green: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    muted: "border-border bg-muted/40 text-muted-foreground",
+    muted: "border-[#DDD4C5] bg-[#FAF8F4] text-[#5F554B]",
     amber: "border-amber-200 bg-amber-50 text-amber-900",
     rose: "border-rose-200 bg-rose-50 text-rose-800",
   } as const;
   return (
     <span
       className={cn(
-        "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
+        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold",
         styles[tone],
       )}
     >
