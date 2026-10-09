@@ -1197,6 +1197,32 @@ export const listAccountRatePlanHints = createServerFn({ method: "POST" })
             currency: currencyByAgreement.get(String(row.agreement_id ?? "")) ?? "",
           })),
       });
+      const agencyDefaultsResult = await supabaseAdmin
+        .from("pms_agency_rate_defaults")
+        .select("room_type_id, rate_plan_id, active")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("agency_master_id", data.accountId)
+        .eq("active", true);
+      const agencyDefaults = agencyDefaultsResult.error
+        ? []
+        : ((agencyDefaultsResult.data ?? []) as Array<{
+            room_type_id: string;
+            rate_plan_id: string;
+            active: boolean;
+          }>).filter((row) => !data.roomTypeId || row.room_type_id === data.roomTypeId);
+      const existingHintIds = new Set(
+        selected.hints.map((hint) => hint.planId).filter((id): id is string => Boolean(id)),
+      );
+      for (const savedDefault of agencyDefaults) {
+        if (existingHintIds.has(savedDefault.rate_plan_id)) continue;
+        const plan = planRows.find((row) => row.id === savedDefault.rate_plan_id);
+        selected.hints.push({
+          planId: savedDefault.rate_plan_id,
+          label: plan ? `${plan.code} · ${plan.name}` : "Agency default rate plan",
+          matched: true,
+        });
+        existingHintIds.add(savedDefault.rate_plan_id);
+      }
       return selected;
     },
   );

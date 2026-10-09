@@ -42,6 +42,50 @@ export type ChargeGroupRemainder = {
   grossRemaining: number;
 };
 
+/** Remainder after transfers and earlier negative adjustments or discounts. */
+export function correctableLineRemainder(chargeId: string, rows: TransferLedgerRow[]): number {
+  const charge = rows.find((row) => row.id === chargeId);
+  if (!charge || charge.type !== "charge") return 0;
+  const moved = rows
+    .filter((row) => row.originalTransactionId === chargeId)
+    .reduce((sum, row) => {
+      if (row.type === "transfer_out" || row.type === "discount") return sum + Math.abs(row.amount);
+      if (row.type === "adjustment" && row.amount < 0) return sum - row.amount;
+      return sum;
+    }, 0);
+  return roundMoney(Math.max(0, charge.amount - moved));
+}
+
+export function correctableGroupRemainder(
+  parentId: string,
+  rows: TransferLedgerRow[],
+): ChargeGroupRemainder {
+  const empty = { parentRemaining: 0, taxRemaining: 0, serviceRemaining: 0, grossRemaining: 0 };
+  const parent = rows.find((row) => row.id === parentId);
+  if (
+    !parent ||
+    parent.type !== "charge" ||
+    parent.category === "tax" ||
+    parent.category === "service_charge"
+  ) {
+    return empty;
+  }
+  const parentRemaining = correctableLineRemainder(parent.id, rows);
+  let taxRemaining = 0;
+  let serviceRemaining = 0;
+  for (const row of rows) {
+    if (row.originalTransactionId !== parent.id || row.type !== "charge") continue;
+    if (row.category === "tax") taxRemaining += correctableLineRemainder(row.id, rows);
+    if (row.category === "service_charge") serviceRemaining += correctableLineRemainder(row.id, rows);
+  }
+  return {
+    parentRemaining,
+    taxRemaining: roundMoney(taxRemaining),
+    serviceRemaining: roundMoney(serviceRemaining),
+    grossRemaining: roundMoney(parentRemaining + taxRemaining + serviceRemaining),
+  };
+}
+
 export function chargeGroupRemainder(
   parentId: string,
   rows: TransferLedgerRow[],

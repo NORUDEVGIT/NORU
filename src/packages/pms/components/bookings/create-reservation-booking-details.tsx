@@ -321,9 +321,16 @@ export function CreateReservationBookingDetails({
     const defaults = agencyHintsQuery.data;
     if (!defaults || appliedAgencyDefaultsFor.current === agencyId) return;
     appliedAgencyDefaultsFor.current = agencyId;
+    onBillingRuleIdChange(defaults.defaultBillingRuleId ?? "");
     const planId = defaults.hints.find((row) => row.planId)?.planId;
     if (planId) onApplyRatePlan(planId);
-  }, [agencyHintsQuery.data, onApplyRatePlan, relationTab, travelAgentMaster?.id]);
+  }, [
+    agencyHintsQuery.data,
+    onApplyRatePlan,
+    onBillingRuleIdChange,
+    relationTab,
+    travelAgentMaster?.id,
+  ]);
 
   const appliedAgencyContactFor = useRef<string | null>(null);
   useEffect(() => {

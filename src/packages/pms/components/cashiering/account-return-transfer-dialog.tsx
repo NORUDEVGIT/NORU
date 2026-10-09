@@ -11,7 +11,11 @@ import {
   type FinancialAccountChargeRow,
   type FinancialAccountRow,
 } from "@/packages/pms/lib/cashiering-phases.functions";
-import { chargeGroupRemainder } from "@/packages/pms/lib/cashiering-transfer-allocate";
+import {
+  chargeGroupRemainder,
+  correctableGroupRemainder,
+} from "@/packages/pms/lib/cashiering-transfer-allocate";
+import { CorrectChargeDialog } from "@/packages/pms/components/cashiering/correct-charge-dialog";
 import { roundFolioMoney } from "@/packages/pms/lib/folio-workspace";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -56,6 +60,7 @@ export function AccountReturnTransferDialog({
   const [partial, setPartial] = useState("");
   const [reason, setReason] = useState("");
   const [idemKey, setIdemKey] = useState(idempotencyKey);
+  const [correctId, setCorrectId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -66,6 +71,7 @@ export function AccountReturnTransferDialog({
     setPartial("");
     setReason("");
     setIdemKey(idempotencyKey());
+    setCorrectId(null);
   }, [open, account?.id]);
 
   const chargesQuery = useQuery({
@@ -106,6 +112,13 @@ export function AccountReturnTransferDialog({
   );
   const destination = folios.find((row) => row.id === folioId) ?? null;
   const incoming = rows.filter((row) => row.type === "transfer_in");
+  const correctable = rows
+    .filter(
+      (row) => row.type === "charge" && row.category !== "tax" && row.category !== "service_charge",
+    )
+    .map((row) => ({ row, remainder: correctableGroupRemainder(row.id, ledger) }))
+    .filter((entry) => entry.remainder.grossRemaining > 0.009);
+  const correctRow = correctable.find((entry) => entry.row.id === correctId)?.row ?? null;
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -148,146 +161,183 @@ export function AccountReturnTransferDialog({
       : null;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
-      <DialogContent className="flex max-h-[88vh] max-w-[760px] flex-col gap-0 overflow-hidden border-[#E8E1D7] bg-[#fbf8f3] p-0">
-        <DialogHeader className="space-y-1 border-b border-[#E8E1D7] bg-card px-5 py-4 text-left">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <ArrowLeftRight className="size-4 text-[#8a6a1f]" />
-            Transfer to guest folio
-          </DialogTitle>
-          <DialogDescription>
-            {account ? `${account.masterName} · ${account.accountNumber}` : "Financial account"}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-          <section className="rounded-xl border border-[#E8E1D7] bg-card p-4">
-            <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Account charges
-            </h3>
-            {incoming.length > 0 ? (
-              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                {incoming.map((row) => (
-                  <li key={row.id}>
-                    Transfer in · {row.sourceDescription ?? row.description}
-                    {row.departmentName ? ` · ${row.departmentName}` : ""}
-                    {row.quantity != null && row.unitAmount != null
-                      ? ` · ${row.quantity} × ${money(row.unitAmount)}`
-                      : ""}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <div className="mt-3 space-y-2">
-              {sources.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No transferable charge remains.</p>
-              ) : (
-                sources.map((entry) => (
+    <>
+      <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
+        <DialogContent className="flex max-h-[88vh] max-w-[760px] flex-col gap-0 overflow-hidden border-[#E8E1D7] bg-[#fbf8f3] p-0">
+          <DialogHeader className="space-y-1 border-b border-[#E8E1D7] bg-card px-5 py-4 text-left">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <ArrowLeftRight className="size-4 text-[#8a6a1f]" />
+              Transfer to guest folio
+            </DialogTitle>
+            <DialogDescription>
+              {account ? `${account.masterName} · ${account.accountNumber}` : "Financial account"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+            <section className="rounded-xl border border-[#E8E1D7] bg-card p-4">
+              <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Account charges
+              </h3>
+              {incoming.length > 0 ? (
+                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {incoming.map((row) => (
+                    <li key={row.id}>
+                      Transfer in · {row.sourceDescription ?? row.description}
+                      {row.departmentName ? ` · ${row.departmentName}` : ""}
+                      {row.quantity != null && row.unitAmount != null
+                        ? ` · ${row.quantity} × ${money(row.unitAmount)}`
+                        : ""}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <div className="mt-3 space-y-2">
+                {sources.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No transferable charge remains.</p>
+                ) : (
+                  sources.map((entry) => (
+                    <div
+                      key={entry.row.id}
+                      className={cn(
+                        "w-full rounded-lg border px-3 py-2 text-left text-sm",
+                        selected?.row.id === entry.row.id ? "border-[#C89933]" : "border-[#E8E1D7]",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        className="block w-full text-left"
+                        onClick={() => setSourceId(entry.row.id)}
+                      >
+                        <span className="font-medium">{entry.row.description}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          Remaining {money(entry.remainder.grossRemaining)}
+                        </span>
+                      </button>
+                      {correctable.some((item) => item.row.id === entry.row.id) ? (
+                        <span className="mt-2 block">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setCorrectId(entry.row.id);
+                            }}
+                          >
+                            Correct Charge
+                          </Button>
+                        </span>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+            <section className="rounded-xl border border-[#E8E1D7] bg-card p-4">
+              <Label htmlFor="account-return-search">Guest folio</Label>
+              <Input
+                id="account-return-search"
+                className="mt-2"
+                value={search}
+                placeholder="Search folio, guest, room or reservation..."
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <div className="mt-3 max-h-40 space-y-2 overflow-y-auto">
+                {folios.map((row) => (
                   <button
-                    key={entry.row.id}
+                    key={row.id}
                     type="button"
                     className={cn(
                       "w-full rounded-lg border px-3 py-2 text-left text-sm",
-                      selected?.row.id === entry.row.id ? "border-[#C89933]" : "border-[#E8E1D7]",
+                      folioId === row.id ? "border-[#C89933]" : "border-[#E8E1D7]",
                     )}
-                    onClick={() => setSourceId(entry.row.id)}
+                    onClick={() => setFolioId(row.id)}
                   >
-                    <span className="font-medium">{entry.row.description}</span>
+                    <span className="font-medium">{row.guestName}</span>
                     <span className="mt-0.5 block text-xs text-muted-foreground">
-                      Remaining {money(entry.remainder.grossRemaining)}
+                      {row.folioNumber}
+                      {row.roomNumber ? ` · Room ${row.roomNumber}` : ""}
+                      {row.confirmationNumber ? ` · ${row.confirmationNumber}` : ""} ·{" "}
+                      {money(row.balance)} {row.currency}
                     </span>
                   </button>
-                ))
-              )}
-            </div>
-          </section>
-          <section className="rounded-xl border border-[#E8E1D7] bg-card p-4">
-            <Label htmlFor="account-return-search">Guest folio</Label>
-            <Input
-              id="account-return-search"
-              className="mt-2"
-              value={search}
-              placeholder="Search folio, guest, room or reservation..."
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <div className="mt-3 max-h-40 space-y-2 overflow-y-auto">
-              {folios.map((row) => (
-                <button
-                  key={row.id}
-                  type="button"
-                  className={cn(
-                    "w-full rounded-lg border px-3 py-2 text-left text-sm",
-                    folioId === row.id ? "border-[#C89933]" : "border-[#E8E1D7]",
-                  )}
-                  onClick={() => setFolioId(row.id)}
-                >
-                  <span className="font-medium">{row.guestName}</span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {row.folioNumber}
-                    {row.roomNumber ? ` · Room ${row.roomNumber}` : ""}
-                    {row.confirmationNumber ? ` · ${row.confirmationNumber}` : ""} ·{" "}
-                    {money(row.balance)} {row.currency}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div className="mt-3 space-y-2 text-sm">
-              <label className="flex items-center gap-2">
-                <input type="radio" checked={mode === "full"} onChange={() => setMode("full")} />
-                Full amount <span className="tabular-nums">{money(gross)}</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  checked={mode === "partial"}
-                  onChange={() => setMode("partial")}
+                ))}
+              </div>
+              <div className="mt-3 space-y-2 text-sm">
+                <label className="flex items-center gap-2">
+                  <input type="radio" checked={mode === "full"} onChange={() => setMode("full")} />
+                  Full amount <span className="tabular-nums">{money(gross)}</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={mode === "partial"}
+                    onChange={() => setMode("partial")}
+                  />
+                  Partial amount
+                </label>
+                {mode === "partial" ? (
+                  <Input
+                    inputMode="decimal"
+                    value={partial}
+                    placeholder="0.00"
+                    onChange={(event) => setPartial(event.target.value)}
+                  />
+                ) : null}
+              </div>
+              <div className="mt-3">
+                <Label htmlFor="account-return-reason">Reason *</Label>
+                <Textarea
+                  id="account-return-reason"
+                  className="mt-1.5"
+                  maxLength={200}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
                 />
-                Partial amount
-              </label>
-              {mode === "partial" ? (
-                <Input
-                  inputMode="decimal"
-                  value={partial}
-                  placeholder="0.00"
-                  onChange={(event) => setPartial(event.target.value)}
-                />
+              </div>
+              {projected && account ? (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {account.accountNumber} {money(account.balance)} → {money(projected.account)}
+                  {" · "}
+                  {destination?.folioNumber} {money(destination?.balance ?? 0)} →{" "}
+                  {money(projected.folio)}
+                </p>
               ) : null}
-            </div>
-            <div className="mt-3">
-              <Label htmlFor="account-return-reason">Reason *</Label>
-              <Textarea
-                id="account-return-reason"
-                className="mt-1.5"
-                maxLength={200}
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-              />
-            </div>
-            {projected && account ? (
-              <p className="mt-3 text-xs text-muted-foreground">
-                {account.accountNumber} {money(account.balance)} → {money(projected.account)}
-                {" · "}
-                {destination?.folioNumber} {money(destination?.balance ?? 0)} →{" "}
-                {money(projected.folio)}
-              </p>
-            ) : null}
-          </section>
-        </div>
-        <DialogFooter className="border-t border-[#E8E1D7] bg-card px-5 py-3">
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            className="bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
-            disabled={
-              !selected || !destination || !reason.trim() || !amountValid || mutation.isPending
-            }
-            onClick={() => mutation.mutate()}
-          >
-            Transfer Charge
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            </section>
+          </div>
+          <DialogFooter className="border-t border-[#E8E1D7] bg-card px-5 py-3">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
+              disabled={
+                !selected || !destination || !reason.trim() || !amountValid || mutation.isPending
+              }
+              onClick={() => mutation.mutate()}
+            >
+              Transfer Charge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <CorrectChargeDialog
+        restaurantId={restaurantId}
+        sourceTransactionId={correctRow?.id ?? null}
+        title={correctRow?.description ?? "Charge"}
+        department={correctRow?.departmentName ?? null}
+        quantity={correctRow?.quantity ?? null}
+        unitAmount={correctRow?.unitAmount ?? null}
+        open={correctRow != null}
+        allowReplacement={false}
+        onClose={() => setCorrectId(null)}
+        onDone={() => {
+          void chargesQuery.refetch();
+          onDone();
+        }}
+        money={money}
+      />
+    </>
   );
 }

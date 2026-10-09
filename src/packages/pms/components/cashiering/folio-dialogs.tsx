@@ -133,7 +133,8 @@ export function FolioEntryDialog({
   const sourceChoices = useMemo(() => {
     if (type === "refund")
       return sources.filter((line) => line.type === "payment" || line.type === "deposit");
-    if (type === "discount") return sources.filter((line) => line.type === "charge");
+    if (type === "discount") return [];
+    if (type === "adjustment") return sources.filter((line) => line.type !== "charge");
     return sources;
   }, [sources, type]);
   const selectedSource = sourceChoices.find((line) => line.id === sourceId) ?? null;

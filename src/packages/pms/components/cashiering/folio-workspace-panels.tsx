@@ -52,6 +52,7 @@ import {
   allocateFolioDeposit,
   postSettlementWriteOff,
 } from "@/packages/pms/lib/cashiering-phases.functions";
+import { correctableGroupRemainder } from "@/packages/pms/lib/cashiering-transfer-allocate";
 import { remainingOnPaymentSource } from "@/packages/pms/lib/cashiering.server";
 import {
   balanceTone,
@@ -344,6 +345,7 @@ export type RowActions = {
   onDetails: (row: FolioTransactionRow) => void;
   onTransfer: (row: FolioTransactionRow) => void;
   onCorrect: (type: CorrectionType, row: FolioTransactionRow) => void;
+  onCorrectCharge: (row: FolioTransactionRow) => void;
 };
 
 function legalCorrections(
@@ -353,8 +355,6 @@ function legalCorrections(
 ): CorrectionType[] {
   const caps = workspace.capabilities;
   const out: CorrectionType[] = [];
-  if (caps.canAdjust) out.push("adjustment");
-  if (caps.canDiscount && row.type === "charge") out.push("discount");
   if (
     caps.canRefund &&
     (row.type === "payment" || row.type === "deposit") &&
@@ -404,6 +404,13 @@ function RowMenu({
         {canTransfer ? (
           <DropdownMenuItem onSelect={() => actions.onTransfer(row)}>
             <ArrowLeftRight className="size-4" /> Transfer Charge
+          </DropdownMenuItem>
+        ) : null}
+        {workspace.capabilities.canAdjust &&
+        isParentTransferCharge(row) &&
+        correctableGroupRemainder(row.id, rows).grossRemaining > 0.009 ? (
+          <DropdownMenuItem onSelect={() => actions.onCorrectCharge(row)}>
+            <SlidersHorizontal className="size-4 text-amber-700" /> Correct Charge
           </DropdownMenuItem>
         ) : null}
         {corrections.length > 0 ? (

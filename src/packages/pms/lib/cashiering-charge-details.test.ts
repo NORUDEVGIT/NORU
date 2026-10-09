@@ -17,8 +17,7 @@ describe("charge details drawer", () => {
     assert.match(sheet, /Posting Info/);
     assert.match(sheet, /Corrections/);
     assert.match(sheet, /History/);
-    assert.match(sheet, /Post Adjustment/);
-    assert.match(sheet, /Apply Discount/);
+    assert.match(sheet, /Correct Charge/);
     assert.match(sheet, /Transfer Charge/);
     assert.match(sheet, /\/restaurant\/pms\/reservations\/\$reservationId/);
     assert.match(sheet, /\/restaurant\/pms\/guests\/\$guestId/);

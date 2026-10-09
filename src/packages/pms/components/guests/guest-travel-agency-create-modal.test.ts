@@ -175,4 +175,14 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
     assert.match(modalCode, /GuestTravelAgencyPaymentRulesStep/);
     assert.match(modalCode, /PaymentRulesSummaryPanel/);
   });
+
+  it("17. Edit hydrates saved contacts, commission rates, and billing settings", () => {
+    assert.match(modalCode, /listTravelAgentContacts/);
+    assert.match(modalCode, /hydrateAgencyEditDraft/);
+    assert.match(modalCode, /step3ConfigQuery\.data/);
+    assert.match(modalCode, /step4ConfigQuery\.data/);
+    assert.match(modalCode, /editContactsQuery\.data\.items/);
+    assert.match(modalCode, /currentCommissionPlan/);
+    assert.match(modalCode, /existingValues/);
+  });
 });

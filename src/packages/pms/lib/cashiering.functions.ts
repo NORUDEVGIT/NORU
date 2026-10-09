@@ -1263,6 +1263,139 @@ export const previewFolioCharge = createServerFn({ method: "GET" })
     return readChargePreview(preview);
   });
 
+export const CORRECTION_MODES = [
+  "adjust_amount",
+  "correct_quantity",
+  "discount",
+  "reverse_remaining",
+] as const;
+export type CorrectionMode = (typeof CORRECTION_MODES)[number];
+
+export interface FolioChargeCorrectionShare {
+  id: string;
+  share: number;
+}
+
+export interface FolioChargeCorrectionPreview {
+  mode: CorrectionMode;
+  transactionType: "adjustment" | "discount";
+  sourceTransactionId: string;
+  folioId: string | null;
+  financialAccountId: string | null;
+  quantity: number | null;
+  unitAmount: number | null;
+  originalGross: number;
+  remainingGross: number;
+  parentRemaining: number;
+  taxRemaining: number;
+  serviceRemaining: number;
+  netCorrection: number;
+  taxCorrection: number;
+  serviceCorrection: number;
+  grossCorrection: number;
+  newEffectiveGross: number;
+  shares: FolioChargeCorrectionShare[];
+}
+
+function readCorrectionPreview(value: unknown): FolioChargeCorrectionPreview {
+  const row = (value ?? {}) as Record<string, unknown>;
+  const shares = Array.isArray(row.shares) ? row.shares : [];
+  const mode = String(row.mode ?? "adjust_amount") as CorrectionMode;
+  return {
+    mode,
+    transactionType: row.transaction_type === "discount" ? "discount" : "adjustment",
+    sourceTransactionId: String(row.source_transaction_id ?? ""),
+    folioId: row.folio_id == null ? null : String(row.folio_id),
+    financialAccountId: row.financial_account_id == null ? null : String(row.financial_account_id),
+    quantity: row.quantity == null ? null : Number(row.quantity),
+    unitAmount: row.unit_amount == null ? null : Number(row.unit_amount),
+    originalGross: Number(row.original_gross ?? 0),
+    remainingGross: Number(row.remaining_gross ?? 0),
+    parentRemaining: Number(row.parent_remaining ?? 0),
+    taxRemaining: Number(row.tax_remaining ?? 0),
+    serviceRemaining: Number(row.service_remaining ?? 0),
+    netCorrection: Number(row.net_correction ?? 0),
+    taxCorrection: Number(row.tax_correction ?? 0),
+    serviceCorrection: Number(row.service_correction ?? 0),
+    grossCorrection: Number(row.gross_correction ?? 0),
+    newEffectiveGross: Number(row.new_effective_gross ?? 0),
+    shares: shares.map((share) => {
+      const line = share as Record<string, unknown>;
+      return { id: String(line.id ?? ""), share: Number(line.share ?? 0) };
+    }),
+  };
+}
+
+export const previewFolioChargeCorrection = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d: {
+      restaurantId: string;
+      sourceTransactionId: string;
+      mode: CorrectionMode;
+      amount?: number | null;
+    }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          sourceTransactionId: idSchema,
+          mode: z.enum(CORRECTION_MODES),
+          amount: z.number().finite().nullable().optional(),
+        })
+        .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<FolioChargeCorrectionPreview> => {
+    await requireCashierManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: preview, error } = await supabaseAdmin.rpc("preview_folio_charge_correction", {
+      _restaurant_id: data.restaurantId,
+      _source_transaction_id: data.sourceTransactionId,
+      _mode: data.mode,
+      _amount: data.amount ?? undefined,
+    });
+    if (error) throw cashierError(error.message);
+    return readCorrectionPreview(preview);
+  });
+
+export const postFolioChargeCorrection = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d: {
+      restaurantId: string;
+      sourceTransactionId: string;
+      mode: CorrectionMode;
+      amount?: number | null;
+      description: string;
+      idempotencyKey: string;
+    }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          sourceTransactionId: idSchema,
+          mode: z.enum(CORRECTION_MODES),
+          amount: z.number().finite().nullable().optional(),
+          description: z.string().min(1).max(200),
+          idempotencyKey: z.string().min(8).max(80),
+        })
+        .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<CashierResult & { gross?: number }> => {
+    const me = await requireCashierManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: result, error } = await supabaseAdmin.rpc("post_folio_charge_correction", {
+      _restaurant_id: data.restaurantId,
+      _source_transaction_id: data.sourceTransactionId,
+      _mode: data.mode,
+      _amount: data.amount ?? undefined,
+      _description: data.description.trim(),
+      _membership_id: me.id,
+      _idempotency_key: assertIdempotencyKey(data.idempotencyKey),
+    });
+    if (error) return { ok: false, message: cashierError(error.message).message };
+    const payload = result as { correction_id: string; gross: number };
+    return { ok: true, id: payload.correction_id, gross: Number(payload.gross) };
+  });
+
 const PRICING_UNITS = ["per_service", "per_person", "per_room", "per_night", "per_item"] as const;
 export type ChargePricingUnit = (typeof PRICING_UNITS)[number];
 

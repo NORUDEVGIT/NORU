@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Copy, History, MoreVertical, Receipt, SlidersHorizontal, Tag, ArrowLeftRight } from "lucide-react";
+import { Copy, History, MoreVertical, Receipt, SlidersHorizontal, ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { labelTransactionType } from "@/packages/pms/components/cashiering/folio-bits";
 import { InventoryStatusBadge } from "@/packages/pms/components/rooms/room-inventory-shared";
 import type { FolioTransactionRow, FolioWorkspace } from "@/packages/pms/lib/cashiering.functions";
+import { correctableGroupRemainder } from "@/packages/pms/lib/cashiering-transfer-allocate";
 import {
   chargeGroupRemainder,
   isParentTransferCharge,
@@ -248,8 +249,7 @@ export function ChargeDetailsSheet({
   money,
   dateTime,
   onClose,
-  onPostAdjustment,
-  onApplyDiscount,
+  onCorrectCharge,
   onTransferCharge,
 }: {
   group: FolioChargeGroup | null;
@@ -257,8 +257,7 @@ export function ChargeDetailsSheet({
   money: Money;
   dateTime: DateTimeFormat;
   onClose: () => void;
-  onPostAdjustment: () => void;
-  onApplyDiscount: () => void;
+  onCorrectCharge: () => void;
   onTransferCharge: () => void;
 }) {
   const [tab, setTab] = useState<DetailTab>("overview");
@@ -271,8 +270,12 @@ export function ChargeDetailsSheet({
   const row = group?.parent ?? null;
   const folio = workspace.folio;
   const rows = folio.transactions;
-  const canAdjust = Boolean(row && workspace.capabilities.canAdjust);
-  const canDiscount = Boolean(row && workspace.capabilities.canDiscount && row.type === "charge");
+  const canAdjust = Boolean(
+    row &&
+      workspace.capabilities.canAdjust &&
+      isParentTransferCharge(row) &&
+      correctableGroupRemainder(row.id, rows).grossRemaining > 0.009,
+  );
   const canTransfer = Boolean(
     row &&
       workspace.capabilities.canTransfer &&
@@ -351,13 +354,8 @@ export function ChargeDetailsSheet({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               {canAdjust ? (
-                <DropdownMenuItem onSelect={onPostAdjustment}>
-                  <SlidersHorizontal className="size-4 text-amber-700" /> Post Adjustment
-                </DropdownMenuItem>
-              ) : null}
-              {canDiscount ? (
-                <DropdownMenuItem onSelect={onApplyDiscount}>
-                  <Tag className="size-4 text-purple-700" /> Apply Discount
+                <DropdownMenuItem onSelect={onCorrectCharge}>
+                  <SlidersHorizontal className="size-4 text-amber-700" /> Correct Charge
                 </DropdownMenuItem>
               ) : null}
               {canTransfer ? (
@@ -365,7 +363,7 @@ export function ChargeDetailsSheet({
                   <ArrowLeftRight className="size-4" /> Transfer Charge
                 </DropdownMenuItem>
               ) : null}
-              {canAdjust || canDiscount || canTransfer ? <DropdownMenuSeparator /> : null}
+              {canAdjust || canTransfer ? <DropdownMenuSeparator /> : null}
               <DropdownMenuItem onSelect={() => setTab("history")}>
                 <History className="size-4" /> History
               </DropdownMenuItem>
@@ -524,13 +522,8 @@ export function ChargeDetailsSheet({
               ) : null}
               <div className="flex flex-col gap-2">
                 {canAdjust ? (
-                  <Button type="button" variant="outline" className="justify-start" onClick={onPostAdjustment}>
-                    <SlidersHorizontal className="size-4 text-amber-700" /> Post Adjustment
-                  </Button>
-                ) : null}
-                {canDiscount ? (
-                  <Button type="button" variant="outline" className="justify-start" onClick={onApplyDiscount}>
-                    <Tag className="size-4 text-purple-700" /> Apply Discount
+                  <Button type="button" variant="outline" className="justify-start" onClick={onCorrectCharge}>
+                    <SlidersHorizontal className="size-4 text-amber-700" /> Correct Charge
                   </Button>
                 ) : null}
                 {canTransfer ? (

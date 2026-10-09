@@ -37,7 +37,8 @@ import {
   CloseFolioDialog,
   FolioEntryDialog,
 } from "@/packages/pms/components/cashiering/folio-dialogs";
-import { ChargeDetailsSheet } from "@/packages/pms/components/cashiering/charge-details-sheet";
+import { ChargeDetailsSheet, chargeDepartment, chargeItemTitle, chargeQuantity, chargeUnitAmount } from "@/packages/pms/components/cashiering/charge-details-sheet";
+import { CorrectChargeDialog } from "@/packages/pms/components/cashiering/correct-charge-dialog";
 import { TransferChargeDialog } from "@/packages/pms/components/cashiering/transfer-charge-dialog";
 import { PostChargeDialog } from "@/packages/pms/components/cashiering/post-charge-dialog";
 import {
@@ -330,6 +331,7 @@ function FolioWorkspaceBody({
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<FolioTransactionRow | null>(null);
   const [chargeId, setChargeId] = useState<string | null>(null);
+  const [correctSourceId, setCorrectSourceId] = useState<string | null>(null);
   const [printMode, setPrintMode] = useState<"statement" | "invoice">("statement");
   const [showPreview, setShowPreview] = useState(false);
 
@@ -426,6 +428,9 @@ function FolioWorkspaceBody({
   const chargeGroup = chargeId
     ? (workspace.chargeGroups.find((group) => group.parent.id === chargeId) ?? null)
     : null;
+  const correctRow = correctSourceId
+    ? (folio.transactions.find((row) => row.id === correctSourceId) ?? null)
+    : null;
 
   const rowActions: RowActions = {
     onDetails: (row) => {
@@ -439,6 +444,7 @@ function FolioWorkspaceBody({
     },
     onTransfer: (row) => openTransfer(row.id),
     onCorrect: (type, row) => openEntry(type, row.id),
+    onCorrectCharge: (row) => setCorrectSourceId(row.id),
   };
 
   const nights = stayNights(folio.arrivalDate, folio.departureDate);
@@ -844,18 +850,28 @@ function FolioWorkspaceBody({
         money={money}
         dateTime={dateTime}
         onClose={() => setChargeId(null)}
-        onPostAdjustment={() => {
+        onCorrectCharge={() => {
           if (!chargeGroup) return;
-          openEntry("adjustment", chargeGroup.parent.id);
-        }}
-        onApplyDiscount={() => {
-          if (!chargeGroup) return;
-          openEntry("discount", chargeGroup.parent.id);
+          setCorrectSourceId(chargeGroup.parent.id);
         }}
         onTransferCharge={() => {
           if (!chargeGroup) return;
           openTransfer(chargeGroup.parent.id);
         }}
+      />
+      <CorrectChargeDialog
+        restaurantId={restaurantId}
+        sourceTransactionId={correctRow?.id ?? null}
+        title={correctRow ? chargeItemTitle(correctRow) : "Charge"}
+        department={correctRow ? chargeDepartment(correctRow) : null}
+        quantity={correctRow ? chargeQuantity(correctRow) : null}
+        unitAmount={correctRow ? chargeUnitAmount(correctRow) : null}
+        open={correctRow != null}
+        allowReplacement
+        onClose={() => setCorrectSourceId(null)}
+        onDone={onChanged}
+        onPostReplacement={() => setEntryType("charge")}
+        money={money}
       />
     </div>
   );
