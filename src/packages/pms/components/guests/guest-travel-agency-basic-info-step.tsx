@@ -30,7 +30,7 @@ import {
   ACCOUNT_CREATE_STATUS_LABELS,
   CONTACT_PREFERRED_METHODS,
   emptyAccountCreateContact,
-  generateAgencyCode,
+  nextAgencyCode,
   type GuestTravelAgentCreateDraft,
   type GuestTravelAgentCreateStepId,
 } from "@/packages/pms/lib/guest-travel-agent-create-workspace";
@@ -123,6 +123,7 @@ export function BasicInfoStep({
   fieldError,
   step,
   isRuleRequired,
+  usedAgencyCodes = [],
 }: {
   draft: GuestTravelAgentCreateDraft;
   set: <K extends keyof GuestTravelAgentCreateDraft>(key: K, value: GuestTravelAgentCreateDraft[K]) => void;
@@ -130,6 +131,7 @@ export function BasicInfoStep({
   fieldError: (key: string, stepId?: GuestTravelAgentCreateStepId) => string | undefined;
   step?: "basic_info" | "contacts";
   isRuleRequired?: (code: string) => boolean;
+  usedAgencyCodes?: string[];
 }) {
   const req = (code: string, fallback = false) => (isRuleRequired ? isRuleRequired(code) : fallback);
 
@@ -195,7 +197,7 @@ export function BasicInfoStep({
                 const opt = agencyTypeOptions.find((t) => t.id === val || t.code === val);
                 const codePrefix = opt?.code || val;
                 set("agencyType", val);
-                set("code", generateAgencyCode(codePrefix));
+                set("code", nextAgencyCode(codePrefix, usedAgencyCodes));
               }}
             >
               <SelectTrigger

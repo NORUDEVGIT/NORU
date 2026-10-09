@@ -120,6 +120,8 @@ export interface FolioDetail extends FolioRow {
   ratePlanCode?: string | null;
   transactions: FolioTransactionRow[];
   issuedInvoice: IssuedFolioInvoiceRow | null;
+  companyMasterId: string | null;
+  groupAccountMasterId: string | null;
 }
 
 export interface CashierShiftRow {
@@ -531,7 +533,7 @@ async function loadGuestFolio(
     .select(
       "id, folio_number, status, currency, opened_at, closed_at, reservation_id, guest_id, settlement_exception, " +
         "guest_profiles!guest_folios_guest_same_property(first_name, last_name, email, phone, nationality, vip_status), " +
-        "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, arrival_date, departure_date, status, market_segment, commercial_booking_source, commercial_sales_channel, guarantee_method, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name), rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property(id, code, name))",
+        "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, arrival_date, departure_date, status, company_master_id, group_account_master_id, market_segment, commercial_booking_source, commercial_sales_channel, guarantee_method, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name), rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property(id, code, name))",
     )
     .eq("id", folioId)
     .eq("restaurant_id", restaurantId)
@@ -562,6 +564,8 @@ async function loadGuestFolio(
       arrival_date: string;
       departure_date: string;
       status: string;
+      company_master_id: string | null;
+      group_account_master_id: string | null;
       market_segment: string | null;
       commercial_booking_source: string | null;
       commercial_sales_channel: string | null;
@@ -701,6 +705,8 @@ async function loadGuestFolio(
     bookingSource,
     transactions,
     issuedInvoice,
+    companyMasterId: f.hotel_reservations?.company_master_id ?? null,
+    groupAccountMasterId: f.hotel_reservations?.group_account_master_id ?? null,
     ...totals(transactions.map((t) => ({ amount: t.amount }))),
   };
 }
@@ -733,41 +739,87 @@ async function loadTransferCounterparts(
   restaurantId: string,
   folioId: string,
   transferIds: string[],
-): Promise<Record<string, { folioId: string; folioNumber: string }>> {
+): Promise<FolioWorkspace["transferCounterparts"]> {
   if (transferIds.length === 0) return {};
   const { data, error } = await supabaseAdmin
     .from("folio_transactions")
-    .select("transfer_id, folio_id")
+    .select("transfer_id, folio_id, financial_account_id")
     .eq("restaurant_id", restaurantId)
-    .in("transfer_id", transferIds)
-    .neq("folio_id", folioId);
+    .in("transfer_id", transferIds);
   if (error) {
     if (isMissingSchemaError(error)) return {};
     throw cashierError(error.message);
   }
-  const pairs = ((data ?? []) as Array<{ transfer_id: string; folio_id: string | null }>).filter(
-    (row): row is { transfer_id: string; folio_id: string } => Boolean(row.folio_id),
-  );
-  if (pairs.length === 0) return {};
-  const { data: folios } = await supabaseAdmin
-    .from("guest_folios")
-    .select("id, folio_number")
-    .eq("restaurant_id", restaurantId)
-    .in(
-      "id",
-      [...new Set(pairs.map((row) => row.folio_id))],
-    );
-  const numbers = new Map(
-    ((folios ?? []) as Array<{ id: string; folio_number: string }>).map((f) => [
-      f.id,
-      f.folio_number,
-    ]),
-  );
-  const result: Record<string, { folioId: string; folioNumber: string }> = {};
+  const pairs = (data ?? []) as Array<{
+    transfer_id: string;
+    folio_id: string | null;
+    financial_account_id: string | null;
+  }>;
+  const folioIds = [
+    ...new Set(
+      pairs
+        .map((row) => row.folio_id)
+        .filter((id): id is string => Boolean(id) && id !== folioId),
+    ),
+  ];
+  const accountIds = [
+    ...new Set(
+      pairs.map((row) => row.financial_account_id).filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const numbers = new Map<string, string>();
+  if (folioIds.length > 0) {
+    const { data: folios } = await supabaseAdmin
+      .from("guest_folios")
+      .select("id, folio_number")
+      .eq("restaurant_id", restaurantId)
+      .in("id", folioIds);
+    for (const folio of (folios ?? []) as Array<{ id: string; folio_number: string }>) {
+      numbers.set(folio.id, folio.folio_number);
+    }
+  }
+  const accounts = new Map<string, { number: string; name: string }>();
+  if (accountIds.length > 0) {
+    const { data: accountRows } = await supabaseAdmin
+      .from("financial_accounts")
+      .select("id, account_number, master_id")
+      .eq("restaurant_id", restaurantId)
+      .in("id", accountIds);
+    const loaded = (accountRows ?? []) as Array<{
+      id: string;
+      account_number: string;
+      master_id: string;
+    }>;
+    const masterIds = [...new Set(loaded.map((row) => row.master_id))];
+    const names = new Map<string, string>();
+    if (masterIds.length > 0) {
+      const { data: masters } = await supabaseAdmin
+        .from("guest_account_masters")
+        .select("id, name")
+        .eq("restaurant_id", restaurantId)
+        .in("id", masterIds);
+      for (const master of (masters ?? []) as Array<{ id: string; name: string }>) {
+        names.set(master.id, master.name);
+      }
+    }
+    for (const account of loaded) {
+      accounts.set(account.id, {
+        number: account.account_number,
+        name: names.get(account.master_id) ?? "Account",
+      });
+    }
+  }
+  const result: FolioWorkspace["transferCounterparts"] = {};
   for (const row of pairs) {
+    const otherFolio = row.folio_id && row.folio_id !== folioId ? row.folio_id : null;
+    const account = row.financial_account_id ? accounts.get(row.financial_account_id) : undefined;
+    if (!otherFolio && !account) continue;
     result[row.transfer_id] = {
-      folioId: row.folio_id,
-      folioNumber: numbers.get(row.folio_id) ?? "Other folio",
+      folioId: otherFolio,
+      folioNumber: otherFolio ? (numbers.get(otherFolio) ?? "Other folio") : null,
+      accountId: row.financial_account_id,
+      accountNumber: account?.number ?? null,
+      accountName: account?.name ?? null,
     };
   }
   return result;
@@ -780,7 +832,16 @@ export interface FolioWorkspace {
   depositSummary: { received: number; applied: number; available: number };
   chargeGroups: FolioChargeGroup[];
   recentPayments: FolioTransactionRow[];
-  transferCounterparts: Record<string, { folioId: string; folioNumber: string }>;
+  transferCounterparts: Record<
+    string,
+    {
+      folioId: string | null;
+      folioNumber: string | null;
+      accountId: string | null;
+      accountNumber: string | null;
+      accountName: string | null;
+    }
+  >;
   invoiceSettingsAvailable: boolean;
   canManage: boolean;
   canOperate: boolean;

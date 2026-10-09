@@ -18,7 +18,10 @@ import {
 } from "@/packages/pms/lib/cashiering.functions";
 import {
   listFolioWindows,
+  listFinancialAccounts,
+  postCrossLedgerTransfer,
   postFolioTransfer,
+  type FinancialAccountRow,
 } from "@/packages/pms/lib/cashiering-phases.functions";
 import {
   chargeGroupRemainder,
@@ -86,6 +89,9 @@ export function TransferChargeDialog({
   const [sourceId, setSourceId] = useState("");
   const [search, setSearch] = useState("");
   const [targetId, setTargetId] = useState("");
+  const [destinationKind, setDestinationKind] = useState<"guest_folio" | "company" | "group">(
+    "guest_folio",
+  );
   const [mode, setMode] = useState<"full" | "partial">("full");
   const [partial, setPartial] = useState("");
   const [reason, setReason] = useState("");
@@ -97,6 +103,7 @@ export function TransferChargeDialog({
     setSourceId(first?.row.id ?? "");
     setSearch("");
     setTargetId("");
+    setDestinationKind("guest_folio");
     setMode("full");
     setPartial("");
     setReason("");
@@ -116,42 +123,93 @@ export function TransferChargeDialog({
 
   const fetchFolios = useServerFn(listFolios);
   const fetchWindows = useServerFn(listFolioWindows);
+  const fetchAccounts = useServerFn(listFinancialAccounts);
+  const postFolio = useServerFn(postFolioTransfer);
+  const postAccount = useServerFn(postCrossLedgerTransfer);
   const foliosQuery = useQuery({
     queryKey: ["transfer-destination-folios", restaurantId, search],
     queryFn: () =>
       fetchFolios({
         data: { restaurantId, status: "open", search },
       }),
-    enabled: open,
+    enabled: open && destinationKind === "guest_folio",
     retry: false,
   });
   const targets = (foliosQuery.data ?? []).filter(
     (row) => row.id !== folio.id && row.status === "open" && row.currency === folio.currency,
   );
+  const accountsQuery = useQuery({
+    queryKey: ["transfer-destination-accounts", restaurantId, destinationKind],
+    queryFn: () => fetchAccounts({ data: { restaurantId } }),
+    enabled: open && destinationKind !== "guest_folio",
+    retry: false,
+  });
+  const linkedMasterId =
+    destinationKind === "company"
+      ? folio.companyMasterId
+      : destinationKind === "group"
+        ? folio.groupAccountMasterId
+        : null;
+  const accountTargets = (accountsQuery.data ?? [])
+    .filter(
+      (row) =>
+        row.accountKind === destinationKind &&
+        row.status === "open" &&
+        row.currency === folio.currency &&
+        (search.trim() === "" ||
+          row.masterName.toLowerCase().includes(search.trim().toLowerCase()) ||
+          row.accountNumber.toLowerCase().includes(search.trim().toLowerCase())),
+    )
+    .sort((a, b) => Number(b.masterId === linkedMasterId) - Number(a.masterId === linkedMasterId));
+  const accountDestination = accountTargets.find((row) => row.id === targetId) ?? null;
   const destination = targets.find((row) => row.id === targetId) ?? null;
   const windowsQuery = useQuery({
     queryKey: ["folio-windows", restaurantId, targetId],
     queryFn: () => fetchWindows({ data: { restaurantId, folioId: targetId } }),
-    enabled: open && Boolean(targetId),
+    enabled: open && destinationKind === "guest_folio" && Boolean(targetId),
     retry: false,
   });
   const targetWindow =
     (windowsQuery.data ?? []).find((window) => window.isPrimary) ?? windowsQuery.data?.[0] ?? null;
+  const creditLimit =
+    destinationKind === "company" ? (accountDestination?.creditLimitAmount ?? null) : null;
+  const projectedAccountBalance =
+    accountDestination && amountValid
+      ? roundFolioMoney(accountDestination.balance + transferAmount)
+      : null;
+  const creditBlocked =
+    creditLimit != null && projectedAccountBalance != null && projectedAccountBalance > creditLimit + 0.001;
 
-  const post = useServerFn(postFolioTransfer);
   const mutation = useMutation({
     mutationFn: async () => {
       if (!selected || !group) throw new Error("Choose a charge to transfer.");
-      if (!destination || !targetWindow) throw new Error("Choose an open destination folio.");
       if (!amountValid) throw new Error("Enter an amount within the remaining transferable total.");
       if (!reason.trim()) throw new Error("Enter a reason.");
-      return post({
+      if (creditBlocked) throw new Error("That transfer would exceed the company credit limit.");
+      if (destinationKind === "guest_folio") {
+        if (!destination || !targetWindow) throw new Error("Choose an open destination folio.");
+        return postFolio({
+          data: {
+            restaurantId,
+            sourceFolioId: folio.id,
+            targetFolioId: destination.id,
+            sourceTransactionId: selected.row.id,
+            targetWindowId: targetWindow.id,
+            amount: roundFolioMoney(transferAmount),
+            description: reason.trim(),
+            idempotencyKey: idemKey,
+          },
+        });
+      }
+      if (!accountDestination) throw new Error("Choose an open destination account.");
+      return postAccount({
         data: {
           restaurantId,
-          sourceFolioId: folio.id,
-          targetFolioId: destination.id,
+          sourceType: "guest_folio",
+          sourceId: folio.id,
           sourceTransactionId: selected.row.id,
-          targetWindowId: targetWindow.id,
+          destinationType: "financial_account",
+          destinationId: accountDestination.id,
           amount: roundFolioMoney(transferAmount),
           description: reason.trim(),
           idempotencyKey: idemKey,
@@ -171,17 +229,23 @@ export function TransferChargeDialog({
   });
 
   const sourceBalance = workspace.financialSummary.currentBalance;
-  const destinationBalance = destination?.balance ?? 0;
+  const destinationBalance =
+    destinationKind === "guest_folio" ? (destination?.balance ?? 0) : (accountDestination?.balance ?? 0);
   const moved = amountValid ? roundFolioMoney(transferAmount) : 0;
   const title = selected ? chargeItemTitle(selected.row) : "Charge";
   const department = selected ? chargeDepartment(selected.row) : null;
   const quantity = selected ? chargeQuantity(selected.row) : null;
   const unitAmount = selected ? chargeUnitAmount(selected.row) : null;
   const postingNow = dateTime(new Date().toISOString());
+  const destinationReady =
+    destinationKind === "guest_folio"
+      ? Boolean(destination && targetWindow)
+      : Boolean(accountDestination);
   const canPost =
-    Boolean(destination && targetWindow && selected && reason.trim() && amountValid) &&
+    Boolean(destinationReady && selected && reason.trim() && amountValid) &&
+    !creditBlocked &&
     !mutation.isPending &&
-    !windowsQuery.isLoading;
+    (destinationKind !== "guest_folio" || !windowsQuery.isLoading);
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
@@ -255,30 +319,82 @@ export function TransferChargeDialog({
 
             <section className="rounded-xl border border-[#E8E1D7] bg-card p-4 shadow-sm">
               <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Destination folio
+                Destination
               </h3>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(
+                  [
+                    ["guest_folio", "Guest Folio"],
+                    ["company", "Company"],
+                    ["group", "Group"],
+                  ] as const
+                ).map(([kind, label]) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    className={cn(
+                      "rounded-lg border px-3 py-1.5 text-xs",
+                      destinationKind === kind
+                        ? "border-[#C89933] bg-[#C89933]/10 text-[#251605]"
+                        : "border-[#E8E1D7] text-muted-foreground",
+                    )}
+                    onClick={() => {
+                      setDestinationKind(kind);
+                      setTargetId("");
+                      setSearch("");
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <Label htmlFor="transfer-destination-search" className="sr-only">
-                Search folio, guest, room or reservation
+                Search destination
               </Label>
               <Input
                 id="transfer-destination-search"
                 className="mt-3"
                 value={search}
-                placeholder="Search folio, guest, room or reservation..."
+                placeholder={
+                  destinationKind === "guest_folio"
+                    ? "Search folio, guest, room or reservation..."
+                    : destinationKind === "company"
+                      ? "Search company name or account number..."
+                      : "Search group name or account number..."
+                }
                 onChange={(event) => setSearch(event.target.value)}
               />
               <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
-                {foliosQuery.isLoading ? (
-                  <p className="text-xs text-muted-foreground">Loading open folios…</p>
-                ) : targets.length === 0 ? (
+                {destinationKind === "guest_folio" ? (
+                  foliosQuery.isLoading ? (
+                    <p className="text-xs text-muted-foreground">Loading open folios…</p>
+                  ) : targets.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No other open folio in {folio.currency} matches that search.
+                    </p>
+                  ) : (
+                    targets.map((row) => (
+                      <DestinationCard
+                        key={row.id}
+                        row={row}
+                        selected={row.id === targetId}
+                        money={money}
+                        onSelect={() => setTargetId(row.id)}
+                      />
+                    ))
+                  )
+                ) : accountsQuery.isLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading open accounts…</p>
+                ) : accountTargets.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    No other open folio in {folio.currency} matches that search.
+                    No open {destinationKind} account in {folio.currency} matches that search.
                   </p>
                 ) : (
-                  targets.map((row) => (
-                    <DestinationCard
+                  accountTargets.map((row) => (
+                    <AccountDestinationCard
                       key={row.id}
                       row={row}
+                      linked={row.masterId === linkedMasterId}
                       selected={row.id === targetId}
                       money={money}
                       onSelect={() => setTargetId(row.id)}
@@ -367,11 +483,19 @@ export function TransferChargeDialog({
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">To</dt>
-                <dd className="font-medium">{destination?.guestName ?? "—"}</dd>
+                <dd className="font-medium">
+                  {destinationKind === "guest_folio"
+                    ? (destination?.guestName ?? "—")
+                    : (accountDestination?.masterName ?? "—")}
+                </dd>
                 <dd className="text-xs text-muted-foreground">
-                  {destination
-                    ? `${destination.folioNumber} · ${roomLine(destination.roomNumber, destination.roomTypeName)}`
-                    : "Choose a destination folio"}
+                  {destinationKind === "guest_folio"
+                    ? destination
+                      ? `${destination.folioNumber} · ${roomLine(destination.roomNumber, destination.roomTypeName)}`
+                      : "Choose a destination folio"
+                    : accountDestination
+                      ? `${accountDestination.accountNumber} · ${accountDestination.accountKind}`
+                      : "Choose a destination account"}
                 </dd>
               </div>
               <MoneyLine label="Charge" value={title} />
@@ -388,12 +512,39 @@ export function TransferChargeDialog({
                 <dd className="text-xs">
                   Destination balance{" "}
                   <span className="tabular-nums">
-                    {destination ? money(destinationBalance) : "—"} →{" "}
-                    {destination && amountValid
+                    {destinationKind === "guest_folio"
+                      ? destination
+                        ? money(destinationBalance)
+                        : "—"
+                      : accountDestination
+                        ? money(destinationBalance)
+                        : "—"}{" "}
+                    →{" "}
+                    {(destinationKind === "guest_folio" ? destination : accountDestination) &&
+                    amountValid
                       ? money(roundFolioMoney(destinationBalance + moved))
                       : "—"}
                   </span>
                 </dd>
+                {destinationKind === "company" && creditLimit != null ? (
+                  <dd className="mt-1 text-xs">
+                    Credit limit <span className="tabular-nums">{money(creditLimit)}</span>
+                    {projectedAccountBalance != null ? (
+                      <>
+                        {" · "}
+                        Utilization after{" "}
+                        <span className="tabular-nums">
+                          {Math.round((projectedAccountBalance / creditLimit) * 100)}%
+                        </span>
+                      </>
+                    ) : null}
+                    {creditBlocked ? (
+                      <span className="mt-1 block text-destructive">
+                        Projected balance exceeds the company credit limit.
+                      </span>
+                    ) : null}
+                  </dd>
+                ) : null}
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Reason</dt>
@@ -458,6 +609,42 @@ function DestinationCard({
         {row.roomNumber ? ` · ${roomLine(row.roomNumber, row.roomTypeName)}` : ""}
         {row.confirmationNumber ? ` · ${row.confirmationNumber}` : ""}
       </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Current balance <span className="tabular-nums text-foreground">{money(row.balance)}</span>
+        {" · "}
+        {row.currency}
+      </p>
+    </button>
+  );
+}
+
+function AccountDestinationCard({
+  row,
+  linked,
+  selected,
+  money,
+  onSelect,
+}: {
+  row: FinancialAccountRow;
+  linked: boolean;
+  selected: boolean;
+  money: (value: number) => string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "w-full rounded-lg border px-3 py-2 text-left",
+        selected ? "border-[#C89933] bg-[#C89933]/8" : "border-[#E8E1D7] hover:bg-muted/30",
+      )}
+      onClick={onSelect}
+    >
+      <p className="text-sm font-medium">{row.masterName}</p>
+      <p className="text-xs text-muted-foreground">
+        {row.accountNumber} · {row.accountKind} · {row.status}
+      </p>
+      {linked ? <p className="text-xs text-[#8a6a1f]">Linked to this stay</p> : null}
       <p className="mt-1 text-xs text-muted-foreground">
         Current balance <span className="tabular-nums text-foreground">{money(row.balance)}</span>
         {" · "}

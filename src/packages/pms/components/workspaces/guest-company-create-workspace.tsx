@@ -423,7 +423,7 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
     onSuccess: (result) => {
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       toast.success("Company created.");
-      setCreated({ id: result.id!, name: draft.name, code: draft.code || null });
+      setCreated({ id: result.id!, name: draft.name, code: result.code || draft.code || null });
     },
     onError: (error: Error) => toast.error(error.message),
   });

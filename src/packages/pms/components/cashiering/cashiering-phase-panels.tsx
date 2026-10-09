@@ -16,6 +16,7 @@ import {
   financialAccountKindFromMaster,
   type CashieringMasterKind,
 } from "@/packages/pms/components/cashiering/cashiering-master-picker";
+import { AccountReturnTransferDialog } from "@/packages/pms/components/cashiering/account-return-transfer-dialog";
 import {
   DeskActionPanel,
   DeskSection,
@@ -369,6 +370,7 @@ export function AccountsPanel({
   const [masterKind, setMasterKind] = useState<CashieringMasterKind>("company");
   const [selectedMaster, setSelectedMaster] = useState<GuestAccountSummary | null>(null);
   const [currency, setCurrency] = useState("GBP");
+  const [transferAccount, setTransferAccount] = useState<FinancialAccountRow | null>(null);
 
   const openAccount = useServerFn(openFinancialAccount);
   const closeAccount = useServerFn(closeFinancialAccount);
@@ -502,6 +504,15 @@ export function AccountsPanel({
                     <td className="px-3 py-2">
                       {canManage && row.status === "open" ? (
                         <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="min-h-11 sm:min-h-8"
+                            onClick={() => setTransferAccount(row)}
+                          >
+                            Charges
+                          </Button>
                           {Math.abs(row.balance) >= 0.01 ? (
                             <Button
                               type="button"
@@ -581,6 +592,16 @@ export function AccountsPanel({
           )}
         </DeskActionPanel>
       </DeskTwoColumn>
+      <AccountReturnTransferDialog
+        restaurantId={restaurantId}
+        account={transferAccount}
+        open={transferAccount != null}
+        onClose={() => setTransferAccount(null)}
+        onDone={() =>
+          void queryClient.invalidateQueries({ queryKey: ["financial-accounts", restaurantId] })
+        }
+        money={money}
+      />
     </div>
   );
 }

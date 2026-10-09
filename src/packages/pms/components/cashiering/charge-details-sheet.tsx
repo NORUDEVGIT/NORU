@@ -160,6 +160,27 @@ function linkedRows(group: FolioChargeGroup, rows: FolioTransactionRow[]): Folio
   return linked;
 }
 
+function transferDestinations(
+  group: FolioChargeGroup,
+  rows: FolioTransactionRow[],
+  workspace: FolioWorkspace,
+): Array<{ id: string; label: string }> {
+  const seen = new Set<string>();
+  const destinations: Array<{ id: string; label: string }> = [];
+  for (const linked of linkedRows(group, rows)) {
+    if (linked.type !== "transfer_out" && linked.type !== "transfer_in") continue;
+    if (!linked.transferId || seen.has(linked.transferId)) continue;
+    seen.add(linked.transferId);
+    const other = workspace.transferCounterparts[linked.transferId];
+    const label = other?.accountName
+      ? `${other.accountName}${other.accountNumber ? ` · ${other.accountNumber}` : ""}`
+      : other?.folioNumber;
+    if (!label) continue;
+    destinations.push({ id: linked.transferId, label });
+  }
+  return destinations;
+}
+
 function historyEvents(group: FolioChargeGroup, rows: FolioTransactionRow[]) {
   const transfers = new Map<string, FolioTransactionRow[]>();
   const events: Array<{
@@ -384,6 +405,9 @@ export function ChargeDetailsSheet({
                 <Field label="Unit price" value={unitAmount == null ? "—" : money(unitAmount)} />
                 <Field label="Entered subtotal" value={entered == null ? "—" : money(entered)} />
                 <Field label="Description" value={dash(row.description)} />
+                {transferDestinations(group, rows, workspace).map((destination) => (
+                  <Field key={destination.id} label="Transferred to" value={destination.label} />
+                ))}
               </dl>
               <div className="border-t border-[#E8E1D7] pt-3">
                 <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">

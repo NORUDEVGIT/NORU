@@ -10,6 +10,7 @@ import {
   GUEST_TRAVEL_AGENT_CREATE_MIGRATION_FILE,
   GUEST_TRAVEL_AGENT_CREATE_STEPS,
   emptyGuestTravelAgentCreateDraft,
+  nextAgencyCode,
   guestTravelAgentCreateHoldKey,
   inferGuestTravelAgentCreateStep,
   parseGuestTravelAgentCreateHold,
@@ -35,6 +36,12 @@ function filledDraft() {
 }
 
 describe("Travel agency create workflow helpers", () => {
+  it("assigns the next unused agency code for a prefix", () => {
+    assert.equal(nextAgencyCode("TA", []), "TA-001");
+    assert.equal(nextAgencyCode("OTA", ["OTA-001", "TA-004"]), "OTA-002");
+    assert.equal(nextAgencyCode("TA", ["TA-001", "ta-002"]), "TA-003");
+  });
+
   it("defines the canonical 5-step Travel Agency registration wizard", () => {
     assert.deepEqual(
       GUEST_TRAVEL_AGENT_CREATE_STEPS.map((step) => step.id),

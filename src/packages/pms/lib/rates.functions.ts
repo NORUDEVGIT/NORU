@@ -15,6 +15,7 @@ import {
 import { callerMembership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { REPORTS_ROLES } from "@/core/lib/module-access";
+import { selectCompanyBookingDefaults } from "./create-reservation-step3";
 import { requireReservationManager } from "./reservations.server";
 import { computeBookedRevenueOverview } from "./revenue/revenue-metrics";
 import { loadQuoteMerchandising } from "./rate-quote-read-model.server";
@@ -1043,7 +1044,19 @@ export type AccountRatePlanHint = {
   matched: boolean;
 };
 
-/** Maps company/agency setup references onto existing hotel_rate_plans. Does not invent prices. */
+function agreementRatePlanIds(row: Record<string, unknown>): string[] {
+  const ids: string[] = [];
+  if (typeof row.rate_plan_id === "string" && row.rate_plan_id) ids.push(row.rate_plan_id);
+  const extra = row.rate_plan_ids;
+  if (Array.isArray(extra)) {
+    for (const item of extra) {
+      if (typeof item === "string" && item) ids.push(item);
+    }
+  }
+  return ids;
+}
+
+/** Maps the company's saved agreement and billing rule onto the reservation. */
 export const listAccountRatePlanHints = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -1052,51 +1065,141 @@ export const listAccountRatePlanHints = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         accountId: idSchema,
         roomTypeId: idSchema.optional(),
+        arrival: dateSchema.optional(),
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ hints: AccountRatePlanHint[] }> => {
-    await requireReservationManager(context as never, data.restaurantId);
-    const { data: account } = await context.supabase
-      .from("guest_account_masters")
-      .select("id, name, code, negotiated_rate_reference")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("id", data.accountId)
-      .maybeSingle();
-    if (!account) return { hints: [] };
-    let plansQuery = context.supabase
-      .from("hotel_rate_plans")
-      .select("id, code, name")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("active", true);
-    if (data.roomTypeId) plansQuery = plansQuery.eq("room_type_id", data.roomTypeId);
-    const { data: plans } = await plansQuery;
-    const rows = (plans ?? []) as Array<{ id: string; code: string; name: string }>;
-    const needle = String(account.negotiated_rate_reference ?? account.code ?? "")
-      .trim()
-      .toLowerCase();
-    const hints: AccountRatePlanHint[] = [];
-    if (needle) {
-      for (const plan of rows) {
-        const hay = `${plan.code} ${plan.name}`.toLowerCase();
-        if (hay.includes(needle) || needle.includes(plan.code.toLowerCase())) {
-          hints.push({
-            planId: plan.id,
-            label: `${plan.code} · ${plan.name}`,
-            matched: true,
-          });
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{
+      hints: AccountRatePlanHint[];
+      defaultBillingRuleId: string | null;
+      agreementLabel: string | null;
+    }> => {
+      await requireReservationManager(context as never, data.restaurantId);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      let accountResult = await supabaseAdmin
+        .from("guest_account_masters")
+        .select("id, name, code, negotiated_rate_reference, default_billing_rule_id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.accountId)
+        .maybeSingle();
+      if (accountResult.error?.code === "42703") {
+        accountResult = await supabaseAdmin
+          .from("guest_account_masters")
+          .select("id, name, code, negotiated_rate_reference")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", data.accountId)
+          .maybeSingle();
+      }
+      if (accountResult.error) throw new Error(accountResult.error.message);
+      const account = accountResult.data as {
+        id: string;
+        name: string;
+        code: string | null;
+        negotiated_rate_reference: string | null;
+        default_billing_rule_id?: string | null;
+      } | null;
+      if (!account) {
+        return { hints: [], defaultBillingRuleId: null, agreementLabel: null, contractRates: [] };
+      }
+
+      let plansQuery = supabaseAdmin
+        .from("hotel_rate_plans")
+        .select("id, code, name")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("active", true);
+      if (data.roomTypeId) plansQuery = plansQuery.eq("room_type_id", data.roomTypeId);
+      const { data: plans } = await plansQuery;
+      const planRows = (plans ?? []) as Array<{ id: string; code: string; name: string }>;
+
+      let agreementResult = await supabaseAdmin
+        .from("pms_corporate_agreements")
+        .select("id, name, code, status, active, valid_from, valid_to, currency_code, pricing_method, rate_plan_scope, discount_type, discount_value, rate_plan_id, rate_plan_ids")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("company_id", data.accountId)
+        .order("valid_from", { ascending: false });
+      if (agreementResult.error?.code === "42703" || agreementResult.error?.code === "PGRST204") {
+        agreementResult = await supabaseAdmin
+          .from("pms_corporate_agreements")
+          .select("id, name, code, status, active, valid_from, valid_to, currency_code, rate_plan_id")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("company_id", data.accountId)
+          .order("valid_from", { ascending: false });
+      }
+      const agreementRows =
+        agreementResult.error || !agreementResult.data
+          ? []
+          : (agreementResult.data as Array<Record<string, unknown>>);
+      const agreementIds = agreementRows.map((row) => String(row.id));
+      const currencyByAgreement = new Map(
+        agreementRows.map((row) => [String(row.id), String(row.currency_code ?? "")]),
+      );
+      let contractRateRows: Array<Record<string, unknown>> = [];
+      if (agreementIds.length > 0) {
+        const ratesResult = await supabaseAdmin
+          .from("pms_contract_rates")
+          .select("agreement_id, room_type_id, amount, active")
+          .eq("restaurant_id", data.restaurantId)
+          .in("agreement_id", agreementIds);
+        if (!ratesResult.error && ratesResult.data) {
+          contractRateRows = ratesResult.data as Array<Record<string, unknown>>;
         }
       }
-    }
-    if (hints.length === 0 && account.negotiated_rate_reference) {
-      hints.push({
-        planId: null,
-        label: String(account.negotiated_rate_reference),
-        matched: false,
+      const roomTypeIds = [
+        ...new Set(
+          contractRateRows
+            .map((row) => (typeof row.room_type_id === "string" ? row.room_type_id : ""))
+            .filter(Boolean),
+        ),
+      ];
+      const roomNames = new Map<string, string>();
+      if (roomTypeIds.length > 0) {
+        const roomsResult = await supabaseAdmin
+          .from("room_types")
+          .select("id, name")
+          .eq("restaurant_id", data.restaurantId)
+          .in("id", roomTypeIds);
+        for (const row of (roomsResult.data ?? []) as Array<{ id: string; name: string }>) {
+          roomNames.set(row.id, row.name);
+        }
+      }
+
+      const selected = selectCompanyBookingDefaults({
+        arrival: data.arrival ?? null,
+        defaultBillingRuleId: account.default_billing_rule_id ?? null,
+        negotiatedReference: account.negotiated_rate_reference,
+        accountCode: account.code,
+        plans: planRows,
+        agreements: agreementRows.map((row) => ({
+          id: String(row.id),
+          name: String(row.name ?? ""),
+          code: String(row.code ?? ""),
+          active: row.active !== false,
+          status: row.status == null ? null : String(row.status),
+          validFrom: String(row.valid_from ?? ""),
+          validTo: String(row.valid_to ?? ""),
+          ratePlanId: typeof row.rate_plan_id === "string" ? row.rate_plan_id : null,
+          ratePlanIds: agreementRatePlanIds(row).filter((id) => id !== row.rate_plan_id),
+          pricingMethod: row.pricing_method == null ? null : String(row.pricing_method),
+          ratePlanScope: row.rate_plan_scope == null ? null : String(row.rate_plan_scope),
+          discountType: row.discount_type == null ? null : String(row.discount_type),
+          discountValue: row.discount_value == null ? null : Number(row.discount_value),
+        })),
+        contractRates: contractRateRows
+          .filter((row) => row.active !== false && typeof row.room_type_id === "string")
+          .map((row) => ({
+            roomTypeId: String(row.room_type_id),
+            roomTypeName: roomNames.get(String(row.room_type_id)) ?? "",
+            amount: Number(row.amount ?? 0),
+            currency: currencyByAgreement.get(String(row.agreement_id ?? "")) ?? "",
+          })),
       });
-    }
-    return { hints };
-  });
+      return selected;
+    },
+  );
 
 /* --------------------------------------------------------------- repricing */
 

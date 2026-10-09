@@ -30,6 +30,19 @@ const saveSchema = z
   })
   .strict();
 
+const createDepartmentSchema = z
+  .object({
+    restaurantId: idSchema,
+    name: z.string().trim().min(1).max(80),
+    code: z
+      .string()
+      .trim()
+      .min(1)
+      .max(20)
+      .regex(/^[A-Za-z0-9_-]+$/, "Use letters, numbers, hyphens, or underscores."),
+  })
+  .strict();
+
 function unavailable(error: { code?: string; message?: string } | null): never {
   if (error?.code === "42P01" || error?.code === "PGRST204" || error?.code === "PGRST205") {
     throw new Error(
@@ -68,6 +81,7 @@ function mapServiceType(row: {
   code: string;
   description: string | null;
   active: boolean;
+  chargeable_to_folio?: boolean;
   display_order: number;
   created_at: string;
   updated_at: string;
@@ -79,7 +93,7 @@ function mapServiceType(row: {
     code: row.code,
     description: row.description,
     active: row.active,
-    chargeableToFolio: false,
+    chargeableToFolio: row.chargeable_to_folio === true,
     displayOrder: row.display_order,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -151,7 +165,7 @@ async function loadSnapshot(
     db
       .from("pms_guest_service_types")
       .select(
-        "id, category_id, name, code, description, active, display_order, created_at, updated_at",
+        "id, category_id, name, code, description, active, chargeable_to_folio, display_order, created_at, updated_at",
       )
       .eq("restaurant_id", restaurantId)
       .order("display_order")
@@ -204,6 +218,38 @@ export const getPmsCard4ServiceDepartmentAssignments = createServerFn({ method: 
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId);
+  });
+
+export const createPmsCard4CustomDepartment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => createDepartmentSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as DbClient;
+    const result = await db
+      .from("pms_departments")
+      .insert({
+        restaurant_id: data.restaurantId,
+        name: data.name.trim(),
+        code: data.code.trim().toUpperCase(),
+        active: true,
+        department_type: "custom",
+      })
+      .select("id")
+      .single();
+    if (result.error?.code === "23505") {
+      throw new Error("That department code is already used.");
+    }
+    if (result.error) unavailable(result.error);
+    const id = result.data?.id;
+    if (!id) throw new Error("Could not create the department.");
+    await writeAudit(db, data.restaurantId, context.userId, "pms_card4_custom_department_created", {
+      id,
+      name: data.name.trim(),
+      code: data.code.trim().toUpperCase(),
+    });
+    return { ok: true as const, id };
   });
 
 export const savePmsCard4ServiceDepartmentAssignment = createServerFn({ method: "POST" })

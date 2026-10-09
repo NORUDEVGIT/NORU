@@ -26,6 +26,20 @@ const set5Src = readFileSync(
   "utf8",
 );
 const card5Src = readFileSync(new URL("./departments-card5.functions.ts", import.meta.url), "utf8");
+const billingSql = readFileSync(
+  new URL(
+    "../../../../supabase/migrations/0140_card4_billing_department_chargeable.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const billingDrizzleSql = readFileSync(
+  new URL(
+    "../../../../drizzle/migrations/0140_card4_billing_department_chargeable.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 const opsSrc = readFileSync(
   new URL("../../../routes/restaurant/pms/guest-services.tsx", import.meta.url),
   "utf8",
@@ -158,16 +172,29 @@ describe("Card 4 Guest Service Types department assignment", () => {
     );
   });
 
-  it("reuses pms_departments and stays isolated from SET5 request types and operations", () => {
+  it("creates custom departments without coupling Card 4 to SET5 operations", () => {
     assert.match(functionsSrc, /pms_guest_service_department_assignments/);
     assert.match(functionsSrc, /pms_departments/);
     assert.doesNotMatch(functionsSrc, /pms_guest_request_types/);
     assert.doesNotMatch(functionsSrc, /pms_department_routing_rules/);
-    assert.doesNotMatch(functionsSrc, /from\("pms_departments"\)\.insert/);
+    assert.match(functionsSrc, /createPmsCard4CustomDepartment/);
+    assert.match(functionsSrc, /department_type: "custom"/);
+    assert.match(uiSrc, /Create custom department/);
+    assert.match(uiSrc, /Custom department created and selected/);
     assert.match(uiSrc, /data-testid="card4-department-assignment"/);
     assert.match(set5Src, /pms_guest_request_types/);
     assert.doesNotMatch(set5Src, /pms_guest_service_department_assignments/);
     assert.doesNotMatch(card5Src, /pms_guest_service_department_assignments/);
     assert.doesNotMatch(opsSrc, /pms_guest_service_department_assignments/);
+  });
+
+  it("makes an active billing assignment chargeable to folio", () => {
+    assert.equal(billingSql, billingDrizzleSql);
+    assert.match(billingSql, /NEW\.active IS TRUE AND NEW\.is_billing_department IS TRUE/);
+    assert.match(billingSql, /SET chargeable_to_folio = true/);
+    assert.match(billingSql, /AFTER INSERT OR UPDATE OF active, is_billing_department/);
+    assert.match(billingSql, /UPDATE public\.pms_guest_service_types AS service/);
+    assert.doesNotMatch(billingSql, /SET chargeable_to_folio = false/);
+    assert.match(uiSrc, /automatically turns on Chargeable to folio/);
   });
 });

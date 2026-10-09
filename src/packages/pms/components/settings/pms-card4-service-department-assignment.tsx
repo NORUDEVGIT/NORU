@@ -5,6 +5,7 @@ import { MoreHorizontal, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  createPmsCard4CustomDepartment,
   deletePmsCard4ServiceDepartmentAssignment,
   getPmsCard4ServiceDepartmentAssignments,
   savePmsCard4ServiceDepartmentAssignment,
@@ -29,6 +30,14 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import { Button } from "@/shared/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -88,6 +97,7 @@ export function PmsCard4ServiceDepartmentAssignment({
   const queryClient = useQueryClient();
   const load = useServerFn(getPmsCard4ServiceDepartmentAssignments);
   const save = useServerFn(savePmsCard4ServiceDepartmentAssignment);
+  const createDepartment = useServerFn(createPmsCard4CustomDepartment);
   const setActive = useServerFn(setPmsCard4ServiceDepartmentAssignmentActive);
   const remove = useServerFn(deletePmsCard4ServiceDepartmentAssignment);
   const queryKey = ["pms-card4-department-assignment", restaurantId];
@@ -107,6 +117,9 @@ export function PmsCard4ServiceDepartmentAssignment({
     emptyServiceDepartmentAssignmentDraft(),
   );
   const [dirty, setDirty] = useState(false);
+  const [customDepartmentOpen, setCustomDepartmentOpen] = useState(false);
+  const [customDepartmentName, setCustomDepartmentName] = useState("");
+  const [customDepartmentCode, setCustomDepartmentCode] = useState("");
   const [pendingDelete, setPendingDelete] = useState<ServiceDepartmentAssignmentRecord | null>(
     null,
   );
@@ -171,6 +184,26 @@ export function PmsCard4ServiceDepartmentAssignment({
       toast.error(error.message || "Unable to save department assignment."),
   });
 
+  const createDepartmentMutation = useMutation({
+    mutationFn: () =>
+      createDepartment({
+        data: {
+          restaurantId,
+          name: customDepartmentName.trim(),
+          code: customDepartmentCode.trim(),
+        },
+      }),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey });
+      mark("departmentId", result.id);
+      setCustomDepartmentOpen(false);
+      setCustomDepartmentName("");
+      setCustomDepartmentCode("");
+      toast.success("Custom department created and selected.");
+    },
+    onError: (error: Error) => toast.error(error.message || "Unable to create department."),
+  });
+
   const toggleMutation = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
       setActive({ data: { restaurantId, ...input } }),
@@ -191,7 +224,11 @@ export function PmsCard4ServiceDepartmentAssignment({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const busy = saveMutation.isPending || toggleMutation.isPending || deleteMutation.isPending;
+  const busy =
+    saveMutation.isPending ||
+    createDepartmentMutation.isPending ||
+    toggleMutation.isPending ||
+    deleteMutation.isPending;
   const canSave = canEdit && !busy && (!editorOpen || errors.length === 0) && Boolean(query.data);
   useEffect(() => {
     onSavingChange(busy, canSave);
@@ -262,7 +299,7 @@ export function PmsCard4ServiceDepartmentAssignment({
         <div>
           <h2 className="font-display text-2xl text-[#251605]">Department Assignment</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Choose which existing department is responsible for each guest service type.
+            Choose an existing department or create a custom one for each guest service type.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
         </div>
@@ -435,7 +472,7 @@ export function PmsCard4ServiceDepartmentAssignment({
               {draft.id ? "Edit Department Assignment" : "Add Department Assignment"}
             </SheetTitle>
             <SheetDescription>
-              Assign an existing PMS department. SLA rules and availability stay separate.
+              Assign a PMS department. You can create a custom department without leaving this form.
             </SheetDescription>
           </SheetHeader>
           <form
@@ -492,19 +529,33 @@ export function PmsCard4ServiceDepartmentAssignment({
               {errorFor("departmentId") ? (
                 <p className="text-xs text-destructive">{errorFor("departmentId")}</p>
               ) : null}
+              {canEdit ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-1"
+                  onClick={() => setCustomDepartmentOpen(true)}
+                >
+                  <Plus className="mr-1 size-3.5" /> Create custom department
+                </Button>
+              ) : null}
             </div>
             <div className="flex items-center justify-between gap-3">
               <div>
                 <Label htmlFor="da-billing">Billing department</Label>
                 <p className="text-xs text-muted-foreground">
-                  Cashiering uses this department for the service. Only one assignment can be the billing department.
+                  Cashiering uses this department and automatically turns on Chargeable to folio for
+                  the selected service. Only one assignment can be the billing department.
                 </p>
               </div>
               <Switch
                 id="da-billing"
                 checked={draft.isBillingDepartment}
                 disabled={!canEdit}
-                onCheckedChange={(isBillingDepartment) => mark("isBillingDepartment", isBillingDepartment)}
+                onCheckedChange={(isBillingDepartment) =>
+                  mark("isBillingDepartment", isBillingDepartment)
+                }
               />
             </div>
             <div className="flex items-center justify-between gap-3">
@@ -526,6 +577,76 @@ export function PmsCard4ServiceDepartmentAssignment({
           </form>
         </SheetContent>
       </Sheet>
+
+      <Dialog
+        open={customDepartmentOpen}
+        onOpenChange={(open) => {
+          if (!createDepartmentMutation.isPending) setCustomDepartmentOpen(open);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Custom Department</DialogTitle>
+            <DialogDescription>
+              The new active department will be added to the department list and selected for this
+              assignment.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              createDepartmentMutation.mutate();
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="custom-department-name">Department name *</Label>
+              <Input
+                id="custom-department-name"
+                maxLength={80}
+                value={customDepartmentName}
+                placeholder="Guest Relations"
+                onChange={(event) => setCustomDepartmentName(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="custom-department-code">Department code *</Label>
+              <Input
+                id="custom-department-code"
+                maxLength={20}
+                value={customDepartmentCode}
+                placeholder="GUEST_REL"
+                onChange={(event) =>
+                  setCustomDepartmentCode(
+                    event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""),
+                  )
+                }
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={createDepartmentMutation.isPending}
+                onClick={() => setCustomDepartmentOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+                disabled={
+                  createDepartmentMutation.isPending ||
+                  !customDepartmentName.trim() ||
+                  !customDepartmentCode.trim()
+                }
+              >
+                {createDepartmentMutation.isPending ? "Creating…" : "Create Department"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={Boolean(pendingDelete)}

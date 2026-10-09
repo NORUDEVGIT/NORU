@@ -659,7 +659,7 @@ export async function executeSaveTravelAgencyCommissionRates(
     const validFrom = payload.netValidFrom || new Date().toISOString().slice(0, 10);
     const validTo = payload.netValidUntil || new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
     const currencyCode = (payload.netCurrencyCode || "ETB").trim();
-    const code = `NET-${uuidFirstSegment(crypto.randomUUID())?.toUpperCase() || "TA"}`.slice(0, 20);
+    const code = `NET_${(uuidFirstSegment(crypto.randomUUID()) ?? "TA").toUpperCase().replace(/[^A-Z0-9]/g, "")}`.slice(0, 20);
 
     const agreementPayload: Record<string, any> = {
       restaurant_id: restaurantId,

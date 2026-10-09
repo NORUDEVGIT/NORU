@@ -17,6 +17,7 @@ import {
   draftToTravelAgentAccountInput,
   draftToTravelAgentAccountOperations,
   filled,
+  nextAgencyCode,
   parseGuestTravelAgentCreateHold,
   travelAgentCommissionReady,
   type AccountCreateCatalogueOption,
@@ -64,6 +65,7 @@ export type TravelAgentCreateContext = {
     active: boolean;
     requiredFieldIds: string[];
   } | null;
+  usedAgencyCodes?: string[];
 };
 
 function mapOption(row: Record<string, unknown>): AccountCreateCatalogueOption {
@@ -227,6 +229,18 @@ export const getTravelAgentCreateContext = createServerFn({ method: "POST" })
       }
     }
 
+    const existingCodesRes = await db
+      .from("guest_account_masters")
+      .select("code")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("account_type", "travel_agent")
+      .not("code", "is", null);
+    const usedAgencyCodes = existingCodesRes.error || !Array.isArray(existingCodesRes.data)
+      ? []
+      : existingCodesRes.data
+          .map((row: { code?: string | null }) => String(row.code ?? "").trim().toUpperCase())
+          .filter(Boolean);
+
     return {
       catalogues: {
         agencyTypes,
@@ -262,6 +276,7 @@ export const getTravelAgentCreateContext = createServerFn({ method: "POST" })
               : [],
           }
         : null,
+      usedAgencyCodes,
     };
   });
 
@@ -402,6 +417,25 @@ export const persistTravelAgentCreate = createServerFn({ method: "POST" })
     if (data.mode === "draft" && !filled(draft.agencyType)) {
       return { id: draft.accountId, contacts: draft.contacts, created: false as const };
     }
+    if (!draft.accountId) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const existingCodesRes = await admin(supabaseAdmin)
+        .from("guest_account_masters")
+        .select("code")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("account_type", "travel_agent")
+        .not("code", "is", null);
+      const used = new Set<string>();
+      if (!existingCodesRes.error && Array.isArray(existingCodesRes.data)) {
+        for (const row of existingCodesRes.data) {
+          const code = String(row.code ?? "").trim().toUpperCase();
+          if (code) used.add(code);
+        }
+      }
+      const wanted = draft.code?.trim().toUpperCase() ?? "";
+      const prefix = wanted.match(/^([A-Z0-9_]+)-\d+$/)?.[1] || "TA";
+      draft.code = !wanted || used.has(wanted) ? nextAgencyCode(prefix, used) : wanted;
+    }
     const account = draftToTravelAgentAccountInput(draft);
     let accountId = draft.accountId;
     if (accountId) {
@@ -498,5 +532,5 @@ export const persistTravelAgentCreate = createServerFn({ method: "POST" })
       }
       error = caught instanceof Error ? caught.message : "Some agency details could not be saved.";
     }
-    return { id: accountId, contacts, created: true as const, error };
+    return { id: accountId, contacts, code: draft.code?.trim() || null, created: true as const, error };
   });

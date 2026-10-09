@@ -254,7 +254,7 @@ export function GuestTravelAgentCreateWorkspace({ restaurantId }: { restaurantId
     onSuccess: (result) => {
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       toast.success("Travel agency created.");
-      setCreated({ id: result.id!, name: draft.name, code: draft.code || null });
+      setCreated({ id: result.id!, name: draft.name, code: result.code || draft.code || null });
     },
     onError: (error: Error) => toast.error(error.message),
   });

@@ -1118,7 +1118,9 @@ export function TransfersTab({
     const first = [...lines].sort((a, b) => a.postedAt.localeCompare(b.postedAt))[0];
     const out = lines.some((line) => line.type === "transfer_out");
     const other = first.transferId ? workspace.transferCounterparts[first.transferId] : undefined;
-    const otherLabel = other?.folioNumber ?? "—";
+    const otherLabel = other?.accountName
+      ? `${other.accountName}${other.accountNumber ? ` · ${other.accountNumber}` : ""}`
+      : (other?.folioNumber ?? "—");
     const parentLine =
       lines.find((line) => line.sourceCharge && !isTaxOrServiceCategory(line.sourceCharge.category)) ??
       lines[0];

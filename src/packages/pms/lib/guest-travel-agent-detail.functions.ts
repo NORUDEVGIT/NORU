@@ -1850,19 +1850,48 @@ export const listTravelAgentCommissionPlans = createServerFn({ method: "POST" })
       active?: boolean | null;
       notes?: string | null;
     }
+    const planRows = (plans.data ?? []) as CommissionPlanRow[];
+    const planIds = planRows.map((row) => String(row.id ?? "")).filter(Boolean);
+    const scopesByPlan = new Map<string, string[]>();
+    if (planIds.length > 0) {
+      const rules = await db
+        .from("pms_agency_commission_rules")
+        .select("commission_plan_id, scope_type, active")
+        .eq("restaurant_id", data.restaurantId)
+        .in("commission_plan_id", planIds);
+      if (!rules.error && Array.isArray(rules.data)) {
+        for (const rule of rules.data as Array<{
+          commission_plan_id?: string | null;
+          scope_type?: string | null;
+          active?: boolean | null;
+        }>) {
+          if (rule.active === false) continue;
+          const planId = String(rule.commission_plan_id ?? "");
+          if (!planId) continue;
+          const scopes = scopesByPlan.get(planId) ?? [];
+          scopes.push(String(rule.scope_type ?? ""));
+          scopesByPlan.set(planId, scopes);
+        }
+      }
+    }
     return {
       available: true,
-      items: ((plans.data ?? []) as CommissionPlanRow[]).map((row) => ({
-        id: String(row.id),
-        commissionType: String(row.commission_type),
-        rateValue: Number(row.rate_value),
-        currency: String(row.currency),
-        effectiveOn: String(row.effective_on),
-        expiresOn: row.expires_on ? String(row.expires_on) : null,
-        agreementId: row.agreement_id ? String(row.agreement_id) : null,
-        active: row.active !== false,
-        notes: row.notes ? String(row.notes) : null,
-      })),
+      items: planRows.map((row) => {
+        const id = String(row.id);
+        const scopes = scopesByPlan.get(id) ?? [];
+        return {
+          id,
+          commissionType: String(row.commission_type),
+          rateValue: Number(row.rate_value),
+          currency: String(row.currency),
+          effectiveOn: String(row.effective_on),
+          expiresOn: row.expires_on ? String(row.expires_on) : null,
+          agreementId: row.agreement_id ? String(row.agreement_id) : null,
+          active: row.active !== false,
+          notes: row.notes ? String(row.notes) : null,
+          appliesToAll: scopes.length === 0 || scopes.every((scope) => scope === "all"),
+        };
+      }),
     };
   });
 
