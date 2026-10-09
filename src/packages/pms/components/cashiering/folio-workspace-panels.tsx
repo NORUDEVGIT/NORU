@@ -1402,7 +1402,11 @@ export function folioWarnings(workspace: FolioWorkspace, money: Money): string[]
   if (folio.status === "open" && balance > 0.009)
     warnings.push(`${money(balance)} outstanding balance on this folio.`);
   const invoice = folio.issuedInvoice;
-  if (invoice && Math.abs(invoice.snapshot.totals.balance - balance) > 0.009)
+  if (
+    invoice &&
+    invoice.snapshot.version < 2 &&
+    Math.abs(invoice.snapshot.totals.balance - balance) > 0.009
+  )
     warnings.push("Invoice issued, but the live folio has changed since issuance.");
   if (folio.status === "open" && workspace.depositSummary.available > 0.009)
     warnings.push(

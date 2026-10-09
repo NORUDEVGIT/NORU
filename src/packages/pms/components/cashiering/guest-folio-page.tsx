@@ -41,10 +41,7 @@ import { ChargeDetailsSheet, chargeDepartment, chargeItemTitle, chargeQuantity, 
 import { CorrectChargeDialog } from "@/packages/pms/components/cashiering/correct-charge-dialog";
 import { TransferChargeDialog } from "@/packages/pms/components/cashiering/transfer-charge-dialog";
 import { PostChargeDialog } from "@/packages/pms/components/cashiering/post-charge-dialog";
-import {
-  FolioInvoicePanel,
-  FolioInvoicePreview,
-} from "@/packages/pms/components/cashiering/folio-invoice-panel";
+import { FolioInvoicePanel } from "@/packages/pms/components/cashiering/folio-invoice-panel";
 import {
   AdjustmentsTab,
   ApplyDepositDialog,
@@ -65,11 +62,12 @@ import {
   InventoryState,
   InventoryStatusBadge,
 } from "@/packages/pms/components/rooms/room-inventory-shared";
+import { GuestInvoiceWorkspace } from "@/packages/pms/components/cashiering/guest-invoice-builder";
 import {
-  issueGuestFolioInvoice,
   reprintGuestFolioInvoice,
   type InvoiceActionResult,
 } from "@/packages/pms/lib/cashiering-invoices.functions";
+import type { IssuedFolioInvoiceRow } from "@/packages/pms/lib/cashiering-invoices.server";
 import {
   getCashieringCorrectionNotice,
   getDefaultDepositPolicy,
@@ -318,7 +316,6 @@ function FolioWorkspaceBody({
   const { dateTime } = useRestaurantTime();
   const folio = workspace.folio;
   const caps = workspace.capabilities;
-  const invoice = folio.issuedInvoice;
 
   const [tab, setTab] = useState<FolioWorkspaceTabId>(() => resolveTab(initialTab));
   const [entryType, setEntryType] = useState<TransactionType | null>(null);
@@ -333,7 +330,7 @@ function FolioWorkspaceBody({
   const [chargeId, setChargeId] = useState<string | null>(null);
   const [correctSourceId, setCorrectSourceId] = useState<string | null>(null);
   const [printMode, setPrintMode] = useState<"statement" | "invoice">("statement");
-  const [showPreview, setShowPreview] = useState(false);
+  const [printInvoice, setPrintInvoice] = useState<IssuedFolioInvoiceRow | null>(null);
 
   useEffect(() => {
     setTab(resolveTab(initialTab));
@@ -387,31 +384,11 @@ function FolioWorkspaceBody({
     setApplyOpen(true);
   }
 
-  const issueInvoice = useServerFn(issueGuestFolioInvoice);
   const reprintInvoice = useServerFn(reprintGuestFolioInvoice);
-  const issueMut = useMutation({
-    mutationFn: () =>
-      issueInvoice({
-        data: {
-          restaurantId,
-          folioId: folio.id,
-          idempotencyKey: `issue:${folio.id}:${Date.now()}`,
-        },
-      }) as Promise<InvoiceActionResult>,
-    onSuccess: (result) => {
-      if (!result.ok) {
-        toast.error(result.message);
-        return;
-      }
-      toast.success(`Invoice ${result.invoice.issuedNumber} issued.`);
-      onChanged();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
   const reprintMut = useMutation({
-    mutationFn: () =>
+    mutationFn: (invoice: IssuedFolioInvoiceRow) =>
       reprintInvoice({
-        data: { restaurantId, invoiceId: folio.issuedInvoice!.id },
+        data: { restaurantId, invoiceId: invoice.id },
       }) as Promise<InvoiceActionResult>,
     onSuccess: (result) => {
       if (!result.ok) {
@@ -419,6 +396,7 @@ function FolioWorkspaceBody({
         return;
       }
       toast.success(`Reprint recorded for ${result.invoice.issuedNumber}.`);
+      setPrintInvoice(result.invoice);
       onChanged();
       printWith("invoice");
     },
@@ -600,18 +578,14 @@ function FolioWorkspaceBody({
                     Print Statement
                   </ActionItem>
                   {caps.canIssueInvoice ? (
-                    <ActionItem
-                      icon={FileText}
-                      onSelect={() => issueMut.mutate()}
-                      disabled={issueMut.isPending}
-                    >
-                      Issue Invoice
+                    <ActionItem icon={FileText} onSelect={() => selectTab("invoices")}>
+                      Create Invoice
                     </ActionItem>
                   ) : null}
-                  {caps.canReprintInvoice ? (
+                  {caps.canReprintInvoice && folio.issuedInvoices[0] ? (
                     <ActionItem
                       icon={FileText}
-                      onSelect={() => reprintMut.mutate()}
+                      onSelect={() => reprintMut.mutate(folio.issuedInvoices[0])}
                       disabled={reprintMut.isPending}
                     >
                       Reprint Invoice
@@ -713,17 +687,15 @@ function FolioWorkspaceBody({
               />
             ) : null}
             {tab === "invoices" ? (
-              <InvoicesPanel
+              <GuestInvoiceWorkspace
+                restaurantId={restaurantId}
                 workspace={workspace}
                 money={money}
                 dateTime={dateTime}
-                showPreview={showPreview}
-                onTogglePreview={() => setShowPreview((v) => !v)}
-                onIssue={() => issueMut.mutate()}
-                issuing={issueMut.isPending}
-                onReprint={() => reprintMut.mutate()}
+                onChanged={onChanged}
+                onPostCharge={() => openEntry("charge")}
+                onReprint={(invoice) => reprintMut.mutate(invoice)}
                 reprinting={reprintMut.isPending}
-                onPrintStatement={() => printWith("statement")}
               />
             ) : null}
             {tab === "history" ? (
@@ -745,10 +717,7 @@ function FolioWorkspaceBody({
             workspace={workspace}
             money={money}
             dateTime={dateTime}
-            onViewInvoice={() => {
-              setShowPreview(true);
-              selectTab("invoices");
-            }}
+            onViewInvoice={() => selectTab("invoices")}
           />
         </div>
       </div>
@@ -761,8 +730,8 @@ function FolioWorkspaceBody({
           propertyName={propertyName}
         />
       ) : null}
-      {printMode === "invoice" && invoice ? (
-        <FolioInvoicePanel invoice={invoice} money={money} dateTime={dateTime} />
+      {printMode === "invoice" && printInvoice ? (
+        <FolioInvoicePanel invoice={printInvoice} money={money} dateTime={dateTime} />
       ) : null}
 
       {entryType === "charge" ? (
@@ -883,113 +852,6 @@ function FolioWorkspaceBody({
         money={money}
       />
     </div>
-  );
-}
-
-function InvoicesPanel({
-  workspace,
-  money,
-  dateTime,
-  showPreview,
-  onTogglePreview,
-  onIssue,
-  issuing,
-  onReprint,
-  reprinting,
-  onPrintStatement,
-}: {
-  workspace: FolioWorkspace;
-  money: (value: number) => string;
-  dateTime: (iso: string | null | undefined) => string;
-  showPreview: boolean;
-  onTogglePreview: () => void;
-  onIssue: () => void;
-  issuing: boolean;
-  onReprint: () => void;
-  reprinting: boolean;
-  onPrintStatement: () => void;
-}) {
-  const caps = workspace.capabilities;
-  const invoice = workspace.folio.issuedInvoice;
-  return (
-    <section className={cn(CARD, "overflow-hidden")} data-testid="folio-invoices">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E8E1D7] px-4 py-3">
-        <div>
-          <h3 className="text-sm font-semibold">Invoices & Documents</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Issued invoices are immutable snapshots. The live folio may continue to change after
-            issuance.
-          </p>
-        </div>
-        <Button size="sm" variant="outline" className="h-8" onClick={onPrintStatement}>
-          <Printer className="size-4" /> Print statement
-        </Button>
-      </div>
-      <div className="space-y-3 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E8E1D7] px-3 py-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span
-              className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-lg",
-                invoice ? "bg-blue-500/10 text-blue-700" : "bg-muted text-muted-foreground",
-              )}
-            >
-              <FileText className="size-4" />
-            </span>
-            {invoice ? (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{invoice.issuedNumber}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Issued {dateTime(invoice.issuedAt)} · Reprinted {invoice.reprintCount}{" "}
-                  {invoice.reprintCount === 1 ? "time" : "times"}
-                </p>
-              </div>
-            ) : (
-              <div>
-                <p className="text-sm font-medium">No issued invoice</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {workspace.canManage && !workspace.invoiceSettingsAvailable
-                    ? "Set up invoice settings before issuing an invoice."
-                    : "A statement prints the live folio and is not an issued invoice."}
-                </p>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {invoice ? (
-              <Button size="sm" variant="outline" className="h-8" onClick={onTogglePreview}>
-                {showPreview ? "Hide preview" : "Preview"}
-              </Button>
-            ) : null}
-            {caps.canIssueInvoice ? (
-              <Button
-                size="sm"
-                className="h-8"
-                disabled={issuing}
-                onClick={onIssue}
-                data-testid="folio-invoice-issue"
-              >
-                <FileText className="size-4" /> Issue invoice
-              </Button>
-            ) : null}
-            {caps.canReprintInvoice ? (
-              <Button
-                size="sm"
-                className="h-8"
-                disabled={reprinting}
-                onClick={onReprint}
-                data-testid="reprint-invoice"
-              >
-                <Printer className="size-4" /> Reprint invoice
-              </Button>
-            ) : null}
-          </div>
-        </div>
-        {invoice && showPreview ? (
-          <FolioInvoicePreview invoice={invoice} money={money} dateTime={dateTime} />
-        ) : null}
-      </div>
-    </section>
   );
 }
 

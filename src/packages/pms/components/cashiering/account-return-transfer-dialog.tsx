@@ -11,6 +11,7 @@ import {
   type FinancialAccountChargeRow,
   type FinancialAccountRow,
 } from "@/packages/pms/lib/cashiering-phases.functions";
+import { getFinancialAccountInvoiceBoard } from "@/packages/pms/lib/cashiering-account-invoices.functions";
 import {
   chargeGroupRemainder,
   correctableGroupRemainder,
@@ -51,6 +52,7 @@ export function AccountReturnTransferDialog({
   money: (value: number) => string;
 }) {
   const fetchCharges = useServerFn(listFinancialAccountCharges);
+  const fetchBoard = useServerFn(getFinancialAccountInvoiceBoard);
   const fetchFolios = useServerFn(listFolios);
   const post = useServerFn(postCrossLedgerTransfer);
   const [sourceId, setSourceId] = useState("");
@@ -80,6 +82,17 @@ export function AccountReturnTransferDialog({
     enabled: open && Boolean(account),
     retry: false,
   });
+  const boardQuery = useQuery({
+    queryKey: ["account-invoice-board", restaurantId, account?.id],
+    queryFn: () => fetchBoard({ data: { restaurantId, accountId: account?.id ?? "" } }),
+    enabled: open && Boolean(account),
+    retry: false,
+  });
+  const invoicedIds = new Set(
+    (boardQuery.data?.groups ?? [])
+      .filter((group) => group.invoiceState === "invoiced")
+      .flatMap((group) => [group.sourceGroupId, ...group.ledgerIds]),
+  );
   const rows = (chargesQuery.data ?? []) as FinancialAccountChargeRow[];
   const ledger = rows.map((row) => ({
     id: row.id,
@@ -92,9 +105,16 @@ export function AccountReturnTransferDialog({
     .filter(
       (row) => row.type === "charge" && row.category !== "tax" && row.category !== "service_charge",
     )
-    .map((row) => ({ row, remainder: chargeGroupRemainder(row.id, ledger) }))
-    .filter((entry) => entry.remainder.grossRemaining > 0.009);
-  const selected = sources.find((entry) => entry.row.id === sourceId) ?? sources[0] ?? null;
+    .map((row) => ({
+      row,
+      remainder: chargeGroupRemainder(row.id, ledger),
+      invoiced: invoicedIds.has(row.id),
+    }))
+    .filter((entry) => entry.remainder.grossRemaining > 0.009 || entry.invoiced);
+  const selected =
+    sources.find((entry) => entry.row.id === sourceId && !entry.invoiced) ??
+    sources.find((entry) => !entry.invoiced) ??
+    null;
   const gross = selected?.remainder.grossRemaining ?? 0;
   const parsedPartial = Number(partial);
   const transferAmount = mode === "full" ? gross : parsedPartial;
@@ -187,6 +207,9 @@ export function AccountReturnTransferDialog({
                       {row.quantity != null && row.unitAmount != null
                         ? ` · ${row.quantity} × ${money(row.unitAmount)}`
                         : ""}
+                      {invoicedIds.has(row.id) || invoicedIds.has(row.originalTransactionId ?? "")
+                        ? " · Invoiced"
+                        : ""}
                     </li>
                   ))}
                 </ul>
@@ -206,14 +229,17 @@ export function AccountReturnTransferDialog({
                       <button
                         type="button"
                         className="block w-full text-left"
+                        disabled={entry.invoiced}
                         onClick={() => setSourceId(entry.row.id)}
                       >
                         <span className="font-medium">{entry.row.description}</span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
-                          Remaining {money(entry.remainder.grossRemaining)}
+                          {entry.invoiced
+                            ? "This charge is part of an issued invoice. Use a credit note to correct it."
+                            : `Remaining ${money(entry.remainder.grossRemaining)}`}
                         </span>
                       </button>
-                      {correctable.some((item) => item.row.id === entry.row.id) ? (
+                      {!entry.invoiced && correctable.some((item) => item.row.id === entry.row.id) ? (
                         <span className="mt-2 block">
                           <Button
                             type="button"

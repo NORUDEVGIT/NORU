@@ -1683,7 +1683,13 @@ function FinancialAccountsTable({
               {rows.map((row) => (
                 <tr key={row.id} className={cn(TABLE_ROW, ROW_HOVER)}>
                   <td className="px-3 py-2.5">
-                    <IconTextCell icon={AccountIcon} primary={row.accountNumber} secondary={nameLabel} />
+                    <Link
+                      to="/restaurant/pms/cashiering/accounts/$accountId"
+                      params={{ accountId: row.id }}
+                      className="block"
+                    >
+                      <IconTextCell icon={AccountIcon} primary={row.accountNumber} secondary={nameLabel} />
+                    </Link>
                   </td>
                   <td className="px-3 py-2.5 font-medium">{row.masterName}</td>
                   <td className="px-3 py-2.5">

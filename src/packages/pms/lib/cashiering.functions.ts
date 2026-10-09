@@ -24,7 +24,7 @@ import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { formatDepositPolicyResult, type DepositPolicyType } from "./payments-card3.server";
-import { loadGuestFolioInvoice } from "./cashiering-invoices.functions";
+import { loadGuestFolioInvoices } from "./cashiering-invoices.functions";
 import type { IssuedFolioInvoiceRow } from "./cashiering-invoices.server";
 import {
   buildDepositLines,
@@ -120,6 +120,8 @@ export interface FolioDetail extends FolioRow {
   ratePlanCode?: string | null;
   transactions: FolioTransactionRow[];
   issuedInvoice: IssuedFolioInvoiceRow | null;
+  issuedInvoices: IssuedFolioInvoiceRow[];
+  legacyFolioInvoice: boolean;
   companyMasterId: string | null;
   groupAccountMasterId: string | null;
 }
@@ -656,8 +658,8 @@ async function loadGuestFolio(
   }));
 
   const reservation = f.hotel_reservations;
-  const [issuedInvoice, marketSegment, bookingSource, salesChannel] = await Promise.all([
-    loadGuestFolioInvoice(supabaseAdmin, restaurantId, f.id),
+  const [invoiceLoad, marketSegment, bookingSource, salesChannel] = await Promise.all([
+    loadGuestFolioInvoices(supabaseAdmin, restaurantId, f.id),
     resolveCatalogueLabel(supabaseAdmin, restaurantId, "pms_market_segments", reservation?.market_segment),
     resolveCatalogueLabel(
       supabaseAdmin,
@@ -704,7 +706,9 @@ async function loadGuestFolio(
     marketSegment,
     bookingSource,
     transactions,
-    issuedInvoice,
+    issuedInvoice: invoiceLoad.invoices[0] ?? null,
+    issuedInvoices: invoiceLoad.invoices,
+    legacyFolioInvoice: invoiceLoad.legacyFolio,
     companyMasterId: f.hotel_reservations?.company_master_id ?? null,
     groupAccountMasterId: f.hotel_reservations?.group_account_master_id ?? null,
     ...totals(transactions.map((t) => ({ amount: t.amount }))),
@@ -911,9 +915,10 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
         balance: folio.balance,
         canManage,
         canOperate,
-        hasInvoice: Boolean(folio.issuedInvoice),
+        hasInvoice: folio.issuedInvoices.length > 0,
         hasLines: folio.transactions.length > 0,
         invoiceSettingsAvailable,
+        legacyFolioInvoice: folio.legacyFolioInvoice,
       }),
     };
   });

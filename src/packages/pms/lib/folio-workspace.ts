@@ -266,6 +266,7 @@ export function folioCapabilities(input: {
   hasInvoice: boolean;
   hasLines: boolean;
   invoiceSettingsAvailable: boolean;
+  legacyFolioInvoice: boolean;
 }): FolioCapabilities {
   const settled = Math.abs(input.balance) < 0.01;
   return {
@@ -276,8 +277,7 @@ export function folioCapabilities(input: {
     canRefund: input.canManage && input.open,
     canDiscount: input.canManage && input.open,
     canTransfer: input.canManage && input.open,
-    canIssueInvoice:
-      input.canManage && !input.hasInvoice && input.hasLines && input.invoiceSettingsAvailable,
+    canIssueInvoice: input.canManage && !input.legacyFolioInvoice && input.invoiceSettingsAvailable,
     canReprintInvoice: input.canManage && input.hasInvoice,
     canClose: input.canManage && input.open && settled,
     canWriteOff: input.canManage && input.open && input.balance > 0.009,

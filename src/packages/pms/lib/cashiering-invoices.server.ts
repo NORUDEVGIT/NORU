@@ -27,6 +27,7 @@ export type FolioInvoiceSnapshot = {
     numberPadding: number;
     taxDisplay: string;
     invoiceFormat: string;
+    notes: string | null;
   };
   property: {
     currencyCode: string;
@@ -36,6 +37,9 @@ export type FolioInvoiceSnapshot = {
     tradingName: string | null;
     vatNumber: string | null;
     vatRegistered: boolean | null;
+    tinNumber: string | null;
+    fullAddress: string | null;
+    phone: string | null;
   };
   folio: {
     id: string;
@@ -49,6 +53,7 @@ export type FolioInvoiceSnapshot = {
     arrivalDate: string | null;
     departureDate: string | null;
     reservationStatus: string | null;
+    roomNumber: string | null;
   };
   lines: FolioInvoiceLine[];
   totals: {
@@ -56,6 +61,9 @@ export type FolioInvoiceSnapshot = {
     credits: number;
     balance: number;
     tax: number;
+    subtotal: number | null;
+    serviceCharge: number | null;
+    invoiceTotal: number | null;
   };
 };
 
@@ -88,6 +96,7 @@ export function mapFolioInvoiceSnapshot(raw: unknown): FolioInvoiceSnapshot {
       numberPadding: Number(document?.numberPadding ?? 6),
       taxDisplay: String(document?.taxDisplay ?? "exclusive"),
       invoiceFormat: String(document?.invoiceFormat ?? "standard"),
+      notes: document?.notes ? String(document.notes) : null,
     },
     property: {
       currencyCode: String(property?.currencyCode ?? "GBP"),
@@ -97,6 +106,9 @@ export function mapFolioInvoiceSnapshot(raw: unknown): FolioInvoiceSnapshot {
       tradingName: property?.tradingName ? String(property.tradingName) : null,
       vatNumber: property?.vatNumber ? String(property.vatNumber) : null,
       vatRegistered: property?.vatRegistered === true,
+      tinNumber: property?.tinNumber ? String(property.tinNumber) : null,
+      fullAddress: property?.fullAddress ? String(property.fullAddress) : null,
+      phone: property?.phone ? String(property.phone) : null,
     },
     folio: {
       id: String(folio?.id ?? ""),
@@ -110,6 +122,7 @@ export function mapFolioInvoiceSnapshot(raw: unknown): FolioInvoiceSnapshot {
       arrivalDate: folio?.arrivalDate ? String(folio.arrivalDate) : null,
       departureDate: folio?.departureDate ? String(folio.departureDate) : null,
       reservationStatus: folio?.reservationStatus ? String(folio.reservationStatus) : null,
+      roomNumber: folio?.roomNumber ? String(folio.roomNumber) : null,
     },
     lines: lines.map((line) => {
       const l = line as Record<string, unknown>;
@@ -140,9 +153,74 @@ export function mapFolioInvoiceSnapshot(raw: unknown): FolioInvoiceSnapshot {
       credits: Number(totals?.credits ?? 0),
       balance: Number(totals?.balance ?? 0),
       tax: Number(totals?.tax ?? 0),
+      subtotal: totals?.subtotal == null || totals.subtotal === "" ? null : Number(totals.subtotal),
+      serviceCharge:
+        totals?.serviceCharge == null || totals.serviceCharge === ""
+          ? null
+          : Number(totals.serviceCharge),
+      invoiceTotal:
+        totals?.invoiceTotal == null || totals.invoiceTotal === ""
+          ? null
+          : Number(totals.invoiceTotal),
     },
   };
 }
+
+export type InvoiceComponentLine = {
+  id: string;
+  description: string;
+  amount: number;
+  name: string;
+  code: string | null;
+  basis: string | null;
+  calculation: string | null;
+};
+
+export type InvoiceGroupView = {
+  parentTransactionId: string;
+  postedAt: string;
+  description: string;
+  category: string;
+  departmentName: string | null;
+  chargeSource: string | null;
+  quantity: number | null;
+  unitAmount: number | null;
+  subtotal: number;
+  taxTotal: number;
+  serviceChargeTotal: number;
+  grossTotal: number;
+  invoiceState: "uninvoiced" | "invoiced" | "in_draft";
+  coveredInvoiceId: string | null;
+  coveredInvoiceNumber: string | null;
+  taxLines: InvoiceComponentLine[];
+  serviceLines: InvoiceComponentLine[];
+};
+
+export type InvoiceSelectionPreview = {
+  groups: InvoiceGroupView[];
+  warnings: Array<{ parentTransactionId: string; code: string }>;
+  subtotal: number;
+  tax: number;
+  serviceCharge: number;
+  total: number;
+  legacyFolio: boolean;
+};
+
+export type InvoiceDraftRow = {
+  id: string;
+  notes: string | null;
+  updatedAt: string;
+  createdByMembershipId: string;
+  selectedIds: string[];
+  preparedBy: string | null;
+};
+
+export type InvoiceBoard = {
+  legacyFolio: boolean;
+  invoiceableAmount: number;
+  groups: InvoiceGroupView[];
+  draft: InvoiceDraftRow | null;
+};
 
 export function invoiceIssuerLabel(property: FolioInvoiceSnapshot["property"]): string {
   return (

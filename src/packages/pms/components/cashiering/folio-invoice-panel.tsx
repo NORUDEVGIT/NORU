@@ -88,9 +88,17 @@ function IssuedInvoiceDocument({
         {snap.property.vatRegistered && snap.property.vatNumber ? (
           <p className="text-muted-foreground">VAT {snap.property.vatNumber}</p>
         ) : null}
+        {snap.property.tinNumber ? (
+          <p className="text-muted-foreground">TIN {snap.property.tinNumber}</p>
+        ) : null}
+        {snap.property.fullAddress ? (
+          <p className="text-muted-foreground">{snap.property.fullAddress}</p>
+        ) : null}
+        {snap.property.phone ? <p className="text-muted-foreground">{snap.property.phone}</p> : null}
         <p className="mt-2 text-lg font-semibold">Invoice {snap.document.issuedNumber}</p>
         <p className="text-muted-foreground">
           Folio {snap.folio.folioNumber} · {snap.folio.guestName}
+          {snap.folio.roomNumber ? ` · Room ${snap.folio.roomNumber}` : ""}
         </p>
         {snap.folio.confirmationNumber ? (
           <p className="text-muted-foreground">Reservation {snap.folio.confirmationNumber}</p>
@@ -130,24 +138,48 @@ function IssuedInvoiceDocument({
         </tbody>
       </table>
       <footer className="border-t border-border pt-3 text-sm">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Charges</span>
-          <span className="tabular-nums">{money(snap.totals.charges)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Credits</span>
-          <span className="tabular-nums">{money(snap.totals.credits)}</span>
-        </div>
-        {snap.totals.tax > 0 ? (
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Tax (posted lines)</span>
-            <span className="tabular-nums">{money(snap.totals.tax)}</span>
-          </div>
-        ) : null}
-        <div className="mt-2 flex justify-between font-semibold">
-          <span>Balance</span>
-          <span className="tabular-nums">{money(snap.totals.balance)}</span>
-        </div>
+        {snap.totals.invoiceTotal == null ? (
+          <>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Charges</span>
+              <span className="tabular-nums">{money(snap.totals.charges)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Credits</span>
+              <span className="tabular-nums">{money(snap.totals.credits)}</span>
+            </div>
+            {snap.totals.tax > 0 ? (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Tax (posted lines)</span>
+                <span className="tabular-nums">{money(snap.totals.tax)}</span>
+              </div>
+            ) : null}
+            <div className="mt-2 flex justify-between font-semibold">
+              <span>Balance</span>
+              <span className="tabular-nums">{money(snap.totals.balance)}</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span className="tabular-nums">{money(snap.totals.subtotal ?? 0)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Tax</span>
+              <span className="tabular-nums">{money(snap.totals.tax)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Service charge</span>
+              <span className="tabular-nums">{money(snap.totals.serviceCharge ?? 0)}</span>
+            </div>
+            <div className="mt-2 flex justify-between font-semibold">
+              <span>Total</span>
+              <span className="tabular-nums">{money(snap.totals.invoiceTotal)}</span>
+            </div>
+          </>
+        )}
+        {snap.document.notes ? <p className="mt-3 text-sm">{snap.document.notes}</p> : null}
         <p className="mt-2 text-xs text-muted-foreground">
           Tax display preference: {snap.document.taxDisplay}. Amounts are frozen ledger snapshots at
           issue time ({dateTime(snap.issuedAt)}).
