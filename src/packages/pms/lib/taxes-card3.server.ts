@@ -12,6 +12,9 @@ export type TaxChargeType = (typeof TAX_CHARGE_TYPES)[number];
 export const TAX_BASIS = ["room", "folio", "fnb", "all"] as const;
 export type TaxBasis = (typeof TAX_BASIS)[number];
 
+export const TAX_APPLICABILITY_SCOPES = ["all", "rate_plans", "services", "departments"] as const;
+export type TaxApplicabilityScope = (typeof TAX_APPLICABILITY_SCOPES)[number] | "folio";
+
 export const FEE_BASIS = ["room", "folio", "stay", "person", "night"] as const;
 export type FeeBasis = (typeof FEE_BASIS)[number];
 
@@ -60,6 +63,33 @@ export const TAX_BASIS_LABELS: Record<TaxBasis, string> = {
   fnb: "F&B",
   all: "All",
 };
+export const TAX_APPLICABILITY_LABELS: Record<TaxApplicabilityScope, string> = {
+  all: "All charges",
+  rate_plans: "Rate plans only",
+  services: "Services only",
+  departments: "Selected departments",
+  folio: "Folio charges",
+};
+
+export type TaxDepartmentOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+export function applicabilityFromBasis(basis: TaxBasis): TaxApplicabilityScope {
+  if (basis === "room") return "rate_plans";
+  if (basis === "fnb") return "services";
+  if (basis === "folio") return "folio";
+  return "all";
+}
+
+export function basisForApplicability(scope: TaxApplicabilityScope): TaxBasis {
+  if (scope === "rate_plans") return "room";
+  if (scope === "services" || scope === "departments") return "fnb";
+  if (scope === "folio") return "folio";
+  return "all";
+}
 export const FEE_BASIS_LABELS: Record<FeeBasis, string> = {
   room: "Room",
   folio: "Folio",
@@ -101,6 +131,8 @@ export type TaxRow = {
   chargeType: TaxChargeType;
   amount: number;
   basis: TaxBasis;
+  applicabilityScope: TaxApplicabilityScope;
+  departmentIds: string[];
   calculation: TaxCalculation;
   active: boolean;
 };
@@ -120,6 +152,8 @@ export type ServiceChargeRow = {
   chargeType: TaxChargeType;
   amount: number;
   basis: TaxBasis;
+  applicabilityScope: TaxApplicabilityScope;
+  departmentIds: string[];
   active: boolean;
 };
 
@@ -153,6 +187,7 @@ export type TaxesCard3Snapshot = {
   exemptionRules: ExemptionRuleRow[];
   /** Card 3 tax group applied when posting room charges (optional). */
   defaultRoomTaxGroupId?: string | null;
+  departments?: TaxDepartmentOption[];
 };
 
 export type TaxesCard3Readiness = {
@@ -184,9 +219,11 @@ export function evaluateTaxesCard3Readiness(snapshot: TaxesCard3Snapshot): Taxes
   const activeTaxes = taxes.filter((row) => row.active);
   if (activeTaxes.length === 0) blockers.push("Save at least one active tax.");
 
-  if (!serviceCharges.some((row) => row.active)) blockers.push("Save at least one active service charge.");
+  if (!serviceCharges.some((row) => row.active))
+    blockers.push("Save at least one active service charge.");
   if (!fees.some((row) => row.active)) blockers.push("Save at least one active fee.");
-  if (!exemptionRules.some((row) => row.active)) blockers.push("Save at least one active exemption rule.");
+  if (!exemptionRules.some((row) => row.active))
+    blockers.push("Save at least one active exemption rule.");
 
   if (!hasRows) {
     return { ready: false, status: "not_started", blockers };

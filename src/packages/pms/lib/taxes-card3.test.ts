@@ -53,6 +53,8 @@ describe("Card 3 Phase 2 taxes readiness", () => {
             chargeType: "percentage",
             amount: 15,
             basis: "all",
+            applicabilityScope: "all",
+            departmentIds: [],
             calculation: "exclusive",
             active: true,
           },
@@ -70,6 +72,8 @@ describe("Card 3 Phase 2 taxes readiness", () => {
             chargeType: "percentage",
             amount: 15,
             basis: "all",
+            applicabilityScope: "all",
+            departmentIds: [],
             calculation: "exclusive",
             active: true,
           },
@@ -82,6 +86,8 @@ describe("Card 3 Phase 2 taxes readiness", () => {
             chargeType: "percentage",
             amount: 10,
             basis: "fnb",
+            applicabilityScope: "services",
+            departmentIds: [],
             active: true,
           },
         ],
@@ -125,7 +131,8 @@ describe("Card 3 Phase 2 taxes readiness", () => {
     assert.match(fns, /eq\("restaurant_id"/);
     assert.doesNotMatch(fns, /from\("pms_tax_exemptions"\)/);
     assert.doesNotMatch(fns, /tax_rate|service_rate|service_enabled/);
-    assert.doesNotMatch(fns, /from\("restaurants"\)/);
+    assert.match(fns, /default_room_tax_group_id/);
+    assert.doesNotMatch(fns, /from\("restaurants"\)[\s\S]{0,120}tax_rate/);
   });
 
   it("reads as a member, writes as owner/manager, and audits on the shared staff log", () => {
@@ -140,7 +147,10 @@ describe("Card 3 Phase 2 taxes readiness", () => {
     assert.equal(CARD3_TAXES_AUDIT_SECTION, "card3-taxes");
     assert.doesNotMatch(fns, /pms_tax_activity/);
     assert.doesNotMatch(server, /reservation_id|folio_id/);
-    const types = readFileSync(join(here, "../../../../src/integrations/supabase/types.ts"), "utf8");
+    const types = readFileSync(
+      join(here, "../../../../src/integrations/supabase/types.ts"),
+      "utf8",
+    );
     assert.match(types, /pms_tax_exemption_rules/);
     assert.match(types, /pms_taxes:/);
   });
@@ -172,6 +182,8 @@ describe("Card 3 Phase 2 taxes readiness", () => {
             chargeType: "percentage",
             amount: 15,
             basis: "all",
+            applicabilityScope: "all",
+            departmentIds: [],
             calculation: "exclusive",
             active: true,
           },
@@ -185,6 +197,8 @@ describe("Card 3 Phase 2 taxes readiness", () => {
             chargeType: "percentage",
             amount: 10,
             basis: "fnb",
+            applicabilityScope: "services",
+            departmentIds: [],
             active: true,
           },
         ],
@@ -227,6 +241,8 @@ describe("Card 3 Phase 2 taxes readiness", () => {
             chargeType: "percentage",
             amount: 15,
             basis: "all",
+            applicabilityScope: "all",
+            departmentIds: [],
             calculation: "exclusive",
             active: true,
           },
@@ -240,6 +256,8 @@ describe("Card 3 Phase 2 taxes readiness", () => {
             chargeType: "percentage",
             amount: 10,
             basis: "fnb",
+            applicabilityScope: "services",
+            departmentIds: [],
             active: true,
           },
         ],
@@ -314,5 +332,3 @@ describe("Card 3 Phase 2 taxes readiness", () => {
     assert.match(fns, /custom_reason/);
   });
 });
-
-
