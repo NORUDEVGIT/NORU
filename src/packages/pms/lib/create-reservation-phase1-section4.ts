@@ -193,6 +193,40 @@ export function stickyAvailability(input: {
   };
 }
 
+export const CREATE_RESERVATION_AVAILABILITY_IDLE = "Check availability to view rooms and rates.";
+
+export const CREATE_RESERVATION_AVAILABILITY_STALE =
+  "Stay details changed. Check availability again.";
+
+/** Empty preference means no room-type or rate-plan restriction. */
+export type AvailabilitySearchCriteria = {
+  arrival: string;
+  departure: string;
+  rooms: number;
+  adults: number;
+  children: number;
+  infants: number;
+  roomTypePreference: string;
+  ratePreference: string;
+};
+
+export function availabilitySearchIsCurrent(
+  committed: AvailabilitySearchCriteria | null,
+  draft: AvailabilitySearchCriteria,
+): boolean {
+  if (!committed) return false;
+  return (
+    committed.arrival === draft.arrival &&
+    committed.departure === draft.departure &&
+    committed.rooms === draft.rooms &&
+    committed.adults === draft.adults &&
+    committed.children === draft.children &&
+    committed.infants === draft.infants &&
+    committed.roomTypePreference === draft.roomTypePreference &&
+    committed.ratePreference === draft.ratePreference
+  );
+}
+
 export function stickyAvailabilityCopy(row: StickyAvailability): string {
   if (row.kind === "unset") return "No availability until a room type is selected.";
   if (row.kind === "needs_dates") return CREATE_RESERVATION_AVAILABILITY_NEEDS_DATES;

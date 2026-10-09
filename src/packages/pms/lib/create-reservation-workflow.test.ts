@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   CREATE_RESERVATION_GUEST_PAGE_SIZE,
+  CREATE_RESERVATION_GUEST_SEARCH_LIMIT,
   canAdvanceFromGuestStayAvailability,
   guestPickerPageCount,
 } from "./create-reservation-phase1.ts";
@@ -38,9 +39,10 @@ describe("Create reservation 4-step workflow", () => {
     assert.equal(idCount, 4);
   });
 
-  it("combines step 0 as Stay request, room/rate availability, then guest", () => {
+  it("Step 1 desk places guest search, selected guest, and stay above availability", () => {
     assert.match(page, /create-reservation-step-guest-stay-availability/);
     assert.match(page, /CreateReservationStay/);
+    assert.match(page, /title="Stay Information"/);
     const stay = readRel("../components/bookings/create-reservation-stay.tsx");
     assert.match(stay, /pms-operational-surface/);
     assert.match(stay, /PMS_OP_INPUT/);
@@ -48,15 +50,23 @@ describe("Create reservation 4-step workflow", () => {
     assert.match(page, /SelectTrigger/);
     assert.match(page, /CreateReservationRoomType/);
     assert.match(page, /CreateReservationGuest/);
+    assert.match(page, /CreateReservationGuestSearch/);
+    assert.match(page, /CreateReservationGuestSelected/);
+    assert.match(page, /CreateReservationSelectedRoom/);
     assert.doesNotMatch(page, /CreateReservationSearchCriteria/);
     const section = page.slice(
       page.indexOf("guestStayAvailabilitySection"),
       page.indexOf("const bookingDetailsSection"),
     );
+    const searchIdx = section.indexOf("CreateReservationGuestSearch");
+    const selectedIdx = section.indexOf("CreateReservationGuestSelected");
     const stayIdx = section.indexOf("staySection");
-    const roomIdx = section.indexOf("roomSection");
-    const guestIdx = section.indexOf("CreateReservationGuest");
-    assert.ok(stayIdx >= 0 && roomIdx > stayIdx && guestIdx > roomIdx);
+    const roomIdx = section.indexOf("roomsAndRates");
+    const selectedRoomIdx = section.indexOf("CreateReservationSelectedRoom");
+    assert.ok(searchIdx >= 0 && selectedIdx > searchIdx);
+    assert.ok(stayIdx > selectedIdx && roomIdx > stayIdx && selectedRoomIdx > roomIdx);
+    const altIdx = section.indexOf("CreateReservationAlternatives");
+    assert.ok(altIdx > roomIdx);
   });
 
   it("gates step 0 Continue on guest, stay, room, occupancy, and priced/unpriced rules", () => {
@@ -95,12 +105,18 @@ describe("Create reservation 4-step workflow", () => {
     assert.doesNotMatch(page, /embedded \? \(\s*stepSections/s);
   });
 
-  it("guest picker uses server pagination with page size 10", () => {
+  it("guest search uses a bounded listGuests query without directory pagination", () => {
     const guest = readRel("../components/bookings/create-reservation-guest.tsx");
+    assert.equal(CREATE_RESERVATION_GUEST_SEARCH_LIMIT, 8);
     assert.equal(CREATE_RESERVATION_GUEST_PAGE_SIZE, 10);
-    assert.match(guest, /limit: CREATE_RESERVATION_GUEST_PAGE_SIZE/);
+    assert.match(guest, /limit: CREATE_RESERVATION_GUEST_SEARCH_LIMIT/);
+    assert.match(guest, /offset: 0/);
+    assert.match(guest, /listGuests/);
     assert.match(guest, /pms-operational-surface/);
-    assert.match(guest, /PMS_OP_TABLE_SHELL/);
+    assert.match(guest, /PMS_OP_INPUT/);
+    assert.doesNotMatch(guest, /PMS_OP_TABLE_SHELL/);
+    assert.doesNotMatch(guest, /guest-picker-pagination/);
+    assert.doesNotMatch(guest, /<thead/);
     const surface = readRel("./pms-operational-surface.ts");
     assert.match(surface, /PMS_OP_CONTROL_RADIUS/);
     assert.match(surface, /!rounded-\[6px\]/);
@@ -113,5 +129,23 @@ describe("Create reservation 4-step workflow", () => {
     assert.doesNotMatch(guest, /Company/);
     assert.equal(guestPickerPageCount(25, 10), 3);
     assert.equal(guestPickerPageCount(0, 10), 1);
+  });
+
+  it("keeps package selection on the page and drops activations that are no longer bindable", () => {
+    assert.match(
+      page,
+      /const \[packageActivationIds, setPackageActivationIds\] = useState<string\[\]>\(\[\]\)/,
+    );
+    assert.match(
+      page,
+      /selectedCreatePackageRows\(createPackageMerchandiseCards, packageActivationIds\)/,
+    );
+    assert.match(page, /current\.filter\(\(id\) => allowed\.has\(id\)\)/);
+    assert.match(page, /canBindCreatePackage\(card\) && card\.activationId/);
+    assert.doesNotMatch(page, /setPackageActivationIds\(\[\]\)/);
+    assert.match(
+      page,
+      /packageActivationIds:\s*selectedCreatePackages\.length > 0/,
+    );
   });
 });

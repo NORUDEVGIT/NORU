@@ -59,6 +59,8 @@ export type AvailablePackageCard = {
   applicabilityRate: string;
   eligibilityStatus: PackageEligibilityStatus;
   eligible: boolean;
+  /** Operational activation id. Null when the card is catalogue-only. */
+  activationId: string | null;
 };
 
 export const PACKAGE_CHARGE_BASIS_OPERATIONAL_HONESTY =
@@ -142,6 +144,35 @@ export function packageAppliesToStay(
   return true;
 }
 
+export function canBindCreatePackage(card: AvailablePackageCard): boolean {
+  return (
+    card.eligibilityStatus === "activation_eligible" &&
+    card.chargeBasis === "per_stay" &&
+    Boolean(card.activationId) &&
+    card.price != null &&
+    card.price > 0
+  );
+}
+
+/** Operator copy for a catalogue card the create form must not attach. */
+export function createPackageUnselectableReason(card: AvailablePackageCard): string | null {
+  if (canBindCreatePackage(card)) return null;
+  if (card.eligibilityStatus === "catalogue_only") return "Catalogue only";
+  if (card.eligibilityStatus !== "activation_eligible") return "Not available for this reservation";
+  return "Not currently attachable";
+}
+
+export function selectedCreatePackageRows(
+  cards: AvailablePackageCard[],
+  activationIds: readonly string[],
+): AvailablePackageCard[] {
+  const selected = new Set(activationIds);
+  return cards.filter(
+    (card) =>
+      card.activationId != null && selected.has(card.activationId) && canBindCreatePackage(card),
+  );
+}
+
 export function appliedPackagesTotal(rows: Array<{ appliedAmount: number }>): number {
   return rows.reduce(
     (sum, row) => sum + (Number.isFinite(row.appliedAmount) ? row.appliedAmount : 0),
@@ -191,6 +222,7 @@ export function buildAvailablePackageCards(input: {
         applicabilityRate: applicability.rate,
         eligibilityStatus,
         eligible: Boolean(eligible),
+        activationId: eligible?.activationId ?? null,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));

@@ -5,6 +5,9 @@ import { resolve } from "node:path";
 import {
   appliedPackagesTotal,
   buildAvailablePackageCards,
+  canBindCreatePackage,
+  createPackageUnselectableReason,
+  selectedCreatePackageRows,
   chargeBasisHonestyCopy,
   chargeTypeLabel,
   componentLabelsForPackage,
@@ -143,6 +146,35 @@ describe("Reservation Detail Packages tab", () => {
     expect(cards[0]?.inclusionLabel).toBe("Included in rate");
     expect(cards[0]?.chargeBasis).toBe("per_stay");
     expect(cards[0]?.eligibilityStatus).toBe("activation_eligible");
+    expect(cards[0]?.activationId).toBe("act-1");
+    expect(canBindCreatePackage(cards[0]!)).toBe(false);
+    expect(createPackageUnselectableReason(cards[0]!)).toBe("Not currently attachable");
+    expect(selectedCreatePackageRows(cards, ["act-1"])).toEqual([]);
+    const priced = buildAvailablePackageCards({
+      catalogue: [{ ...catalogue[0]!, chargeBasis: "per_stay", packagePrice: 500 }],
+      components: [],
+      eligible: [
+        { ...eligible[0]!, configuredPrice: 500, appliedAmount: 500, chargeBasis: "per_stay" },
+      ],
+      roomTypeId: "type-a",
+      ratePlanId: "plan-a",
+    });
+    expect(canBindCreatePackage(priced[0]!)).toBe(true);
+    expect(createPackageUnselectableReason(priced[0]!)).toBeNull();
+    expect(selectedCreatePackageRows(priced, ["act-1"]).map((row) => row.name)).toEqual([
+      "Bed & Breakfast",
+    ]);
+    const nightly = buildAvailablePackageCards({
+      catalogue: [{ ...catalogue[0]!, chargeBasis: "per_night", packagePrice: 500 }],
+      components: [],
+      eligible: [
+        { ...eligible[0]!, configuredPrice: 500, appliedAmount: 500, chargeBasis: "per_night" },
+      ],
+      roomTypeId: "type-a",
+      ratePlanId: "plan-a",
+    });
+    expect(canBindCreatePackage(nightly[0]!)).toBe(false);
+    expect(createPackageUnselectableReason(nightly[0]!)).toBe("Not currently attachable");
     expect(appliedPackagesTotal([{ appliedAmount: 12 }, { appliedAmount: 8 }])).toBe(20);
     const filtered = filterAvailablePackages(cards, {
       ...emptyPackageFilters(),
@@ -182,6 +214,18 @@ describe("Reservation Detail Packages tab", () => {
       ratePlanId: null,
     });
     expect(unevaluated[0]?.eligibilityStatus).toBe("unevaluated");
+    expect(createPackageUnselectableReason(unevaluated[0]!)).toBe(
+      "Not available for this reservation",
+    );
+    const catalogueOnly = buildAvailablePackageCards({
+      catalogue,
+      components: [],
+      eligible: [],
+      roomTypeId: "type-a",
+      ratePlanId: "plan-a",
+    });
+    expect(catalogueOnly[0]?.eligibilityStatus).toBe("catalogue_only");
+    expect(createPackageUnselectableReason(catalogueOnly[0]!)).toBe("Catalogue only");
     expect(unevaluated[0]?.components).toEqual(["Meal Plan"]);
   });
 
@@ -195,12 +239,14 @@ describe("Reservation Detail Packages tab", () => {
     expect(packagesUi).not.toContain("hotel_reservation_packages");
   });
 
-  it("keeps New Reservation package bind out while showing read-only merchandising", () => {
+  it("sends bindable activation ids from New Reservation without inventing a second writer", () => {
     expect(createPackagesUi).toContain("create-reservation-package-merch");
-    expect(createPackagesUi).toContain("information only");
+    expect(createPackagesUi).toContain("canBindCreatePackage");
     expect(createPackagesUi).not.toContain("packageActivationIds");
+    expect(createPageUi).toContain("packageActivationIds");
     expect(createPageUi).toContain("getMealsCard3");
     expect(createPageUi).toContain("buildAvailablePackageCards");
     expect(createPageUi).not.toContain("listCreatePackages");
+    expect(createPageUi).not.toContain("hotel_reservation_packages");
   });
 });

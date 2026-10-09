@@ -14,6 +14,7 @@ import {
   CREATE_RESERVATION_DENIED_COPY,
   CREATE_RESERVATION_GUEST_PAGE_SIZE,
   CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS,
+  CREATE_RESERVATION_GUEST_SEARCH_LIMIT,
   CREATE_RESERVATION_LOCKED_NON_GOALS,
   CREATE_RESERVATION_MASTER_CONFIRM_COPY,
   CREATE_RESERVATION_MASTER_OVERRIDE_RULE,
@@ -125,10 +126,11 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(page, /CreateReservationBookingDetails/);
     assert.match(page, /onRequestTypeChange={requestTypeChange}/);
     assert.match(page, /CreateReservationGuest/);
-    assert.match(details, /booking-details-source-classification/);
+    assert.match(details, /booking-details-source-channel/);
     assert.deepEqual([...RESERVATION_TYPE_MODES], ["individual", "corporate", "travel_agency"]);
-    assert.match(details, /reservation-type-\$\{mode\}/);
-    assert.match(details, /booking-details-relationships/);
+    assert.doesNotMatch(details, /reservation-type-/);
+    assert.match(page, /reservationType,/);
+    assert.match(details, /booking-details-company-agent-group/);
     assert.match(details, /CreateReservationMasterPicker/);
     assert.match(details, /kind="company"/);
     assert.match(details, /kind="travel_agent"/);
@@ -143,16 +145,23 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     const guest = readRel("../components/bookings/create-reservation-guest.tsx");
     const functions = readRel("./guests.functions.ts");
     assert.equal(CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS, 300);
+    assert.equal(CREATE_RESERVATION_GUEST_SEARCH_LIMIT, 8);
     assert.match(guest, /CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS/);
-    assert.match(guest, /CREATE_RESERVATION_GUEST_PAGE_SIZE/);
+    assert.match(guest, /CREATE_RESERVATION_GUEST_SEARCH_LIMIT/);
+    assert.match(guest, /limit: CREATE_RESERVATION_GUEST_SEARCH_LIMIT/);
     assert.match(guest, /listGuests/);
-    assert.match(guest, /offset/);
-    assert.match(guest, /guest-picker-pagination/);
-    assert.match(guest, /Search guests by name, phone or email/);
+    assert.match(guest, /offset: 0/);
+    assert.match(guest, /enabled: listEnabled && !guest && trimmedSearch\.length > 0/);
+    assert.doesNotMatch(guest, /guest-picker-pagination/);
+    assert.doesNotMatch(guest, /PMS_OP_TABLE_SHELL/);
+    assert.doesNotMatch(guest, /<thead/);
+    assert.match(guest, /Search guest by name, phone, email or guest ID/);
     assert.match(guest, /data-testid="guest-search"/);
+    assert.match(guest, /data-testid="guest-search-results"/);
     assert.match(guest, /data-testid="change-guest"/);
     assert.match(guest, /onGuestChange\(null\)/);
-    assert.doesNotMatch(guest, /limit: 8/);
+    assert.match(guest, /Searching guests…/);
+    assert.match(guest, /No matching guests found\./);
     assert.equal(CREATE_RESERVATION_GUEST_PAGE_SIZE, 10);
     assert.match(functions, /first_name\.ilike/);
     assert.match(functions, /last_name\.ilike/);
@@ -303,7 +312,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(guest, /VipBadge/);
     assert.match(guest, /GuestRestrictionBadges/);
     assert.match(guest, /guest\.vipStatus \? <VipBadge/);
-    assert.match(guest, /row\.vipStatus \? "Yes"/);
+    assert.match(guest, /row\.vipStatus \? <VipBadge/);
     assert.match(guest, /GuestRestrictionBadges guest=\{row\}/);
   });
 
@@ -311,7 +320,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     const details = readRel("../components/bookings/create-reservation-booking-details.tsx");
     const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
-    assert.match(details, /booking-details-relationships/);
+    assert.match(details, /booking-details-company-agent-group/);
     assert.match(details, /CreateReservationMasterPicker/);
     assert.match(page, /mastersForCreateMode/);
     assert.match(page, /companyMasterId: boundMasters.companyMasterId/);
@@ -399,10 +408,10 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /createReservation/);
-    assert.match(page, /create-reservation-summary/);
-    assert.match(page, /summary-no-fake-total/);
+    assert.match(page, /data-testid="selected-room-rate"|CreateReservationSelectedRoom/);
+    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
     assert.match(CREATE_RESERVATION_SUMMARY_NO_TOTAL, /No stay total is shown/);
-    assert.match(page, /stickyPricingCopy|summary-stay-total/);
+    assert.doesNotMatch(page, /create-reservation-summary|Collapse summary/);
     assert.doesNotMatch(page, /createFileRoute\("\/restaurant\/bookings\/create"\)/);
     assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal/);
     assert.match(CREATE_RESERVATION_DENIED_COPY, /receptionists/);
@@ -424,7 +433,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(shell, /Expand navigation/);
     assert.doesNotMatch(bookingsIndex, /sidebarDefaultCollapsed/);
     assert.doesNotMatch(reservationsIndex, /sidebarDefaultCollapsed/);
-    assert.match(page, /summary-no-fake-total/);
+    assert.doesNotMatch(page, /create-reservation-summary|Collapse summary/);
     assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal/);
   });
 });
@@ -462,7 +471,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
     const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.doesNotMatch(page, /CreateReservationContext/);
     assert.match(page, /CreateReservationBookingDetails/);
-    assert.match(details, /booking-details-relationships/);
+    assert.match(details, /booking-details-company-agent-group/);
     assert.match(details, /kind="company"/);
     assert.match(picker, /data-testid=\{copy.testId\}/);
     assert.match(picker, /testId: "company-picker"/);
@@ -483,11 +492,11 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
     const details = readRel("../components/bookings/create-reservation-booking-details.tsx");
     const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const classification = details.slice(
-      details.indexOf('testId="booking-details-source-classification"'),
-      details.indexOf('testId="booking-details-relationships"'),
+      details.indexOf('testId="booking-details-source-channel"'),
+      details.indexOf('testId="booking-details-company-agent-group"'),
     );
     assert.doesNotMatch(classification, /CreateReservationMasterPicker/);
-    assert.match(details, /booking-details-relationships/);
+    assert.match(details, /booking-details-company-agent-group/);
     assert.match(page, /canSubmitCreateReservation/);
     assert.match(page, /hasGuest: !!guest/);
     assert.doesNotMatch(page, /companyMaster.*canSubmit|canSubmit.*companyMaster/);
@@ -866,12 +875,9 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
 
   it("AC-CR3-7 Sticky summary shows honest stay and no fake totals", () => {
     const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
-    assert.match(page, /data-testid="create-reservation-summary"/);
-    assert.match(page, /data-testid="summary-stay-dates"/);
-    assert.match(page, /data-testid="summary-stay-nights"/);
-    assert.match(page, /data-testid="summary-stay-occupancy"/);
+    assert.match(page, /data-testid="availability-stay-summary"/);
     assert.match(page, /formatStayOccupancySummary\(adults, children\)/);
-    assert.match(page, /summary-no-fake-total/);
+    assert.doesNotMatch(page, /create-reservation-summary|Collapse summary/);
     assert.match(CREATE_RESERVATION_SUMMARY_NO_TOTAL, /No stay total is shown/);
     assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal/);
     assert.equal(formatStayOccupancySummary(1, 0), "1 adult, 0 children");
@@ -1053,8 +1059,8 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
     const details = readRel("../components/bookings/create-reservation-booking-details.tsx");
     const associations = readRel("../components/bookings/create-reservation-associations.tsx");
     assert.match(page, /CreateReservationBookingDetails/);
-    assert.match(page, /reservationType === "individual"/);
-    assert.match(details, /booking-details-relationships/);
+    assert.match(page, /reservationType=\{reservationType\}/);
+    assert.match(details, /booking-details-company-agent-group/);
     assert.match(details, /kind="company"/);
     assert.match(details, /kind="travel_agent"/);
     assert.match(associations, /data-testid="create-reservation-associations"/);
@@ -1153,13 +1159,13 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
     const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const details = readRel("../components/bookings/create-reservation-booking-details.tsx");
     const associations = readRel("../components/bookings/create-reservation-associations.tsx");
-    assert.match(page, /reservationType === "individual"/);
-    assert.match(details, /booking-details-relationships/);
+    assert.match(page, /reservationType=\{reservationType\}/);
+    assert.match(details, /booking-details-company-agent-group/);
     assert.match(details, /kind="company"/);
     assert.match(details, /kind="travel_agent"/);
     assert.match(associations, /kind="company"/);
-    assert.match(details, /classification-company-summary/);
-    assert.match(details, /classification-travel-agent-summary/);
+    assert.match(details, /booking-details-company-tab/);
+    assert.match(details, /booking-details-travel-agent-tab/);
     assert.doesNotMatch(page, /reservationType !== "individual"[\s\S]{0,80}CreateReservationAssociations/);
   });
 
@@ -1172,9 +1178,9 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
     assert.match(associations, /<h2 className="font-display text-lg">Associations<\/h2>/);
     assert.match(page, /bookingDetailsSection/);
     assert.match(page, /CreateReservationGuest/);
-    assert.match(details, /booking-details-relationships/);
-    assert.match(page, /data-testid="create-reservation-summary"/);
-    assert.match(page, /data-testid="summary-associations"/);
+    assert.match(details, /booking-details-company-agent-group/);
+    assert.match(details, /data-testid="create-reservation-associations"|booking-details-company-agent-group/);
+    assert.doesNotMatch(page, /create-reservation-summary|summary-associations/);
     assert.match(guest, /data-testid="guest-peek-drawer"/);
     assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /Do not clone legacy PMS chrome/);
     assert.match(CREATE_RESERVATION_SECTION2A_PROGRAMME_RULE, /Doc2/);

@@ -17,8 +17,7 @@ import {
 export const PREFERENCES_WORKSPACE_MIGRATION_FILE = "0088_pms_guest_preferences_workspace.sql";
 export const PREFERENCES_COPY =
   "Manage guest preferences to provide a personalized stay experience.";
-export const PREFERENCES_EMPTY_TYPES =
-  "No guest preference types are currently configured.";
+export const PREFERENCES_EMPTY_TYPES = "No guest preference types are currently configured.";
 export const PREFERENCES_IMPORTANT_NOTE =
   "Guest preferences are not guaranteed and are subject to availability.";
 export const PREFERENCES_APPLY_COPY =
@@ -99,7 +98,9 @@ export function validatePreferenceAnswer(
   }
   if (preferenceNeedsOptions(type.valueType)) {
     const allowed = new Set(
-      type.options.filter((option) => option.active || normalized.includes(option.value)).map((option) => option.value),
+      type.options
+        .filter((option) => option.active || normalized.includes(option.value))
+        .map((option) => option.value),
     );
     if (normalized.some((value) => !allowed.has(value))) {
       return `${type.name} has an option that is no longer available.`;
@@ -114,7 +115,8 @@ export function labelForPreferenceValues(
   valueType: PreferenceValueType,
 ): string | null {
   if (values.length === 0) return null;
-  if (valueType === "yes_no") return values[0] === "yes" ? "Yes" : values[0] === "no" ? "No" : values[0] ?? null;
+  if (valueType === "yes_no")
+    return values[0] === "yes" ? "Yes" : values[0] === "no" ? "No" : (values[0] ?? null);
   if (!preferenceNeedsOptions(valueType)) return values.join(", ");
   return values
     .map((value) => options.find((option) => option.value === value)?.label ?? value)
@@ -131,7 +133,10 @@ export function contactDefaultChips(defaults: ContactDefaultsDraft): PreferenceS
       value: defaults.language.trim(),
     });
   }
-  if (defaults.preferredContactMethod && isPreferredContactMethod(defaults.preferredContactMethod)) {
+  if (
+    defaults.preferredContactMethod &&
+    isPreferredContactMethod(defaults.preferredContactMethod)
+  ) {
     chips.push({
       source: "contact",
       code: "PROFILE_CONTACT_METHOD",
@@ -191,6 +196,98 @@ export function reservationDefaultsFromWorkspace(input: {
     ratePlanId = match?.id ?? null;
   }
   return { specialRequests, roomTypeId, ratePlanId };
+}
+
+export type SavedPreferenceDisplay = {
+  typeId: string;
+  label: string;
+  value: string;
+};
+
+const PREFERENCE_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function preferenceValueLooksLikeId(value: string): boolean {
+  return PREFERENCE_ID_RE.test(value.trim());
+}
+
+export function resolvePreferenceValueLabel(input: {
+  code?: string;
+  value: string;
+  options?: ReadonlyArray<{ label: string; value: string }>;
+  roomTypes?: ReadonlyArray<{ id: string; label: string }>;
+  ratePlans?: ReadonlyArray<{ id: string; label: string }>;
+}): string | null {
+  const raw = input.value.trim();
+  if (!raw) return null;
+  const key = raw.toLowerCase();
+  const option = (input.options ?? []).find(
+    (row) => row.value.trim().toLowerCase() === key || row.label.trim().toLowerCase() === key,
+  );
+  const optionLabel = option?.label.trim() ?? "";
+  if (optionLabel && !preferenceValueLooksLikeId(optionLabel)) return optionLabel;
+  const code = (input.code ?? "").toUpperCase();
+  const masters =
+    code === "ROOM_TYPE" || code === "ROOM"
+      ? input.roomTypes
+      : code === "RATE_PLAN"
+        ? input.ratePlans
+        : [];
+  const master = (masters ?? []).find((row) => row.id.toLowerCase() === key);
+  if (master?.label.trim()) return master.label.trim();
+  if (preferenceValueLooksLikeId(raw)) return null;
+  return raw;
+}
+
+/** Empty `preferenceTypeIds` means the Individual Guest profile type allows every type. */
+export function savedPreferencesForProfileType(input: {
+  categories: Array<{
+    types: Array<{
+      id: string;
+      name: string;
+      code?: string;
+      values: string[];
+      options?: ReadonlyArray<{ label: string; value: string }>;
+    }>;
+  }>;
+  preferenceTypeIds: readonly string[];
+  roomTypes?: ReadonlyArray<{ id: string; label: string }>;
+  ratePlans?: ReadonlyArray<{ id: string; label: string }>;
+}): SavedPreferenceDisplay[] {
+  const allowed = input.preferenceTypeIds.length > 0 ? new Set(input.preferenceTypeIds) : null;
+  const rows: SavedPreferenceDisplay[] = [];
+  for (const category of input.categories) {
+    for (const type of category.types) {
+      if (allowed && !allowed.has(type.id)) continue;
+      const value = type.values
+        .map((item) =>
+          resolvePreferenceValueLabel({
+            code: type.code,
+            value: item,
+            options: type.options,
+            roomTypes: input.roomTypes,
+            ratePlans: input.ratePlans,
+          }),
+        )
+        .filter((item): item is string => Boolean(item))
+        .join(", ");
+      if (!value) continue;
+      rows.push({ typeId: type.id, label: type.name, value });
+    }
+  }
+  return rows;
+}
+
+export function preferenceApplyText(rows: Array<{ label: string; value: string }>): string {
+  return rows.map((row) => `${row.label}: ${row.value}`).join("\n");
+}
+
+export function mergeSpecialRequests(current: string, addition: string, max: number): string {
+  const extra = addition.trim();
+  if (!extra) return current.slice(0, max);
+  const base = current.trim();
+  const next = base ? `${base}\n${extra}` : extra;
+  return next.slice(0, max);
 }
 
 export function applyPreferenceDefaults(input: {

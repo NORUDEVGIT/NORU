@@ -391,6 +391,18 @@ describe("P5A-03 — create, reprice, snapshot, and cashiering contracts", () =>
     assert.match(pricing, /nightly_rate_snapshot/);
     assert.match(pricing, /room_subtotal = \(pricing->>'subtotal'\)::numeric/);
     assert.match(prior, /CREATE OR REPLACE FUNCTION public\.create_hotel_reservation_priced_commercial/);
+    const stayArgsDrizzle = readRel(
+      "../../../../../drizzle/migrations/0126_pms_commercial_create_stay_args.sql",
+    );
+    const stayArgsSupabase = readRel(
+      "../../../../../supabase/migrations/0126_pms_commercial_create_stay_args.sql",
+    );
+    assert.equal(stayArgsDrizzle, stayArgsSupabase);
+    assert.match(stayArgsDrizzle, /_rooms, _infants, _quote_currency/);
+    assert.match(stayArgsDrizzle, /_rooms integer DEFAULT 1/);
+    assert.match(stayArgsDrizzle, /_infants integer DEFAULT 0/);
+    assert.match(stayArgsDrizzle, /_quote_currency text DEFAULT NULL/);
+    assert.match(createFns, /_quote_currency:\s*\(data\.quoteCurrency \?\? null\)/);
   });
 
   it("creates with optional packages atomically and leaves room snapshots pre-commercial", () => {
