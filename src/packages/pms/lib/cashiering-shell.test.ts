@@ -79,11 +79,13 @@ describe("cashiering desk shell", () => {
   it("redirects the legacy desk and does not present restaurant expected cash as hotel reconciliation", () => {
     const legacy = read("../../../routes/restaurant/cashiering/index.tsx");
     const desk = read("../components/cashiering/cashiering-desk.tsx");
+    const panel = read("../components/cashiering/cashier-control-panel.tsx");
     assert.match(legacy, /to: "\/restaurant\/pms\/cashiering"/);
     assert.match(legacy, /resolveCashieringTab/);
     assert.match(desk, /folio-row-actions/);
-    assert.match(desk, /Hotel drawer expected/);
-    assert.match(desk, /Restaurant sales are not included/);
+    assert.match(panel, /Expected Cash/);
+    assert.match(panel, /Restaurant sales are not included/);
+    assert.match(desk, /selectOwnOpenShift/);
     assert.doesNotMatch(desk, /expected_cash|City Ledger|Company Folio|Unallocated|Allocated/);
     assert.doesNotMatch(desk, /PAN|CVV|provider/);
   });

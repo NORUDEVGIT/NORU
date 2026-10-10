@@ -55,15 +55,17 @@ describe("Reports Phase 0 shell", () => {
     assert.throws(() => reportsReaderDate("today"), /house business date/);
   });
 
-  it("captions financial activity as posted_at UTC and rooms as point-in-time", () => {
+  it("captions financial activity on the hotel business date and rooms as point-in-time", () => {
     const financial = REPORT_CATALOGUE.find((row) => row.code === "financial");
     const rooms = REPORT_CATALOGUE.find((row) => row.code === "rooms");
-    assert.match(financial?.caption ?? "", /posted_at|UTC/);
+    assert.match(financial?.caption ?? "", /hotel business date/);
+    assert.doesNotMatch(financial?.caption ?? "", /UTC/);
     assert.doesNotMatch(rooms?.caption ?? "", /business date/i);
     const desk = read("../components/reports/reports-desk.tsx");
     const roomsFn = desk.slice(desk.indexOf("function RoomsReport"), desk.indexOf("function ManagementReport"));
     assert.doesNotMatch(roomsFn, /business date/i);
-    assert.match(desk, /posted_at UTC day/);
+    assert.match(desk, /hotel business date/);
+    assert.doesNotMatch(desk, /posted_at UTC day/);
   });
 
   it("uses the shared chrome, the house date, and no export or schedule", () => {

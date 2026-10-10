@@ -94,6 +94,8 @@ export function CashieringWorkspace({
         moduleSearch={moduleSearch}
         canOperate={accessQuery.data.canOperate}
         canManage={accessQuery.data.canManage}
+        membershipId={accessQuery.data.membershipId}
+        role={accessQuery.data.role}
         onTab={go}
       />
     </CashieringChrome>

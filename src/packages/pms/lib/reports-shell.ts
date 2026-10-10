@@ -30,7 +30,7 @@ export const REPORT_CATALOGUE = [
     name: "Financial",
     reader: "getCashieringDashboard",
     caption:
-      "Outstanding balance is the sum of open folio amounts, all dates. Charges, payments, deposits, and refunds are the posted_at UTC day of the date sent to the cashiering dashboard.",
+      "Outstanding balance is the sum of open folio amounts, all dates. Charges, payments, deposits, and refunds are the property-timezone day of the hotel business date. Payments do not include deposits.",
     ownerLabel: "Open Cashiering",
     ownerTo: "/restaurant/pms/cashiering",
   },

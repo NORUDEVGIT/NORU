@@ -43,14 +43,13 @@ import {
   InventoryState,
   InventoryStatusBadge,
 } from "@/packages/pms/components/rooms/room-inventory-shared";
-import { ShiftDialog } from "@/packages/pms/components/cashiering/cashiering-tabs";
+import { CashierControl } from "@/packages/pms/components/cashiering/cashier-control-panel";
 import {
   getCashieringCorrectionNotice,
   getCashieringDashboard,
   getDefaultDepositPolicy,
   getFolio,
   listCashierShifts,
-  postHotelDrawerMovement,
   listFolios,
   listLedgerEntries,
   postFolioEntry,
@@ -70,7 +69,9 @@ import {
   useMoney,
   useRestaurantTime,
 } from "@/core/state/property-format";
-import { formatStayDate, propertyToday } from "@/shared/lib/property-dates";
+import { formatStayDate } from "@/shared/lib/property-dates";
+import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
+import { selectOwnOpenShift } from "@/packages/pms/lib/cashiering-control";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
@@ -198,6 +199,8 @@ export function CashieringDesk({
   moduleSearch,
   canOperate,
   canManage,
+  membershipId,
+  role,
   onTab,
 }: {
   restaurantId: string;
@@ -209,15 +212,16 @@ export function CashieringDesk({
   moduleSearch: string;
   canOperate: boolean;
   canManage: boolean;
+  membershipId: string;
+  role: string;
   onTab: (tab: CashieringTabId, folio?: string | null) => void;
 }) {
-  const today = propertyToday(timezone);
+  const businessDate = usePropertyBusinessDate(restaurantId, timezone);
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
   const [search, setSearch] = useState(moduleSearch);
   const [filter, setFilter] = useState<FolioFilter>("all");
   const [page, setPage] = useState(1);
-  const [shiftMode, setShiftMode] = useState<"open" | "close" | null>(null);
 
   useEffect(() => {
     if (moduleSearch) setSearch(moduleSearch);
@@ -233,8 +237,8 @@ export function CashieringDesk({
   const queryClient = useQueryClient();
 
   const dashboardQuery = useQuery({
-    queryKey: ["cashiering-dashboard", restaurantId, today],
-    queryFn: () => fetchDashboard({ data: { restaurantId, today } }),
+    queryKey: ["cashiering-dashboard", restaurantId, businessDate],
+    queryFn: () => fetchDashboard({ data: { restaurantId, today: businessDate } }),
     retry: false,
   });
   const foliosQuery = useQuery({
@@ -267,7 +271,7 @@ export function CashieringDesk({
   const folios = useMemo(() => foliosQuery.data ?? [], [foliosQuery.data]);
   const ledger = ledgerQuery.data ?? [];
   const shifts = shiftsQuery.data ?? [];
-  const openShift = shifts.find((shift) => shift.status === "open") ?? null;
+  const openShift = selectOwnOpenShift(shifts, membershipId);
 
   const matchedFolio = useMemo(() => {
     const needle = folioQuery.trim().toLowerCase();
@@ -309,13 +313,13 @@ export function CashieringDesk({
         (folio.confirmationNumber ?? "").toLowerCase().includes(term);
       if (!matchesTerm) return false;
       if (filter === "in_house") return folio.reservationStatus === "checked_in";
-      if (filter === "departures") return folio.departureDate === today;
+      if (filter === "departures") return folio.departureDate === businessDate;
       if (filter === "balance") return folio.balance > 0.009;
       if (filter === "open") return folio.status === "open";
       if (filter === "closed") return folio.status === "closed";
       return true;
     });
-  }, [filter, folios, search, today]);
+  }, [filter, folios, search, businessDate]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -337,7 +341,7 @@ export function CashieringDesk({
   const payments = ledger.filter((row) => row.type === "payment");
   const deposits = ledger.filter((row) => row.type === "deposit");
   const refunds = ledger.filter((row) => row.type === "refund");
-  const todayPayments = payments.filter((row) => propertyDate(row.postedAt, timezone) === today);
+  const todayPayments = payments.filter((row) => propertyDate(row.postedAt, timezone) === businessDate);
 
   return (
     <div className="space-y-4" data-testid={`cashiering-panel-${tab}`}>
@@ -479,28 +483,17 @@ export function CashieringDesk({
       ) : null}
 
       {tab === "cashier-shift" ? (
-        <ShiftPanel
-          shifts={shifts}
-          openShift={openShift}
-          loading={shiftsQuery.isLoading}
-          error={shiftsQuery.isError ? (shiftsQuery.error as Error).message : null}
+        <CashierControl
+          restaurantId={restaurantId}
+          membershipId={membershipId}
+          role={role}
+          canOperate={canOperate}
+          canManage={canManage}
           money={money}
           dateTime={dateTime}
-          restaurantId={restaurantId}
-          onOpen={() => setShiftMode("open")}
-          onClose={() => setShiftMode("close")}
-          onMoved={refresh}
+          onNavigate={(next) => onTab(next, null)}
         />
       ) : null}
-
-      <ShiftDialog
-        restaurantId={restaurantId}
-        mode={shiftMode ?? "open"}
-        shiftId={openShift?.id ?? null}
-        open={shiftMode !== null}
-        onClose={() => setShiftMode(null)}
-        onDone={refresh}
-      />
     </div>
   );
 }
@@ -594,27 +587,34 @@ function Overview({
             icon={CircleAlert}
           />
           <Kpi
-            label="Payments Today"
+            label="Payments"
             value={money(dashboard.todayPayments)}
+            hint="Guest payments on the hotel business date"
             tone="green"
             icon={Banknote}
           />
           <Kpi
-            label="Deposits Today"
+            label="Deposits"
             value={money(dashboard.todayDeposits)}
+            hint="Guest deposits on the hotel business date"
             tone="gold"
             icon={Coins}
           />
           <Kpi
-            label="Refunds Today"
+            label="Refunds"
             value={money(dashboard.todayRefunds)}
+            hint="Guest refunds on the hotel business date"
             tone="rose"
             icon={Undo2}
           />
           <Kpi
             label="Open Cashier Shift"
             value={dashboard.openShifts > 0 ? String(dashboard.openShifts) : "None"}
-            hint={openShift ? `Opened ${dateTime(openShift.openedAt)}` : "No open shift"}
+            hint={
+              openShift
+                ? `Your shift opened ${dateTime(openShift.openedAt)}`
+                : "No shift open for you"
+            }
             tone="teal"
             icon={Clock3}
           />
@@ -1846,207 +1846,3 @@ function ReceivePanel({
   );
 }
 
-function ShiftPanel({
-  shifts,
-  openShift,
-  loading,
-  error,
-  money,
-  dateTime,
-  restaurantId,
-  onOpen,
-  onClose,
-  onMoved,
-}: {
-  shifts: Array<{
-    id: string;
-    staffName: string;
-    status: "open" | "closed";
-    openedAt: string;
-    closedAt: string | null;
-    openingCash: number | null;
-    closingCash: number | null;
-    cashIn: number;
-    cashOut: number;
-    hotelCash: number;
-    expected: number;
-    variance: number | null;
-  }>;
-  openShift: {
-    id: string;
-    staffName: string;
-    status: "open" | "closed";
-    openedAt: string;
-    openingCash: number | null;
-    closingCash: number | null;
-    cashIn: number;
-    cashOut: number;
-    hotelCash: number;
-    expected: number;
-    variance: number | null;
-  } | null;
-  loading: boolean;
-  error: string | null;
-  money: (value: number) => string;
-  dateTime: (iso: string | null | undefined) => string;
-  restaurantId: string;
-  onOpen: () => void;
-  onClose: () => void;
-  onMoved: () => void;
-}) {
-  const [movementAmount, setMovementAmount] = useState("");
-  const [movementKey, setMovementKey] = useState(() => crypto.randomUUID());
-  const postMovement = useServerFn(postHotelDrawerMovement);
-  const movement = useMutation({
-    mutationFn: async (movementType: "cash_in" | "cash_out") => {
-      if (!openShift) throw new Error("Open a hotel drawer first.");
-      const amount = Number(movementAmount);
-      if (!Number.isFinite(amount) || amount <= 0)
-        throw new Error("Enter an amount greater than zero.");
-      return postMovement({
-        data: {
-          restaurantId,
-          shiftId: openShift.id,
-          movementType,
-          amount,
-          idempotencyKey: movementKey,
-        },
-      });
-    },
-    onSuccess: (result) => {
-      if (!result.ok) {
-        toast.error(result.message);
-        return;
-      }
-      toast.success("Drawer movement recorded");
-      setMovementAmount("");
-      setMovementKey(crypto.randomUUID());
-      onMoved();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-  return (
-    <div className="space-y-4" data-testid="cashiering-shift-panel">
-      <p className="text-sm text-muted-foreground">
-        Hotel drawer expected is opening cash, plus cash in, minus cash out, plus hotel cash
-        payments, deposits, and refunds on this drawer. Restaurant sales are not included.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Shift Status" value={openShift ? "Open" : "None"} />
-        <Kpi label="Cashier" value={openShift?.staffName ?? "—"} />
-        <Kpi
-          label="Opening Cash"
-          value={openShift?.openingCash == null ? "—" : money(openShift.openingCash)}
-        />
-        <Kpi label="Hotel drawer expected" value={openShift ? money(openShift.expected) : "—"} />
-      </div>
-      {openShift ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Kpi label="Cash in" value={money(openShift.cashIn)} />
-          <Kpi label="Cash out" value={money(openShift.cashOut)} />
-          <Kpi label="Hotel cash" value={money(openShift.hotelCash)} />
-          <Kpi
-            label="Variance"
-            value={openShift.variance == null ? "—" : money(openShift.variance)}
-          />
-        </div>
-      ) : null}
-      <div>
-        {openShift ? (
-          <Button type="button" variant="outline" className="min-h-11" onClick={onClose}>
-            Close Shift
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            className="min-h-11 bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
-            onClick={onOpen}
-          >
-            Open Shift
-          </Button>
-        )}
-      </div>
-      {openShift ? (
-        <div className="flex flex-wrap items-end gap-2">
-          <div>
-            <Label htmlFor="drawer-amount">Cash in or cash out</Label>
-            <Input
-              id="drawer-amount"
-              type="number"
-              min="0"
-              step="0.01"
-              value={movementAmount}
-              onChange={(event) => setMovementAmount(event.target.value)}
-              className="min-h-11 w-40"
-            />
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11"
-            disabled={movement.isPending}
-            onClick={() => movement.mutate("cash_in")}
-          >
-            Cash in
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11"
-            disabled={movement.isPending}
-            onClick={() => movement.mutate("cash_out")}
-          >
-            Cash out
-          </Button>
-        </div>
-      ) : null}
-      {loading ? <p className="text-sm text-muted-foreground">Loading shifts…</p> : null}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {!loading && !error && shifts.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
-          No cashier shifts recorded yet.
-        </p>
-      ) : null}
-      {shifts.length > 0 ? (
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead className="bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 font-medium">Cashier</th>
-                <th className="px-3 py-2 font-medium">Opened</th>
-                <th className="px-3 py-2 font-medium">Closed</th>
-                <th className="px-3 py-2 text-right font-medium">Opening cash</th>
-                <th className="px-3 py-2 text-right font-medium">Hotel drawer expected</th>
-                <th className="px-3 py-2 text-right font-medium">Closing count</th>
-                <th className="px-3 py-2 text-right font-medium">Variance</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shifts.map((shift) => (
-                <tr key={shift.id} className="border-t border-border">
-                  <td className="px-3 py-2">{shift.staffName}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{dateTime(shift.openedAt)}</td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {shift.closedAt ? dateTime(shift.closedAt) : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {shift.openingCash === null ? "—" : money(shift.openingCash)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{money(shift.expected)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {shift.closingCash === null ? "—" : money(shift.closingCash)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {shift.variance == null ? "—" : money(shift.variance)}
-                  </td>
-                  <td className="px-3 py-2 capitalize">{shift.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-    </div>
-  );
-}

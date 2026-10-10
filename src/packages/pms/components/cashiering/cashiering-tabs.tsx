@@ -76,7 +76,7 @@ export function CashieringDashboardTab({
         <StatCard
           label="Payments today"
           value={money(d.todayPayments)}
-          hint="Payments and deposits"
+          hint="Guest payments on the hotel business date"
         />
         <StatCard label="Charges today" value={money(d.todayCharges)} />
         <StatCard label="Open cashier shifts" value={d.openShifts} />

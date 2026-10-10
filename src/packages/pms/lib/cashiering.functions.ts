@@ -19,7 +19,8 @@ import {
   type FolioStatus,
   type TransactionType,
 } from "./cashiering.server";
-import { callerMembership } from "@/core/lib/workforce.server";
+import { propertyDayBounds } from "./cashiering-control";
+import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 import { isMissingSchemaError } from "./pms-set2-structure";
@@ -156,6 +157,8 @@ export interface CashieringDashboard {
   transfersSupported: boolean;
   openShifts: number;
   myOpenShiftId: string | null;
+  /** Canonical hotel business date. Activity is the property-timezone day of this date, not UTC midnight. */
+  businessDate: string;
 }
 
 /* ------------------------------------------------------------------ access */
@@ -977,9 +980,22 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
 
     const { data: restaurant } = await supabaseAdmin
       .from("restaurants")
-      .select("currency_code")
+      .select("currency_code, timezone, business_date")
       .eq("id", data.restaurantId)
       .maybeSingle();
+    const property = restaurant as {
+      currency_code: string | null;
+      timezone: string | null;
+      business_date: string | null;
+    } | null;
+    const timezone = property?.timezone || "UTC";
+    const businessDate = resolvePropertyBusinessDate(
+      property?.business_date ? property.business_date.slice(0, 10) : null,
+      timezone,
+    );
+    // Client `today` is not the hotel day. Rows have no business_date column, so
+    // this window is property-local midnight to the next property-local midnight.
+    const bounds = propertyDayBounds(businessDate, timezone);
 
     const { data: folios } = await supabaseAdmin
       .from("guest_folios")
@@ -1008,8 +1024,8 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
       .from("folio_transactions")
       .select("transaction_type, amount")
       .eq("restaurant_id", data.restaurantId)
-      .gte("posted_at", `${data.today}T00:00:00Z`)
-      .lte("posted_at", `${data.today}T23:59:59Z`);
+      .gte("posted_at", bounds.startIso)
+      .lt("posted_at", bounds.endIso);
 
     let todayPayments = 0;
     let todayCharges = 0;
@@ -1017,8 +1033,7 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
     let todayRefunds = 0;
     for (const t of (todayTxns ?? []) as { transaction_type: string; amount: number | string }[]) {
       const amount = Number(t.amount);
-      if (t.transaction_type === "payment" || t.transaction_type === "deposit")
-        todayPayments += -amount;
+      if (t.transaction_type === "payment") todayPayments += -amount;
       if (t.transaction_type === "deposit") todayDeposits += -amount;
       if (t.transaction_type === "refund") todayRefunds += Math.abs(amount);
       if (t.transaction_type === "charge") todayCharges += amount;
@@ -1032,7 +1047,7 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
     ) as { id: string; membership_id: string }[];
 
     return {
-      currency: (restaurant as { currency_code: string } | null)?.currency_code ?? "GBP",
+      currency: property?.currency_code ?? "GBP",
       openFolios: openIds.length,
       outstandingBalance: outstanding,
       todayPayments: round2(todayPayments),
@@ -1042,6 +1057,7 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
       transfersSupported: true,
       openShifts: openShiftRows.length,
       myOpenShiftId: openShiftRows.find((s) => s.membership_id === me.id)?.id ?? null,
+      businessDate,
     };
   });
 
@@ -1817,7 +1833,12 @@ export const postHotelDrawerMovement = createServerFn({ method: "POST" })
     return { ok: true, id: (figures as { shift_id: string }).shift_id };
   });
 
-/** Cash movement recorded while a shift was open, for the closing count. */
+/**
+ * Unused by Cashier Control. Reads the legacy cashier_shifts table and every
+ * folio row between opened_at and closed_at. Do not wire this into the hotel
+ * drawer. Hotel shift totals come from hotel_drawer_figures and
+ * folio_transactions.hotel_cashier_shift_id.
+ */
 export const getShiftSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { restaurantId: string; shiftId: string }) =>

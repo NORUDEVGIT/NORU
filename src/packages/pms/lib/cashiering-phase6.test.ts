@@ -27,6 +27,10 @@ const desk = readFileSync(
   new URL("../components/cashiering/cashiering-desk.tsx", import.meta.url),
   "utf8",
 );
+const panel = readFileSync(
+  new URL("../components/cashiering/cashier-control-panel.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("Cashiering Phase 6 hotel drawer", () => {
   it("keeps restaurant expected cash on restaurant payments only", () => {
@@ -54,8 +58,9 @@ describe("Cashiering Phase 6 hotel drawer", () => {
     const movement = poster.slice(poster.indexOf("export const postHotelDrawerMovement"));
     assert.match(movement, /idempotencyKey/);
     assert.match(movement, /post_hotel_drawer_movement/);
-    assert.match(desk, /Hotel drawer expected/);
-    assert.match(desk, /Restaurant sales are not included/);
+    assert.match(panel, /Expected Cash/);
+    assert.match(panel, /Restaurant sales are not included/);
+    assert.match(desk, /selectOwnOpenShift/);
     assert.doesNotMatch(desk, /expected_cash/);
   });
 });
