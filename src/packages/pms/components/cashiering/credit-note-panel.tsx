@@ -17,6 +17,13 @@ import {
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { cn } from "@/shared/lib/utils";
+import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
+import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
+import {
+  mergeCashieringDocumentProperty,
+  type CashieringDocumentProperty,
+} from "@/packages/pms/lib/cashiering-document-property";
+import { getCashieringDocumentProperty } from "@/packages/pms/lib/cashiering-invoices.functions";
 
 const CARD = "rounded-xl border border-[#E8E1D7] bg-white";
 const HEAD =
@@ -52,6 +59,7 @@ export function CreditNoteSection({
   const [reason, setReason] = useState("");
   const [viewNoteId, setViewNoteId] = useState<string | null>(null);
   const [printSnap, setPrintSnap] = useState<CreditNoteSnapshot | null>(null);
+  const [printIssuedAt, setPrintIssuedAt] = useState<string | null>(null);
 
   const boardQuery = useQuery({
     queryKey: ["invoice-credit-board", restaurantId, guestInvoiceId, accountInvoiceId],
@@ -60,7 +68,14 @@ export function CreditNoteSection({
         data: { restaurantId, guestInvoiceId, accountInvoiceId },
       }),
   });
+  const fetchDocumentProperty = useServerFn(getCashieringDocumentProperty);
+  const documentPropertyQuery = useQuery({
+    queryKey: ["cashiering-document-property", restaurantId],
+    queryFn: () => fetchDocumentProperty({ data: { restaurantId } }),
+  });
   const board = boardQuery.data;
+  const invoiceProperty = board?.property ?? null;
+  const liveProperty = documentPropertyQuery.data ?? null;
   const items = useMemo(
     () =>
       Object.entries(amounts)
@@ -165,8 +180,10 @@ export function CreditNoteSection({
   });
   const reprintMut = useMutation({
     mutationFn: (noteId: string) => reprintNote({ data: { restaurantId, noteId } }),
-    onSuccess: (result) => {
+    onSuccess: (result, noteId) => {
+      const source = board?.notes.find((note) => note.id === noteId);
       setPrintSnap(result.snapshot);
+      setPrintIssuedAt(source?.issuedAt ?? null);
       refresh();
       window.setTimeout(() => window.print(), 50);
     },
@@ -482,15 +499,24 @@ export function CreditNoteSection({
               money={money}
               dateTime={dateTime}
               issuedAt={viewed.issuedAt}
+              invoiceProperty={invoiceProperty}
+              liveProperty={liveProperty}
             />
           </div>
         ) : null}
       </div>
-      {printSnap ? (
-        <div className="hidden print:block">
-          <CreditNoteDocument snapshot={printSnap} money={money} dateTime={dateTime} />
-        </div>
-      ) : null}
+      <CashieringPrintLayer active={Boolean(printSnap)}>
+        {printSnap ? (
+          <CreditNoteDocument
+            snapshot={printSnap}
+            money={money}
+            dateTime={dateTime}
+            issuedAt={printIssuedAt ?? undefined}
+            invoiceProperty={invoiceProperty}
+            liveProperty={liveProperty}
+          />
+        ) : null}
+      </CashieringPrintLayer>
     </section>
   );
 }
@@ -500,80 +526,149 @@ function CreditNoteDocument({
   money,
   dateTime,
   issuedAt,
+  invoiceProperty,
+  liveProperty,
 }: {
   snapshot: CreditNoteSnapshot;
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
   issuedAt?: string;
+  invoiceProperty?: CashieringDocumentProperty | null;
+  liveProperty?: CashieringDocumentProperty | null;
 }) {
+  const currency = snapshot.currency || "ETB";
+  const property = mergeCashieringDocumentProperty(
+    snapshot.property ?? invoiceProperty,
+    liveProperty ?? null,
+  );
+
   return (
-    <article className="space-y-3 text-sm" data-testid="credit-note-print">
-      <header>
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Credit note</p>
-        <h2 className="font-display text-xl">{snapshot.noteNumber || "Draft"}</h2>
-        <p className="text-xs">
-          Invoice {snapshot.originalInvoiceNumber ?? "—"} · {dateTime(issuedAt)} ·{" "}
-          {snapshot.currency}
-        </p>
+    <article
+      className="space-y-6 rounded-xl border border-slate-100 bg-white p-6 font-sans text-slate-800 shadow-sm print:border-0 print:p-0 print:shadow-none"
+      data-testid="credit-note-print"
+    >
+      {/* Top Header matching reference layout */}
+      <header className="flex flex-wrap items-start justify-between gap-6 pb-2 border-b border-slate-100">
+        <CashieringDocumentLetterhead property={property} />
+
+        <div className="text-right space-y-1 sm:min-w-[220px]">
+          <h1 className="text-xl font-extrabold tracking-tight text-[#0E2C6C] uppercase">
+            CREDIT NOTE
+          </h1>
+          <div className="mt-2 space-y-0.5 text-xs text-slate-700">
+            <p>
+              <span className="font-semibold text-slate-500">Note No:</span>{" "}
+              <span className="font-bold text-[#0E2C6C]">{snapshot.noteNumber || "Draft"}</span>
+            </p>
+            <p>
+              <span className="font-semibold text-slate-500">Original Invoice:</span>{" "}
+              <span className="font-semibold">{snapshot.originalInvoiceNumber ?? "—"}</span>
+            </p>
+            <p>
+              <span className="font-semibold text-slate-500">Date:</span>{" "}
+              <span>{dateTime(issuedAt)}</span>
+            </p>
+            <p>
+              <span className="font-semibold text-slate-500">Currency:</span>{" "}
+              <span>{currency}</span>
+            </p>
+          </div>
+        </div>
       </header>
-      <p>
-        <span className="text-muted-foreground">Bill to </span>
-        {snapshot.billToName}
-      </p>
-      <table className="w-full text-left">
-        <thead>
-          <tr className="text-[11px] uppercase text-muted-foreground">
-            <th>Description</th>
-            <th className="text-right">Subtotal</th>
-            <th className="text-right">Tax</th>
-            <th className="text-right">Service</th>
-            <th className="text-right">Credit</th>
-          </tr>
-        </thead>
-        <tbody>
-          {snapshot.groups.map((group) => (
-            <tr key={`${group.description}-${group.creditGross}`}>
-              <td>
-                {group.description}
-                {group.sourceGuest ? (
-                  <span className="block text-xs text-muted-foreground">
-                    {group.sourceGuest}
-                    {group.sourceFolioNumber ? ` · ${group.sourceFolioNumber}` : ""}
-                  </span>
-                ) : null}
-              </td>
-              <td className="text-right tabular-nums">{money(-group.subtotal)}</td>
-              <td className="text-right tabular-nums">{money(-group.tax)}</td>
-              <td className="text-right tabular-nums">{money(-group.serviceCharge)}</td>
-              <td className="text-right tabular-nums">{money(-group.creditGross)}</td>
+
+      {/* Bill To & Reason Block */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-100 pt-3 text-xs">
+        <div className="space-y-0.5">
+          <p className="font-bold text-[#0E2C6C] uppercase tracking-wider text-[11px]">Bill To</p>
+          <p className="text-sm font-bold text-slate-950">{snapshot.billToName}</p>
+        </div>
+        <div className="space-y-0.5">
+          <p className="font-bold text-[#0E2C6C] uppercase tracking-wider text-[11px]">Reason for Credit</p>
+          <p className="text-xs font-medium text-slate-800">{snapshot.reason}</p>
+        </div>
+      </section>
+
+      {/* Table with Light Blue Header */}
+      <div className="overflow-x-auto rounded-lg border border-slate-100">
+        <table className="w-full text-xs">
+          <thead className="bg-[#EDF3FA] text-[#0E2C6C]">
+            <tr>
+              <th className="px-3 py-2 text-left font-bold">Description</th>
+              <th className="px-3 py-2 text-right font-bold">Subtotal</th>
+              <th className="px-3 py-2 text-right font-bold">Tax</th>
+              <th className="px-3 py-2 text-right font-bold">Service</th>
+              <th className="px-3 py-2 text-right font-bold">Credit Total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <p>Reason: {snapshot.reason}</p>
-      <div className="ml-auto w-64 space-y-1">
-        <p className="flex justify-between">
-          <span>Subtotal credit</span>
-          <span>{money(-snapshot.totals.subtotal)}</span>
-        </p>
-        <p className="flex justify-between">
-          <span>Tax credit</span>
-          <span>{money(-snapshot.totals.tax)}</span>
-        </p>
-        <p className="flex justify-between">
-          <span>Service credit</span>
-          <span>{money(-snapshot.totals.serviceCharge)}</span>
-        </p>
-        <p className="flex justify-between font-medium">
-          <span>Total credit</span>
-          <span>{money(-snapshot.totals.totalCredit)}</span>
-        </p>
-        <p className="flex justify-between">
-          <span>Net invoice</span>
-          <span>{money(snapshot.totals.netInvoice)}</span>
-        </p>
+          </thead>
+          <tbody className="divide-y divide-[#EDF3FA]/70">
+            {snapshot.groups.map((group) => (
+              <tr key={`${group.description}-${group.creditGross}`} className="transition-colors hover:bg-slate-50/60">
+                <td className="px-3 py-2.5 text-slate-800">
+                  <span className="font-medium text-slate-900 block">{group.description}</span>
+                  {group.sourceGuest ? (
+                    <span className="block text-[11px] text-slate-500">
+                      {group.sourceGuest}
+                      {group.sourceFolioNumber ? ` · Folio ${group.sourceFolioNumber}` : ""}
+                    </span>
+                  ) : null}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-slate-700">
+                  {money(-group.subtotal)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-slate-700">
+                  {money(-group.tax)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-slate-700">
+                  {money(-group.serviceCharge)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right font-bold tabular-nums text-[#0E2C6C]">
+                  {money(-group.creditGross)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      <p className="text-xs text-muted-foreground">Issued by {snapshot.issuedByName ?? "—"}</p>
+
+      {/* Totals Section */}
+      <footer className="pt-2">
+        <div className="ml-auto w-full sm:w-72 space-y-1.5 text-xs">
+          <div className="flex justify-between items-center text-slate-700">
+            <span className="font-bold text-[#0E2C6C]">Subtotal Credit</span>
+            <span className="tabular-nums font-semibold">{money(-snapshot.totals.subtotal)}</span>
+          </div>
+          <div className="flex justify-between items-center text-slate-700">
+            <span className="font-bold text-[#0E2C6C]">Tax Credit</span>
+            <span className="tabular-nums font-semibold">{money(-snapshot.totals.tax)}</span>
+          </div>
+          {snapshot.totals.serviceCharge !== 0 ? (
+            <div className="flex justify-between items-center text-slate-700">
+              <span className="font-bold text-[#0E2C6C]">Service Credit</span>
+              <span className="tabular-nums font-semibold">{money(-snapshot.totals.serviceCharge)}</span>
+            </div>
+          ) : null}
+          <div className="flex justify-between items-baseline pt-2 border-t border-slate-200">
+            <span className="text-sm font-extrabold text-[#0E2C6C]">Total Credit</span>
+            <span className="text-sm sm:text-base font-extrabold text-[#0E2C6C] tabular-nums">
+              {money(-snapshot.totals.totalCredit)} {currency}
+            </span>
+          </div>
+          <div className="flex justify-between items-center pt-1 text-slate-600 border-t border-slate-100">
+            <span className="font-medium">Net Invoice Balance</span>
+            <span className="tabular-nums font-semibold text-slate-900">{money(snapshot.totals.netInvoice)}</span>
+          </div>
+        </div>
+
+        {/* Footer Notes and Sign-off */}
+        <div className="mt-6 border-t border-slate-100 pt-3 text-xs text-slate-600 space-y-1">
+          <p className="font-semibold text-slate-800">
+            Issued by: {snapshot.issuedByName ?? "Front Desk"}
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            Credit note snapshot issued against invoice {snapshot.originalInvoiceNumber ?? "—"}.
+          </p>
+        </div>
+      </footer>
     </article>
   );
 }

@@ -1,3 +1,8 @@
+import {
+  mapCashieringDocumentProperty,
+  type CashieringDocumentProperty,
+} from "@/packages/pms/lib/cashiering-document-property";
+
 export type DebitSourceGroup = {
   sourceGroupId: string;
   postedAt: string | null;
@@ -20,6 +25,7 @@ export type DebitNoteSnapshot = {
   reason: string;
   issuedByName: string | null;
   billToName: string;
+  property: CashieringDocumentProperty | null;
   groups: Array<{
     description: string;
     postedAt: string | null;
@@ -70,6 +76,7 @@ export type DebitNoteBoard = {
   eligibleGroups: DebitSourceGroup[];
   draft: { id: string; reason: string; updatedAt: string; sourceIds: string[] } | null;
   notes: IssuedDebitNote[];
+  property: CashieringDocumentProperty | null;
 };
 
 export type DebitPreview = {
@@ -125,6 +132,7 @@ export function mapDebitSnapshot(value: unknown): DebitNoteSnapshot {
     reason: text(document.reason) ?? "",
     issuedByName: text(document.issuedByName),
     billToName: text(billTo.name) ?? "Account",
+    property: mapCashieringDocumentProperty(row.property),
     groups: groups.map((group) => {
       const item = group as Record<string, unknown>;
       return {
@@ -202,6 +210,7 @@ export function mapDebitBoard(value: unknown): DebitNoteBoard {
     previousDebits: num(row.previousDebits),
     netInvoice: num(row.netInvoice),
     balance: num(row.balance),
+    property: mapCashieringDocumentProperty(row.property),
     eligibleGroups: groups.map(mapSourceGroup),
     draft: draft
       ? {

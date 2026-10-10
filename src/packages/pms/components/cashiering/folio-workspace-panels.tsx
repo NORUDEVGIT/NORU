@@ -14,6 +14,8 @@ import {
   Eye,
   FileText,
   Globe,
+  Info,
+  Printer,
   Landmark,
   Mail,
   MoreVertical,
@@ -48,10 +50,17 @@ import {
   labelTransactionType,
 } from "@/packages/pms/components/cashiering/folio-bits";
 import {
+  listCashierShifts,
   listFolioTenderHistory,
+  postFolioEntry,
   type FolioTransactionRow,
   type FolioWorkspace,
 } from "@/packages/pms/lib/cashiering.functions";
+import {
+  cashieringTenderOptions,
+  emptyPolish1Snapshot,
+} from "@/packages/pms/lib/pms-polish1-payment-admin";
+import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
 import {
   allocateFolioDeposit,
   postSettlementWriteOff,
@@ -65,7 +74,10 @@ import {
   guestInitials,
   isParentTransferCharge,
   isTaxOrServiceCategory,
+  projectedFolioBalance,
   roundFolioMoney,
+  settlementCloseBlock,
+  settlementPaymentDefault,
   stayNights,
   tenderDisplayState,
   type FolioChargeGroup,
@@ -361,6 +373,7 @@ export type RowActions = {
   onTransfer: (row: FolioTransactionRow) => void;
   onCorrect: (type: CorrectionType, row: FolioTransactionRow) => void;
   onCorrectCharge: (row: FolioTransactionRow) => void;
+  onPrintReceipt?: (row: FolioTransactionRow) => void;
 };
 
 function legalCorrections(
@@ -426,6 +439,11 @@ function RowMenu({
         <DropdownMenuItem onSelect={() => actions.onDetails(row)}>
           <Eye className="size-4" /> View Details
         </DropdownMenuItem>
+        {(row.type === "payment" || row.type === "deposit") && actions.onPrintReceipt ? (
+          <DropdownMenuItem onSelect={() => actions.onPrintReceipt?.(row)}>
+            <Printer className="size-4" /> Print receipt
+          </DropdownMenuItem>
+        ) : null}
         {canTransfer ? (
           <DropdownMenuItem onSelect={() => actions.onTransfer(row)}>
             <ArrowLeftRight className="size-4" /> Transfer Charge
@@ -1297,98 +1315,425 @@ export function TransfersTab({
 /* ----------------------------------------------------------- Settlement */
 
 export function SettlementTab({
+  restaurantId,
   workspace,
   money,
   dateTime,
   onAllocate,
-  onReceivePayment,
   onWriteOff,
   onClose,
+  onPosted,
+  onPrintStatement,
+  onGoTab,
 }: {
+  restaurantId: string;
   workspace: FolioWorkspace;
   money: Money;
   dateTime: DateTimeFormat;
   onAllocate: () => void;
-  onReceivePayment: () => void;
   onWriteOff: () => void;
   onClose: () => void;
+  onPosted: () => void;
+  onPrintStatement: () => void;
+  onGoTab: (tab: FolioWorkspaceTabId) => void;
 }) {
   const folio = workspace.folio;
+  const summary = workspace.financialSummary;
   const caps = workspace.capabilities;
-  const balance = workspace.financialSummary.currentBalance;
+  const balance = summary.currentBalance;
   const meta = BALANCE_META[balanceTone(balance)];
+  const open = folio.status === "open";
+  const outstanding = settlementPaymentDefault(balance);
+  const closeBlock = settlementCloseBlock(balance);
+  const currency = folio.currency?.trim() || "ETB";
   const canAllocate =
-    workspace.canManage && folio.status === "open" && workspace.depositSummary.available > 0.009;
+    workspace.canManage && open && workspace.depositSummary.available > 0.009;
+  const fetchShifts = useServerFn(listCashierShifts);
+  const shifts = useQuery({
+    queryKey: ["settlement-cashier-shifts", restaurantId],
+    queryFn: () => fetchShifts({ data: { restaurantId } }),
+  });
+  const shiftOpen = (shifts.data ?? []).some((shift) => shift.status === "open");
+  const payments = workspace.recentPayments;
+  const writeOffs = folio.transactions
+    .filter((row) => row.referenceType === "settlement_write_off")
+    .slice()
+    .sort((a, b) => (a.postedAt < b.postedAt ? 1 : -1))
+    .slice(0, 5);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="folio-settlement">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          label="Current Balance"
+          label={meta.label}
           value={formatBalance(money, balance)}
-          detail={meta.label}
+          detail={open ? "Ledger balance" : "Financially closed"}
           icon={Wallet}
           tint={meta.tint}
           valueClassName={meta.text}
         />
         <KpiCard
-          label="Deposits Available"
-          value={money(workspace.depositSummary.available)}
-          detail="Credit not yet applied"
+          label="Deposits"
+          value={money(summary.deposits)}
+          detail="Already included in the balance"
           icon={WalletCards}
           tint={KPI_TINT.deposit}
         />
         <KpiCard
-          label="Settlement Exception"
-          value={folio.unsettledCheckout ? "Unsettled" : "None"}
-          detail={folio.unsettledCheckout ? "Checked out with balance" : "No exception"}
-          icon={TriangleAlert}
-          tint={folio.unsettledCheckout ? KPI_TINT.adjustment : KPI_TINT.neutral}
-          valueClassName={folio.unsettledCheckout ? "text-amber-700" : undefined}
+          label="Cashier shift"
+          value={shiftOpen ? "Open" : "None"}
+          detail="Informational. Posting is not blocked."
+          icon={Coins}
+          tint={KPI_TINT.neutral}
         />
         <KpiCard
-          label="Folio Status"
-          value={folio.status === "open" ? "Open" : "Closed"}
+          label="Folio status"
+          value={open ? "Open" : "Closed"}
           detail={folio.closedAt ? `Closed ${dateTime(folio.closedAt)}` : "Accepting postings"}
           icon={FileText}
-          tint={folio.status === "open" ? KPI_TINT.tax : KPI_TINT.neutral}
+          tint={open ? KPI_TINT.tax : KPI_TINT.neutral}
         />
       </div>
-      <SectionCard
-        title="Settle this folio"
-        description="Close is available only when the balance is zero."
-      >
-        <div className="flex flex-wrap items-center gap-2 p-4">
-          {canAllocate ? (
-            <Button size="sm" variant="outline" onClick={onAllocate}>
-              <WalletCards className="size-4" /> Apply deposit
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <SectionCard
+          title="Settlement summary"
+          description="Posted ledger lines. Tax and service are the amounts already on the folio."
+          testId="settlement-summary"
+          action={
+            <Button type="button" size="sm" variant="outline" onClick={onPrintStatement}>
+              <Printer className="size-4" /> Print statement
             </Button>
-          ) : null}
-          {caps.canPostPayment ? (
-            <Button size="sm" variant="outline" onClick={onReceivePayment}>
-              <CreditCard className="size-4" /> Receive Payment
-            </Button>
-          ) : null}
-          {caps.canWriteOff ? (
-            <Button size="sm" variant="outline" onClick={onWriteOff}>
-              <SlidersHorizontal className="size-4" /> Post Write-off
-            </Button>
-          ) : null}
-          {workspace.canManage && folio.status === "open" ? (
-            <Button size="sm" disabled={!caps.canClose} onClick={onClose}>
-              Close Folio
-            </Button>
-          ) : null}
-          {folio.status !== "open" ? (
-            <p className="text-sm text-muted-foreground">
-              This folio is closed. New lines cannot be posted.
+          }
+        >
+          <div className="divide-y divide-[#E8E1D7] px-4 py-1 text-sm [&>div]:py-2">
+            <SummaryLine label="Charges" value={money(summary.netCharges)} />
+            <SummaryLine label="Tax" value={money(summary.tax)} />
+            <SummaryLine label="Service charge" value={money(summary.serviceCharge)} />
+            <SummaryLine label="Adjustments" value={formatBalance(money, summary.adjustments)} />
+            <SummaryLine label="Discounts" value={`− ${money(summary.discounts)}`} />
+            <SummaryLine label="Payments" value={`− ${money(summary.payments)}`} />
+            <SummaryLine label="Deposits" value={`− ${money(summary.deposits)}`} />
+            <SummaryLine label="Refunds" value={formatBalance(money, summary.refunds)} />
+            <SummaryLine label="Transfers in" value={formatBalance(money, summary.transfersIn)} />
+            <SummaryLine label="Transfers out" value={`− ${money(summary.transfersOut)}`} />
+            <SummaryLine label={meta.label} value={formatBalance(money, balance)} />
+          </div>
+          {summary.deposits > 0.009 ? (
+            <p className="border-t border-[#E8E1D7] px-4 py-3 text-xs text-muted-foreground">
+              Deposits are already included in the folio balance. Applying a deposit only tracks allocation and does not reduce the balance again.
             </p>
           ) : null}
-          {folio.status === "open" && !workspace.canOperate ? (
+          {canAllocate ? (
+            <div className="border-t border-[#E8E1D7] px-4 py-3">
+              <Button type="button" size="sm" variant="outline" onClick={onAllocate}>
+                <WalletCards className="size-4" /> Allocate deposit
+              </Button>
+            </div>
+          ) : null}
+          {payments.length > 0 ? (
+            <div className="border-t border-[#E8E1D7] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Recent payments
+              </p>
+              <ul className="mt-2 space-y-1.5 text-sm">
+                {payments.map((row) => (
+                  <li key={row.id} className="flex justify-between gap-3">
+                    <span className="truncate">{row.description}</span>
+                    <span className="shrink-0 tabular-nums">{money(Math.abs(row.amount))}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {writeOffs.length > 0 ? (
+            <div className="border-t border-[#E8E1D7] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Write-offs
+              </p>
+              <ul className="mt-2 space-y-1.5 text-sm">
+                {writeOffs.map((row) => (
+                  <li key={row.id} className="flex justify-between gap-3">
+                    <span className="truncate">{row.description}</span>
+                    <span className="shrink-0 tabular-nums">{formatBalance(money, row.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </SectionCard>
+
+        <div className="space-y-4">
+          {open && outstanding > 0 && caps.canPostPayment ? (
+            <SettlementPaymentCard
+              restaurantId={restaurantId}
+              folioId={folio.id}
+              balance={balance}
+              currency={currency}
+              guestName={folio.guestName}
+              money={money}
+              onPosted={onPosted}
+            />
+          ) : null}
+          {open && Math.abs(balance) < 0.01 ? (
+            <SectionCard title="Final payment" description="This folio is financially settled.">
+              <p className="px-4 py-4 text-sm text-emerald-800">
+                Settled {money(0)}. Post another payment only if a new charge is added first.
+              </p>
+            </SectionCard>
+          ) : null}
+          {open && balance < -0.009 ? (
+            <SectionCard title="Final payment" description="Resolve the credit balance before closing.">
+              <div className="space-y-3 px-4 py-4 text-sm">
+                <p>
+                  Credit balance {formatBalance(money, balance)}. A refund must name the original payment or deposit.
+                </p>
+                <Button type="button" size="sm" variant="outline" onClick={() => onGoTab("payments")}>
+                  Open Payments & Deposits
+                </Button>
+              </div>
+            </SectionCard>
+          ) : null}
+          {open && workspace.canManage ? (
+            <SectionCard title="Routing" description="Company and group billing stays on Transfer / Routing.">
+              <div className="px-4 py-4">
+                <p className="text-sm text-muted-foreground">
+                  Need to bill a company or group? Move the charges first. City ledger is not a payment method.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                  onClick={() => onGoTab("transfers")}
+                >
+                  <ArrowLeftRight className="size-4" /> Use Transfer / Routing
+                </Button>
+              </div>
+            </SectionCard>
+          ) : null}
+          {!open ? (
+            <SectionCard title="Closed folio">
+              <p className="px-4 py-4 text-sm text-muted-foreground">
+                Closed{folio.closedAt ? ` ${dateTime(folio.closedAt)}` : ""}. New charges, payments, refunds, transfers and normal corrections cannot be posted.
+              </p>
+            </SectionCard>
+          ) : null}
+          {open && !workspace.canOperate ? (
             <p className="text-sm text-muted-foreground">Read-only access for your role.</p>
           ) : null}
         </div>
-      </SectionCard>
+      </div>
+
+      {open && workspace.canManage ? (
+        <SectionCard
+          title="Close folio"
+          description="This action financially closes the folio. Guest checkout remains a Front Office action."
+          testId="settlement-close"
+          action={
+            caps.canWriteOff ? (
+              <Button type="button" size="sm" variant="outline" onClick={onWriteOff}>
+                <SlidersHorizontal className="size-4" /> Post write-off
+              </Button>
+            ) : null
+          }
+        >
+          <div className="space-y-3 px-4 py-4">
+            {closeBlock ? (
+              <p className="flex items-start gap-2 text-sm text-amber-800">
+                <Info className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  {closeBlock} Remaining balance must be settled before this folio can be closed.
+                </span>
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Current balance is zero. Closing does not check the guest out or change the room.
+              </p>
+            )}
+            <Button type="button" size="sm" disabled={!caps.canClose} onClick={onClose}>
+              Close folio
+            </Button>
+          </div>
+        </SectionCard>
+      ) : null}
     </div>
+  );
+}
+
+function SettlementPaymentCard({
+  restaurantId,
+  folioId,
+  balance,
+  currency,
+  guestName,
+  money,
+  onPosted,
+}: {
+  restaurantId: string;
+  folioId: string;
+  balance: number;
+  currency: string;
+  guestName: string;
+  money: Money;
+  onPosted: () => void;
+}) {
+  const outstanding = settlementPaymentDefault(balance);
+  const [amount, setAmount] = useState(() => String(outstanding));
+  const [method, setMethod] = useState("");
+  const [receivedFrom, setReceivedFrom] = useState(guestName.trim());
+  const [notes, setNotes] = useState("");
+  const [payKey, setPayKey] = useState(() => idempotencyKey("pay"));
+  const [posting, setPosting] = useState(false);
+  const set1 = usePmsSet1Foundation(restaurantId);
+  const tenders = cashieringTenderOptions({
+    available: set1.data?.polish1?.paymentMethodsAvailable ?? false,
+    methods: set1.data?.polish1?.paymentMethods ?? emptyPolish1Snapshot().paymentMethods,
+  });
+  const entered = Number(amount);
+  const projected = projectedFolioBalance(balance, Number.isFinite(entered) ? entered : 0);
+  const projectedTone = BALANCE_META[balanceTone(projected)];
+  const post = useServerFn(postFolioEntry);
+
+  useEffect(() => {
+    setAmount(String(outstanding));
+    setPayKey(idempotencyKey("pay"));
+  }, [outstanding, folioId]);
+
+  useEffect(() => {
+    if (!tenders.some((row) => row.code === method)) setMethod(tenders[0]?.code ?? "");
+  }, [tenders, method]);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const value = Number(amount);
+      if (!Number.isFinite(value) || value <= 0) throw new Error("Enter an amount greater than zero.");
+      if (!method) throw new Error("Choose a payment method.");
+      if (!receivedFrom.trim()) throw new Error("Enter who the money was received from.");
+      if (!notes.trim()) throw new Error("Enter a note for this payment.");
+      return post({
+        data: {
+          restaurantId,
+          folioId,
+          type: "payment",
+          amount: value,
+          description: notes.trim(),
+          method,
+          receivedFrom: receivedFrom.trim(),
+          idempotencyKey: payKey,
+        },
+      });
+    },
+    onSuccess: (result) => {
+      setPosting(false);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success("Payment posted");
+      setNotes("");
+      setPayKey(idempotencyKey("pay"));
+      onPosted();
+    },
+    onError: (error: Error) => {
+      setPosting(false);
+      toast.error(error.message);
+    },
+  });
+
+  return (
+    <SectionCard
+      title="Final payment"
+      description="Posts one payment on this folio. A remaining balance is paid with another payment."
+      testId="settlement-payment"
+    >
+      <form
+        className="space-y-3 px-4 py-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (posting || mutation.isPending) return;
+          setPosting(true);
+          mutation.mutate();
+        }}
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="settlement-amount">Amount *</Label>
+            <Input
+              id="settlement-amount"
+              className="mt-1.5"
+              inputMode="decimal"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="settlement-method">Payment method *</Label>
+            <Select value={method} onValueChange={setMethod}>
+              <SelectTrigger id="settlement-method" className="mt-1.5">
+                <SelectValue placeholder="Choose a method" />
+              </SelectTrigger>
+              <SelectContent>
+                {tenders.map((row) => (
+                  <SelectItem key={row.code} value={row.code}>
+                    {row.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="settlement-from">Received from *</Label>
+            <Input
+              id="settlement-from"
+              className="mt-1.5"
+              value={receivedFrom}
+              onChange={(event) => setReceivedFrom(event.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="settlement-notes">Notes *</Label>
+            <Input
+              id="settlement-notes"
+              className="mt-1.5"
+              maxLength={200}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Currency {currency}. Posting now.
+        </p>
+        <div className="rounded-xl border border-[#E8E1D7] bg-[#F7F4EE]/70 p-3 text-sm" data-testid="settlement-projected">
+          <div className="flex justify-between gap-3">
+            <span>Current balance</span>
+            <span className="tabular-nums">{formatBalance(money, balance)}</span>
+          </div>
+          <div className="mt-1 flex justify-between gap-3">
+            <span>Payment</span>
+            <span className="tabular-nums">− {money(Number.isFinite(entered) && entered > 0 ? entered : 0)}</span>
+          </div>
+          <div className={cn("mt-2 flex justify-between gap-3 border-t border-[#E8E1D7] pt-2 font-medium", projectedTone.text)}>
+            <span>{projectedTone.label}</span>
+            <span className="tabular-nums">{formatBalance(money, projected)}</span>
+          </div>
+          {projected > 0.009 ? (
+            <p className="mt-2 text-xs text-amber-800">
+              Remaining balance must be settled before this folio can be closed.
+            </p>
+          ) : null}
+          {projected < -0.009 ? (
+            <p className="mt-2 text-xs text-blue-800">
+              This payment will create a credit balance of {formatBalance(money, projected)}. A credit balance must be refunded or otherwise resolved before the folio can be closed.
+            </p>
+          ) : null}
+        </div>
+        <Button type="submit" size="sm" disabled={posting || mutation.isPending || tenders.length === 0}>
+          {mutation.isPending ? "Posting..." : "Post payment"}
+        </Button>
+      </form>
+    </SectionCard>
   );
 }
 
@@ -1723,6 +2068,7 @@ export function TransactionDetailDialog({
   money,
   dateTime,
   onClose,
+  onViewReceipt,
 }: {
   restaurantId?: string;
   folioId?: string;
@@ -1732,6 +2078,7 @@ export function TransactionDetailDialog({
   money: Money;
   dateTime: DateTimeFormat;
   onClose: () => void;
+  onViewReceipt?: (row: FolioTransactionRow) => void;
 }) {
   const history = useServerFn(listFolioTenderHistory);
   const tender = row?.type === "payment" || row?.type === "deposit" || row?.type === "refund";
@@ -1856,8 +2203,21 @@ export function TransactionDetailDialog({
             ) : null}
           </div>
         ) : null}
-        <SheetFooter className="border-t border-[#E8E1D7] px-5 py-3">
-          <Button variant="outline" onClick={onClose}>
+        <SheetFooter className="flex flex-row items-center justify-between border-t border-[#E8E1D7] px-5 py-3">
+          {row && (row.type === "payment" || row.type === "deposit") && onViewReceipt ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onClose();
+                onViewReceipt(row);
+              }}
+              className="border-[#E8E1D7] text-[#8a6a1f] hover:bg-[#F7F4EE]"
+            >
+              <Receipt className="mr-1.5 size-3.5" /> View Receipt
+            </Button>
+          ) : <div />}
+          <Button variant="outline" size="sm" onClick={onClose}>
             Close
           </Button>
         </SheetFooter>

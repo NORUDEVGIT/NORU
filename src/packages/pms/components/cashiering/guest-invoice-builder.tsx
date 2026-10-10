@@ -5,16 +5,20 @@ import { FileText, Plus, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { FolioInvoicePreview } from "@/packages/pms/components/cashiering/folio-invoice-panel";
+import { stayNights } from "@/packages/pms/lib/folio-workspace";
 import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
 import { DebitNoteSection } from "@/packages/pms/components/cashiering/debit-note-panel";
 import {
   createGuestFolioInvoiceDraft,
   deleteGuestFolioInvoiceDraft,
+  getCashieringDocumentProperty,
   getGuestFolioInvoiceBoard,
   issueGuestFolioInvoiceDraft,
   previewGuestFolioInvoiceSelection,
   updateGuestFolioInvoiceDraft,
 } from "@/packages/pms/lib/cashiering-invoices.functions";
+import type { CashieringDocumentProperty } from "@/packages/pms/lib/cashiering-document-property";
+import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
 import type {
   InvoiceGroupView,
   IssuedFolioInvoiceRow,
@@ -75,6 +79,12 @@ export function GuestInvoiceWorkspace({
     queryKey: ["folio", restaurantId, folio.id, "invoice-board"],
     queryFn: () => fetchBoard({ data: { restaurantId, folioId: folio.id } }),
   });
+  const fetchDocumentProperty = useServerFn(getCashieringDocumentProperty);
+  const documentPropertyQuery = useQuery({
+    queryKey: ["cashiering-document-property", restaurantId],
+    queryFn: () => fetchDocumentProperty({ data: { restaurantId } }),
+  });
+  const documentProperty = documentPropertyQuery.data ?? null;
   const board = boardQuery.data;
   const [editing, setEditing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -527,6 +537,7 @@ export function GuestInvoiceWorkspace({
               dateTime={dateTime}
               notes={notes}
               preparedBy={board?.draft?.preparedBy ?? null}
+              property={documentProperty}
               groups={preview?.groups ?? []}
               subtotal={preview?.subtotal ?? 0}
               tax={preview?.tax ?? 0}
@@ -600,7 +611,12 @@ export function GuestInvoiceWorkspace({
         )}
         {openInvoice ? (
           <div className="border-t border-[#E8E1D7] p-4">
-            <FolioInvoicePreview invoice={openInvoice} money={money} dateTime={dateTime} />
+            <FolioInvoicePreview
+              invoice={openInvoice}
+              money={money}
+              dateTime={dateTime}
+              liveProperty={documentProperty}
+            />
             <CreditNoteSection
               restaurantId={restaurantId}
               guestInvoiceId={openInvoice.id}
@@ -631,6 +647,7 @@ function InvoiceDraftPreview({
   dateTime,
   notes,
   preparedBy,
+  property,
   groups,
   subtotal,
   tax,
@@ -642,57 +659,118 @@ function InvoiceDraftPreview({
   dateTime: (iso: string | null | undefined) => string;
   notes: string;
   preparedBy: string | null;
+  property: CashieringDocumentProperty | null;
   groups: InvoiceGroupView[];
   subtotal: number;
   tax: number;
   serviceCharge: number;
   total: number;
 }) {
+  const nights = stayNights(folio.arrivalDate, folio.departureDate) ?? 1;
+  const currency = folio.currency || "ETB";
+
   return (
-    <div className="space-y-3 text-sm" data-testid="invoice-draft-preview">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Invoice draft</p>
-      <p className="font-semibold">{folio.guestName}</p>
-      <p className="text-muted-foreground">Invoice no. Assigned on issue</p>
-      <p className="text-muted-foreground">
-        Folio {folio.folioNumber}
-        {folio.confirmationNumber ? ` · ${folio.confirmationNumber}` : ""}
-      </p>
-      <p className="text-muted-foreground">
-        {folio.arrivalDate ? dateTime(folio.arrivalDate) : "—"} –{" "}
-        {folio.departureDate ? dateTime(folio.departureDate) : "—"}
-      </p>
-      <table className="w-full text-xs">
-        <tbody>
-          {groups.map((group) => (
-            <tr key={group.parentTransactionId} className="border-t border-[#E8E1D7]">
-              <td className="py-1">{group.description}</td>
-              <td className="py-1 text-right tabular-nums">{money(group.grossTotal)}</td>
+    <div className="space-y-5 text-xs bg-white p-4 rounded-xl border border-slate-100" data-testid="invoice-draft-preview">
+      {/* Top Header */}
+      <header className="flex justify-between items-start gap-4 pb-2 border-b border-slate-100">
+        <CashieringDocumentLetterhead property={property} logoClassName="size-8" />
+        <div className="text-right space-y-0.5">
+          <h4 className="text-sm font-extrabold text-[#0E2C6C] uppercase tracking-tight">
+            INTERNAL INVOICE
+          </h4>
+          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+            Draft Preview
+          </span>
+          <p className="text-[11px] text-slate-600 pt-1">
+            <span className="font-medium">No:</span> Assigned on issue
+          </p>
+          <p className="text-[11px] text-slate-600">
+            <span className="font-medium">Folio:</span> {folio.folioNumber}
+          </p>
+          <p className="text-[11px] text-slate-600">
+            <span className="font-medium">Reservation:</span> {folio.confirmationNumber || "—"}
+          </p>
+        </div>
+      </header>
+
+      {/* Guest & Stay Period */}
+      <section className="grid grid-cols-2 gap-3 text-xs">
+        <div>
+          <p className="font-bold text-[#0E2C6C] text-[10px] uppercase tracking-wider">Guest</p>
+          <p className="font-bold text-slate-950">{folio.guestName}</p>
+          <p className="text-slate-600">Room {folio.roomNumber || "—"}</p>
+        </div>
+        <div>
+          <p className="font-bold text-[#0E2C6C] text-[10px] uppercase tracking-wider">Stay Period</p>
+          <p className="font-semibold text-slate-900">
+            {folio.arrivalDate?.slice(0, 10) || "—"} → {folio.departureDate?.slice(0, 10) || "—"}
+          </p>
+          <p className="text-slate-600">Nights: {nights}</p>
+        </div>
+      </section>
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded border border-slate-100">
+        <table className="w-full text-[11px]">
+          <thead className="bg-[#EDF3FA] text-[#0E2C6C]">
+            <tr>
+              <th className="px-2.5 py-1.5 text-left font-bold">Description</th>
+              <th className="px-2.5 py-1.5 text-right font-bold">Amount</th>
+              <th className="px-2.5 py-1.5 text-right font-bold">Tax</th>
+              <th className="px-2.5 py-1.5 text-right font-bold">Total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="space-y-1 border-t border-[#E8E1D7] pt-2">
-        <p className="flex justify-between">
-          <span>Subtotal</span>
-          <span>{money(subtotal)}</span>
-        </p>
-        <p className="flex justify-between">
-          <span>Tax</span>
-          <span>{money(tax)}</span>
-        </p>
-        <p className="flex justify-between">
-          <span>Service charge</span>
-          <span>{money(serviceCharge)}</span>
-        </p>
-        <p className="flex justify-between font-semibold">
-          <span>Total</span>
-          <span>{money(total)}</span>
-        </p>
+          </thead>
+          <tbody className="divide-y divide-[#EDF3FA]/70">
+            {groups.map((group) => {
+              const groupTax = group.taxLines.reduce((sum, l) => sum + l.amount, 0);
+              return (
+                <tr key={group.parentTransactionId}>
+                  <td className="px-2.5 py-1.5 text-slate-800">{group.description}</td>
+                  <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-700">
+                    {money(group.netAmount)}
+                  </td>
+                  <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-700">
+                    {money(groupTax)}
+                  </td>
+                  <td className="px-2.5 py-1.5 text-right font-semibold tabular-nums text-slate-900">
+                    {money(group.grossTotal)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-      {notes ? <p className="text-xs text-muted-foreground">{notes}</p> : null}
-      {preparedBy ? (
-        <p className="text-xs text-muted-foreground">Prepared by {preparedBy}</p>
-      ) : null}
+
+      {/* Totals */}
+      <div className="space-y-1 border-t border-slate-200 pt-2 text-xs">
+        <div className="flex justify-between items-center text-slate-700">
+          <span className="font-bold text-[#0E2C6C]">Subtotal</span>
+          <span className="tabular-nums font-semibold">{money(subtotal)}</span>
+        </div>
+        <div className="flex justify-between items-center text-slate-700">
+          <span className="font-bold text-[#0E2C6C]">VAT (15%)</span>
+          <span className="tabular-nums font-semibold">{money(tax)}</span>
+        </div>
+        {serviceCharge > 0 ? (
+          <div className="flex justify-between items-center text-slate-700">
+            <span className="font-bold text-[#0E2C6C]">Service Fee</span>
+            <span className="tabular-nums font-semibold">{money(serviceCharge)}</span>
+          </div>
+        ) : null}
+        <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-200">
+          <span className="font-extrabold text-[#0E2C6C]">Total Amount</span>
+          <span className="font-extrabold text-[#0E2C6C] tabular-nums">
+            {money(total)} {currency}
+          </span>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="text-[11px] text-slate-500 pt-1 space-y-0.5">
+        {notes ? <p className="text-slate-700">Notes: {notes}</p> : null}
+        {preparedBy ? <p className="font-medium text-slate-700">Prepared by: {preparedBy}</p> : null}
+      </div>
     </div>
   );
 }

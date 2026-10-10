@@ -9,6 +9,10 @@ import {
   requireCashieringAccess,
 } from "./cashiering.server";
 import {
+  mapCashieringDocumentProperty,
+  type CashieringDocumentProperty,
+} from "@/packages/pms/lib/cashiering-document-property";
+import {
   mapFolioInvoiceSnapshot,
   type InvoiceBoard,
   type InvoiceComponentLine,
@@ -21,6 +25,54 @@ import {
 const idSchema = z.string().uuid();
 
 export type InvoiceActionResult = { ok: true; invoice: IssuedFolioInvoiceRow } | { ok: false; message: string };
+
+const RESTAURANT_DOCUMENT_COLUMNS =
+  "currency_code, legal_entity_name, legal_name, brand_name, trading_name, vat_number, vat_registered, tin_number, full_address, phone, email, logo_url, name, address, city, postcode, country";
+
+export async function loadCashieringDocumentProperty(
+  supabaseAdmin: Awaited<
+    typeof import("@/integrations/supabase/client.server")
+  >["supabaseAdmin"],
+  restaurantId: string,
+): Promise<CashieringDocumentProperty | null> {
+  const { data, error } = await supabaseAdmin
+    .from("restaurants")
+    .select(RESTAURANT_DOCUMENT_COLUMNS)
+    .eq("id", restaurantId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const row = data as Record<string, unknown>;
+  const composedAddress = [
+    row.full_address,
+    [row.address, row.city, row.postcode, row.country].filter(Boolean).join(", "),
+  ]
+    .map((part) => (typeof part === "string" ? part.trim() : ""))
+    .find(Boolean);
+  return mapCashieringDocumentProperty({
+    currencyCode: row.currency_code,
+    legalEntityName: row.legal_entity_name,
+    legalName: row.legal_name,
+    brandName: row.brand_name,
+    tradingName: row.trading_name,
+    vatNumber: row.vat_number,
+    vatRegistered: row.vat_registered,
+    tinNumber: row.tin_number,
+    fullAddress: composedAddress ?? null,
+    phone: row.phone,
+    email: row.email,
+    logoUrl: row.logo_url,
+    displayName: row.trading_name ?? row.brand_name ?? row.legal_entity_name ?? row.legal_name ?? row.name,
+  });
+}
+
+export const getCashieringDocumentProperty = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }): Promise<CashieringDocumentProperty | null> => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return loadCashieringDocumentProperty(supabaseAdmin, data.restaurantId);
+  });
 
 function mapInvoiceRow(row: {
   id: string;

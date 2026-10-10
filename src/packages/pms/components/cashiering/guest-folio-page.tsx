@@ -37,13 +37,19 @@ import {
 } from "@/packages/pms/components/cashiering/folio-bits";
 import {
   CloseFolioDialog,
+  DepositReceiptModal,
   FolioEntryDialog,
+  buildTenderReceiptFromFolioRow,
+  TenderReceiptDocument,
+  TenderReceiptPrint,
+  type TenderReceipt,
 } from "@/packages/pms/components/cashiering/folio-dialogs";
 import { ChargeDetailsSheet, chargeDepartment, chargeItemTitle, chargeQuantity, chargeUnitAmount } from "@/packages/pms/components/cashiering/charge-details-sheet";
 import { CorrectChargeDialog } from "@/packages/pms/components/cashiering/correct-charge-dialog";
 import { TransferChargeDialog } from "@/packages/pms/components/cashiering/transfer-charge-dialog";
 import { PostChargeDialog } from "@/packages/pms/components/cashiering/post-charge-dialog";
 import { FolioInvoicePanel } from "@/packages/pms/components/cashiering/folio-invoice-panel";
+import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
 import {
   AdjustmentsTab,
   ApplyDepositDialog,
@@ -66,6 +72,7 @@ import {
 } from "@/packages/pms/components/rooms/room-inventory-shared";
 import { GuestInvoiceWorkspace } from "@/packages/pms/components/cashiering/guest-invoice-builder";
 import {
+  getCashieringDocumentProperty,
   reprintGuestFolioInvoice,
   type InvoiceActionResult,
 } from "@/packages/pms/lib/cashiering-invoices.functions";
@@ -316,6 +323,11 @@ function FolioWorkspaceBody({
   const navigate = useNavigate();
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
+  const fetchDocumentProperty = useServerFn(getCashieringDocumentProperty);
+  const documentPropertyQuery = useQuery({
+    queryKey: ["cashiering-document-property", restaurantId],
+    queryFn: () => fetchDocumentProperty({ data: { restaurantId } }),
+  });
   const folio = workspace.folio;
   const caps = workspace.capabilities;
 
@@ -334,10 +346,18 @@ function FolioWorkspaceBody({
   const [correctSourceId, setCorrectSourceId] = useState<string | null>(null);
   const [printMode, setPrintMode] = useState<"statement" | "invoice">("statement");
   const [printInvoice, setPrintInvoice] = useState<IssuedFolioInvoiceRow | null>(null);
+  const [viewReceipt, setViewReceipt] = useState<TenderReceipt | null>(null);
+  const [printReceipt, setPrintReceipt] = useState<TenderReceipt | null>(null);
 
   useEffect(() => {
     setTab(resolveTab(initialTab));
   }, [initialTab]);
+
+  useEffect(() => {
+    const clear = () => setPrintReceipt(null);
+    window.addEventListener("afterprint", clear);
+    return () => window.removeEventListener("afterprint", clear);
+  }, []);
 
   useEffect(() => {
     if (!isFolioAction(initialAction)) return;
@@ -413,6 +433,12 @@ function FolioWorkspaceBody({
     ? (folio.transactions.find((row) => row.id === correctSourceId) ?? null)
     : null;
 
+  const tenderReceiptContext = {
+    property: documentPropertyQuery.data ?? null,
+    propertyDisplayName: propertyName,
+    depositPolicySummary,
+  };
+
   const rowActions: RowActions = {
     onDetails: (row) => {
       if (row.type === "charge") {
@@ -426,6 +452,12 @@ function FolioWorkspaceBody({
     onTransfer: (row) => openTransfer(row.id),
     onCorrect: (type, row) => openEntry(type, row.id),
     onCorrectCharge: (row) => setCorrectSourceId(row.id),
+    onPrintReceipt: (row) => {
+      const receipt = buildTenderReceiptFromFolioRow(row, workspace, tenderReceiptContext);
+      if (!receipt) return;
+      setPrintReceipt(receipt);
+      window.setTimeout(() => window.print(), 50);
+    },
   };
 
   const nights = stayNights(folio.arrivalDate, folio.departureDate);
@@ -747,13 +779,16 @@ function FolioWorkspaceBody({
             ) : null}
             {tab === "settlement" ? (
               <SettlementTab
+                restaurantId={restaurantId}
                 workspace={workspace}
                 money={money}
                 dateTime={dateTime}
                 onAllocate={() => openApply(null)}
-                onReceivePayment={() => openEntry("payment")}
                 onWriteOff={() => setWriteOffOpen(true)}
                 onClose={() => setCloseOpen(true)}
+                onPosted={onChanged}
+                onPrintStatement={() => printWith("statement")}
+                onGoTab={selectTab}
               />
             ) : null}
           </div>
@@ -769,17 +804,26 @@ function FolioWorkspaceBody({
         </div>
       </div>
 
-      {printMode === "statement" ? (
-        <StatementPrint
-          workspace={workspace}
-          money={money}
-          dateTime={dateTime}
-          propertyName={propertyName}
-        />
-      ) : null}
-      {printMode === "invoice" && printInvoice ? (
-        <FolioInvoicePanel invoice={printInvoice} money={money} dateTime={dateTime} />
-      ) : null}
+      <CashieringPrintLayer active={printMode === "statement"}>
+        {printMode === "statement" ? (
+          <StatementPrint
+            workspace={workspace}
+            money={money}
+            dateTime={dateTime}
+            propertyName={propertyName}
+          />
+        ) : null}
+      </CashieringPrintLayer>
+      <CashieringPrintLayer active={printMode === "invoice" && printInvoice !== null}>
+        {printMode === "invoice" && printInvoice ? (
+          <FolioInvoicePanel
+            invoice={printInvoice}
+            money={money}
+            dateTime={dateTime}
+            liveProperty={documentPropertyQuery.data ?? null}
+          />
+        ) : null}
+      </CashieringPrintLayer>
 
       {entryType === "charge" ? (
         <PostChargeDialog
@@ -806,6 +850,20 @@ function FolioWorkspaceBody({
         guestName={folio.guestName}
         folioNumber={folio.folioNumber}
         propertyName={propertyName}
+        guestPhone={folio.guestPhone}
+        guestEmail={folio.guestEmail}
+        confirmationNumber={folio.confirmationNumber}
+        arrivalDate={folio.arrivalDate}
+        departureDate={folio.departureDate}
+        roomType={folio.roomTypeName}
+        ratePlan={folio.ratePlanName}
+        roomNumber={folio.roomNumber}
+        documentProperty={documentPropertyQuery.data ?? null}
+        grossCharges={
+          workspace.financialSummary.netCharges +
+          workspace.financialSummary.tax +
+          workspace.financialSummary.serviceCharge
+        }
         authorizerNote={correctionNotice?.authorizer ?? null}
         thresholdNote={
           (entryType === "adjustment"
@@ -823,7 +881,7 @@ function FolioWorkspaceBody({
       <CloseFolioDialog
         restaurantId={restaurantId}
         folioId={folio.id}
-        balance={folio.balance}
+        balance={workspace.financialSummary.currentBalance}
         open={closeOpen}
         onClose={() => setCloseOpen(false)}
         onDone={onChanged}
@@ -871,7 +929,24 @@ function FolioWorkspaceBody({
         money={money}
         dateTime={dateTime}
         onClose={() => setDetailRow(null)}
+        onViewReceipt={(row) => {
+          const receipt = buildTenderReceiptFromFolioRow(row, workspace, tenderReceiptContext);
+          if (receipt) setViewReceipt(receipt);
+        }}
       />
+      <DepositReceiptModal
+        receipt={viewReceipt}
+        open={viewReceipt !== null}
+        money={money}
+        dateTime={dateTime}
+        onClose={() => setViewReceipt(null)}
+      />
+      {viewReceipt ? <TenderReceiptPrint receipt={viewReceipt} money={money} dateTime={dateTime} /> : null}
+      <CashieringPrintLayer active={printReceipt !== null}>
+        {printReceipt ? (
+          <TenderReceiptDocument receipt={printReceipt} money={money} dateTime={dateTime} />
+        ) : null}
+      </CashieringPrintLayer>
       <ChargeDetailsSheet
         group={chargeGroup}
         workspace={workspace}
@@ -1009,10 +1084,7 @@ function StatementPrint({
   const folio = workspace.folio;
   const s = workspace.financialSummary;
   return (
-    <section
-      className="hidden space-y-4 bg-white p-6 text-foreground print:block"
-      data-testid="folio-statement-print"
-    >
+    <section className="space-y-4 bg-white p-6 text-foreground" data-testid="folio-statement-print">
       <div>
         <p className="text-xs uppercase tracking-wide">{propertyName}</p>
         <h1 className="text-lg font-semibold">Folio statement · {folio.folioNumber}</h1>

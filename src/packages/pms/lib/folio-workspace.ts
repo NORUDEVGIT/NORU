@@ -111,51 +111,6 @@ export function balanceTone(balance: number): "settled" | "due" | "credit" {
   return "credit";
 }
 
-export function summarizeFolioLedger(
-  rows: Array<Pick<FolioTransactionRow, "type" | "category" | "amount">>,
-): FolioFinancialSummary {
-  let netCharges = 0;
-  let tax = 0;
-  let serviceCharge = 0;
-  let payments = 0;
-  let deposits = 0;
-  let adjustments = 0;
-  let discounts = 0;
-  let refunds = 0;
-  let transfersIn = 0;
-  let transfersOut = 0;
-  let currentBalance = 0;
-
-  for (const row of rows) {
-    const amount = Number(row.amount) || 0;
-    currentBalance += amount;
-    if (row.type === "charge" && row.category === "tax") tax += amount;
-    else if (row.type === "charge" && row.category === "service_charge") serviceCharge += amount;
-    else if (row.type === "charge") netCharges += amount;
-    else if (row.type === "payment") payments += Math.abs(amount);
-    else if (row.type === "deposit") deposits += Math.abs(amount);
-    else if (row.type === "adjustment") adjustments += amount;
-    else if (row.type === "discount") discounts += Math.abs(amount);
-    else if (row.type === "refund") refunds += amount;
-    else if (row.type === "transfer_in") transfersIn += amount;
-    else if (row.type === "transfer_out") transfersOut += Math.abs(amount);
-  }
-
-  return {
-    netCharges: roundFolioMoney(netCharges),
-    tax: roundFolioMoney(tax),
-    serviceCharge: roundFolioMoney(serviceCharge),
-    payments: roundFolioMoney(payments),
-    deposits: roundFolioMoney(deposits),
-    adjustments: roundFolioMoney(adjustments),
-    discounts: roundFolioMoney(discounts),
-    refunds: roundFolioMoney(refunds),
-    transfersIn: roundFolioMoney(transfersIn),
-    transfersOut: roundFolioMoney(transfersOut),
-    currentBalance: roundFolioMoney(currentBalance),
-  };
-}
-
 export function groupChargeRows(rows: FolioTransactionRow[]): FolioChargeGroup[] {
   const childrenByParent = new Map<string, FolioTransactionRow[]>();
   for (const row of rows) {
@@ -288,7 +243,11 @@ export {
   filterTenderRows,
   projectedFolioBalance,
   refundedAgainst,
+  settlementCloseBlock,
+  settlementPaymentDefault,
+  summarizeFolioLedger,
   tenderDisplayState,
+  writeOffAmountAllowed,
   type TenderDisplayState,
   type TenderTypeFilter,
 } from "./cashiering-tender-state";

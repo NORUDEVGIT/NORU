@@ -6,11 +6,15 @@ import { toast } from "sonner";
 
 import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
 import { DebitNoteSection } from "@/packages/pms/components/cashiering/debit-note-panel";
+import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
+import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
+import { mergeCashieringDocumentProperty } from "@/packages/pms/lib/cashiering-document-property";
+import { getCashieringDocumentProperty } from "@/packages/pms/lib/cashiering-invoices.functions";
 import {
-  accountInvoiceIssuerLabel,
   type AccountInvoiceGroup,
   type IssuedAccountInvoice,
 } from "@/packages/pms/lib/cashiering-account-invoices";
+import type { CashieringDocumentProperty } from "@/packages/pms/lib/cashiering-document-property";
 import {
   createFinancialAccountInvoiceDraft,
   deleteFinancialAccountInvoiceDraft,
@@ -63,6 +67,13 @@ export function AccountInvoiceWorkspace({
   const removeDraft = useServerFn(deleteFinancialAccountInvoiceDraft);
   const issueDraft = useServerFn(issueFinancialAccountInvoiceDraft);
   const reprintInvoice = useServerFn(reprintFinancialAccountInvoice);
+
+  const fetchDocumentProperty = useServerFn(getCashieringDocumentProperty);
+  const documentPropertyQuery = useQuery({
+    queryKey: ["cashiering-document-property", restaurantId],
+    queryFn: () => fetchDocumentProperty({ data: { restaurantId } }),
+  });
+  const documentProperty = documentPropertyQuery.data ?? null;
 
   const boardQuery = useQuery({
     queryKey: ["account-invoice-board", restaurantId, accountId],
@@ -600,7 +611,13 @@ export function AccountInvoiceWorkspace({
         )}
         {viewedInvoice ? (
           <div className="border-t border-[#E8E1D7] p-4">
-            <AccountInvoicePrint invoice={viewedInvoice} money={money} dateTime={dateTime} screen />
+            <AccountInvoicePrint
+              invoice={viewedInvoice}
+              money={money}
+              dateTime={dateTime}
+              screen
+              liveProperty={documentProperty}
+            />
             <CreditNoteSection
               restaurantId={restaurantId}
               accountInvoiceId={viewedInvoice.id}
@@ -621,9 +638,16 @@ export function AccountInvoiceWorkspace({
         ) : null}
       </div>
 
-      {printInvoice ? (
-        <AccountInvoicePrint invoice={printInvoice} money={money} dateTime={dateTime} />
-      ) : null}
+      <CashieringPrintLayer active={printInvoice !== null}>
+        {printInvoice ? (
+          <AccountInvoicePrint
+            invoice={printInvoice}
+            money={money}
+            dateTime={dateTime}
+            liveProperty={documentProperty}
+          />
+        ) : null}
+      </CashieringPrintLayer>
     </section>
   );
 }
@@ -633,83 +657,126 @@ export function AccountInvoicePrint({
   money,
   dateTime,
   screen = false,
+  liveProperty = null,
 }: {
   invoice: IssuedAccountInvoice;
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
   screen?: boolean;
+  liveProperty?: CashieringDocumentProperty | null;
 }) {
   const snap = invoice.snapshot;
-  const issuer = accountInvoiceIssuerLabel(snap.property);
+  const property = mergeCashieringDocumentProperty(snap.property, liveProperty);
+  const currency = snap.account.currency || "ETB";
+
   return (
     <section
       className={
         screen
-          ? "space-y-4 text-foreground"
-          : "hidden space-y-4 rounded-xl border border-border bg-white p-6 text-foreground print:block"
+          ? "space-y-6 rounded-xl border border-[#E8E1D7] bg-white p-6 text-foreground shadow-sm font-sans"
+          : "space-y-6 rounded-xl border border-border bg-white p-6 text-foreground print:border-0 print:p-0 font-sans"
       }
       data-testid={screen ? "account-invoice-view" : "account-invoice-print"}
     >
-      <header>
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{issuer}</p>
-        {snap.property.tinNumber ? <p className="text-xs">TIN {snap.property.tinNumber}</p> : null}
-        {snap.property.fullAddress ? <p className="text-xs">{snap.property.fullAddress}</p> : null}
-        <h2 className="mt-2 font-display text-xl">Invoice {snap.document.issuedNumber}</h2>
-        <p className="text-xs">
-          {dateTime(snap.issuedAt)} · {snap.account.currency}
-        </p>
+      {/* Top Header */}
+      <header className="flex flex-wrap items-start justify-between gap-6 pb-2 border-b border-slate-100">
+        <CashieringDocumentLetterhead property={property} />
+
+        <div className="text-right space-y-1 sm:min-w-[220px]">
+          <h1 className="text-xl font-extrabold tracking-tight text-[#0E2C6C] uppercase">
+            INTERNAL INVOICE
+          </h1>
+          <div className="mt-2 space-y-0.5 text-xs text-slate-700">
+            <p>
+              <span className="font-semibold text-slate-500">No:</span>{" "}
+              <span className="font-bold text-[#0E2C6C]">{snap.document.issuedNumber}</span>
+            </p>
+            <p>
+              <span className="font-semibold text-slate-500">Date:</span>{" "}
+              <span>{dateTime(snap.issuedAt)}</span>
+            </p>
+            <p>
+              <span className="font-semibold text-slate-500">Account:</span>{" "}
+              <span>{snap.account.accountNumber}</span>
+            </p>
+            <p>
+              <span className="font-semibold text-slate-500">Currency:</span>{" "}
+              <span>{currency}</span>
+            </p>
+          </div>
+        </div>
       </header>
-      <div>
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Bill to</p>
-        <p className="font-medium">{snap.billTo.name}</p>
-        <p>Account {snap.account.accountNumber}</p>
-        {snap.billTo.taxId ? <p>TIN {snap.billTo.taxId}</p> : null}
-        {snap.billTo.address ? <p>{snap.billTo.address}</p> : null}
+
+      {/* Bill To */}
+      <div className="border-t border-slate-100 pt-3 text-xs">
+        <p className="font-bold text-[#0E2C6C] uppercase tracking-wider text-[11px]">Bill To</p>
+        <p className="text-sm font-bold text-slate-950 mt-0.5">{snap.billTo.name}</p>
+        <p className="text-slate-600">Account: {snap.account.accountNumber}</p>
+        {snap.billTo.taxId ? <p className="text-slate-600">TIN: {snap.billTo.taxId}</p> : null}
+        {snap.billTo.address ? <p className="text-slate-600">{snap.billTo.address}</p> : null}
       </div>
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th>Source</th>
-            <th className="text-right">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {snap.lines.map((line) => (
-            <tr key={line.id}>
-              <td>{line.description}</td>
-              <td>
-                {line.sourceGuest
-                  ? `${line.sourceGuest}${line.sourceFolioNumber ? ` · ${line.sourceFolioNumber}` : ""}`
-                  : "—"}
-              </td>
-              <td className="text-right tabular-nums">{money(line.amount)}</td>
+
+      {/* Table with Light Blue Header */}
+      <div className="overflow-x-auto rounded-lg border border-slate-100">
+        <table className="w-full text-xs">
+          <thead className="bg-[#EDF3FA] text-[#0E2C6C]">
+            <tr>
+              <th className="px-3 py-2 text-left font-bold">Description</th>
+              <th className="px-3 py-2 text-left font-bold">Source</th>
+              <th className="px-3 py-2 text-right font-bold">Amount</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="ml-auto w-56 space-y-1 text-sm">
-        <p className="flex justify-between">
-          <span>Subtotal</span>
-          <span>{money(snap.totals.subtotal)}</span>
-        </p>
-        <p className="flex justify-between">
-          <span>Tax</span>
-          <span>{money(snap.totals.tax)}</span>
-        </p>
-        <p className="flex justify-between">
-          <span>Service</span>
-          <span>{money(snap.totals.serviceCharge)}</span>
-        </p>
-        <p className="flex justify-between font-medium">
-          <span>Total</span>
-          <span>{money(snap.totals.invoiceTotal)}</span>
-        </p>
+          </thead>
+          <tbody className="divide-y divide-[#EDF3FA]/70">
+            {snap.lines.map((line) => (
+              <tr key={line.id} className="transition-colors hover:bg-slate-50/60">
+                <td className="px-3 py-2.5 font-normal text-slate-800">{line.description}</td>
+                <td className="px-3 py-2.5 text-slate-600">
+                  {line.sourceGuest
+                    ? `${line.sourceGuest}${line.sourceFolioNumber ? ` · ${line.sourceFolioNumber}` : ""}`
+                    : "—"}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-slate-900">
+                  {money(line.amount)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      {snap.document.notes ? <p className="text-sm">Notes: {snap.document.notes}</p> : null}
-      <p className="text-xs text-muted-foreground">
-        Immutable snapshot{snap.document.issuedByName ? ` · ${snap.document.issuedByName}` : ""}
-      </p>
+
+      {/* Totals */}
+      <footer className="pt-2">
+        <div className="ml-auto w-full sm:w-64 space-y-1.5 text-xs">
+          <div className="flex justify-between items-center text-slate-700">
+            <span className="font-bold text-[#0E2C6C]">Subtotal</span>
+            <span className="tabular-nums font-semibold">{money(snap.totals.subtotal)}</span>
+          </div>
+          <div className="flex justify-between items-center text-slate-700">
+            <span className="font-bold text-[#0E2C6C]">Tax</span>
+            <span className="tabular-nums font-semibold">{money(snap.totals.tax)}</span>
+          </div>
+          {snap.totals.serviceCharge > 0 ? (
+            <div className="flex justify-between items-center text-slate-700">
+              <span className="font-bold text-[#0E2C6C]">Service</span>
+              <span className="tabular-nums font-semibold">{money(snap.totals.serviceCharge)}</span>
+            </div>
+          ) : null}
+          <div className="flex justify-between items-baseline pt-2 border-t border-slate-200">
+            <span className="text-sm font-extrabold text-[#0E2C6C]">Total</span>
+            <span className="text-sm sm:text-base font-extrabold text-[#0E2C6C] tabular-nums">
+              {money(snap.totals.invoiceTotal)} {currency}
+            </span>
+          </div>
+        </div>
+
+        {/* Footer Notes and Sign-off */}
+        <div className="mt-6 border-t border-slate-100 pt-3 text-xs text-slate-600 space-y-1">
+          {snap.document.notes ? <p className="text-sm">Notes: {snap.document.notes}</p> : null}
+          <p className="text-[11px] text-muted-foreground">
+            Immutable snapshot{snap.document.issuedByName ? ` · ${snap.document.issuedByName}` : ""}
+          </p>
+        </div>
+      </footer>
     </section>
   );
 }

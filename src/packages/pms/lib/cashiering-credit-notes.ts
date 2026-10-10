@@ -1,3 +1,8 @@
+import {
+  mapCashieringDocumentProperty,
+  type CashieringDocumentProperty,
+} from "@/packages/pms/lib/cashiering-document-property";
+
 export type InvoiceCreditState = "None" | "Partially Credited" | "Fully Credited";
 
 export type CreditComponent = {
@@ -32,6 +37,7 @@ export type CreditNoteSnapshot = {
   reason: string;
   issuedByName: string | null;
   billToName: string;
+  property: CashieringDocumentProperty | null;
   groups: Array<{
     description: string;
     sourceGuest: string | null;
@@ -83,6 +89,7 @@ export type CreditNoteBoard = {
   groups: CreditGroup[];
   draft: { id: string; reason: string; updatedAt: string; items: CreditDraftItem[] } | null;
   notes: IssuedCreditNote[];
+  property: CashieringDocumentProperty | null;
 };
 
 export type CreditPreview = {
@@ -144,6 +151,7 @@ export function mapCreditSnapshot(value: unknown): CreditNoteSnapshot {
     reason: text(document.reason) ?? "",
     issuedByName: text(document.issuedByName),
     billToName: text(billTo.name) ?? "Account",
+    property: mapCashieringDocumentProperty(row.property),
     groups: groups.map((group) => {
       const item = group as Record<string, unknown>;
       const components = Array.isArray(item.components) ? item.components : [];
@@ -202,6 +210,7 @@ export function mapCreditBoard(value: unknown): CreditNoteBoard {
     netInvoice: num(row.netInvoice),
     creditState: state === "Partially Credited" || state === "Fully Credited" ? state : "None",
     balance: num(row.balance),
+    property: mapCashieringDocumentProperty(row.property),
     groups: groups.map((group) => {
       const item = group as Record<string, unknown>;
       return {
