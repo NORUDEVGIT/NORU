@@ -50,6 +50,7 @@ export type CreditNoteSnapshot = {
     totalCredit: number;
     originalInvoice: number;
     previousCredits: number;
+    previousDebits: number;
     netInvoice: number;
   };
 };
@@ -74,6 +75,7 @@ export type CreditNoteBoard = {
   billToName: string;
   originalTotal: number;
   previousCredits: number;
+  previousDebits: number;
   remaining: number;
   netInvoice: number;
   creditState: InvoiceCreditState;
@@ -171,6 +173,7 @@ export function mapCreditSnapshot(value: unknown): CreditNoteSnapshot {
       totalCredit: num(totals.totalCredit),
       originalInvoice: num(totals.originalInvoice),
       previousCredits: num(totals.previousCredits),
+      previousDebits: num(totals.previousDebits),
       netInvoice: num(totals.netInvoice),
     },
   };
@@ -194,6 +197,7 @@ export function mapCreditBoard(value: unknown): CreditNoteBoard {
     billToName: String(row.billToName ?? ""),
     originalTotal: num(row.originalTotal),
     previousCredits: num(row.previousCredits),
+    previousDebits: num(row.previousDebits),
     remaining: num(row.remaining),
     netInvoice: num(row.netInvoice),
     creditState: state === "Partially Credited" || state === "Fully Credited" ? state : "None",

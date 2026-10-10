@@ -5,6 +5,7 @@ import { FileText, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
+import { DebitNoteSection } from "@/packages/pms/components/cashiering/debit-note-panel";
 import {
   accountInvoiceIssuerLabel,
   type AccountInvoiceGroup,
@@ -434,7 +435,9 @@ export function AccountInvoiceWorkspace({
                         </td>
                         <td className="px-3 py-2 text-xs">
                           {invoiced
-                            ? `Invoiced · ${group.coveredInvoiceNumber ?? ""}`
+                            ? group.coveredInvoiceNumber?.startsWith("DN-")
+                              ? `Invoiced via ${group.coveredInvoiceNumber}`
+                              : `Invoiced · ${group.coveredInvoiceNumber ?? ""}`
                             : group.invoiceState === "in_draft"
                               ? "In draft"
                               : "Available"}
@@ -599,6 +602,14 @@ export function AccountInvoiceWorkspace({
           <div className="border-t border-[#E8E1D7] p-4">
             <AccountInvoicePrint invoice={viewedInvoice} money={money} dateTime={dateTime} screen />
             <CreditNoteSection
+              restaurantId={restaurantId}
+              accountInvoiceId={viewedInvoice.id}
+              canManage={canManage}
+              money={money}
+              dateTime={dateTime}
+              onIssued={refresh}
+            />
+            <DebitNoteSection
               restaurantId={restaurantId}
               accountInvoiceId={viewedInvoice.id}
               canManage={canManage}

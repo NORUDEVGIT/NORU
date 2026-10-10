@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { FolioInvoicePreview } from "@/packages/pms/components/cashiering/folio-invoice-panel";
 import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
+import { DebitNoteSection } from "@/packages/pms/components/cashiering/debit-note-panel";
 import {
   createGuestFolioInvoiceDraft,
   deleteGuestFolioInvoiceDraft,
@@ -440,7 +441,9 @@ export function GuestInvoiceWorkspace({
                           </td>
                           <td className="px-2 py-2 text-xs">
                             {invoiced
-                              ? `Invoiced · ${group.coveredInvoiceNumber ?? ""}`
+                              ? group.coveredInvoiceNumber?.startsWith("DN-")
+                                ? `Invoiced via ${group.coveredInvoiceNumber}`
+                                : `Invoiced · ${group.coveredInvoiceNumber ?? ""}`
                               : checked
                                 ? "In draft"
                                 : "Uninvoiced"}
@@ -605,6 +608,15 @@ export function GuestInvoiceWorkspace({
               money={money}
               dateTime={dateTime}
               onIssued={onChanged}
+            />
+            <DebitNoteSection
+              restaurantId={restaurantId}
+              guestInvoiceId={openInvoice.id}
+              canManage={workspace.canManage}
+              money={money}
+              dateTime={dateTime}
+              onIssued={onChanged}
+              onPostCharge={onPostCharge}
             />
           </div>
         ) : null}

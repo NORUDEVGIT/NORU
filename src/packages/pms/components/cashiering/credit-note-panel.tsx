@@ -88,6 +88,7 @@ export function CreditNoteSection({
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ["invoice-credit-board", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-debit-board", restaurantId] });
     onIssued?.();
   }
 
@@ -190,8 +191,8 @@ export function CreditNoteSection({
           <div>
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Credits</p>
             <p className="text-sm">
-              Original {money(board.originalTotal)} · Credits {money(-board.previousCredits)} · Net{" "}
-              {money(board.netInvoice)}
+              Original {money(board.originalTotal)} · Credits {money(-board.previousCredits)} ·
+              Debits {money(board.previousDebits)} · Net {money(board.netInvoice)}
             </p>
             <p className="text-xs text-muted-foreground">
               {board.creditState} · Remaining {money(board.remaining)}
