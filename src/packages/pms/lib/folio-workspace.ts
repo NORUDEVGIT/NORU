@@ -65,6 +65,7 @@ export type FolioDepositLine = {
 
 export type FolioAllocationInput = {
   depositTransactionId: string;
+  chargeTransactionId?: string | null;
   amount: number;
 };
 

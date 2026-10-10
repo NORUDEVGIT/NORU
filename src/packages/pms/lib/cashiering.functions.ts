@@ -77,6 +77,7 @@ export interface FolioTransactionRow {
   description: string;
   amount: number;
   postedAt: string;
+  createdAt?: string | null;
   referenceType: string | null;
   referenceId?: string | null;
   paymentMethod: string | null;
@@ -291,6 +292,7 @@ type TxnRow = {
   description: string;
   amount: number | string;
   posted_at: string;
+  created_at?: string | null;
   reference_type: string | null;
   reference_id?: string | null;
   payment_method?: string | null;
@@ -497,9 +499,9 @@ export const listFolios = createServerFn({ method: "GET" })
   });
 
 const FOLIO_TXN_SELECT =
-  "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id, tax_snapshot, transfer_id, transfer_direction, charge_source, quantity, unit_amount, charge_snapshot";
+  "id, folio_id, transaction_type, category, description, amount, posted_at, created_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id, tax_snapshot, transfer_id, transfer_direction, charge_source, quantity, unit_amount, charge_snapshot";
 const FOLIO_TXN_SELECT_BASE =
-  "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id";
+  "id, folio_id, transaction_type, category, description, amount, posted_at, created_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CATALOGUE_NOT_CONFIGURED = "Not configured";
@@ -629,6 +631,7 @@ async function loadGuestFolio(
     description: t.description,
     amount: Number(t.amount),
     postedAt: t.posted_at,
+    createdAt: t.created_at ?? t.posted_at,
     referenceType: t.reference_type,
     referenceId: t.reference_id ?? null,
     paymentMethod: t.payment_method ?? null,
@@ -723,19 +726,24 @@ async function loadDepositAllocations(
   if (depositIds.length === 0) return [];
   const { data, error } = await supabaseAdmin
     .from("folio_deposit_allocations")
-    .select("deposit_transaction_id, amount")
+    .select("deposit_transaction_id, charge_transaction_id, amount")
     .eq("restaurant_id", restaurantId)
     .in("deposit_transaction_id", depositIds);
   if (error) {
     if (isMissingSchemaError(error)) return [];
     throw cashierError(error.message);
   }
-  return ((data ?? []) as Array<{ deposit_transaction_id: string; amount: number | string }>).map(
-    (row) => ({
-      depositTransactionId: row.deposit_transaction_id,
-      amount: Number(row.amount),
-    }),
-  );
+  return (
+    (data ?? []) as Array<{
+      deposit_transaction_id: string;
+      charge_transaction_id?: string | null;
+      amount: number | string;
+    }>
+  ).map((row) => ({
+    depositTransactionId: row.deposit_transaction_id,
+    chargeTransactionId: row.charge_transaction_id ?? null,
+    amount: Number(row.amount),
+  }));
 }
 
 async function loadTransferCounterparts(
@@ -833,6 +841,7 @@ export interface FolioWorkspace {
   folio: FolioDetail;
   financialSummary: FolioFinancialSummary;
   depositLines: FolioDepositLine[];
+  depositAllocations: FolioAllocationInput[];
   depositSummary: { received: number; applied: number; available: number };
   chargeGroups: FolioChargeGroup[];
   recentPayments: FolioTransactionRow[];
@@ -903,6 +912,7 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
       folio,
       financialSummary: summarizeFolioLedger(folio.transactions),
       depositLines,
+      depositAllocations: allocations,
       depositSummary: depositSummaryFromLines(depositLines),
       chargeGroups: groupChargeRows(folio.transactions),
       recentPayments: recentPayments(folio.transactions, 3),

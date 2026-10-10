@@ -63,7 +63,6 @@ import {
   TransfersTab,
   WriteOffDialog,
   formatBalance,
-  methodLabel,
   type RowActions,
 } from "@/packages/pms/components/cashiering/folio-workspace-panels";
 import {
@@ -109,10 +108,12 @@ import {
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
+import { TransactionHistoryPanel } from "@/packages/pms/components/cashiering/transaction-history-panel";
+import {
+  activityLabel,
+  historyRowsFromFolio,
+} from "@/packages/pms/lib/cashiering-transaction-history";
 
-const TABLE_HEAD =
-  "border-b border-[#E8E1D7] bg-muted/30 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
-const TABLE_ROW = "border-b border-[#E8E1D7]/80 last:border-0 transition-colors hover:bg-muted/20";
 const NOT_CONFIGURED = "Not configured";
 
 function resolveTab(value: string | undefined): FolioWorkspaceTabId {
@@ -775,7 +776,95 @@ function FolioWorkspaceBody({
               />
             ) : null}
             {tab === "history" ? (
-              <HistoryList workspace={workspace} money={money} dateTime={dateTime} />
+              <TransactionHistoryPanel
+                restaurantId={restaurantId}
+                ownerType="guest_folio"
+                ownerId={folio.id}
+                rows={historyRowsFromFolio(workspace.folio.transactions)}
+                allocations={workspace.depositAllocations.map((line) => ({
+                  depositTransactionId: line.depositTransactionId,
+                  chargeTransactionId: line.chargeTransactionId ?? null,
+                  amount: line.amount,
+                }))}
+                counterparts={Object.fromEntries(
+                  Object.entries(workspace.transferCounterparts).map(([id, party]) => [
+                    id,
+                    {
+                      label: party.accountName ?? party.folioNumber ?? "Transfer",
+                      folioId: party.folioId,
+                      accountId: party.accountId,
+                    },
+                  ]),
+                )}
+                coverage={{
+                  legacyInvoice:
+                    workspace.folio.legacyFolioInvoice && workspace.folio.issuedInvoices[0]
+                      ? {
+                          id: workspace.folio.issuedInvoices[0].id,
+                          number: workspace.folio.issuedInvoices[0].issuedNumber,
+                        }
+                      : null,
+                  invoices: workspace.folio.legacyFolioInvoice
+                    ? []
+                    : workspace.folio.issuedInvoices.map((invoice) => ({
+                        id: invoice.id,
+                        number: invoice.issuedNumber,
+                        parentIds: invoice.snapshot.lines
+                          .filter(
+                            (line) =>
+                              line.category !== "tax" &&
+                              line.category !== "service_charge" &&
+                              !line.originalTransactionId,
+                          )
+                          .map((line) => line.id),
+                      })),
+                  debitNotes: [],
+                  creditNotes: [],
+                }}
+                access={{ canManage: workspace.canManage, open: folio.status === "open" }}
+                searchExtras={[folio.folioNumber, folio.guestName]}
+                documents={workspace.folio.issuedInvoices.flatMap((invoice) => {
+                  const issued = {
+                    id: `invoice-${invoice.id}`,
+                    kind: "invoice_issued",
+                    label: activityLabel("invoice_issued"),
+                    occurredAt: invoice.issuedAt,
+                    detail: invoice.issuedNumber,
+                    actor: null,
+                  };
+                  if (invoice.reprintCount <= 0 || !invoice.lastReprintedAt) return [issued];
+                  return [
+                    issued,
+                    {
+                      id: `reprint-${invoice.id}`,
+                      kind: "invoice_reprinted",
+                      label: activityLabel("invoice_reprinted"),
+                      occurredAt: invoice.lastReprintedAt,
+                      detail: invoice.issuedNumber,
+                      actor: null,
+                    },
+                  ];
+                })}
+                money={money}
+                dateTime={dateTime}
+                onCorrect={(chargeId) => setCorrectSourceId(chargeId)}
+                onTransfer={(chargeId) => openTransfer(chargeId)}
+                onRefund={(sourceId) => openEntry("refund", sourceId)}
+                onApplyDeposit={(depositId) => openApply(depositId)}
+                onViewDocuments={() => selectTab("invoices")}
+                onOpenFolio={(nextId) =>
+                  void navigate({
+                    to: "/restaurant/pms/cashiering/folios/$folioId",
+                    params: { folioId: nextId },
+                  })
+                }
+                onOpenAccount={(accountId) =>
+                  void navigate({
+                    to: "/restaurant/pms/cashiering/accounts/$accountId",
+                    params: { accountId },
+                  })
+                }
+              />
             ) : null}
             {tab === "settlement" ? (
               <SettlementTab
@@ -985,90 +1074,6 @@ function lineTypeLabel(row: FolioTransactionRow): string {
   return isTaxRelatedCategory(row.category)
     ? labelTransactionCategory(row.category)
     : labelTransactionType(row.type);
-}
-
-function HistoryList({
-  workspace,
-  money,
-  dateTime,
-}: {
-  workspace: FolioWorkspace;
-  money: (value: number) => string;
-  dateTime: (iso: string | null | undefined) => string;
-}) {
-  const rows = [...workspace.folio.transactions].sort((a, b) =>
-    a.postedAt < b.postedAt ? -1 : a.postedAt > b.postedAt ? 1 : 0,
-  );
-  const invoice = workspace.folio.issuedInvoice;
-  return (
-    <section className={cn(CARD, "overflow-hidden")} data-testid="folio-history">
-      <div className="border-b border-[#E8E1D7] px-4 py-3">
-        <h3 className="text-sm font-semibold">History</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Every posted line in order, with who posted it.
-        </p>
-      </div>
-      {rows.length === 0 ? (
-        <div className="p-4">
-          <InventoryState state="empty" title="No posted lines yet" />
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className={TABLE_HEAD}>
-              <tr>
-                <th className="px-3 py-2.5 font-medium">Posted</th>
-                <th className="px-3 py-2.5 font-medium">Event</th>
-                <th className="px-3 py-2.5 font-medium">Description</th>
-                <th className="px-3 py-2.5 font-medium">Method</th>
-                <th className="px-3 py-2.5 text-right font-medium">Amount</th>
-                <th className="px-3 py-2.5 font-medium">Posted by</th>
-                <th className="px-3 py-2.5 font-medium">Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className={TABLE_ROW}>
-                  <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
-                    {dateTime(row.postedAt)}
-                  </td>
-                  <td className="px-3 py-2 text-xs font-medium">{lineTypeLabel(row)}</td>
-                  <td className={cn("px-3 py-2", row.originalTransactionId && "pl-6")}>
-                    {row.originalTransactionId && isTaxRelatedCategory(row.category) ? (
-                      <span className="text-muted-foreground">↳ </span>
-                    ) : null}
-                    {row.description}
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    {row.paymentMethod ? methodLabel(row.paymentMethod) : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{money(row.amount)}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{row.postedBy ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">
-                    {row.sourceDescription ?? "—"}
-                  </td>
-                </tr>
-              ))}
-              {invoice ? (
-                <tr className={cn(TABLE_ROW, "bg-blue-500/5")}>
-                  <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
-                    {dateTime(invoice.issuedAt)}
-                  </td>
-                  <td className="px-3 py-2 text-xs font-medium">Invoice issued</td>
-                  <td className="px-3 py-2" colSpan={5}>
-                    {invoice.issuedNumber}
-                    {invoice.reprintCount > 0 && invoice.lastReprintedAt
-                      ? ` · reprinted ${invoice.reprintCount}×, last ${dateTime(invoice.lastReprintedAt)}`
-                      : ""}
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
 }
 
 function StatementPrint({
