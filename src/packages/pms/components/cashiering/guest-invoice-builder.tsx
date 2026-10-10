@@ -181,8 +181,13 @@ export function GuestInvoiceWorkspace({
     onError: (error: Error) => toast.error(error.message),
   });
   const issueMut = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!board?.draft) throw new Error("Create a draft before issuing.");
+      const saved = (await updateDraft({
+        data: { restaurantId, draftId: board.draft.id, notes, sourceIds: selectedIds },
+      })) as { ok: boolean; message?: string };
+      if (!saved.ok)
+        return { ok: false as const, message: saved.message ?? "The draft could not be saved." };
       return issueDraft({
         data: {
           restaurantId,
@@ -596,7 +601,7 @@ export function GuestInvoiceWorkspace({
             <CreditNoteSection
               restaurantId={restaurantId}
               guestInvoiceId={openInvoice.id}
-              canManage={canManage}
+              canManage={workspace.canManage}
               money={money}
               dateTime={dateTime}
               onIssued={onChanged}

@@ -1074,6 +1074,7 @@ export const postFolioEntry = createServerFn({ method: "POST" })
       amount: number;
       description: string;
       method?: string;
+      receivedFrom?: string;
       idempotencyKey: string;
       originalTransactionId?: string;
     }) =>
@@ -1085,6 +1086,7 @@ export const postFolioEntry = createServerFn({ method: "POST" })
           amount: z.number().finite(),
           description: z.string().min(1).max(200),
           method: z.string().max(60).optional(),
+          receivedFrom: z.string().trim().min(1).max(120).optional(),
           idempotencyKey: z.string().min(8).max(80),
           originalTransactionId: idSchema.optional(),
         })
@@ -1126,7 +1128,18 @@ export const postFolioEntry = createServerFn({ method: "POST" })
       paymentMethod = tender.stored;
     }
 
-    const description = method ? `${data.description.trim()} (${method})` : data.description.trim();
+    const payer = data.receivedFrom?.trim() ?? "";
+    if ((data.type === "payment" || data.type === "deposit") && !payer) {
+      return { ok: false, message: "Enter who the money was received from." };
+    }
+    const noted = data.description.trim();
+    const withPayer =
+      data.type === "payment" || data.type === "deposit"
+        ? noted && noted !== payer
+          ? `${noted} · Received from ${payer}`
+          : `Received from ${payer}`
+        : noted;
+    const description = (method ? `${withPayer} (${method})` : withPayer).slice(0, 200);
     const correction =
       data.type === "refund" || data.type === "adjustment" || data.type === "discount";
     let originalTransactionId: string | null = null;

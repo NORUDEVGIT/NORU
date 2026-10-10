@@ -437,8 +437,8 @@ BEGIN
 
   DELETE FROM public.guest_folio_invoice_draft_items WHERE draft_id = draft.id;
   INSERT INTO public.guest_folio_invoice_draft_items (draft_id, source_transaction_id)
-  SELECT draft.id, source_id
-  FROM unnest(COALESCE(_source_ids, ARRAY[]::uuid[])) AS source_id;
+  SELECT draft.id, selected.source_transaction_id
+  FROM unnest(COALESCE(_source_ids, ARRAY[]::uuid[])) AS selected(source_transaction_id);
 
   INSERT INTO public.folio_history (
     restaurant_id, folio_id, event_type, actor_membership_id, new_values

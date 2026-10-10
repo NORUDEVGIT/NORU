@@ -129,7 +129,11 @@ describe("payments and deposits workspace", () => {
       panel,
       /Send receipt|Received From|Allow overpayment|Expiry date|Print receipt/,
     );
-    assert.match(dialogs, /Posting now/);
+    assert.match(dialogs, /Posting date/);
+    assert.match(dialogs, /Received from/);
+    assert.match(dialogs, /Print receipt/);
+    assert.match(dialogs, /tender-receipt/);
+    assert.doesNotMatch(dialogs, /type="date"|Send receipt/);
     assert.match(dialogs, /Projected balance/);
     assert.match(dialogs, /depositPolicySummary/);
     assert.doesNotMatch(dialogs, /setAmount\(depositPolicy/);

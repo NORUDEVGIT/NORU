@@ -17,8 +17,10 @@ import {
   Landmark,
   Mail,
   MoreVertical,
+  PanelRightClose,
   Percent,
   Phone,
+  Receipt,
   ShieldAlert,
   SlidersHorizontal,
   Tag,
@@ -26,6 +28,7 @@ import {
   Undo2,
   Wallet,
   WalletCards,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -118,8 +121,8 @@ export type CorrectionType = "adjustment" | "discount" | "refund";
 
 export const CARD = "rounded-xl border border-[#E8E1D7] bg-card shadow-sm";
 const TABLE_HEAD =
-  "border-b border-[#E8E1D7] bg-muted/30 text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
-const TABLE_ROW = "border-b border-[#E8E1D7]/80 last:border-0 transition-colors hover:bg-muted/20";
+  "border-b border-[#E8E1D7] bg-[#F7F4EE] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground";
+const TABLE_ROW = "border-b border-[#E8E1D7]/70 last:border-0 transition-colors hover:bg-[#F7F4EE]/60";
 const LINK_ACTION =
   "inline-flex items-center gap-1 text-xs font-medium text-[#8a6a1f] hover:text-[#251605]";
 
@@ -1473,11 +1476,13 @@ export function FolioSidebar({
   money,
   dateTime,
   onViewInvoice,
+  onClose,
 }: {
   workspace: FolioWorkspace;
   money: Money;
   dateTime: DateTimeFormat;
   onViewInvoice: () => void;
+  onClose?: () => void;
 }) {
   const folio = workspace.folio;
   const s = workspace.financialSummary;
@@ -1489,16 +1494,36 @@ export function FolioSidebar({
   const signed = (value: number) => (value === 0 ? money(0) : formatBalance(money, value));
 
   return (
-    <aside className="space-y-4 lg:sticky lg:top-4" data-testid="folio-sidebar">
+    <aside className="space-y-3.5 lg:sticky lg:top-4" data-testid="folio-sidebar">
+      {onClose ? (
+        <div className="flex items-center justify-between rounded-xl border border-[#E8E1D7] bg-card px-3.5 py-2 shadow-xs">
+          <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+            <PanelRightClose className="size-3.5 text-[#8a6a1f]" />
+            <span>Folio Details</span>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="h-7 px-2 text-xs text-muted-foreground hover:bg-[#F7F4EE] hover:text-foreground"
+            title="Hide panel to give tables full width"
+          >
+            <X className="mr-1 size-3.5" />
+            <span>Hide</span>
+          </Button>
+        </div>
+      ) : null}
+
       <section className={cn(CARD, "overflow-hidden")}>
-        <div className="flex items-center justify-between gap-2 border-b border-[#E8E1D7] px-4 py-3">
-          <p className="flex items-center gap-2 text-sm font-semibold">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-[#C89933]/12 text-[#8a6a1f]">
+        <div className="flex items-center justify-between gap-2 border-b border-[#E8E1D7] bg-[#F7F4EE]/60 px-4 py-2.5">
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#765719]">
+            <span className="flex size-6 items-center justify-center rounded-md bg-[#C89933]/15 text-[#8a6a1f]">
               <Wallet className="size-3.5" />
             </span>
             Financial Summary
           </p>
-          <span className="rounded-md border border-[#E8E1D7] px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+          <span className="rounded-md border border-[#E8E1D7] bg-white px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
             {folio.currency}
           </span>
         </div>
@@ -1507,7 +1532,7 @@ export function FolioSidebar({
           <SummaryLine label="Tax" value={money(s.tax)} muted={s.tax === 0} />
           <SummaryLine label="Service Charge" value={money(s.serviceCharge)} muted={s.serviceCharge === 0} />
         </div>
-        <div className="space-y-1.5 border-t border-[#E8E1D7]/80 px-4 py-3">
+        <div className="space-y-1.5 border-t border-[#E8E1D7]/70 px-4 py-3">
           <SummaryLine label="Payments" value={signed(-s.payments)} muted={s.payments === 0} />
           <SummaryLine label="Deposits" value={signed(-s.deposits)} muted={s.deposits === 0} />
           <SummaryLine label="Adjustments" value={signed(s.adjustments)} muted={s.adjustments === 0} />
@@ -1515,7 +1540,7 @@ export function FolioSidebar({
           <SummaryLine label="Refunds" value={money(s.refunds)} muted={s.refunds === 0} />
           {transfers !== 0 ? <SummaryLine label="Transfers" value={signed(transfers)} /> : null}
         </div>
-        <div className="border-t border-[#E8E1D7] bg-muted/20 px-4 py-3">
+        <div className="border-t border-[#E8E1D7] bg-[#F7F4EE]/40 px-4 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Current Balance
           </p>
@@ -1530,7 +1555,7 @@ export function FolioSidebar({
 
       <SidebarCard title="Guest">
         <div className="flex items-center gap-3">
-          <Avatar className="size-10 shrink-0">
+          <Avatar className="size-9 shrink-0">
             <AvatarFallback className="bg-[#C89933]/15 text-xs font-semibold text-[#251605]">
               {guestInitials(folio.guestName)}
             </AvatarFallback>
@@ -1546,22 +1571,22 @@ export function FolioSidebar({
         <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
           {folio.guestPhone ? (
             <p className="flex items-center gap-2 truncate">
-              <Phone className="size-3.5 shrink-0" /> {folio.guestPhone}
+              <Phone className="size-3.5 shrink-0 text-[#8a6a1f]" /> {folio.guestPhone}
             </p>
           ) : null}
           {folio.guestEmail ? (
             <p className="flex items-center gap-2 truncate">
-              <Mail className="size-3.5 shrink-0" /> {folio.guestEmail}
+              <Mail className="size-3.5 shrink-0 text-[#8a6a1f]" /> {folio.guestEmail}
             </p>
           ) : null}
           {folio.guestNationality ? (
             <p className="flex items-center gap-2 truncate">
-              <Globe className="size-3.5 shrink-0" /> {folio.guestNationality}
+              <Globe className="size-3.5 shrink-0 text-[#8a6a1f]" /> {folio.guestNationality}
             </p>
           ) : null}
         </div>
         {folio.guestId ? (
-          <Button asChild variant="outline" size="sm" className="mt-3 h-8 w-full gap-1">
+          <Button asChild variant="outline" size="sm" className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]">
             <Link
               to="/restaurant/pms/guests/$guestId"
               params={{ guestId: folio.guestId }}
@@ -1575,17 +1600,23 @@ export function FolioSidebar({
 
       {folio.reservationId ? (
         <SidebarCard title="Reservation">
-          <p className="flex items-center gap-2 font-medium">
-            <CalendarDays className="size-4 text-[#8a6a1f]" />
-            {folio.confirmationNumber ?? "Reservation"}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="flex items-center gap-2 font-medium">
+              <CalendarDays className="size-4 text-[#8a6a1f]" />
+              {folio.confirmationNumber ?? "Reservation"}
+            </p>
+            {folio.roomNumber ? (
+              <span className="rounded-md border border-[#E8E1D7] bg-[#F7F4EE] px-2 py-0.5 text-xs font-semibold text-[#251605]">
+                Room {folio.roomNumber}
+              </span>
+            ) : null}
+          </div>
           <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
-            <div className="col-span-2">
-              <Field
-                label="Room"
-                value={[folio.roomNumber ?? "Unassigned", folio.roomTypeName].filter(Boolean).join(" · ")}
-              />
-            </div>
+            {folio.roomTypeName ? (
+              <div className="col-span-2">
+                <Field label="Room Type" value={folio.roomTypeName} />
+              </div>
+            ) : null}
             <div className="col-span-2">
               <Field
                 label="Stay"
@@ -1602,7 +1633,7 @@ export function FolioSidebar({
             <Field label="Market Segment" value={folio.marketSegment ?? "Not configured"} />
             <Field label="Booking Source" value={folio.bookingSource ?? "Not configured"} />
           </div>
-          <Button asChild variant="outline" size="sm" className="mt-3 h-8 w-full gap-1">
+          <Button asChild variant="outline" size="sm" className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]">
             <Link
               to="/restaurant/pms/reservations/$reservationId"
               params={{ reservationId: folio.reservationId }}
@@ -1630,8 +1661,8 @@ export function FolioSidebar({
             </div>
           </div>
         ) : (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <FileText className="size-4" /> No issued invoice
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <FileText className="size-3.5" /> No issued invoice
           </p>
         )}
         {folio.guaranteeMethod ? (
@@ -1734,10 +1765,19 @@ export function TransactionDetailDialog({
         className="flex w-full max-w-none flex-col gap-0 overflow-hidden border-[#E8E1D7] bg-card p-0 sm:w-[70vw] sm:max-w-[70vw] md:max-w-[460px]"
         data-testid="tender-details-sheet"
       >
-        <SheetHeader className="space-y-2 border-b border-[#E8E1D7] px-5 pb-4 pr-12 pt-5 text-left">
-          <SheetTitle className="text-base">{row ? rowLabel(row) : "Line"}</SheetTitle>
-          <SheetDescription>Posted lines stay as they were. A refund is a new line.</SheetDescription>
-        </SheetHeader>
+        <header className="flex items-start gap-3 border-b border-[#E8E1D7] bg-[#F7F4EE]/80 px-6 py-4.5 pr-12 text-left">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#C89933]/15 text-[#8a6a1f] shadow-xs">
+            <Receipt className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <SheetTitle className="text-base font-semibold leading-tight text-[#251605]">
+              {row ? rowLabel(row) : "Line Details"}
+            </SheetTitle>
+            <SheetDescription className="mt-1 text-xs text-muted-foreground leading-normal">
+              Posted lines stay immutable. A refund or adjustment is recorded as a new linked line.
+            </SheetDescription>
+          </div>
+        </header>
         {row ? (
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <dl className="space-y-1.5 text-sm">
@@ -1892,37 +1932,56 @@ export function ApplyDepositDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Apply deposit</DialogTitle>
-          <DialogDescription>
-            Links available deposit credit to a charge on this folio. The folio balance does not
-            change. The deposit was already credited when it was posted.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div>
-            <Label>Deposit</Label>
-            <Select value={depositId} onValueChange={setDepositId}>
-              <SelectTrigger>
+      <DialogContent className="flex max-h-[90vh] w-[calc(100%-2rem)] max-w-[500px] flex-col gap-0 overflow-hidden rounded-2xl border border-[#E8E1D7] bg-card p-0 shadow-2xl sm:max-w-[500px]">
+        <header className="flex items-start gap-3 border-b border-[#E8E1D7] bg-[#F7F4EE]/80 px-6 py-4.5 pr-12">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#C89933]/15 text-[#8a6a1f] shadow-xs">
+            <WalletCards className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <DialogTitle className="text-base font-semibold leading-tight text-[#251605]">
+              Apply Deposit
+            </DialogTitle>
+            <DialogDescription className="mt-1 text-xs text-muted-foreground leading-normal">
+              Links available deposit credit to a charge on this folio. The folio balance does not change.
+            </DialogDescription>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Deposit Credit
+            </Label>
+            <Select
+              value={depositId}
+              onValueChange={(val) => {
+                setDepositId(val);
+                const dep = deposits.find((d) => d.transaction.id === val);
+                if (dep) setAmount(String(dep.available));
+              }}
+            >
+              <SelectTrigger className="h-10 border-[#E8E1D7] bg-background">
                 <SelectValue placeholder="Choose a deposit" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="border-[#E8E1D7]">
                 {deposits.map((line) => (
                   <SelectItem key={line.transaction.id} value={line.transaction.id}>
-                    {line.transaction.description} · available {money(line.available)}
+                    {line.transaction.description} · Available: {money(line.available)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Charge</Label>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Target Charge Line
+            </Label>
             <Select value={chargeId} onValueChange={setChargeId}>
-              <SelectTrigger>
+              <SelectTrigger className="h-10 border-[#E8E1D7] bg-background">
                 <SelectValue placeholder="Choose a charge" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="border-[#E8E1D7]">
                 {charges.map((row) => (
                   <SelectItem key={row.id} value={row.id}>
                     {row.description} · {money(row.amount)}
@@ -1931,25 +1990,72 @@ export function ApplyDepositDialog({
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label htmlFor="alloc-amount">Amount</Label>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="alloc-amount" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Amount to Allocate
+              </Label>
+              {selected ? (
+                <button
+                  type="button"
+                  onClick={() => setAmount(String(selected.available))}
+                  className="text-xs font-medium text-[#8a6a1f] hover:underline"
+                >
+                  Max ({money(selected.available)})
+                </button>
+              ) : null}
+            </div>
             <Input
               id="alloc-amount"
               type="number"
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              className="h-10 border-[#E8E1D7] bg-background text-base font-semibold tabular-nums focus-visible:ring-[#C89933]"
             />
           </div>
+
+          {selected ? (
+            <div className="rounded-xl border border-[#E8E1D7] bg-[#F7F4EE]/70 p-3.5 space-y-2 text-xs">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Allocation Summary
+              </p>
+              <div className="divide-y divide-[#E8E1D7]/60 text-xs">
+                <div className="flex justify-between py-1.5 text-muted-foreground">
+                  <span>Available from deposit</span>
+                  <span className="font-medium text-foreground tabular-nums">{money(selected.available)}</span>
+                </div>
+                <div className="flex justify-between py-1.5 text-muted-foreground">
+                  <span>Amount applying</span>
+                  <span className="font-semibold text-emerald-700 tabular-nums">
+                    {Number.isFinite(Number(amount)) && Number(amount) > 0 ? money(Number(amount)) : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1.5 font-medium">
+                  <span className="text-foreground">Remaining deposit credit</span>
+                  <span className="font-bold tabular-nums text-[#251605]">
+                    {money(Math.max(0, selected.available - (Number.isFinite(Number(amount)) ? Number(amount) : 0)))}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+
+        <footer className="flex items-center justify-end gap-2.5 border-t border-[#E8E1D7] bg-[#F7F4EE]/50 px-6 py-3.5">
+          <Button variant="outline" onClick={onClose} className="border-[#E8E1D7] hover:bg-[#F7F4EE]">
             Cancel
           </Button>
-          <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
-            Apply
+          <Button
+            disabled={mutation.isPending || !selected || !chargeId}
+            onClick={() => mutation.mutate()}
+            className="bg-[#C89933] text-[#251605] font-semibold hover:bg-[#b88928] shadow-sm disabled:opacity-50"
+          >
+            {mutation.isPending ? "Applying..." : "Apply Deposit"}
           </Button>
-        </DialogFooter>
+        </footer>
       </DialogContent>
     </Dialog>
   );
@@ -1970,6 +2076,7 @@ export function WriteOffDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const money = useMoney();
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   useEffect(() => {
@@ -2008,38 +2115,73 @@ export function WriteOffDialog({
   });
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Post write-off</DialogTitle>
-          <DialogDescription>
-            Posts a settlement adjustment line that reduces the balance. It cannot exceed the
-            current balance.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="woff-amount">Amount</Label>
+      <DialogContent className="flex max-h-[90vh] w-[calc(100%-2rem)] max-w-[480px] flex-col gap-0 overflow-hidden rounded-2xl border border-[#E8E1D7] bg-card p-0 shadow-2xl sm:max-w-[480px]">
+        <header className="flex items-start gap-3 border-b border-[#E8E1D7] bg-[#F7F4EE]/80 px-6 py-4.5 pr-12">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#C89933]/15 text-[#8a6a1f] shadow-xs">
+            <ShieldAlert className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <DialogTitle className="text-base font-semibold leading-tight text-[#251605]">
+              Write Off Balance
+            </DialogTitle>
+            <DialogDescription className="mt-1 text-xs text-muted-foreground leading-normal">
+              Post an authorized settlement adjustment to write off residual folio balance.
+            </DialogDescription>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs text-amber-900 space-y-1.5">
+            <div className="flex items-center justify-between font-semibold">
+              <span className="text-[11px] uppercase tracking-wider text-amber-800">Residual Balance</span>
+              <span className="text-base font-bold tabular-nums text-amber-900">{money(balance)}</span>
+            </div>
+            <p className="text-[11px] text-amber-700 leading-normal">
+              Write-offs adjust the ledger down and impact revenue. Every write-off is logged in audit history with your reason.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="woff-amount" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Write-off Amount
+            </Label>
             <Input
               id="woff-amount"
               type="number"
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              className="h-10 border-[#E8E1D7] bg-background text-base font-semibold tabular-nums focus-visible:ring-[#C89933]"
+              placeholder="0.00"
             />
           </div>
-          <div>
-            <Label htmlFor="woff-reason">Reason</Label>
-            <Input id="woff-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+
+          <div className="space-y-1.5">
+            <Label htmlFor="woff-reason" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Authorized Reason
+            </Label>
+            <Input
+              id="woff-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Small residual rounding, Management concession"
+              className="h-10 border-[#E8E1D7] bg-background focus-visible:ring-[#C89933]"
+            />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+
+        <footer className="flex items-center justify-end gap-2.5 border-t border-[#E8E1D7] bg-[#F7F4EE]/50 px-6 py-3.5">
+          <Button variant="outline" onClick={onClose} className="border-[#E8E1D7] hover:bg-[#F7F4EE]">
             Cancel
           </Button>
-          <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
-            Post write-off
+          <Button
+            disabled={mutation.isPending || !reason.trim() || !amount}
+            onClick={() => mutation.mutate()}
+            className="bg-[#C89933] text-[#251605] font-semibold hover:bg-[#b88928] shadow-sm disabled:opacity-50"
+          >
+            {mutation.isPending ? "Posting..." : "Post Write-off"}
           </Button>
-        </DialogFooter>
+        </footer>
       </DialogContent>
     </Dialog>
   );

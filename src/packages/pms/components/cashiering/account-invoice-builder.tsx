@@ -177,8 +177,13 @@ export function AccountInvoiceWorkspace({
     onError: (error: Error) => toast.error(error.message),
   });
   const issueMut = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!board?.draft) throw new Error("Create a draft before issuing.");
+      const saved = await updateDraft({
+        data: { restaurantId, draftId: board.draft.id, notes, sourceIds: selectedIds },
+      });
+      if (!saved.ok)
+        return { ok: false as const, message: saved.message ?? "The draft could not be saved." };
       return issueDraft({
         data: {
           restaurantId,

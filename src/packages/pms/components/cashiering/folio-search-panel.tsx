@@ -92,12 +92,12 @@ import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 
-const FILTER_CARD = "rounded-xl border border-[#E8E1D7] bg-card p-3 shadow-sm";
+const FILTER_CARD = "rounded-xl border border-[#E8E1D7] bg-card p-3.5 shadow-sm";
 const TABLE_SHELL = "overflow-x-auto rounded-xl border border-[#E8E1D7] bg-card shadow-sm";
-const TABLE_HEAD = "border-b border-[#E8E1D7] bg-muted/30 text-xs text-muted-foreground";
-const TABLE_ROW = "border-b border-[#E8E1D7]/80 last:border-0 transition-colors";
-const ROW_HOVER = "hover:bg-muted/20";
-const ROW_SELECTED = "bg-[#C89933]/8 border-l-[3px] border-l-[#C89933]";
+const TABLE_HEAD = "border-b border-[#E8E1D7] bg-[#F7F4EE] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground";
+const TABLE_ROW = "border-b border-[#E8E1D7]/70 last:border-0 transition-colors";
+const ROW_HOVER = "hover:bg-[#F7F4EE]/60";
+const ROW_SELECTED = "bg-[#C89933]/10 border-l-[3px] border-l-[#C89933]";
 const DRAWER_CARD = "rounded-xl border border-[#E8E1D7] bg-card p-3 shadow-sm";
 const TOOLBAR_SELECT = "h-9 min-h-9 w-full bg-background sm:min-w-[130px] sm:max-w-[160px]";
 const TOOLBAR_DATES = "h-9 min-h-9 w-full bg-background sm:min-w-[150px] sm:max-w-[180px]";
@@ -271,13 +271,13 @@ const FOLIO_RESULTS_TABLE_CLASS = "w-full min-w-[920px] table-fixed text-left te
 function FolioResultsColGroup() {
   return (
     <colgroup>
-      <col className="w-[12%]" />
-      <col className="w-[26%]" />
-      <col className="w-[12%]" />
       <col className="w-[14%]" />
-      <col className="w-[14%]" />
-      <col className="w-[14%]" />
-      <col className="w-[8%]" />
+      <col className="w-[24%]" />
+      <col className="w-[13%]" />
+      <col className="w-[15%]" />
+      <col className="w-[13%]" />
+      <col className="w-[11%]" />
+      <col className="w-[10%]" />
     </colgroup>
   );
 }
@@ -286,13 +286,13 @@ function FolioResultsTableHead() {
   return (
     <thead className={TABLE_HEAD}>
       <tr>
-        <th className="px-3 py-2.5 font-semibold">Folio</th>
-        <th className="px-3 py-2.5 font-semibold">Guest / Stay</th>
-        <th className="px-3 py-2.5 font-semibold">Room</th>
-        <th className="px-3 py-2.5 font-semibold">Status</th>
-        <th className="px-3 py-2.5 text-right font-semibold">Balance</th>
-        <th className="px-3 py-2.5 font-semibold">Last Activity</th>
-        <th className="px-3 py-2.5" aria-label="Actions" />
+        <th className="px-3.5 py-3 font-semibold">Folio</th>
+        <th className="px-3.5 py-3 font-semibold">Guest / Stay</th>
+        <th className="px-3.5 py-3 font-semibold">Room</th>
+        <th className="px-3.5 py-3 font-semibold">Status</th>
+        <th className="px-3.5 py-3 text-right font-semibold">Balance</th>
+        <th className="px-3.5 py-3 font-semibold">Last Activity</th>
+        <th className="px-3.5 py-3 text-right" aria-label="Actions" />
       </tr>
     </thead>
   );
@@ -1091,57 +1091,113 @@ function AllAccountsTable({
                     }}
                     className={tableRowClass(Boolean(selected), isGuest)}
                   >
-                    <td className="px-3 py-2.5">
-                      <IconTextCell icon={folioIcon} primary={row.accountNumber} secondary={folioSecondary} />
+                    <td className="px-3.5 py-3">
+                      <div className="flex items-start gap-2">
+                        {isGuest ? (
+                          <FileText className="mt-0.5 size-4 shrink-0 text-[#8a6a1f]" aria-hidden />
+                        ) : row.accountType === "company" ? (
+                          <Building2 className="mt-0.5 size-4 shrink-0 text-[#8a6a1f]" aria-hidden />
+                        ) : (
+                          <UsersRound className="mt-0.5 size-4 shrink-0 text-[#8a6a1f]" aria-hidden />
+                        )}
+                        <div className="min-w-0">
+                          {isGuest ? (
+                            <Link
+                              to="/restaurant/pms/cashiering/folios/$folioId"
+                              params={{ folioId: row.guestFolioId! }}
+                              className="font-semibold text-foreground hover:text-[#8a6a1f] hover:underline"
+                              onClick={(event) => event.stopPropagation()}
+                              title="Open guest folio workspace"
+                            >
+                              {row.accountNumber}
+                            </Link>
+                          ) : (
+                            <Link
+                              to="/restaurant/pms/cashiering/accounts/$accountId"
+                              params={{ accountId: row.accountId }}
+                              className="font-semibold text-foreground hover:text-[#8a6a1f] hover:underline"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {row.accountNumber}
+                            </Link>
+                          )}
+                          <p className="truncate text-[11px] text-muted-foreground">{folioSecondary}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex min-w-0 items-start gap-2">
+                    <td className="px-3.5 py-3">
+                      <div className="flex min-w-0 items-start gap-2.5">
                         {isGuest ? (
                           <GuestAvatarCell name={row.accountName} />
                         ) : (
                           <AccountTypeAvatar type={row.accountType} />
                         )}
                         <div className="min-w-0">
-                          <p className="truncate font-medium">{row.accountName}</p>
+                          <p className="truncate font-medium text-foreground">{row.accountName}</p>
                           <p className="truncate text-[11px] text-muted-foreground">{staySecondary}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5">
-                      <IconTextCell icon={BedDouble} primary={roomPrimary} secondary={roomSecondary} />
+                    <td className="px-3.5 py-3">
+                      <div className="flex items-start gap-2">
+                        <BedDouble className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-foreground">{roomPrimary}</p>
+                          {roomSecondary ? (
+                            <p className="truncate text-[11px] text-muted-foreground">{roomSecondary}</p>
+                          ) : null}
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-3 py-2.5">
-                      <div className="space-y-1">
+                    <td className="px-3.5 py-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <FolioSearchFolioStatusBadge status={row.status as "open" | "closed"} />
                         {isGuest ? (
                           <FolioSearchStayStatusBadge status={row.reservationStatus} />
                         ) : (
-                          <span className="text-[11px] text-muted-foreground">{sourceLabel(row.accountType)}</span>
+                          <span className="inline-flex rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            {sourceLabel(row.accountType)}
+                          </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-3.5 py-3 text-right">
                       <BalanceCell balance={row.balance} money={money} />
                     </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <Clock3 className="size-3.5 shrink-0" aria-hidden />
-                        <span className="truncate">
+                    <td className="px-3.5 py-3">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Clock3 className="size-3.5 shrink-0 text-[#8a6a1f]" aria-hidden />
+                        <span className="whitespace-nowrap">
                           {row.lastActivity ? formatDeskDate(row.lastActivity.slice(0, 10)) : "—"}
                         </span>
                       </div>
                     </td>
-                    <td className="px-1 py-2.5" onClick={(event) => event.stopPropagation()}>
+                    <td className="px-2 py-3 text-right" onClick={(event) => event.stopPropagation()}>
                       {isGuest ? (
-                        <FolioActionMenu
-                          folio={{
-                            id: row.guestFolioId!,
-                            folioNumber: row.accountNumber,
-                            status: row.status as "open" | "closed",
-                          }}
-                          canOperate={canOperate}
-                          canManage={canManage}
-                        />
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            asChild
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2.5 text-xs font-medium text-[#8a6a1f] hover:bg-[#C89933]/10 hover:text-[#765719]"
+                          >
+                            <Link
+                              to="/restaurant/pms/cashiering/folios/$folioId"
+                              params={{ folioId: row.guestFolioId! }}
+                            >
+                              Open
+                            </Link>
+                          </Button>
+                          <FolioActionMenu
+                            folio={{
+                              id: row.guestFolioId!,
+                              folioNumber: row.accountNumber,
+                              status: row.status as "open" | "closed",
+                            }}
+                            canOperate={canOperate}
+                            canManage={canManage}
+                          />
+                        </div>
                       ) : null}
                     </td>
                   </tr>
@@ -1257,53 +1313,92 @@ function GuestFolioTable({
                     onClick={() => onSelect(folio)}
                     className={tableRowClass(selected)}
                   >
-                    <td className="px-3 py-2.5">
-                      <IconTextCell
-                        icon={FileText}
-                        primary={folio.folioNumber}
-                        secondary={folio.confirmationNumber ?? undefined}
-                      />
+                    <td className="px-3.5 py-3">
+                      <div className="flex items-start gap-2">
+                        <FileText className="mt-0.5 size-4 shrink-0 text-[#8a6a1f]" aria-hidden />
+                        <div className="min-w-0">
+                          <Link
+                            to="/restaurant/pms/cashiering/folios/$folioId"
+                            params={{ folioId: folio.id }}
+                            className="font-semibold text-foreground hover:text-[#8a6a1f] hover:underline"
+                            onClick={(event) => event.stopPropagation()}
+                            title="Open guest folio workspace"
+                          >
+                            {folio.folioNumber}
+                          </Link>
+                          {folio.confirmationNumber ? (
+                            <p className="truncate font-mono text-[11px] text-muted-foreground">
+                              {folio.confirmationNumber}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex min-w-0 items-start gap-2">
+                    <td className="px-3.5 py-3">
+                      <div className="flex min-w-0 items-start gap-2.5">
                         <GuestAvatarCell name={folio.guestName} />
                         <div className="min-w-0">
-                          <p className="truncate font-medium">{folio.guestName}</p>
+                          <p className="truncate font-medium text-foreground">{folio.guestName}</p>
                           <p className="truncate text-[11px] text-muted-foreground">
                             {formatStayRange(folio.arrivalDate, folio.departureDate)}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5">
-                      <IconTextCell
-                        icon={BedDouble}
-                        primary={folio.roomNumber ?? "—"}
-                        secondary={folio.roomTypeName ?? undefined}
-                      />
+                    <td className="px-3.5 py-3">
+                      <div className="flex items-start gap-2">
+                        <BedDouble className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-foreground">
+                            {folio.roomNumber ? `Room ${folio.roomNumber}` : "Unassigned"}
+                          </p>
+                          {folio.roomTypeName ? (
+                            <p className="truncate text-[11px] text-muted-foreground">
+                              {folio.roomTypeName}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-3 py-2.5">
-                      <div className="space-y-1">
+                    <td className="px-3.5 py-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <FolioSearchFolioStatusBadge status={folio.status} />
                         <FolioSearchStayStatusBadge status={folio.reservationStatus} />
                         {folio.unsettledCheckout ? (
-                          <p className="text-[10px] font-medium text-destructive">Unsettled checkout</p>
+                          <span className="inline-flex rounded-full border border-destructive/20 bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive">
+                            Unsettled
+                          </span>
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-3.5 py-3 text-right">
                       <BalanceCell balance={folio.balance} money={money} />
                     </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <Clock3 className="size-3.5 shrink-0" aria-hidden />
+                    <td className="px-3.5 py-3">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Clock3 className="size-3.5 shrink-0 text-[#8a6a1f]" aria-hidden />
                         <span className="whitespace-nowrap">
                           {folio.lastActivity ? formatDeskDate(folio.lastActivity.slice(0, 10)) : "—"}
                         </span>
                       </div>
                     </td>
-                    <td className="px-1 py-2.5" onClick={(event) => event.stopPropagation()}>
-                      <FolioActionMenu folio={folio} canOperate={canOperate} canManage={canManage} />
+                    <td className="px-2 py-3 text-right" onClick={(event) => event.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2.5 text-xs font-medium text-[#8a6a1f] hover:bg-[#C89933]/10 hover:text-[#765719]"
+                        >
+                          <Link
+                            to="/restaurant/pms/cashiering/folios/$folioId"
+                            params={{ folioId: folio.id }}
+                          >
+                            Open
+                          </Link>
+                        </Button>
+                        <FolioActionMenu folio={folio} canOperate={canOperate} canManage={canManage} />
+                      </div>
                     </td>
                   </tr>
                 );
@@ -1672,35 +1767,35 @@ function FinancialAccountsTable({
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className={TABLE_HEAD}>
               <tr>
-                <th className="px-3 py-2.5 font-semibold">Account</th>
-                <th className="px-3 py-2.5 font-semibold">{nameLabel}</th>
-                <th className="px-3 py-2.5 font-semibold">Status</th>
-                <th className="px-3 py-2.5 text-right font-semibold">Balance</th>
-                <th className="px-3 py-2.5 font-semibold">Last Activity</th>
+                <th className="px-3.5 py-3 font-semibold">Account</th>
+                <th className="px-3.5 py-3 font-semibold">{nameLabel}</th>
+                <th className="px-3.5 py-3 font-semibold">Status</th>
+                <th className="px-3.5 py-3 text-right font-semibold">Balance</th>
+                <th className="px-3.5 py-3 font-semibold">Last Activity</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className={cn(TABLE_ROW, ROW_HOVER)}>
-                  <td className="px-3 py-2.5">
+                  <td className="px-3.5 py-3">
                     <Link
                       to="/restaurant/pms/cashiering/accounts/$accountId"
                       params={{ accountId: row.id }}
-                      className="block"
+                      className="block font-medium hover:text-[#8a6a1f]"
                     >
                       <IconTextCell icon={AccountIcon} primary={row.accountNumber} secondary={nameLabel} />
                     </Link>
                   </td>
-                  <td className="px-3 py-2.5 font-medium">{row.masterName}</td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-3.5 py-3 font-medium text-foreground">{row.masterName}</td>
+                  <td className="px-3.5 py-3">
                     <FolioSearchFolioStatusBadge status={row.status} />
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-3.5 py-3 text-right">
                     <BalanceCell balance={row.balance} money={money} />
                   </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <Clock3 className="size-3.5 shrink-0" aria-hidden />
+                  <td className="px-3.5 py-3">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Clock3 className="size-3.5 shrink-0 text-[#8a6a1f]" aria-hidden />
                       <span>{formatDeskDate(row.openedAt.slice(0, 10))}</span>
                     </div>
                   </td>

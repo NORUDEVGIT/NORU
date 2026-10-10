@@ -235,6 +235,16 @@ export function CreditNoteSection({
             </div>
           ) : null}
         </div>
+        {!manageable ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Create credit note is available to the owner or manager.
+          </p>
+        ) : null}
+        {manageable && !editing && board.groups.length === 0 ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            This invoice has no charge groups that can be credited.
+          </p>
+        ) : null}
       </div>
 
       {board.draft && !editing ? (

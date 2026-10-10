@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
+import { SearchableSelect } from "@/shared/components/ui/searchable-select";
 
 export interface PostChargeFolio {
   id: string;
@@ -132,7 +133,6 @@ export function PostChargeDialog({
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
   const [source, setSource] = useState<ChargeSource>("service");
-  const [search, setSearch] = useState("");
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [serviceTypeId, setServiceTypeId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -167,7 +167,6 @@ export function PostChargeDialog({
   useEffect(() => {
     if (!open) return;
     setSource("service");
-    setSearch("");
     setDepartmentId(null);
     setServiceTypeId(null);
     setQuantity(1);
@@ -208,13 +207,11 @@ export function PostChargeDialog({
   }, [departments, departmentId]);
 
   const serviceOptions = useMemo(() => {
-    const term = search.trim().toLowerCase();
     return services.filter((item) => {
       if (departmentId && item.departmentId !== departmentId) return false;
-      if (!term) return true;
-      return item.name.toLowerCase().includes(term) || item.code.toLowerCase().includes(term);
+      return true;
     });
-  }, [departmentId, search, services]);
+  }, [departmentId, services]);
 
   const fetchPreview = useServerFn(previewFolioCharge);
   const manualPreviewQuery = useQuery({
@@ -314,7 +311,6 @@ export function PostChargeDialog({
   function chooseSource(next: ChargeSource) {
     if (next === source) return;
     setSource(next);
-    setSearch("");
     setDepartmentId(null);
     setServiceTypeId(null);
     setQuantity(1);
@@ -347,7 +343,6 @@ export function PostChargeDialog({
   }
 
   function clearFields() {
-    setSearch("");
     setDepartmentId(departments.length === 1 ? departments[0].id : null);
     setServiceTypeId(null);
     setQuantity(1);
@@ -435,8 +430,6 @@ export function PostChargeDialog({
 
               {source === "service" ? (
                 <ServiceFields
-                  search={search}
-                  onSearch={setSearch}
                   departments={departments}
                   departmentId={departmentId}
                   onDepartment={chooseDepartment}
@@ -650,8 +643,6 @@ export function PostChargeDialog({
 }
 
 function ServiceFields({
-  search,
-  onSearch,
   departments,
   departmentId,
   onDepartment,
@@ -669,8 +660,6 @@ function ServiceFields({
   unitPrice,
   subtotal,
 }: {
-  search: string;
-  onSearch: (value: string) => void;
   departments: Array<{ id: string; name: string }>;
   departmentId: string | null;
   onDepartment: (departmentId: string) => void;
@@ -701,10 +690,10 @@ function ServiceFields({
           disabled={loading || Boolean(error) || empty}
           onValueChange={onDepartment}
         >
-          <SelectTrigger id="post-charge-department">
+          <SelectTrigger id="post-charge-department" className="h-10 border-[#E8E1D7] bg-background">
             <SelectValue placeholder={loading ? "Loading departments…" : "Select a department"} />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="border-[#E8E1D7]">
             {departments.map((department) => (
               <SelectItem key={department.id} value={department.id}>
                 {department.name}
@@ -714,35 +703,24 @@ function ServiceFields({
         </Select>
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="post-charge-service-search">Find a service</Label>
-        <Input
-          id="post-charge-service-search"
-          value={search}
-          placeholder="Search name or code"
-          onChange={(event) => onSearch(event.target.value)}
-        />
-      </div>
-      <div className="space-y-1.5">
         <Label htmlFor="post-charge-service">Service</Label>
-        <Select
-          value={selected?.serviceTypeId}
+        <SearchableSelect
+          id="post-charge-service"
+          value={selected?.serviceTypeId ?? ""}
+          options={options.map((item) => ({
+            value: item.serviceTypeId,
+            label: `${item.name} (${item.code})`,
+          }))}
           disabled={!departmentId || loading || Boolean(error) || empty}
-          onValueChange={(serviceTypeId) => {
+          placeholder={departmentId ? "Select or search a service..." : "Select a department first"}
+          searchPlaceholder="Search service name or code..."
+          emptyText={departmentId ? "No services match that search." : "Select a department first"}
+          onChange={(serviceTypeId) => {
             const item = options.find((row) => row.serviceTypeId === serviceTypeId);
             if (item) onSelect(item);
           }}
-        >
-          <SelectTrigger id="post-charge-service">
-            <SelectValue placeholder={departmentId ? "Select a service" : "Select a department first"} />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((item) => (
-              <SelectItem key={item.serviceTypeId} value={item.serviceTypeId}>
-                {item.name} ({item.code})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          className="h-10 border-[#E8E1D7] bg-background text-sm font-normal"
+        />
         {loading ? <p className="text-xs text-muted-foreground">Loading guest services…</p> : null}
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
         {empty ? (
@@ -752,7 +730,7 @@ function ServiceFields({
           </p>
         ) : null}
         {!empty && departmentId && options.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No services match that search.</p>
+          <p className="text-xs text-muted-foreground">No services found in this department.</p>
         ) : null}
         {blockReason ? <p className="text-xs text-destructive">{blockReason}</p> : null}
       </div>

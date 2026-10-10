@@ -44,9 +44,8 @@ export function CashieringWorkspace({
   });
 
   function go(next: CashieringTabId, folio?: string | null, extra?: Partial<CashieringSearchParams>) {
-    const { tab: _tab, folio: currentFolio, ...rest } = search;
-    const nextFolio =
-      folio === null ? null : folio !== undefined ? folio : next === "folios" ? currentFolio : null;
+    const { tab: _tab, folio: _currentFolio, ...rest } = search;
+    const nextFolio = folio === null ? null : folio !== undefined ? folio : null;
     void navigate({
       to: "/restaurant/pms/cashiering",
       search: cashieringTabSearch(next, nextFolio, { ...rest, ...extra }),
@@ -78,12 +77,12 @@ export function CashieringWorkspace({
     <CashieringChrome
       membership={membership}
       active={tab}
-      onNavigate={(id) => go(id)}
+      onNavigate={(id) => go(id, null)}
       onSearch={(value) => {
         setModuleSearch(value);
-        go("folios", search.folio, { q: value, tab: "folios" });
+        go("folios", null, { q: value, tab: "folios" });
       }}
-      onPostPayment={() => go("payments")}
+      onPostPayment={() => go("payments", null)}
     >
       <CashieringDesk
         restaurantId={restaurantId}

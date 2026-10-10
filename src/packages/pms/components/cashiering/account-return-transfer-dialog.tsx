@@ -183,17 +183,21 @@ export function AccountReturnTransferDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
-        <DialogContent className="flex max-h-[88vh] max-w-[760px] flex-col gap-0 overflow-hidden border-[#E8E1D7] bg-[#fbf8f3] p-0">
-          <DialogHeader className="space-y-1 border-b border-[#E8E1D7] bg-card px-5 py-4 text-left">
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <ArrowLeftRight className="size-4 text-[#8a6a1f]" />
-              Transfer to guest folio
-            </DialogTitle>
-            <DialogDescription>
-              {account ? `${account.masterName} · ${account.accountNumber}` : "Financial account"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+        <DialogContent className="flex max-h-[90vh] w-[calc(100%-2rem)] max-w-[760px] flex-col gap-0 overflow-hidden rounded-2xl border border-[#E8E1D7] bg-[#fbf8f3] p-0 shadow-2xl sm:max-w-[760px]">
+          <header className="flex items-start gap-3 border-b border-[#E8E1D7] bg-[#F7F4EE]/80 px-6 py-4.5 pr-12 text-left">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#C89933]/15 text-[#8a6a1f] shadow-xs">
+              <ArrowLeftRight className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <DialogTitle className="text-base font-semibold leading-tight text-[#251605]">
+                Transfer to Guest Folio
+              </DialogTitle>
+              <DialogDescription className="mt-1 text-xs text-muted-foreground leading-normal">
+                {account ? `${account.masterName} · ${account.accountNumber}` : "Financial account"}
+              </DialogDescription>
+            </div>
+          </header>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
             <section className="rounded-xl border border-[#E8E1D7] bg-card p-4">
               <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Account charges

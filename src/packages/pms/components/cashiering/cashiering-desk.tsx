@@ -289,7 +289,7 @@ export function CashieringDesk({
       null
     );
   }, [folioQuery, folios]);
-  const selected = tab === "folios" ? (matchedFolio ?? folios[0] ?? null) : matchedFolio;
+  const selected = matchedFolio;
 
   const detailQuery = useQuery({
     queryKey: ["cashiering-folio", restaurantId, selected?.id],
@@ -1021,7 +1021,15 @@ function FolioTable({
                     )}
                   >
                     <td className="px-3.5 py-3 font-semibold text-[#251605]">
-                      {folio.folioNumber}
+                      <Link
+                        to="/restaurant/pms/cashiering/folios/$folioId"
+                        params={{ folioId: folio.id }}
+                        className="font-semibold text-foreground hover:text-[#8a6a1f] hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                        title="Open guest folio workspace"
+                      >
+                        {folio.folioNumber}
+                      </Link>
                     </td>
                     <td className="px-3.5 py-3">
                       <div className="flex items-center gap-2">

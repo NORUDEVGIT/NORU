@@ -249,20 +249,24 @@ export function TransferChargeDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
-      <DialogContent className="flex max-h-[88vh] w-[min(1000px,calc(100vw-2rem))] max-w-[1000px] flex-col gap-0 overflow-hidden border-[#E8E1D7] bg-[#fbf8f3] p-0 sm:max-w-[1000px]">
-        <DialogHeader className="space-y-2 border-b border-[#E8E1D7] bg-card px-5 py-4 pr-12 text-left">
-          <div className="flex items-center gap-2">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-[#C89933]/15 text-[#8a6a1f]">
-              <ArrowLeftRight className="size-4" />
+      <DialogContent className="flex max-h-[90vh] w-[min(1000px,calc(100vw-2rem))] max-w-[1000px] flex-col gap-0 overflow-hidden rounded-2xl border border-[#E8E1D7] bg-[#fbf8f3] p-0 shadow-2xl sm:max-w-[1000px]">
+        <header className="flex items-start justify-between border-b border-[#E8E1D7] bg-[#F7F4EE]/80 px-6 py-4.5 pr-12 text-left">
+          <div className="flex items-start gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#C89933]/15 text-[#8a6a1f] shadow-xs">
+              <ArrowLeftRight className="size-5" />
             </span>
-            <DialogTitle className="text-base">Transfer Charge</DialogTitle>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <DialogTitle className="text-base font-semibold leading-tight text-[#251605]">Transfer Charge</DialogTitle>
+                <FolioSearchFolioStatusBadge status={folio.status} />
+              </div>
+              <DialogDescription className="mt-1 text-xs text-muted-foreground leading-normal">
+                {folio.folioNumber} · {folio.guestName}
+                <span className="mt-0.5 block font-medium text-foreground">{title}</span>
+              </DialogDescription>
+            </div>
           </div>
-          <DialogDescription className="text-sm text-foreground">
-            {folio.folioNumber} · {folio.guestName}
-            <span className="mt-0.5 block font-medium">{title}</span>
-          </DialogDescription>
-          <FolioSearchFolioStatusBadge status={folio.status} />
-        </DialogHeader>
+        </header>
 
         <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 md:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
           <div className="space-y-4">

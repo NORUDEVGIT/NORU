@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { Banknote, Clock3 } from "lucide-react";
+
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -12,7 +14,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
@@ -342,20 +343,28 @@ export function ShiftDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {mode === "open" ? "Open cashier shift" : "Close cashier shift"}
-          </DialogTitle>
-          <DialogDescription>
-            {mode === "open"
-              ? "Record the hotel drawer float you are starting with. Restaurant sales are not included."
-              : "Record the hotel drawer cash counted at close. Restaurant sales are not included."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="shift-cash">{mode === "open" ? "Opening cash" : "Closing count"}</Label>
+      <DialogContent className="flex max-h-[90vh] w-[calc(100%-2rem)] max-w-[480px] flex-col gap-0 overflow-hidden rounded-2xl border border-[#E8E1D7] bg-card p-0 shadow-2xl sm:max-w-[480px]">
+        <header className="flex items-start gap-3 border-b border-[#E8E1D7] bg-[#F7F4EE]/80 px-6 py-4.5 pr-12">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#C89933]/15 text-[#8a6a1f] shadow-xs">
+            {mode === "open" ? <Clock3 className="size-5" /> : <Banknote className="size-5" />}
+          </span>
+          <div className="min-w-0">
+            <DialogTitle className="text-base font-semibold leading-tight text-[#251605]">
+              {mode === "open" ? "Open Cashier Shift" : "Close Cashier Shift"}
+            </DialogTitle>
+            <DialogDescription className="mt-1 text-xs text-muted-foreground leading-normal">
+              {mode === "open"
+                ? "Record the hotel drawer cash float you are starting with. Restaurant sales are tracked separately."
+                : "Count and record the hotel drawer cash balance at shift close. Restaurant sales are tracked separately."}
+            </DialogDescription>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
+          <div className="space-y-1.5">
+            <Label htmlFor="shift-cash" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {mode === "open" ? "Opening Cash Float" : "Closing Cash Counted"}
+            </Label>
             <Input
               id="shift-cash"
               type="number"
@@ -363,21 +372,46 @@ export function ShiftDialog({
               step="0.01"
               value={cash}
               onChange={(e) => setCash(e.target.value)}
+              placeholder="0.00"
+              className="h-10 border-[#E8E1D7] bg-background text-base font-semibold tabular-nums focus-visible:ring-[#C89933]"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              {mode === "open"
+                ? "Enter physical cash in drawer at start of shift."
+                : "Total physical cash counted in drawer at end of shift."}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="shift-notes" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Shift Notes (optional)
+            </Label>
+            <Textarea
+              id="shift-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={
+                mode === "open"
+                  ? "e.g. Verified $200 float with morning supervisor"
+                  : "e.g. Cash counted and handed over to night auditor"
+              }
+              className="min-h-[80px] border-[#E8E1D7] bg-background focus-visible:ring-[#C89933]"
             />
           </div>
-          <div>
-            <Label htmlFor="shift-notes">Notes</Label>
-            <Textarea id="shift-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+
+        <footer className="flex items-center justify-end gap-2.5 border-t border-[#E8E1D7] bg-[#F7F4EE]/50 px-6 py-3.5">
+          <Button variant="outline" onClick={onClose} className="border-[#E8E1D7] hover:bg-[#F7F4EE]">
             Cancel
           </Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mode === "open" ? "Open shift" : "Close shift"}
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+            className="bg-[#C89933] text-[#251605] font-semibold hover:bg-[#b88928] shadow-sm disabled:opacity-50"
+          >
+            {mutation.isPending ? "Saving..." : mode === "open" ? "Open Shift" : "Close Shift"}
           </Button>
-        </DialogFooter>
+        </footer>
       </DialogContent>
     </Dialog>
   );

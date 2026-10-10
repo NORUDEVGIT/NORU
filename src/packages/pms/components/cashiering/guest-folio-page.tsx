@@ -16,6 +16,8 @@ import {
   Link2,
   Lock,
   Network,
+  PanelRightClose,
+  PanelRightOpen,
   Printer,
   Receipt,
   ReceiptText,
@@ -318,6 +320,7 @@ function FolioWorkspaceBody({
   const caps = workspace.capabilities;
 
   const [tab, setTab] = useState<FolioWorkspaceTabId>(() => resolveTab(initialTab));
+  const [showSidebar, setShowSidebar] = useState(false);
   const [entryType, setEntryType] = useState<TransactionType | null>(null);
   const [entrySourceId, setEntrySourceId] = useState<string | null>(null);
   const [closeOpen, setCloseOpen] = useState(false);
@@ -486,7 +489,7 @@ function FolioWorkspaceBody({
           <ChevronRight className="size-3" />
           <Link
             to="/restaurant/pms/cashiering"
-            search={{ tab: "folios", folio: folio.id }}
+            search={{ tab: "folios" }}
             className="hover:text-foreground"
           >
             Folio Search
@@ -616,35 +619,76 @@ function FolioWorkspaceBody({
 
         <FolioKpiRow summary={workspace.financialSummary} money={money} />
 
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_288px] xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div
+          className={cn(
+            "grid items-start gap-4 transition-all duration-200",
+            showSidebar
+              ? "lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]"
+              : "grid-cols-1",
+          )}
+        >
           <div className="min-w-0 space-y-4">
-            <nav
-              className="flex items-end gap-1 overflow-x-auto border-b border-[#E8E1D7] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              role="tablist"
-              aria-label="Folio sections"
-            >
-              {FOLIO_WORKSPACE_TABS.map((item) => (
-                <button
-                  key={item.id}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E8E1D7] pb-0.5">
+              <nav
+                className="flex items-end gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                role="tablist"
+                aria-label="Folio sections"
+              >
+                {FOLIO_WORKSPACE_TABS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === item.id}
+                    data-testid={`folio-tab-${item.id}`}
+                    onClick={() => selectTab(item.id)}
+                    className={cn(
+                      "relative flex h-10 shrink-0 items-center whitespace-nowrap px-3 text-xs font-medium transition-colors",
+                      tab === item.id
+                        ? "font-semibold text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {item.label}
+                    {tab === item.id ? (
+                      <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+                    ) : null}
+                  </button>
+                ))}
+              </nav>
+
+              <div className="flex items-center gap-2 pb-1.5 pt-1">
+                <Button
                   type="button"
-                  role="tab"
-                  aria-selected={tab === item.id}
-                  data-testid={`folio-tab-${item.id}`}
-                  onClick={() => selectTab(item.id)}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSidebar((prev) => !prev)}
                   className={cn(
-                    "relative flex h-10 shrink-0 items-center whitespace-nowrap px-2.5 text-xs font-medium transition-colors",
-                    tab === item.id
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
+                    "h-8 gap-1.5 px-3 text-xs font-medium transition-all shadow-xs",
+                    showSidebar
+                      ? "border-[#C89933]/50 bg-[#C89933]/10 text-[#765719] hover:bg-[#C89933]/15"
+                      : "border-[#E8E1D7] bg-card text-muted-foreground hover:bg-[#F7F4EE] hover:text-foreground",
                   )}
+                  title={
+                    showSidebar
+                      ? "Hide side cards to give tables maximum space"
+                      : "Show side cards with guest, stay and document details"
+                  }
                 >
-                  {item.label}
-                  {tab === item.id ? (
-                    <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
-                  ) : null}
-                </button>
-              ))}
-            </nav>
+                  {showSidebar ? (
+                    <>
+                      <PanelRightClose className="size-3.5" />
+                      <span>Hide Details</span>
+                    </>
+                  ) : (
+                    <>
+                      <PanelRightOpen className="size-3.5" />
+                      <span>Show Details</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
 
             {tab === "charges" ? (
               <ChargesTab
@@ -713,12 +757,15 @@ function FolioWorkspaceBody({
               />
             ) : null}
           </div>
-          <FolioSidebar
-            workspace={workspace}
-            money={money}
-            dateTime={dateTime}
-            onViewInvoice={() => selectTab("invoices")}
-          />
+          {showSidebar ? (
+            <FolioSidebar
+              workspace={workspace}
+              money={money}
+              dateTime={dateTime}
+              onViewInvoice={() => selectTab("invoices")}
+              onClose={() => setShowSidebar(false)}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -756,6 +803,9 @@ function FolioWorkspaceBody({
         depositPolicySummary={depositPolicySummary}
         currentBalance={workspace.financialSummary.currentBalance}
         currencyCode={folio.currency}
+        guestName={folio.guestName}
+        folioNumber={folio.folioNumber}
+        propertyName={propertyName}
         authorizerNote={correctionNotice?.authorizer ?? null}
         thresholdNote={
           (entryType === "adjustment"
