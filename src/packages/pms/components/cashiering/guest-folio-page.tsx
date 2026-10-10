@@ -788,7 +788,8 @@ function FolioWorkspaceBody({
                 onClose={() => setCloseOpen(true)}
                 onPosted={onChanged}
                 onPrintStatement={() => printWith("statement")}
-                onGoTab={selectTab}
+                onRefund={() => openEntry("refund")}
+                onTransfer={() => openTransfer(null)}
               />
             ) : null}
           </div>

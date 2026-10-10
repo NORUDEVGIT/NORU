@@ -116,6 +116,9 @@ describe("guest folio settlement", () => {
     assert.match(settlement, /postFolioEntry/);
     assert.match(settlement, /projectedFolioBalance/);
     assert.match(settlement, /Print statement/);
+    assert.match(settlement, /onRefund/);
+    assert.match(settlement, /onTransfer/);
+    assert.doesNotMatch(settlement, /onGoTab/);
     assert.doesNotMatch(
       settlement,
       /settle_guest_folio|Guest Check-Out|Preview Receipt|Post pending charges|city_ledger|Split Payment/,

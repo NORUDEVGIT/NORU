@@ -1324,7 +1324,8 @@ export function SettlementTab({
   onClose,
   onPosted,
   onPrintStatement,
-  onGoTab,
+  onRefund,
+  onTransfer,
 }: {
   restaurantId: string;
   workspace: FolioWorkspace;
@@ -1335,7 +1336,8 @@ export function SettlementTab({
   onClose: () => void;
   onPosted: () => void;
   onPrintStatement: () => void;
-  onGoTab: (tab: FolioWorkspaceTabId) => void;
+  onRefund: () => void;
+  onTransfer: () => void;
 }) {
   const folio = workspace.folio;
   const summary = workspace.financialSummary;
@@ -1486,28 +1488,39 @@ export function SettlementTab({
             <SectionCard title="Final payment" description="Resolve the credit balance before closing.">
               <div className="space-y-3 px-4 py-4 text-sm">
                 <p>
-                  Credit balance {formatBalance(money, balance)}. A refund must name the original payment or deposit.
+                  Credit balance {formatBalance(money, balance)}. A refund must name the original
+                  payment or deposit.
                 </p>
-                <Button type="button" size="sm" variant="outline" onClick={() => onGoTab("payments")}>
-                  Open Payments & Deposits
-                </Button>
+                {caps.canRefund ? (
+                  <Button type="button" size="sm" onClick={onRefund}>
+                    <Undo2 className="size-4" /> Refund payment
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    An owner or manager posts the refund here.
+                  </p>
+                )}
               </div>
             </SectionCard>
           ) : null}
           {open && workspace.canManage ? (
-            <SectionCard title="Routing" description="Company and group billing stays on Transfer / Routing.">
+            <SectionCard
+              title="Routing"
+              description="Move charges to a company or group from this folio."
+            >
               <div className="px-4 py-4">
                 <p className="text-sm text-muted-foreground">
-                  Need to bill a company or group? Move the charges first. City ledger is not a payment method.
+                  Need to bill a company or group? Transfer the charges here. City ledger is not a
+                  payment method.
                 </p>
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
                   className="mt-3"
-                  onClick={() => onGoTab("transfers")}
+                  onClick={onTransfer}
                 >
-                  <ArrowLeftRight className="size-4" /> Use Transfer / Routing
+                  <ArrowLeftRight className="size-4" /> Transfer charges
                 </Button>
               </div>
             </SectionCard>
