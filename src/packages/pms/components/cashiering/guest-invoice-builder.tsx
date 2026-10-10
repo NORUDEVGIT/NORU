@@ -5,6 +5,7 @@ import { FileText, Plus, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { FolioInvoicePreview } from "@/packages/pms/components/cashiering/folio-invoice-panel";
+import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
 import {
   createGuestFolioInvoiceDraft,
   deleteGuestFolioInvoiceDraft,
@@ -592,6 +593,14 @@ export function GuestInvoiceWorkspace({
         {openInvoice ? (
           <div className="border-t border-[#E8E1D7] p-4">
             <FolioInvoicePreview invoice={openInvoice} money={money} dateTime={dateTime} />
+            <CreditNoteSection
+              restaurantId={restaurantId}
+              guestInvoiceId={openInvoice.id}
+              canManage={canManage}
+              money={money}
+              dateTime={dateTime}
+              onIssued={onChanged}
+            />
           </div>
         ) : null}
       </div>

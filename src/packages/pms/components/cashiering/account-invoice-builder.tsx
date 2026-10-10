@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { FileText, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
 import {
   accountInvoiceIssuerLabel,
   type AccountInvoiceGroup,
@@ -592,6 +593,14 @@ export function AccountInvoiceWorkspace({
         {viewedInvoice ? (
           <div className="border-t border-[#E8E1D7] p-4">
             <AccountInvoicePrint invoice={viewedInvoice} money={money} dateTime={dateTime} screen />
+            <CreditNoteSection
+              restaurantId={restaurantId}
+              accountInvoiceId={viewedInvoice.id}
+              canManage={canManage}
+              money={money}
+              dateTime={dateTime}
+              onIssued={refresh}
+            />
           </div>
         ) : null}
       </div>
