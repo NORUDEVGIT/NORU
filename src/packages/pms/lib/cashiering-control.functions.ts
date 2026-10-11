@@ -6,6 +6,7 @@ import { requireCashieringAccess } from "./cashiering.server";
 import {
   departuresRequiringSettlement,
   propertyDayBounds,
+  shiftCashMovementTitle,
   splitStampedCash,
   summarizeBusinessDateActivity,
   type BusinessActivityRow,
@@ -18,8 +19,8 @@ const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 /**
  * Property business-date activity for Cashier Control.
  * `viewDate` is a read filter only. This function never updates restaurants.business_date.
- * Company and group cash posted through post_financial_account_transaction is not
- * stamped with hotel_cashier_shift_id and is not drawer cash.
+ * Company and group cash payments and refunds are included with guest receipts.
+ * Unstamped company and group cash is not drawer cash.
  */
 export const getCashieringBusinessDateActivity = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -97,8 +98,8 @@ export const getCashieringBusinessDateActivity = createServerFn({ method: "GET" 
   });
 
 /**
- * Stamped guest cash plus drawer movements for one hotel shift.
- * Not filtered by business date. Unstamped company/group cash is excluded.
+ * Stamped guest cash plus stamped company and group cash for one hotel shift.
+ * Not filtered by business date. Unstamped company and group cash is excluded.
  */
 export const getCashierShiftActivity = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -112,7 +113,7 @@ export const getCashierShiftActivity = createServerFn({ method: "GET" })
     const { data: txns, error } = await supabaseAdmin
       .from("folio_transactions")
       .select(
-        "id, folio_id, transaction_type, category, description, amount, posted_at, payment_method, posted_by_membership_id",
+        "id, folio_id, financial_account_id, transaction_type, category, description, amount, posted_at, payment_method, posted_by_membership_id",
       )
       .eq("restaurant_id", data.restaurantId)
       .eq("hotel_cashier_shift_id", data.shiftId)
@@ -130,6 +131,7 @@ export const getCashierShiftActivity = createServerFn({ method: "GET" })
     const stamped = (txns ?? []) as Array<{
       id: string;
       folio_id: string | null;
+      financial_account_id: string | null;
       transaction_type: string;
       description: string;
       amount: number | string;
@@ -151,6 +153,11 @@ export const getCashierShiftActivity = createServerFn({ method: "GET" })
     ]);
     const folioIds = stamped.map((row) => row.folio_id).filter((id): id is string => Boolean(id));
     const guests = await folioGuests(supabaseAdmin, data.restaurantId, folioIds);
+    const accounts = await accountShiftLabels(
+      supabaseAdmin,
+      data.restaurantId,
+      stamped.map((row) => row.financial_account_id).filter((id): id is string => Boolean(id)),
+    );
     const cash = splitStampedCash(
       stamped.map((row) => ({
         type: row.transaction_type,
@@ -172,6 +179,8 @@ export const getCashierShiftActivity = createServerFn({ method: "GET" })
           actor: row.actor_membership_id ? (actors.get(row.actor_membership_id) ?? null) : null,
           guest: null as string | null,
           folioId: null as string | null,
+          accountTitle: null as string | null,
+          party: null as string | null,
         })),
       ...stamped
         .filter(
@@ -181,19 +190,33 @@ export const getCashierShiftActivity = createServerFn({ method: "GET" })
               row.transaction_type === "deposit" ||
               row.transaction_type === "refund"),
         )
-        .map((row) => ({
-          id: row.id,
-          occurredAt: row.posted_at,
-          kind: row.transaction_type,
-          description: row.description,
-          amount:
-            row.transaction_type === "refund" ? -Math.abs(Number(row.amount)) : -Number(row.amount),
-          actor: row.posted_by_membership_id
-            ? (actors.get(row.posted_by_membership_id) ?? null)
-            : null,
-          guest: row.folio_id ? (guests.get(row.folio_id) ?? null) : null,
-          folioId: row.folio_id,
-        })),
+        .map((row) => {
+          const account = row.financial_account_id
+            ? accounts.get(row.financial_account_id)
+            : undefined;
+          return {
+            id: row.id,
+            occurredAt: row.posted_at,
+            kind: row.transaction_type,
+            description: row.description,
+            amount:
+              row.transaction_type === "refund"
+                ? -Math.abs(Number(row.amount))
+                : -Number(row.amount),
+            actor: row.posted_by_membership_id
+              ? (actors.get(row.posted_by_membership_id) ?? null)
+              : null,
+            guest: row.folio_id ? (guests.get(row.folio_id) ?? null) : null,
+            folioId: row.folio_id,
+            accountTitle: account
+              ? shiftCashMovementTitle({
+                  type: row.transaction_type,
+                  accountKind: account.kind,
+                })
+              : null,
+            party: account ? `${account.name} · ${account.number}` : null,
+          };
+        }),
     ].sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1));
 
     return { shiftId: data.shiftId, ...cash, lines };
@@ -274,12 +297,74 @@ async function ownerLabels(
   if (accountIds.length > 0) {
     const { data } = await supabaseAdmin
       .from("financial_accounts")
-      .select("id, name")
+      .select("id, account_number, master_id")
       .eq("restaurant_id", restaurantId)
       .in("id", accountIds);
-    for (const account of (data ?? []) as Array<{ id: string; name: string | null }>) {
-      labels.set(account.id, account.name?.trim() || "Account");
+    const accounts = (data ?? []) as Array<{
+      id: string;
+      account_number: string;
+      master_id: string;
+    }>;
+    const masterIds = [...new Set(accounts.map((account) => account.master_id))];
+    const masterNames = new Map<string, string>();
+    if (masterIds.length > 0) {
+      const { data: masters } = await supabaseAdmin
+        .from("guest_account_masters")
+        .select("id, name")
+        .eq("restaurant_id", restaurantId)
+        .in("id", masterIds);
+      for (const master of (masters ?? []) as Array<{ id: string; name: string | null }>) {
+        masterNames.set(master.id, master.name?.trim() || "Account");
+      }
     }
+    for (const account of accounts) {
+      const name = masterNames.get(account.master_id) || "Account";
+      labels.set(account.id, `${name} · ${account.account_number}`);
+    }
+  }
+  return labels;
+}
+
+async function accountShiftLabels(
+  supabaseAdmin: Admin,
+  restaurantId: string,
+  accountIds: string[],
+): Promise<Map<string, { kind: "company" | "group" | "master"; number: string; name: string }>> {
+  const labels = new Map<
+    string,
+    { kind: "company" | "group" | "master"; number: string; name: string }
+  >();
+  const ids = [...new Set(accountIds)];
+  if (ids.length === 0) return labels;
+  const { data } = await supabaseAdmin
+    .from("financial_accounts")
+    .select("id, account_kind, account_number, master_id")
+    .eq("restaurant_id", restaurantId)
+    .in("id", ids);
+  const accounts = (data ?? []) as Array<{
+    id: string;
+    account_kind: "company" | "group" | "master";
+    account_number: string;
+    master_id: string;
+  }>;
+  const masterIds = [...new Set(accounts.map((account) => account.master_id))];
+  const masterNames = new Map<string, string>();
+  if (masterIds.length > 0) {
+    const { data: masters } = await supabaseAdmin
+      .from("guest_account_masters")
+      .select("id, name")
+      .eq("restaurant_id", restaurantId)
+      .in("id", masterIds);
+    for (const master of (masters ?? []) as Array<{ id: string; name: string | null }>) {
+      masterNames.set(master.id, master.name?.trim() || "Account");
+    }
+  }
+  for (const account of accounts) {
+    labels.set(account.id, {
+      kind: account.account_kind,
+      number: account.account_number,
+      name: masterNames.get(account.master_id) || "Account",
+    });
   }
   return labels;
 }

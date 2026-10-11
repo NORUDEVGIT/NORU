@@ -19,10 +19,10 @@ export const Route = createFileRoute("/restaurant/pms/cashiering/accounts/$accou
   },
   head: () => ({
     meta: [
-      { title: "Account Invoices — NORU PMS" },
+      { title: "Financial Account — NORU PMS" },
       {
         name: "description",
-        content: "Company and group financial account invoices.",
+        content: "Company and group financial account workspace.",
       },
       { name: "robots", content: "noindex" },
     ],

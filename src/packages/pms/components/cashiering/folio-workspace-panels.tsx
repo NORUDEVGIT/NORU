@@ -441,7 +441,7 @@ function RowMenu({
         </DropdownMenuItem>
         {(row.type === "payment" || row.type === "deposit") && actions.onPrintReceipt ? (
           <DropdownMenuItem onSelect={() => actions.onPrintReceipt?.(row)}>
-            <Printer className="size-4" /> Print receipt
+            <Printer className="size-4" /> View Receipt
           </DropdownMenuItem>
         ) : null}
         {canTransfer ? (

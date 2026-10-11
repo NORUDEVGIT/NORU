@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeftRight,
   Building2,
@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useRestaurantSettings } from "@/core/state/property-format";
 import { toast } from "sonner";
 
 import {
@@ -33,6 +34,7 @@ import {
   getCashieringReportTotals,
   listCashieringExceptions,
   listFinancialAccounts,
+  getMasterBillingCurrency,
   listFolioWindows,
   openFinancialAccount,
   postFolioTransfer,
@@ -361,7 +363,10 @@ export function AccountsPanel({
   money: (n: number) => string;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { currencyCode: propertyCurrency } = useRestaurantSettings();
   const fetchAccounts = useServerFn(listFinancialAccounts);
+  const fetchMasterCurrency = useServerFn(getMasterBillingCurrency);
   const accountsQuery = useQuery({
     queryKey: ["financial-accounts", restaurantId],
     queryFn: () => fetchAccounts({ data: { restaurantId } }),
@@ -369,8 +374,34 @@ export function AccountsPanel({
 
   const [masterKind, setMasterKind] = useState<CashieringMasterKind>("company");
   const [selectedMaster, setSelectedMaster] = useState<GuestAccountSummary | null>(null);
-  const [currency, setCurrency] = useState("GBP");
+  const [currency, setCurrency] = useState(propertyCurrency);
+  const [currencyEdited, setCurrencyEdited] = useState(false);
   const [transferAccount, setTransferAccount] = useState<FinancialAccountRow | null>(null);
+  const masterCurrencyQuery = useQuery({
+    queryKey: ["financial-account-master-currency", restaurantId, selectedMaster?.id],
+    queryFn: () =>
+      fetchMasterCurrency({
+        data: { restaurantId, masterId: selectedMaster!.id },
+      }),
+    enabled: Boolean(selectedMaster),
+  });
+  const savedMasterCurrency = masterCurrencyQuery.data?.currency ?? null;
+
+  useEffect(() => {
+    setCurrencyEdited(false);
+    setCurrency(propertyCurrency);
+  }, [selectedMaster?.id, propertyCurrency]);
+
+  useEffect(() => {
+    if (currencyEdited || !selectedMaster || !masterCurrencyQuery.isSuccess) return;
+    setCurrency(savedMasterCurrency || propertyCurrency);
+  }, [
+    currencyEdited,
+    masterCurrencyQuery.isSuccess,
+    propertyCurrency,
+    savedMasterCurrency,
+    selectedMaster,
+  ]);
 
   const openAccount = useServerFn(openFinancialAccount);
   const closeAccount = useServerFn(closeFinancialAccount);
@@ -398,6 +429,12 @@ export function AccountsPanel({
       toast.success("Financial account opened.");
       setSelectedMaster(null);
       void queryClient.invalidateQueries({ queryKey: ["financial-accounts", restaurantId] });
+      if (result.id) {
+        void navigate({
+          to: "/restaurant/pms/cashiering/accounts/$accountId",
+          params: { accountId: result.id },
+        });
+      }
     },
   });
 
@@ -491,7 +528,15 @@ export function AccountsPanel({
               <tbody>
                 {rows.map((row: FinancialAccountRow) => (
                   <tr key={row.id} className="border-t border-border">
-                    <td className="px-3 py-2 font-medium">{row.accountNumber}</td>
+                    <td className="px-3 py-2 font-medium">
+                      <Link
+                        to="/restaurant/pms/cashiering/accounts/$accountId"
+                        params={{ accountId: row.id }}
+                        className="text-[#8A6A2F] hover:underline"
+                      >
+                        {row.accountNumber}
+                      </Link>
+                    </td>
                     <td className="px-3 py-2">{row.masterName}</td>
                     <td className="px-3 py-2 capitalize">{row.accountKind}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{money(row.balance)}</td>
@@ -566,7 +611,14 @@ export function AccountsPanel({
               {existingFinancialAccount ? (
                 <p className="text-sm text-amber-800">
                   Financial account already open ({existingFinancialAccount.accountNumber}
-                  {existingFinancialAccount.status === "closed" ? ", closed" : ""}).
+                  {existingFinancialAccount.status === "closed" ? ", closed" : ""}).{" "}
+                  <Link
+                    to="/restaurant/pms/cashiering/accounts/$accountId"
+                    params={{ accountId: existingFinancialAccount.id }}
+                    className="font-medium underline"
+                  >
+                    Open workspace
+                  </Link>
                 </p>
               ) : null}
               <div>
@@ -574,9 +626,22 @@ export function AccountsPanel({
                 <Input
                   id="account-currency"
                   value={currency}
-                  onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+                  maxLength={3}
+                  onChange={(e) => {
+                    setCurrencyEdited(true);
+                    setCurrency(e.target.value.toUpperCase());
+                  }}
                   className="min-h-11"
                 />
+                {selectedMaster ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {savedMasterCurrency
+                      ? `Filled from the ${selectedMaster.accountType === "group" ? "group" : "company"} profile. Change it if this account should use another currency.`
+                      : masterCurrencyQuery.isSuccess
+                        ? "No currency is saved on this profile, so the property currency is shown. You can change it."
+                        : "Loading the currency saved on this profile."}
+                  </p>
+                ) : null}
               </div>
               <Button
                 type="button"

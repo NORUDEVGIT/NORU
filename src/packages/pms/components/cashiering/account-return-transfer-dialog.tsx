@@ -43,6 +43,7 @@ export function AccountReturnTransferDialog({
   onClose,
   onDone,
   money,
+  initialSourceId = null,
 }: {
   restaurantId: string;
   account: FinancialAccountRow | null;
@@ -50,6 +51,7 @@ export function AccountReturnTransferDialog({
   onClose: () => void;
   onDone: () => void;
   money: (value: number) => string;
+  initialSourceId?: string | null;
 }) {
   const fetchCharges = useServerFn(listFinancialAccountCharges);
   const fetchBoard = useServerFn(getFinancialAccountInvoiceBoard);
@@ -66,7 +68,7 @@ export function AccountReturnTransferDialog({
 
   useEffect(() => {
     if (!open) return;
-    setSourceId("");
+    setSourceId(initialSourceId ?? "");
     setSearch("");
     setFolioId("");
     setMode("full");
@@ -74,7 +76,7 @@ export function AccountReturnTransferDialog({
     setReason("");
     setIdemKey(idempotencyKey());
     setCorrectId(null);
-  }, [open, account?.id]);
+  }, [open, account?.id, initialSourceId]);
 
   const chargesQuery = useQuery({
     queryKey: ["financial-account-charges", restaurantId, account?.id],
@@ -243,7 +245,8 @@ export function AccountReturnTransferDialog({
                             : `Remaining ${money(entry.remainder.grossRemaining)}`}
                         </span>
                       </button>
-                      {!entry.invoiced && correctable.some((item) => item.row.id === entry.row.id) ? (
+                      {!entry.invoiced &&
+                      correctable.some((item) => item.row.id === entry.row.id) ? (
                         <span className="mt-2 block">
                           <Button
                             type="button"

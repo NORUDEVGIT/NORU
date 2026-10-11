@@ -2,15 +2,16 @@
  * Cashier Control read helpers.
  *
  * Drawer cash comes from hotel_drawer_figures (opening + cash in − cash out +
- * stamped guest cash). This module does not recompute that total for display.
+ * stamped guest cash and stamped financial-account cash). This module does not
+ * recompute that total for display.
  *
  * Property activity uses the canonical hotel business date. Ledger rows do not
  * store business_date, so a row belongs to a business date when its property-
  * timezone calendar day matches. That is not UTC midnight. A cashier shift is
  * never split on that boundary: shift rows stay on hotel_cashier_shift_id.
  *
- * Company and group cash posted through post_financial_account_transaction is
- * not stamped with hotel_cashier_shift_id and must not be treated as drawer cash.
+ * Company and group cash payments and refunds stamp the actor's open shift and
+ * are drawer cash. Unstamped company and group cash is not drawer cash.
  */
 
 import {
@@ -383,6 +384,26 @@ export function departuresRequiringSettlement(
 }
 
 /** Display splits for rows already known to carry this shift id. Not a drawer total. */
+export function shiftCashMovementTitle(input: {
+  type: string;
+  accountKind: "company" | "group" | "master" | null;
+}): string {
+  if (!input.accountKind) {
+    if (input.type === "deposit") return "Guest deposit";
+    if (input.type === "refund") return "Guest refund";
+    return "Guest payment";
+  }
+  const who =
+    input.accountKind === "group"
+      ? "Group"
+      : input.accountKind === "company"
+        ? "Company"
+        : "Account";
+  const what =
+    input.type === "deposit" ? "Deposit" : input.type === "refund" ? "Refund" : "Payment";
+  return `${who} ${what}`;
+}
+
 export function splitStampedCash(
   rows: Array<{ type: string; amount: number; paymentMethod: string | null }>,
 ): {

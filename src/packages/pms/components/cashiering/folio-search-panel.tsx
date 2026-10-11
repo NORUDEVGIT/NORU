@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import type { LucideIcon } from "lucide-react";
@@ -1036,6 +1036,7 @@ function AllAccountsTable({
     : hasFilters
       ? "No folios match the selected filters."
       : "No guest folios or billing accounts yet.";
+  const navigate = useNavigate();
 
   return (
     <section className="w-full min-w-0 space-y-3">
@@ -1087,9 +1088,16 @@ function AllAccountsTable({
                     key={`${row.accountType}:${row.accountId}`}
                     data-testid={isGuest ? "folio-row" : "account-row"}
                     onClick={() => {
-                      if (isGuest) onSelectRow(row);
+                      if (isGuest) {
+                        onSelectRow(row);
+                        return;
+                      }
+                      void navigate({
+                        to: "/restaurant/pms/cashiering/accounts/$accountId",
+                        params: { accountId: row.accountId },
+                      });
                     }}
-                    className={tableRowClass(Boolean(selected), isGuest)}
+                    className={tableRowClass(Boolean(selected), true)}
                   >
                     <td className="px-3.5 py-3">
                       <div className="flex items-start gap-2">
@@ -1198,7 +1206,21 @@ function AllAccountsTable({
                             canManage={canManage}
                           />
                         </div>
-                      ) : null}
+                      ) : (
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2.5 text-xs font-medium text-[#8a6a1f] hover:bg-[#C89933]/10 hover:text-[#765719]"
+                        >
+                          <Link
+                            to="/restaurant/pms/cashiering/accounts/$accountId"
+                            params={{ accountId: row.accountId }}
+                          >
+                            Open
+                          </Link>
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -1746,6 +1768,7 @@ function FinancialAccountsTable({
   error: string | null;
   money: (value: number) => string;
 }) {
+  const navigate = useNavigate();
   const nameLabel = mode === "company" ? "Company" : "Group";
   const AccountIcon = mode === "company" ? Building2 : UsersRound;
   return (
@@ -1776,7 +1799,16 @@ function FinancialAccountsTable({
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className={cn(TABLE_ROW, ROW_HOVER)}>
+                <tr
+                  key={row.id}
+                  className={cn(TABLE_ROW, ROW_HOVER, "cursor-pointer")}
+                  onClick={() =>
+                    void navigate({
+                      to: "/restaurant/pms/cashiering/accounts/$accountId",
+                      params: { accountId: row.id },
+                    })
+                  }
+                >
                   <td className="px-3.5 py-3">
                     <Link
                       to="/restaurant/pms/cashiering/accounts/$accountId"

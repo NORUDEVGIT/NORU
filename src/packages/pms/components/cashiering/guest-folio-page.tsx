@@ -776,11 +776,18 @@ function FolioWorkspaceBody({
               />
             ) : null}
             {tab === "history" ? (
-              <TransactionHistoryPanel
-                restaurantId={restaurantId}
-                ownerType="guest_folio"
-                ownerId={folio.id}
-                rows={historyRowsFromFolio(workspace.folio.transactions)}
+              <div data-testid="folio-history">
+                <TransactionHistoryPanel
+                  restaurantId={restaurantId}
+                  ownerType="guest_folio"
+                  ownerId={folio.id}
+                  rows={historyRowsFromFolio(
+                    workspace.folio.transactions.map((row) => ({
+                      ...row,
+                      sourceDescription: row.sourceDescription,
+                      postedBy: row.postedBy,
+                    })),
+                  )}
                 allocations={workspace.depositAllocations.map((line) => ({
                   depositTransactionId: line.depositTransactionId,
                   chargeTransactionId: line.chargeTransactionId ?? null,
@@ -865,6 +872,7 @@ function FolioWorkspaceBody({
                   })
                 }
               />
+              </div>
             ) : null}
             {tab === "settlement" ? (
               <SettlementTab

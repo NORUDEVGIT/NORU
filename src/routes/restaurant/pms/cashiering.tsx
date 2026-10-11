@@ -65,11 +65,12 @@ export const Route = createFileRoute("/restaurant/pms/cashiering")({
 
 function CashieringPmsRoute() {
   const search = Route.useSearch();
-  const isFolioWorkspace = useRouterState({
-    select: (state) => /\/cashiering\/folios\/[^/]+/.test(state.location.pathname),
+  const isChildWorkspace = useRouterState({
+    select: (state) =>
+      /\/cashiering\/(?:folios|accounts)\/[^/]+/.test(state.location.pathname),
   });
-  // The folio page is a child route and already renders its own shell.
-  if (isFolioWorkspace) return <Outlet />;
+  // Folio and financial-account pages are child routes and render their own shells.
+  if (isChildWorkspace) return <Outlet />;
   return (
     <RestaurantShell
       active="Cashiering"

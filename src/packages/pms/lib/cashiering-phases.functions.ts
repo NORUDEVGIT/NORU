@@ -195,9 +195,7 @@ export const postCrossLedgerTransfer = createServerFn({ method: "POST" })
 
 export const listFinancialAccounts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string }) =>
-    z.object({ restaurantId: idSchema }).parse(d),
-  )
+  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<FinancialAccountRow[]> => {
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -340,7 +338,9 @@ export const listFinancialAccountCharges = createServerFn({ method: "GET" })
       }
     }
     return lines.map((row) => {
-      const source = row.original_transaction_id ? sources.get(row.original_transaction_id) : undefined;
+      const source = row.original_transaction_id
+        ? sources.get(row.original_transaction_id)
+        : undefined;
       const local = lines.find((line) => line.id === row.original_transaction_id);
       const department = source?.charge_snapshot?.departmentName;
       const quantity = source?.quantity ?? null;
@@ -394,6 +394,25 @@ export const openFinancialAccount = createServerFn({ method: "POST" })
     return { ok: true, id: (acct as { id: string }).id };
   });
 
+export const getMasterBillingCurrency = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string; masterId: string }) =>
+    z.object({ restaurantId: idSchema, masterId: idSchema }).parse(d),
+  )
+  .handler(async ({ data, context }): Promise<{ currency: string | null }> => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { masterBillingCurrency } = await import("./cashiering-account-workspace");
+    const { data: row, error } = await supabaseAdmin
+      .from("guest_account_masters")
+      .select("billing_currency_code, account_operations")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.masterId)
+      .maybeSingle();
+    if (error) throw new Error(cashierError(error.message).message);
+    return { currency: masterBillingCurrency(row) };
+  });
+
 export const postFinancialAccountEntry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
@@ -404,6 +423,7 @@ export const postFinancialAccountEntry = createServerFn({ method: "POST" })
       amount: number;
       description: string;
       method?: string;
+      originalTransactionId?: string;
       idempotencyKey: string;
     }) =>
       z
@@ -414,6 +434,7 @@ export const postFinancialAccountEntry = createServerFn({ method: "POST" })
           amount: z.number().finite(),
           description: z.string().min(1).max(200),
           method: z.string().max(60).optional(),
+          originalTransactionId: idSchema.optional(),
           idempotencyKey: z.string().min(8).max(80),
         })
         .parse(d),
@@ -423,6 +444,12 @@ export const postFinancialAccountEntry = createServerFn({ method: "POST" })
       data.type === "payment" || data.type === "deposit"
         ? await requireCashierOperator(context as never, data.restaurantId)
         : await requireCashierManager(context as never, data.restaurantId);
+    if ((data.type === "payment" || data.type === "deposit") && !blankToNull(data.method)) {
+      return { ok: false, message: "Choose a payment method." };
+    }
+    if (data.type === "refund" && !data.originalTransactionId) {
+      return { ok: false, message: "Choose the payment this refunds." };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: txn, error } = await supabaseAdmin.rpc("post_financial_account_transaction", {
       _restaurant_id: data.restaurantId,
@@ -434,6 +461,7 @@ export const postFinancialAccountEntry = createServerFn({ method: "POST" })
       _membership_id: me.id,
       _payment_method: blankToNull(data.method ?? null) ?? undefined,
       _idempotency_key: assertIdempotencyKey(data.idempotencyKey),
+      _original_transaction_id: data.originalTransactionId,
     });
     if (error) return { ok: false, message: cashierError(error.message).message };
     return { ok: true, id: (txn as { id: string }).id };
@@ -547,9 +575,7 @@ export const postSettlementWriteOff = createServerFn({ method: "POST" })
 
 export const listCashieringExceptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string }) =>
-    z.object({ restaurantId: idSchema }).parse(d),
-  )
+  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<CashieringExceptionRow[]> => {
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
