@@ -8,10 +8,20 @@
  */
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
-import { CASHIER_MANAGE_ROLES, canManageCashiering } from "@/core/lib/cashiering-roles";
+import {
+  CASHIER_ALLOCATE_ROLES,
+  CASHIER_MANAGE_ROLES,
+  canAllocateAccountPayments,
+  canManageCashiering,
+} from "@/core/lib/cashiering-roles";
 import { withPmsPackage } from "./pms-package.server";
 
-export { CASHIER_MANAGE_ROLES, canManageCashiering };
+export {
+  CASHIER_ALLOCATE_ROLES,
+  CASHIER_MANAGE_ROLES,
+  canAllocateAccountPayments,
+  canManageCashiering,
+};
 
 /** Roles that may open Accounting & Finance and run day-to-day cashiering. */
 export const CASHIER_ACCESS_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
@@ -70,6 +80,23 @@ export async function requireCashierOperator(
       restaurantId,
       "accounting_finance",
       CASHIER_OPERATE_ROLES,
+      NO_PERMISSION,
+    ),
+  );
+}
+
+/** Classify an existing account payment against issued invoices. Not cash handling. */
+export async function requireCashierAllocator(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
+  return withPmsPackage(
+    restaurantId,
+    requireModuleRole(
+      context,
+      restaurantId,
+      "accounting_finance",
+      CASHIER_ALLOCATE_ROLES,
       NO_PERMISSION,
     ),
   );
@@ -184,6 +211,24 @@ const CASHIER_ERRORS: Record<string, string> = {
   REASON_REQUIRED: "A reason is required.",
   MASTER_NOT_FOUND: "Company or group master not found for this property.",
   ALLOCATION_EXCEEDS_UNALLOCATED: "That amount exceeds the unallocated deposit remainder.",
+  ALLOCATION_EXCEEDS_PAYMENT: "That allocation is more than this payment still has available.",
+  ALLOCATION_EXCEEDS_INVOICE: "That allocation is more than the invoice still has outstanding.",
+  ALLOCATION_STALE: "The payment or invoice amounts changed. Review the allocation and try again.",
+  ALLOCATION_NOT_A_PAYMENT: "Only a posted account payment can be allocated.",
+  ALLOCATION_NOT_A_GUEST_PAYMENT: "Only a posted guest payment can be allocated.",
+  ALLOCATION_FOLIO_MISMATCH:
+    "A payment can only be allocated to an invoice on the same guest folio.",
+  LEGACY_INVOICE_ALLOCATION_UNSUPPORTED:
+    "Payment allocation is unavailable for this legacy whole-folio invoice.",
+  ALLOCATION_NOT_ISSUED: "Only an issued invoice can receive a payment allocation.",
+  ALLOCATION_ACCOUNT_MISMATCH:
+    "A payment can only be allocated to an invoice on the same financial account.",
+  ALLOCATION_CURRENCY_MISMATCH: "The payment and invoice use different currencies.",
+  ALLOCATION_ALREADY_REVERSED: "That allocation has already been reversed.",
+  ALLOCATION_NOT_FOUND: "That allocation could not be found.",
+  ALLOCATION_NOT_REVERSIBLE: "Only an active allocation can be reversed.",
+  ALLOCATION_AMOUNT_INVALID: "Enter an allocation amount greater than zero.",
+  ALLOCATION_DUPLICATE_TARGET: "Each invoice can only appear once in an allocation.",
   ALLOCATION_SAME_FOLIO_ONLY: "Deposit allocation must stay on the same folio for now.",
   SOURCE_NOT_A_DEPOSIT: "Choose a deposit line to allocate.",
   INVALID_WRITE_OFF_AMOUNT:
@@ -201,6 +246,13 @@ const CASHIER_ERRORS: Record<string, string> = {
 
 /** Map RAISE EXCEPTION codes from the cashiering functions to user-facing text. */
 export function cashierError(message: string): Error {
+  const allocationNet = message.match(/ALLOCATION_EXCEEDS_INVOICE_NET:([^:]+):([0-9.]+):([0-9.]+)/);
+  if (allocationNet) {
+    const [, currency, allocated, release] = allocationNet;
+    return new Error(
+      `This invoice has ${currency} ${allocated} allocated. Reverse at least ${currency} ${release} of payment allocation before issuing this credit note.`,
+    );
+  }
   if (/duplicate key value/i.test(message)) {
     if (message.includes("guest_folios_one_per_reservation")) {
       return new Error("This reservation already has a folio.");

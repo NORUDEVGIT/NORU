@@ -5,6 +5,9 @@ import { FileText, Plus, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { FolioInvoicePreview } from "@/packages/pms/components/cashiering/folio-invoice-panel";
+import { GuestInvoiceSettlementDetail } from "@/packages/pms/components/cashiering/guest-payment-allocation-drawer";
+import { listGuestInvoiceSettlementForFolio } from "@/packages/pms/lib/cashiering-guest-allocation.functions";
+import { guestSettlementLabel } from "@/packages/pms/lib/cashiering-guest-allocation";
 import { stayNights } from "@/packages/pms/lib/folio-workspace";
 import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
 import { DebitNoteSection } from "@/packages/pms/components/cashiering/debit-note-panel";
@@ -75,6 +78,11 @@ export function GuestInvoiceWorkspace({
   const removeDraft = useServerFn(deleteGuestFolioInvoiceDraft);
   const issueDraft = useServerFn(issueGuestFolioInvoiceDraft);
 
+  const fetchSettlements = useServerFn(listGuestInvoiceSettlementForFolio);
+  const settlementQuery = useQuery({
+    queryKey: ["guest-invoice-settlement", restaurantId, folio.id],
+    queryFn: () => fetchSettlements({ data: { restaurantId, folioId: folio.id } }),
+  });
   const boardQuery = useQuery({
     queryKey: ["folio", restaurantId, folio.id, "invoice-board"],
     queryFn: () => fetchBoard({ data: { restaurantId, folioId: folio.id } }),
@@ -565,6 +573,7 @@ export function GuestInvoiceWorkspace({
                   <th className="px-3 py-2 font-medium">Invoice no.</th>
                   <th className="px-3 py-2 font-medium">Issued at</th>
                   <th className="px-3 py-2 text-right font-medium">Total</th>
+                  <th className="px-3 py-2 font-medium">Settlement</th>
                   <th className="px-3 py-2 font-medium">Reprints</th>
                   <th className="px-3 py-2" />
                 </tr>
@@ -572,7 +581,12 @@ export function GuestInvoiceWorkspace({
               <tbody>
                 {folio.issuedInvoices.map((invoice) => (
                   <tr key={invoice.id} className="border-t border-[#E8E1D7]/80">
-                    <td className="px-3 py-2 font-medium">{invoice.issuedNumber}</td>
+                    <td className="px-3 py-2 font-medium">
+                      {invoice.issuedNumber}
+                      {invoice.coverageScope === "legacy_folio" ? (
+                        <div className="text-xs text-muted-foreground">Legacy folio invoice</div>
+                      ) : null}
+                    </td>
                     <td className="px-3 py-2 text-muted-foreground">
                       {dateTime(invoice.issuedAt)}
                     </td>
@@ -580,6 +594,16 @@ export function GuestInvoiceWorkspace({
                       {money(
                         invoice.snapshot.totals.invoiceTotal ?? invoice.snapshot.totals.balance,
                       )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {invoice.coverageScope === "legacy_folio"
+                        ? "Unavailable"
+                        : (() => {
+                            const state = settlementQuery.data?.find(
+                              (row) => row.invoiceId === invoice.id,
+                            )?.settlementState;
+                            return state ? guestSettlementLabel(state) : "—";
+                          })()}
                     </td>
                     <td className="px-3 py-2">{invoice.reprintCount}</td>
                     <td className="px-3 py-2 text-right">
@@ -616,6 +640,14 @@ export function GuestInvoiceWorkspace({
               money={money}
               dateTime={dateTime}
               liveProperty={documentProperty}
+            />
+            <GuestInvoiceSettlementDetail
+              restaurantId={restaurantId}
+              folioId={folio.id}
+              invoiceId={openInvoice.id}
+              legacy={openInvoice.coverageScope === "legacy_folio"}
+              money={money}
+              dateTime={dateTime}
             />
             <CreditNoteSection
               restaurantId={restaurantId}
@@ -670,7 +702,10 @@ function InvoiceDraftPreview({
   const currency = folio.currency || "ETB";
 
   return (
-    <div className="space-y-5 text-xs bg-white p-4 rounded-xl border border-slate-100" data-testid="invoice-draft-preview">
+    <div
+      className="space-y-5 text-xs bg-white p-4 rounded-xl border border-slate-100"
+      data-testid="invoice-draft-preview"
+    >
       {/* Top Header */}
       <header className="flex justify-between items-start gap-4 pb-2 border-b border-slate-100">
         <CashieringDocumentLetterhead property={property} logoClassName="size-8" />
@@ -701,7 +736,9 @@ function InvoiceDraftPreview({
           <p className="text-slate-600">Room {folio.roomNumber || "—"}</p>
         </div>
         <div>
-          <p className="font-bold text-[#0E2C6C] text-[10px] uppercase tracking-wider">Stay Period</p>
+          <p className="font-bold text-[#0E2C6C] text-[10px] uppercase tracking-wider">
+            Stay Period
+          </p>
           <p className="font-semibold text-slate-900">
             {folio.arrivalDate?.slice(0, 10) || "—"} → {folio.departureDate?.slice(0, 10) || "—"}
           </p>
@@ -769,7 +806,9 @@ function InvoiceDraftPreview({
       {/* Footer */}
       <div className="text-[11px] text-slate-500 pt-1 space-y-0.5">
         {notes ? <p className="text-slate-700">Notes: {notes}</p> : null}
-        {preparedBy ? <p className="font-medium text-slate-700">Prepared by: {preparedBy}</p> : null}
+        {preparedBy ? (
+          <p className="font-medium text-slate-700">Prepared by: {preparedBy}</p>
+        ) : null}
       </div>
     </div>
   );

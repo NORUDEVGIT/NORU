@@ -69,6 +69,6 @@ describe("Cashiering Phase 3 source linkage", () => {
     assert.match(page, /row\.sourceDescription/);
     assert.match(page, /row\.postedBy/);
     assert.match(dialogs, /originalTransactionId: sourceId/);
-    assert.match(dialogs, /original line[\s\S]*stays as posted/);
+    assert.match(dialogs, /original\s+line[\s\S]*stays as posted/);
   });
 });

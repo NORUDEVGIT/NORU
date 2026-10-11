@@ -75,6 +75,7 @@ export type IssuedFolioInvoiceRow = {
   reprintCount: number;
   lastReprintedAt: string | null;
   snapshot: FolioInvoiceSnapshot;
+  coverageScope?: "charge_groups" | "legacy_folio";
 };
 
 export function mapFolioInvoiceSnapshot(raw: unknown): FolioInvoiceSnapshot {

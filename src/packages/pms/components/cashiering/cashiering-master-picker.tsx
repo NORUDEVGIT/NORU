@@ -158,47 +158,68 @@ export function CashieringMasterPicker({
         </div>
       ) : (
         <>
-          <div>
-            <Label htmlFor="cashiering-master-search">{copy.label}</Label>
-            <div className="relative mt-1">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative space-y-1.5">
+            <Label htmlFor="cashiering-master-search" className="text-xs font-semibold text-[#251605]">
+              {copy.label}
+            </Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#7A7167]" />
               <Input
                 id="cashiering-master-search"
-                className="min-h-11 pl-9"
+                className="h-10 pl-9 pr-8 text-xs font-medium border-[#E8E1D7] focus-visible:border-[#C89933] focus-visible:ring-1 focus-visible:ring-[#C89933]"
                 data-testid="cashiering-master-search"
                 placeholder={copy.searchPlaceholder}
                 value={search}
                 disabled={disabled}
                 onChange={(e) => setSearch(e.target.value)}
               />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#7A7167]">
+                <Icon className="size-3.5" />
+              </div>
+            </div>
+
+            {/* Searchable Dropdown List */}
+            <div className="rounded-xl border border-[#E8E1D7] bg-white shadow-md overflow-hidden">
+              <ul
+                className="max-h-52 overflow-y-auto divide-y divide-[#F2ECE4] text-xs"
+                data-testid="cashiering-master-search-results"
+              >
+                {accountListItems(accountsQuery.data).map((row) => (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => void selectById(row.id)}
+                      className="w-full flex items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-[#FAF8F4] group"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[#FAF5EB] text-[#8A6A2F]">
+                          <Icon className="size-3.5" />
+                        </div>
+                        <span className="font-semibold text-[#251605] truncate">{row.name}</span>
+                      </div>
+                      {row.code ? (
+                        <span className="shrink-0 rounded bg-[#F2ECE4] px-1.5 py-0.5 text-[10px] font-semibold text-[#5F554B]">
+                          {row.code}
+                        </span>
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+                {!accountsQuery.isLoading && accountListItems(accountsQuery.data).length === 0 ? (
+                  <li className="px-3 py-4 text-center text-xs text-[#7A7167] italic">
+                    {copy.empty}
+                  </li>
+                ) : null}
+              </ul>
             </div>
           </div>
-          <ul className="space-y-2" data-testid="cashiering-master-search-results">
-            {accountListItems(accountsQuery.data).map((row) => (
-              <li key={row.id}>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => void selectById(row.id)}
-                  className="min-h-11 w-full rounded-xl border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/40"
-                >
-                  <span className="font-medium">{row.name}</span>
-                  {row.code ? (
-                    <span className="ml-2 text-xs text-muted-foreground">{row.code}</span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-            {!accountsQuery.isLoading && accountListItems(accountsQuery.data).length === 0 ? (
-              <li className="text-sm text-muted-foreground">{copy.empty}</li>
-            ) : null}
-          </ul>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] text-[#7A7167]">
             Masters are created in{" "}
             <Link
               to={GUEST_PROFILE_DIRECTORY_PATH}
               search={guestProfileSearch({ section: copy.createSection })}
-              className="font-medium text-foreground underline-offset-4 hover:underline"
+              className="font-medium text-[#8A6A2F] underline-offset-4 hover:underline"
             >
               Guest Profile
             </Link>

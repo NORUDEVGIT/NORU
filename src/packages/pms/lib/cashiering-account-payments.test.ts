@@ -481,6 +481,25 @@ describe("linked account refunds and write-off", () => {
     assert.equal(refund?.sourcePaymentId, "pay");
   });
 
+  it("reduces the refundable remainder by active payment allocations", () => {
+    const rows = buildAccountPayments({
+      rows: [payment],
+      canRefund: true,
+      allocatedByPayment: { pay: 8000 },
+    });
+    const source = rows.find((row) => row.id === "pay");
+    assert.equal(source?.allocatedTotal, 8000);
+    assert.equal(source?.remainingRefundable, 2000);
+    assert.equal(source?.canRefund, true);
+    const blocked = buildAccountPayments({
+      rows: [payment],
+      canRefund: true,
+      allocatedByPayment: { pay: 10000 },
+    });
+    assert.equal(blocked.find((row) => row.id === "pay")?.remainingRefundable, 0);
+    assert.equal(blocked.find((row) => row.id === "pay")?.canRefund, false);
+  });
+
   it("stops further refunds when the source is fully refunded", () => {
     const full = buildAccountPayments({
       rows: [
@@ -623,15 +642,19 @@ describe("account payment list", () => {
 });
 
 describe("account payments UI", () => {
-  it("keeps the payments tab live and the history tab deferred", () => {
+  it("keeps the payments tab live and history on the account workspace", () => {
     assert.match(workspace, /FinancialAccountPayments/);
-    assert.match(workspace, /account-tab-history/);
-    assert.match(workspace, /Coming in the next Cashiering implementation phase/);
+    assert.match(workspace, /FinancialAccountHistory/);
+    assert.match(workspace, /FinancialAccountStatement/);
     assert.match(panel, /No payments have been posted to this financial account/);
     assert.match(panel, /Receive Payment/);
     assert.match(panel, /Write Off/);
     assert.match(panel, /This payment will leave a credit balance of/);
-    assert.match(panel, /Payment allocation is not yet available/);
+    assert.match(panel, /Allocation summary/);
+    assert.match(panel, /Allocate payment/);
+    assert.match(panel, /Reverse allocation/);
+    assert.match(panel, /Available to refund/);
+    assert.match(panel, /Allocated amounts must be reversed before they can be refunded/);
     assert.match(panel, /canReceivePayment/);
     assert.match(panel, /canWriteOff/);
     assert.match(panel, /canRefund/);
@@ -639,7 +662,7 @@ describe("account payments UI", () => {
     assert.match(panel, /No open cashier shift/);
     assert.doesNotMatch(
       panel,
-      /Record Deposit|City Ledger|Allocate Payment|Adjust Balance|Reopen|Post Charge|Due date|\bPaid\b|Outstanding|\bAllocated\b/i,
+      /Record Deposit|City Ledger|Adjust Balance|Reopen|Post Charge|Due date|Overdue/i,
     );
     assert.doesNotMatch(panel, /hotel_cashier_shift_id|hotelCashierShiftId/);
     assert.doesNotMatch(workspace, /Reopen/);

@@ -23,7 +23,9 @@ describe("guest folio operations", () => {
     assert.match(dialogs, /close_guest_folio|balance is zero/);
     assert.match(page, /not an issued invoice/);
     assert.match(page, /Add deposit credit/);
-    assert.doesNotMatch(`${dialogs}\n${page}`, /allocated|captured|tax calculated/i);
+    assert.match(dialogs, /Posts a payment on this open folio/);
+    assert.match(page, /GuestPaymentAllocationDrawer/);
+    assert.doesNotMatch(`${dialogs}\n${page}`, /captured|tax calculated/i);
   });
 
   it("keeps close and posting on the existing writers", () => {

@@ -5,6 +5,7 @@
  * historical deposit. Write-off is an adjustment, not cash.
  */
 
+import { propertyCalendarDate } from "./cashiering-control.ts";
 import {
   accountBalanceState,
   accountWorkspaceCapabilities,
@@ -56,6 +57,7 @@ export type AccountPaymentRow = {
   sourcePostedAt: string | null;
   sourceMethod: string | null;
   refundedTotal: number;
+  allocatedTotal: number;
   remainingRefundable: number;
   paymentState: AccountPaymentState | null;
   canView: boolean;
@@ -73,6 +75,8 @@ export type AccountPaymentQuery = {
   sort?: "newest" | "oldest" | "amount";
   page?: number;
   pageSize?: number;
+  /** Property timezone. Date filters use this local calendar, not a UTC prefix. */
+  timezone?: string;
 };
 
 export type AccountTenderTotals = {
@@ -196,6 +200,8 @@ export function buildAccountPayments(input: {
   rows: readonly AccountLedgerTender[];
   actorNames?: Readonly<Record<string, string>>;
   canRefund: boolean;
+  /** Net active allocation by payment id. Omitted payments are unallocated. */
+  allocatedByPayment?: Readonly<Record<string, number>>;
 }): AccountPaymentRow[] {
   const names = input.actorNames ?? {};
   const kinds = input.rows.flatMap((row) => {
@@ -209,7 +215,10 @@ export function buildAccountPayments(input: {
     const paid = roundAccountMoney(Math.abs(row.amount));
     const remainingRaw =
       kind === "payment" || kind === "deposit" ? remainingOnSource(row, input.rows) : null;
-    const remaining = remainingRaw == null ? 0 : Math.max(0, roundAccountMoney(remainingRaw));
+    const allocated =
+      kind === "payment" ? roundAccountMoney(input.allocatedByPayment?.[row.id] ?? 0) : 0;
+    const availableRaw = remainingRaw == null ? null : roundAccountMoney(remainingRaw - allocated);
+    const remaining = availableRaw == null ? 0 : roundAccountMoney(availableRaw);
     const refunded = remainingRaw == null ? 0 : Math.max(0, roundAccountMoney(paid - remainingRaw));
     const state = kind === "payment" || kind === "deposit" ? paymentState(paid, refunded) : null;
     return {
@@ -228,6 +237,7 @@ export function buildAccountPayments(input: {
       sourceMethod:
         kind === "refund" && sourceIsTender ? (source?.row.paymentMethod ?? null) : null,
       refundedTotal: refunded,
+      allocatedTotal: allocated,
       remainingRefundable: remaining,
       paymentState: state,
       canView: true,
@@ -325,7 +335,7 @@ export function queryAccountPayments(
     if (query.type === "write_off" && row.transactionType !== "write_off") return false;
     if (query.method && query.method !== "all" && row.paymentMethod !== query.method) return false;
     if (query.postedBy && row.actorId !== query.postedBy) return false;
-    const day = row.postedAt.slice(0, 10);
+    const day = propertyCalendarDate(row.postedAt, query.timezone || "UTC");
     if (from && day < from) return false;
     if (to && day > to) return false;
     if (!term) return true;

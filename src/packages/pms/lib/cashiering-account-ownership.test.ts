@@ -569,6 +569,6 @@ describe("financial account ownership", () => {
     assert.doesNotMatch(page, /Outstanding/);
     assert.match(workspace, /FinancialAccountSourceFolios/);
     assert.match(workspace, /FinancialAccountCharges/);
-    assert.match(workspace, /Coming in the next Cashiering implementation phase/);
+    assert.match(workspace, /FinancialAccountHistory/);
   });
 });

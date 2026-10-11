@@ -6,6 +6,7 @@ import {
   assertIdempotencyKey,
   blankToNull,
   callPostFolioTransaction,
+  canAllocateAccountPayments,
   canManageCashiering,
   cashierError,
   categoryForType,
@@ -310,7 +311,9 @@ type TxnRow = {
   charge_snapshot?: Record<string, unknown> | null;
 };
 
-function departmentNameFromSnapshot(snapshot: Record<string, unknown> | null | undefined): string | null {
+function departmentNameFromSnapshot(
+  snapshot: Record<string, unknown> | null | undefined,
+): string | null {
   const name = snapshot?.departmentName;
   return typeof name === "string" && name.trim() !== "" ? name : null;
 }
@@ -324,7 +327,8 @@ function sourceChargeFromRow(row: {
   charge_source?: string | null;
 }): NonNullable<FolioTransactionRow["sourceCharge"]> {
   const quantity = row.quantity == null || row.quantity === "" ? null : Number(row.quantity);
-  const unitAmount = row.unit_amount == null || row.unit_amount === "" ? null : Number(row.unit_amount);
+  const unitAmount =
+    row.unit_amount == null || row.unit_amount === "" ? null : Number(row.unit_amount);
   return {
     description: row.description,
     category: row.category,
@@ -666,7 +670,12 @@ async function loadGuestFolio(
   const reservation = f.hotel_reservations;
   const [invoiceLoad, marketSegment, bookingSource, salesChannel] = await Promise.all([
     loadGuestFolioInvoices(supabaseAdmin, restaurantId, f.id),
-    resolveCatalogueLabel(supabaseAdmin, restaurantId, "pms_market_segments", reservation?.market_segment),
+    resolveCatalogueLabel(
+      supabaseAdmin,
+      restaurantId,
+      "pms_market_segments",
+      reservation?.market_segment,
+    ),
     resolveCatalogueLabel(
       supabaseAdmin,
       restaurantId,
@@ -749,6 +758,32 @@ async function loadDepositAllocations(
   }));
 }
 
+async function loadPaymentAllocationNets(
+  supabaseAdmin: SupabaseAdmin,
+  restaurantId: string,
+  paymentIds: string[],
+): Promise<Record<string, number>> {
+  if (paymentIds.length === 0) return {};
+  const { data, error } = await supabaseAdmin
+    .from("guest_payment_invoice_allocations")
+    .select("payment_transaction_id, amount")
+    .eq("restaurant_id", restaurantId)
+    .in("payment_transaction_id", paymentIds);
+  if (error) {
+    if (isMissingSchemaError(error)) return {};
+    throw cashierError(error.message);
+  }
+  const nets: Record<string, number> = {};
+  for (const row of (data ?? []) as Array<{
+    payment_transaction_id: string;
+    amount: number | string;
+  }>) {
+    const current = nets[row.payment_transaction_id] ?? 0;
+    nets[row.payment_transaction_id] = Math.round((current + Number(row.amount)) * 100) / 100;
+  }
+  return nets;
+}
+
 async function loadTransferCounterparts(
   supabaseAdmin: SupabaseAdmin,
   restaurantId: string,
@@ -772,9 +807,7 @@ async function loadTransferCounterparts(
   }>;
   const folioIds = [
     ...new Set(
-      pairs
-        .map((row) => row.folio_id)
-        .filter((id): id is string => Boolean(id) && id !== folioId),
+      pairs.map((row) => row.folio_id).filter((id): id is string => Boolean(id) && id !== folioId),
     ),
   ];
   const accountIds = [
@@ -846,6 +879,8 @@ export interface FolioWorkspace {
   depositLines: FolioDepositLine[];
   depositAllocations: FolioAllocationInput[];
   depositSummary: { received: number; applied: number; available: number };
+  paymentAllocationNets: Record<string, number>;
+  canAllocateInvoices: boolean;
   chargeGroups: FolioChargeGroup[];
   recentPayments: FolioTransactionRow[];
   transferCounterparts: Record<
@@ -888,12 +923,13 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
 
     const transferIds = [
       ...new Set(
-        folio.transactions
-          .map((row) => row.transferId)
-          .filter((id): id is string => Boolean(id)),
+        folio.transactions.map((row) => row.transferId).filter((id): id is string => Boolean(id)),
       ),
     ];
-    const [allocations, settings, counterparts] = await Promise.all([
+    const paymentIds = folio.transactions
+      .filter((row) => row.type === "payment")
+      .map((row) => row.id);
+    const [allocations, settings, counterparts, paymentAllocationNets] = await Promise.all([
       loadDepositAllocations(
         supabaseAdmin,
         data.restaurantId,
@@ -905,6 +941,7 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
         .eq("restaurant_id", data.restaurantId)
         .maybeSingle(),
       loadTransferCounterparts(supabaseAdmin, data.restaurantId, folio.id, transferIds),
+      loadPaymentAllocationNets(supabaseAdmin, data.restaurantId, paymentIds),
     ]);
     const invoiceSettingsAvailable = !settings.error && Boolean(settings.data);
     const depositLines = buildDepositLines(folio.transactions, allocations);
@@ -917,6 +954,8 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
       depositLines,
       depositAllocations: allocations,
       depositSummary: depositSummaryFromLines(depositLines),
+      paymentAllocationNets,
+      canAllocateInvoices: folio.status === "open" && canAllocateAccountPayments(me.role),
       chargeGroups: groupChargeRows(folio.transactions),
       recentPayments: recentPayments(folio.transactions, 3),
       transferCounterparts: counterparts,
@@ -1486,7 +1525,8 @@ function readChargeableService(value: unknown): ChargeableGuestService | null {
   const serviceTypeId = String(row.serviceTypeId ?? "");
   const departmentId = String(row.departmentId ?? "");
   if (!serviceTypeId || !departmentId) return null;
-  const rawUnit = row.pricingUnit == null || row.pricingUnit === "" ? null : String(row.pricingUnit);
+  const rawUnit =
+    row.pricingUnit == null || row.pricingUnit === "" ? null : String(row.pricingUnit);
   if (rawUnit && !PRICING_UNITS.includes(rawUnit as ChargePricingUnit)) return null;
   const pricingUnit = rawUnit as ChargePricingUnit | null;
   const fixed = pricingUnit == null || pricingUnit === "per_service" || pricingUnit === "per_room";
@@ -1550,15 +1590,16 @@ export const listChargeableGuestServices = createServerFn({ method: "GET" })
 /** Read-only tax preview for a guest-service charge. Price is re-derived on the server. */
 export const previewFolioServiceCharge = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; folioId: string; serviceTypeId: string; quantity: number }) =>
-    z
-      .object({
-        restaurantId: idSchema,
-        folioId: idSchema,
-        serviceTypeId: idSchema,
-        quantity: z.number().int().min(1).max(99),
-      })
-      .parse(d),
+  .inputValidator(
+    (d: { restaurantId: string; folioId: string; serviceTypeId: string; quantity: number }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          folioId: idSchema,
+          serviceTypeId: idSchema,
+          quantity: z.number().int().min(1).max(99),
+        })
+        .parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioServiceChargePreview> => {
     await requireCashierManager(context as never, data.restaurantId);
@@ -1615,7 +1656,8 @@ export const postFolioServiceCharge = createServerFn({ method: "POST" })
       _idempotency_key: idempotencyKey,
     });
     if (error) return { ok: false, message: cashierError(error.message).message };
-    const id = txn && typeof txn === "object" && "id" in txn ? String((txn as { id: string }).id) : "";
+    const id =
+      txn && typeof txn === "object" && "id" in txn ? String((txn as { id: string }).id) : "";
     if (!id) return { ok: false, message: "The charge did not post." };
     return { ok: true, id };
   });
@@ -2079,6 +2121,8 @@ const TENDER_HISTORY_EVENTS = [
   "deposit_received",
   "refund_posted",
   "deposit_allocated",
+  "guest_payment_allocated",
+  "guest_payment_allocation_reversed",
 ] as const;
 
 /** Read-only folio_history rows for payment, deposit, refund, and deposit application. */
@@ -2102,13 +2146,15 @@ export const listFolioTenderHistory = createServerFn({ method: "GET" })
       if (isMissingSchemaError(error)) return [];
       throw cashierError(error.message);
     }
-    return ((rows ?? []) as Array<{
-      id: string;
-      event_type: string;
-      notes: string | null;
-      new_values: Record<string, unknown> | null;
-      created_at: string;
-    }>).map((row) => {
+    return (
+      (rows ?? []) as Array<{
+        id: string;
+        event_type: string;
+        notes: string | null;
+        new_values: Record<string, unknown> | null;
+        created_at: string;
+      }>
+    ).map((row) => {
       const values = row.new_values ?? {};
       const text = (key: string) => {
         const value = values[key];

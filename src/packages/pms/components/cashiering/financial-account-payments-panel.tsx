@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Landmark, Scale } from "lucide-react";
+import { ChevronLeft, ChevronRight, Landmark, Scale, Search } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  AllocatePaymentDialog,
+  ReverseAllocationDialog,
+} from "@/packages/pms/components/cashiering/financial-account-allocation-drawer";
 import { formatBalance } from "@/packages/pms/components/cashiering/folio-workspace-panels";
 import {
   ACCOUNT_TENDER_METHODS,
@@ -111,6 +115,13 @@ export function FinancialAccountPayments({
   const [writeOffKey, setWriteOffKey] = useState("");
   const [refundRow, setRefundRow] = useState<AccountPaymentRow | null>(null);
   const [refundKey, setRefundKey] = useState("");
+  const [allocatePaymentId, setAllocatePaymentId] = useState<string | null>(null);
+  const [reverseAllocation, setReverseAllocation] = useState<{
+    id: string;
+    invoiceNumber: string;
+    amount: number;
+    activeAmount: number;
+  } | null>(null);
 
   const paymentsQuery = useQuery({
     queryKey: [
@@ -251,16 +262,19 @@ export function FinancialAccountPayments({
       </div>
 
       <div className={cn(CARD, "space-y-3 p-3")}>
-        <div className="flex flex-wrap gap-2">
-          <Input
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(1);
-            }}
-            placeholder="Search description, method, or amount"
-            className="h-9 max-w-xs"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+            <Input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Search description, method, or amount"
+              className="h-9 pl-8 text-sm border-[#E8E1D7] bg-white focus-visible:ring-1 focus-visible:ring-[#C89933]"
+            />
+          </div>
           <Filter
             value={type}
             onChange={(value) => {
@@ -300,148 +314,164 @@ export function FinancialAccountPayments({
             value={sort}
             onChange={(value) => setSort(value as typeof sort)}
             options={[
-              ["newest", "Newest"],
-              ["oldest", "Oldest"],
+              ["newest", "Newest first"],
+              ["oldest", "Oldest first"],
               ["amount", "Amount"],
             ]}
           />
-          <Input
-            type="date"
-            value={from}
-            onChange={(event) => {
-              setFrom(event.target.value);
-              setPage(1);
-            }}
-            className="h-9 w-36"
-            aria-label="From date"
-          />
-          <Input
-            type="date"
-            value={to}
-            onChange={(event) => {
-              setTo(event.target.value);
-              setPage(1);
-            }}
-            className="h-9 w-36"
-            aria-label="To date"
-          />
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="date"
+              value={from}
+              onChange={(event) => {
+                setFrom(event.target.value);
+                setPage(1);
+              }}
+              className="h-9 w-36 text-xs border-[#E8E1D7] bg-white"
+              aria-label="From date"
+            />
+            <span className="text-xs text-muted-foreground">to</span>
+            <Input
+              type="date"
+              value={to}
+              onChange={(event) => {
+                setTo(event.target.value);
+                setPage(1);
+              }}
+              className="h-9 w-36 text-xs border-[#E8E1D7] bg-white"
+              aria-label="To date"
+            />
+          </div>
         </div>
 
-        {paymentsQuery.isLoading ? (
-          <p className="px-1 py-6 text-sm text-muted-foreground">Loading payments…</p>
-        ) : (result?.accountTotal ?? 0) === 0 ? (
-          <div className="px-1 py-8 text-sm text-muted-foreground" data-testid="payment-empty">
-            <p>No payments have been posted to this financial account.</p>
-            {caps.canReceivePayment ? (
-              <Button className="mt-3" variant="outline" onClick={openPayment}>
-                Receive Payment
-              </Button>
-            ) : null}
-          </div>
-        ) : result?.total === 0 ? (
-          <p className="px-1 py-6 text-sm text-muted-foreground">
-            No payments match these filters.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-sm" data-testid="payment-table">
-              <thead className="bg-[#F7F4EE] text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Date & time</th>
-                  <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2">Method</th>
-                  <th className="px-3 py-2 text-right">Amount</th>
-                  <th className="px-3 py-2">Received from / description</th>
-                  <th className="px-3 py-2">Posted by</th>
-                  <th className="px-3 py-2 text-right">Refunded</th>
-                  <th className="px-3 py-2 text-right">Available to refund</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {(result?.rows ?? []).map((row) => (
-                  <tr
-                    key={row.id}
-                    className="cursor-pointer border-t border-[#E8E1D7] hover:bg-[#F7F4EE]/60"
-                    data-testid="payment-row"
-                    onClick={() => setSelectedId(row.id)}
-                  >
-                    <td className="px-3 py-2 whitespace-nowrap">{dateTime(row.postedAt)}</td>
-                    <td className="px-3 py-2">
-                      <TypeBadge type={row.transactionType} />
-                      {row.paymentState ? (
-                        <span className="mt-1 block text-[11px] text-muted-foreground">
-                          {tenderStateLabel(row.paymentState)}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-2">{accountMethodLabel(row.paymentMethod)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {money(row.displayAmount)}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className="block">{row.description}</span>
-                      {row.transactionType === "refund" && row.sourcePostedAt ? (
-                        <span className="text-xs text-muted-foreground">
-                          Payment on {dateTime(row.sourcePostedAt)} ·{" "}
-                          {accountMethodLabel(row.sourceMethod)}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-2">{row.actorName ?? "—"}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {row.transactionType === "payment" || row.transactionType === "deposit"
-                        ? money(row.refundedTotal)
-                        : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {row.transactionType === "payment" || row.transactionType === "deposit"
-                        ? money(row.remainingRefundable)
-                        : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
-                      <button
-                        type="button"
-                        className="text-xs font-medium text-[#8a6a1f]"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setSelectedId(row.id);
-                        }}
-                      >
-                        View details
-                      </button>
-                      {row.canRefund ? (
-                        <button
-                          type="button"
-                          className="ml-3 text-xs font-medium text-[#8a6a1f]"
-                          data-testid="refund-payment"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openRefund(row);
-                          }}
-                        >
-                          Refund
-                        </button>
-                      ) : null}
-                      {row.canViewSource && row.sourcePaymentId ? (
-                        <button
-                          type="button"
-                          className="ml-3 text-xs font-medium text-[#8a6a1f]"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setSelectedId(row.sourcePaymentId);
-                          }}
-                        >
-                          View original payment
-                        </button>
-                      ) : null}
-                    </td>
+        <div className="rounded-lg border border-[#E8E1D7] overflow-hidden">
+          {paymentsQuery.isLoading ? (
+            <p className="px-4 py-8 text-sm text-center text-muted-foreground">Loading payments…</p>
+          ) : (result?.accountTotal ?? 0) === 0 ? (
+            <div className="px-4 py-12 text-center" data-testid="payment-empty">
+              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#FAF8F4] text-muted-foreground">
+                <Landmark className="size-6 text-[#C89933]" />
+              </div>
+              <p className="mt-3 font-medium text-[#251605]">No payments have been posted to this financial account.</p>
+              {caps.canReceivePayment ? (
+                <Button className="mt-4 bg-[#C89933] text-[#251605] hover:bg-[#B5882D]" onClick={openPayment}>
+                  Receive Payment
+                </Button>
+              ) : null}
+            </div>
+          ) : result?.total === 0 ? (
+            <p className="px-4 py-8 text-sm text-center text-muted-foreground">
+              No payments match these filters.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[980px] text-sm" data-testid="payment-table">
+                <thead className="bg-[#FAF8F4] border-b border-[#E8E1D7] text-left text-[11px] font-semibold uppercase tracking-wider text-[#736B5E]">
+                  <tr>
+                    <th className="px-3.5 py-2.5">Date & time</th>
+                    <th className="px-3.5 py-2.5">Type</th>
+                    <th className="px-3.5 py-2.5">Method</th>
+                    <th className="px-3.5 py-2.5 text-right">Amount</th>
+                    <th className="px-3.5 py-2.5">Received from / description</th>
+                    <th className="px-3.5 py-2.5">Posted by</th>
+                    <th className="px-3.5 py-2.5 text-right">Refunded</th>
+                    <th className="px-3.5 py-2.5 text-right">Available</th>
+                    <th className="px-3.5 py-2.5 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody className="divide-y divide-[#E8E1D7]">
+                  {(result?.rows ?? []).map((row) => (
+                    <tr
+                      key={row.id}
+                      className="cursor-pointer hover:bg-[#FAF8F4]/70 transition-colors"
+                      data-testid="payment-row"
+                      onClick={() => setSelectedId(row.id)}
+                    >
+                      <td className="px-3.5 py-2.5 whitespace-nowrap text-xs text-muted-foreground">
+                        {dateTime(row.postedAt)}
+                      </td>
+                      <td className="px-3.5 py-2.5">
+                        <TypeBadge type={row.transactionType} />
+                        {row.paymentState ? (
+                          <span className="mt-1 block text-[11px] text-muted-foreground">
+                            {tenderStateLabel(row.paymentState)}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-3.5 py-2.5">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#F7F4EE] border border-[#E8E1D7] text-[#251605]">
+                          {accountMethodLabel(row.paymentMethod)}
+                        </span>
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right tabular-nums font-semibold text-[#251605]">
+                        {money(row.displayAmount)}
+                      </td>
+                      <td className="px-3.5 py-2.5">
+                        <span className="block font-medium text-[#251605]">{row.description}</span>
+                        {row.transactionType === "refund" && row.sourcePostedAt ? (
+                          <span className="text-xs text-muted-foreground">
+                            Payment on {dateTime(row.sourcePostedAt)} ·{" "}
+                            {accountMethodLabel(row.sourceMethod)}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                        {row.actorName ?? "—"}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right tabular-nums text-muted-foreground">
+                        {row.transactionType === "payment" || row.transactionType === "deposit"
+                          ? money(row.refundedTotal)
+                          : "—"}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right tabular-nums font-medium text-[#251605]">
+                        {row.transactionType === "payment" || row.transactionType === "deposit"
+                          ? money(row.remainingRefundable)
+                          : "—"}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-[#C89933] hover:underline"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedId(row.id);
+                          }}
+                        >
+                          View details
+                        </button>
+                        {row.canRefund ? (
+                          <button
+                            type="button"
+                            className="ml-3 text-xs font-medium text-rose-600 hover:underline"
+                            data-testid="refund-payment"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openRefund(row);
+                            }}
+                          >
+                            Refund
+                          </button>
+                        ) : null}
+                        {row.canViewSource && row.sourcePaymentId ? (
+                          <button
+                            type="button"
+                            className="ml-3 text-xs font-medium text-[#C89933] hover:underline"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedId(row.sourcePaymentId);
+                            }}
+                          >
+                            View original payment
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
         <Pager
           page={result?.page ?? page}
           pageCount={pageCount}
@@ -505,7 +535,28 @@ export function FinancialAccountPayments({
           setSelectedId(null);
           openRefund(row);
         }}
+        onAllocate={(id) => setAllocatePaymentId(id)}
+        onReverse={(allocation) => setReverseAllocation(allocation)}
         onViewSource={(id) => setSelectedId(id)}
+      />
+      <AllocatePaymentDialog
+        open={Boolean(allocatePaymentId)}
+        restaurantId={restaurantId}
+        accountId={accountId}
+        paymentId={allocatePaymentId}
+        money={money}
+        dateTime={dateTime}
+        onOpenChange={(open) => {
+          if (!open) setAllocatePaymentId(null);
+        }}
+      />
+      <ReverseAllocationDialog
+        restaurantId={restaurantId}
+        allocation={reverseAllocation}
+        money={money}
+        onOpenChange={(open) => {
+          if (!open) setReverseAllocation(null);
+        }}
       />
     </section>
   );
@@ -756,7 +807,13 @@ function RefundDialog({
             <Info label="Method" value={accountMethodLabel(row.paymentMethod)} />
             <Info label="Original amount" value={money(row.displayAmount)} />
             <Info label="Already refunded" value={money(row.refundedTotal)} />
-            <Info label="Remaining refundable" value={money(row.remainingRefundable)} />
+            <Info label="Allocated" value={money(row.allocatedTotal)} />
+            <Info label="Available to refund" value={money(row.remainingRefundable)} />
+            {row.allocatedTotal > 0.01 ? (
+              <p className="text-xs text-muted-foreground">
+                Allocated amounts must be reversed before they can be refunded.
+              </p>
+            ) : null}
             <Field label="Refund amount *">
               <Input
                 value={amount}
@@ -932,6 +989,8 @@ function PaymentDetail({
   dateTime,
   onOpenChange,
   onRefund,
+  onAllocate,
+  onReverse,
   onViewSource,
 }: {
   restaurantId: string;
@@ -941,6 +1000,13 @@ function PaymentDetail({
   dateTime: DateTime;
   onOpenChange: (open: boolean) => void;
   onRefund: (row: AccountPaymentRow) => void;
+  onAllocate: (id: string) => void;
+  onReverse: (allocation: {
+    id: string;
+    invoiceNumber: string;
+    amount: number;
+    activeAmount: number;
+  }) => void;
   onViewSource: (id: string) => void;
 }) {
   const fetchDetail = useServerFn(getFinancialAccountPaymentDetail);
@@ -990,7 +1056,15 @@ function PaymentDetail({
               <Block title="Refund information">
                 <Info label="Original amount" value={money(payment.displayAmount)} />
                 <Info label="Refunded" value={money(payment.refundedTotal)} />
-                <Info label="Remaining refundable" value={money(payment.remainingRefundable)} />
+                {payment.transactionType === "payment" ? (
+                  <Info label="Allocated" value={money(payment.allocatedTotal)} />
+                ) : null}
+                <Info label="Available to refund" value={money(payment.remainingRefundable)} />
+                {payment.transactionType === "payment" && payment.allocatedTotal > 0.01 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Allocated amounts must be reversed before they can be refunded.
+                  </p>
+                ) : null}
               </Block>
             ) : null}
             {payment.transactionType === "refund" && detail.source ? (
@@ -1020,10 +1094,58 @@ function PaymentDetail({
                 ))}
               </Block>
             ) : null}
-            {payment.transactionType === "payment" || payment.transactionType === "deposit" ? (
-              <p className="text-xs text-muted-foreground">
-                Payment allocation is not yet available.
-              </p>
+            {payment.transactionType === "payment" ? (
+              <Block title="Allocation summary">
+                <Info label="Original payment" value={money(payment.displayAmount)} />
+                <Info label="Refunded" value={money(payment.refundedTotal)} />
+                <Info label="Allocated" value={money(payment.allocatedTotal)} />
+                <Info label="Available" value={money(payment.remainingRefundable)} />
+                {detail.allocations.filter((row) => row.amount > 0).length > 0 ? (
+                  <div className="space-y-2 pt-1">
+                    {detail.allocations
+                      .filter((row) => row.amount > 0)
+                      .map((row) => (
+                        <div key={row.id} className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium">{row.invoiceNumber}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {dateTime(row.createdAt)} · {row.actorName} ·{" "}
+                              {row.activeAmount > 0.01 ? "Allocated" : "Reversed"}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="tabular-nums">
+                              {money(row.activeAmount > 0.01 ? row.activeAmount : row.amount)}
+                            </p>
+                            {detail.canReverse && row.activeAmount > 0.01 ? (
+                              <button
+                                type="button"
+                                className="text-xs font-medium text-[#8a6a1f]"
+                                onClick={() =>
+                                  onReverse({
+                                    id: row.id,
+                                    invoiceNumber: row.invoiceNumber,
+                                    amount: row.amount,
+                                    activeAmount: row.activeAmount,
+                                  })
+                                }
+                              >
+                                Reverse allocation
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">This payment is unallocated.</p>
+                )}
+                {detail.canAllocate ? (
+                  <Button className="mt-2" onClick={() => onAllocate(payment.id)}>
+                    Allocate payment
+                  </Button>
+                ) : null}
+              </Block>
             ) : null}
             {payment.canRefund ? (
               <Button variant="outline" onClick={() => onRefund(payment)}>
@@ -1039,25 +1161,45 @@ function PaymentDetail({
 
 function Summary({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className={cn(CARD, "px-3 py-3")}>
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>
-      <p className="text-xs text-muted-foreground">{hint}</p>
+    <div className={cn(CARD, "p-3.5 transition-shadow hover:shadow-md")}>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#736B5E]">{label}</p>
+      <p className="mt-1 font-display text-lg font-semibold text-[#251605] tabular-nums">{value}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
     </div>
   );
 }
 
 function TypeBadge({ type }: { type: AccountPaymentRow["transactionType"] }) {
-  const distinct = type === "deposit";
+  if (type === "payment") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
+        Payment
+      </span>
+    );
+  }
+  if (type === "refund") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 text-rose-800 border border-rose-200">
+        Refund
+      </span>
+    );
+  }
+  if (type === "write_off") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-800 border border-purple-200">
+        Write-off
+      </span>
+    );
+  }
+  if (type === "deposit") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-dashed border-[#C89933]">
+        Historical Deposit
+      </span>
+    );
+  }
   return (
-    <span
-      className={cn(
-        "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold",
-        distinct
-          ? "border border-dashed border-[#C89933] text-[#8A6A2F]"
-          : "bg-[#F7F4EE] text-[#8A6A2F]",
-      )}
-    >
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
       {tenderTypeLabel(type)}
     </span>
   );
@@ -1065,8 +1207,8 @@ function TypeBadge({ type }: { type: AccountPaymentRow["transactionType"] }) {
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="space-y-1">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <section className="space-y-1.5 rounded-lg border border-[#E8E1D7] bg-[#FAF8F4]/50 p-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
         {title}
       </h3>
       {children}
@@ -1076,9 +1218,9 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
+    <div className="flex items-baseline justify-between gap-3 text-xs">
       <span className="text-muted-foreground">{label}</span>
-      <span className="text-right font-medium">{value}</span>
+      <span className="text-right font-medium text-[#251605]">{value}</span>
     </div>
   );
 }
@@ -1086,7 +1228,7 @@ function Info({ label, value }: { label: string; value: string }) {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Label className="block space-y-1">
-      <span>{label}</span>
+      <span className="text-xs font-medium text-[#251605]">{label}</span>
       {children}
     </Label>
   );
@@ -1097,14 +1239,14 @@ function Filter({
   onChange,
   options,
 }: {
-  value: string;
+  value: string | undefined;
   onChange: (value: string) => void;
   options: ReadonlyArray<readonly [string, string]>;
 }) {
   return (
     <select
-      value={value}
-      className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2 text-sm"
+      value={value ?? ""}
+      className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2.5 text-xs font-medium text-[#251605] shadow-xs hover:border-[#C89933] focus:border-[#C89933] focus:outline-hidden focus:ring-1 focus:ring-[#C89933]"
       onChange={(event) => onChange(event.target.value)}
     >
       {options.map(([id, label]) => (
@@ -1130,30 +1272,40 @@ function Pager({
   onPageSize: (size: PageSize) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-      <select
-        value={pageSize}
-        className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2"
-        onChange={(event) => onPageSize(Number(event.target.value) as PageSize)}
-      >
-        <option value={10}>10</option>
-        <option value={25}>25</option>
-        <option value={50}>50</option>
-      </select>
+    <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs text-[#736B5E]">
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => onPage(page - 1)}>
-          Previous
+        <span>Rows per page:</span>
+        <select
+          value={pageSize}
+          className="h-8 rounded-md border border-[#E8E1D7] bg-white px-2 text-xs font-medium text-[#251605]"
+          onChange={(event) => onPageSize(Number(event.target.value) as PageSize)}
+        >
+          <option value={10}>10</option>
+          <option value={25}>25</option>
+          <option value={50}>50</option>
+        </select>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 border-[#E8E1D7] text-xs hover:bg-[#FAF8F4]"
+          disabled={page <= 1}
+          onClick={() => onPage(page - 1)}
+        >
+          <ChevronLeft className="size-3.5 mr-1" /> Previous
         </Button>
-        <span className="text-muted-foreground">
-          {page} / {pageCount}
+        <span className="tabular-nums font-medium text-[#251605]">
+          {page} of {pageCount}
         </span>
         <Button
           size="sm"
           variant="outline"
+          className="h-8 border-[#E8E1D7] text-xs hover:bg-[#FAF8F4]"
           disabled={page >= pageCount}
           onClick={() => onPage(page + 1)}
         >
-          Next
+          Next <ChevronRight className="size-3.5 ml-1" />
         </Button>
       </div>
     </div>

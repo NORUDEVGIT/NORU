@@ -4,6 +4,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { FileText, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  getFinancialAccountInvoiceSettlement,
+  listFinancialAccountOutstandingInvoices,
+} from "@/packages/pms/lib/cashiering-account-allocation.functions";
+import { settlementStateLabel } from "@/packages/pms/lib/cashiering-account-allocation";
+import { accountMethodLabel } from "@/packages/pms/lib/cashiering-account-payments";
 import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
 import { DebitNoteSection } from "@/packages/pms/components/cashiering/debit-note-panel";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
@@ -61,6 +67,8 @@ export function AccountInvoiceWorkspace({
 }) {
   const fetchBoard = useServerFn(getFinancialAccountInvoiceBoard);
   const fetchInvoices = useServerFn(listFinancialAccountInvoices);
+  const fetchSettlements = useServerFn(listFinancialAccountOutstandingInvoices);
+  const fetchSettlement = useServerFn(getFinancialAccountInvoiceSettlement);
   const previewSelection = useServerFn(previewFinancialAccountInvoiceSelection);
   const createDraft = useServerFn(createFinancialAccountInvoiceDraft);
   const updateDraft = useServerFn(updateFinancialAccountInvoiceDraft);
@@ -83,6 +91,19 @@ export function AccountInvoiceWorkspace({
     queryKey: ["account-invoices", restaurantId, accountId],
     queryFn: () => fetchInvoices({ data: { restaurantId, accountId } }),
   });
+  const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
+  const settlementsQuery = useQuery({
+    queryKey: ["account-invoice-settlements", restaurantId, accountId],
+    queryFn: () => fetchSettlements({ data: { restaurantId, accountId } }),
+  });
+  const settlementDetailQuery = useQuery({
+    queryKey: ["account-invoice-settlement", restaurantId, accountId, viewInvoiceId],
+    queryFn: () =>
+      fetchSettlement({
+        data: { restaurantId, accountId, invoiceId: viewInvoiceId! },
+      }),
+    enabled: Boolean(viewInvoiceId),
+  });
   const board = boardQuery.data;
   const invoices = invoicesQuery.data ?? [];
   const [editing, setEditing] = useState(false);
@@ -93,7 +114,6 @@ export function AccountInvoiceWorkspace({
   const [origin, setOrigin] = useState("all");
   const [stateFilter, setStateFilter] = useState("uninvoiced");
   const [printInvoice, setPrintInvoice] = useState<IssuedAccountInvoice | null>(null);
-  const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!board?.draft || !editing) return;
@@ -139,6 +159,8 @@ export function AccountInvoiceWorkspace({
   function refresh() {
     void boardQuery.refetch();
     void invoicesQuery.refetch();
+    void settlementsQuery.refetch();
+    void settlementDetailQuery.refetch();
   }
 
   const createMut = useMutation({
@@ -344,13 +366,13 @@ export function AccountInvoiceWorkspace({
             </div>
             <div className="flex flex-wrap gap-2 border-b border-[#E8E1D7] px-4 py-2">
               <input
-                className="h-8 rounded-md border border-[#E8E1D7] px-2 text-xs"
+                className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2.5 text-xs font-medium text-[#251605] placeholder:text-muted-foreground focus:border-[#C89933] focus:outline-hidden focus:ring-1 focus:ring-[#C89933]"
                 placeholder="Search charge, guest, folio"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
               <select
-                className="h-8 rounded-md border border-[#E8E1D7] px-2 text-xs"
+                className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2.5 text-xs font-medium text-[#251605] shadow-xs hover:border-[#C89933] focus:border-[#C89933] focus:outline-hidden focus:ring-1 focus:ring-[#C89933]"
                 value={department}
                 onChange={(event) => setDepartment(event.target.value)}
               >
@@ -362,7 +384,7 @@ export function AccountInvoiceWorkspace({
                 ))}
               </select>
               <select
-                className="h-8 rounded-md border border-[#E8E1D7] px-2 text-xs"
+                className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2.5 text-xs font-medium text-[#251605] shadow-xs hover:border-[#C89933] focus:border-[#C89933] focus:outline-hidden focus:ring-1 focus:ring-[#C89933]"
                 value={origin}
                 onChange={(event) => setOrigin(event.target.value)}
               >
@@ -371,7 +393,7 @@ export function AccountInvoiceWorkspace({
                 <option value="direct">Direct account charge</option>
               </select>
               <select
-                className="h-8 rounded-md border border-[#E8E1D7] px-2 text-xs"
+                className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2.5 text-xs font-medium text-[#251605] shadow-xs hover:border-[#C89933] focus:border-[#C89933] focus:outline-hidden focus:ring-1 focus:ring-[#C89933]"
                 value={stateFilter}
                 onChange={(event) => setStateFilter(event.target.value)}
               >
@@ -554,57 +576,61 @@ export function AccountInvoiceWorkspace({
                 <tr>
                   <th className="px-3 py-2">Invoice no.</th>
                   <th className="px-3 py-2">Issued</th>
-                  <th className="px-3 py-2 text-right">Subtotal</th>
-                  <th className="px-3 py-2 text-right">Tax</th>
-                  <th className="px-3 py-2 text-right">Service</th>
-                  <th className="px-3 py-2 text-right">Total</th>
-                  <th className="px-3 py-2">Issued by</th>
-                  <th className="px-3 py-2">Reprints</th>
+                  <th className="px-3 py-2 text-right">Effective net</th>
+                  <th className="px-3 py-2 text-right">Allocated</th>
+                  <th className="px-3 py-2 text-right">Outstanding</th>
+                  <th className="px-3 py-2">Settlement</th>
                   <th className="px-3 py-2" />
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((invoice) => (
-                  <tr key={invoice.id} className="border-b border-[#E8E1D7]">
-                    <td className="px-3 py-2 font-medium">{invoice.issuedNumber}</td>
-                    <td className="px-3 py-2">{dateTime(invoice.issuedAt)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {money(invoice.snapshot.totals.subtotal)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {money(invoice.snapshot.totals.tax)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {money(invoice.snapshot.totals.serviceCharge)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {money(invoice.snapshot.totals.invoiceTotal)}
-                    </td>
-                    <td className="px-3 py-2">{invoice.snapshot.document.issuedByName ?? "—"}</td>
-                    <td className="px-3 py-2">{invoice.reprintCount}</td>
-                    <td className="px-3 py-2 text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mr-2 h-8"
-                        onClick={() => setViewInvoiceId(invoice.id)}
-                      >
-                        View
-                      </Button>
-                      {canManage ? (
+                {invoices.map((invoice) => {
+                  const settlement = (settlementsQuery.data ?? []).find(
+                    (row) => row.invoiceId === invoice.id,
+                  );
+                  return (
+                    <tr key={invoice.id} className="border-b border-[#E8E1D7]">
+                      <td className="px-3 py-2 font-medium">
+                        {invoice.issuedNumber}
+                        <span className="mt-1 block text-[11px] text-muted-foreground">Issued</span>
+                      </td>
+                      <td className="px-3 py-2">{dateTime(invoice.issuedAt)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {money(settlement?.effectiveNet ?? invoice.snapshot.totals.invoiceTotal)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {money(settlement?.allocated ?? 0)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {money(settlement?.outstanding ?? invoice.snapshot.totals.invoiceTotal)}
+                      </td>
+                      <td className="px-3 py-2">
+                        {settlement ? settlementStateLabel(settlement.settlementState) : "Unpaid"}
+                      </td>
+                      <td className="px-3 py-2 text-right">
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-8"
-                          disabled={reprintMut.isPending}
-                          onClick={() => reprintMut.mutate(invoice.id)}
+                          className="mr-2 h-8"
+                          onClick={() => setViewInvoiceId(invoice.id)}
                         >
-                          <Printer className="size-4" /> Reprint
+                          View
                         </Button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
+                        {canManage ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8"
+                            disabled={reprintMut.isPending}
+                            onClick={() => reprintMut.mutate(invoice.id)}
+                          >
+                            <Printer className="size-4" /> Reprint
+                          </Button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -618,6 +644,71 @@ export function AccountInvoiceWorkspace({
               screen
               liveProperty={documentProperty}
             />
+            {settlementDetailQuery.data ? (
+              <section
+                className="mt-4 space-y-2 rounded-xl border border-[#E8E1D7] p-4 text-sm"
+                data-testid="invoice-settlement"
+              >
+                <h4 className="font-medium">Settlement</h4>
+                <p className="text-xs text-muted-foreground">
+                  Document state remains Issued. Settlement is derived.
+                </p>
+                <p className="flex justify-between">
+                  <span>Original invoice</span>
+                  <span className="tabular-nums">
+                    {money(settlementDetailQuery.data.originalAmount)}
+                  </span>
+                </p>
+                <p className="flex justify-between">
+                  <span>Credit notes</span>
+                  <span className="tabular-nums">
+                    {money(settlementDetailQuery.data.creditNoteTotal)}
+                  </span>
+                </p>
+                <p className="flex justify-between">
+                  <span>Debit notes</span>
+                  <span className="tabular-nums">
+                    {money(settlementDetailQuery.data.debitNoteTotal)}
+                  </span>
+                </p>
+                <p className="flex justify-between">
+                  <span>Effective net</span>
+                  <span className="tabular-nums">
+                    {money(settlementDetailQuery.data.effectiveNet)}
+                  </span>
+                </p>
+                <p className="flex justify-between">
+                  <span>Allocated</span>
+                  <span className="tabular-nums">
+                    {money(settlementDetailQuery.data.allocated)}
+                  </span>
+                </p>
+                <p className="flex justify-between">
+                  <span>Outstanding</span>
+                  <span className="tabular-nums">
+                    {money(settlementDetailQuery.data.outstanding)}
+                  </span>
+                </p>
+                <p className="flex justify-between">
+                  <span>State</span>
+                  <span>{settlementStateLabel(settlementDetailQuery.data.settlementState)}</span>
+                </p>
+                {settlementDetailQuery.data.allocations.length > 0 ? (
+                  <div className="pt-2">
+                    <p className="mb-1 font-medium">Allocations</p>
+                    {settlementDetailQuery.data.allocations.map((line) => (
+                      <p key={line.id} className="flex justify-between gap-3 text-xs">
+                        <span>
+                          {dateTime(line.paymentDate)} · {accountMethodLabel(line.method)} ·{" "}
+                          {line.actorName}
+                        </span>
+                        <span className="tabular-nums">{money(line.amount)}</span>
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
             <CreditNoteSection
               restaurantId={restaurantId}
               accountInvoiceId={viewedInvoice.id}

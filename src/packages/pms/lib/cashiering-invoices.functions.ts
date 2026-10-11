@@ -24,15 +24,14 @@ import {
 
 const idSchema = z.string().uuid();
 
-export type InvoiceActionResult = { ok: true; invoice: IssuedFolioInvoiceRow } | { ok: false; message: string };
+export type InvoiceActionResult =
+  { ok: true; invoice: IssuedFolioInvoiceRow } | { ok: false; message: string };
 
 const RESTAURANT_DOCUMENT_COLUMNS =
   "currency_code, legal_entity_name, legal_name, brand_name, trading_name, vat_number, vat_registered, tin_number, full_address, phone, email, logo_url, name, address, city, postcode, country";
 
 export async function loadCashieringDocumentProperty(
-  supabaseAdmin: Awaited<
-    typeof import("@/integrations/supabase/client.server")
-  >["supabaseAdmin"],
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
   restaurantId: string,
 ): Promise<CashieringDocumentProperty | null> {
   const { data, error } = await supabaseAdmin
@@ -61,7 +60,8 @@ export async function loadCashieringDocumentProperty(
     phone: row.phone,
     email: row.email,
     logoUrl: row.logo_url,
-    displayName: row.trading_name ?? row.brand_name ?? row.legal_entity_name ?? row.legal_name ?? row.name,
+    displayName:
+      row.trading_name ?? row.brand_name ?? row.legal_entity_name ?? row.legal_name ?? row.name,
   });
 }
 
@@ -82,6 +82,7 @@ function mapInvoiceRow(row: {
   reprint_count: number;
   last_reprinted_at: string | null;
   snapshot: unknown;
+  coverage_scope?: string;
 }): IssuedFolioInvoiceRow {
   return {
     id: row.id,
@@ -91,13 +92,12 @@ function mapInvoiceRow(row: {
     reprintCount: row.reprint_count,
     lastReprintedAt: row.last_reprinted_at,
     snapshot: mapFolioInvoiceSnapshot(row.snapshot),
+    coverageScope: row.coverage_scope === "legacy_folio" ? "legacy_folio" : "charge_groups",
   };
 }
 
 export async function loadGuestFolioInvoices(
-  supabaseAdmin: Awaited<
-    typeof import("@/integrations/supabase/client.server")
-  >["supabaseAdmin"],
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
   restaurantId: string,
   folioId: string,
 ): Promise<{ invoices: IssuedFolioInvoiceRow[]; legacyFolio: boolean }> {
@@ -110,12 +110,17 @@ export async function loadGuestFolioInvoices(
     .eq("folio_id", folioId)
     .order("issued_at", { ascending: false });
   if (error) {
-    if (error.message.includes("guest_folio_invoices") || error.message.includes("does not exist")) {
+    if (
+      error.message.includes("guest_folio_invoices") ||
+      error.message.includes("does not exist")
+    ) {
       return { invoices: [], legacyFolio: false };
     }
     throw cashierError(error.message);
   }
-  const rows = (data ?? []) as Array<Parameters<typeof mapInvoiceRow>[0] & { coverage_scope?: string }>;
+  const rows = (data ?? []) as Array<
+    Parameters<typeof mapInvoiceRow>[0] & { coverage_scope?: string }
+  >;
   return {
     invoices: rows.map((row) => mapInvoiceRow(row)),
     legacyFolio: rows.some((row) => row.coverage_scope === "legacy_folio"),
@@ -123,9 +128,7 @@ export async function loadGuestFolioInvoices(
 }
 
 export async function loadGuestFolioInvoice(
-  supabaseAdmin: Awaited<
-    typeof import("@/integrations/supabase/client.server")
-  >["supabaseAdmin"],
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
   restaurantId: string,
   folioId: string,
 ): Promise<IssuedFolioInvoiceRow | null> {
@@ -314,11 +317,14 @@ export const previewGuestFolioInvoiceSelection = createServerFn({ method: "POST"
   .handler(async ({ data, context }): Promise<InvoiceSelectionPreview> => {
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: preview, error } = await supabaseAdmin.rpc("preview_guest_folio_invoice_selection", {
-      _restaurant_id: data.restaurantId,
-      _folio_id: data.folioId,
-      _source_ids: data.sourceIds,
-    });
+    const { data: preview, error } = await supabaseAdmin.rpc(
+      "preview_guest_folio_invoice_selection",
+      {
+        _restaurant_id: data.restaurantId,
+        _folio_id: data.folioId,
+        _source_ids: data.sourceIds,
+      },
+    );
     if (error) throw cashierError(error.message);
     const row = (preview ?? {}) as Record<string, unknown>;
     return {

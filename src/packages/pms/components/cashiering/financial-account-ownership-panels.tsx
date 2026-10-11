@@ -2,7 +2,16 @@ import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { MoreHorizontal } from "lucide-react";
+import {
+  ArrowRightLeft,
+  Building2,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  Receipt,
+  Search,
+} from "lucide-react";
 
 import { AccountReturnTransferDialog } from "@/packages/pms/components/cashiering/account-return-transfer-dialog";
 import { CorrectChargeDialog } from "@/packages/pms/components/cashiering/correct-charge-dialog";
@@ -39,6 +48,35 @@ function coverageLabel(coverage: string): string {
   if (coverage === "partial") return "Partially invoiced";
   if (coverage === "in_draft") return "In draft";
   return "Uninvoiced";
+}
+
+function CoveragePill({ coverage }: { coverage: string }) {
+  if (coverage === "invoiced") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
+        Invoiced
+      </span>
+    );
+  }
+  if (coverage === "partial") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+        Partially invoiced
+      </span>
+    );
+  }
+  if (coverage === "in_draft") {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-800 border border-blue-200">
+        In draft
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
+      Uninvoiced
+    </span>
+  );
 }
 
 function stayLabel(status: string | null): string {
@@ -93,7 +131,7 @@ export function FinancialAccountSourceFolios({
   const pageCount = Math.max(1, Math.ceil((result?.total ?? 0) / pageSize));
 
   return (
-    <section className="space-y-3" data-testid="account-source-folios">
+    <section className="space-y-4" data-testid="account-source-folios">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-display text-xl text-[#251605]">Source Folios</h2>
@@ -102,168 +140,198 @@ export function FinancialAccountSourceFolios({
           </p>
         </div>
       </header>
-      <div className={cn(CARD, "flex flex-wrap gap-2 p-3")}>
-        <Input
-          value={search}
-          placeholder="Folio, guest, reservation, room"
-          className="h-9 max-w-xs"
-          onChange={(event) => {
-            setSearch(event.target.value);
-            setPage(1);
-          }}
-        />
-        <Select
-          value={stay}
-          onChange={(value) => {
-            setStay(value as typeof stay);
-            setPage(1);
-          }}
-          options={[
-            ["all", "All stays"],
-            ["in_house", "In-House"],
-            ["checked_out", "Checked-Out"],
-            ["folio_open", "Folio open"],
-            ["folio_closed", "Folio closed"],
-          ]}
-        />
-        <Select
-          value={coverage}
-          onChange={(value) => {
-            setCoverage(value as typeof coverage);
-            setPage(1);
-          }}
-          options={[
-            ["all", "All coverage"],
-            ["uninvoiced", "Uninvoiced"],
-            ["partial", "Partially invoiced"],
-            ["invoiced", "Invoiced"],
-          ]}
-        />
-        <Select
-          value={scope}
-          onChange={(value) => {
-            setScope(value as typeof scope);
-            setPage(1);
-          }}
-          options={[
-            ["current", "Current ownership"],
-            ["history", "Include fully returned"],
-          ]}
-        />
-        <Select
-          value={sort}
-          onChange={(value) => setSort(value as typeof sort)}
-          options={[
-            ["recent", "Recent activity"],
-            ["guest", "Guest"],
-            ["arrival", "Arrival"],
-            ["departure", "Departure"],
-            ["owned", "Account-owned amount"],
-          ]}
-        />
-      </div>
+
       {result ? (
-        <div className="grid gap-2 text-sm sm:grid-cols-4">
+        <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <Mini label="Source folios" value={String(result.summary.sourceFolios)} />
           <Mini label="Account-owned amount" value={money(result.summary.accountOwnedAmount)} />
           <Mini label="Uninvoiced groups" value={String(result.summary.uninvoicedGroups)} />
           <Mini label="Invoiced groups" value={String(result.summary.invoicedGroups)} />
         </div>
       ) : null}
-      <div className={cn(CARD, "overflow-hidden")}>
-        {query.isLoading ? (
-          <p className="px-4 py-6 text-sm text-muted-foreground">Loading source folios…</p>
-        ) : !result || result.total === 0 ? (
-          <div className="px-4 py-8">
-            <p className="font-medium">No source folios yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Guest folios appear here after eligible charges are transferred to this Company/Group
-              financial account.
-            </p>
+
+      <div className={cn(CARD, "p-3 space-y-3")}>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+            <Input
+              value={search}
+              placeholder="Folio, guest, reservation, room"
+              className="h-9 pl-8 text-sm border-[#E8E1D7] bg-white focus-visible:ring-1 focus-visible:ring-[#C89933]"
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+            />
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
-              <thead className="bg-[#F7F4EE] text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Folio</th>
-                  <th className="px-3 py-2">Guest</th>
-                  <th className="px-3 py-2">Room</th>
-                  <th className="px-3 py-2">Stay</th>
-                  <th className="px-3 py-2 text-right">Account-owned amount</th>
-                  <th className="px-3 py-2">Charge groups</th>
-                  <th className="px-3 py-2">Invoice coverage</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {result.rows.map((row) => (
-                  <tr key={row.sourceFolioId} className="border-t border-[#E8E1D7]">
-                    <td className="px-3 py-2 font-medium">{row.folioNumber}</td>
-                    <td className="px-3 py-2">{row.guestName ?? "—"}</td>
-                    <td className="px-3 py-2">{row.roomNumber ?? "—"}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {row.arrivalDate ? date(row.arrivalDate) : "—"} –{" "}
-                      {row.departureDate ? date(row.departureDate) : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {formatBalance(money, row.accountOwnedRemaining)}
-                    </td>
-                    <td className="px-3 py-2">{row.chargeGroupCount}</td>
-                    <td className="px-3 py-2">
-                      {row.invoicedGroupCount} / {row.chargeGroupCount} invoiced
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {coverageLabel(row.coverage)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className="block">{stayLabel(row.stayStatus)}</span>
-                      <span className="text-xs text-muted-foreground">
-                        Folio {row.folioStatus === "open" ? "Open" : "Closed"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="icon" variant="ghost" aria-label="Folio actions">
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link
-                              to="/restaurant/pms/cashiering/folios/$folioId"
-                              params={{ folioId: row.sourceFolioId }}
-                            >
-                              View guest folio
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => onViewCharges(row.sourceFolioId, row.folioNumber)}
-                          >
-                            View account charges
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
+          <Select
+            value={stay}
+            onChange={(value) => {
+              setStay(value as typeof stay);
+              setPage(1);
+            }}
+            options={[
+              ["all", "All stays"],
+              ["in_house", "In-House"],
+              ["checked_out", "Checked-Out"],
+              ["folio_open", "Folio open"],
+              ["folio_closed", "Folio closed"],
+            ]}
+          />
+          <Select
+            value={coverage}
+            onChange={(value) => {
+              setCoverage(value as typeof coverage);
+              setPage(1);
+            }}
+            options={[
+              ["all", "All coverage"],
+              ["uninvoiced", "Uninvoiced"],
+              ["partial", "Partially invoiced"],
+              ["invoiced", "Invoiced"],
+            ]}
+          />
+          <Select
+            value={scope}
+            onChange={(value) => {
+              setScope(value as typeof scope);
+              setPage(1);
+            }}
+            options={[
+              ["current", "Current ownership"],
+              ["history", "Include fully returned"],
+            ]}
+          />
+          <Select
+            value={sort}
+            onChange={(value) => setSort(value as typeof sort)}
+            options={[
+              ["recent", "Recent activity"],
+              ["guest", "Guest name"],
+              ["arrival", "Arrival date"],
+              ["departure", "Departure date"],
+              ["owned", "Account-owned amount"],
+            ]}
+          />
+        </div>
+
+        <div className="rounded-lg border border-[#E8E1D7] overflow-hidden">
+          {query.isLoading ? (
+            <p className="px-4 py-8 text-sm text-center text-muted-foreground">Loading source folios…</p>
+          ) : !result || result.total === 0 ? (
+            <div className="px-4 py-12 text-center">
+              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#FAF8F4] text-muted-foreground">
+                <Receipt className="size-6 text-[#C89933]" />
+              </div>
+              <p className="mt-3 font-medium text-[#251605]">No source folios yet</p>
+              <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">
+                Guest folios appear here after eligible charges are transferred to this Company/Group
+                financial account.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] text-sm">
+                <thead className="bg-[#FAF8F4] border-b border-[#E8E1D7] text-left text-[11px] font-semibold uppercase tracking-wider text-[#736B5E]">
+                  <tr>
+                    <th className="px-3.5 py-2.5">Folio</th>
+                    <th className="px-3.5 py-2.5">Guest</th>
+                    <th className="px-3.5 py-2.5">Room</th>
+                    <th className="px-3.5 py-2.5">Stay</th>
+                    <th className="px-3.5 py-2.5 text-right">Account-owned amount</th>
+                    <th className="px-3.5 py-2.5">Charge groups</th>
+                    <th className="px-3.5 py-2.5">Invoice coverage</th>
+                    <th className="px-3.5 py-2.5">Status</th>
+                    <th className="px-3.5 py-2.5 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody className="divide-y divide-[#E8E1D7]">
+                  {result.rows.map((row) => (
+                    <tr key={row.sourceFolioId} className="hover:bg-[#FAF8F4]/70 transition-colors">
+                      <td className="px-3.5 py-2.5 font-medium text-[#251605]">
+                        <Link
+                          to="/restaurant/pms/cashiering/folios/$folioId"
+                          params={{ folioId: row.sourceFolioId }}
+                          className="hover:text-[#C89933] hover:underline transition-colors"
+                        >
+                          {row.folioNumber}
+                        </Link>
+                      </td>
+                      <td className="px-3.5 py-2.5 text-[#251605] font-medium">{row.guestName ?? "—"}</td>
+                      <td className="px-3.5 py-2.5">
+                        {row.roomNumber ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#F7F4EE] border border-[#E8E1D7] text-[#251605]">
+                            Room {row.roomNumber}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                        {row.arrivalDate ? date(row.arrivalDate) : "—"} –{" "}
+                        {row.departureDate ? date(row.departureDate) : "—"}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right tabular-nums font-medium text-[#251605]">
+                        {formatBalance(money, row.accountOwnedRemaining)}
+                      </td>
+                      <td className="px-3.5 py-2.5 tabular-nums text-muted-foreground">{row.chargeGroupCount}</td>
+                      <td className="px-3.5 py-2.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <CoveragePill coverage={row.coverage} />
+                          <span className="text-[11px] text-muted-foreground">
+                            ({row.invoicedGroupCount}/{row.chargeGroupCount})
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3.5 py-2.5">
+                        <span className="block text-xs font-medium text-[#251605]">{stayLabel(row.stayStatus)}</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          Folio {row.folioStatus === "open" ? "Open" : "Closed"}
+                        </span>
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost" className="size-8 hover:bg-[#FAF8F4]" aria-label="Folio actions">
+                              <MoreHorizontal className="size-4 text-[#736B5E]" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="border-[#E8E1D7]">
+                            <DropdownMenuItem asChild>
+                              <Link
+                                to="/restaurant/pms/cashiering/folios/$folioId"
+                                params={{ folioId: row.sourceFolioId }}
+                              >
+                                View guest folio
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => onViewCharges(row.sourceFolioId, row.folioNumber)}
+                            >
+                              View account charges
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <Pager
+          page={result?.page ?? page}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          onPage={setPage}
+          onPageSize={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+        />
       </div>
-      <Pager
-        page={result?.page ?? page}
-        pageCount={pageCount}
-        pageSize={pageSize}
-        onPage={setPage}
-        onPageSize={(size) => {
-          setPageSize(size);
-          setPage(1);
-        }}
-      />
     </section>
   );
 }
@@ -384,7 +452,7 @@ export function FinancialAccountCharges({
   }
 
   return (
-    <section className="space-y-3" data-testid="account-charges">
+    <section className="space-y-4" data-testid="account-charges">
       <header>
         <h2 className="font-display text-xl text-[#251605]">Charges</h2>
         <p className="text-sm text-muted-foreground">
@@ -392,77 +460,10 @@ export function FinancialAccountCharges({
           charges do not use the guest tax and service engine.
         </p>
       </header>
-      <div className={cn(CARD, "flex flex-wrap gap-2 p-3")}>
-        <Input
-          value={search}
-          placeholder="Description, guest, folio"
-          className="h-9 max-w-xs"
-          onChange={(event) => {
-            setSearch(event.target.value);
-            setPage(1);
-          }}
-        />
-        <Select
-          value={source}
-          onChange={(value) => {
-            setSource(value as typeof source);
-            setPage(1);
-          }}
-          options={[
-            ["all", "All sources"],
-            ["transferred", "Transferred from guest folio"],
-            ["direct", "Direct account charge"],
-          ]}
-        />
-        <Select
-          value={coverage}
-          onChange={(value) => {
-            setCoverage(value as typeof coverage);
-            setPage(1);
-          }}
-          options={[
-            ["all", "All coverage"],
-            ["uninvoiced", "Uninvoiced"],
-            ["invoiced", "Invoiced"],
-            ["partial", "Partially invoiced"],
-          ]}
-        />
-        <Input
-          type="date"
-          value={from}
-          className="h-9 w-36"
-          onChange={(event) => setFrom(event.target.value)}
-        />
-        <Input
-          type="date"
-          value={to}
-          className="h-9 w-36"
-          onChange={(event) => setTo(event.target.value)}
-        />
-        <Select
-          value={sort}
-          onChange={(value) => setSort(value as typeof sort)}
-          options={[
-            ["newest", "Newest"],
-            ["oldest", "Oldest"],
-            ["amount", "Gross amount"],
-            ["remaining", "Remaining"],
-          ]}
-        />
-      </div>
-      {sourceFolioId ? (
-        <p className="flex items-center gap-2 text-sm">
-          <span className="rounded-full border border-[#E8E1D7] bg-white px-2 py-0.5">
-            Source folio: {sourceFolioLabel ?? sourceFolioId}
-          </span>
-          <button type="button" className="text-[#8A6A2F] underline" onClick={onClearSourceFolio}>
-            Clear
-          </button>
-        </p>
-      ) : null}
+
       {result ? (
-        <div className="space-y-1">
-          <div className="grid gap-2 text-sm sm:grid-cols-4">
+        <div className="space-y-1.5">
+          <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <Mini
               label="Current account-owned charges"
               value={money(result.summary.currentOwned)}
@@ -477,125 +478,224 @@ export function FinancialAccountCharges({
           </p>
         </div>
       ) : null}
-      <div className={cn(CARD, "overflow-hidden")}>
-        {query.isLoading ? (
-          <p className="px-4 py-6 text-sm text-muted-foreground">Loading charges…</p>
-        ) : !result || result.rows.length === 0 ? (
-          <p className="px-4 py-8 text-sm text-muted-foreground">No account-owned charge groups.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
-              <thead className="bg-[#F7F4EE] text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2">Source</th>
-                  <th className="px-3 py-2">Description</th>
-                  <th className="px-3 py-2 text-right">Gross</th>
-                  <th className="px-3 py-2 text-right">Remaining</th>
-                  <th className="px-3 py-2">Invoice coverage</th>
-                  <th className="px-3 py-2">Actor</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {(result.rows as ChargeRow[]).map((row) => (
-                  <tr
-                    key={row.chargeGroupId}
-                    className="cursor-pointer border-t border-[#E8E1D7]"
-                    onClick={() => setSelected(row)}
-                  >
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {dateTime(row.postedAt)}
-                    </td>
-                    <td className="px-3 py-2">
-                      {row.sourceKind === "direct" ? (
-                        "Direct account charge"
-                      ) : (
-                        <>
-                          <span className="block">{row.guestName ?? "Guest folio"}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {row.folioNumber ?? "Folio"}
-                          </span>
-                        </>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">{row.description}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {formatBalance(money, row.grossAmount)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {formatBalance(money, row.remainingAmount)}
-                    </td>
-                    <td className="px-3 py-2">
-                      {coverageLabel(row.coverage)}
-                      {row.invoiceNumber ? (
-                        <span className="mt-0.5 block text-xs text-[#8A6A2F]">
-                          {row.invoiceNumber}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {row.actorName ?? "—"}
-                    </td>
-                    <td
-                      className="px-3 py-2 text-right"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="icon" variant="ghost" aria-label="Charge actions">
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setSelected(row)}>
-                            View charge
-                          </DropdownMenuItem>
-                          {row.capabilities.canCorrect && row.correctionSourceId ? (
-                            <DropdownMenuItem onClick={() => setCorrectId(row.correctionSourceId)}>
-                              Correct charge
-                            </DropdownMenuItem>
-                          ) : null}
-                          {row.capabilities.canReturnToGuest && row.correctionSourceId ? (
-                            <DropdownMenuItem onClick={() => setReturnId(row.correctionSourceId)}>
-                              Return to guest folio
-                            </DropdownMenuItem>
-                          ) : null}
-                          {row.capabilities.canViewInvoice ? (
-                            <DropdownMenuItem onClick={onViewInvoices}>
-                              View invoice
-                            </DropdownMenuItem>
-                          ) : null}
-                          {row.capabilities.canViewSourceFolio && row.sourceFolioId ? (
-                            <DropdownMenuItem asChild>
-                              <Link
-                                to="/restaurant/pms/cashiering/folios/$folioId"
-                                params={{ folioId: row.sourceFolioId }}
-                              >
-                                View source folio
-                              </Link>
-                            </DropdownMenuItem>
-                          ) : null}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+      <div className={cn(CARD, "p-3 space-y-3")}>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+            <Input
+              value={search}
+              placeholder="Description, guest, folio"
+              className="h-9 pl-8 text-sm border-[#E8E1D7] bg-white focus-visible:ring-1 focus-visible:ring-[#C89933]"
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+            />
           </div>
-        )}
+          <Select
+            value={source}
+            onChange={(value) => {
+              setSource(value as typeof source);
+              setPage(1);
+            }}
+            options={[
+              ["all", "All sources"],
+              ["transferred", "Transferred from guest folio"],
+              ["direct", "Direct account charge"],
+            ]}
+          />
+          <Select
+            value={coverage}
+            onChange={(value) => {
+              setCoverage(value as typeof coverage);
+              setPage(1);
+            }}
+            options={[
+              ["all", "All coverage"],
+              ["uninvoiced", "Uninvoiced"],
+              ["invoiced", "Invoiced"],
+              ["partial", "Partially invoiced"],
+            ]}
+          />
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="date"
+              value={from}
+              aria-label="From date"
+              className="h-9 w-36 text-xs border-[#E8E1D7] bg-white"
+              onChange={(event) => setFrom(event.target.value)}
+            />
+            <span className="text-xs text-muted-foreground">to</span>
+            <Input
+              type="date"
+              value={to}
+              aria-label="To date"
+              className="h-9 w-36 text-xs border-[#E8E1D7] bg-white"
+              onChange={(event) => setTo(event.target.value)}
+            />
+          </div>
+          <Select
+            value={sort}
+            onChange={(value) => setSort(value as typeof sort)}
+            options={[
+              ["newest", "Newest first"],
+              ["oldest", "Oldest first"],
+              ["amount", "Gross amount"],
+              ["remaining", "Remaining amount"],
+            ]}
+          />
+        </div>
+
+        {sourceFolioId ? (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#FAF8F4] border border-[#E8E1D7] text-sm">
+            <span className="text-xs text-muted-foreground">Filtered by source folio:</span>
+            <span className="font-medium text-[#251605]">
+              {sourceFolioLabel ?? sourceFolioId}
+            </span>
+            <button
+              type="button"
+              className="ml-auto text-xs font-medium text-[#C89933] hover:underline"
+              onClick={onClearSourceFolio}
+            >
+              Clear filter
+            </button>
+          </div>
+        ) : null}
+
+        <div className="rounded-lg border border-[#E8E1D7] overflow-hidden">
+          {query.isLoading ? (
+            <p className="px-4 py-8 text-sm text-center text-muted-foreground">Loading charges…</p>
+          ) : !result || result.rows.length === 0 ? (
+            <div className="px-4 py-12 text-center">
+              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#FAF8F4] text-muted-foreground">
+                <Receipt className="size-6 text-[#C89933]" />
+              </div>
+              <p className="mt-3 font-medium text-[#251605]">No account-owned charge groups.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Charges transferred from guest folios or posted directly will be listed here.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] text-sm">
+                <thead className="bg-[#FAF8F4] border-b border-[#E8E1D7] text-left text-[11px] font-semibold uppercase tracking-wider text-[#736B5E]">
+                  <tr>
+                    <th className="px-3.5 py-2.5">Date</th>
+                    <th className="px-3.5 py-2.5">Source</th>
+                    <th className="px-3.5 py-2.5">Description</th>
+                    <th className="px-3.5 py-2.5 text-right">Gross</th>
+                    <th className="px-3.5 py-2.5 text-right">Remaining</th>
+                    <th className="px-3.5 py-2.5">Invoice coverage</th>
+                    <th className="px-3.5 py-2.5">Actor</th>
+                    <th className="px-3.5 py-2.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E8E1D7]">
+                  {(result.rows as ChargeRow[]).map((row) => (
+                    <tr
+                      key={row.chargeGroupId}
+                      className="cursor-pointer hover:bg-[#FAF8F4]/70 transition-colors"
+                      onClick={() => setSelected(row)}
+                    >
+                      <td className="px-3.5 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                        {dateTime(row.postedAt)}
+                      </td>
+                      <td className="px-3.5 py-2.5">
+                        {row.sourceKind === "direct" ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-[#251605]">
+                            <Building2 className="size-3.5 text-[#C89933]" /> Direct account charge
+                          </span>
+                        ) : (
+                          <div>
+                            <span className="block text-xs font-medium text-[#251605]">{row.guestName ?? "Guest folio"}</span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {row.folioNumber ?? "Folio"}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3.5 py-2.5 font-medium text-[#251605]">{row.description}</td>
+                      <td className="px-3.5 py-2.5 text-right tabular-nums text-muted-foreground">
+                        {formatBalance(money, row.grossAmount)}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right tabular-nums font-medium text-[#251605]">
+                        {formatBalance(money, row.remainingAmount)}
+                      </td>
+                      <td className="px-3.5 py-2.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <CoveragePill coverage={row.coverage} />
+                          {row.invoiceNumber ? (
+                            <span className="text-xs font-medium text-[#C89933]">
+                              {row.invoiceNumber}
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-3.5 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                        {row.actorName ?? "—"}
+                      </td>
+                      <td
+                        className="px-3.5 py-2.5 text-right"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost" className="size-8 hover:bg-[#FAF8F4]" aria-label="Charge actions">
+                              <MoreHorizontal className="size-4 text-[#736B5E]" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="border-[#E8E1D7]">
+                            <DropdownMenuItem onClick={() => setSelected(row)}>
+                              View charge
+                            </DropdownMenuItem>
+                            {row.capabilities.canCorrect && row.correctionSourceId ? (
+                              <DropdownMenuItem onClick={() => setCorrectId(row.correctionSourceId)}>
+                                Correct charge
+                              </DropdownMenuItem>
+                            ) : null}
+                            {row.capabilities.canReturnToGuest && row.correctionSourceId ? (
+                              <DropdownMenuItem onClick={() => setReturnId(row.correctionSourceId)}>
+                                Return to guest folio
+                              </DropdownMenuItem>
+                            ) : null}
+                            {row.capabilities.canViewInvoice ? (
+                              <DropdownMenuItem onClick={onViewInvoices}>
+                                View invoice
+                              </DropdownMenuItem>
+                            ) : null}
+                            {row.capabilities.canViewSourceFolio && row.sourceFolioId ? (
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  to="/restaurant/pms/cashiering/folios/$folioId"
+                                  params={{ folioId: row.sourceFolioId }}
+                                >
+                                  View source folio
+                                </Link>
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <Pager
+          page={result?.page ?? page}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          onPage={setPage}
+          onPageSize={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+        />
       </div>
-      <Pager
-        page={result?.page ?? page}
-        pageCount={pageCount}
-        pageSize={pageSize}
-        onPage={setPage}
-        onPageSize={(size) => {
-          setPageSize(size);
-          setPage(1);
-        }}
-      />
       <Sheet open={selected != null} onOpenChange={(open) => !open && setSelected(null)}>
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
           {selected ? (
@@ -712,17 +812,17 @@ export function FinancialAccountCharges({
 
 function Mini({ label, value }: { label: string; value: string }) {
   return (
-    <div className={cn(CARD, "px-3 py-2")}>
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="font-medium tabular-nums">{value}</p>
+    <div className={cn(CARD, "p-3.5 transition-shadow hover:shadow-md")}>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#736B5E]">{label}</p>
+      <p className="mt-1 font-display text-base font-semibold text-[#251605] tabular-nums">{value}</p>
     </div>
   );
 }
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="space-y-1">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="space-y-1.5 rounded-lg border border-[#E8E1D7] bg-[#FAF8F4]/50 p-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
         {title}
       </h3>
       {children}
@@ -732,9 +832,9 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-3">
+    <div className="flex justify-between gap-3 text-xs">
       <span className="text-muted-foreground">{label}</span>
-      <span className="text-right font-medium">{value}</span>
+      <span className="text-right font-medium text-[#251605]">{value}</span>
     </div>
   );
 }
@@ -744,14 +844,14 @@ function Select({
   onChange,
   options,
 }: {
-  value: string;
+  value: string | undefined;
   onChange: (value: string) => void;
   options: Array<[string, string]>;
 }) {
   return (
     <select
-      value={value}
-      className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2 text-sm"
+      value={value ?? ""}
+      className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2.5 text-xs font-medium text-[#251605] shadow-xs hover:border-[#C89933] focus:border-[#C89933] focus:outline-hidden focus:ring-1 focus:ring-[#C89933]"
       onChange={(event) => onChange(event.target.value)}
     >
       {options.map(([id, label]) => (
@@ -777,30 +877,40 @@ function Pager({
   onPageSize: (size: PageSize) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-      <select
-        value={pageSize}
-        className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2"
-        onChange={(event) => onPageSize(Number(event.target.value) as PageSize)}
-      >
-        <option value={10}>10</option>
-        <option value={25}>25</option>
-        <option value={50}>50</option>
-      </select>
+    <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs text-[#736B5E]">
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => onPage(page - 1)}>
-          Previous
+        <span>Rows per page:</span>
+        <select
+          value={pageSize}
+          className="h-8 rounded-md border border-[#E8E1D7] bg-white px-2 text-xs font-medium text-[#251605]"
+          onChange={(event) => onPageSize(Number(event.target.value) as PageSize)}
+        >
+          <option value={10}>10</option>
+          <option value={25}>25</option>
+          <option value={50}>50</option>
+        </select>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 border-[#E8E1D7] text-xs hover:bg-[#FAF8F4]"
+          disabled={page <= 1}
+          onClick={() => onPage(page - 1)}
+        >
+          <ChevronLeft className="size-3.5 mr-1" /> Previous
         </Button>
-        <span className="text-muted-foreground">
-          {page} / {pageCount}
+        <span className="tabular-nums font-medium text-[#251605]">
+          {page} of {pageCount}
         </span>
         <Button
           size="sm"
           variant="outline"
+          className="h-8 border-[#E8E1D7] text-xs hover:bg-[#FAF8F4]"
           disabled={page >= pageCount}
           onClick={() => onPage(page + 1)}
         >
-          Next
+          Next <ChevronRight className="size-3.5 ml-1" />
         </Button>
       </div>
     </div>

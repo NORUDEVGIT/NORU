@@ -703,6 +703,8 @@ const ACTIVITY_LABEL: Record<string, string> = {
   credit_note_issued: "Credit note issued",
   debit_note_issued: "Debit note issued",
   deposit_allocated: "Deposit allocated",
+  guest_payment_allocated: "Payment allocated",
+  guest_payment_allocation_reversed: "Allocation reversed",
   folio_closed: "Folio closed",
   financial_account_closed: "Account closed",
   invoice_draft_created: "Invoice draft created",

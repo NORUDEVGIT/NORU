@@ -44,11 +44,18 @@ import {
   TenderReceiptPrint,
   type TenderReceipt,
 } from "@/packages/pms/components/cashiering/folio-dialogs";
-import { ChargeDetailsSheet, chargeDepartment, chargeItemTitle, chargeQuantity, chargeUnitAmount } from "@/packages/pms/components/cashiering/charge-details-sheet";
+import {
+  ChargeDetailsSheet,
+  chargeDepartment,
+  chargeItemTitle,
+  chargeQuantity,
+  chargeUnitAmount,
+} from "@/packages/pms/components/cashiering/charge-details-sheet";
 import { CorrectChargeDialog } from "@/packages/pms/components/cashiering/correct-charge-dialog";
 import { TransferChargeDialog } from "@/packages/pms/components/cashiering/transfer-charge-dialog";
 import { PostChargeDialog } from "@/packages/pms/components/cashiering/post-charge-dialog";
 import { FolioInvoicePanel } from "@/packages/pms/components/cashiering/folio-invoice-panel";
+import { GuestPaymentAllocationDrawer } from "@/packages/pms/components/cashiering/guest-payment-allocation-drawer";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
 import {
   AdjustmentsTab,
@@ -342,6 +349,9 @@ function FolioWorkspaceBody({
   const [applyOpen, setApplyOpen] = useState(false);
   const [applyDepositId, setApplyDepositId] = useState<string | null>(null);
   const [writeOffOpen, setWriteOffOpen] = useState(false);
+  const [allocateOpen, setAllocateOpen] = useState(false);
+  const [allocatePaymentId, setAllocatePaymentId] = useState<string | null>(null);
+  const [allocateInvoiceId, setAllocateInvoiceId] = useState<string | null>(null);
   const [detailRow, setDetailRow] = useState<FolioTransactionRow | null>(null);
   const [chargeId, setChargeId] = useState<string | null>(null);
   const [correctSourceId, setCorrectSourceId] = useState<string | null>(null);
@@ -375,7 +385,6 @@ function FolioWorkspaceBody({
       adjustment: caps.canAdjust,
     };
     if (allowed[initialAction]) openEntry(initialAction);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialAction, caps]);
 
   function selectTab(next: FolioWorkspaceTabId) {
@@ -577,8 +586,8 @@ function FolioWorkspaceBody({
                 <TooltipContent className="max-w-xs text-xs leading-5">
                   Each posting records a ledger line; posted lines are never edited. Corrections
                   post as adjustments, discounts or refunds. Add deposit credit records a folio
-                  credit. Tax and service lines reflect Settings at post time. Print statement is
-                  not an issued invoice.
+                  credit. Tax and service lines reflect Settings at post time. Issue invoice from
+                  this folio. Print statement is not an issued invoice.
                 </TooltipContent>
               </Tooltip>
               <DropdownMenu>
@@ -788,90 +797,90 @@ function FolioWorkspaceBody({
                       postedBy: row.postedBy,
                     })),
                   )}
-                allocations={workspace.depositAllocations.map((line) => ({
-                  depositTransactionId: line.depositTransactionId,
-                  chargeTransactionId: line.chargeTransactionId ?? null,
-                  amount: line.amount,
-                }))}
-                counterparts={Object.fromEntries(
-                  Object.entries(workspace.transferCounterparts).map(([id, party]) => [
-                    id,
-                    {
-                      label: party.accountName ?? party.folioNumber ?? "Transfer",
-                      folioId: party.folioId,
-                      accountId: party.accountId,
-                    },
-                  ]),
-                )}
-                coverage={{
-                  legacyInvoice:
-                    workspace.folio.legacyFolioInvoice && workspace.folio.issuedInvoices[0]
-                      ? {
-                          id: workspace.folio.issuedInvoices[0].id,
-                          number: workspace.folio.issuedInvoices[0].issuedNumber,
-                        }
-                      : null,
-                  invoices: workspace.folio.legacyFolioInvoice
-                    ? []
-                    : workspace.folio.issuedInvoices.map((invoice) => ({
-                        id: invoice.id,
-                        number: invoice.issuedNumber,
-                        parentIds: invoice.snapshot.lines
-                          .filter(
-                            (line) =>
-                              line.category !== "tax" &&
-                              line.category !== "service_charge" &&
-                              !line.originalTransactionId,
-                          )
-                          .map((line) => line.id),
-                      })),
-                  debitNotes: [],
-                  creditNotes: [],
-                }}
-                access={{ canManage: workspace.canManage, open: folio.status === "open" }}
-                searchExtras={[folio.folioNumber, folio.guestName]}
-                documents={workspace.folio.issuedInvoices.flatMap((invoice) => {
-                  const issued = {
-                    id: `invoice-${invoice.id}`,
-                    kind: "invoice_issued",
-                    label: activityLabel("invoice_issued"),
-                    occurredAt: invoice.issuedAt,
-                    detail: invoice.issuedNumber,
-                    actor: null,
-                  };
-                  if (invoice.reprintCount <= 0 || !invoice.lastReprintedAt) return [issued];
-                  return [
-                    issued,
-                    {
-                      id: `reprint-${invoice.id}`,
-                      kind: "invoice_reprinted",
-                      label: activityLabel("invoice_reprinted"),
-                      occurredAt: invoice.lastReprintedAt,
+                  allocations={workspace.depositAllocations.map((line) => ({
+                    depositTransactionId: line.depositTransactionId,
+                    chargeTransactionId: line.chargeTransactionId ?? null,
+                    amount: line.amount,
+                  }))}
+                  counterparts={Object.fromEntries(
+                    Object.entries(workspace.transferCounterparts).map(([id, party]) => [
+                      id,
+                      {
+                        label: party.accountName ?? party.folioNumber ?? "Transfer",
+                        folioId: party.folioId,
+                        accountId: party.accountId,
+                      },
+                    ]),
+                  )}
+                  coverage={{
+                    legacyInvoice:
+                      workspace.folio.legacyFolioInvoice && workspace.folio.issuedInvoices[0]
+                        ? {
+                            id: workspace.folio.issuedInvoices[0].id,
+                            number: workspace.folio.issuedInvoices[0].issuedNumber,
+                          }
+                        : null,
+                    invoices: workspace.folio.legacyFolioInvoice
+                      ? []
+                      : workspace.folio.issuedInvoices.map((invoice) => ({
+                          id: invoice.id,
+                          number: invoice.issuedNumber,
+                          parentIds: invoice.snapshot.lines
+                            .filter(
+                              (line) =>
+                                line.category !== "tax" &&
+                                line.category !== "service_charge" &&
+                                !line.originalTransactionId,
+                            )
+                            .map((line) => line.id),
+                        })),
+                    debitNotes: [],
+                    creditNotes: [],
+                  }}
+                  access={{ canManage: workspace.canManage, open: folio.status === "open" }}
+                  searchExtras={[folio.folioNumber, folio.guestName]}
+                  documents={workspace.folio.issuedInvoices.flatMap((invoice) => {
+                    const issued = {
+                      id: `invoice-${invoice.id}`,
+                      kind: "invoice_issued",
+                      label: activityLabel("invoice_issued"),
+                      occurredAt: invoice.issuedAt,
                       detail: invoice.issuedNumber,
                       actor: null,
-                    },
-                  ];
-                })}
-                money={money}
-                dateTime={dateTime}
-                onCorrect={(chargeId) => setCorrectSourceId(chargeId)}
-                onTransfer={(chargeId) => openTransfer(chargeId)}
-                onRefund={(sourceId) => openEntry("refund", sourceId)}
-                onApplyDeposit={(depositId) => openApply(depositId)}
-                onViewDocuments={() => selectTab("invoices")}
-                onOpenFolio={(nextId) =>
-                  void navigate({
-                    to: "/restaurant/pms/cashiering/folios/$folioId",
-                    params: { folioId: nextId },
-                  })
-                }
-                onOpenAccount={(accountId) =>
-                  void navigate({
-                    to: "/restaurant/pms/cashiering/accounts/$accountId",
-                    params: { accountId },
-                  })
-                }
-              />
+                    };
+                    if (invoice.reprintCount <= 0 || !invoice.lastReprintedAt) return [issued];
+                    return [
+                      issued,
+                      {
+                        id: `reprint-${invoice.id}`,
+                        kind: "invoice_reprinted",
+                        label: activityLabel("invoice_reprinted"),
+                        occurredAt: invoice.lastReprintedAt,
+                        detail: invoice.issuedNumber,
+                        actor: null,
+                      },
+                    ];
+                  })}
+                  money={money}
+                  dateTime={dateTime}
+                  onCorrect={(chargeId) => setCorrectSourceId(chargeId)}
+                  onTransfer={(chargeId) => openTransfer(chargeId)}
+                  onRefund={(sourceId) => openEntry("refund", sourceId)}
+                  onApplyDeposit={(depositId) => openApply(depositId)}
+                  onViewDocuments={() => selectTab("invoices")}
+                  onOpenFolio={(nextId) =>
+                    void navigate({
+                      to: "/restaurant/pms/cashiering/folios/$folioId",
+                      params: { folioId: nextId },
+                    })
+                  }
+                  onOpenAccount={(accountId) =>
+                    void navigate({
+                      to: "/restaurant/pms/cashiering/accounts/$accountId",
+                      params: { accountId },
+                    })
+                  }
+                />
               </div>
             ) : null}
             {tab === "settlement" ? (
@@ -887,6 +896,11 @@ function FolioWorkspaceBody({
                 onPrintStatement={() => printWith("statement")}
                 onRefund={() => openEntry("refund")}
                 onTransfer={() => openTransfer(null)}
+                onAllocateInvoice={(invoiceId) => {
+                  setAllocateInvoiceId(invoiceId);
+                  setAllocatePaymentId(null);
+                  setAllocateOpen(true);
+                }}
               />
             ) : null}
           </div>
@@ -962,6 +976,16 @@ function FolioWorkspaceBody({
           workspace.financialSummary.tax +
           workspace.financialSummary.serviceCharge
         }
+        paymentAllocationNets={workspace.paymentAllocationNets}
+        onAllocatePosted={
+          workspace.canAllocateInvoices
+            ? (paymentId) => {
+                setAllocatePaymentId(paymentId);
+                setAllocateInvoiceId(null);
+                setAllocateOpen(true);
+              }
+            : undefined
+        }
         authorizerNote={correctionNotice?.authorizer ?? null}
         thresholdNote={
           (entryType === "adjustment"
@@ -1027,10 +1051,47 @@ function FolioWorkspaceBody({
         money={money}
         dateTime={dateTime}
         onClose={() => setDetailRow(null)}
+        canAllocate={workspace.canAllocateInvoices}
+        allocationNet={
+          detailRow?.type === "payment" ? (workspace.paymentAllocationNets[detailRow.id] ?? 0) : 0
+        }
+        onAllocatePayment={(paymentId) => {
+          setDetailRow(null);
+          setAllocatePaymentId(paymentId);
+          setAllocateInvoiceId(null);
+          setAllocateOpen(true);
+        }}
         onViewReceipt={(row) => {
           const receipt = buildTenderReceiptFromFolioRow(row, workspace, tenderReceiptContext);
           if (receipt) setViewReceipt(receipt);
         }}
+      />
+      <GuestPaymentAllocationDrawer
+        open={allocateOpen}
+        restaurantId={restaurantId}
+        folioId={folio.id}
+        paymentId={allocatePaymentId}
+        payments={folio.transactions
+          .filter((row) => row.type === "payment")
+          .map((row) => {
+            const refunded = folio.transactions
+              .filter((line) => line.type === "refund" && line.originalTransactionId === row.id)
+              .reduce((sum, line) => sum + line.amount, 0);
+            const available =
+              Math.round(
+                (-row.amount - refunded - (workspace.paymentAllocationNets[row.id] ?? 0)) * 100,
+              ) / 100;
+            return {
+              id: row.id,
+              label: row.description || "Payment",
+              available,
+            };
+          })
+          .filter((row) => row.available > 0.009)}
+        focusInvoiceId={allocateInvoiceId}
+        money={money}
+        dateTime={dateTime}
+        onOpenChange={setAllocateOpen}
       />
       <DepositReceiptModal
         receipt={viewReceipt}
@@ -1039,7 +1100,9 @@ function FolioWorkspaceBody({
         dateTime={dateTime}
         onClose={() => setViewReceipt(null)}
       />
-      {viewReceipt ? <TenderReceiptPrint receipt={viewReceipt} money={money} dateTime={dateTime} /> : null}
+      {viewReceipt ? (
+        <TenderReceiptPrint receipt={viewReceipt} money={money} dateTime={dateTime} />
+      ) : null}
       <CashieringPrintLayer active={printReceipt !== null}>
         {printReceipt ? (
           <TenderReceiptDocument receipt={printReceipt} money={money} dateTime={dateTime} />

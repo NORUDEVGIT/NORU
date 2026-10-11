@@ -1,5 +1,7 @@
 /** Phase 1 financial-account workspace rules. Ledger balance is authoritative. */
 
+import { groupAccountLedger } from "./cashiering-account-history.ts";
+
 export type AccountBalanceState = "due" | "settled" | "credit";
 
 export type AccountWorkspaceKind = "company" | "group" | "master";
@@ -141,30 +143,57 @@ function isTaxChildCharge(
   );
 }
 
-/** Latest business events. Transfer components that share a transfer id collapse to one row. */
+/** Latest business events. Uses the same ledger grouping as History and Statement. */
 export function recentAccountActivity(lines: ActivityLine[], limit = 8): ActivityLine[] {
-  const grouped: ActivityLine[] = [];
-  const transfers = new Map<string, ActivityLine>();
-  for (const line of lines) {
-    if (isTaxChildCharge(line)) continue;
-    if (line.transferId && (line.type === "transfer_in" || line.type === "transfer_out")) {
-      const key = `${line.type}:${line.transferId}`;
-      const existing = transfers.get(key);
-      if (!existing) {
-        const copy = { ...line, amount: roundAccountMoney(line.amount) };
-        transfers.set(key, copy);
-        grouped.push(copy);
-      } else {
-        existing.amount = roundAccountMoney(existing.amount + line.amount);
-        if (line.postedAt > existing.postedAt) existing.postedAt = line.postedAt;
-      }
-      continue;
-    }
-    grouped.push(line);
-  }
-  return grouped
-    .sort((a, b) => (a.postedAt < b.postedAt ? 1 : a.postedAt > b.postedAt ? -1 : 0))
-    .slice(0, limit);
+  const ids = new Set(lines.map((line) => line.id));
+  return groupAccountLedger(
+    lines.map((line) => ({
+      id: line.id,
+      type: line.type,
+      category: line.category,
+      description: line.description,
+      amount: line.amount,
+      postedAt: line.postedAt,
+      actorName: line.actorName,
+      originalTransactionId: line.originalTransactionId,
+      referenceType: line.referenceType,
+      transferId: line.transferId,
+    })),
+  )
+    .filter((group) => {
+      if (group.eventType !== "charge" || group.componentIds.length !== 1) return true;
+      const only = lines.find((line) => line.id === group.componentIds[0]);
+      return !(
+        only &&
+        isTaxChildCharge(only) &&
+        only.originalTransactionId &&
+        !ids.has(only.originalTransactionId)
+      );
+    })
+    .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : a.occurredAt > b.occurredAt ? -1 : 0))
+    .slice(0, limit)
+    .map((group) => {
+      const members = lines.filter((line) => group.componentIds.includes(line.id));
+      const folio = members.find((line) => line.sourceFolioId);
+      return {
+        id: group.componentIds[0] ?? group.eventId,
+        postedAt: group.occurredAt,
+        type:
+          group.eventType === "write_off" || group.eventType === "credit_note"
+            ? "adjustment"
+            : group.eventType,
+        category: group.category,
+        description: group.description,
+        amount: group.amount,
+        actorName: group.actorName,
+        transferId: group.transferId,
+        originalTransactionId: group.originalTransactionId,
+        referenceType:
+          group.eventType === "write_off" ? "settlement_write_off" : group.referenceType,
+        sourceFolioId: folio?.sourceFolioId ?? null,
+        sourceFolioNumber: folio?.sourceFolioNumber ?? null,
+      };
+    });
 }
 
 export function activityTypeLabel(
@@ -212,10 +241,12 @@ function isoCurrency(value: unknown): string | null {
 }
 
 /** Company creation stores billing currency on the master, with the older operations JSON as fallback. */
-export function masterBillingCurrency(row: {
-  billing_currency_code?: string | null;
-  account_operations?: unknown;
-} | null): string | null {
+export function masterBillingCurrency(
+  row: {
+    billing_currency_code?: string | null;
+    account_operations?: unknown;
+  } | null,
+): string | null {
   const saved = isoCurrency(row?.billing_currency_code);
   if (saved) return saved;
   const operations = row?.account_operations;

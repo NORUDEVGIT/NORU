@@ -14,6 +14,7 @@ import {
   type AccountTenderMethod,
 } from "./cashiering-account-payments";
 import type { AccountWorkspaceKind } from "./cashiering-account-workspace";
+import { allocationCapabilities } from "./cashiering-account-allocation";
 import { cashierError, requireCashieringAccess } from "./cashiering.server";
 
 const idSchema = z.string().uuid();
@@ -52,6 +53,11 @@ export const listFinancialAccountPayments = createServerFn({ method: "GET" })
       data.restaurantId,
       ledger.map((row) => row.postedByMembershipId),
     );
+    const allocatedByPayment = await loadAllocationNets(
+      supabaseAdmin,
+      data.restaurantId,
+      data.accountId,
+    );
     const capabilities = accountPaymentCapabilities({
       role: me.role,
       status: account.status,
@@ -62,7 +68,15 @@ export const listFinancialAccountPayments = createServerFn({ method: "GET" })
       rows: ledger,
       actorNames: Object.fromEntries(names),
       canRefund: capabilities.canRefund,
+      allocatedByPayment,
     });
+    const property = await supabaseAdmin
+      .from("restaurants")
+      .select("timezone")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    if (property.error) throw cashierError(property.error.message);
+    const timezone = (property.data as { timezone?: string | null } | null)?.timezone || "UTC";
     const page = queryAccountPayments(built, {
       search: data.search,
       type: data.type,
@@ -73,6 +87,7 @@ export const listFinancialAccountPayments = createServerFn({ method: "GET" })
       sort: data.sort,
       page: data.page,
       pageSize: data.pageSize,
+      timezone,
     });
     const { data: shift } = await supabaseAdmin
       .from("hotel_cashier_shifts")
@@ -90,7 +105,10 @@ export const listFinancialAccountPayments = createServerFn({ method: "GET" })
       status: account.status,
       actors: accountPaymentActors(built),
       actorOpenCashShift: ((shift ?? []) as Array<{ id: string }>).length > 0,
-      capabilities,
+      capabilities: {
+        ...capabilities,
+        ...allocationCapabilities({ role: me.role, status: account.status }),
+      },
     };
   });
 
@@ -111,16 +129,23 @@ export const getFinancialAccountPaymentDetail = createServerFn({ method: "GET" }
       data.restaurantId,
       ledger.map((row) => row.postedByMembershipId),
     );
+    const allocatedByPayment = await loadAllocationNets(
+      supabaseAdmin,
+      data.restaurantId,
+      data.accountId,
+    );
     const capabilities = accountPaymentCapabilities({
       role: me.role,
       status: account.status,
       balance,
       accountKind: account.accountKind,
     });
+    const allocationRights = allocationCapabilities({ role: me.role, status: account.status });
     const built = buildAccountPayments({
       rows: ledger,
       actorNames: Object.fromEntries(names),
       canRefund: capabilities.canRefund,
+      allocatedByPayment,
     });
     const found = findAccountPayment(built, data.transactionId);
     if (!found) return null;
@@ -139,8 +164,104 @@ export const getFinancialAccountPaymentDetail = createServerFn({ method: "GET" }
       linkedRefunds: found.linkedRefunds,
       source: found.source,
       shift,
+      canAllocate:
+        allocationRights.canAllocate &&
+        found.payment.transactionType === "payment" &&
+        found.payment.remainingRefundable > 0.01,
+      canReverse: allocationRights.canReverse && found.payment.transactionType === "payment",
+      allocations: await loadPaymentAllocationLines(
+        supabaseAdmin,
+        data.restaurantId,
+        found.payment.id,
+      ),
     };
   });
+
+async function loadAllocationNets(
+  supabaseAdmin: ServiceClient,
+  restaurantId: string,
+  accountId: string,
+): Promise<Record<string, number>> {
+  const result = await supabaseAdmin
+    .from("financial_account_payment_allocations")
+    .select("payment_transaction_id, amount")
+    .eq("restaurant_id", restaurantId)
+    .eq("financial_account_id", accountId);
+  if (result.error && result.error.code !== "42P01") throw cashierError(result.error.message);
+  const nets: Record<string, number> = {};
+  for (const row of (result.data ?? []) as Array<{
+    payment_transaction_id: string;
+    amount: number | string;
+  }>) {
+    const id = row.payment_transaction_id;
+    nets[id] = Math.round(((nets[id] ?? 0) + Number(row.amount)) * 100) / 100;
+  }
+  return nets;
+}
+
+async function loadPaymentAllocationLines(
+  supabaseAdmin: ServiceClient,
+  restaurantId: string,
+  paymentId: string,
+) {
+  const result = await supabaseAdmin
+    .from("financial_account_payment_allocations")
+    .select(
+      "id, invoice_id, amount, created_at, created_by_membership_id, reverses_allocation_id, reason",
+    )
+    .eq("restaurant_id", restaurantId)
+    .eq("payment_transaction_id", paymentId);
+  if (result.error && result.error.code !== "42P01") throw cashierError(result.error.message);
+  const rows = (result.data ?? []) as Array<{
+    id: string;
+    invoice_id: string;
+    amount: number | string;
+    created_at: string;
+    created_by_membership_id: string | null;
+    reverses_allocation_id: string | null;
+    reason: string | null;
+  }>;
+  const names = await actorNames(
+    supabaseAdmin,
+    restaurantId,
+    rows.map((row) => row.created_by_membership_id),
+  );
+  const invoiceIds = [...new Set(rows.map((row) => row.invoice_id))];
+  const numbers = new Map<string, string>();
+  if (invoiceIds.length > 0) {
+    const invoices = await supabaseAdmin
+      .from("financial_account_invoices")
+      .select("id, issued_number")
+      .eq("restaurant_id", restaurantId)
+      .in("id", invoiceIds);
+    if (invoices.error) throw cashierError(invoices.error.message);
+    for (const invoice of (invoices.data ?? []) as Array<{ id: string; issued_number: string }>) {
+      numbers.set(invoice.id, invoice.issued_number);
+    }
+  }
+  return rows
+    .map((row) => {
+      const reversals = rows
+        .filter((other) => other.reverses_allocation_id === row.id)
+        .reduce((sum, other) => sum + Number(other.amount), 0);
+      const activeAmount =
+        Number(row.amount) > 0 ? Math.round((Number(row.amount) + reversals) * 100) / 100 : 0;
+      return {
+        id: row.id,
+        invoiceId: row.invoice_id,
+        invoiceNumber: numbers.get(row.invoice_id) ?? "Invoice",
+        amount: Number(row.amount),
+        activeAmount,
+        createdAt: row.created_at,
+        actorName: row.created_by_membership_id
+          ? (names.get(row.created_by_membership_id) ?? "Staff member")
+          : "System",
+        reversesAllocationId: row.reverses_allocation_id,
+        reason: row.reason,
+      };
+    })
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
 
 async function loadAccount(supabaseAdmin: ServiceClient, restaurantId: string, accountId: string) {
   const result = await supabaseAdmin

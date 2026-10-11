@@ -51,6 +51,7 @@ import {
   type FolioTransactionRow,
   type FolioWorkspace,
 } from "@/packages/pms/lib/cashiering.functions";
+import { guestPaymentRefundable } from "@/packages/pms/lib/cashiering-guest-allocation";
 import {
   remainingOnPaymentSource,
   type TransactionType,
@@ -106,7 +107,10 @@ export type TenderReceiptBuildContext = {
 };
 
 function grossFolioCharges(summary: FolioFinancialSummary): number {
-  return Math.round((summary.netCharges + summary.tax + summary.serviceCharge + Number.EPSILON) * 100) / 100;
+  return (
+    Math.round((summary.netCharges + summary.tax + summary.serviceCharge + Number.EPSILON) * 100) /
+    100
+  );
 }
 
 export function buildTenderReceiptFromFolioRow(
@@ -227,6 +231,8 @@ export function FolioEntryDialog({
   grossCharges = null,
   onClose,
   onDone,
+  paymentAllocationNets = {},
+  onAllocatePosted,
 }: {
   restaurantId: string;
   folioId: string;
@@ -260,6 +266,8 @@ export function FolioEntryDialog({
   grossCharges?: number | null;
   onClose: () => void;
   onDone: () => void;
+  paymentAllocationNets?: Record<string, number>;
+  onAllocatePosted?: (paymentId: string) => void;
 }) {
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
@@ -314,14 +322,31 @@ export function FolioEntryDialog({
   const creditWarning = isTenderReceipt && projected != null && projected < -0.009;
   const sourceChoices = useMemo(() => {
     if (type === "refund")
-      return sources.filter((line) => line.type === "payment" || line.type === "deposit");
+      return sources.filter((line) => {
+        if (line.type !== "payment" && line.type !== "deposit") return false;
+        const base = remainingOnPaymentSource(line, sources) ?? 0;
+        const available = guestPaymentRefundable({
+          sourceType: line.type,
+          faceMinusRefunds: base,
+          allocatedNet: paymentAllocationNets[line.id] ?? 0,
+        });
+        return (available ?? 0) > 0.009;
+      });
     if (type === "discount") return [];
     if (type === "adjustment") return sources.filter((line) => line.type !== "charge");
     return sources;
-  }, [sources, type]);
+  }, [paymentAllocationNets, sources, type]);
   const selectedSource = sourceChoices.find((line) => line.id === sourceId) ?? null;
-  const refundRemaining =
+  const refundBase =
     type === "refund" && selectedSource ? remainingOnPaymentSource(selectedSource, sources) : null;
+  const refundRemaining =
+    refundBase == null || !selectedSource
+      ? null
+      : guestPaymentRefundable({
+          sourceType: selectedSource.type,
+          faceMinusRefunds: refundBase,
+          allocatedNet: paymentAllocationNets[selectedSource.id] ?? 0,
+        });
 
   useEffect(() => {
     if (!needsSource) return;
@@ -367,8 +392,7 @@ export function FolioEntryDialog({
         const val = Number(amount);
         const displayName =
           cashieringPropertyHotelName(documentProperty) || propertyName?.trim() || "Property";
-        const nights =
-          arrivalDate && departureDate ? stayNights(arrivalDate, departureDate) : null;
+        const nights = arrivalDate && departureDate ? stayNights(arrivalDate, departureDate) : null;
         const newReceipt: TenderReceipt = {
           kind: type,
           transactionId: result.id || "—",
@@ -638,13 +662,20 @@ export function FolioEntryDialog({
                     <strong className="text-foreground">
                       {labelTransactionType(selectedSource.type)}
                     </strong>{" "}
-                    · {selectedSource.description} · {money(selectedSource.amount)}. The original line stays as posted.
+                    · {selectedSource.description} · {money(selectedSource.amount)}. The original
+                    line stays as posted.
                   </p>
                 ) : null}
                 {refundRemaining != null ? (
                   <p className="text-xs text-muted-foreground font-medium">
                     Remaining on this payment:{" "}
                     <span className="text-foreground">{money(refundRemaining)}</span>
+                  </p>
+                ) : null}
+                {selectedSource?.type === "payment" &&
+                (paymentAllocationNets[selectedSource.id] ?? 0) > 0.009 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Allocated amounts must be reversed before they can be refunded.
                   </p>
                 ) : null}
                 <p className="text-[11px] text-muted-foreground">
@@ -686,6 +717,15 @@ export function FolioEntryDialog({
         open={showReceiptModal && receipt !== null}
         money={money}
         dateTime={dateTime}
+        onAllocate={
+          onAllocatePosted && receipt?.kind === "payment" && receipt.transactionId !== "—"
+            ? () => {
+                const paymentId = receipt.transactionId;
+                setShowReceiptModal(false);
+                onAllocatePosted(paymentId);
+              }
+            : undefined
+        }
         onClose={() => {
           setShowReceiptModal(false);
         }}
@@ -699,7 +739,20 @@ function formatReceiptDateTime(iso: string | null | undefined): string {
   try {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     const day = String(d.getDate()).padStart(2, "0");
     const month = months[d.getMonth()];
     const year = d.getFullYear();
@@ -716,7 +769,20 @@ function formatReceiptStayDate(iso: string | null | undefined): string {
   try {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso.slice(0, 10);
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const day = String(d.getDate()).padStart(2, "0");
     const month = months[d.getMonth()];
@@ -728,17 +794,10 @@ function formatReceiptStayDate(iso: string | null | undefined): string {
   }
 }
 
-function TenderReceiptPropertyHeader({
-  receipt,
-}: {
-  receipt: TenderReceipt;
-}) {
+function TenderReceiptPropertyHeader({ receipt }: { receipt: TenderReceipt }) {
   const property = receipt.property;
   const brandName = cashieringPropertyHotelName(property) || receipt.propertyName;
-  const legalName =
-    property?.legalEntityName?.trim() ||
-    property?.legalName?.trim() ||
-    brandName;
+  const legalName = property?.legalEntityName?.trim() || property?.legalName?.trim() || brandName;
   const legalAddress = property?.fullAddress?.trim();
   const brandAddress = property?.fullAddress?.trim();
 
@@ -762,14 +821,10 @@ function TenderReceiptPropertyHeader({
       </div>
       <div className="space-y-0.5 text-right text-[11px] text-slate-600 min-w-0 max-w-[240px]">
         <p className="text-xs font-bold text-slate-950">{legalName}</p>
-        {legalAddress && legalAddress !== brandAddress ? (
-          <p>{legalAddress}</p>
-        ) : null}
+        {legalAddress && legalAddress !== brandAddress ? <p>{legalAddress}</p> : null}
         {property?.email ? <p>{property.email}</p> : null}
         {property?.tinNumber ? <p>TIN: {property.tinNumber}</p> : null}
-        {!property?.tinNumber && property?.vatNumber ? (
-          <p>VAT: {property.vatNumber}</p>
-        ) : null}
+        {!property?.tinNumber && property?.vatNumber ? <p>VAT: {property.vatNumber}</p> : null}
       </div>
     </div>
   );
@@ -924,7 +979,9 @@ export function TenderReceiptDocument({
         </div>
         <div className="space-y-1 pl-5 text-slate-700">
           <div className="flex items-baseline justify-between py-0.5">
-            <span className="font-medium text-slate-800">Charges on folio (incl. tax &amp; service)</span>
+            <span className="font-medium text-slate-800">
+              Charges on folio (incl. tax &amp; service)
+            </span>
             <span className="font-semibold tabular-nums text-slate-900">
               {money(receipt.grossCharges)} {currency}
             </span>
@@ -968,7 +1025,10 @@ export function TenderReceiptDocument({
         {receipt.depositPolicySummary ? (
           <p>Deposit policy: {receipt.depositPolicySummary}</p>
         ) : isDeposit ? (
-          <p>This deposit is recorded on the guest folio and may be applied to charges per property policy.</p>
+          <p>
+            This deposit is recorded on the guest folio and may be applied to charges per property
+            policy.
+          </p>
         ) : (
           <p>This payment is recorded on the guest folio.</p>
         )}
@@ -986,12 +1046,14 @@ export function DepositReceiptModal({
   money,
   dateTime,
   onClose,
+  onAllocate,
 }: {
   receipt: TenderReceipt | null;
   open: boolean;
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
   onClose: () => void;
+  onAllocate?: () => void;
 }) {
   if (!receipt) return null;
   const receiptTitle = receipt.kind === "deposit" ? "Deposit receipt" : "Payment receipt";
@@ -1009,6 +1071,11 @@ export function DepositReceiptModal({
           <Button variant="outline" size="sm" onClick={onClose} className="border-[#E8E1D7]">
             Close
           </Button>
+          {onAllocate && receipt.kind === "payment" ? (
+            <Button type="button" variant="outline" size="sm" onClick={onAllocate}>
+              Allocate to invoice
+            </Button>
+          ) : null}
           <Button
             size="sm"
             className="bg-[#C89933] font-semibold text-[#251605] shadow-sm hover:bg-[#b88928]"
@@ -1096,7 +1163,8 @@ export function CloseFolioDialog({
               Close Folio
             </DialogTitle>
             <DialogDescription className="mt-1 text-xs text-muted-foreground leading-normal">
-              Close Folio? This financially closes the folio only when the balance is zero. Front Office checkout is separate.
+              Close Folio? This financially closes the folio only when the balance is zero. Front
+              Office checkout is separate.
             </DialogDescription>
           </div>
         </header>

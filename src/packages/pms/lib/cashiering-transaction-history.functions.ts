@@ -28,6 +28,8 @@ const GUEST_ACTIVITY = [
   "invoice_draft_updated",
   "invoice_draft_deleted",
   "deposit_allocated",
+  "guest_payment_allocated",
+  "guest_payment_allocation_reversed",
   "folio_closed",
 ] as const;
 

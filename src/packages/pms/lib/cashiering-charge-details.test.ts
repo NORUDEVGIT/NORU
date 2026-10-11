@@ -35,6 +35,7 @@ describe("charge details drawer", () => {
     assert.match(page, /ChargeDetailsSheet/);
     assert.match(page, /row\.type === "charge"/);
     assert.match(page, /TransactionDetailDialog/);
-    assert.doesNotMatch(`${sheet}\n${panels}\n${page}`, /allocated|captured|tax calculated/i);
+    assert.match(panels, /Invoice settlement/);
+    assert.doesNotMatch(`${sheet}\n${panels}\n${page}`, /captured|tax calculated/i);
   });
 });

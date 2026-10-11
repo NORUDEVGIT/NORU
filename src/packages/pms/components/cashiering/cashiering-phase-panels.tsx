@@ -4,6 +4,10 @@ import {
   ArrowLeftRight,
   Building2,
   CircleAlert,
+  FolderOpen,
+  Plus,
+  Search,
+  Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -11,6 +15,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useRestaurantSettings } from "@/core/state/property-format";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 
 import {
   CashieringMasterPicker,
@@ -471,6 +483,10 @@ export function AccountsPanel({
     },
   });
 
+  const [openModal, setOpenModal] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed">("all");
+
   const rows = accountsQuery.data ?? [];
   const openRows = rows.filter((row) => row.status === "open");
   const outstanding = openRows.reduce(
@@ -481,13 +497,27 @@ export function AccountsPanel({
     ? rows.find((row) => row.masterId === selectedMaster.id)
     : undefined;
 
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      if (statusFilter !== "all" && row.status !== statusFilter) return false;
+      if (!search.trim()) return true;
+      const q = search.toLowerCase().trim();
+      return (
+        row.accountNumber.toLowerCase().includes(q) ||
+        row.masterName.toLowerCase().includes(q) ||
+        row.accountKind.toLowerCase().includes(q)
+      );
+    });
+  }, [rows, statusFilter, search]);
+
   return (
     <div className="space-y-4" data-testid="cashiering-accounts-panel">
+      {/* KPI Cards */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Kpi
           label="Open Accounts"
           value={String(openRows.length)}
-          hint={`${rows.length} total`}
+          hint={`${rows.length} total accounts`}
           tone="blue"
           icon={Building2}
         />
@@ -503,104 +533,240 @@ export function AccountsPanel({
           value="Company / Group"
           hint="Not Guest Profile stay aggregates"
           tone="teal"
+          icon={Users}
         />
       </div>
-      <DeskTwoColumn>
-        <DeskSection
-          title={`Financial accounts (${rows.length})`}
-          loading={accountsQuery.isLoading}
-          error={accountsQuery.isError ? (accountsQuery.error as Error).message : null}
-          isEmpty={rows.length === 0}
-          empty="No financial account yet. Open one from a company or group in Guest Profile."
-        >
+
+      {/* Action & Filter Bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-[#E8E1D7] bg-white p-3 shadow-2xs">
+        <div className="flex flex-1 items-center gap-2 max-w-md">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#7A7167]" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search account number or company/group..."
+              className="h-9 pl-9 text-xs border-[#E8E1D7] focus-visible:border-[#C89933] focus-visible:ring-1 focus-visible:ring-[#C89933]"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            {(["all", "open", "closed"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatusFilter(s)}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-colors",
+                  statusFilter === s
+                    ? "bg-[#FAF5EB] text-[#8A6A24] border border-[#EADFCB]"
+                    : "text-[#7A7167] hover:bg-[#FAF8F4]",
+                )}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {canManage ? (
+          <Button
+            type="button"
+            onClick={() => setOpenModal(true)}
+            className="h-9 gap-1.5 bg-[#C89933] text-[#251605] hover:bg-[#B5882D] text-xs font-semibold px-3.5 shadow-2xs shrink-0"
+          >
+            <Plus className="size-4" /> Open Financial Account
+          </Button>
+        ) : null}
+      </div>
+
+      {/* Full-width Financial Accounts Table */}
+      <div className="rounded-xl border border-[#E8E1D7] bg-white shadow-2xs overflow-hidden">
+        <div className="flex items-center justify-between border-b border-[#E8E1D7] px-4 py-3">
+          <h3 className="text-sm font-semibold text-[#251605]">
+            Financial Accounts ({filteredRows.length})
+          </h3>
+          <span className="text-xs text-[#7A7167] font-medium">
+            {openRows.length} active
+          </span>
+        </div>
+
+        {filteredRows.length === 0 ? (
+          <div className="p-8 text-center text-xs text-[#7A7167] italic">
+            {rows.length === 0
+              ? "No financial account yet. Open one from a company or group in Guest Profile."
+              : "No accounts match your filter criteria."}
+          </div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead className="bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+            <table className="w-full min-w-[700px] text-xs">
+              <thead className="bg-[#FAF8F4] text-left text-[10px] uppercase tracking-wide text-[#7A7167] border-b border-[#E8E1D7]">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Account</th>
-                  <th className="px-3 py-2 font-medium">Master</th>
-                  <th className="px-3 py-2 font-medium">Kind</th>
-                  <th className="px-3 py-2 text-right font-medium">Balance</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 font-medium">Action</th>
+                  <th className="px-3 py-2.5 font-medium">Account</th>
+                  <th className="px-3 py-2.5 font-medium">Master Entity</th>
+                  <th className="px-3 py-2.5 font-medium">Kind</th>
+                  <th className="px-3 py-2.5 text-right font-medium">Balance</th>
+                  <th className="px-3 py-2.5 font-medium">Status</th>
+                  <th className="px-3 py-2.5 text-right font-medium">Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                {rows.map((row: FinancialAccountRow) => (
-                  <tr key={row.id} className="border-t border-border">
-                    <td className="px-3 py-2 font-medium">
+              <tbody className="divide-y divide-[#E8E1D7]">
+                {filteredRows.map((row: FinancialAccountRow) => (
+                  <tr
+                    key={row.id}
+                    className="hover:bg-[#FAF6EC] cursor-pointer transition-colors group"
+                    onClick={() =>
+                      void navigate({
+                        to: "/restaurant/pms/cashiering/accounts/$accountId",
+                        params: { accountId: row.id },
+                      })
+                    }
+                  >
+                    <td className="px-3 py-2.5 font-medium">
                       <Link
                         to="/restaurant/pms/cashiering/accounts/$accountId"
                         params={{ accountId: row.id }}
-                        className="text-[#8A6A2F] hover:underline"
+                        className="font-semibold text-[#8A6A24] group-hover:underline inline-flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         {row.accountNumber}
                       </Link>
                     </td>
-                    <td className="px-3 py-2">{row.masterName}</td>
-                    <td className="px-3 py-2 capitalize">{row.accountKind}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{money(row.balance)}</td>
-                    <td className="px-3 py-2">
-                      <StatusChip
-                        label={row.status === "open" ? "Open" : "Closed"}
-                        tone={row.status === "open" ? "green" : "muted"}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      {canManage && row.status === "open" ? (
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="min-h-11 sm:min-h-8"
-                            onClick={() => setTransferAccount(row)}
-                          >
-                            Charges
-                          </Button>
-                          {Math.abs(row.balance) >= 0.01 ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="min-h-11 sm:min-h-8"
-                              onClick={() =>
-                                writeOffMutation.mutate({ accountId: row.id, amount: row.balance })
-                              }
-                            >
-                              Write off
-                            </Button>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="flex size-6 items-center justify-center rounded-md bg-[#FAF5EB] text-[#8A6A24]">
+                          {row.accountKind === "group" ? (
+                            <Users className="size-3.5" />
                           ) : (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="min-h-11 sm:min-h-8"
-                              onClick={() => closeMutation.mutate(row.id)}
-                            >
-                              Close
-                            </Button>
+                            <Building2 className="size-3.5" />
                           )}
                         </div>
-                      ) : (
-                        "—"
-                      )}
+                        <Link
+                          to="/restaurant/pms/cashiering/accounts/$accountId"
+                          params={{ accountId: row.id }}
+                          className="font-semibold text-[#251605] group-hover:text-[#8A6A24] group-hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {row.masterName}
+                        </Link>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="inline-block rounded-md bg-[#FAF8F4] px-2 py-0.5 text-[10px] font-semibold text-[#5F554B] border border-[#E8E1D7] capitalize">
+                        {row.accountKind}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-semibold">
+                      <span
+                        className={
+                          row.balance > 0.009
+                            ? "text-[#B91C1C]"
+                            : row.balance < -0.009
+                              ? "text-[#146C43]"
+                              : "text-[#251605]"
+                        }
+                      >
+                        {money(row.balance)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span
+                        className={cn(
+                          "inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold border",
+                          row.status === "open"
+                            ? "bg-[#E7F6EE] text-[#146C43] border-[#A3E0C1]"
+                            : "bg-[#F5F2EC] text-[#7A7167] border-[#E0D7CA]",
+                        )}
+                      >
+                        {row.status === "open" ? "Open" : "Closed"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <div
+                        className="flex items-center justify-end gap-1.5"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2.5 text-xs font-semibold border-[#C89933]/50 bg-[#FAF5EB] text-[#8A6A24] hover:bg-[#F3EAD3] hover:text-[#725418]"
+                          onClick={() =>
+                            void navigate({
+                              to: "/restaurant/pms/cashiering/accounts/$accountId",
+                              params: { accountId: row.id },
+                            })
+                          }
+                        >
+                          <FolderOpen className="mr-1 size-3.5" />
+                          Workspace
+                        </Button>
+                        {canManage && row.status === "open" ? (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2.5 text-xs font-semibold border-[#E8E1D7] text-[#251605] hover:bg-[#FAF8F4]"
+                              onClick={() => setTransferAccount(row)}
+                            >
+                              Charges
+                            </Button>
+                            {Math.abs(row.balance) >= 0.01 ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 text-xs font-semibold border-[#E8E1D7] text-[#B91C1C] hover:bg-[#FEF2F2]"
+                                onClick={() =>
+                                  writeOffMutation.mutate({
+                                    accountId: row.id,
+                                    amount: row.balance,
+                                  })
+                                }
+                              >
+                                Write off
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 text-xs font-semibold border-[#E8E1D7] text-[#7A7167] hover:bg-[#FAF8F4]"
+                                onClick={() => closeMutation.mutate(row.id)}
+                              >
+                                Close
+                              </Button>
+                            )}
+                          </>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </DeskSection>
-        <DeskActionPanel
-          title="Open financial account"
-          note="Real company, group, or master billing accounts — not Guest Profile stay aggregates."
-          borderTone="account"
-        >
+        )}
+      </div>
+
+      {/* Modal: Open Financial Account */}
+      <Dialog open={openModal} onOpenChange={setOpenModal}>
+        <DialogContent className="max-w-lg bg-white border border-[#E8E1D7] rounded-xl p-0 overflow-hidden shadow-lg">
+          <DialogHeader className="border-b border-[#E8E1D7] px-6 py-4 bg-[#FAF8F4]">
+            <DialogTitle className="text-base font-semibold text-[#251605]">
+              Open Financial Account
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#7A7167] mt-0.5">
+              Real company, group, or master billing accounts — not Guest Profile stay aggregates.
+            </DialogDescription>
+          </DialogHeader>
+
           {!canManage ? (
-            <p className="text-sm text-amber-800">Only an owner or manager can open accounts.</p>
+            <p className="p-6 text-sm text-amber-800">
+              Only an owner or manager can open accounts.
+            </p>
           ) : (
-            <div className="space-y-3">
+            <div className="p-6 space-y-4">
               <CashieringMasterPicker
                 restaurantId={restaurantId}
                 masterKind={masterKind}
@@ -609,20 +775,22 @@ export function AccountsPanel({
                 onSelectedChange={setSelectedMaster}
               />
               {existingFinancialAccount ? (
-                <p className="text-sm text-amber-800">
+                <div className="rounded-lg bg-[#FFFBEB] p-3 border border-[#FCD34D] text-xs text-amber-900">
                   Financial account already open ({existingFinancialAccount.accountNumber}
                   {existingFinancialAccount.status === "closed" ? ", closed" : ""}).{" "}
                   <Link
                     to="/restaurant/pms/cashiering/accounts/$accountId"
                     params={{ accountId: existingFinancialAccount.id }}
-                    className="font-medium underline"
+                    className="font-semibold underline"
                   >
                     Open workspace
                   </Link>
-                </p>
+                </div>
               ) : null}
               <div>
-                <Label htmlFor="account-currency">Currency</Label>
+                <Label htmlFor="account-currency" className="text-xs font-semibold text-[#251605]">
+                  Billing Currency
+                </Label>
                 <Input
                   id="account-currency"
                   value={currency}
@@ -631,10 +799,10 @@ export function AccountsPanel({
                     setCurrencyEdited(true);
                     setCurrency(e.target.value.toUpperCase());
                   }}
-                  className="min-h-11"
+                  className="mt-1 h-10 text-xs font-semibold uppercase"
                 />
                 {selectedMaster ? (
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-[11px] text-[#7A7167]">
                     {savedMasterCurrency
                       ? `Filled from the ${selectedMaster.accountType === "group" ? "group" : "company"} profile. Change it if this account should use another currency.`
                       : masterCurrencyQuery.isSuccess
@@ -643,20 +811,33 @@ export function AccountsPanel({
                   </p>
                 ) : null}
               </div>
-              <Button
-                type="button"
-                className="min-h-11 w-full bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
-                disabled={
-                  !selectedMaster || Boolean(existingFinancialAccount) || openMutation.isPending
-                }
-                onClick={() => openMutation.mutate()}
-              >
-                Open account
-              </Button>
             </div>
           )}
-        </DeskActionPanel>
-      </DeskTwoColumn>
+
+          <DialogFooter className="border-t border-[#E8E1D7] px-6 py-3 bg-[#FAF8F4] flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setOpenModal(false)}
+              className="h-9"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-9 bg-[#C89933] text-[#251605] hover:bg-[#B5882D] font-semibold px-4"
+              disabled={
+                !selectedMaster || Boolean(existingFinancialAccount) || openMutation.isPending
+              }
+              onClick={() => openMutation.mutate()}
+            >
+              {openMutation.isPending ? "Opening…" : "Open Financial Account"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <AccountReturnTransferDialog
         restaurantId={restaurantId}
         account={transferAccount}

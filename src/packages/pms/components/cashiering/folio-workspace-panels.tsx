@@ -66,6 +66,11 @@ import {
   postSettlementWriteOff,
 } from "@/packages/pms/lib/cashiering-phases.functions";
 import { correctableGroupRemainder } from "@/packages/pms/lib/cashiering-transfer-allocate";
+import {
+  GuestInvoiceSettlementPanel,
+  GuestPaymentAllocationFacts,
+} from "@/packages/pms/components/cashiering/guest-payment-allocation-drawer";
+import { guestPaymentRefundable } from "@/packages/pms/lib/cashiering-guest-allocation";
 import { remainingOnPaymentSource } from "@/packages/pms/lib/cashiering.server";
 import {
   balanceTone,
@@ -134,7 +139,8 @@ export type CorrectionType = "adjustment" | "discount" | "refund";
 export const CARD = "rounded-xl border border-[#E8E1D7] bg-card shadow-sm";
 const TABLE_HEAD =
   "border-b border-[#E8E1D7] bg-[#F7F4EE] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground";
-const TABLE_ROW = "border-b border-[#E8E1D7]/70 last:border-0 transition-colors hover:bg-[#F7F4EE]/60";
+const TABLE_ROW =
+  "border-b border-[#E8E1D7]/70 last:border-0 transition-colors hover:bg-[#F7F4EE]/60";
 const LINK_ACTION =
   "inline-flex items-center gap-1 text-xs font-medium text-[#8a6a1f] hover:text-[#251605]";
 
@@ -241,17 +247,9 @@ function KpiCard({
   );
 }
 
-export function FolioKpiRow({
-  summary,
-  money,
-}: {
-  summary: FolioFinancialSummary;
-  money: Money;
-}) {
+export function FolioKpiRow({ summary, money }: { summary: FolioFinancialSummary; money: Money }) {
   const balance = BALANCE_META[balanceTone(summary.currentBalance)];
-  const netAdjustments = roundFolioMoney(
-    summary.adjustments - summary.discounts + summary.refunds,
-  );
+  const netAdjustments = roundFolioMoney(summary.adjustments - summary.discounts + summary.refunds);
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" data-testid="folio-kpis">
       <KpiCard
@@ -335,13 +333,24 @@ function SectionCard({
 
 function Th({ children, right }: { children?: ReactNode; right?: boolean }) {
   return (
-    <th className={cn("whitespace-nowrap px-3 py-2.5 font-medium", right ? "text-right" : "text-left")}>
+    <th
+      className={cn(
+        "whitespace-nowrap px-3 py-2.5 font-medium",
+        right ? "text-right" : "text-left",
+      )}
+    >
       {children}
     </th>
   );
 }
 
-function TableScroll({ children, minWidth = "min-w-[760px]" }: { children: ReactNode; minWidth?: string }) {
+function TableScroll({
+  children,
+  minWidth = "min-w-[760px]",
+}: {
+  children: ReactNode;
+  minWidth?: string;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className={cn("w-full text-sm", minWidth)}>{children}</table>
@@ -383,16 +392,22 @@ function legalCorrections(
 ): CorrectionType[] {
   const caps = workspace.capabilities;
   const out: CorrectionType[] = [];
-  if (
-    caps.canRefund &&
-    (row.type === "payment" || row.type === "deposit") &&
-    (remainingOnPaymentSource(row, rows) ?? 0) > 0.009
-  )
-    out.push("refund");
+  if (caps.canRefund && (row.type === "payment" || row.type === "deposit")) {
+    const base = remainingOnPaymentSource(row, rows) ?? 0;
+    const refundable = guestPaymentRefundable({
+      sourceType: row.type,
+      faceMinusRefunds: base,
+      allocatedNet: workspace.paymentAllocationNets[row.id] ?? 0,
+    });
+    if ((refundable ?? 0) > 0.009) out.push("refund");
+  }
   return out;
 }
 
-const CORRECTION_ITEM: Record<CorrectionType, { label: string; icon: LucideIcon; className: string }> = {
+const CORRECTION_ITEM: Record<
+  CorrectionType,
+  { label: string; icon: LucideIcon; className: string }
+> = {
   adjustment: { label: "Post Adjustment", icon: SlidersHorizontal, className: "text-amber-700" },
   discount: { label: "Apply Discount", icon: Tag, className: "text-purple-700" },
   refund: { label: "Refund", icon: Undo2, className: "text-destructive" },
@@ -542,7 +557,9 @@ function ChargeRow({
       <td className={cn("px-3 py-2", child ? "pl-7 text-muted-foreground" : "font-medium")}>
         {child ? (
           <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden className="text-muted-foreground/70">↳</span>
+            <span aria-hidden className="text-muted-foreground/70">
+              ↳
+            </span>
             {row.description}
           </span>
         ) : (
@@ -830,7 +847,9 @@ function DepositTotals({
           return (
             <div key={item.label} className="px-4 py-3">
               <div className="flex items-center gap-1.5">
-                <span className={cn("flex size-5 items-center justify-center rounded-md", item.tint)}>
+                <span
+                  className={cn("flex size-5 items-center justify-center rounded-md", item.tint)}
+                >
                   <Icon className="size-3" />
                 </span>
                 <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -1007,7 +1026,15 @@ export function PaymentsDepositsTab({
               {rows.map((row) => {
                 const deposit = depositById.get(row.id) ?? null;
                 const state = tenderDisplayState(row, workspace.folio.transactions, deposit);
-                const refundable = remainingOnPaymentSource(row, workspace.folio.transactions);
+                const baseRefundable = remainingOnPaymentSource(row, workspace.folio.transactions);
+                const refundable =
+                  baseRefundable == null
+                    ? null
+                    : guestPaymentRefundable({
+                        sourceType: row.type,
+                        faceMinusRefunds: baseRefundable,
+                        allocatedNet: workspace.paymentAllocationNets[row.id] ?? 0,
+                      });
                 const remaining =
                   row.type === "deposit"
                     ? (deposit?.available ?? null)
@@ -1019,7 +1046,9 @@ export function PaymentsDepositsTab({
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
                       {dateTime(row.postedAt)}
                     </td>
-                    <td className="px-3 py-2 text-xs font-medium">{labelTransactionType(row.type)}</td>
+                    <td className="px-3 py-2 text-xs font-medium">
+                      {labelTransactionType(row.type)}
+                    </td>
                     <td className="px-3 py-2 text-xs">{methodLabel(row.paymentMethod)}</td>
                     <td className="max-w-[220px] truncate px-3 py-2 text-xs">{row.description}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">
@@ -1031,7 +1060,9 @@ export function PaymentsDepositsTab({
                     <td className="px-3 py-2">
                       <TenderStateBadge state={state} />
                     </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{row.postedBy ?? "—"}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                      {row.postedBy ?? "—"}
+                    </td>
                     <td className="px-1 py-1 text-right">
                       <RowMenu
                         row={row}
@@ -1234,8 +1265,9 @@ export function TransfersTab({
       ? `${other.accountName}${other.accountNumber ? ` · ${other.accountNumber}` : ""}`
       : (other?.folioNumber ?? "—");
     const parentLine =
-      lines.find((line) => line.sourceCharge && !isTaxOrServiceCategory(line.sourceCharge.category)) ??
-      lines[0];
+      lines.find(
+        (line) => line.sourceCharge && !isTaxOrServiceCategory(line.sourceCharge.category),
+      ) ?? lines[0];
     const source = parentLine.sourceCharge;
     const charge = source?.description ?? parentLine.sourceDescription ?? parentLine.description;
     const detail = [
@@ -1274,37 +1306,37 @@ export function TransfersTab({
       ) : (
         <TableScroll>
           <thead className={TABLE_HEAD}>
-              <tr>
-                <Th>Date</Th>
-                <Th>From</Th>
-                <Th>To</Th>
-                <Th>Charge / Description</Th>
-                <Th right>Amount</Th>
-                <Th>Posted by</Th>
-                <Th>Reason</Th>
+            <tr>
+              <Th>Date</Th>
+              <Th>From</Th>
+              <Th>To</Th>
+              <Th>Charge / Description</Th>
+              <Th right>Amount</Th>
+              <Th>Posted by</Th>
+              <Th>Reason</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((entry) => (
+              <tr key={entry.id} className={TABLE_ROW}>
+                <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
+                  {dateTime(entry.postedAt)}
+                </td>
+                <td className="px-3 py-2">{entry.from}</td>
+                <td className="px-3 py-2">{entry.to}</td>
+                <td className="px-3 py-2 text-xs">
+                  <span className="block font-medium text-foreground">{entry.charge}</span>
+                  {entry.detail ? (
+                    <span className="text-muted-foreground">{entry.detail}</span>
+                  ) : null}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">
+                  {money(entry.amount)}
+                </td>
+                <td className="px-3 py-2 text-xs text-muted-foreground">{entry.postedBy ?? "—"}</td>
+                <td className="px-3 py-2 text-xs">{entry.reason}</td>
               </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.id} className={TABLE_ROW}>
-                  <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
-                    {dateTime(entry.postedAt)}
-                  </td>
-                  <td className="px-3 py-2">{entry.from}</td>
-                  <td className="px-3 py-2">{entry.to}</td>
-                  <td className="px-3 py-2 text-xs">
-                    <span className="block font-medium text-foreground">{entry.charge}</span>
-                    {entry.detail ? (
-                      <span className="text-muted-foreground">{entry.detail}</span>
-                    ) : null}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">
-                    {money(entry.amount)}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{entry.postedBy ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs">{entry.reason}</td>
-                </tr>
-              ))}
+            ))}
           </tbody>
         </TableScroll>
       )}
@@ -1326,6 +1358,7 @@ export function SettlementTab({
   onPrintStatement,
   onRefund,
   onTransfer,
+  onAllocateInvoice,
 }: {
   restaurantId: string;
   workspace: FolioWorkspace;
@@ -1338,6 +1371,7 @@ export function SettlementTab({
   onPrintStatement: () => void;
   onRefund: () => void;
   onTransfer: () => void;
+  onAllocateInvoice: (invoiceId: string) => void;
 }) {
   const folio = workspace.folio;
   const summary = workspace.financialSummary;
@@ -1348,8 +1382,7 @@ export function SettlementTab({
   const outstanding = settlementPaymentDefault(balance);
   const closeBlock = settlementCloseBlock(balance);
   const currency = folio.currency?.trim() || "ETB";
-  const canAllocate =
-    workspace.canManage && open && workspace.depositSummary.available > 0.009;
+  const canAllocate = workspace.canManage && open && workspace.depositSummary.available > 0.009;
   const fetchShifts = useServerFn(listCashierShifts);
   const shifts = useQuery({
     queryKey: ["settlement-cashier-shifts", restaurantId],
@@ -1423,7 +1456,8 @@ export function SettlementTab({
           </div>
           {summary.deposits > 0.009 ? (
             <p className="border-t border-[#E8E1D7] px-4 py-3 text-xs text-muted-foreground">
-              Deposits are already included in the folio balance. Applying a deposit only tracks allocation and does not reduce the balance again.
+              Deposits are already included in the folio balance. Applying a deposit only tracks
+              allocation and does not reduce the balance again.
             </p>
           ) : null}
           {canAllocate ? (
@@ -1457,7 +1491,9 @@ export function SettlementTab({
                 {writeOffs.map((row) => (
                   <li key={row.id} className="flex justify-between gap-3">
                     <span className="truncate">{row.description}</span>
-                    <span className="shrink-0 tabular-nums">{formatBalance(money, row.amount)}</span>
+                    <span className="shrink-0 tabular-nums">
+                      {formatBalance(money, row.amount)}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -1485,7 +1521,10 @@ export function SettlementTab({
             </SectionCard>
           ) : null}
           {open && balance < -0.009 ? (
-            <SectionCard title="Final payment" description="Resolve the credit balance before closing.">
+            <SectionCard
+              title="Final payment"
+              description="Resolve the credit balance before closing."
+            >
               <div className="space-y-3 px-4 py-4 text-sm">
                 <p>
                   Credit balance {formatBalance(money, balance)}. A refund must name the original
@@ -1528,7 +1567,8 @@ export function SettlementTab({
           {!open ? (
             <SectionCard title="Closed folio">
               <p className="px-4 py-4 text-sm text-muted-foreground">
-                Closed{folio.closedAt ? ` ${dateTime(folio.closedAt)}` : ""}. New charges, payments, refunds, transfers and normal corrections cannot be posted.
+                Closed{folio.closedAt ? ` ${dateTime(folio.closedAt)}` : ""}. New charges, payments,
+                refunds, transfers and normal corrections cannot be posted.
               </p>
             </SectionCard>
           ) : null}
@@ -1537,6 +1577,22 @@ export function SettlementTab({
           ) : null}
         </div>
       </div>
+
+      <SectionCard
+        title="Invoice settlement"
+        description="Issued charge-group invoices. Deposit application stays on charges and is not invoice settlement."
+        testId="invoice-settlement-summary"
+      >
+        <GuestInvoiceSettlementPanel
+          restaurantId={restaurantId}
+          folioId={folio.id}
+          balance={balance}
+          money={money}
+          dateTime={dateTime}
+          canAllocate={workspace.canAllocateInvoices}
+          onAllocate={onAllocateInvoice}
+        />
+      </SectionCard>
 
       {open && workspace.canManage ? (
         <SectionCard
@@ -1620,7 +1676,8 @@ function SettlementPaymentCard({
   const mutation = useMutation({
     mutationFn: async () => {
       const value = Number(amount);
-      if (!Number.isFinite(value) || value <= 0) throw new Error("Enter an amount greater than zero.");
+      if (!Number.isFinite(value) || value <= 0)
+        throw new Error("Enter an amount greater than zero.");
       if (!method) throw new Error("Choose a payment method.");
       if (!receivedFrom.trim()) throw new Error("Enter who the money was received from.");
       if (!notes.trim()) throw new Error("Enter a note for this payment.");
@@ -1715,19 +1772,27 @@ function SettlementPaymentCard({
             />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Currency {currency}. Posting now.
-        </p>
-        <div className="rounded-xl border border-[#E8E1D7] bg-[#F7F4EE]/70 p-3 text-sm" data-testid="settlement-projected">
+        <p className="text-xs text-muted-foreground">Currency {currency}. Posting now.</p>
+        <div
+          className="rounded-xl border border-[#E8E1D7] bg-[#F7F4EE]/70 p-3 text-sm"
+          data-testid="settlement-projected"
+        >
           <div className="flex justify-between gap-3">
             <span>Current balance</span>
             <span className="tabular-nums">{formatBalance(money, balance)}</span>
           </div>
           <div className="mt-1 flex justify-between gap-3">
             <span>Payment</span>
-            <span className="tabular-nums">− {money(Number.isFinite(entered) && entered > 0 ? entered : 0)}</span>
+            <span className="tabular-nums">
+              − {money(Number.isFinite(entered) && entered > 0 ? entered : 0)}
+            </span>
           </div>
-          <div className={cn("mt-2 flex justify-between gap-3 border-t border-[#E8E1D7] pt-2 font-medium", projectedTone.text)}>
+          <div
+            className={cn(
+              "mt-2 flex justify-between gap-3 border-t border-[#E8E1D7] pt-2 font-medium",
+              projectedTone.text,
+            )}
+          >
             <span>{projectedTone.label}</span>
             <span className="tabular-nums">{formatBalance(money, projected)}</span>
           </div>
@@ -1738,11 +1803,16 @@ function SettlementPaymentCard({
           ) : null}
           {projected < -0.009 ? (
             <p className="mt-2 text-xs text-blue-800">
-              This payment will create a credit balance of {formatBalance(money, projected)}. A credit balance must be refunded or otherwise resolved before the folio can be closed.
+              This payment will create a credit balance of {formatBalance(money, projected)}. A
+              credit balance must be refunded or otherwise resolved before the folio can be closed.
             </p>
           ) : null}
         </div>
-        <Button type="submit" size="sm" disabled={posting || mutation.isPending || tenders.length === 0}>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={posting || mutation.isPending || tenders.length === 0}
+        >
           {mutation.isPending ? "Posting..." : "Post payment"}
         </Button>
       </form>
@@ -1801,15 +1871,7 @@ function SidebarCard({
   );
 }
 
-function SummaryLine({
-  label,
-  value,
-  muted,
-}: {
-  label: string;
-  value: string;
-  muted?: boolean;
-}) {
+function SummaryLine({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 text-sm">
       <span className="text-muted-foreground">{label}</span>
@@ -1823,7 +1885,9 @@ function SummaryLine({
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
       <p className="truncate text-sm font-medium">{value}</p>
     </div>
   );
@@ -1888,12 +1952,20 @@ export function FolioSidebar({
         <div className="space-y-1.5 px-4 py-3">
           <SummaryLine label="Net Charges" value={money(s.netCharges)} />
           <SummaryLine label="Tax" value={money(s.tax)} muted={s.tax === 0} />
-          <SummaryLine label="Service Charge" value={money(s.serviceCharge)} muted={s.serviceCharge === 0} />
+          <SummaryLine
+            label="Service Charge"
+            value={money(s.serviceCharge)}
+            muted={s.serviceCharge === 0}
+          />
         </div>
         <div className="space-y-1.5 border-t border-[#E8E1D7]/70 px-4 py-3">
           <SummaryLine label="Payments" value={signed(-s.payments)} muted={s.payments === 0} />
           <SummaryLine label="Deposits" value={signed(-s.deposits)} muted={s.deposits === 0} />
-          <SummaryLine label="Adjustments" value={signed(s.adjustments)} muted={s.adjustments === 0} />
+          <SummaryLine
+            label="Adjustments"
+            value={signed(s.adjustments)}
+            muted={s.adjustments === 0}
+          />
           <SummaryLine label="Discounts" value={signed(-s.discounts)} muted={s.discounts === 0} />
           <SummaryLine label="Refunds" value={money(s.refunds)} muted={s.refunds === 0} />
           {transfers !== 0 ? <SummaryLine label="Transfers" value={signed(transfers)} /> : null}
@@ -1921,7 +1993,9 @@ export function FolioSidebar({
           <div className="min-w-0">
             <p className="flex items-center gap-2 truncate font-medium">
               {folio.guestName}
-              {folio.guestVip ? <InventoryStatusBadge tone="warning">VIP</InventoryStatusBadge> : null}
+              {folio.guestVip ? (
+                <InventoryStatusBadge tone="warning">VIP</InventoryStatusBadge>
+              ) : null}
             </p>
             <p className="text-[11px] text-muted-foreground">Guest Profile</p>
           </div>
@@ -1944,7 +2018,12 @@ export function FolioSidebar({
           ) : null}
         </div>
         {folio.guestId ? (
-          <Button asChild variant="outline" size="sm" className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]"
+          >
             <Link
               to="/restaurant/pms/guests/$guestId"
               params={{ guestId: folio.guestId }}
@@ -1986,12 +2065,20 @@ export function FolioSidebar({
               />
             </div>
             <div className="col-span-2">
-              <Field label="Rate Plan" value={folio.ratePlanName ?? folio.ratePlanCode ?? "Not configured"} />
+              <Field
+                label="Rate Plan"
+                value={folio.ratePlanName ?? folio.ratePlanCode ?? "Not configured"}
+              />
             </div>
             <Field label="Market Segment" value={folio.marketSegment ?? "Not configured"} />
             <Field label="Booking Source" value={folio.bookingSource ?? "Not configured"} />
           </div>
-          <Button asChild variant="outline" size="sm" className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]"
+          >
             <Link
               to="/restaurant/pms/reservations/$reservationId"
               params={{ reservationId: folio.reservationId }}
@@ -2012,7 +2099,9 @@ export function FolioSidebar({
             <div className="min-w-0 flex-1">
               <p className="text-[11px] text-muted-foreground">Invoice</p>
               <p className="truncate text-sm font-semibold">{invoice.issuedNumber}</p>
-              <p className="text-[11px] text-muted-foreground">Issued {dateTime(invoice.issuedAt)}</p>
+              <p className="text-[11px] text-muted-foreground">
+                Issued {dateTime(invoice.issuedAt)}
+              </p>
               <button type="button" className={cn(LINK_ACTION, "mt-1.5")} onClick={onViewInvoice}>
                 View Invoice <ArrowRight className="size-3" />
               </button>
@@ -2068,7 +2157,9 @@ function historyLabel(eventType: string): string {
   if (eventType === "payment_received") return "Payment received";
   if (eventType === "deposit_received") return "Deposit received";
   if (eventType === "refund_posted") return "Refund posted";
-  if (eventType.includes("alloc")) return "Deposit applied";
+  if (eventType === "guest_payment_allocated") return "Payment allocated";
+  if (eventType === "guest_payment_allocation_reversed") return "Allocation reversed";
+  if (eventType === "deposit_allocated") return "Deposit applied";
   return eventType.replace(/_/g, " ");
 }
 
@@ -2082,6 +2173,9 @@ export function TransactionDetailDialog({
   dateTime,
   onClose,
   onViewReceipt,
+  canAllocate = false,
+  onAllocatePayment,
+  allocationNet = 0,
 }: {
   restaurantId?: string;
   folioId?: string;
@@ -2092,6 +2186,9 @@ export function TransactionDetailDialog({
   dateTime: DateTimeFormat;
   onClose: () => void;
   onViewReceipt?: (row: FolioTransactionRow) => void;
+  canAllocate?: boolean;
+  onAllocatePayment?: (paymentId: string) => void;
+  allocationNet?: number;
 }) {
   const history = useServerFn(listFolioTenderHistory);
   const tender = row?.type === "payment" || row?.type === "deposit" || row?.type === "refund";
@@ -2101,11 +2198,17 @@ export function TransactionDetailDialog({
     enabled: Boolean(tender && restaurantId && folioId && row),
   });
   const linked = row ? rows.filter((other) => other.originalTransactionId === row.id) : [];
-  const refundable = row ? remainingOnPaymentSource(row, rows) : null;
-  const refunded =
-    row && refundable != null
-      ? roundFolioMoney(Math.abs(row.amount) - refundable)
+  const baseRefundable = row ? remainingOnPaymentSource(row, rows) : null;
+  const refundable =
+    row && baseRefundable != null
+      ? guestPaymentRefundable({
+          sourceType: row.type,
+          faceMinusRefunds: baseRefundable,
+          allocatedNet: row.type === "payment" ? allocationNet : 0,
+        })
       : null;
+  const refunded =
+    row && baseRefundable != null ? roundFolioMoney(Math.abs(row.amount) - baseRefundable) : null;
   const state = row ? tenderDisplayState(row, rows, depositLine) : null;
   const events = (historyQuery.data ?? []).filter((event) => {
     if (!row) return false;
@@ -2116,9 +2219,7 @@ export function TransactionDetailDialog({
     );
   });
   const snapshot = row?.taxSnapshot as
-    | { code?: string; name?: string; calculation?: string; amount?: number }
-    | null
-    | undefined;
+    { code?: string; name?: string; calculation?: string; amount?: number } | null | undefined;
   return (
     <Sheet open={row !== null} onOpenChange={(open) => (open ? null : onClose())}>
       <SheetContent
@@ -2163,11 +2264,18 @@ export function TransactionDetailDialog({
                   <DetailRow label="Remaining" value={money(depositLine.available)} />
                 </>
               ) : null}
-              {refunded != null && refundable != null && (row.type === "payment" || row.type === "deposit") ? (
+              {refunded != null &&
+              refundable != null &&
+              (row.type === "payment" || row.type === "deposit") ? (
                 <>
                   <DetailRow label="Refunded" value={money(refunded)} />
                   <DetailRow label="Refundable" value={money(refundable)} />
                 </>
+              ) : null}
+              {row.type === "payment" && allocationNet > 0.009 ? (
+                <p className="text-xs text-muted-foreground">
+                  Allocated amounts must be reversed before they can be refunded.
+                </p>
               ) : null}
               {row.sourceDescription ? (
                 <DetailRow label="Source line" value={row.sourceDescription} />
@@ -2182,6 +2290,18 @@ export function TransactionDetailDialog({
                 />
               ) : null}
             </dl>
+            {row.type === "payment" && restaurantId && folioId ? (
+              <GuestPaymentAllocationFacts
+                restaurantId={restaurantId}
+                folioId={folioId}
+                paymentId={row.id}
+                money={money}
+                dateTime={dateTime}
+                canAllocate={canAllocate}
+                canReverse={canAllocate}
+                onAllocate={() => onAllocatePayment?.(row.id)}
+              />
+            ) : null}
             {linked.length > 0 ? (
               <div className="border-t border-[#E8E1D7] pt-3">
                 <p className="mb-1 text-xs font-medium text-muted-foreground">Linked lines</p>
@@ -2196,15 +2316,18 @@ export function TransactionDetailDialog({
                 {historyQuery.isLoading ? (
                   <p className="text-xs text-muted-foreground">Loading history…</p>
                 ) : events.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No separate history events for this line.</p>
+                  <p className="text-xs text-muted-foreground">
+                    No separate history events for this line.
+                  </p>
                 ) : (
                   <ul className="space-y-2">
                     {events.map((event) => (
                       <li key={event.id} className="text-xs">
-                        <span className="font-medium">
-                          {historyLabel(event.eventType)}
+                        <span className="font-medium">{historyLabel(event.eventType)}</span>
+                        <span className="text-muted-foreground">
+                          {" "}
+                          · {dateTime(event.createdAt)}
                         </span>
-                        <span className="text-muted-foreground"> · {dateTime(event.createdAt)}</span>
                         {event.notes ? (
                           <span className="mt-0.5 block text-muted-foreground">{event.notes}</span>
                         ) : null}
@@ -2229,7 +2352,9 @@ export function TransactionDetailDialog({
             >
               <Receipt className="mr-1.5 size-3.5" /> View Receipt
             </Button>
-          ) : <div />}
+          ) : (
+            <div />
+          )}
           <Button variant="outline" size="sm" onClick={onClose}>
             Close
           </Button>
@@ -2238,7 +2363,6 @@ export function TransactionDetailDialog({
     </Sheet>
   );
 }
-
 
 export function ApplyDepositDialog({
   restaurantId,
@@ -2278,7 +2402,8 @@ export function ApplyDepositDialog({
       const value = Number(amount);
       if (!selected) throw new Error("Choose a deposit.");
       if (!chargeId) throw new Error("Choose a charge.");
-      if (!Number.isFinite(value) || value <= 0) throw new Error("Enter an amount greater than zero.");
+      if (!Number.isFinite(value) || value <= 0)
+        throw new Error("Enter an amount greater than zero.");
       if (value > selected.available + 0.001)
         throw new Error("Amount cannot exceed the available deposit.");
       return allocate({
@@ -2315,7 +2440,8 @@ export function ApplyDepositDialog({
               Apply Deposit
             </DialogTitle>
             <DialogDescription className="mt-1 text-xs text-muted-foreground leading-normal">
-              Links available deposit credit to a charge on this folio. The folio balance does not change.
+              Links available deposit credit to a charge on this folio. The folio balance does not
+              change.
             </DialogDescription>
           </div>
         </header>
@@ -2366,7 +2492,10 @@ export function ApplyDepositDialog({
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label htmlFor="alloc-amount" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Label
+                htmlFor="alloc-amount"
+                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              >
                 Amount to Allocate
               </Label>
               {selected ? (
@@ -2398,18 +2527,27 @@ export function ApplyDepositDialog({
               <div className="divide-y divide-[#E8E1D7]/60 text-xs">
                 <div className="flex justify-between py-1.5 text-muted-foreground">
                   <span>Available from deposit</span>
-                  <span className="font-medium text-foreground tabular-nums">{money(selected.available)}</span>
+                  <span className="font-medium text-foreground tabular-nums">
+                    {money(selected.available)}
+                  </span>
                 </div>
                 <div className="flex justify-between py-1.5 text-muted-foreground">
                   <span>Amount applying</span>
                   <span className="font-semibold text-emerald-700 tabular-nums">
-                    {Number.isFinite(Number(amount)) && Number(amount) > 0 ? money(Number(amount)) : "—"}
+                    {Number.isFinite(Number(amount)) && Number(amount) > 0
+                      ? money(Number(amount))
+                      : "—"}
                   </span>
                 </div>
                 <div className="flex justify-between py-1.5 font-medium">
                   <span className="text-foreground">Remaining deposit credit</span>
                   <span className="font-bold tabular-nums text-[#251605]">
-                    {money(Math.max(0, selected.available - (Number.isFinite(Number(amount)) ? Number(amount) : 0)))}
+                    {money(
+                      Math.max(
+                        0,
+                        selected.available - (Number.isFinite(Number(amount)) ? Number(amount) : 0),
+                      ),
+                    )}
                   </span>
                 </div>
               </div>
@@ -2418,7 +2556,11 @@ export function ApplyDepositDialog({
         </div>
 
         <footer className="flex items-center justify-end gap-2.5 border-t border-[#E8E1D7] bg-[#F7F4EE]/50 px-6 py-3.5">
-          <Button variant="outline" onClick={onClose} className="border-[#E8E1D7] hover:bg-[#F7F4EE]">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="border-[#E8E1D7] hover:bg-[#F7F4EE]"
+          >
             Cancel
           </Button>
           <Button
@@ -2462,7 +2604,8 @@ export function WriteOffDialog({
   const mutation = useMutation({
     mutationFn: async () => {
       const value = Number(amount);
-      if (!Number.isFinite(value) || value <= 0) throw new Error("Enter an amount greater than zero.");
+      if (!Number.isFinite(value) || value <= 0)
+        throw new Error("Enter an amount greater than zero.");
       if (value > balance + 0.001) throw new Error("A write-off cannot exceed the balance.");
       if (!reason.trim()) throw new Error("Enter a reason.");
       return post({
@@ -2506,16 +2649,24 @@ export function WriteOffDialog({
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
           <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs text-amber-900 space-y-1.5">
             <div className="flex items-center justify-between font-semibold">
-              <span className="text-[11px] uppercase tracking-wider text-amber-800">Residual Balance</span>
-              <span className="text-base font-bold tabular-nums text-amber-900">{money(balance)}</span>
+              <span className="text-[11px] uppercase tracking-wider text-amber-800">
+                Residual Balance
+              </span>
+              <span className="text-base font-bold tabular-nums text-amber-900">
+                {money(balance)}
+              </span>
             </div>
             <p className="text-[11px] text-amber-700 leading-normal">
-              Write-offs adjust the ledger down and impact revenue. Every write-off is logged in audit history with your reason.
+              Write-offs adjust the ledger down and impact revenue. Every write-off is logged in
+              audit history with your reason.
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="woff-amount" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label
+              htmlFor="woff-amount"
+              className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
               Write-off Amount
             </Label>
             <Input
@@ -2530,7 +2681,10 @@ export function WriteOffDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="woff-reason" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label
+              htmlFor="woff-reason"
+              className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
               Authorized Reason
             </Label>
             <Input
@@ -2544,7 +2698,11 @@ export function WriteOffDialog({
         </div>
 
         <footer className="flex items-center justify-end gap-2.5 border-t border-[#E8E1D7] bg-[#F7F4EE]/50 px-6 py-3.5">
-          <Button variant="outline" onClick={onClose} className="border-[#E8E1D7] hover:bg-[#F7F4EE]">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="border-[#E8E1D7] hover:bg-[#F7F4EE]"
+          >
             Cancel
           </Button>
           <Button
