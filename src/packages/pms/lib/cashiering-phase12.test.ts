@@ -3,11 +3,17 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const sql = readFileSync(
-  new URL("../../../../drizzle/migrations/0131_cashiering_phase12_exceptions_reports.sql", import.meta.url),
+  new URL(
+    "../../../../drizzle/migrations/0131_cashiering_phase12_exceptions_reports.sql",
+    import.meta.url,
+  ),
   "utf8",
 );
 const supabaseSql = readFileSync(
-  new URL("../../../../supabase/migrations/0131_cashiering_phase12_exceptions_reports.sql", import.meta.url),
+  new URL(
+    "../../../../supabase/migrations/0131_cashiering_phase12_exceptions_reports.sql",
+    import.meta.url,
+  ),
   "utf8",
 );
 const poster = readFileSync(new URL("./cashiering-phases.functions.ts", import.meta.url), "utf8");
@@ -25,7 +31,10 @@ describe("Cashiering Phase 12 exceptions and reports", () => {
     assert.match(sql, /unsettled_checkout/);
     assert.doesNotMatch(sql, /mark_resolved/);
     assert.match(poster, /listCashieringExceptions/);
+    assert.match(poster, /settlement_exception/);
     assert.match(poster, /getCashieringReportTotals/);
+    assert.match(poster, /propertyDayBounds/);
+    assert.doesNotMatch(poster, /list_cashiering_exceptions|cashiering_report_totals/);
     assert.match(panels, /Cleared only by a real settling post/);
     assert.match(shell, /id: "exceptions"/);
     assert.match(shell, /id: "reports"/);

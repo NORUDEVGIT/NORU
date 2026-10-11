@@ -180,7 +180,7 @@ export function GuestFolioPage({
       active="folios"
       onNavigate={go}
       onSearch={() => go("folios")}
-      onPostPayment={() => go("payments")}
+      onPostPayment={() => go("overview")}
       bodyClassName="space-y-4 p-3 sm:p-4"
     >
       {query.isLoading ? <WorkspaceSkeleton /> : null}

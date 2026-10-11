@@ -7,6 +7,7 @@ import {
   CASHIERING_DESK_EYEBROW,
   CASHIERING_DESK_TITLE,
   CASHIERING_TABS,
+  activityFilterFromLegacyTab,
   cashieringTabSearch,
   resolveCashieringTab,
 } from "./cashiering-shell.ts";
@@ -19,18 +20,7 @@ describe("cashiering desk shell", () => {
   it("keeps the desk URL tabs and maps the old names", () => {
     assert.deepEqual(
       CASHIERING_TABS.map((tab) => tab.id),
-      [
-        "overview",
-        "folios",
-        "payments",
-        "deposits",
-        "refunds",
-        "transfers",
-        "accounts",
-        "exceptions",
-        "reports",
-        "cashier-shift",
-      ],
+      ["overview", "folios", "accounts", "exceptions", "reports", "cashier-shift"],
     );
     assert.equal(CASHIERING_DESK_EYEBROW, "Operations");
     assert.equal(CASHIERING_DESK_TITLE, "Cashiering");
@@ -41,14 +31,21 @@ describe("cashiering desk shell", () => {
     assert.equal(resolveCashieringTab(undefined), "overview");
     assert.equal(resolveCashieringTab("dashboard"), "overview");
     assert.equal(resolveCashieringTab("shifts"), "cashier-shift");
-    assert.equal(resolveCashieringTab("transfers"), "transfers");
+    assert.equal(resolveCashieringTab("transfers"), "overview");
+    assert.equal(activityFilterFromLegacyTab("transfers"), "transfer");
     assert.equal(resolveCashieringTab("folios"), "folios");
+    assert.equal(resolveCashieringTab("payments"), "overview");
+    assert.equal(resolveCashieringTab("deposits"), "overview");
+    assert.equal(resolveCashieringTab("refunds"), "overview");
+    assert.equal(activityFilterFromLegacyTab("payments"), "payment");
+    assert.equal(activityFilterFromLegacyTab("deposits"), "deposit");
+    assert.equal(activityFilterFromLegacyTab("refunds"), "refund");
   });
 
   it("keeps the requested tab when building search params", () => {
     assert.deepEqual(
-      cashieringTabSearch("payments", null, { tab: "overview", q: "401" }),
-      { q: "401", tab: "payments" },
+      cashieringTabSearch("overview", null, { tab: "overview", q: "401", activity: "payment" }),
+      { q: "401", activity: "payment", tab: "overview" },
     );
     assert.deepEqual(cashieringTabSearch("folios", "folio-1", { tab: "overview" }), {
       tab: "folios",
@@ -69,6 +66,8 @@ describe("cashiering desk shell", () => {
     assert.match(chrome, /activeModule="Cashiering"/);
     assert.match(chrome, /cashiering-workspace-nav/);
     assert.match(chrome, /\+ Post Payment/);
+    assert.doesNotMatch(chrome, /label: "Payments"|label: "Deposits"|label: "Refunds"/);
+    assert.match(read("../components/cashiering/cashiering-desk.tsx"), /Financial Activity/);
     assert.doesNotMatch(workspace, /FoundationPanel/);
     assert.match(read("../components/cashiering/cashiering-phase-panels.tsx"), /TransfersPanel/);
     assert.match(route, /hidePackageRail/);

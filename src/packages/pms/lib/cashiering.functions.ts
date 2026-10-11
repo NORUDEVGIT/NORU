@@ -1938,7 +1938,7 @@ export interface LedgerEntryRow {
   folioNumber: string;
   guestName: string;
   confirmationNumber: string | null;
-  type: TransactionType;
+  type: TransactionType | "transfer_in" | "transfer_out";
   category: string;
   description: string;
   amount: number;
@@ -1961,7 +1961,20 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
     z
       .object({
         restaurantId: idSchema,
-        types: z.array(z.enum(TRANSACTION_TYPES)).min(1),
+        types: z
+          .array(
+            z.enum([
+              "charge",
+              "payment",
+              "deposit",
+              "refund",
+              "adjustment",
+              "discount",
+              "transfer_in",
+              "transfer_out",
+            ]),
+          )
+          .min(1),
         search: z.string().max(120).optional(),
       })
       .parse(d),
@@ -2082,7 +2095,7 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
           folioNumber: meta?.folioNumber ?? "—",
           guestName: meta?.guestName ?? "Guest",
           confirmationNumber: meta?.confirmationNumber ?? null,
-          type: r.transaction_type as TransactionType,
+          type: r.transaction_type as LedgerEntryRow["type"],
           category: r.category,
           description: r.description,
           amount: Math.abs(Number(r.amount)),

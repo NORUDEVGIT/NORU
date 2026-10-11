@@ -2,7 +2,16 @@ import { useCallback, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Building2, FileText, Landmark, Receipt, Scale, UsersRound, Wallet } from "lucide-react";
+import {
+  ArrowLeft,
+  Building2,
+  FileText,
+  Landmark,
+  Receipt,
+  Scale,
+  UsersRound,
+  Wallet,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -132,7 +141,7 @@ export function FinancialAccountWorkspacePage({
       active="accounts"
       onNavigate={goDesk}
       onSearch={() => goDesk("folios")}
-      onPostPayment={() => goDesk("payments")}
+      onPostPayment={() => goDesk("overview")}
     >
       <div className="space-y-4" data-testid="financial-account-workspace">
         {workspaceQuery.isLoading ? (
@@ -186,10 +195,15 @@ export function FinancialAccountWorkspacePage({
                         <>
                           {" "}
                           · Profile code{" "}
-                          <span className="font-semibold text-[#251605]">{workspace.master.code}</span>
+                          <span className="font-semibold text-[#251605]">
+                            {workspace.master.code}
+                          </span>
                         </>
                       ) : null}{" "}
-                      · <span className="font-medium text-[#251605]">{workspace.account.currency}</span>
+                      ·{" "}
+                      <span className="font-medium text-[#251605]">
+                        {workspace.account.currency}
+                      </span>
                     </p>
 
                     <div className="flex flex-wrap gap-1.5 pt-0.5 text-xs">
@@ -249,7 +263,10 @@ export function FinancialAccountWorkspacePage({
                     >
                       {formatBalance(money, balance)}
                     </p>
-                    <p className="text-[11px] font-medium text-[#7A7167]" data-testid="account-balance-state">
+                    <p
+                      className="text-[11px] font-medium text-[#7A7167]"
+                      data-testid="account-balance-state"
+                    >
                       {accountBalanceLabel(balance)}
                     </p>
                   </div>
@@ -278,7 +295,12 @@ export function FinancialAccountWorkspacePage({
                       </Button>
                     ) : null}
                     {workspace.capabilities.canViewProfile ? (
-                      <Button variant="outline" size="sm" asChild className="h-9 gap-1.5 border-[#E8E1D7] text-xs font-semibold text-[#251605] hover:bg-[#FAF8F4]">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                        className="h-9 gap-1.5 border-[#E8E1D7] text-xs font-semibold text-[#251605] hover:bg-[#FAF8F4]"
+                      >
                         <Link
                           to="/restaurant/pms/guests/$guestId"
                           params={{ guestId: workspace.master.id }}
@@ -366,8 +388,8 @@ export function FinancialAccountWorkspacePage({
                   >
                     <p className="font-semibold text-[#251605]">Transfer credit limit</p>
                     <p className="mt-0.5 text-[#7A7167]">
-                      Limit {money(workspace.credit.limit)} · used {money(workspace.credit.used)}{" "}
-                      · available {money(workspace.credit.available)}. This limit is enforced when
+                      Limit {money(workspace.credit.limit)} · used {money(workspace.credit.used)} ·
+                      available {money(workspace.credit.available)}. This limit is enforced when
                       charges transfer onto this company account. It does not block payments or
                       invoice issue.
                     </p>
@@ -381,7 +403,9 @@ export function FinancialAccountWorkspacePage({
                     {/* Recent Financial Activity */}
                     <section className={CARD}>
                       <div className="flex items-center justify-between border-b border-[#E8E1D7] px-4 py-3">
-                        <h2 className="text-sm font-semibold text-[#251605]">Recent financial activity</h2>
+                        <h2 className="text-sm font-semibold text-[#251605]">
+                          Recent financial activity
+                        </h2>
                         <button
                           type="button"
                           onClick={() => setTab("history")}
@@ -531,7 +555,9 @@ export function FinancialAccountWorkspacePage({
                         value={workspace.master.name}
                       />
                       <Info label="Profile code" value={workspace.master.code ?? "—"} />
-                      {isCompany ? <Info label="TIN" value={workspace.master.taxId ?? "—"} /> : null}
+                      {isCompany ? (
+                        <Info label="TIN" value={workspace.master.taxId ?? "—"} />
+                      ) : null}
                     </section>
 
                     {/* Billing Summary Card */}
@@ -555,7 +581,10 @@ export function FinancialAccountWorkspacePage({
                                 : money(workspace.master.creditLimitAmount)
                             }
                           />
-                          <Info label="Payment terms" value={workspace.master.paymentTerms ?? "—"} />
+                          <Info
+                            label="Payment terms"
+                            value={workspace.master.paymentTerms ?? "—"}
+                          />
                           <Info
                             label="Credit days"
                             value={
@@ -570,7 +599,12 @@ export function FinancialAccountWorkspacePage({
                         Billing fields are read from the profile. Cashiering does not edit them.
                       </p>
                       {workspace.capabilities.canViewProfile ? (
-                        <Button variant="outline" size="sm" className="w-full h-8 text-xs border-[#E8E1D7] gap-1.5" asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full h-8 text-xs border-[#E8E1D7] gap-1.5"
+                          asChild
+                        >
                           <Link
                             to="/restaurant/pms/guests/$guestId"
                             params={{ guestId: workspace.master.id }}
@@ -593,10 +627,7 @@ export function FinancialAccountWorkspacePage({
                         Quick Actions
                       </h2>
                       {workspace.account.status === "closed" ? (
-                        <p
-                          className="text-xs text-[#7A7167]"
-                          data-testid="account-closed-note"
-                        >
+                        <p className="text-xs text-[#7A7167]" data-testid="account-closed-note">
                           This account is closed. Documents and the profile remain available.
                         </p>
                       ) : null}

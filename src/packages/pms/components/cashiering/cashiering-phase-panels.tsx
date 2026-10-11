@@ -38,6 +38,7 @@ import {
   Kpi,
   StatusChip,
   TxnMark,
+  methodLabel,
   shortRef,
 } from "@/packages/pms/components/cashiering/cashiering-desk-shared";
 import {
@@ -54,8 +55,9 @@ import {
   type CashieringExceptionRow,
   type FinancialAccountRow,
 } from "@/packages/pms/lib/cashiering-phases.functions";
-import type { CashieringDashboard, FolioDetail } from "@/packages/pms/lib/cashiering.functions";
+import type { FolioDetail } from "@/packages/pms/lib/cashiering.functions";
 import { BILLING_ROUTING_EXECUTABLE } from "@/packages/pms/lib/cashiering-transfer-model";
+import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { chargeGroupRemainder, isParentTransferCharge } from "@/packages/pms/lib/folio-workspace";
 import { labelTransactionType } from "@/packages/pms/components/cashiering/folio-bits";
 import type { GuestAccountSummary } from "@/packages/pms/lib/guest-profile-wave4";
@@ -92,7 +94,10 @@ export function TransfersPanel({
   canManage: boolean;
   money: (n: number) => string;
   dateTime: (iso: string | null | undefined) => string;
-  dashboard?: CashieringDashboard;
+  dashboard?: {
+    openFolios?: number;
+    transfersSupported?: boolean;
+  };
   onRefresh: () => void;
   onSelectFolio: (folioId: string) => void;
 }) {
@@ -128,9 +133,7 @@ export function TransfersPanel({
       return;
     }
     const primary = windows.find((w) => w.isPrimary) ?? windows[0];
-    setTargetWindowId((prev) =>
-      prev && windows.some((w) => w.id === prev) ? prev : primary.id,
-    );
+    setTargetWindowId((prev) => (prev && windows.some((w) => w.id === prev) ? prev : primary.id));
   }, [targetWindowsQuery.data]);
 
   const postTransfer = useServerFn(postFolioTransfer);
@@ -489,10 +492,7 @@ export function AccountsPanel({
 
   const rows = accountsQuery.data ?? [];
   const openRows = rows.filter((row) => row.status === "open");
-  const outstanding = openRows.reduce(
-    (sum, row) => sum + (row.balance > 0 ? row.balance : 0),
-    0,
-  );
+  const outstanding = openRows.reduce((sum, row) => sum + (row.balance > 0 ? row.balance : 0), 0);
   const existingFinancialAccount = selectedMaster
     ? rows.find((row) => row.masterId === selectedMaster.id)
     : undefined;
@@ -585,9 +585,7 @@ export function AccountsPanel({
           <h3 className="text-sm font-semibold text-[#251605]">
             Financial Accounts ({filteredRows.length})
           </h3>
-          <span className="text-xs text-[#7A7167] font-medium">
-            {openRows.length} active
-          </span>
+          <span className="text-xs text-[#7A7167] font-medium">{openRows.length} active</span>
         </div>
 
         {filteredRows.length === 0 ? (
@@ -1122,29 +1120,65 @@ export function ReportsPanel({
   money: (n: number) => string;
   timezone: string;
 }) {
-  const today = useMemo(() => {
-    try {
-      return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
-    } catch {
-      return new Date().toISOString().slice(0, 10);
-    }
-  }, [timezone]);
+  const businessDate = usePropertyBusinessDate(restaurantId, timezone);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
-  const from = `${today}T00:00:00.000Z`;
-  const to = `${today}T23:59:59.999Z`;
+  useEffect(() => {
+    if (!businessDate) return;
+    setFromDate((current) => current || businessDate);
+    setToDate((current) => current || businessDate);
+  }, [businessDate]);
 
   const fetchTotals = useServerFn(getCashieringReportTotals);
   const query = useQuery({
-    queryKey: ["cashiering-reports", restaurantId, from, to],
-    queryFn: () => fetchTotals({ data: { restaurantId, from, to } }),
+    queryKey: ["cashiering-reports", restaurantId, fromDate, toDate],
+    queryFn: () => fetchTotals({ data: { restaurantId, fromDate, toDate } }),
+    enabled: Boolean(fromDate && toDate),
   });
-
-  const totals = query.data;
+  const report = query.data;
+  const totals = report?.totals;
 
   return (
     <div className="space-y-4" data-testid="cashiering-reports-panel">
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#DDD4C5] bg-card p-3">
+        <div>
+          <Label htmlFor="report-from">From</Label>
+          <Input
+            id="report-from"
+            type="date"
+            value={fromDate}
+            onChange={(event) => setFromDate(event.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="report-to">To</Label>
+          <Input
+            id="report-to"
+            type="date"
+            value={toDate}
+            onChange={(event) => setToDate(event.target.value)}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            if (!businessDate) return;
+            setFromDate(businessDate);
+            setToDate(businessDate);
+          }}
+        >
+          Today
+        </Button>
+      </div>
       {query.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading ledger totals…</p>
+      ) : null}
+      {query.isError ? (
+        <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {(query.error as Error).message}
+        </p>
       ) : null}
       {totals ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1156,16 +1190,58 @@ export function ReportsPanel({
           <Kpi label="Discounts" value={money(totals.discounts)} tone="amber" />
           <Kpi label="Transfers Out" value={money(totals.transfersOut)} tone="teal" />
           <Kpi label="Transfers In" value={money(totals.transfersIn)} tone="teal" />
-          <Kpi
-            label="Line Count"
-            value={String(totals.lineCount)}
-            hint="Canonical folio_transactions"
-            tone="blue"
-          />
+          <Kpi label="Net movement" value={money(totals.netMovement)} hint="Signed ledger sum" />
+          <Kpi label="Lines" value={String(totals.lineCount)} hint="Up to 500 in this range" />
+        </div>
+      ) : null}
+      {report && report.lines.length === 0 && !query.isLoading && !query.isError ? (
+        <p className="rounded-xl border border-dashed border-[#DDD4C5] p-6 text-center text-sm text-muted-foreground">
+          No folio transactions were posted in this property-local date range.
+        </p>
+      ) : null}
+      {report && report.lines.length > 0 ? (
+        <div className="overflow-x-auto rounded-xl border border-[#DDD4C5] bg-card">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead className="bg-[#FAF8F4] text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2">Posted</th>
+                <th className="px-3 py-2">Type</th>
+                <th className="px-3 py-2">Guest</th>
+                <th className="px-3 py-2">Folio</th>
+                <th className="px-3 py-2">Description</th>
+                <th className="px-3 py-2">Method</th>
+                <th className="px-3 py-2 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.lines.map((line) => (
+                <tr key={line.id} className="border-t border-[#E8E1D7]">
+                  <td className="px-3 py-2 text-muted-foreground">
+                    {new Date(line.postedAt).toLocaleString()}
+                  </td>
+                  <td className="px-3 py-2">{methodLabel(line.type)}</td>
+                  <td className="px-3 py-2">{line.guestName}</td>
+                  <td className="px-3 py-2">
+                    <Link
+                      to="/restaurant/pms/cashiering/folios/$folioId"
+                      params={{ folioId: line.folioId }}
+                      className="font-medium underline-offset-4 hover:underline"
+                    >
+                      {line.folioNumber}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2">{line.description}</td>
+                  <td className="px-3 py-2">{methodLabel(line.paymentMethod)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{money(line.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        Sums of canonical folio_transactions for the property today. Not a GL trial balance.
+        Totals use the property timezone, from local midnight on the start date through the end of
+        the finish date. This is the guest folio ledger, not a general-ledger trial balance.
       </p>
     </div>
   );

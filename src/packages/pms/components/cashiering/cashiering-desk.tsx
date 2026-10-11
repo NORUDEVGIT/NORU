@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Activity,
+  ArrowLeftRight,
   ArrowUpRight,
   Banknote,
   CheckCircle2,
@@ -57,7 +58,11 @@ import {
   type FolioRow,
   type LedgerEntryRow,
 } from "@/packages/pms/lib/cashiering.functions";
-import type { CashieringSearchParams, CashieringTabId } from "@/packages/pms/lib/cashiering-shell";
+import type {
+  CashieringActivityFilter,
+  CashieringSearchParams,
+  CashieringTabId,
+} from "@/packages/pms/lib/cashiering-shell";
 import { remainingOnPaymentSource } from "@/packages/pms/lib/cashiering.server";
 import {
   POLISH1_PAYMENT_METHODS_HREF,
@@ -65,10 +70,7 @@ import {
   emptyPolish1Snapshot,
 } from "@/packages/pms/lib/pms-polish1-payment-admin";
 import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
-import {
-  useMoney,
-  useRestaurantTime,
-} from "@/core/state/property-format";
+import { useMoney, useRestaurantTime } from "@/core/state/property-format";
 import { formatStayDate } from "@/shared/lib/property-dates";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { selectOwnOpenShift } from "@/packages/pms/lib/cashiering-control";
@@ -92,7 +94,16 @@ import {
 import { cn } from "@/shared/lib/utils";
 
 const PAGE_SIZE = 10;
-const LEDGER_TYPES = ["charge", "payment", "deposit", "refund", "adjustment", "discount"] as const;
+const LEDGER_TYPES = [
+  "charge",
+  "payment",
+  "deposit",
+  "refund",
+  "adjustment",
+  "discount",
+  "transfer_in",
+  "transfer_out",
+] as const;
 
 type FolioFilter = "all" | "in_house" | "departures" | "balance" | "open" | "closed";
 
@@ -222,6 +233,7 @@ export function CashieringDesk({
   const [search, setSearch] = useState(moduleSearch);
   const [filter, setFilter] = useState<FolioFilter>("all");
   const [page, setPage] = useState(1);
+  const [sourceLineId, setSourceLineId] = useState<string | null>(null);
 
   useEffect(() => {
     if (moduleSearch) setSearch(moduleSearch);
@@ -244,7 +256,7 @@ export function CashieringDesk({
   const foliosQuery = useQuery({
     queryKey: ["cashiering-folios", restaurantId],
     queryFn: () => fetchFolios({ data: { restaurantId, status: "all" } }),
-    enabled: tab === "overview" || tab === "transfers",
+    enabled: tab === "overview",
     retry: false,
   });
   const ledgerQuery = useQuery({
@@ -338,10 +350,20 @@ export function CashieringDesk({
     onTab(tab, folio.id);
   }
 
-  const payments = ledger.filter((row) => row.type === "payment");
-  const deposits = ledger.filter((row) => row.type === "deposit");
-  const refunds = ledger.filter((row) => row.type === "refund");
-  const todayPayments = payments.filter((row) => propertyDate(row.postedAt, timezone) === businessDate);
+  const activity =
+    searchParams.activity === "payment" ||
+    searchParams.activity === "deposit" ||
+    searchParams.activity === "refund" ||
+    searchParams.activity === "transfer"
+      ? searchParams.activity
+      : "all";
+  const financialActivity = ledger.filter((row) => {
+    const isTransfer = row.type === "transfer_in" || row.type === "transfer_out";
+    const isTender = row.type === "payment" || row.type === "deposit" || row.type === "refund";
+    if (activity === "all") return isTender || isTransfer;
+    if (activity === "transfer") return isTransfer;
+    return row.type === activity;
+  });
 
   return (
     <div className="space-y-4" data-testid={`cashiering-panel-${tab}`}>
@@ -368,12 +390,41 @@ export function CashieringDesk({
             setPage(1);
           }}
           recent={ledger.slice(0, 6)}
+          financialActivity={financialActivity}
+          activity={activity}
+          activityLoading={ledgerQuery.isLoading}
+          activityError={ledgerQuery.isError ? (ledgerQuery.error as Error).message : null}
+          selectedFolio={detailQuery.data ?? null}
+          depositPolicySummary={depositPolicyQuery.data?.summary ?? null}
+          authorizerNote={correctionNoticeQuery.data?.authorizer ?? null}
           openShift={openShift}
           selectedId={selected?.id ?? null}
           canOperate={canOperate}
           canManage={canManage}
+          canAllocate={role === "owner" || role === "manager" || role === "accountant"}
           onSelect={selectFolio}
-          onActivity={(next) => onTab(next, selected?.id)}
+          onActivity={(next) =>
+            onSearchParams({
+              ...searchParams,
+              tab: "overview",
+              activity: next,
+              ...(selected?.id ? { folio: selected.id } : {}),
+            })
+          }
+          onOpenShift={() => onTab("cashier-shift", null)}
+          openFolios={folios}
+          sourceLineId={sourceLineId}
+          onChooseFolio={(folioId) => {
+            const folio = folios.find((row) => row.id === folioId);
+            if (folio) selectFolio(folio);
+          }}
+          onChooseActivity={(row) => {
+            const folio = folios.find((item) => item.id === row.folioId);
+            if (folio) selectFolio(folio);
+            if (row.type === "payment" || row.type === "deposit") setSourceLineId(row.id);
+          }}
+          restaurantId={restaurantId}
+          onRefresh={refresh}
         />
       ) : null}
 
@@ -386,87 +437,6 @@ export function CashieringDesk({
           canManage={canManage}
           money={money}
           dateTime={dateTime}
-        />
-      ) : null}
-
-      {tab === "payments" ? (
-        <PaymentsPanel
-          rows={payments}
-          todayRows={todayPayments}
-          money={money}
-          dateTime={dateTime}
-          loading={ledgerQuery.isLoading}
-          error={ledgerQuery.isError ? (ledgerQuery.error as Error).message : null}
-          selected={detailQuery.data}
-          canOperate={canOperate}
-          restaurantId={restaurantId}
-          onSelect={(row) => onTab("payments", row.folioId)}
-          onPosted={refresh}
-        />
-      ) : null}
-
-      {tab === "deposits" ? (
-        <CreditPanel
-          kind="deposit"
-          title="Recorded deposits"
-          empty="No deposit credits recorded yet."
-          rows={deposits}
-          money={money}
-          dateTime={dateTime}
-          loading={ledgerQuery.isLoading}
-          error={ledgerQuery.isError ? (ledgerQuery.error as Error).message : null}
-          selected={detailQuery.data}
-          canPost={canOperate}
-          restaurantId={restaurantId}
-          depositPolicySummary={depositPolicyQuery.data?.summary ?? null}
-          onSelect={(row) => onTab("deposits", row.folioId)}
-          onPosted={refresh}
-          sidebarExtra={
-            <DepositAllocationForm
-              restaurantId={restaurantId}
-              selected={detailQuery.data ?? null}
-              canManage={canManage}
-              money={money}
-              onRefresh={refresh}
-            />
-          }
-        />
-      ) : null}
-
-      {tab === "refunds" ? (
-        <CreditPanel
-          kind="refund"
-          title="Refunds"
-          empty="No refunds recorded yet."
-          rows={refunds}
-          money={money}
-          dateTime={dateTime}
-          loading={ledgerQuery.isLoading}
-          error={ledgerQuery.isError ? (ledgerQuery.error as Error).message : null}
-          selected={detailQuery.data}
-          canPost={canManage}
-          restaurantId={restaurantId}
-          authorizerNote={correctionNoticeQuery.data?.authorizer ?? null}
-          onSelect={(row) => onTab("refunds", row.folioId)}
-          onPosted={refresh}
-        />
-      ) : null}
-
-      {tab === "transfers" ? (
-        <TransfersPanel
-          restaurantId={restaurantId}
-          folios={folios.map((f) => ({
-            id: f.id,
-            folioNumber: f.folioNumber,
-            guestName: f.guestName,
-          }))}
-          selected={detailQuery.data ?? null}
-          canManage={canManage}
-          money={money}
-          dateTime={dateTime}
-          dashboard={dashboardQuery.data}
-          onRefresh={refresh}
-          onSelectFolio={(folioId) => onTab("transfers", folioId)}
         />
       ) : null}
 
@@ -514,12 +484,27 @@ function Overview({
   filter,
   onFilter,
   recent,
+  financialActivity,
+  activity,
+  activityLoading,
+  activityError,
+  selectedFolio,
+  depositPolicySummary,
+  authorizerNote,
   openShift,
   selectedId,
   canOperate,
   canManage,
+  canAllocate,
   onSelect,
   onActivity,
+  onOpenShift,
+  openFolios,
+  sourceLineId,
+  onChooseFolio,
+  onChooseActivity,
+  restaurantId,
+  onRefresh,
 }: {
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
@@ -532,6 +517,7 @@ function Overview({
         todayDeposits: number;
         todayRefunds: number;
         openShifts: number;
+        transfersSupported?: boolean;
       }
     | undefined;
   loading: boolean;
@@ -546,6 +532,13 @@ function Overview({
   filter: FolioFilter;
   onFilter: (value: FolioFilter) => void;
   recent: LedgerEntryRow[];
+  financialActivity: LedgerEntryRow[];
+  activity: CashieringActivityFilter;
+  activityLoading: boolean;
+  activityError: string | null;
+  selectedFolio: FolioDetail | null;
+  depositPolicySummary: string | null;
+  authorizerNote: string | null;
   openShift: {
     staffName: string;
     openedAt: string;
@@ -555,8 +548,16 @@ function Overview({
   selectedId: string | null;
   canOperate: boolean;
   canManage: boolean;
+  canAllocate: boolean;
   onSelect: (folio: FolioRow) => void;
-  onActivity: (tab: CashieringTabId) => void;
+  onActivity: (activity: CashieringActivityFilter) => void;
+  onOpenShift: () => void;
+  openFolios: FolioRow[];
+  sourceLineId: string | null;
+  onChooseFolio: (folioId: string) => void;
+  onChooseActivity: (row: LedgerEntryRow) => void;
+  restaurantId: string;
+  onRefresh: () => void;
 }) {
   return (
     <div className="space-y-4">
@@ -586,27 +587,48 @@ function Overview({
             tone="amber"
             icon={CircleAlert}
           />
-          <Kpi
-            label="Payments"
-            value={money(dashboard.todayPayments)}
-            hint="Guest payments on the hotel business date"
-            tone="green"
-            icon={Banknote}
-          />
-          <Kpi
-            label="Deposits"
-            value={money(dashboard.todayDeposits)}
-            hint="Guest deposits on the hotel business date"
-            tone="gold"
-            icon={Coins}
-          />
-          <Kpi
-            label="Refunds"
-            value={money(dashboard.todayRefunds)}
-            hint="Guest refunds on the hotel business date"
-            tone="rose"
-            icon={Undo2}
-          />
+          <button
+            type="button"
+            className="rounded-xl text-left outline-none ring-[#C89933] focus-visible:ring-2"
+            aria-pressed={activity === "payment"}
+            onClick={() => onActivity("payment")}
+          >
+            <Kpi
+              label="Payments"
+              value={money(dashboard.todayPayments)}
+              hint="Click to filter financial activity"
+              tone="green"
+              icon={Banknote}
+            />
+          </button>
+          <button
+            type="button"
+            className="rounded-xl text-left outline-none ring-[#C89933] focus-visible:ring-2"
+            aria-pressed={activity === "deposit"}
+            onClick={() => onActivity("deposit")}
+          >
+            <Kpi
+              label="Deposits"
+              value={money(dashboard.todayDeposits)}
+              hint="Click to filter financial activity"
+              tone="gold"
+              icon={Coins}
+            />
+          </button>
+          <button
+            type="button"
+            className="rounded-xl text-left outline-none ring-[#C89933] focus-visible:ring-2"
+            aria-pressed={activity === "refund"}
+            onClick={() => onActivity("refund")}
+          >
+            <Kpi
+              label="Refunds"
+              value={money(dashboard.todayRefunds)}
+              hint="Click to filter financial activity"
+              tone="rose"
+              icon={Undo2}
+            />
+          </button>
           <Kpi
             label="Open Cashier Shift"
             value={dashboard.openShifts > 0 ? String(dashboard.openShifts) : "None"}
@@ -650,19 +672,19 @@ function Overview({
                   label="Payments Received"
                   value={money(dashboard.todayPayments)}
                   icon={Banknote}
-                  onClick={() => onActivity("payments")}
+                  onClick={() => onActivity("payment")}
                 />
                 <ActivityRow
                   label="Deposits Collected"
                   value={money(dashboard.todayDeposits)}
                   icon={Coins}
-                  onClick={() => onActivity("deposits")}
+                  onClick={() => onActivity("deposit")}
                 />
                 <ActivityRow
                   label="Refunds Processed"
                   value={money(dashboard.todayRefunds)}
                   icon={Undo2}
-                  onClick={() => onActivity("refunds")}
+                  onClick={() => onActivity("refund")}
                 />
               </ul>
             ) : (
@@ -672,7 +694,7 @@ function Overview({
           <SideCard
             title="Recent Transactions"
             action="View all"
-            onAction={() => onActivity("payments")}
+            onAction={() => onActivity("all")}
           >
             {recent.length === 0 ? (
               <div className="rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F4]/50 p-4 text-center">
@@ -707,17 +729,10 @@ function Overview({
               </ul>
             )}
           </SideCard>
-          <SideCard
-            title="Cashier Shift Snapshot"
-            action="Open"
-            onAction={() => onActivity("cashier-shift")}
-          >
+          <SideCard title="Cashier Shift Snapshot" action="Open" onAction={onOpenShift}>
             {openShift ? (
               <dl className="space-y-1 text-sm">
-                <SnapshotRow
-                  label="Status"
-                  value={<StatusChip label="Open" tone="green" />}
-                />
+                <SnapshotRow label="Status" value={<StatusChip label="Open" tone="green" />} />
                 <SnapshotRow label="Cashier" value={openShift.staffName} />
                 <SnapshotRow label="Shift opened" value={dateTime(openShift.openedAt)} />
                 <SnapshotRow
@@ -742,6 +757,29 @@ function Overview({
           </SideCard>
         </aside>
       </div>
+      <FinancialActivityPanel
+        activity={activity}
+        rows={financialActivity}
+        loading={activityLoading}
+        error={activityError}
+        selected={selectedFolio}
+        canOperate={canOperate}
+        canManage={canManage}
+        canAllocate={canAllocate}
+        restaurantId={restaurantId}
+        depositPolicySummary={depositPolicySummary}
+        authorizerNote={authorizerNote}
+        money={money}
+        dateTime={dateTime}
+        onActivity={onActivity}
+        onRefresh={onRefresh}
+        openFolios={openFolios}
+        sourceLineId={sourceLineId}
+        pendingFolioId={selectedId}
+        onChooseFolio={onChooseFolio}
+        onChooseActivity={onChooseActivity}
+        dashboard={dashboard}
+      />
     </div>
   );
 }
@@ -772,9 +810,7 @@ function ActivityRow({
             {label}
           </span>
         </div>
-        <span className="font-display text-sm font-bold tabular-nums text-[#251605]">
-          {value}
-        </span>
+        <span className="font-display text-sm font-bold tabular-nums text-[#251605]">{value}</span>
       </button>
     </li>
   );
@@ -847,7 +883,11 @@ function FolioActionMenu({
           <MoreHorizontal className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48 border-[#DDD4C5]" onClick={(event) => event.stopPropagation()}>
+      <DropdownMenuContent
+        align="end"
+        className="w-48 border-[#DDD4C5]"
+        onClick={(event) => event.stopPropagation()}
+      >
         <FolioPageItem folioId={folio.id} label="Open folio" icon={FileText} />
         <FolioPageItem
           folioId={folio.id}
@@ -974,9 +1014,7 @@ function FolioTable({
             {total}
           </span>
         </div>
-        <span className="text-xs text-[#7A7167]">
-          Click any row to inspect folio
-        </span>
+        <span className="text-xs text-[#7A7167]">Click any row to inspect folio</span>
       </div>
       {loading ? <p className="p-4 text-sm text-[#7A7167]">Loading folios…</p> : null}
       {error ? <p className="p-4 text-sm text-destructive">{error}</p> : null}
@@ -1191,9 +1229,7 @@ function FolioQuickView({
             {folio.departureDate ? formatStayDate(folio.departureDate) : "—"}
           </p>
         </div>
-        <InventoryStatusBadge tone={stayTone(folio)}>
-          {stayLabel(folio)}
-        </InventoryStatusBadge>
+        <InventoryStatusBadge tone={stayTone(folio)}>{stayLabel(folio)}</InventoryStatusBadge>
       </div>
       {folio.unsettledCheckout ? (
         <div className="flex items-center gap-1.5 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
@@ -1214,9 +1250,7 @@ function FolioQuickView({
       <div
         className={cn(
           "rounded-xl border px-3.5 py-3",
-          settled
-            ? "border-[#DDD4C5] bg-[#FAF8F4]/80"
-            : "border-destructive/20 bg-destructive/10",
+          settled ? "border-[#DDD4C5] bg-[#FAF8F4]/80" : "border-destructive/20 bg-destructive/10",
         )}
       >
         <p className="text-[10px] font-semibold uppercase tracking-wider text-[#765719]">
@@ -1253,7 +1287,9 @@ function FolioQuickView({
                     {methodLabel(row.type)} · {dateTime(row.postedAt)}
                   </p>
                 </div>
-                <span className="font-semibold tabular-nums text-[#251605]">{money(row.amount)}</span>
+                <span className="font-semibold tabular-nums text-[#251605]">
+                  {money(row.amount)}
+                </span>
               </li>
             ))}
           </ul>
@@ -1291,154 +1327,333 @@ function FolioQuickView({
   );
 }
 
-function PaymentsPanel({
+const ACTIVITY_FILTERS: Array<{
+  id: CashieringActivityFilter;
+  label: string;
+  icon: LucideIcon;
+}> = [
+  { id: "all", label: "All activity", icon: Activity },
+  { id: "payment", label: "Payments", icon: Banknote },
+  { id: "deposit", label: "Deposits", icon: Coins },
+  { id: "refund", label: "Refunds", icon: Undo2 },
+  { id: "transfer", label: "Transfers", icon: ArrowLeftRight },
+];
+
+function FinancialActivityPanel({
+  activity,
   rows,
-  todayRows,
-  money,
-  dateTime,
   loading,
   error,
   selected,
   canOperate,
-  restaurantId,
-  onSelect,
-  onPosted,
-}: {
-  rows: LedgerEntryRow[];
-  todayRows: LedgerEntryRow[];
-  money: (value: number) => string;
-  dateTime: (iso: string | null | undefined) => string;
-  loading: boolean;
-  error: string | null;
-  selected: FolioDetail | null | undefined;
-  canOperate: boolean;
-  restaurantId: string;
-  onSelect: (row: LedgerEntryRow) => void;
-  onPosted: () => void;
-}) {
-  const byMethod = new Map<string, { count: number; amount: number }>();
-  for (const row of todayRows) {
-    const key = row.paymentMethod ?? "unspecified";
-    const current = byMethod.get(key) ?? { count: 0, amount: 0 };
-    current.count += 1;
-    current.amount += row.amount;
-    byMethod.set(key, current);
-  }
-  const extra = [...byMethod.entries()].filter(
-    ([code, value]) => code !== "cash" && code !== "card" && value.amount > 0,
-  );
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi
-          label="Payments Today"
-          value={money(todayRows.reduce((sum, row) => sum + row.amount, 0))}
-          hint={`${todayRows.length} recorded`}
-        />
-        <Kpi
-          label="Cash Payments"
-          value={money(byMethod.get("cash")?.amount ?? 0)}
-          hint={`${byMethod.get("cash")?.count ?? 0} recorded`}
-        />
-        <Kpi
-          label="Card Payments"
-          value={money(byMethod.get("card")?.amount ?? 0)}
-          hint={`${byMethod.get("card")?.count ?? 0} recorded`}
-        />
-        {extra.map(([code, value]) => (
-          <Kpi
-            key={code}
-            label={methodLabel(code)}
-            value={money(value.amount)}
-            hint={`${value.count} recorded`}
-          />
-        ))}
-      </div>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-        <LedgerTable
-          title={`Payments Ledger (${rows.length})`}
-          rows={rows}
-          loading={loading}
-          error={error}
-          empty="No payments recorded yet."
-          money={money}
-          dateTime={dateTime}
-          onSelect={onSelect}
-        />
-        <ReceivePanel
-          kind="payment"
-          restaurantId={restaurantId}
-          folio={selected ?? null}
-          canPost={canOperate}
-          money={money}
-          onPosted={onPosted}
-        />
-      </div>
-    </div>
-  );
-}
-
-function CreditPanel({
-  kind,
-  title,
-  empty,
-  rows,
-  money,
-  dateTime,
-  loading,
-  error,
-  selected,
-  canPost,
+  canManage,
+  canAllocate,
   restaurantId,
   depositPolicySummary,
   authorizerNote,
-  onSelect,
-  onPosted,
-  sidebarExtra,
+  money,
+  dateTime,
+  onActivity,
+  onRefresh,
+  openFolios,
+  sourceLineId,
+  pendingFolioId,
+  onChooseFolio,
+  onChooseActivity,
+  dashboard,
 }: {
-  kind: "deposit" | "refund";
-  title: string;
-  empty: string;
+  activity: CashieringActivityFilter;
   rows: LedgerEntryRow[];
-  money: (value: number) => string;
-  dateTime: (iso: string | null | undefined) => string;
   loading: boolean;
   error: string | null;
-  selected: FolioDetail | null | undefined;
-  canPost: boolean;
+  selected: FolioDetail | null;
+  canOperate: boolean;
+  canManage: boolean;
+  canAllocate: boolean;
   restaurantId: string;
-  depositPolicySummary?: string | null;
-  authorizerNote?: string | null;
-  onSelect: (row: LedgerEntryRow) => void;
-  onPosted: () => void;
-  sidebarExtra?: ReactNode;
+  depositPolicySummary: string | null;
+  authorizerNote: string | null;
+  money: (value: number) => string;
+  dateTime: (iso: string | null | undefined) => string;
+  onActivity: (activity: CashieringActivityFilter) => void;
+  onRefresh: () => void;
+  openFolios: FolioRow[];
+  sourceLineId: string | null;
+  pendingFolioId: string | null;
+  onChooseFolio: (folioId: string) => void;
+  onChooseActivity: (row: LedgerEntryRow) => void;
+  dashboard:
+    | {
+        openFolios: number;
+        transfersSupported?: boolean;
+      }
+    | undefined;
+}) {
+  const title =
+    activity === "all"
+      ? "Financial Activity"
+      : activity === "payment"
+        ? "Payments"
+        : activity === "deposit"
+          ? "Deposits"
+          : activity === "refund"
+            ? "Refunds"
+            : "Transfers";
+  return (
+    <section className="space-y-3" data-testid="cashiering-financial-activity">
+      <div className="flex flex-col gap-3 rounded-xl border border-[#DDD4C5] bg-card p-3 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-display text-lg font-semibold text-[#251605]">Financial Activity</h2>
+          <p className="text-xs text-[#7A7167]">
+            Payments, deposits and refunds remain separate financial classifications.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Financial activity filter">
+          {ACTIVITY_FILTERS.map((item) => {
+            const Icon = item.icon;
+            const active = activity === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={active}
+                data-testid={`cashiering-activity-${item.id}`}
+                onClick={() => onActivity(item.id)}
+                className={cn(
+                  "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors",
+                  active
+                    ? "border-[#C89933] bg-[#C89933] text-[#251605]"
+                    : "border-[#DDD4C5] bg-[#FAF8F4] text-[#5F554B] hover:border-[#C89933]/60 hover:bg-white",
+                )}
+              >
+                <Icon className="size-3.5" />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+        <LedgerTable
+          title={`${title} (${rows.length})`}
+          rows={rows}
+          loading={loading}
+          error={error}
+          empty={`No ${title.toLowerCase()} recorded yet.`}
+          money={money}
+          dateTime={dateTime}
+          selectedFolioId={selected?.id ?? null}
+          onSelect={onChooseActivity}
+          actions={(row) => (
+            <ActivityRowActions row={row} canAllocate={canAllocate} canManage={canManage} />
+          )}
+        />
+        {activity === "all" ? (
+          <FinancialActivityHelp
+            selected={selected}
+            canOperate={canOperate}
+            canManage={canManage}
+          />
+        ) : activity === "transfer" ? null : (
+          <div className="space-y-4">
+            <ReceivePanel
+              kind={activity}
+              restaurantId={restaurantId}
+              folio={selected}
+              folios={openFolios}
+              preferredSourceId={sourceLineId}
+              pendingFolioId={pendingFolioId}
+              onChooseFolio={onChooseFolio}
+              canPost={activity === "refund" ? canManage : canOperate}
+              money={money}
+              depositPolicySummary={depositPolicySummary}
+              authorizerNote={authorizerNote}
+              onPosted={onRefresh}
+            />
+            {activity === "deposit" ? (
+              <DepositAllocationForm
+                restaurantId={restaurantId}
+                selected={selected}
+                canManage={canManage}
+                money={money}
+                onRefresh={onRefresh}
+              />
+            ) : null}
+          </div>
+        )}
+      </div>
+      {activity === "transfer" ? (
+        <TransfersPanel
+          restaurantId={restaurantId}
+          folios={openFolios.map((folio) => ({
+            id: folio.id,
+            folioNumber: folio.folioNumber,
+            guestName: folio.guestName,
+          }))}
+          selected={selected}
+          canManage={canManage}
+          money={money}
+          dateTime={dateTime}
+          dashboard={dashboard}
+          onRefresh={onRefresh}
+          onSelectFolio={onChooseFolio}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function FinancialActivityHelp({
+  selected,
+  canOperate,
+  canManage,
+}: {
+  selected: FolioDetail | null;
+  canOperate: boolean;
+  canManage: boolean;
+}) {
+  if (!selected) {
+    return (
+      <aside className="rounded-xl border border-dashed border-[#DDD4C5] bg-[#FAF8F4]/50 p-6 text-center text-sm text-[#7A7167]">
+        Select a guest folio in the table above, or open Payments, Deposits or Refunds and choose
+        the folio there. Click a recorded line for its actions.
+      </aside>
+    );
+  }
+  const open = selected.status === "open";
+  return (
+    <aside className="space-y-3 rounded-xl border border-[#DDD4C5] bg-card p-4 shadow-xs">
+      <div>
+        <h3 className="font-display font-semibold text-[#251605]">{selected.guestName}</h3>
+        <p className="text-xs text-[#7A7167]">{selected.folioNumber}</p>
+      </div>
+      <div className="grid gap-2">
+        <Button asChild variant="outline">
+          <Link to="/restaurant/pms/cashiering/folios/$folioId" params={{ folioId: selected.id }}>
+            Open folio
+          </Link>
+        </Button>
+        {canOperate && open ? (
+          <>
+            <Button asChild variant="outline">
+              <Link
+                to="/restaurant/pms/cashiering/folios/$folioId"
+                params={{ folioId: selected.id }}
+                search={{ action: "payment" }}
+              >
+                Receive payment
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link
+                to="/restaurant/pms/cashiering/folios/$folioId"
+                params={{ folioId: selected.id }}
+                search={{ action: "deposit" }}
+              >
+                Record deposit
+              </Link>
+            </Button>
+          </>
+        ) : null}
+        {canManage && open ? (
+          <Button asChild variant="outline">
+            <Link
+              to="/restaurant/pms/cashiering/folios/$folioId"
+              params={{ folioId: selected.id }}
+              search={{ action: "refund" }}
+            >
+              Post refund
+            </Link>
+          </Button>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
+function ActivityRowActions({
+  row,
+  canAllocate,
+  canManage,
+}: {
+  row: LedgerEntryRow;
+  canAllocate: boolean;
+  canManage: boolean;
 }) {
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-      <LedgerTable
-        title={`${title} (${rows.length})`}
-        rows={rows}
-        loading={loading}
-        error={error}
-        empty={empty}
-        money={money}
-        dateTime={dateTime}
-        onSelect={onSelect}
-      />
-      <div className="space-y-4">
-        <ReceivePanel
-          kind={kind}
-          restaurantId={restaurantId}
-          folio={selected ?? null}
-          canPost={canPost}
-          money={money}
-          depositPolicySummary={depositPolicySummary}
-          authorizerNote={authorizerNote}
-          onPosted={onPosted}
-        />
-        {sidebarExtra}
-      </div>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" size="sm" variant="outline" className="min-h-11 sm:min-h-8">
+          Actions
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem asChild>
+          <Link
+            to="/restaurant/pms/cashiering/folios/$folioId"
+            params={{ folioId: row.folioId }}
+            search={{ tab: "payments" }}
+          >
+            View transaction details
+          </Link>
+        </DropdownMenuItem>
+        {row.type === "payment" && canAllocate ? (
+          <DropdownMenuItem asChild>
+            <Link
+              to="/restaurant/pms/cashiering/folios/$folioId"
+              params={{ folioId: row.folioId }}
+              search={{ tab: "payments" }}
+            >
+              Review allocation options
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
+        {row.type === "deposit" && canManage ? (
+          <DropdownMenuItem asChild>
+            <Link
+              to="/restaurant/pms/cashiering/folios/$folioId"
+              params={{ folioId: row.folioId }}
+              search={{ tab: "payments" }}
+            >
+              View receipt or apply deposit
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
+        {(row.type === "payment" || row.type === "deposit") && canManage ? (
+          <DropdownMenuItem asChild>
+            <Link
+              to="/restaurant/pms/cashiering/folios/$folioId"
+              params={{ folioId: row.folioId }}
+              search={{ action: "refund", tab: "payments" }}
+            >
+              Refund available amount
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
+        {row.type === "transfer_in" || row.type === "transfer_out" ? (
+          <DropdownMenuItem asChild>
+            <Link
+              to="/restaurant/pms/cashiering/folios/$folioId"
+              params={{ folioId: row.folioId }}
+              search={{ tab: "transfers" }}
+            >
+              Open transfer on folio
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
+        {row.type === "refund" ? (
+          <DropdownMenuItem asChild>
+            <Link
+              to="/restaurant/pms/cashiering/folios/$folioId"
+              params={{ folioId: row.folioId }}
+              search={{ tab: "payments" }}
+            >
+              View original tender
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -1450,7 +1665,9 @@ function LedgerTable({
   empty,
   money,
   dateTime,
+  selectedFolioId,
   onSelect,
+  actions,
 }: {
   title: string;
   rows: LedgerEntryRow[];
@@ -1459,7 +1676,9 @@ function LedgerTable({
   empty: string;
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
+  selectedFolioId?: string | null;
   onSelect: (row: LedgerEntryRow) => void;
+  actions?: (row: LedgerEntryRow) => ReactNode;
 }) {
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
@@ -1490,7 +1709,14 @@ function LedgerTable({
             </thead>
             <tbody>
               {rows.slice(0, 50).map((row) => (
-                <tr key={row.id} className="border-t border-border">
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "cursor-pointer border-t border-border hover:bg-[#FAF8F4]",
+                    selectedFolioId === row.folioId && "bg-[#C89933]/10",
+                  )}
+                  onClick={() => onSelect(row)}
+                >
                   <td className="px-3 py-2 font-medium">{shortRef(row.id)}</td>
                   <td className="px-3 py-2">{row.guestName}</td>
                   <td className="px-3 py-2">{row.folioNumber}</td>
@@ -1511,16 +1737,20 @@ function LedgerTable({
                       </div>
                     ) : null}
                   </td>
-                  <td className="px-3 py-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="min-h-11 sm:min-h-8"
-                      onClick={() => onSelect(row)}
-                    >
-                      View
-                    </Button>
+                  <td className="px-3 py-2" onClick={(event) => event.stopPropagation()}>
+                    {actions ? (
+                      actions(row)
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="min-h-11 sm:min-h-8"
+                        onClick={() => onSelect(row)}
+                      >
+                        View
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -1536,6 +1766,10 @@ function ReceivePanel({
   kind,
   restaurantId,
   folio,
+  folios,
+  preferredSourceId,
+  pendingFolioId,
+  onChooseFolio,
   canPost,
   money,
   depositPolicySummary,
@@ -1560,6 +1794,10 @@ function ReceivePanel({
       originalTransactionId: string | null;
     }>;
   } | null;
+  folios: FolioRow[];
+  preferredSourceId: string | null;
+  pendingFolioId: string | null;
+  onChooseFolio: (folioId: string) => void;
   canPost: boolean;
   money: (value: number) => string;
   depositPolicySummary?: string | null;
@@ -1600,9 +1838,17 @@ function ReceivePanel({
   );
   useEffect(() => {
     if (kind !== "refund") return;
+    if (
+      preferredSourceId &&
+      refundSources.some((line) => line.id === preferredSourceId) &&
+      sourceId !== preferredSourceId
+    ) {
+      setSourceId(preferredSourceId);
+      return;
+    }
     if (refundSources.some((line) => line.id === sourceId)) return;
     setSourceId(refundSources[0]?.id ?? "none");
-  }, [kind, refundSources, sourceId]);
+  }, [kind, preferredSourceId, refundSources, sourceId]);
   const refundSource = refundSources.find((line) => line.id === sourceId) ?? null;
   const refundRemaining =
     refundSource && folio?.transactions
@@ -1685,9 +1931,33 @@ function ReceivePanel({
       {kind === "deposit" && depositPolicySummary ? (
         <p className="text-sm text-muted-foreground">{depositPolicySummary}</p>
       ) : null}
-      {!folio ? (
-        <p className="mt-4 text-sm text-muted-foreground">
-          Select a recorded line, or open a folio from the Folios tab.
+      <div>
+        <Label htmlFor={`${kind}-folio`}>Guest folio</Label>
+        <select
+          id={`${kind}-folio`}
+          className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+          value={folio?.id ?? pendingFolioId ?? ""}
+          onChange={(event) => {
+            if (event.target.value) onChooseFolio(event.target.value);
+          }}
+        >
+          <option value="">Choose a folio</option>
+          {folios
+            .filter((row) => row.status === "open" || row.id === (folio?.id ?? pendingFolioId))
+            .map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.folioNumber} · {row.guestName}
+              </option>
+            ))}
+        </select>
+      </div>
+      {!folio && pendingFolioId ? (
+        <p className="text-sm text-muted-foreground">Loading the selected folio…</p>
+      ) : !folio ? (
+        <p className="text-sm text-muted-foreground">
+          Choose the guest folio above, or click its row in the guest folio list. A payment or
+          deposit does not need an existing line. A refund uses a payment or deposit on the folio
+          you choose.
         </p>
       ) : (
         <div className="space-y-4">
@@ -1845,4 +2115,3 @@ function ReceivePanel({
     </section>
   );
 }
-

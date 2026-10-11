@@ -8,6 +8,7 @@ import { CashieringChrome } from "@/packages/pms/components/cashiering/cashierin
 import { CashieringDesk } from "@/packages/pms/components/cashiering/cashiering-desk";
 import { getCashieringAccess } from "@/packages/pms/lib/cashiering.functions";
 import {
+  activityFilterFromLegacyTab,
   cashieringTabSearch,
   resolveCashieringTab,
   type CashieringSearchParams,
@@ -29,9 +30,13 @@ export function CashieringWorkspace({
   useEffect(() => {
     if (search.tab === tab || (!search.tab && tab === "overview")) return;
     const { tab: _tab, folio, ...rest } = search;
+    const legacyActivity = activityFilterFromLegacyTab(search.tab);
     void navigate({
       to: "/restaurant/pms/cashiering",
-      search: cashieringTabSearch(tab, folio, rest),
+      search: cashieringTabSearch(tab, folio, {
+        ...rest,
+        ...(legacyActivity ? { activity: legacyActivity } : {}),
+      }),
       replace: true,
     });
   }, [navigate, search, tab]);
@@ -43,7 +48,11 @@ export function CashieringWorkspace({
     retry: false,
   });
 
-  function go(next: CashieringTabId, folio?: string | null, extra?: Partial<CashieringSearchParams>) {
+  function go(
+    next: CashieringTabId,
+    folio?: string | null,
+    extra?: Partial<CashieringSearchParams>,
+  ) {
     const { tab: _tab, folio: _currentFolio, ...rest } = search;
     const nextFolio = folio === null ? null : folio !== undefined ? folio : null;
     void navigate({
@@ -82,7 +91,7 @@ export function CashieringWorkspace({
         setModuleSearch(value);
         go("folios", null, { q: value, tab: "folios" });
       }}
-      onPostPayment={() => go("payments", null)}
+      onPostPayment={() => go("overview", null, { activity: "payment" })}
     >
       <CashieringDesk
         restaurantId={restaurantId}

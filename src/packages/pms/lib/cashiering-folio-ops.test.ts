@@ -47,7 +47,7 @@ describe("guest folio operations", () => {
     const desk = read("../components/cashiering/cashiering-desk.tsx");
     const quick = desk.slice(
       desk.indexOf("function FolioQuickView"),
-      desk.indexOf("function PaymentsPanel"),
+      desk.indexOf("const ACTIVITY_FILTERS"),
     );
     assert.match(quick, /Open folio/);
     assert.match(quick, /\/restaurant\/pms\/cashiering\/folios\/\$folioId/);

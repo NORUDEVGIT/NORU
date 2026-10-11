@@ -24,11 +24,20 @@ export const Route = createFileRoute("/restaurant/pms/cashiering")({
     ...(typeof search["folioStatus"] === "string"
       ? { folioStatus: search["folioStatus"] as string }
       : {}),
-    ...(typeof search["stayStatus"] === "string" ? { stayStatus: search["stayStatus"] as string } : {}),
+    ...(typeof search["stayStatus"] === "string"
+      ? { stayStatus: search["stayStatus"] as string }
+      : {}),
     ...(typeof search["stayFrom"] === "string" ? { stayFrom: search["stayFrom"] as string } : {}),
     ...(typeof search["stayTo"] === "string" ? { stayTo: search["stayTo"] as string } : {}),
     ...(typeof search["paymentState"] === "string"
       ? { paymentState: search["paymentState"] as string }
+      : {}),
+    ...(search["activity"] === "all" ||
+    search["activity"] === "payment" ||
+    search["activity"] === "deposit" ||
+    search["activity"] === "refund" ||
+    search["activity"] === "transfer"
+      ? { activity: search["activity"] }
       : {}),
     ...(typeof search["sort"] === "string" ? { sort: search["sort"] as string } : {}),
   }),
@@ -66,8 +75,7 @@ export const Route = createFileRoute("/restaurant/pms/cashiering")({
 function CashieringPmsRoute() {
   const search = Route.useSearch();
   const isChildWorkspace = useRouterState({
-    select: (state) =>
-      /\/cashiering\/(?:folios|accounts)\/[^/]+/.test(state.location.pathname),
+    select: (state) => /\/cashiering\/(?:folios|accounts)\/[^/]+/.test(state.location.pathname),
   });
   // Folio and financial-account pages are child routes and render their own shells.
   if (isChildWorkspace) return <Outlet />;
