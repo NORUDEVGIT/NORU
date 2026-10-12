@@ -41,7 +41,6 @@ import {
   FolioEntryDialog,
   buildTenderReceiptFromFolioRow,
   TenderReceiptDocument,
-  TenderReceiptPrint,
   type TenderReceipt,
 } from "@/packages/pms/components/cashiering/folio-dialogs";
 import {
@@ -57,6 +56,8 @@ import { PostChargeDialog } from "@/packages/pms/components/cashiering/post-char
 import { FolioInvoicePanel } from "@/packages/pms/components/cashiering/folio-invoice-panel";
 import { GuestPaymentAllocationDrawer } from "@/packages/pms/components/cashiering/guest-payment-allocation-drawer";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
+import { ReservationWorkspaceOverlay } from "@/packages/pms/components/reservations/reservation-workspace-overlay";
+import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import {
   AdjustmentsTab,
   ApplyDepositDialog,
@@ -201,6 +202,7 @@ export function GuestFolioPage({
       ) : null}
       {workspace ? (
         <FolioWorkspaceBody
+          membership={membership}
           restaurantId={restaurantId}
           propertyName={membership.restaurant.name}
           businessDate={businessDate}
@@ -304,6 +306,7 @@ function ActionItem({
 }
 
 function FolioWorkspaceBody({
+  membership,
   restaurantId,
   propertyName,
   businessDate,
@@ -314,6 +317,7 @@ function FolioWorkspaceBody({
   correctionNotice,
   onChanged,
 }: {
+  membership: RestaurantMembership;
   restaurantId: string;
   propertyName: string;
   businessDate: string;
@@ -341,6 +345,7 @@ function FolioWorkspaceBody({
 
   const [tab, setTab] = useState<FolioWorkspaceTabId>(() => resolveTab(initialTab));
   const [showSidebar, setShowSidebar] = useState(false);
+  const [viewReservationId, setViewReservationId] = useState<string | null>(null);
   const [entryType, setEntryType] = useState<TransactionType | null>(null);
   const [entrySourceId, setEntrySourceId] = useState<string | null>(null);
   const [closeOpen, setCloseOpen] = useState(false);
@@ -366,8 +371,16 @@ function FolioWorkspaceBody({
 
   useEffect(() => {
     const clear = () => setPrintReceipt(null);
+    const media = window.matchMedia("print");
+    const onMedia = (event: MediaQueryListEvent) => {
+      if (!event.matches) clear();
+    };
     window.addEventListener("afterprint", clear);
-    return () => window.removeEventListener("afterprint", clear);
+    media.addEventListener("change", onMedia);
+    return () => {
+      window.removeEventListener("afterprint", clear);
+      media.removeEventListener("change", onMedia);
+    };
   }, []);
 
   useEffect(() => {
@@ -443,11 +456,28 @@ function FolioWorkspaceBody({
     ? (folio.transactions.find((row) => row.id === correctSourceId) ?? null)
     : null;
 
+  const fetchWorkspace = useServerFn(getFolioWorkspace);
   const tenderReceiptContext = {
     property: documentPropertyQuery.data ?? null,
     propertyDisplayName: propertyName,
     depositPolicySummary,
   };
+
+  async function printPostedTender(transactionId: string) {
+    onChanged();
+    try {
+      const fresh = await fetchWorkspace({ data: { restaurantId, folioId: folio.id } });
+      const row = fresh?.folio.transactions.find((line) => line.id === transactionId);
+      if (!fresh || !row) return;
+      const receipt = buildTenderReceiptFromFolioRow(row, fresh, tenderReceiptContext);
+      if (!receipt) return;
+      setViewReceipt(null);
+      setPrintReceipt(receipt);
+      window.setTimeout(() => window.print(), 80);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Receipt could not be printed.");
+    }
+  }
 
   const rowActions: RowActions = {
     onDetails: (row) => {
@@ -911,6 +941,7 @@ function FolioWorkspaceBody({
               dateTime={dateTime}
               onViewInvoice={() => selectTab("invoices")}
               onClose={() => setShowSidebar(false)}
+              onViewReservation={(resId) => setViewReservationId(resId)}
             />
           ) : null}
         </div>
@@ -985,6 +1016,7 @@ function FolioWorkspaceBody({
           setEntrySourceId(null);
         }}
         onDone={onChanged}
+        onPrintPosted={(transactionId) => void printPostedTender(transactionId)}
       />
       <CloseFolioDialog
         restaurantId={restaurantId}
@@ -1085,10 +1117,16 @@ function FolioWorkspaceBody({
         money={money}
         dateTime={dateTime}
         onClose={() => setViewReceipt(null)}
+        onPrint={
+          viewReceipt
+            ? () => {
+                setPrintReceipt(viewReceipt);
+                setViewReceipt(null);
+                window.setTimeout(() => window.print(), 80);
+              }
+            : undefined
+        }
       />
-      {viewReceipt ? (
-        <TenderReceiptPrint receipt={viewReceipt} money={money} dateTime={dateTime} />
-      ) : null}
       <CashieringPrintLayer active={printReceipt !== null}>
         {printReceipt ? (
           <TenderReceiptDocument receipt={printReceipt} money={money} dateTime={dateTime} />
@@ -1123,6 +1161,24 @@ function FolioWorkspaceBody({
         onPostReplacement={() => setEntryType("charge")}
         money={money}
       />
+      <ReservationWorkspaceOverlay
+        open={viewReservationId !== null}
+        title={folio.confirmationNumber ?? "Reservation"}
+        description={`${folio.guestName} · Room ${folio.roomNumber ?? "—"}`}
+        hideVisualHeader
+        onOpenChange={(open) => {
+          if (!open) setViewReservationId(null);
+        }}
+      >
+        {viewReservationId ? (
+          <ReservationDetailWorkspace
+            membership={membership}
+            reservationId={viewReservationId}
+            embedded
+            onBackToList={() => setViewReservationId(null)}
+          />
+        ) : null}
+      </ReservationWorkspaceOverlay>
     </div>
   );
 }

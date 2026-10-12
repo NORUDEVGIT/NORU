@@ -212,6 +212,7 @@ export function FolioEntryDialog({
   onClose,
   onDone,
   paymentAllocationNets = {},
+  onPrintPosted,
 }: {
   restaurantId: string;
   folioId: string;
@@ -245,6 +246,7 @@ export function FolioEntryDialog({
   onClose: () => void;
   onDone: () => void;
   paymentAllocationNets?: Record<string, number>;
+  onPrintPosted?: (transactionId: string) => void;
 }) {
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
@@ -254,7 +256,6 @@ export function FolioEntryDialog({
   const [sourceId, setSourceId] = useState("none");
   const [receivedFrom, setReceivedFrom] = useState("");
   const [printReceipt, setPrintReceipt] = useState(true);
-  const [receipt, setReceipt] = useState<TenderReceipt | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const set1 = usePmsSet1Foundation(restaurantId);
   const tenders = cashieringTenderOptions({
@@ -276,13 +277,6 @@ export function FolioEntryDialog({
       setPrintReceipt(true);
     }
   }, [open, type, initialSourceId, guestName]);
-
-  useEffect(() => {
-    if (!receipt) return;
-    const clear = () => setReceipt(null);
-    window.addEventListener("afterprint", clear);
-    return () => window.removeEventListener("afterprint", clear);
-  }, [receipt]);
 
   const post = useServerFn(postFolioEntry);
   const copy = type ? COPY[type] : null;
@@ -338,8 +332,7 @@ export function FolioEntryDialog({
       if (type !== "adjustment" && value <= 0)
         throw new Error("Enter an amount greater than zero.");
       const payer = receivedFrom.trim() || guestName?.trim() || "";
-      if (isTenderReceipt && !payer)
-        throw new Error("Enter who the money was received from.");
+      if (isTenderReceipt && !payer) throw new Error("Enter who the money was received from.");
       if (description.trim() === "" && !isTenderReceipt)
         throw new Error(needsSource ? "Enter a reason." : "Enter a description.");
       if (needsSource && !sourceChoices.some((line) => line.id === sourceId)) {
@@ -365,41 +358,7 @@ export function FolioEntryDialog({
         return;
       }
       toast.success("Posted to folio");
-      if (isTenderReceipt && type) {
-        const val = Number(amount);
-        const displayName =
-          cashieringPropertyHotelName(documentProperty) || propertyName?.trim() || "Property";
-        const nights = arrivalDate && departureDate ? stayNights(arrivalDate, departureDate) : null;
-        const newReceipt: TenderReceipt = {
-          kind: type,
-          transactionId: result.id || "—",
-          postedAt: new Date().toISOString(),
-          receivedFrom: receivedFrom.trim(),
-          amount: val,
-          method: tenders.find((row) => row.code === method)?.name ?? methodLabel(method),
-          notes: description.trim(),
-          folioNumber: folioNumber?.trim() || "—",
-          guestName: guestName?.trim() || receivedFrom.trim() || "—",
-          propertyName: displayName,
-          property: documentProperty,
-          confirmationNumber,
-          guestPhone,
-          guestEmail,
-          arrivalDate,
-          departureDate,
-          nights,
-          roomNumber,
-          roomType,
-          ratePlan,
-          currencyCode: currencyCode?.trim() || "ETB",
-          folioBalance: projected ?? currentBalance ?? 0,
-          depositPolicySummary: depositPolicySummary ?? null,
-        };
-        if (printReceipt) {
-          setReceipt(newReceipt);
-          window.setTimeout(() => window.print(), 100);
-        }
-      }
+      if (isTenderReceipt && printReceipt && result.id) onPrintPosted?.(result.id);
       setAmount("");
       setDescription("");
       onDone();
@@ -684,7 +643,6 @@ export function FolioEntryDialog({
           </footer>
         </DialogContent>
       </Dialog>
-      {receipt ? <TenderReceiptPrint receipt={receipt} money={money} dateTime={dateTime} /> : null}
     </>
   );
 }
@@ -970,8 +928,8 @@ export function TenderReceiptDocument({
         ) : isDeposit ? (
           <p>
             This deposit is recorded on the{" "}
-            {receipt.arrivalDate || receipt.roomNumber ? "guest folio" : "financial account"} and may
-            be applied to charges per property policy.
+            {receipt.arrivalDate || receipt.roomNumber ? "guest folio" : "financial account"} and
+            may be applied to charges per property policy.
           </p>
         ) : (
           <p>
@@ -981,8 +939,8 @@ export function TenderReceiptDocument({
         )}
         <p className="text-[10px] text-slate-400">
           This receipt is not a tax invoice. Amounts reflect the{" "}
-          {receipt.arrivalDate || receipt.roomNumber ? "folio ledger" : "account ledger"} at the time
-          shown.
+          {receipt.arrivalDate || receipt.roomNumber ? "folio ledger" : "account ledger"} at the
+          time shown.
         </p>
       </div>
     </div>
@@ -996,6 +954,7 @@ export function DepositReceiptModal({
   dateTime,
   onClose,
   onAllocate,
+  onPrint,
 }: {
   receipt: TenderReceipt | null;
   open: boolean;
@@ -1003,6 +962,7 @@ export function DepositReceiptModal({
   dateTime: (iso: string | null | undefined) => string;
   onClose: () => void;
   onAllocate?: () => void;
+  onPrint?: () => void;
 }) {
   if (!receipt) return null;
   const receiptTitle = receipt.kind === "deposit" ? "Deposit receipt" : "Payment receipt";
@@ -1028,7 +988,7 @@ export function DepositReceiptModal({
           <Button
             size="sm"
             className="bg-[#C89933] font-semibold text-[#251605] shadow-sm hover:bg-[#b88928]"
-            onClick={() => window.print()}
+            onClick={() => (onPrint ? onPrint() : window.print())}
           >
             <Printer className="mr-1.5 size-3.5" /> Print Receipt
           </Button>

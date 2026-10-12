@@ -544,7 +544,7 @@ async function loadGuestFolio(
     .select(
       "id, folio_number, status, currency, opened_at, closed_at, reservation_id, guest_id, settlement_exception, " +
         "guest_profiles!guest_folios_guest_same_property(first_name, last_name, email, phone, nationality, vip_status), " +
-        "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, arrival_date, departure_date, status, company_master_id, group_account_master_id, market_segment, commercial_booking_source, commercial_sales_channel, guarantee_method, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name), rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property(id, code, name))",
+        "hotel_reservations!guest_folios_reservation_same_property(id, confirmation_number, arrival_date, departure_date, status, company_master_id, group_account_master_id, market_segment, commercial_booking_source, commercial_sales_channel, guarantee_method, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name), rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property(id, code, name))",
     )
     .eq("id", folioId)
     .eq("restaurant_id", restaurantId)
@@ -571,6 +571,7 @@ async function loadGuestFolio(
       vip_status: boolean | null;
     } | null;
     hotel_reservations: {
+      id?: string;
       confirmation_number: string;
       arrival_date: string;
       departure_date: string;
@@ -703,7 +704,7 @@ async function loadGuestFolio(
     guestPhone: f.guest_profiles?.phone ?? null,
     guestNationality: f.guest_profiles?.nationality ?? null,
     guestVip: Boolean(f.guest_profiles?.vip_status),
-    reservationId: f.reservation_id,
+    reservationId: f.hotel_reservations?.id ?? f.reservation_id,
     confirmationNumber: f.hotel_reservations?.confirmation_number ?? null,
     arrivalDate: f.hotel_reservations?.arrival_date ?? null,
     departureDate: f.hotel_reservations?.departure_date ?? null,

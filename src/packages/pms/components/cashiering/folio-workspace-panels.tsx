@@ -1903,12 +1903,14 @@ export function FolioSidebar({
   dateTime,
   onViewInvoice,
   onClose,
+  onViewReservation,
 }: {
   workspace: FolioWorkspace;
   money: Money;
   dateTime: DateTimeFormat;
   onViewInvoice: () => void;
   onClose?: () => void;
+  onViewReservation?: (reservationId: string) => void;
 }) {
   const folio = workspace.folio;
   const s = workspace.financialSummary;
@@ -2078,21 +2080,34 @@ export function FolioSidebar({
             <Field label="Market Segment" value={folio.marketSegment ?? "Not configured"} />
             <Field label="Booking Source" value={folio.bookingSource ?? "Not configured"} />
           </div>
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]"
-          >
-            <Link
-              to="/restaurant/pms/reservations/$reservationId"
-              params={{ reservationId: folio.reservationId }}
-              search={{ returnTo: `/restaurant/pms/cashiering/folios/${folio.id}` }}
+          {onViewReservation ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onViewReservation(folio.reservationId!)}
+              className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]"
               data-testid="folio-view-reservation"
             >
               View Reservation <ArrowRight className="size-3.5" />
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]"
+            >
+              <Link
+                to="/restaurant/pms/reservations/$reservationId"
+                params={{ reservationId: folio.reservationId }}
+                search={{ returnTo: `/restaurant/pms/cashiering/folios/${folio.id}` }}
+                data-testid="folio-view-reservation"
+              >
+                View Reservation <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          )}
         </SidebarCard>
       ) : null}
 
