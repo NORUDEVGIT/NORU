@@ -26,10 +26,7 @@ export const BOOKING_STATUS_TRANSITIONS = {
   pending: ["confirmed", "cancelled"],
   confirmed: ["cancelled"],
   cancelled: ["pending", "confirmed"],
-} as const satisfies Record<
-  ManualReservationStatus,
-  readonly ManualReservationStatus[]
->;
+} as const satisfies Record<ManualReservationStatus, readonly ManualReservationStatus[]>;
 
 export function isManualReservationStatus(status: string): status is ManualReservationStatus {
   return (MANUAL_RESERVATION_STATUSES as readonly string[]).includes(status);
@@ -42,10 +39,12 @@ export function isAllowedBookingStatusTransition(from: string, to: string): bool
   return (BOOKING_STATUS_TRANSITIONS[from] as readonly string[]).includes(to);
 }
 
+/** Same Front Office roles enforced by reservation commands. */
+export const RESERVATION_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;
+
+export function canManageReservations(role: string): boolean {
+  return (RESERVATION_MANAGE_ROLES as readonly string[]).includes(role);
+}
+
 /** Date helpers live in shared; re-exported so PMS call sites are unchanged. */
-export {
-  propertyToday,
-  nightsBetween,
-  addDays,
-  formatStayDate,
-} from "@/shared/lib/property-dates";
+export { propertyToday, nightsBetween, addDays, formatStayDate } from "@/shared/lib/property-dates";

@@ -6,25 +6,39 @@ import {
   CreditCard,
   FileText,
   Package,
+  Printer,
   Share2,
   UserRound,
 } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import { cn } from "@/shared/lib/utils";
 import { maskIdNumber } from "@/packages/pms/lib/guest-profile-wave2";
+import { PMS_OP_PANEL } from "@/packages/pms/lib/pms-operational-surface";
+import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
 import {
   CREATE_REVIEW_STEPS,
   guestInitials,
-  isCardGuaranteeMethod,
-  maskGuaranteePan,
-  preferenceFlagFromRequests,
-  reviewDash,
-  yesNoFromBoolean,
+  reviewNoShowCopy,
+  reviewRefundabilityCopy,
 } from "@/packages/pms/lib/create-reservation-review";
+import { ReservationPrintDocument } from "@/packages/pms/components/bookings/reservation-print-document";
+import {
+  buildDraftReservationPrintData,
+  formatPrintDateTime,
+} from "@/packages/pms/lib/reservation-print-document";
+
+export type ReviewSelectedPackage = {
+  key: string;
+  name: string;
+  category: string;
+  priceLabel: string;
+  chargeBasisLabel: string;
+  inclusions: string;
+};
 
 export type CreateReservationReviewProps = {
+  propertyName: string;
   guestName: string | null;
   guestVip: boolean;
   profileNumber: string | null;
@@ -34,7 +48,9 @@ export type CreateReservationReviewProps = {
   idDocumentNumber: string | null;
   bookedBy: string;
   companyName: string | null;
+  companyTerms: string | null;
   travelAgentName: string | null;
+  travelAgentTerms: string | null;
   groupName: string | null;
   arrivalLabel: string;
   departureLabel: string;
@@ -46,126 +62,226 @@ export type CreateReservationReviewProps = {
   purposeOfStay: string | null;
   coverUrl: string | null;
   roomName: string;
+  roomCode: string | null;
   ratePlan: string;
   ratePerNight: string;
   stayTotal: string;
-  breakfastLabel: string;
+  includedItems: string | null;
   cancellationLabel: string;
+  refundabilityLabel: string | null;
+  refundabilityKind: string | null;
   bookingSource: string;
   salesChannel: string;
   marketSegment: string;
   internalNotes: string | null;
-  guaranteeRequired: string;
-  guaranteeType: string;
-  cardHolderName: string | null;
-  cardNumber: string | null;
-  cardExpiry: string | null;
-  guaranteeMethod: string;
+  paymentType: string;
   depositRequired: string;
   depositAmount: string;
   depositDueDate: string | null;
   depositPaymentMethod: string;
+  depositReference: string | null;
   noShowPolicy: string;
+  noShowPenalty: string | null;
   earlyDeparturePolicy: string;
   specialRequests: string | null;
-  ackInformed: boolean;
-  ackConsent: boolean;
-  ackNonRefundable: boolean;
-  ackSpecialTerms: boolean;
-  quotedNonRefundable: boolean;
-  onAckChange: (patch: {
-    ackInformed?: boolean;
-    ackConsent?: boolean;
-    ackNonRefundable?: boolean;
-    ackSpecialTerms?: boolean;
-  }) => void;
+  roomAssignment: string | null;
   onEdit: (step: number) => void;
-  packagesSlot?: ReactNode;
   selectedPackages?: ReviewSelectedPackage[];
   savedPreferences?: Array<{ typeId: string; label: string; value: string }>;
   selectedServiceRequests?: Array<{ serviceTypeId: string; name: string; description: string }>;
-};
-
-export type ReviewSelectedPackage = {
-  key: string;
-  name: string;
-  category: string;
-  priceLabel: string;
-  chargeBasisLabel: string;
-  inclusions: string;
+  propertyAddress?: string | null;
+  propertyPhone?: string | null;
+  propertyEmail?: string | null;
+  propertyWebsite?: string | null;
 };
 
 export function CreateReservationReview(props: CreateReservationReviewProps) {
-  const cardVisible = isCardGuaranteeMethod(props.guaranteeMethod);
-  const maskedPan = cardVisible ? maskGuaranteePan(props.cardNumber) : reviewDash(null);
-  const maskedId = maskIdNumber(props.idDocumentNumber) ?? "—";
+  const packages = props.selectedPackages ?? [];
+  const preferences = props.savedPreferences ?? [];
+  const services = props.selectedServiceRequests ?? [];
+  const roomCode =
+    props.roomCode && !props.roomName.includes(`(${props.roomCode})`) ? props.roomCode : null;
+  const printData = buildDraftReservationPrintData({
+    generatedAt: formatPrintDateTime(new Date()) ?? "",
+    propertyName: props.propertyName,
+    propertyAddress: props.propertyAddress,
+    propertyPhone: props.propertyPhone,
+    propertyEmail: props.propertyEmail,
+    propertyWebsite: props.propertyWebsite,
+    guestName: props.guestName,
+    phone: props.phone,
+    email: props.email,
+    nationality: props.nationality,
+    idDocumentNumber: props.idDocumentNumber,
+    bookedBy: props.bookedBy,
+    bookingSource: props.bookingSource,
+    salesChannel: props.salesChannel,
+    marketSegment: props.marketSegment,
+    companyName: props.companyName,
+    companyTerms: props.companyTerms,
+    travelAgentName: props.travelAgentName,
+    travelAgentTerms: props.travelAgentTerms,
+    groupName: props.groupName,
+    arrivalLabel: props.arrivalLabel,
+    departureLabel: props.departureLabel,
+    nights: props.nights,
+    rooms: props.rooms,
+    adults: props.adults,
+    children: props.children,
+    infants: props.infants,
+    roomImageUrl: props.coverUrl,
+    roomName: props.roomName,
+    roomCode,
+    ratePlan: props.ratePlan,
+    inclusions: props.includedItems,
+    ratePerNight: props.ratePerNight,
+    roomTotal: props.stayTotal,
+    packages: packages.map((row) => ({
+      name: row.name,
+      chargeBasis: row.chargeBasisLabel,
+      quantity: null,
+      unitAmount: row.priceLabel,
+      amount: null,
+      inclusions: row.inclusions,
+    })),
+    paymentType: props.paymentType,
+    paymentMethod: props.depositPaymentMethod,
+    depositRequired: props.depositRequired,
+    depositAmount: props.depositAmount,
+    depositDueDate: props.depositDueDate,
+    cancellation: props.cancellationLabel,
+    noShowPolicy: props.noShowPolicy,
+    noShowPenalty: props.noShowPenalty,
+    earlyDeparture: props.earlyDeparturePolicy,
+    refundabilityKind: props.refundabilityKind,
+    refundabilityLabel: props.refundabilityLabel,
+    preferences: preferences.map((row) => `${row.label}: ${row.value}`),
+    serviceRequests: services.map((row) =>
+      row.description.trim() ? `${row.name} — ${row.description.trim()}` : row.name,
+    ),
+    specialRequests: props.specialRequests,
+    roomAssignment: props.roomAssignment,
+  });
+  const maskedId = maskIdNumber(props.idDocumentNumber);
+  const refundability = reviewRefundabilityCopy(props.refundabilityKind, props.refundabilityLabel);
+  const noShow = reviewNoShowCopy(props.noShowPolicy, props.noShowPenalty);
+  const dueDate = readableDate(props.depositDueDate);
+  const paymentTerms = paymentTermsLines(props);
+  const guestRows = filledRows([
+    ["Guest ID", props.profileNumber],
+    ["Phone", props.phone],
+    ["Email", props.email],
+    ["Nationality", props.nationality],
+    ["ID / Passport", maskedId],
+    ["Booked by", props.bookedBy],
+    ["Company", props.companyName],
+    ["Travel Agent", props.travelAgentName],
+  ]);
+  const stayRows = [
+    ...filledRows([
+      ["Arrival Date", props.arrivalLabel],
+      ["Departure Date", props.departureLabel],
+    ]),
+    ["Nights", String(props.nights)] as [string, string],
+    ["Rooms", String(props.rooms)] as [string, string],
+    ["Adults", String(props.adults)] as [string, string],
+    ["Children", String(props.children)] as [string, string],
+    ["Infants", String(props.infants)] as [string, string],
+    ...filledRows([["Purpose of Stay", props.purposeOfStay]]),
+  ];
+  const rateRows = [
+    ...filledRows([
+      ["Room Type", props.roomName],
+      ["Room Code", roomCode],
+      ["Rate Plan", props.ratePlan],
+      ["Rate / Night", props.ratePerNight],
+    ]),
+    ["Nights", String(props.nights)] as [string, string],
+    ["Stay Total", props.stayTotal || "—"] as [string, string],
+    ...filledRows([
+      ["Included", props.includedItems],
+      ["Cancellation", props.cancellationLabel],
+      ["Refundability", refundability],
+    ]),
+  ];
+  const sourceRows = [
+    ["Source", props.bookingSource || "—"] as [string, string],
+    ["Channel", props.salesChannel || "—"] as [string, string],
+    ["Market Segment", props.marketSegment || "—"] as [string, string],
+    ...filledRows([
+      ["Company", props.companyName],
+      ["Travel Agent", props.travelAgentName],
+      ["Group", props.groupName],
+      ["Internal Notes", props.internalNotes],
+    ]),
+  ];
+  const paymentRows = [
+    ["Payment Type", props.paymentType || "—"] as [string, string],
+    ["Payment Method", props.depositPaymentMethod || "—"] as [string, string],
+    ["Deposit Required", props.depositRequired || "—"] as [string, string],
+    ["Deposit Amount", props.depositAmount || "—"] as [string, string],
+    ...filledRows([
+      ["Deposit Due Date", dueDate],
+      ["Payment Reference", props.depositReference],
+    ]),
+    ...paymentTerms.map((line) => ["Payment Terms", line] as [string, string]),
+  ];
+  const policyRows = filledRows([
+    ["Cancellation Policy", props.cancellationLabel],
+    ["No-show Policy", noShow],
+    ["Early Departure Policy", props.earlyDeparturePolicy],
+    ["Refundability", refundability],
+  ]);
+  const preferenceLines = preferences.map((row) => `${row.label}: ${row.value}`);
+  const serviceLines = services.map((row) =>
+    row.description.trim() ? `${row.name} — ${row.description.trim()}` : row.name,
+  );
 
   return (
-    <div className="space-y-4" data-testid="create-reservation-review">
-      <div className="grid gap-3 lg:grid-cols-3">
+    <div className="pb-8" data-testid="create-reservation-review">
+      <div
+        className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+        data-testid="review-card-grid"
+      >
         <ReviewCard
           title="Guest & Booker Information"
-          icon={<UserRound className="size-4 text-[#B8954F]" />}
+          icon={<UserRound className="size-3.5" />}
           onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.guestStayAvailability)}
           testId="review-card-guest"
         >
-          <div className="flex items-start gap-3">
+          <div className="flex items-center gap-2">
             <div
-              className="flex size-12 shrink-0 items-center justify-center rounded-full bg-[#F4E9D0] text-sm font-semibold text-[#765719]"
+              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#FBF6EE] text-xs font-semibold text-[#8A6A1F]"
               data-testid="review-guest-avatar"
             >
               {guestInitials(props.guestName)}
             </div>
             <div className="min-w-0">
-              <p className="font-medium text-[#251605]" data-testid="review-guest-name">
-                {reviewDash(props.guestName)}
+              <p className="text-sm font-semibold text-[#251605]" data-testid="review-guest-name">
+                {props.guestName?.trim() || "—"}
               </p>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {props.guestVip ? (
-                  <span className="inline-flex rounded-full bg-[#F4E9D0] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#765719]">
-                    VIP
-                  </span>
-                ) : null}
-              </div>
+              {props.guestVip ? (
+                <span className="mt-1 inline-flex rounded-full bg-[#F4E9D0] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#765719]">
+                  VIP
+                </span>
+              ) : null}
             </div>
           </div>
-          <ReviewFields
-            rows={[
-              ["Guest ID", reviewDash(props.profileNumber)],
-              ["Phone", reviewDash(props.phone)],
-              ["Email", reviewDash(props.email)],
-              ["Nationality", reviewDash(props.nationality)],
-              ["ID / Passport", maskedId],
-              ["Booked by", reviewDash(props.bookedBy)],
-              ["Company", reviewDash(props.companyName)],
-              ["Travel Agent", reviewDash(props.travelAgentName)],
-            ]}
-          />
+          <ReviewFields rows={guestRows} />
         </ReviewCard>
 
         <ReviewCard
           title="Stay Information"
-          icon={<CalendarDays className="size-4 text-[#B8954F]" />}
+          icon={<CalendarDays className="size-3.5" />}
           onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.guestStayAvailability)}
           testId="review-card-stay"
         >
-          <ReviewFields
-            rows={[
-              ["Arrival Date", reviewDash(props.arrivalLabel)],
-              ["Departure Date", reviewDash(props.departureLabel)],
-              ["Nights", String(props.nights)],
-              ["Rooms", String(props.rooms)],
-              ["Adults", String(props.adults)],
-              ["Children", String(props.children)],
-              ["Infants", String(props.infants)],
-              ["Purpose of Stay", reviewDash(props.purposeOfStay)],
-            ]}
-          />
+          <ReviewFields rows={stayRows} />
         </ReviewCard>
 
         <ReviewCard
           title="Room & Rate Information"
-          icon={<BedDouble className="size-4 text-[#B8954F]" />}
+          icon={<BedDouble className="size-3.5" />}
           onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.guestStayAvailability)}
           testId="review-card-rate"
         >
@@ -174,219 +290,167 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
               <img
                 src={props.coverUrl}
                 alt=""
-                className="h-16 w-20 shrink-0 rounded-md object-cover"
+                className="h-14 w-16 shrink-0 rounded-[6px] object-cover"
                 data-testid="review-room-cover"
               />
             ) : (
               <div
-                className="flex h-16 w-20 shrink-0 items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68]"
+                className="flex h-14 w-16 shrink-0 items-center justify-center rounded-[6px] bg-[#FBF6EE] text-[#C89933]"
                 data-testid="review-room-cover-fallback"
               >
-                <BedDouble className="size-6" />
+                <BedDouble className="size-5" />
               </div>
             )}
             <div className="min-w-0">
-              <p className="font-medium text-[#251605]">{reviewDash(props.roomName)}</p>
-              <p className="text-xs text-muted-foreground">{reviewDash(props.ratePlan)}</p>
+              <p className="text-sm font-semibold text-[#251605]">{props.roomName || "—"}</p>
+              {roomCode ? <p className="text-xs text-[#6B5E4E]">{roomCode}</p> : null}
+              <p className="text-xs text-[#6B5E4E]">{props.ratePlan || "—"}</p>
             </div>
           </div>
-          <ReviewFields
-            rows={[
-              ["Rate Plan", reviewDash(props.ratePlan)],
-              ["Rate per Night", reviewDash(props.ratePerNight)],
-              ["Nights", String(props.nights)],
-              ["Total Amount", reviewDash(props.stayTotal)],
-              ["Breakfast", reviewDash(props.breakfastLabel)],
-              ["Cancellation Policy", reviewDash(props.cancellationLabel)],
-            ]}
-          />
+          <ReviewFields rows={rateRows} emphasize="Stay Total" />
         </ReviewCard>
-      </div>
 
-      <div className="grid gap-3 lg:grid-cols-3">
         <ReviewCard
           title="Booking Source & Classification"
-          icon={<Share2 className="size-4 text-[#B8954F]" />}
+          icon={<Share2 className="size-3.5" />}
           onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.bookingDetails)}
           testId="review-card-source"
         >
-          <ReviewFields
-            rows={[
-              ["Source", reviewDash(props.bookingSource)],
-              ["Channel", reviewDash(props.salesChannel)],
-              ["Market Segment", reviewDash(props.marketSegment)],
-              ["Company", reviewDash(props.companyName)],
-              ["Travel Agent", reviewDash(props.travelAgentName)],
-              ["Group", reviewDash(props.groupName)],
-              ["Purpose of Stay", reviewDash(props.purposeOfStay)],
-              ["Internal Notes", reviewDash(props.internalNotes)],
-            ]}
-          />
+          <ReviewFields rows={sourceRows} />
         </ReviewCard>
 
         <ReviewCard
-          title="Guarantee & Deposit"
-          icon={<CreditCard className="size-4 text-[#B8954F]" />}
+          title="Payment & Deposit"
+          icon={<CreditCard className="size-3.5" />}
           onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.policies)}
           testId="review-card-guarantee"
         >
-          <ReviewFields
-            rows={[
-              ["Guarantee Required", reviewDash(props.guaranteeRequired)],
-              ["Guarantee Type", reviewDash(props.guaranteeType)],
-              ...(cardVisible
-                ? ([
-                    ["Card Holder Name", reviewDash(props.cardHolderName)],
-                    ["Card Number", maskedPan],
-                    ["Expiry Date", reviewDash(props.cardExpiry)],
-                  ] as Array<[string, string]>)
-                : []),
-              ["Deposit Required", reviewDash(props.depositRequired)],
-              ["Deposit Amount", reviewDash(props.depositAmount)],
-              ["Due Date", reviewDash(props.depositDueDate)],
-              ["Payment Method", reviewDash(props.depositPaymentMethod)],
-            ]}
-          />
+          <ReviewFields rows={paymentRows} />
         </ReviewCard>
 
         <ReviewCard
-          title="Policies & Additional Information"
-          icon={<FileText className="size-4 text-[#B8954F]" />}
+          title="Stay Policies"
+          icon={<FileText className="size-3.5" />}
           onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.policies)}
           testId="review-card-policies"
         >
-          <ReviewFields
-            rows={[
-              ["Cancellation Policy", reviewDash(props.cancellationLabel)],
-              ["No-Show Policy", reviewDash(props.noShowPolicy)],
-              ["Early Departure Policy", reviewDash(props.earlyDeparturePolicy)],
-              ["Special Requests", reviewDash(props.specialRequests)],
-              ["Room Preferences", preferenceSummary(props.specialRequests)],
-              ["VIP Treatment", yesNoFromBoolean(props.guestVip)],
-              ["Late Check-in", preferenceFlagFromRequests(props.specialRequests, "Late Check-In")],
-              [
-                "Early Check-in",
-                preferenceFlagFromRequests(props.specialRequests, "Early Check-In"),
-              ],
-              [
-                "Connecting Rooms",
-                preferenceFlagFromRequests(props.specialRequests, "Connecting Rooms"),
-              ],
-            ]}
-          />
+          <ReviewFields rows={policyRows} />
+        </ReviewCard>
+
+        <ReviewCard
+          title="Packages & Add-ons"
+          icon={<Package className="size-3.5" />}
+          onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.bookingDetails)}
+          testId="review-card-packages"
+        >
+          <ReviewPackages packages={packages} />
+        </ReviewCard>
+
+        <ReviewCard
+          title="Guest Requests & Preferences"
+          icon={<ClipboardList className="size-3.5" />}
+          onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.bookingDetails)}
+          testId="review-card-requests"
+        >
+          <div className="space-y-2">
+            <RequestBlock title="Saved Preferences">
+              {preferenceLines.length === 0 ? (
+                <p className="text-xs text-[#6B5E4E]">No saved preferences</p>
+              ) : (
+                <ul className="flex flex-wrap gap-1">
+                  {preferences.map((row) => (
+                    <li
+                      key={row.typeId}
+                      className="rounded-full bg-[#FBF6EE] px-2 py-0.5 text-xs text-[#251605]"
+                    >
+                      {row.label}: {row.value}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </RequestBlock>
+            <RequestBlock title="Service Requests">
+              {serviceLines.length === 0 ? (
+                <p className="text-xs text-[#6B5E4E]">No service requests selected</p>
+              ) : (
+                <ul className="space-y-0.5 text-sm text-[#251605]">
+                  {services.map((row) => (
+                    <li key={row.serviceTypeId}>
+                      {row.name}
+                      {row.description.trim() ? ` — ${row.description.trim()}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </RequestBlock>
+            {props.specialRequests?.trim() ? (
+              <RequestBlock title="Special Requests">
+                <p className="text-sm text-[#251605]">{props.specialRequests.trim()}</p>
+              </RequestBlock>
+            ) : null}
+            {props.internalNotes?.trim() ? (
+              <RequestBlock title="Internal Notes">
+                <p className="text-sm text-[#251605]">{props.internalNotes.trim()}</p>
+              </RequestBlock>
+            ) : null}
+            {props.roomAssignment?.trim() ? (
+              <RequestBlock title="Room Assignment">
+                <p className="text-sm text-[#251605]">{props.roomAssignment.trim()}</p>
+              </RequestBlock>
+            ) : null}
+          </div>
+        </ReviewCard>
+
+        <ReviewCard
+          title="Print Reservation"
+          icon={<Printer className="size-3.5" />}
+          testId="review-card-print"
+        >
+          <p className="text-xs text-[#6B5E4E]">
+            Print a clean reservation review before confirmation.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9 rounded-[6px] border-[#C89933] bg-white text-[#8A6A1F] shadow-none hover:bg-[#FBF6EE]"
+            data-testid="review-print-reservation"
+            onClick={() => window.print()}
+          >
+            Print Reservation
+          </Button>
         </ReviewCard>
       </div>
-
-      <ReviewCard
-        title="Packages & Add-ons"
-        icon={<Package className="size-4 text-[#B8954F]" />}
-        onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.bookingDetails)}
-        testId="review-card-packages"
-      >
-        <ReviewPackages packages={props.selectedPackages ?? []} />
-      </ReviewCard>
-
-      <ReviewCard
-        title="Guest Requests & Preferences"
-        icon={<ClipboardList className="size-4 text-[#B8954F]" />}
-        onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.bookingDetails)}
-        testId="review-card-requests"
-      >
-        <div className="space-y-2 text-sm">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Saved preferences
-            </p>
-            {(props.savedPreferences ?? []).length === 0 ? (
-              <p className="text-muted-foreground">No saved preferences</p>
-            ) : (
-              <ul className="mt-1 space-y-0.5">
-                {(props.savedPreferences ?? []).map((row) => (
-                  <li key={row.typeId}>
-                    {row.label}: {row.value}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Service requests
-            </p>
-            {(props.selectedServiceRequests ?? []).length === 0 ? (
-              <p className="text-muted-foreground">No service requests selected</p>
-            ) : (
-              <ul className="mt-1 space-y-0.5">
-                {(props.selectedServiceRequests ?? []).map((row) => (
-                  <li key={row.serviceTypeId}>
-                    {row.name}
-                    {row.description.trim() ? ` — ${row.description.trim()}` : ""}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </ReviewCard>
-
-      <section
-        className="rounded-xl border border-[#DDD4C5] bg-white px-4 py-3 shadow-sm"
-        data-testid="review-policy-ack"
-      >
-        <h2 className="font-display text-sm text-[#251605]">Policy Acknowledgment</h2>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
-          Confirm that you have informed the guest about the policies and obtained necessary
-          consent.
-        </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <Ack
-            testId="review-ack-informed"
-            label="Guest informed about cancellation policy"
-            checked={props.ackInformed}
-            onCheckedChange={(checked) => props.onAckChange({ ackInformed: checked })}
-          />
-          <Ack
-            testId="review-ack-consent"
-            label="Guest consent for deposit and guarantee"
-            checked={props.ackConsent}
-            onCheckedChange={(checked) => props.onAckChange({ ackConsent: checked })}
-          />
-          <Ack
-            testId="review-ack-nonrefundable"
-            label="This is a non-refundable reservation (if applicable)"
-            checked={props.quotedNonRefundable || props.ackNonRefundable}
-            disabled={props.quotedNonRefundable}
-            onCheckedChange={(checked) => props.onAckChange({ ackNonRefundable: checked })}
-          />
-          <Ack
-            testId="review-ack-terms"
-            label="Special terms and conditions apply"
-            checked={props.ackSpecialTerms}
-            onCheckedChange={(checked) => props.onAckChange({ ackSpecialTerms: checked })}
-          />
-        </div>
-      </section>
-
-      {props.packagesSlot ? (
-        <div className="text-xs" data-testid="review-packages-slot">
-          {props.packagesSlot}
-        </div>
-      ) : null}
+      <ReservationPrintDocument data={printData} />
     </div>
   );
 }
 
-function preferenceSummary(specialRequests: string | null): string {
-  const flags = [
-    preferenceFlagFromRequests(specialRequests, "High Floor"),
-    preferenceFlagFromRequests(specialRequests, "Non-Smoking"),
-    preferenceFlagFromRequests(specialRequests, "Quiet Room"),
-  ].filter((row) => row === "Yes");
-  if (flags.length === 0) return "—";
-  const labels = ["High Floor", "Non-Smoking", "Quiet Room"].filter(
-    (label) => preferenceFlagFromRequests(specialRequests, label) === "Yes",
-  );
-  return labels.join(", ");
+function filledRows(rows: Array<[string, string | null | undefined]>): Array<[string, string]> {
+  return rows.flatMap(([label, value]) => {
+    const text = value?.trim() ?? "";
+    if (!text || text === "—") return [];
+    return [[label, text]];
+  });
+}
+
+function readableDate(value: string | null | undefined): string | null {
+  const text = value?.trim() ?? "";
+  if (!text) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return formatStayDate(text);
+  return text;
+}
+
+function paymentTermsLines(props: CreateReservationReviewProps): string[] {
+  const lines: string[] = [];
+  const company = props.companyName?.trim() ?? "";
+  const agent = props.travelAgentName?.trim() ?? "";
+  if (company) {
+    lines.push(props.companyTerms?.trim() || `No payment terms configured for ${company}`);
+  }
+  if (agent) {
+    lines.push(props.travelAgentTerms?.trim() || `No payment terms configured for ${agent}`);
+  }
+  return lines;
 }
 
 function ReviewCard({
@@ -398,31 +462,38 @@ function ReviewCard({
 }: {
   title: string;
   icon: ReactNode;
-  onEdit: () => void;
+  onEdit?: () => void;
   testId: string;
   children: ReactNode;
 }) {
   return (
     <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+      className={cn(
+        PMS_OP_PANEL,
+        "h-full !rounded-[6px] !border-[#CCCCCC] !shadow-none min-w-0 p-3",
+      )}
       data-testid={testId}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {icon}
-          <h2 className="font-display text-sm text-[#251605]">{title}</h2>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+            {icon}
+          </span>
+          <h2 className="text-sm font-semibold text-[#251605]">{title}</h2>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          onClick={onEdit}
-        >
-          Edit
-        </Button>
+        {onEdit ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-[#8A6A1F]"
+            onClick={onEdit}
+          >
+            Edit
+          </Button>
+        ) : null}
       </div>
-      <div className="mt-3 space-y-3 text-sm text-[#251605]">{children}</div>
+      <div className="mt-2 space-y-2 text-sm text-[#251605]">{children}</div>
     </section>
   );
 }
@@ -430,44 +501,40 @@ function ReviewCard({
 function ReviewPackages({ packages }: { packages: ReviewSelectedPackage[] }) {
   if (packages.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground" data-testid="review-packages-empty">
+      <p className="text-xs text-[#6B5E4E]" data-testid="review-packages-empty">
         No packages selected
       </p>
     );
   }
   return (
-    <div className="space-y-2">
-      <ul className="space-y-2" data-testid="review-packages-list">
-        {packages.map((row) => (
-          <li key={row.key} data-testid="review-package-row">
-            <p className="font-medium text-[#251605]">{row.name}</p>
-            {row.category ? <p className="text-[11px] text-[#6B5E4E]">{row.category}</p> : null}
-            <p className="text-[12px] text-[#251605]">
-              {row.priceLabel} · {row.chargeBasisLabel}
-            </p>
-            {row.inclusions ? (
-              <p className="text-[11px] text-muted-foreground">Includes: {row.inclusions}</p>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      <p className="text-[11px] text-muted-foreground">
-        Package prices are separate from the room total.
-      </p>
-    </div>
+    <ul className="space-y-2" data-testid="review-packages-list">
+      {packages.map((row) => (
+        <li key={row.key} data-testid="review-package-row">
+          <p className="text-sm font-medium text-[#251605]">{row.name}</p>
+          <p className="text-xs text-[#251605]">
+            {row.chargeBasisLabel}
+            {row.priceLabel ? ` · ${row.priceLabel}` : ""}
+          </p>
+          {row.inclusions.trim() ? (
+            <p className="text-[11px] text-[#6B5E4E]">Includes: {row.inclusions}</p>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 
-function ReviewFields({ rows }: { rows: Array<[string, string]> }) {
+function ReviewFields({ rows, emphasize }: { rows: Array<[string, string]>; emphasize?: string }) {
+  if (rows.length === 0) return null;
   return (
-    <dl className="grid gap-x-3 gap-y-1.5 text-[12px] sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-      {rows.map(([label, value]) => (
-        <div key={label} className="contents">
+    <dl className="grid gap-x-3 gap-y-1 text-[12px] sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      {rows.map(([label, value], index) => (
+        <div key={`${label}-${index}`} className="contents">
           <dt className="text-[#6B5E4E]">{label}</dt>
           <dd
             className={cn(
               "min-w-0 break-words text-[#251605]",
-              value === "—" && "text-muted-foreground",
+              label === emphasize && "text-sm font-semibold",
             )}
           >
             {value}
@@ -478,28 +545,11 @@ function ReviewFields({ rows }: { rows: Array<[string, string]> }) {
   );
 }
 
-function Ack({
-  label,
-  checked,
-  onCheckedChange,
-  disabled,
-  testId,
-}: {
-  label: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  disabled?: boolean;
-  testId: string;
-}) {
+function RequestBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <label className="flex items-start gap-2 text-[12px] text-[#251605]" data-testid={testId}>
-      <Checkbox
-        className="mt-0.5"
-        checked={checked}
-        disabled={disabled}
-        onCheckedChange={(value) => onCheckedChange(value === true)}
-      />
-      {label}
-    </label>
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">{title}</p>
+      <div className="mt-0.5">{children}</div>
+    </div>
   );
 }

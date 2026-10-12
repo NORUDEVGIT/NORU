@@ -43,7 +43,7 @@ describe("Create reservation Step 1 desk layout", () => {
     assert.match(page, /title="Stay Information"/);
     assert.match(roomType, /Availability & Room Selection/);
     assert.match(selectedRoom, /Selected Room & Rate/);
-    assert.match(step, /items-stretch/);
+    assert.match(step, /items-start/);
     assert.match(step, /lg:grid-cols-\[minmax\(0,0\.9fr\)_minmax\(0,1\.1fr\)_minmax\(0,1\.3fr\)\]/);
     assert.match(guest, /data-testid="guest-search-panel"/);
     assert.match(guest, /data-testid="selected-guest-panel"/);
@@ -310,6 +310,26 @@ describe("Create reservation Step 1 desk layout", () => {
     const statusIdx = selectedRoom.indexOf('data-testid="selected-room-rate-status"');
     const totalIdx = selectedRoom.indexOf('data-testid="selected-room-stay-total"');
     assert.ok(statusIdx >= 0 && totalIdx > statusIdx);
+  });
+
+  it("hides availability and the selected room rail until Check Availability", () => {
+    const gate = step.indexOf("availabilitySearchCommitted != null");
+    const rooms = step.indexOf("{roomsAndRates}");
+    const summary = step.indexOf("CreateReservationSelectedRoom");
+    assert.ok(gate >= 0 && rooms > gate && summary > rooms);
+    assert.match(step.slice(gate, summary), /\{roomsAndRates\}/);
+    assert.doesNotMatch(step.slice(0, gate), /\{roomsAndRates\}/);
+    assert.doesNotMatch(step.slice(0, gate), /CreateReservationSelectedRoom/);
+  });
+
+  it("renders an amenity strip only from labels the room already has", () => {
+    assert.match(roomType, /function AmenityStrip/);
+    assert.match(roomType, /if \(labels\.length === 0\) return null/);
+    assert.match(roomType, /data-testid="room-amenity-strip"/);
+    assert.match(roomType, /amenityLabels\.join/);
+    assert.match(roomType, /\+\{extra\} more/);
+    assert.match(roomType, /roomDisplayLabels\(details\)/);
+    assert.doesNotMatch(roomType, /Free Wi-Fi|Air Conditioning/);
   });
 
   it("keeps the Step 1 continue gate", () => {

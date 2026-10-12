@@ -581,7 +581,8 @@ export function GuestTravelAgencyPaymentRulesStep({
             <h2 className="text-sm font-semibold text-[#251605]">Reservation Rules</h2>
           </div>
           <p className="text-xs text-[#756A5B] mt-0.5">
-            Default operational guarantee, cancellation, and no-show policies loaded from Settings Card 3.
+            Deposit and no-show policies are loaded from Payments &amp; Deposits. Cancellation
+            policies are loaded from Rate &amp; Pricing.
           </p>
         </div>
 

@@ -5,7 +5,7 @@
  * Reuses the shared business-profile domain:
  *  - guest_account_masters (billing/credit columns from 0121, policy FKs from 0124)
  *  - pms_billing_rules (filtered by applicable_profile_types @> travel_agent)
- *  - pms_payment_methods, pms_deposit_policies, pms_cancellation_policies, pms_no_show_policies
+ *  - pms_payment_methods, pms_deposit_policies, pms_rate_cancellation_policies, pms_no_show_policies
  *  - pms_property_currencies + restaurants.currency_code
  *  - pms_company_document_types (applies_to_travel_agency) + guest_company_documents
  *
@@ -297,15 +297,14 @@ export function mapTravelAgencyStep4Config(input: {
       const policyKind = p.policy_kind || "flexible";
       const windowUnit = p.window_unit || "hours_before_arrival";
       const windowValue = p.window_value != null ? Number(p.window_value) : null;
-      const cutoffHours = p.cutoff_hours != null
-        ? Number(p.cutoff_hours)
-        : p.deadline_hours != null
+      const cutoffHours =
+        p.deadline_hours != null
           ? Number(p.deadline_hours)
           : windowUnit === "days_before_arrival" && windowValue != null
             ? windowValue * 24
             : windowValue != null
               ? windowValue
-              : (policyKind === "non_refundable" ? 0 : 24);
+              : 0;
 
       const rawPenalty = String(p.penalty_type ?? "none").toLowerCase();
       const penaltyType =
@@ -327,10 +326,8 @@ export function mapTravelAgencyStep4Config(input: {
         cutoffHours,
         penaltyType,
         penaltyValue: Number(p.penalty_value ?? 0),
-        refundableBeforeCutoff: p.refundable_before_cutoff !== undefined
-          ? Boolean(p.refundable_before_cutoff)
-          : policyKind !== "non_refundable",
-        isDefault: Boolean(p.is_default),
+        refundableBeforeCutoff: policyKind !== "non_refundable",
+        isDefault: false,
         active: p.active !== false,
       };
     });
@@ -377,7 +374,7 @@ export function mapTravelAgencyStep4Config(input: {
         creditDays: a.credit_days != null ? Number(a.credit_days) : null,
         creditStatus: a.credit_status ?? null,
         defaultDepositPolicyId: a.default_deposit_policy_id ?? null,
-        defaultCancellationPolicyId: a.default_cancellation_policy_id ?? null,
+        defaultCancellationPolicyId: a.rate_cancellation_policy_id ?? null,
         defaultNoShowPolicyId: a.default_no_show_policy_id ?? null,
         bookingNotes: a.booking_notes ?? null,
       }
@@ -394,6 +391,33 @@ export function mapTravelAgencyStep4Config(input: {
     documentTypes,
     existingValues,
   };
+}
+
+const TRAVEL_AGENCY_STEP4_AGENCY_COLUMNS =
+  "id, billing_currency_code, preferred_currency, default_payment_method_id, payment_timing, default_billing_rule_id, billing_instruction, credit_account_enabled, credit_limit_amount, credit_days, credit_status, default_deposit_policy_id, rate_cancellation_policy_id, default_no_show_policy_id, booking_notes";
+
+async function loadTravelAgencyStep4Agency(db: Db, restaurantId: string, agencyId: string) {
+  const selected = await db
+    .from("guest_account_masters")
+    .select(TRAVEL_AGENCY_STEP4_AGENCY_COLUMNS)
+    .eq("restaurant_id", restaurantId)
+    .eq("id", agencyId)
+    .maybeSingle();
+  const missingCanonical =
+    selected.error &&
+    (selected.error.code === "42703" || selected.error.code === "PGRST204") &&
+    String(selected.error.message ?? "").includes("rate_cancellation_policy_id");
+  if (!missingCanonical) return selected;
+  const fallback = await db
+    .from("guest_account_masters")
+    .select(
+      "id, billing_currency_code, preferred_currency, default_payment_method_id, payment_timing, default_billing_rule_id, billing_instruction, credit_account_enabled, credit_limit_amount, credit_days, credit_status, default_deposit_policy_id, default_no_show_policy_id, booking_notes",
+    )
+    .eq("restaurant_id", restaurantId)
+    .eq("id", agencyId)
+    .maybeSingle();
+  if (fallback.error || !fallback.data) return fallback;
+  return { data: { ...fallback.data, rate_cancellation_policy_id: null }, error: null };
 }
 
 export async function loadTravelAgencyStep4Config(
@@ -430,7 +454,9 @@ export async function loadTravelAgencyStep4Config(
       .order("name"),
     db
       .from("pms_rate_cancellation_policies")
-      .select("id, code, name, description, policy_kind, window_value, window_unit, deadline_hours, penalty_type, penalty_value, active")
+      .select(
+        "id, code, name, description, policy_kind, window_value, window_unit, cutoff_time, deadline_hours, penalty_type, penalty_value, active",
+      )
       .eq("restaurant_id", restaurantId)
       .eq("active", true)
       .order("name"),
@@ -448,27 +474,9 @@ export async function loadTravelAgencyStep4Config(
       .eq("applies_to_travel_agency", true)
       .order("display_order"),
     agencyId
-      ? db
-          .from("guest_account_masters")
-          .select(
-            "id, billing_currency_code, preferred_currency, default_payment_method_id, payment_timing, default_billing_rule_id, billing_instruction, credit_account_enabled, credit_limit_amount, credit_days, credit_status, default_deposit_policy_id, default_cancellation_policy_id, default_no_show_policy_id, booking_notes",
-          )
-          .eq("restaurant_id", restaurantId)
-          .eq("id", agencyId)
-          .maybeSingle()
+      ? loadTravelAgencyStep4Agency(db, restaurantId, agencyId)
       : Promise.resolve({ data: null, error: null }),
   ]);
-
-  let cancelPolicyRows = rows(cancellationPoliciesRes);
-  if (!cancelPolicyRows.length) {
-    const fallback = await db
-      .from("pms_cancellation_policies")
-      .select("id, code, name, description, cutoff_hours, penalty_type, penalty_value, refundable_before_cutoff, is_default, active")
-      .eq("restaurant_id", restaurantId)
-      .eq("active", true)
-      .order("name");
-    cancelPolicyRows = rows(fallback);
-  }
 
   return mapTravelAgencyStep4Config({
     baseCurrencyCode: restaurantRes?.data?.currency_code ?? null,
@@ -476,7 +484,7 @@ export async function loadTravelAgencyStep4Config(
     paymentMethods: rows(paymentMethodsRes),
     billingRules: rows(billingRulesRes),
     depositPolicies: rows(depositPoliciesRes),
-    cancellationPolicies: cancelPolicyRows,
+    cancellationPolicies: rows(cancellationPoliciesRes),
     noShowPolicies: rows(noShowPoliciesRes),
     documentTypes: rows(docTypesRes),
     existingAgency: existingAgencyRes?.error ? null : existingAgencyRes?.data ?? null,
@@ -662,7 +670,7 @@ export function travelAgencyStep4MasterPatch(payload: TravelAgencyStep4Payload):
     credit_days: payload.allowCredit ? payload.creditDays ?? null : null,
     credit_status: payload.allowCredit ? payload.creditStatus || "pending_approval" : null,
     default_deposit_policy_id: payload.defaultDepositPolicyId || null,
-    default_cancellation_policy_id: payload.defaultCancellationPolicyId || null,
+    rate_cancellation_policy_id: payload.defaultCancellationPolicyId || null,
     default_no_show_policy_id: payload.defaultNoShowPolicyId || null,
     booking_notes: payload.bookingNotes || null,
   };
@@ -691,61 +699,22 @@ export async function persistTravelAgencyStep4(
   });
 
   if (payload.defaultCancellationPolicyId) {
-    try {
-      const exists = await db
-        .from("pms_cancellation_policies")
-        .select("id")
-        .eq("id", payload.defaultCancellationPolicyId)
-        .maybeSingle();
-      if (!exists.data) {
-        const card2Policy = await db
-          .from("pms_rate_cancellation_policies")
-          .select("*")
-          .eq("id", payload.defaultCancellationPolicyId)
-          .maybeSingle();
-        if (card2Policy.data) {
-          await db.from("pms_cancellation_policies").upsert(
-            {
-              id: card2Policy.data.id,
-              restaurant_id: card2Policy.data.restaurant_id,
-              code: card2Policy.data.code,
-              name: card2Policy.data.name,
-              description: card2Policy.data.description,
-              cutoff_hours: card2Policy.data.deadline_hours ?? 24,
-              penalty_type: "none",
-              penalty_value: card2Policy.data.penalty_value ?? 0,
-              active: true,
-            },
-            { onConflict: "restaurant_id,code" },
-          );
-        }
-      }
-    } catch {
-      // Non-blocking sync
+    const found = await db
+      .from("pms_rate_cancellation_policies")
+      .select("id, restaurant_id")
+      .eq("id", payload.defaultCancellationPolicyId)
+      .maybeSingle();
+    if (found.error || !found.data || String(found.data.restaurant_id) !== payload.restaurantId) {
+      throw new Error("Selected Cancellation Policy is invalid for this property.");
     }
   }
 
-  let update = await db
+  const update = await db
     .from("guest_account_masters")
     .update(travelAgencyStep4MasterPatch(payload))
     .eq("restaurant_id", payload.restaurantId)
     .eq("id", payload.agencyId)
     .eq("account_type", "travel_agent");
-  if (
-    update.error &&
-    (update.error.code === "23503" ||
-      update.error.message?.includes("cancellation_policy") ||
-      update.error.message?.includes("foreign key"))
-  ) {
-    const patch = travelAgencyStep4MasterPatch(payload);
-    delete patch.default_cancellation_policy_id;
-    update = await db
-      .from("guest_account_masters")
-      .update(patch)
-      .eq("restaurant_id", payload.restaurantId)
-      .eq("id", payload.agencyId)
-      .eq("account_type", "travel_agent");
-  }
   if (update.error) {
     throw new Error(`Failed to save payment & reservation rules: ${update.error.message}`);
   }

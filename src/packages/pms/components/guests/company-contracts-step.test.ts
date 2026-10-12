@@ -13,7 +13,7 @@ import {
 } from "../../lib/guest-company-create-workspace.ts";
 import {
   validateCorporateAgreementPayload,
-  buildCancellationPolicyPreview,
+  formatCanonicalCancellationPreview,
   buildNoShowPolicyPreview,
   getCorporateAgreementExpiryState,
   type CorporateAgreementPayload,
@@ -237,17 +237,23 @@ describe("PHASE 2: Company Contracts & Agreements Step 4 Domain & UI Specificati
 
   describe("Section 5: Booking Policies & Previews", () => {
     it("renders operational preview for guarantee, cancellation, and no-show policies", () => {
-      assert.match(step4Code, /buildCancellationPolicyPreview/);
+      assert.match(step4Code, /formatCanonicalCancellationPreview/);
       assert.match(step4Code, /buildNoShowPolicyPreview/);
       assert.match(step4Code, /Guarantee Policy/);
       assert.match(step4Code, /Cancellation Policy/);
       assert.match(step4Code, /No-Show Policy/);
     });
 
-    it("builds human-readable cancellation preview without raw enums", () => {
-      const preview = buildCancellationPolicyPreview(24, "first_night", 0, true);
-      assert.match(preview, /24 hours/);
-      assert.match(preview, /1st night room & tax penalty/);
+    it("builds a canonical cancellation preview", () => {
+      const preview = formatCanonicalCancellationPreview({
+        name: "Flexible 24h",
+        penaltyType: "first_night",
+        penaltyValue: 0,
+        policyKind: "flexible",
+        deadlineHours: 24,
+      });
+      assert.match(preview, /24 hours before arrival/);
+      assert.match(preview, /first_night/);
     });
 
     it("builds human-readable no-show preview without raw enums", () => {

@@ -8,15 +8,15 @@
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
-import { isAllowedBookingStatusTransition } from "./reservation-dates";
+import { isAllowedBookingStatusTransition, RESERVATION_MANAGE_ROLES } from "./reservation-dates";
 
 /** Front Office operations: owners, managers and receptionists. */
-export const RESERVATION_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;
-
 export {
   RESERVATION_STATUSES,
   MANUAL_RESERVATION_STATUSES,
   BOOKING_STATUS_TRANSITIONS,
+  RESERVATION_MANAGE_ROLES,
+  canManageReservations,
   isAllowedBookingStatusTransition,
   nightsBetween,
   propertyToday,
@@ -43,10 +43,6 @@ export const RESERVATION_EVENT_TYPES = [
   "late_checkout_updated",
 ] as const;
 export type ReservationEventType = (typeof RESERVATION_EVENT_TYPES)[number];
-
-export function canManageReservations(role: string): boolean {
-  return (RESERVATION_MANAGE_ROLES as readonly string[]).includes(role);
-}
 
 /** Owner/manager membership for this property, or a hard failure. */
 export async function requireReservationManager(

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Check } from "lucide-react";
+import { Check, Search } from "lucide-react";
 import { keepPreviousData, useMutation, useQuery, useQueries } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -15,14 +15,19 @@ import { CreateReservationGuarantee } from "@/packages/pms/components/bookings/c
 import {
   CreateReservationPoliciesGuarantee,
   EMPTY_CREATE_RESERVATION_POLICIES,
-  stayPolicyLabel,
 } from "@/packages/pms/components/bookings/create-reservation-policies-guarantee";
+import {
+  earlyDeparturePenaltySummary,
+  earlyDepartureReviewLabel,
+} from "@/packages/pms/lib/early-departure-policy";
 import { CreateReservationConfirmation } from "@/packages/pms/components/bookings/create-reservation-confirmation";
 import {
   CreateReservationBookingDetails,
   type CreateServiceSelection,
 } from "@/packages/pms/components/bookings/create-reservation-booking-details";
 import { CreateReservationReview } from "@/packages/pms/components/bookings/create-reservation-review";
+import { reviewIncludedItems } from "@/packages/pms/lib/create-reservation-review";
+import { formatPropertyContactAddress } from "@/packages/pms/lib/reservation-print-document";
 
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -94,14 +99,19 @@ import {
 } from "@/packages/pms/lib/reservation-detail-packages";
 import { listEligiblePackageActivations } from "@/packages/pms/lib/revenue/commercial-package.functions";
 import {
-  activeDepositPolicies,
   computeDepositRequirementAmount,
-  defaultActiveDepositPolicy,
-  defaultDepositPolicyHint,
-  formatQuotedPolicySummary,
+  noShowPenaltySummary,
   quotedNonRefundable,
   resolveDepositTenderCode,
 } from "@/packages/pms/lib/create-reservation-step4";
+import {
+  clearCreateReservationDraft,
+  createReservationDraftIsMeaningful,
+  readCreateReservationDraft,
+  shouldDropMissingRoomType,
+  writeCreateReservationDraft,
+  type CreateReservationDraft,
+} from "@/packages/pms/lib/create-reservation-draft";
 import {
   getGuestAccount,
   listGuestAccountLinks,
@@ -184,8 +194,8 @@ const CREATE_WORKFLOW_STEPS = [
     label: "Guest, Stay & Availability",
     continueLabel: "Continue to Booking Details",
   },
-  { id: "details", label: "Booking Details", continueLabel: "Continue to Policies & Guarantee" },
-  { id: "policies", label: "Policies & Guarantee", continueLabel: "Continue to Review & Confirm" },
+  { id: "details", label: "Booking Details", continueLabel: "Continue to Policies & Payment" },
+  { id: "policies", label: "Policies & Payment", continueLabel: "Continue to Review & Confirm" },
   { id: "review", label: "Review & Confirm", continueLabel: null },
 ] as const;
 
@@ -274,6 +284,12 @@ export function CreateReservationPage({
   const [step4Policies, setStep4Policies] = useState(EMPTY_CREATE_RESERVATION_POLICIES);
   const [createdView, setCreatedView] = useState<CreatedReservationConfirmation | null>(null);
   const [workflowStep, setWorkflowStep] = useState(0);
+  const [relationTab, setRelationTab] = useState<"company" | "travel_agent" | "group">("company");
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [holdCommercialDefaults, setHoldCommercialDefaults] = useState(false);
+  const draftClosed = useRef(false);
   const [searchRoomTypeFilter, setSearchRoomTypeFilter] = useState("");
   const [ratePreference, setRatePreference] = useState("");
   const [availabilitySearchCommitted, setAvailabilitySearchCommitted] =
@@ -733,23 +749,10 @@ export function CreateReservationPage({
   }, [roomCatalogQuery.data]);
   const propertyCurrencyCode =
     currencyQuery.data?.snapshot.inherited.baseCurrency || membership.restaurant.currencyCode;
-  const depositPolicyHint = defaultDepositPolicyHint(
-    paymentsCard3Query.data?.snapshot.depositPolicies,
-    paymentsCard3Query.data?.snapshot.currencyCode || propertyCurrencyCode,
-  );
-  const depositPolicyOptions = activeDepositPolicies(
-    paymentsCard3Query.data?.snapshot.depositPolicies,
-  );
-  const selectedDepositPolicy =
-    depositPolicyOptions.find((row) => row.id === step4Policies.depositPolicyId) ?? null;
-
-  useEffect(() => {
-    const fallback = defaultActiveDepositPolicy(paymentsCard3Query.data?.snapshot.depositPolicies);
-    if (!fallback) return;
-    setStep4Policies((current) =>
-      current.depositPolicyId ? current : { ...current, depositPolicyId: fallback.id },
-    );
-  }, [paymentsCard3Query.data?.snapshot.depositPolicies]);
+  const ratePlanDepositPolicy =
+    (paymentsCard3Query.data?.snapshot.depositPolicies ?? []).find(
+      (row) => row.id === selectedQuote?.depositPolicyId,
+    ) ?? null;
   const currencyOptions = useMemo(() => {
     const extras = (currencyQuery.data?.snapshot.currencies ?? [])
       .filter((row) => row.active)
@@ -936,7 +939,6 @@ export function CreateReservationPage({
                 )
               : undefined,
           bookerGuestId: sameAsGuest && guest?.id ? guest.id : null,
-          depositPolicyId: step4Policies.depositPolicyId || null,
           depositTenderCode: resolveDepositTenderCode({
             selected: step4Policies.depositPaymentMethod,
             guaranteeMethod,
@@ -944,6 +946,10 @@ export function CreateReservationPage({
         },
       }),
     onSuccess: async (result, nextStatus) => {
+      draftClosed.current = true;
+      if (accessQuery.data?.membershipId) {
+        clearCreateReservationDraft(restaurantId, accessQuery.data.membershipId);
+      }
       const createdServiceNames: string[] = [];
       if (guest?.id) {
         for (const row of selectedServiceRequests) {
@@ -1010,6 +1016,192 @@ export function CreateReservationPage({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const membershipScope = accessQuery.data?.membershipId ?? "";
+  const draftSnapshot = useMemo<CreateReservationDraft>(
+    () => ({
+      version: 1,
+      workflowStep,
+      reservationType,
+      guest,
+      arrival,
+      departure,
+      adults,
+      children,
+      infants,
+      roomsRequested,
+      roomTypeId,
+      selectedRoomType,
+      roomId,
+      ratePlanId,
+      ratePreference,
+      searchRoomTypeFilter,
+      availabilitySearchCommitted,
+      quoteCurrency,
+      specialRequests,
+      notes,
+      bookingSource,
+      salesChannel,
+      marketSegment,
+      externalReference,
+      purposeOfStay,
+      relationTab,
+      companyMaster,
+      travelAgentMaster,
+      groupMaster,
+      companyOverride,
+      travelAgentOverride,
+      groupOverride,
+      linkedGroupId,
+      linkedBlockId,
+      companyContactId,
+      travelAgentContactId,
+      billingRuleId,
+      packageActivationIds,
+      selectedServiceRequests,
+      guaranteeMethod,
+      depositReference: step4Policies.depositReference,
+      depositPaymentMethod: step4Policies.depositPaymentMethod,
+      depositDueDate: step4Policies.depositDueDate,
+    }),
+    [
+      adults,
+      arrival,
+      availabilitySearchCommitted,
+      billingRuleId,
+      bookingSource,
+      children,
+      companyContactId,
+      companyMaster,
+      companyOverride,
+      departure,
+      externalReference,
+      groupMaster,
+      groupOverride,
+      guaranteeMethod,
+      guest,
+      infants,
+      linkedBlockId,
+      linkedGroupId,
+      marketSegment,
+      notes,
+      packageActivationIds,
+      purposeOfStay,
+      quoteCurrency,
+      ratePlanId,
+      ratePreference,
+      relationTab,
+      reservationType,
+      roomId,
+      roomTypeId,
+      roomsRequested,
+      salesChannel,
+      searchRoomTypeFilter,
+      selectedRoomType,
+      selectedServiceRequests,
+      specialRequests,
+      step4Policies.depositDueDate,
+      step4Policies.depositPaymentMethod,
+      step4Policies.depositReference,
+      travelAgentContactId,
+      travelAgentMaster,
+      travelAgentOverride,
+      workflowStep,
+    ],
+  );
+  const draftMeaningful = createReservationDraftIsMeaningful(draftSnapshot, {
+    arrival: today,
+    departure: addDays(today, 1),
+    unassignedRoomId: UNASSIGNED,
+  });
+
+  useEffect(() => {
+    if (!membershipScope || draftReady) return;
+    const stored = readCreateReservationDraft(restaurantId, membershipScope);
+    if (stored) {
+      setWorkflowStep(stored.workflowStep);
+      setReservationType(stored.reservationType);
+      setGuest(stored.guest as typeof guest);
+      setArrival(stored.arrival || today);
+      setDeparture(stored.departure || addDays(today, 1));
+      setAdults(stored.adults);
+      setChildren(stored.children);
+      setInfants(stored.infants);
+      setRoomsRequested(stored.roomsRequested);
+      setRoomTypeId(stored.roomTypeId);
+      setSelectedRoomType(stored.selectedRoomType);
+      setRoomId(stored.roomId || UNASSIGNED);
+      setRatePlanId(stored.ratePlanId);
+      setRatePreference(stored.ratePreference);
+      setSearchRoomTypeFilter(stored.searchRoomTypeFilter);
+      setAvailabilitySearchCommitted(stored.availabilitySearchCommitted);
+      setQuoteCurrency(stored.quoteCurrency);
+      setSpecialRequests(stored.specialRequests);
+      setNotes(stored.notes);
+      setBookingSource(stored.bookingSource);
+      setSalesChannel(stored.salesChannel);
+      setMarketSegment(stored.marketSegment);
+      setExternalReference(stored.externalReference);
+      setPurposeOfStay(stored.purposeOfStay);
+      setRelationTab(stored.relationTab);
+      setCompanyMaster(stored.companyMaster);
+      setTravelAgentMaster(stored.travelAgentMaster);
+      setGroupMaster(stored.groupMaster);
+      setCompanyOverride(stored.companyOverride || Boolean(stored.companyMaster));
+      setTravelAgentOverride(stored.travelAgentOverride || Boolean(stored.travelAgentMaster));
+      setGroupOverride(stored.groupOverride || Boolean(stored.groupMaster));
+      setLinkedGroupId(stored.linkedGroupId);
+      setLinkedBlockId(stored.linkedBlockId);
+      setCompanyContactId(stored.companyContactId);
+      setTravelAgentContactId(stored.travelAgentContactId);
+      setBillingRuleId(stored.billingRuleId);
+      setPackageActivationIds(stored.packageActivationIds);
+      setSelectedServiceRequests(stored.selectedServiceRequests);
+      setGuaranteeMethod(stored.guaranteeMethod);
+      setStep4Policies((current) => ({
+        ...current,
+        depositReference: stored.depositReference,
+        depositPaymentMethod: stored.depositPaymentMethod,
+        depositDueDate: stored.depositDueDate,
+      }));
+      setDraftRestored(true);
+      setHoldCommercialDefaults(true);
+    }
+    setDraftReady(true);
+  }, [draftReady, membershipScope, restaurantId, today]);
+
+  useEffect(() => {
+    if (!membershipScope || !draftReady || draftClosed.current || createdView) return;
+    if (draftMeaningful) writeCreateReservationDraft(restaurantId, membershipScope, draftSnapshot);
+    else clearCreateReservationDraft(restaurantId, membershipScope);
+  }, [createdView, draftMeaningful, draftReady, draftSnapshot, membershipScope, restaurantId]);
+
+  useEffect(() => {
+    if (
+      !shouldDropMissingRoomType({
+        roomTypeId,
+        searchSettled:
+          availabilitySearchActive &&
+          !availabilityQuery.isLoading &&
+          !availabilityQuery.isFetching &&
+          !availabilityQuery.isError,
+        availableRoomTypeIds: (availabilityQuery.data ?? []).map((row) => row.roomTypeId),
+      })
+    ) {
+      return;
+    }
+    setRoomTypeId("");
+    setSelectedRoomType(null);
+    setRatePlanId("");
+    setRoomId(UNASSIGNED);
+  }, [
+    availabilityQuery.data,
+    availabilityQuery.isError,
+    availabilityQuery.isFetching,
+    availabilityQuery.isLoading,
+    availabilitySearchActive,
+    roomTypeId,
+  ]);
+
   if (accessQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (!canManage) {
     return (
@@ -1027,7 +1219,14 @@ export function CreateReservationPage({
         onOpenReservation={onOpenCreatedReservation}
         onReturnToDesk={onReturnToDesk}
         returnToLabel={returnToLabel}
-        onCreateAnother={embedded ? () => setCreatedView(null) : undefined}
+        onCreateAnother={
+          embedded
+            ? () => {
+                draftClosed.current = false;
+                setCreatedView(null);
+              }
+            : undefined
+        }
       />
     );
   }
@@ -1098,6 +1297,8 @@ export function CreateReservationPage({
     }) &&
     bookingSource.trim().length > 0 &&
     salesChannel.trim().length > 0;
+  const sourceChannelMissing =
+    bookingSource.trim().length === 0 || salesChannel.trim().length === 0;
   const canSubmit =
     occupancyOk &&
     canSubmitCreateReservation({
@@ -1246,6 +1447,19 @@ export function CreateReservationPage({
     setTravelAgentContactId("");
   }
 
+  function requestCancel() {
+    if (!onCancel) return;
+    if (draftMeaningful) setDiscardOpen(true);
+    else onCancel();
+  }
+
+  function confirmDiscard() {
+    draftClosed.current = true;
+    if (membershipScope) clearCreateReservationDraft(restaurantId, membershipScope);
+    setDiscardOpen(false);
+    onCancel?.();
+  }
+
   const actions = (
     <div className="flex flex-wrap items-center gap-3" data-testid="create-reservation-actions">
       <div className="flex flex-wrap items-center gap-3" data-testid="create-as-status">
@@ -1276,7 +1490,7 @@ export function CreateReservationPage({
         </Button>
       </div>
       {embedded ? null : onCancel ? (
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={requestCancel}>
           Cancel
         </Button>
       ) : (
@@ -1400,10 +1614,11 @@ export function CreateReservationPage({
         <Button
           type="button"
           data-testid="check-availability"
-          className="h-9 !rounded-[6px] bg-[#C89933] px-3 text-sm font-medium text-[#251605] !shadow-none hover:bg-[#B98B2D]"
+          className="h-9 !rounded-[6px] bg-[#C89933] px-3 text-sm font-medium text-[#251605] !shadow-none hover:bg-[#B98B2D] focus-visible:ring-2 focus-visible:ring-[#C89933] focus-visible:ring-offset-2"
           disabled={!datesValid}
           onClick={commitAvailabilitySearch}
         >
+          <Search className="size-4" aria-hidden />
           Check Availability
         </Button>
       }
@@ -1523,20 +1738,39 @@ export function CreateReservationPage({
           onCardExpiryChange={(value) =>
             setStep4Policies((current) => ({ ...current, cardExpiry: value }))
           }
+          depositReference={step4Policies.depositReference}
+          depositPaymentMethod={step4Policies.depositPaymentMethod}
+          depositDueDate={step4Policies.depositDueDate}
+          onDepositReferenceChange={(value) =>
+            setStep4Policies((current) => ({ ...current, depositReference: value }))
+          }
+          onDepositPaymentMethodChange={(value) =>
+            setStep4Policies((current) => ({ ...current, depositPaymentMethod: value }))
+          }
+          onDepositDueDateChange={(value) =>
+            setStep4Policies((current) => ({ ...current, depositDueDate: value }))
+          }
         />
       }
-      policies={step4Policies}
-      onPoliciesChange={(patch) => setStep4Policies((current) => ({ ...current, ...patch }))}
-      notes={notes}
-      onNotesChange={setNotes}
       money={money}
-      hotelCancelSummary={formatQuotedPolicySummary(
-        selectedQuote?.cancellationLabel,
-        selectedQuote?.refundabilityLabel,
+      cancellationName={selectedQuote?.plan.cancellationName}
+      cancellationDetail={selectedQuote?.cancellationLabel}
+      refundabilityLabel={selectedQuote?.refundabilityLabel}
+      refundabilityKind={selectedQuote?.refundabilityKind ?? null}
+      refundabilityNonRefundable={quotedNonRefundable(selectedQuote?.refundabilityKind)}
+      ratePlanDepositPolicy={ratePlanDepositPolicy}
+      ratePlanDepositLabel={selectedQuote?.depositPolicyName?.trim() || null}
+      ratePlanNoShowLabel={selectedQuote?.noShowPolicyName?.trim() || null}
+      ratePlanNoShowPenalty={noShowPenaltySummary(
+        selectedQuote?.noShowPenaltyType,
+        selectedQuote?.noShowPenaltyValue,
+        selectedQuote?.quote?.currency || selectedQuote?.plan.currency,
       )}
-      depositPaymentOptions={guaranteeOptions}
-      depositPolicies={depositPolicyOptions}
-      depositPolicyHint={depositPolicyHint}
+      ratePlanEarlyDepartureName={selectedQuote?.earlyDeparturePolicyName?.trim() || null}
+      ratePlanEarlyDeparturePenalty={earlyDeparturePenaltySummary(
+        selectedQuote?.earlyDeparturePenaltyType,
+        selectedQuote?.earlyDeparturePenaltyValue,
+      )}
       depositQuote={
         selectedQuote?.quote
           ? {
@@ -1546,7 +1780,6 @@ export function CreateReservationPage({
             }
           : null
       }
-      quotedNonRefundable={quotedNonRefundable(selectedQuote?.refundabilityKind)}
     />
   );
 
@@ -1572,7 +1805,8 @@ export function CreateReservationPage({
       infants={infants}
       purposeOfStay={purposeOfStay.trim() || null}
       coverUrl={catalogRow?.coverUrl ?? null}
-      roomName={stickyRoomTypeLabel(selectedMeta)}
+      roomName={selectedMeta?.name || stickyRoomTypeLabel(selectedMeta)}
+      roomCode={selectedMeta?.code || null}
       ratePlan={
         pricingState.kind === "priced"
           ? pricingState.quote.ratePlanName || pricingState.quote.ratePlanCode
@@ -1584,8 +1818,14 @@ export function CreateReservationPage({
           : "—"
       }
       stayTotal={pricingState.kind === "priced" ? money(pricingState.quote.subtotal) : "—"}
-      breakfastLabel={selectedQuote?.breakfastLabel ?? "—"}
+      includedItems={reviewIncludedItems([
+        selectedQuote?.breakfastLabel,
+        selectedQuote?.plan.mealPlanName,
+        selectedQuote?.includedServicesLabel,
+      ])}
       cancellationLabel={selectedQuote?.cancellationLabel ?? "—"}
+      refundabilityLabel={selectedQuote?.refundabilityLabel ?? null}
+      refundabilityKind={selectedQuote?.refundabilityKind ?? null}
       bookingSource={
         sourceOptions.find((row) => row.value === bookingSource)?.label ?? bookingSource
       }
@@ -1596,22 +1836,17 @@ export function CreateReservationPage({
         segmentOptions.find((row) => row.value === marketSegment)?.label ?? marketSegment
       }
       internalNotes={notes.trim() || null}
-      guaranteeRequired={guaranteeMethod.trim() ? "Yes" : "No"}
-      guaranteeType={
+      paymentType={
         guaranteeOptions.find((row) => row.value === guaranteeMethod)?.label ?? guaranteeMethod
       }
-      cardHolderName={step4Policies.cardHolderName.trim() || guest?.fullName || null}
-      cardNumber={step4Policies.cardNumber}
-      cardExpiry={step4Policies.cardExpiry.trim() || null}
-      guaranteeMethod={guaranteeMethod}
       depositRequired={
-        selectedDepositPolicy == null ? "—" : selectedDepositPolicy.required ? "Yes" : "No"
+        ratePlanDepositPolicy == null ? "—" : ratePlanDepositPolicy.required ? "Yes" : "No"
       }
       depositAmount={
-        selectedDepositPolicy
+        ratePlanDepositPolicy
           ? (() => {
               const amount = computeDepositRequirementAmount(
-                selectedDepositPolicy,
+                ratePlanDepositPolicy,
                 selectedQuote?.quote
                   ? {
                       subtotal: selectedQuote.quote.subtotal,
@@ -1627,19 +1862,45 @@ export function CreateReservationPage({
       depositDueDate={step4Policies.depositDueDate.trim() || null}
       depositPaymentMethod={
         step4Policies.depositPaymentMethod === "same_as_guarantee"
-          ? "Same as Guarantee"
+          ? "Same as payment type"
           : (guaranteeOptions.find((row) => row.value === step4Policies.depositPaymentMethod)
               ?.label ?? step4Policies.depositPaymentMethod)
       }
-      noShowPolicy={stayPolicyLabel(step4Policies.noShowPolicy)}
-      earlyDeparturePolicy={stayPolicyLabel(step4Policies.earlyDeparturePolicy)}
+      depositReference={step4Policies.depositReference.trim() || null}
+      companyTerms={companyMaster?.paymentTerms ?? null}
+      travelAgentTerms={travelAgentMaster?.paymentTerms ?? null}
+      noShowPolicy={selectedQuote?.noShowPolicyName?.trim() || ""}
+      noShowPenalty={noShowPenaltySummary(
+        selectedQuote?.noShowPenaltyType,
+        selectedQuote?.noShowPenaltyValue,
+        selectedQuote?.quote?.currency || selectedQuote?.plan.currency,
+      )}
+      earlyDeparturePolicy={earlyDepartureReviewLabel({
+        name: selectedQuote?.earlyDeparturePolicyName,
+        penaltyType: selectedQuote?.earlyDeparturePenaltyType,
+        penaltyValue: selectedQuote?.earlyDeparturePenaltyValue,
+        description: selectedQuote?.earlyDepartureDescription,
+      })}
       specialRequests={specialRequests.trim() || null}
-      ackInformed={step4Policies.ackInformed}
-      ackConsent={step4Policies.ackConsent}
-      ackNonRefundable={step4Policies.ackNonRefundable}
-      ackSpecialTerms={step4Policies.ackSpecialTerms}
-      quotedNonRefundable={quotedNonRefundable(selectedQuote?.refundabilityKind)}
-      onAckChange={(patch) => setStep4Policies((current) => ({ ...current, ...patch }))}
+      roomAssignment={
+        roomId !== UNASSIGNED && selectedAssignedRoom
+          ? stickyRoomAssignmentLabel({
+              roomTypeId,
+              roomId,
+              unassignedValue: UNASSIGNED,
+              room: selectedAssignedRoom,
+            })
+          : null
+      }
+      propertyName={membership.restaurant.name}
+      propertyAddress={formatPropertyContactAddress([
+        membership.restaurant.address,
+        membership.restaurant.city,
+        membership.restaurant.postcode,
+        membership.restaurant.country,
+      ])}
+      propertyPhone={membership.restaurant.phone}
+      propertyEmail={membership.restaurant.email}
       onEdit={setWorkflowStep}
       savedPreferences={savedPreferenceRows}
       selectedServiceRequests={selectedServiceRequests}
@@ -1666,51 +1927,53 @@ export function CreateReservationPage({
         className="min-w-0 space-y-3"
         data-testid="create-reservation-step-guest-stay-availability"
       >
-        <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1.3fr)]">
+        <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1.3fr)]">
           <CreateReservationGuestSearch />
           <CreateReservationGuestSelected />
           <div className="h-full min-w-0 md:col-span-2 lg:col-span-1">{staySection}</div>
         </div>
-        <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="min-w-0 space-y-3">
-            {roomsAndRates}
-            {availabilitySearchActive && availability.length === 0 ? (
-              <CreateReservationRate
-                datesValid={datesValid}
-                roomTypeId={roomTypeId}
-                loading={quotesQuery.isLoading || quotesQuery.isFetching}
-                error={quotesQuery.isError}
-                quotes={quotes}
-                ratePlanId={ratePlanId}
-                canCreateUnpriced={canCreateUnpriced}
-                money={money}
-                nights={nights}
-                onSelect={setRatePlanId}
-              />
-            ) : null}
-            {noSuitableAvailability ? <CreateReservationAlternatives /> : null}
+        {availabilitySearchCommitted != null ? (
+          <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="min-w-0 space-y-3">
+              {roomsAndRates}
+              {availabilitySearchActive && availability.length === 0 ? (
+                <CreateReservationRate
+                  datesValid={datesValid}
+                  roomTypeId={roomTypeId}
+                  loading={quotesQuery.isLoading || quotesQuery.isFetching}
+                  error={quotesQuery.isError}
+                  quotes={quotes}
+                  ratePlanId={ratePlanId}
+                  canCreateUnpriced={canCreateUnpriced}
+                  money={money}
+                  nights={nights}
+                  onSelect={setRatePlanId}
+                />
+              ) : null}
+              {noSuitableAvailability ? <CreateReservationAlternatives /> : null}
+            </div>
+            <CreateReservationSelectedRoom
+              selectedRoomType={selectedMeta}
+              available={selectedType?.available ?? null}
+              coverUrl={catalogRow?.coverUrl ?? selectedType?.coverUrl ?? null}
+              catalog={catalogRow}
+              selectedQuote={selectedQuote}
+              nights={nights}
+              money={money}
+              statusMessage={
+                availabilitySearchCommitted != null && !availabilitySearchActive
+                  ? CREATE_RESERVATION_AVAILABILITY_STALE
+                  : null
+              }
+              onChange={() => {
+                document.getElementById("create-reservation-availability")?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "nearest",
+                });
+              }}
+            />
           </div>
-          <CreateReservationSelectedRoom
-            selectedRoomType={selectedMeta}
-            available={selectedType?.available ?? null}
-            coverUrl={catalogRow?.coverUrl ?? selectedType?.coverUrl ?? null}
-            catalog={catalogRow}
-            selectedQuote={selectedQuote}
-            nights={nights}
-            money={money}
-            statusMessage={
-              availabilitySearchCommitted != null && !availabilitySearchActive
-                ? CREATE_RESERVATION_AVAILABILITY_STALE
-                : null
-            }
-            onChange={() => {
-              document.getElementById("create-reservation-availability")?.scrollIntoView({
-                behavior: "smooth",
-                block: "nearest",
-              });
-            }}
-          />
-        </div>
+        ) : null}
       </div>
     </CreateReservationGuest>
   );
@@ -1765,7 +2028,7 @@ export function CreateReservationPage({
         roomAssignment={
           <CreateReservationRoomAssignment
             compact
-            title="Room assignment (optional)"
+            title="Room Assignment (Optional)"
             emptyCopy="No free rooms of this type for those dates — the stay can still be booked and assigned later."
             datesValid={datesValid}
             roomTypeId={roomTypeId}
@@ -1811,6 +2074,10 @@ export function CreateReservationPage({
             }
           />
         }
+        relationTab={relationTab}
+        onRelationTabChange={setRelationTab}
+        holdCommercialDefaults={holdCommercialDefaults}
+        onCommercialDefaultsHeld={() => setHoldCommercialDefaults(false)}
       />
     </div>
   );
@@ -1839,6 +2106,23 @@ export function CreateReservationPage({
     </AlertDialog>
   );
 
+  const discardWarn = (
+    <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+      <AlertDialogContent className="z-[70]" data-testid="discard-reservation-draft">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Discard this reservation draft?</AlertDialogTitle>
+          <AlertDialogDescription>
+            The in-progress reservation will be cleared. Closing the window keeps the draft.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep editing</AlertDialogCancel>
+          <AlertDialogAction onClick={confirmDiscard}>Discard draft</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   return (
     <div className={cn(embedded ? "flex min-h-0 flex-1 flex-col" : "flex flex-col gap-4 p-4")}>
       {!embedded ? (
@@ -1855,6 +2139,11 @@ export function CreateReservationPage({
         current={workflowStep}
         onSelect={setWorkflowStep}
       />
+      {draftRestored ? (
+        <p className="px-4 pt-3 text-xs text-[#6B5E4E]" data-testid="reservation-draft-restored">
+          Reservation draft restored
+        </p>
+      ) : null}
       <div
         className={cn("min-w-0", embedded && "min-h-0 flex-1 overflow-y-auto p-4")}
         data-testid="create-reservation-workspace"
@@ -1869,7 +2158,7 @@ export function CreateReservationPage({
       >
         <div className="flex flex-wrap gap-2">
           {onCancel ? (
-            <Button type="button" variant="outline" onClick={onCancel}>
+            <Button type="button" variant="outline" onClick={requestCancel}>
               Cancel
             </Button>
           ) : !embedded ? (
@@ -1888,21 +2177,29 @@ export function CreateReservationPage({
           ) : null}
         </div>
         {workflowStep < CREATE_WORKFLOW_STEPS.length - 1 ? (
-          <Button
-            className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-            disabled={
-              (workflowStep === 0 && !canContinueGuestStayAvailability) ||
-              (workflowStep === 1 && !canContinueBookingDetails)
-            }
-            onClick={() => setWorkflowStep((step) => step + 1)}
-          >
-            {currentStep.continueLabel} →
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {workflowStep === 1 && !canContinueBookingDetails && sourceChannelMissing ? (
+              <p className="text-xs text-[#9B3A3A]" data-testid="source-channel-required">
+                Source and Channel are required to continue.
+              </p>
+            ) : null}
+            <Button
+              className="!rounded-[6px] bg-[#C89933] text-[#251605] !shadow-none hover:bg-[#B98B2D] focus-visible:ring-2 focus-visible:ring-[#C89933] focus-visible:ring-offset-2"
+              disabled={
+                (workflowStep === 0 && !canContinueGuestStayAvailability) ||
+                (workflowStep === 1 && !canContinueBookingDetails)
+              }
+              onClick={() => setWorkflowStep((step) => step + 1)}
+            >
+              {currentStep.continueLabel} →
+            </Button>
+          </div>
         ) : (
           actions
         )}
       </div>
       {typeWarn}
+      {discardWarn}
     </div>
   );
 }
@@ -1933,7 +2230,7 @@ function CreateWorkflowStepper({
                 type="button"
                 onClick={() => onSelect(index)}
                 className={cn(
-                  "flex items-center gap-2 rounded-full px-2 py-1 text-sm",
+                  "flex items-center gap-2 rounded-full px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933] focus-visible:ring-offset-2",
                   active ? "font-medium text-[#251605]" : "text-muted-foreground",
                 )}
               >

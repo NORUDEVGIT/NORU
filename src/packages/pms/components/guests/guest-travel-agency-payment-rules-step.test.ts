@@ -340,7 +340,8 @@ describe("Travel Agency Step 4 — Payment, Credit & Reservation Rules", () => {
       assert.equal(patch.credit_days, 45);
       assert.equal(patch.credit_status, "approved");
       assert.equal(patch.default_deposit_policy_id, "dp-11111111-1111-4111-8111-111111111111");
-      assert.equal(patch.default_cancellation_policy_id, "cp-11111111-1111-4111-8111-111111111111");
+      assert.equal(patch.rate_cancellation_policy_id, "cp-11111111-1111-4111-8111-111111111111");
+      assert.equal(patch.default_cancellation_policy_id, undefined);
       assert.equal(patch.default_no_show_policy_id, "nsp-11111111-1111-4111-8111-111111111111");
       assert.equal(patch.booking_notes, "VIP client group with high volume");
       assert.equal(patch.payment_terms, "Net 45 Days");

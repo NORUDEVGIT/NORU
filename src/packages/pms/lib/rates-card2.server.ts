@@ -100,6 +100,13 @@ export type RateRefundabilityRow = {
   active: boolean;
 };
 
+export type Card2DepositPolicyRef = {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+};
+
 export type RatePlanRow = {
   id: string;
   code: string;
@@ -122,6 +129,12 @@ export type RatePlanRow = {
   refundabilityId: string | null;
   refundabilityName: string;
   refundabilityKind: RateRefundabilityKind | null;
+  depositPolicyId: string | null;
+  depositPolicyName: string;
+  noShowPolicyId: string | null;
+  noShowPolicyName: string;
+  earlyDeparturePolicyId: string | null;
+  earlyDeparturePolicyName: string;
   active: boolean;
 };
 
@@ -131,6 +144,17 @@ export {
   buildNoShowPolicyPreview,
   type PolicyPenaltyType,
 } from "./corporate-contracts.server";
+import type { EarlyDeparturePenaltyType } from "./early-departure-policy";
+
+export type RateEarlyDeparturePolicyRow = {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  penaltyType: EarlyDeparturePenaltyType;
+  penaltyValue: number;
+  active: boolean;
+};
 
 export type RateNoShowPolicyRow = {
   id: string;
@@ -150,7 +174,9 @@ export type RatesCard2Snapshot = {
   mealPlans: Card2MealPlanRef[];
   cancellationPolicies: RateCancellationPolicyRow[];
   refundabilityCodes: RateRefundabilityRow[];
+  depositPolicies: Card2DepositPolicyRef[];
   noShowPolicies: RateNoShowPolicyRow[];
+  earlyDeparturePolicies: RateEarlyDeparturePolicyRow[];
   plans: RatePlanRow[];
   currencyCode?: string;
 };

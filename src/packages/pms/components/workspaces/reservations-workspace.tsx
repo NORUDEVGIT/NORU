@@ -405,8 +405,7 @@ export function ReservationsWorkspace({
   });
 
   const selectedRow = useMemo(() => {
-    const fromDesk =
-      deskQuery.data?.rows.find((row) => row.reservationId === selectedId) ?? null;
+    const fromDesk = deskQuery.data?.rows.find((row) => row.reservationId === selectedId) ?? null;
     if (fromDesk) return fromDesk;
     if (calendarRow?.reservationId === selectedId) return calendarRow;
     return null;
@@ -427,7 +426,9 @@ export function ReservationsWorkspace({
     void queryClient.invalidateQueries({ queryKey: ["reservation-quick-view", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["reservation", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["reservation-calendar", restaurantId] });
-    void queryClient.invalidateQueries({ queryKey: ["reservation-calendar-exceptions", restaurantId] });
+    void queryClient.invalidateQueries({
+      queryKey: ["reservation-calendar-exceptions", restaurantId],
+    });
   }
 
   const statusMutation = useMutation({
@@ -449,8 +450,7 @@ export function ReservationsWorkspace({
   });
 
   const copyMutation = useMutation({
-    mutationFn: (reservationId: string) =>
-      submitCopy({ data: { restaurantId, reservationId } }),
+    mutationFn: (reservationId: string) => submitCopy({ data: { restaurantId, reservationId } }),
     onSuccess: (result) => {
       toast.success(`Copied as ${result.confirmationNumber}.`);
       invalidateReservationReads();
@@ -637,7 +637,7 @@ export function ReservationsWorkspace({
                       ? "Arrivals & Departures"
                       : workspaceSection === "exceptions"
                         ? "Exceptions"
-                      : "Reservation Desk"}
+                        : "Reservation Desk"}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {workspaceSection === "calendar"
@@ -650,7 +650,7 @@ export function ReservationsWorkspace({
                       ? "Manage today’s arrivals and departures, room readiness, expected arrival times, and same-day late checkout."
                       : workspaceSection === "exceptions"
                         ? "Inspect derived reservation exceptions and route them to Front Office, inventory, housekeeping, cashiering or guest profile."
-                      : "Manage reservations, availability, and daily reservation operations across your property."}
+                        : "Manage reservations, availability, and daily reservation operations across your property."}
             </p>
           </div>
           <nav
@@ -671,7 +671,7 @@ export function ReservationsWorkspace({
                           ? section === "Arrivals & Departures"
                           : workspaceSection === "exceptions"
                             ? section === "Exceptions"
-                          : section === "Reservation Desk"
+                            : section === "Reservation Desk"
                 }
                 disabled={!isCalendarSectionEnabled(section, index)}
                 onClick={() => {
@@ -679,7 +679,8 @@ export function ReservationsWorkspace({
                   if (section === "Reservation Desk") goWorkspaceSection("desk");
                   if (section === "Groups & Blocks") goWorkspaceSection("groups");
                   if (section === "Waitlist") goWorkspaceSection("waitlist");
-                  if (section === "Arrivals & Departures") goWorkspaceSection("arrivals-departures");
+                  if (section === "Arrivals & Departures")
+                    goWorkspaceSection("arrivals-departures");
                   if (section === "Exceptions") goWorkspaceSection("exceptions");
                 }}
               >
@@ -694,429 +695,439 @@ export function ReservationsWorkspace({
           workspaceSection === "waitlist" ||
           workspaceSection === "arrivals-departures" ||
           workspaceSection === "exceptions" ? null : (
-          <section
-            className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6"
-            aria-label="Reservation KPIs"
-          >
-            <KpiCard
-              label="Total Reservations"
-              value={total}
-              hint="All reservations"
-              loading={isInitialLoading}
-              icon={<ClipboardList className="size-4" />}
-              tone="bg-[#F4E9D0] text-[#8A641A]"
-            />
-            <KpiCard
-              label="Arrivals Today"
-              value={kpis?.arrivalsToday ?? 0}
-              loading={isInitialLoading}
-              icon={<LogIn className="size-4" />}
-              tone="bg-emerald-50 text-emerald-700"
-            />
-            <KpiCard
-              label="Departures Today"
-              value={kpis?.departuresToday ?? 0}
-              loading={isInitialLoading}
-              icon={<LogOut className="size-4" />}
-              tone="bg-rose-50 text-rose-700"
-            />
-            <KpiCard
-              label="In-House"
-              value={kpis?.inHouse ?? 0}
-              loading={isInitialLoading}
-              icon={<House className="size-4" />}
-              tone="bg-blue-50 text-blue-700"
-            />
-            <KpiCard
-              label="Unassigned"
-              value={kpis?.unassigned ?? 0}
-              loading={isInitialLoading}
-              icon={<TriangleAlert className="size-4" />}
-              tone="bg-amber-50 text-amber-700"
-            />
-            <KpiCard
-              label="Available Rooms"
-              value={kpis?.availableRooms ?? 0}
-              hint="Physical vacant rooms"
-              loading={isInitialLoading}
-              icon={<DoorOpen className="size-4" />}
-              tone="bg-indigo-50 text-indigo-700"
-            />
-          </section>
+            <section
+              className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6"
+              aria-label="Reservation KPIs"
+            >
+              <KpiCard
+                label="Total Reservations"
+                value={total}
+                hint="All reservations"
+                loading={isInitialLoading}
+                icon={<ClipboardList className="size-4" />}
+                tone="bg-[#F4E9D0] text-[#8A641A]"
+              />
+              <KpiCard
+                label="Arrivals Today"
+                value={kpis?.arrivalsToday ?? 0}
+                loading={isInitialLoading}
+                icon={<LogIn className="size-4" />}
+                tone="bg-emerald-50 text-emerald-700"
+              />
+              <KpiCard
+                label="Departures Today"
+                value={kpis?.departuresToday ?? 0}
+                loading={isInitialLoading}
+                icon={<LogOut className="size-4" />}
+                tone="bg-rose-50 text-rose-700"
+              />
+              <KpiCard
+                label="In-House"
+                value={kpis?.inHouse ?? 0}
+                loading={isInitialLoading}
+                icon={<House className="size-4" />}
+                tone="bg-blue-50 text-blue-700"
+              />
+              <KpiCard
+                label="Unassigned"
+                value={kpis?.unassigned ?? 0}
+                loading={isInitialLoading}
+                icon={<TriangleAlert className="size-4" />}
+                tone="bg-amber-50 text-amber-700"
+              />
+              <KpiCard
+                label="Available Rooms"
+                value={kpis?.availableRooms ?? 0}
+                hint="Physical vacant rooms"
+                loading={isInitialLoading}
+                icon={<DoorOpen className="size-4" />}
+                tone="bg-indigo-50 text-indigo-700"
+              />
+            </section>
           )}
 
           {workspaceSection === "desk" ? (
-          <>
-          <section className="w-full min-w-0 rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-            <div className="flex min-w-0 flex-wrap items-end gap-3">
-              <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-                Arrival From
-                <Input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(event) => {
-                    setDateFrom(event.target.value);
-                    resetPage();
-                  }}
-                  className="h-9 w-40"
-                />
-              </label>
-              <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-                Arrival To
-                <Input
-                  type="date"
-                  value={dateTo}
-                  onChange={(event) => {
-                    setDateTo(event.target.value);
-                    resetPage();
-                  }}
-                  className="h-9 w-40"
-                />
-              </label>
-              <FilterSelect
-                label="Status"
-                value={status}
-                onValueChange={(value) => {
-                  setStatus(value as StatusFilter);
-                  resetPage();
-                }}
-                options={[
-                  ["all", "All statuses"],
-                  ["pending", "Pending"],
-                  ["confirmed", "Confirmed"],
-                  ["checked_in", "Checked In"],
-                  ["checked_out", "Checked Out"],
-                  ["cancelled", "Cancelled"],
-                  ["no_show", "No Show"],
-                ]}
-              />
-              <FilterSelect
-                label="Room Type"
-                value={roomTypeId}
-                onValueChange={(value) => {
-                  setRoomTypeId(value);
-                  setRoomTypeName(
-                    (roomTypesQuery.data ?? []).find((roomType) => roomType.id === value)?.name ??
-                      "",
-                  );
-                  resetPage();
-                }}
-                options={[
-                  ["all", "All room types"],
-                  ...(roomTypesQuery.data ?? []).map(
-                    (roomType) => [roomType.id, roomType.name] as [string, string],
-                  ),
-                ]}
-              />
-              <FilterSelect
-                label="Source"
-                value={source}
-                onValueChange={(value) => {
-                  setSource(value as SourceFilter);
-                  resetPage();
-                }}
-                options={[
-                  ["all", "All sources"],
-                  ["staff", "Staff"],
-                  ["walk_in", "Walk-in"],
-                  ["direct_booking", "Direct booking"],
-                  ["future_online", "Future online"],
-                ]}
-              />
-              <label className="grid min-w-52 flex-1 gap-1 text-[11px] font-medium text-muted-foreground">
-                Search
-                <span className="relative">
-                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={search}
-                    onChange={(event) => {
-                      setSearch(event.target.value);
-                    }}
-                    className="h-9 pl-9"
-                    placeholder="Confirmation, guest, phone, email or room"
-                    aria-label="Search reservations"
-                  />
-                </span>
-              </label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setMoreFiltersOpen(true)}
-                data-testid="reservation-desk-more-filters-button"
-              >
-                <SlidersHorizontal className="size-4" />
-                More Filters
-                {countActiveAdvancedFilters(advanced) > 0 ? (
-                  <span className="ml-1 inline-flex min-w-5 justify-center rounded-full bg-[#C89933] px-1.5 text-[11px] font-semibold text-[#251605]">
-                    {countActiveAdvancedFilters(advanced)}
-                  </span>
-                ) : null}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                Clear
-              </Button>
-              <Button
-                className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-                onClick={() => {
-                  setCreateGroupLink(null);
-                  setOverlay({ type: "new-reservation" });
-                }}
-              >
-                <CalendarPlus className="size-4" />
-                New Reservation
-              </Button>
-            </div>
-            {arrivalError ? <p className="mt-2 text-xs text-destructive">{arrivalError}</p> : null}
-            {deskFilterChips(bar, advanced).length > 0 ? (
-              <ul className="mt-3 flex flex-wrap gap-2" data-testid="reservation-desk-filter-chips">
-                {deskFilterChips(bar, advanced).map((chip) => (
-                  <li key={chip.id}>
-                    <button
-                      type="button"
-                      aria-label={chip.removeLabel}
-                      className="inline-flex items-center gap-1 rounded-full border border-[#DDD4C5] bg-[#F7F4EE] px-2.5 py-1 text-xs text-[#251605]"
-                      onClick={() => {
-                        const next = removeDeskFilterChip(chip.id, bar, advanced);
-                        setDateFrom(next.bar.arrivalFrom);
-                        setDateTo(next.bar.arrivalTo);
-                        setStatus(next.bar.status);
-                        setRoomTypeId(next.bar.roomTypeId);
-                        setRoomTypeName(next.bar.roomTypeName);
-                        setSource(next.bar.source);
-                        setAdvanced(next.advanced);
+            <>
+              <section className="w-full min-w-0 rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
+                <div className="flex min-w-0 flex-wrap items-end gap-3">
+                  <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+                    Arrival From
+                    <Input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(event) => {
+                        setDateFrom(event.target.value);
                         resetPage();
                       }}
-                    >
-                      {chip.label}
-                      <X className="size-3" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </section>
-
-          <div
-            className={cn(
-              "grid w-full min-w-0 gap-4",
-              viewsCollapsed
-                ? quickViewCollapsed
-                  ? "xl:grid-cols-[56px_minmax(0,1fr)_56px]"
-                  : "xl:grid-cols-[56px_minmax(0,1fr)_300px]"
-                : quickViewCollapsed
-                  ? "xl:grid-cols-[180px_minmax(0,1fr)_56px]"
-                  : "xl:grid-cols-[180px_minmax(0,1fr)_300px]",
-            )}
-          >
-            <OperationalViewsRail
-              collapsed={viewsCollapsed}
-              onToggle={() => setViewsCollapsed((current) => !current)}
-              view={view}
-              snapshot={snapshot}
-              onSelect={selectView}
-            />
-
-            <section className="min-w-0 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
-              <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-border px-3">
-                <div className="flex items-center gap-1">
-                  <ModeButton
-                    active={workspaceSection === "desk"}
-                    icon={<List className="size-3.5" />}
-                    onClick={() => goWorkspaceSection("desk")}
+                      className="h-9 w-40"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
+                    Arrival To
+                    <Input
+                      type="date"
+                      value={dateTo}
+                      onChange={(event) => {
+                        setDateTo(event.target.value);
+                        resetPage();
+                      }}
+                      className="h-9 w-40"
+                    />
+                  </label>
+                  <FilterSelect
+                    label="Status"
+                    value={status}
+                    onValueChange={(value) => {
+                      setStatus(value as StatusFilter);
+                      resetPage();
+                    }}
+                    options={[
+                      ["all", "All statuses"],
+                      ["pending", "Pending"],
+                      ["confirmed", "Confirmed"],
+                      ["checked_in", "Checked In"],
+                      ["checked_out", "Checked Out"],
+                      ["cancelled", "Cancelled"],
+                      ["no_show", "No Show"],
+                    ]}
+                  />
+                  <FilterSelect
+                    label="Room Type"
+                    value={roomTypeId}
+                    onValueChange={(value) => {
+                      setRoomTypeId(value);
+                      setRoomTypeName(
+                        (roomTypesQuery.data ?? []).find((roomType) => roomType.id === value)
+                          ?.name ?? "",
+                      );
+                      resetPage();
+                    }}
+                    options={[
+                      ["all", "All room types"],
+                      ...(roomTypesQuery.data ?? []).map(
+                        (roomType) => [roomType.id, roomType.name] as [string, string],
+                      ),
+                    ]}
+                  />
+                  <FilterSelect
+                    label="Source"
+                    value={source}
+                    onValueChange={(value) => {
+                      setSource(value as SourceFilter);
+                      resetPage();
+                    }}
+                    options={[
+                      ["all", "All sources"],
+                      ["staff", "Staff"],
+                      ["walk_in", "Walk-in"],
+                      ["direct_booking", "Direct booking"],
+                      ["future_online", "Future online"],
+                    ]}
+                  />
+                  <label className="grid min-w-52 flex-1 gap-1 text-[11px] font-medium text-muted-foreground">
+                    Search
+                    <span className="relative">
+                      <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={search}
+                        onChange={(event) => {
+                          setSearch(event.target.value);
+                        }}
+                        className="h-9 pl-9"
+                        placeholder="Confirmation, guest, phone, email or room"
+                        aria-label="Search reservations"
+                      />
+                    </span>
+                  </label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMoreFiltersOpen(true)}
+                    data-testid="reservation-desk-more-filters-button"
                   >
-                    Table
-                  </ModeButton>
-                  <ModeButton
-                    active={false}
-                    icon={<CalendarDays className="size-3.5" />}
-                    onClick={() => goWorkspaceSection("calendar")}
-                  >
-                    Calendar
-                  </ModeButton>
-                  <ModeButton disabled icon={<SlidersHorizontal className="size-3.5" />}>
-                    Timeline
-                  </ModeButton>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Refresh reservations"
-                  onClick={() => void deskQuery.refetch()}
-                  disabled={deskQuery.isFetching}
-                >
-                  <RefreshCw className={cn("size-4", deskQuery.isFetching && "animate-spin")} />
-                </Button>
-              </div>
-              {deskQuery.isFetching && !isInitialLoading ? (
-                <p className="border-b border-border px-3 py-1 text-[11px] text-muted-foreground">
-                  Updating results…
-                </p>
-              ) : null}
-
-              {deskQuery.isError ? (
-                <InlineError
-                  message={
-                    deskQuery.error instanceof Error
-                      ? deskQuery.error.message
-                      : "Could not load the Reservation Desk."
-                  }
-                  onRetry={() => void deskQuery.refetch()}
-                />
-              ) : isInitialLoading ? (
-                <DeskTableSkeleton />
-              ) : snapshot?.rows.length === 0 ? (
-                <div className="grid min-h-72 place-items-center px-6 text-center">
-                  <div>
-                    <p className="font-medium text-foreground">
-                      {hasActiveDeskConstraints(search, bar, advanced)
-                        ? "No reservations match these filters"
-                        : "No reservations in this view"}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {hasActiveDeskConstraints(search, bar, advanced)
-                        ? "Try adjusting your dates, status, room, or advanced filters."
-                        : "Adjust the filters or clear the search to continue."}
-                    </p>
-                    {hasActiveDeskConstraints(search, bar, advanced) ? (
-                      <Button variant="outline" size="sm" className="mt-4" onClick={clearFilters}>
-                        Clear Filters
-                      </Button>
+                    <SlidersHorizontal className="size-4" />
+                    More Filters
+                    {countActiveAdvancedFilters(advanced) > 0 ? (
+                      <span className="ml-1 inline-flex min-w-5 justify-center rounded-full bg-[#C89933] px-1.5 text-[11px] font-semibold text-[#251605]">
+                        {countActiveAdvancedFilters(advanced)}
+                      </span>
                     ) : null}
-                  </div>
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    Clear
+                  </Button>
+                  <Button
+                    className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                    onClick={() => {
+                      setCreateGroupLink(null);
+                      setOverlay({ type: "new-reservation" });
+                    }}
+                  >
+                    <CalendarPlus className="size-4" />
+                    New Reservation
+                  </Button>
                 </div>
-              ) : (
-                <ReservationTable
-                  rows={snapshot?.rows ?? []}
-                  selectedId={selectedId}
+                {arrivalError ? (
+                  <p className="mt-2 text-xs text-destructive">{arrivalError}</p>
+                ) : null}
+                {deskFilterChips(bar, advanced).length > 0 ? (
+                  <ul
+                    className="mt-3 flex flex-wrap gap-2"
+                    data-testid="reservation-desk-filter-chips"
+                  >
+                    {deskFilterChips(bar, advanced).map((chip) => (
+                      <li key={chip.id}>
+                        <button
+                          type="button"
+                          aria-label={chip.removeLabel}
+                          className="inline-flex items-center gap-1 rounded-full border border-[#DDD4C5] bg-[#F7F4EE] px-2.5 py-1 text-xs text-[#251605]"
+                          onClick={() => {
+                            const next = removeDeskFilterChip(chip.id, bar, advanced);
+                            setDateFrom(next.bar.arrivalFrom);
+                            setDateTo(next.bar.arrivalTo);
+                            setStatus(next.bar.status);
+                            setRoomTypeId(next.bar.roomTypeId);
+                            setRoomTypeName(next.bar.roomTypeName);
+                            setSource(next.bar.source);
+                            setAdvanced(next.advanced);
+                            resetPage();
+                          }}
+                        >
+                          {chip.label}
+                          <X className="size-3" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </section>
+
+              <div
+                className={cn(
+                  "grid w-full min-w-0 gap-4",
+                  viewsCollapsed
+                    ? quickViewCollapsed
+                      ? "xl:grid-cols-[56px_minmax(0,1fr)_56px]"
+                      : "xl:grid-cols-[56px_minmax(0,1fr)_300px]"
+                    : quickViewCollapsed
+                      ? "xl:grid-cols-[180px_minmax(0,1fr)_56px]"
+                      : "xl:grid-cols-[180px_minmax(0,1fr)_300px]",
+                )}
+              >
+                <OperationalViewsRail
+                  collapsed={viewsCollapsed}
+                  onToggle={() => setViewsCollapsed((current) => !current)}
+                  view={view}
+                  snapshot={snapshot}
+                  onSelect={selectView}
+                />
+
+                <section className="min-w-0 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
+                  <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-border px-3">
+                    <div className="flex items-center gap-1">
+                      <ModeButton
+                        active={workspaceSection === "desk"}
+                        icon={<List className="size-3.5" />}
+                        onClick={() => goWorkspaceSection("desk")}
+                      >
+                        Table
+                      </ModeButton>
+                      <ModeButton
+                        active={false}
+                        icon={<CalendarDays className="size-3.5" />}
+                        onClick={() => goWorkspaceSection("calendar")}
+                      >
+                        Calendar
+                      </ModeButton>
+                      <ModeButton disabled icon={<SlidersHorizontal className="size-3.5" />}>
+                        Timeline
+                      </ModeButton>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Refresh reservations"
+                      onClick={() => void deskQuery.refetch()}
+                      disabled={deskQuery.isFetching}
+                    >
+                      <RefreshCw className={cn("size-4", deskQuery.isFetching && "animate-spin")} />
+                    </Button>
+                  </div>
+                  {deskQuery.isFetching && !isInitialLoading ? (
+                    <p className="border-b border-border px-3 py-1 text-[11px] text-muted-foreground">
+                      Updating results…
+                    </p>
+                  ) : null}
+
+                  {deskQuery.isError ? (
+                    <InlineError
+                      message={
+                        deskQuery.error instanceof Error
+                          ? deskQuery.error.message
+                          : "Could not load the Reservation Desk."
+                      }
+                      onRetry={() => void deskQuery.refetch()}
+                    />
+                  ) : isInitialLoading ? (
+                    <DeskTableSkeleton />
+                  ) : snapshot?.rows.length === 0 ? (
+                    <div className="grid min-h-72 place-items-center px-6 text-center">
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {hasActiveDeskConstraints(search, bar, advanced)
+                            ? "No reservations match these filters"
+                            : "No reservations in this view"}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {hasActiveDeskConstraints(search, bar, advanced)
+                            ? "Try adjusting your dates, status, room, or advanced filters."
+                            : "Adjust the filters or clear the search to continue."}
+                        </p>
+                        {hasActiveDeskConstraints(search, bar, advanced) ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-4"
+                            onClick={clearFilters}
+                          >
+                            Clear Filters
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <ReservationTable
+                      rows={snapshot?.rows ?? []}
+                      selectedId={selectedId}
+                      businessDate={snapshot?.businessDate ?? ""}
+                      canManage={canManageActions}
+                      onSelect={selectRow}
+                      onOpen={openReservation}
+                      onAction={handleReservationAction}
+                    />
+                  )}
+
+                  <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
+                    <p className="text-xs text-muted-foreground">
+                      Page {snapshot?.query.page ?? page} of {pages} · {total} total · {PAGE_SIZE}{" "}
+                      per page
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={page <= 1 || deskQuery.isFetching}
+                        onClick={() => setPage((current) => Math.max(1, current - 1))}
+                      >
+                        <ChevronLeft className="size-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!snapshot?.query.hasMore || deskQuery.isFetching}
+                        onClick={() => setPage((current) => current + 1)}
+                      >
+                        Next
+                        <ChevronRight className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </section>
+
+                <aside className="hidden min-w-0 xl:block">
+                  <QuickViewRail
+                    collapsed={quickViewCollapsed}
+                    onToggle={() => setQuickViewCollapsed((current) => !current)}
+                    row={selectedRow}
+                    loading={quickViewQuery.isLoading}
+                    error={quickViewQuery.isError}
+                    quickView={quickViewQuery.data}
+                    onRetry={() => void quickViewQuery.refetch()}
+                    businessDate={snapshot?.businessDate ?? ""}
+                    canManage={canManageActions}
+                    onAction={(actionId) => {
+                      if (selectedRow) {
+                        handleReservationAction(actionId, selectedRow, quickViewQuery.data);
+                      }
+                    }}
+                  />
+                </aside>
+              </div>
+            </>
+          ) : workspaceSection === "arrivals-departures" ? (
+            <ArrivalsDeparturesWorkspace
+              restaurantId={restaurantId}
+              timezone={membership.restaurant.timezone}
+              currencyCode={membership.restaurant.currencyCode}
+              canManage={canManageActions}
+              onOpenReservation={openReservation}
+            />
+          ) : workspaceSection === "exceptions" ? (
+            <ReservationControlWorkspace
+              restaurantId={restaurantId}
+              currencyCode={membership.restaurant.currencyCode}
+              canManage={canManageActions}
+              onOpenReservation={openReservation}
+              onOpenCalendar={() => goWorkspaceSection("calendar")}
+            />
+          ) : workspaceSection === "groups" ? (
+            <GroupsWorkspace
+              restaurantId={restaurantId}
+              canWrite={membership.role === "owner" || membership.role === "manager"}
+              onCreateStay={(groupId, blockId) => {
+                setCreateGroupLink({ pmsGroupId: groupId, pmsGroupBlockId: blockId });
+                setOverlay({ type: "new-reservation" });
+              }}
+              onOpenReservation={openReservation}
+            />
+          ) : workspaceSection === "waitlist" ? (
+            <WaitlistWorkspace
+              restaurantId={restaurantId}
+              canWrite={membership.role === "owner" || membership.role === "manager"}
+              onOpenReservation={openReservation}
+            />
+          ) : (
+            <div
+              className={cn(
+                "grid min-w-0 gap-4",
+                quickViewCollapsed
+                  ? "xl:grid-cols-[minmax(0,1fr)_56px]"
+                  : "xl:grid-cols-[minmax(0,1fr)_300px]",
+              )}
+            >
+              <BookingCalendarPanel
+                restaurantId={restaurantId}
+                canManage={canManageActions}
+                selectedId={selectedId}
+                onSelect={(row) => {
+                  setCalendarRow(row);
+                  setSelectedId(row.reservationId);
+                  setMobileDetailOpen(true);
+                }}
+                onOpen={openReservation}
+                onAction={handleReservationAction}
+              />
+              <aside className="hidden min-w-0 xl:block">
+                <QuickViewRail
+                  collapsed={quickViewCollapsed}
+                  onToggle={() => setQuickViewCollapsed((current) => !current)}
+                  row={selectedRow}
+                  loading={quickViewQuery.isLoading}
+                  error={quickViewQuery.isError}
+                  quickView={quickViewQuery.data}
+                  onRetry={() => void quickViewQuery.refetch()}
                   businessDate={snapshot?.businessDate ?? ""}
                   canManage={canManageActions}
-                  onSelect={selectRow}
-                  onOpen={openReservation}
-                  onAction={handleReservationAction}
+                  onAction={(actionId) => {
+                    if (selectedRow) {
+                      handleReservationAction(actionId, selectedRow, quickViewQuery.data);
+                    }
+                  }}
                 />
-              )}
-
-              <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
-                <p className="text-xs text-muted-foreground">
-                  Page {snapshot?.query.page ?? page} of {pages} · {total} total · {PAGE_SIZE} per
-                  page
-                </p>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page <= 1 || deskQuery.isFetching}
-                    onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  >
-                    <ChevronLeft className="size-4" />
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!snapshot?.query.hasMore || deskQuery.isFetching}
-                    onClick={() => setPage((current) => current + 1)}
-                  >
-                    Next
-                    <ChevronRight className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            </section>
-
-            <aside className="hidden min-w-0 xl:block">
-              <QuickViewRail
-                collapsed={quickViewCollapsed}
-                onToggle={() => setQuickViewCollapsed((current) => !current)}
-                row={selectedRow}
-                loading={quickViewQuery.isLoading}
-                error={quickViewQuery.isError}
-                quickView={quickViewQuery.data}
-                onRetry={() => void quickViewQuery.refetch()}
-                businessDate={snapshot?.businessDate ?? ""}
-                canManage={canManageActions}
-                onAction={(actionId) => {
-                  if (selectedRow) {
-                    handleReservationAction(actionId, selectedRow, quickViewQuery.data);
-                  }
-                }}
-              />
-            </aside>
-          </div>
-          </>
-          ) : workspaceSection === "arrivals-departures" ? (
-          <ArrivalsDeparturesWorkspace
-            restaurantId={restaurantId}
-            timezone={membership.restaurant.timezone}
-            currencyCode={membership.restaurant.currencyCode}
-            canManage={canManageActions}
-            onOpenReservation={openReservation}
-          />
-          ) : workspaceSection === "exceptions" ? (
-          <ReservationControlWorkspace
-            restaurantId={restaurantId}
-            currencyCode={membership.restaurant.currencyCode}
-            canManage={canManageActions}
-            onOpenReservation={openReservation}
-            onOpenCalendar={() => goWorkspaceSection("calendar")}
-          />
-          ) : workspaceSection === "groups" ? (
-          <GroupsWorkspace
-            restaurantId={restaurantId}
-            canWrite={membership.role === "owner" || membership.role === "manager"}
-            onCreateStay={(groupId, blockId) => {
-              setCreateGroupLink({ pmsGroupId: groupId, pmsGroupBlockId: blockId });
-              setOverlay({ type: "new-reservation" });
-            }}
-            onOpenReservation={openReservation}
-          />
-          ) : workspaceSection === "waitlist" ? (
-          <WaitlistWorkspace
-            restaurantId={restaurantId}
-            canWrite={membership.role === "owner" || membership.role === "manager"}
-            onOpenReservation={openReservation}
-          />
-          ) : (
-          <div
-            className={cn(
-              "grid min-w-0 gap-4",
-              quickViewCollapsed
-                ? "xl:grid-cols-[minmax(0,1fr)_56px]"
-                : "xl:grid-cols-[minmax(0,1fr)_300px]",
-            )}
-          >
-            <BookingCalendarPanel
-              restaurantId={restaurantId}
-              canManage={canManageActions}
-              selectedId={selectedId}
-              onSelect={(row) => {
-                setCalendarRow(row);
-                setSelectedId(row.reservationId);
-                setMobileDetailOpen(true);
-              }}
-              onOpen={openReservation}
-              onAction={handleReservationAction}
-            />
-            <aside className="hidden min-w-0 xl:block">
-              <QuickViewRail
-                collapsed={quickViewCollapsed}
-                onToggle={() => setQuickViewCollapsed((current) => !current)}
-                row={selectedRow}
-                loading={quickViewQuery.isLoading}
-                error={quickViewQuery.isError}
-                quickView={quickViewQuery.data}
-                onRetry={() => void quickViewQuery.refetch()}
-                businessDate={snapshot?.businessDate ?? ""}
-                canManage={canManageActions}
-                onAction={(actionId) => {
-                  if (selectedRow) {
-                    handleReservationAction(actionId, selectedRow, quickViewQuery.data);
-                  }
-                }}
-              />
-            </aside>
-          </div>
+              </aside>
+            </div>
           )}
         </main>
       </div>
@@ -1217,6 +1228,9 @@ export function ReservationsWorkspace({
               invalidateReservationReads();
             }}
             onBackToList={() => closeWorkspaceOverlay(false)}
+            onEditReservation={() =>
+              setOverlay({ type: "edit-reservation", reservationId: overlay.reservationId })
+            }
           />
         ) : null}
         {overlay?.type === "edit-reservation" ? (
@@ -1421,7 +1435,9 @@ function QuickViewRail({
               <PanelRight className="size-4" />
             </button>
           </TooltipTrigger>
-          <TooltipContent>{row ? `${row.guestName} · ${row.confirmationNumber}` : "Quick View"}</TooltipContent>
+          <TooltipContent>
+            {row ? `${row.guestName} · ${row.confirmationNumber}` : "Quick View"}
+          </TooltipContent>
         </Tooltip>
         {row ? <CollapsedStatusMark status={row.status} /> : null}
         <button
@@ -1555,11 +1571,19 @@ function ReservationTable({
             <th className="w-[6.75rem] whitespace-nowrap px-2 py-2.5">Arrival</th>
             <th className="w-[6.75rem] whitespace-nowrap px-2 py-2.5">Departure</th>
             <th className="w-12 whitespace-nowrap px-2 py-2.5 text-center">Nights</th>
-            <th className="hidden w-12 whitespace-nowrap px-2 py-2.5 text-center 2xl:table-cell">Adults</th>
-            <th className="hidden w-14 whitespace-nowrap px-2 py-2.5 text-center 2xl:table-cell">Children</th>
+            <th className="hidden w-12 whitespace-nowrap px-2 py-2.5 text-center 2xl:table-cell">
+              Adults
+            </th>
+            <th className="hidden w-14 whitespace-nowrap px-2 py-2.5 text-center 2xl:table-cell">
+              Children
+            </th>
             <th className="w-[7.25rem] whitespace-nowrap px-2 py-2.5">Status</th>
-            <th className="hidden w-[5.75rem] px-2 py-2.5 lg:table-cell xl:hidden 2xl:table-cell">Source</th>
-            <th className="hidden w-[9%] px-2 py-2.5 lg:table-cell xl:hidden min-[1760px]:table-cell">Rate Plan</th>
+            <th className="hidden w-[5.75rem] px-2 py-2.5 lg:table-cell xl:hidden 2xl:table-cell">
+              Source
+            </th>
+            <th className="hidden w-[9%] px-2 py-2.5 lg:table-cell xl:hidden min-[1760px]:table-cell">
+              Rate Plan
+            </th>
             <th className="hidden w-[6.75rem] px-2 py-2.5 text-right lg:table-cell xl:hidden min-[1760px]:table-cell">
               Total Amount
             </th>
@@ -1613,15 +1637,27 @@ function ReservationTable({
                     {room}
                   </span>
                 </td>
-                <td className="whitespace-nowrap px-2 py-2.5 text-muted-foreground" title={formatDate(row.arrivalDate)}>
+                <td
+                  className="whitespace-nowrap px-2 py-2.5 text-muted-foreground"
+                  title={formatDate(row.arrivalDate)}
+                >
                   {formatDeskDate(row.arrivalDate)}
                 </td>
-                <td className="whitespace-nowrap px-2 py-2.5 text-muted-foreground" title={formatDate(row.departureDate)}>
+                <td
+                  className="whitespace-nowrap px-2 py-2.5 text-muted-foreground"
+                  title={formatDate(row.departureDate)}
+                >
                   {formatDeskDate(row.departureDate)}
                 </td>
-                <td className="whitespace-nowrap px-2 py-2.5 text-center tabular-nums">{row.nights}</td>
-                <td className="hidden whitespace-nowrap px-2 py-2.5 text-center tabular-nums 2xl:table-cell">{row.adults}</td>
-                <td className="hidden whitespace-nowrap px-2 py-2.5 text-center tabular-nums 2xl:table-cell">{row.children}</td>
+                <td className="whitespace-nowrap px-2 py-2.5 text-center tabular-nums">
+                  {row.nights}
+                </td>
+                <td className="hidden whitespace-nowrap px-2 py-2.5 text-center tabular-nums 2xl:table-cell">
+                  {row.adults}
+                </td>
+                <td className="hidden whitespace-nowrap px-2 py-2.5 text-center tabular-nums 2xl:table-cell">
+                  {row.children}
+                </td>
                 <td className="whitespace-nowrap px-2 py-2.5">
                   <ReservationStatusBadge status={row.status} />
                 </td>
@@ -1638,7 +1674,10 @@ function ReservationTable({
                 <td className="hidden px-2 py-2.5 text-right font-medium tabular-nums lg:table-cell xl:hidden min-[1760px]:table-cell">
                   {formatMoney(row.roomSubtotal, row.currency)}
                 </td>
-                <td className="py-2.5 pl-2 pr-4 text-right" onClick={(event) => event.stopPropagation()}>
+                <td
+                  className="py-2.5 pl-2 pr-4 text-right"
+                  onClick={(event) => event.stopPropagation()}
+                >
                   <ReservationContextMenu
                     context={{
                       status: row.status,

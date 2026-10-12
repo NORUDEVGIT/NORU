@@ -15,8 +15,8 @@ import {
 } from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
 import {
-  buildCancellationPolicyPreview,
   buildNoShowPolicyPreview,
+  formatCanonicalCancellationPreview,
   type CorporateAgreementPricingMethod,
 } from "@/packages/pms/lib/corporate-contracts.server";
 import type { CompanyContractCreateConfig } from "@/packages/pms/lib/corporate-contracts.functions";
@@ -161,12 +161,7 @@ export function CompanyContractsStep({
   const selectedNoShow = config?.noShowPolicies.find((p) => p.id === contract.noShowPolicyId);
 
   const cancellationPreview = selectedCancel
-    ? buildCancellationPolicyPreview(
-        selectedCancel.cutoffHours,
-        selectedCancel.penaltyType as any,
-        selectedCancel.penaltyValue,
-        selectedCancel.refundableBeforeCutoff,
-      )
+    ? formatCanonicalCancellationPreview(selectedCancel)
     : null;
 
   const noShowPreview = selectedNoShow
@@ -1236,7 +1231,7 @@ export function CompanyContractsStep({
         <div className="border-b border-[#E8E4DC] pb-3">
           <h2 className="font-display text-base font-semibold text-[#251605]">Section 3 — Booking Conditions</h2>
           <p className="text-xs text-[#756A5B]">
-            Settings-driven policies governing reservation guarantees, cancellation cutoffs, and room release behavior.
+            Deposit and no-show policies come from Payments &amp; Deposits. Cancellation policies come from Rate &amp; Pricing.
           </p>
         </div>
 
@@ -1279,7 +1274,7 @@ export function CompanyContractsStep({
               label="Cancellation Policy"
               required={isReq("COMPANY_CONTRACT_CANCEL_POLICY", false) || isReq("COMPANY_CONTRACT_CANCELLATION_POLICY", false)}
               error={fieldError("cancellationPolicyId", "contracts")}
-              helper="Defines free cancellation cutoff and penalty."
+              helper="Uses the Rate & Pricing cancellation catalogue."
             >
               <Select
                 value={contract?.cancellationPolicyId || "none"}

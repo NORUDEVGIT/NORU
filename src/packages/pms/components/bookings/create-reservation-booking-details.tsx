@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Building2, ClipboardList, FileText, Package, Radio, RefreshCw, Users } from "lucide-react";
 
 import { CreateReservationMasterPicker } from "@/packages/pms/components/bookings/create-reservation-master-picker";
 import {
@@ -10,7 +11,6 @@ import {
 } from "@/packages/pms/lib/create-reservation-phase1";
 import { type PickedReservationGuest } from "@/packages/pms/components/bookings/create-reservation-guest";
 import { getBillingCard3 } from "@/packages/pms/lib/billing-card3.functions";
-import { reservationBillingHintFromRule } from "@/packages/pms/lib/cashiering-billing-hint";
 import {
   activeCommissionPlan,
   agencyRateDisplayLabel,
@@ -34,10 +34,6 @@ import {
   type SavedPreferenceDisplay,
 } from "@/packages/pms/lib/guest-preferences-workspace";
 import { getGroup, listGroups } from "@/packages/pms/lib/groups.functions";
-import {
-  listPurposeOfStay,
-  purposeOptionsFromRows,
-} from "@/packages/pms/lib/purpose-of-stay.functions";
 import { listAccountRatePlanHints } from "@/packages/pms/lib/rates.functions";
 import {
   PMS_OP_INPUT,
@@ -59,6 +55,8 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
 
 const SPECIAL_REQUEST_MAX = 500;
+const SUMMARY_NONE = "__summary_none__";
+const NORU_MENU = "z-[80] max-h-60 rounded-[6px] border-[#CCCCCC] bg-white text-sm text-[#251605]";
 
 export type CreateServiceSelection = {
   serviceTypeId: string;
@@ -66,8 +64,8 @@ export type CreateServiceSelection = {
   description: string;
 };
 
-const CONTROL = cn(PMS_OP_INPUT, "!h-8 px-2 py-1");
-const SELECT_CONTROL = cn(PMS_OP_SELECT_TRIGGER, "!h-8 px-2 py-0 text-xs");
+const CONTROL = PMS_OP_INPUT;
+const SELECT_CONTROL = PMS_OP_SELECT_TRIGGER;
 
 export function CreateReservationBookingDetails({
   restaurantId,
@@ -101,11 +99,15 @@ export function CreateReservationBookingDetails({
   selectedServiceRequests,
   onSelectedServiceRequestsChange,
   packagesSlot,
+  relationTab: relationTabProp,
+  onRelationTabChange,
+  holdCommercialDefaults = false,
+  onCommercialDefaultsHeld,
   salesChannel,
   onSalesChannelChange,
   salesChannelOptions,
-  purposeOfStay,
-  onPurposeOfStayChange,
+  purposeOfStay: _purposeOfStay,
+  onPurposeOfStayChange: _onPurposeOfStayChange,
   billingRuleId,
   onBillingRuleIdChange,
   companyContactId,
@@ -167,8 +169,11 @@ export function CreateReservationBookingDetails({
   selectedServiceRequests: CreateServiceSelection[];
   onSelectedServiceRequestsChange: (next: CreateServiceSelection[]) => void;
   packagesSlot: ReactNode;
+  relationTab?: "company" | "travel_agent" | "group";
+  onRelationTabChange?: (tab: "company" | "travel_agent" | "group") => void;
+  holdCommercialDefaults?: boolean;
+  onCommercialDefaultsHeld?: () => void;
 }) {
-  const loadPurpose = useServerFn(listPurposeOfStay);
   const loadBilling = useServerFn(getBillingCard3);
   const loadCompanyContacts = useServerFn(listCompanyContacts);
   const loadAgentContacts = useServerFn(listTravelAgentContacts);
@@ -177,20 +182,16 @@ export function CreateReservationBookingDetails({
   const loadGroup = useServerFn(getGroup);
   const loadPrefDefaults = useServerFn(getGuestReservationPreferenceDefaults);
   const loadCompanyHints = useServerFn(listAccountRatePlanHints);
-  const [relationTab, setRelationTab] = useState<"company" | "travel_agent" | "group">("company");
+  const [localRelationTab, setLocalRelationTab] = useState<"company" | "travel_agent" | "group">(
+    "company",
+  );
+  const relationTab = relationTabProp ?? localRelationTab;
+  const setRelationTab = onRelationTabChange ?? setLocalRelationTab;
   const [groupQuery, setGroupQuery] = useState("");
   const [prefilledGuestId, setPrefilledGuestId] = useState<string | null>(null);
   const [applyConfirmOpen, setApplyConfirmOpen] = useState(false);
   const groupSearchRef = useRef<HTMLInputElement>(null);
   const focusGroupSearch = useRef(false);
-
-  const purposeQuery = useQuery({
-    queryKey: ["pms-purpose-of-stay", restaurantId, "create-reservation"],
-    queryFn: () => loadPurpose({ data: { restaurantId } }),
-    enabled: Boolean(companyMaster?.id),
-    retry: false,
-  });
-  const purposeOptions = purposeOptionsFromRows(purposeQuery.data?.items);
 
   const billingQuery = useQuery({
     queryKey: ["billing-card3", restaurantId, "create-reservation"],
@@ -293,10 +294,21 @@ export function CreateReservationBookingDetails({
     const defaults = companyHintsQuery.data;
     if (!defaults || appliedCompanyDefaultsFor.current === companyId) return;
     appliedCompanyDefaultsFor.current = companyId;
+    if (holdCommercialDefaults) {
+      onCommercialDefaultsHeld?.();
+      return;
+    }
     onBillingRuleIdChange(defaults.defaultBillingRuleId ?? "");
     const planId = defaults.hints.find((row) => row.planId)?.planId;
     if (planId) onApplyRatePlan(planId);
-  }, [companyHintsQuery.data, companyMaster?.id, onApplyRatePlan, onBillingRuleIdChange]);
+  }, [
+    companyHintsQuery.data,
+    companyMaster?.id,
+    holdCommercialDefaults,
+    onApplyRatePlan,
+    onBillingRuleIdChange,
+    onCommercialDefaultsHeld,
+  ]);
 
   const appliedCompanyContactFor = useRef<string | null>(null);
   useEffect(() => {
@@ -307,9 +319,10 @@ export function CreateReservationBookingDetails({
     }
     if (companyContacts.length === 0 || appliedCompanyContactFor.current === companyId) return;
     appliedCompanyContactFor.current = companyId;
+    if (companyContactId && companyContacts.some((row) => row.id === companyContactId)) return;
     const primary = companyContacts.find((row) => row.isPrimary) ?? companyContacts[0];
     if (primary) onCompanyContactIdChange(primary.id);
-  }, [companyContacts, companyMaster?.id, onCompanyContactIdChange]);
+  }, [companyContactId, companyContacts, companyMaster?.id, onCompanyContactIdChange]);
 
   const appliedAgencyDefaultsFor = useRef<string | null>(null);
   useEffect(() => {
@@ -321,9 +334,20 @@ export function CreateReservationBookingDetails({
     const defaults = agencyHintsQuery.data;
     if (!defaults || appliedAgencyDefaultsFor.current === agencyId) return;
     appliedAgencyDefaultsFor.current = agencyId;
+    if (holdCommercialDefaults) {
+      onCommercialDefaultsHeld?.();
+      return;
+    }
     const planId = defaults.hints.find((row) => row.planId)?.planId;
     if (planId) onApplyRatePlan(planId);
-  }, [agencyHintsQuery.data, onApplyRatePlan, relationTab, travelAgentMaster?.id]);
+  }, [
+    agencyHintsQuery.data,
+    holdCommercialDefaults,
+    onApplyRatePlan,
+    onCommercialDefaultsHeld,
+    relationTab,
+    travelAgentMaster?.id,
+  ]);
 
   const appliedAgencyContactFor = useRef<string | null>(null);
   useEffect(() => {
@@ -334,17 +358,29 @@ export function CreateReservationBookingDetails({
     }
     if (agentContacts.length === 0 || appliedAgencyContactFor.current === agencyId) return;
     appliedAgencyContactFor.current = agencyId;
+    if (travelAgentContactId && agentContacts.some((row) => row.id === travelAgentContactId))
+      return;
     const primary = agentContacts.find((row) => row.isPrimary) ?? agentContacts[0];
     if (primary) onTravelAgentContactIdChange(primary.id);
-  }, [agentContacts, onTravelAgentContactIdChange, travelAgentMaster?.id]);
+  }, [agentContacts, onTravelAgentContactIdChange, travelAgentContactId, travelAgentMaster?.id]);
 
   const appliedGroupRateFor = useRef<string | null>(null);
   useEffect(() => {
     if (!selectedGroup?.id || !selectedGroup.ratePlanId) return;
     if (appliedGroupRateFor.current === selectedGroup.id) return;
     appliedGroupRateFor.current = selectedGroup.id;
+    if (holdCommercialDefaults) {
+      onCommercialDefaultsHeld?.();
+      return;
+    }
     onApplyRatePlan(selectedGroup.ratePlanId);
-  }, [onApplyRatePlan, selectedGroup?.id, selectedGroup?.ratePlanId]);
+  }, [
+    holdCommercialDefaults,
+    onApplyRatePlan,
+    onCommercialDefaultsHeld,
+    selectedGroup?.id,
+    selectedGroup?.ratePlanId,
+  ]);
 
   useEffect(() => {
     if (linkedGroupId || !focusGroupSearch.current) return;
@@ -387,11 +423,12 @@ export function CreateReservationBookingDetails({
     openAgreementHint?.label ||
     ratePlanLabel.trim() ||
     "—";
-  const companyAgreementLabel = companyHintsQuery.data?.agreementLabel ?? null;
   const agencyHints = agencyHintsQuery.data?.hints ?? [];
   const agencyContractRates = agencyHintsQuery.data?.contractRates ?? [];
   const matchedAgencyRate =
-    agencyContractRates.find((row) => row.roomTypeId === roomTypeId) ?? agencyContractRates[0] ?? null;
+    agencyContractRates.find((row) => row.roomTypeId === roomTypeId) ??
+    agencyContractRates[0] ??
+    null;
   const selectedAgencyHint = agencyHints.find((row) => row.planId && row.planId === ratePlanId);
   const openAgencyHint = agencyHints.find((row) => !row.planId);
   const agencyRateLabel = agencyRateDisplayLabel({
@@ -401,27 +438,48 @@ export function CreateReservationBookingDetails({
     ratePlanLabel,
     appliesToAll: Boolean(activePlan?.appliesToAll),
   });
-  const agencyAgreementLabel = agencyHintsQuery.data?.agreementLabel ?? null;
   const billingHint = billingRules.find((row) => row.id === billingRuleId);
-  const billingHintCopy = billingHint
-    ? `${billingHint.name} · ${billingHint.payerKindLabel} · ${reservationBillingHintFromRule(billingHint).paymentTerms}`
-    : "";
+  const selectedCompanyContact = companyContacts.find((row) => row.id === companyContactId) ?? null;
+  const selectedAgentContact = agentContacts.find((row) => row.id === travelAgentContactId) ?? null;
+  const companyContactSummary = contactSummary(selectedCompanyContact);
+  const agentContactSummary = contactSummary(selectedAgentContact);
+  const companyRateSummary = splitSummary(usingRateLabel);
+  const agencyRateSummary = splitSummary(agencyRateLabel);
   const requestLength = specialRequests.length;
   const commissionTypeLabel = activePlan?.commissionType
-    ? activePlan.commissionType.replaceAll("_", " ")
+    ? activePlan.commissionType
+        .replaceAll("_", " ")
+        .replace(/\b\w/g, (letter) => letter.toUpperCase())
     : "—";
+  const commissionValue =
+    activePlan?.commissionType === "percent" && commissionDisplay
+      ? `${commissionDisplay}%`
+      : commissionDisplay || "—";
+  void _purposeOfStay;
+  void _onPurposeOfStayChange;
 
   return (
-    <div className="space-y-3" data-testid="create-reservation-booking-details">
-      <div className="grid gap-3 lg:grid-cols-2">
-        <BookingCard step={1} testId="booking-details-source-channel" title="Source & Channel">
+    <div
+      className="flex flex-col gap-3 pb-24 lg:grid lg:grid-cols-2 lg:items-start"
+      data-testid="create-reservation-booking-details"
+    >
+      <div
+        className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-3"
+        data-testid="booking-details-left-column"
+      >
+        <BookingCard
+          className="order-1 lg:order-none"
+          icon={<Radio className="size-3.5" aria-hidden />}
+          testId="booking-details-source-channel"
+          title="Source & Channel"
+        >
           <div className="grid gap-2 sm:grid-cols-2">
             <Field label="Source" required>
               <Select value={bookingSource || undefined} onValueChange={onBookingSourceChange}>
                 <SelectTrigger className={SELECT_CONTROL} data-testid="booking-details-source">
                   <SelectValue placeholder="Select source" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={NORU_MENU}>
                   {sourceOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -435,7 +493,7 @@ export function CreateReservationBookingDetails({
                 <SelectTrigger className={SELECT_CONTROL} aria-label="Channel">
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={NORU_MENU}>
                   {salesChannelOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -449,7 +507,7 @@ export function CreateReservationBookingDetails({
                 <SelectTrigger className={SELECT_CONTROL} data-testid="booking-details-segment">
                   <SelectValue placeholder="Select segment" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={NORU_MENU}>
                   {segmentOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -484,18 +542,37 @@ export function CreateReservationBookingDetails({
         </BookingCard>
 
         <BookingCard
-          step={2}
+          className="order-3 lg:order-none"
+          icon={<Package className="size-3.5" aria-hidden />}
+          testId="booking-details-packages"
+          title="Packages & Add-ons"
+        >
+          {packagesSlot}
+        </BookingCard>
+      </div>
+
+      <div
+        className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-3"
+        data-testid="booking-details-right-column"
+      >
+        <BookingCard
+          className="order-2 lg:order-none"
+          icon={<Building2 className="size-3.5" aria-hidden />}
           testId="booking-details-company-agent-group"
           title="Company / Agent / Group"
         >
-          <div className="mb-3 flex flex-wrap gap-1" role="tablist" aria-label="Relationship">
+          <div
+            className="mb-3 grid grid-cols-3 overflow-hidden rounded-[6px] border border-[#CCCCCC]"
+            role="tablist"
+            aria-label="Relationship"
+          >
             {(
               [
                 ["company", "Company"],
                 ["travel_agent", "Travel Agent / Agency"],
                 ["group", "Group / Block"],
               ] as const
-            ).map(([id, label]) => (
+            ).map(([id, label], index) => (
               <button
                 key={id}
                 type="button"
@@ -504,10 +581,11 @@ export function CreateReservationBookingDetails({
                 data-testid={`booking-details-relation-tab-${id}`}
                 onClick={() => setRelationTab(id)}
                 className={cn(
-                  "!rounded-[6px] border px-2.5 py-1 text-xs",
+                  "min-h-10 border-[#CCCCCC] px-2 text-xs",
+                  index > 0 && "border-l",
                   relationTab === id
-                    ? "border-[#C89933] bg-[#F6F3EC] font-medium text-[#251605]"
-                    : "border-[#CCCCCC] bg-white text-[#251605]",
+                    ? "bg-[#FBF6EE] font-medium text-[#251605] shadow-[inset_0_-2px_0_#C89933]"
+                    : "bg-white text-[#6B5E4E]",
                 )}
               >
                 {label}
@@ -527,88 +605,63 @@ export function CreateReservationBookingDetails({
                 onMasterChange={onCompanyMasterChange}
               />
               {companyMaster ? (
-                <div className="space-y-2" data-testid="booking-details-company-details">
-                  <Field label="Company Contact">
-                    <select
-                      className={CONTROL}
+                <div
+                  className="mt-3 space-y-3 border-t border-[#E7E0D4] pt-3"
+                  data-testid="booking-details-company-details"
+                >
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <SummaryChoice
+                      label="Company Contact"
+                      ariaLabel="Company Contact"
+                      primary={companyContactSummary.primary}
+                      detail={companyContactSummary.detail}
                       value={companyContactId}
-                      onChange={(event) => onCompanyContactIdChange(event.target.value)}
-                      aria-label="Company Contact"
-                    >
-                      <option value="">—</option>
-                      {companyContacts.map((row) => (
-                        <option key={row.id} value={row.id}>
-                          {companyContactOptionLabel(row)}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Corporate Rate">
-                    <select
-                      className={CONTROL}
-                      value={ratePlanId}
-                      onChange={(event) => {
-                        const value = event.target.value;
+                      options={[
+                        { value: "", label: "—" },
+                        ...companyContacts.map((row) => ({
+                          value: row.id,
+                          label: companyContactOptionLabel(row),
+                        })),
+                      ]}
+                      onChange={onCompanyContactIdChange}
+                    />
+                    <SummaryChoice
+                      label="Corporate Rate"
+                      ariaLabel="Corporate Rate"
+                      primary={companyRateSummary.primary}
+                      detail={companyRateSummary.detail}
+                      value={ratePlanId || ""}
+                      options={[
+                        { value: ratePlanId || "", label: usingRateLabel },
+                        ...contractRates
+                          .filter((row) => row.roomTypeId !== matchedContractRate?.roomTypeId)
+                          .map((row) => ({
+                            value: `contract:${row.roomTypeId}`,
+                            label: formatCompanyContractRate(row),
+                          })),
+                        ...companyHints
+                          .filter((row) => row.planId && row.planId !== ratePlanId)
+                          .map((row) => ({ value: row.planId!, label: row.label })),
+                      ]}
+                      onChange={(value) => {
                         if (value && !value.startsWith("contract:")) onApplyRatePlan(value);
                       }}
-                      aria-label="Corporate Rate"
-                    >
-                      <option value={ratePlanId || ""}>{usingRateLabel}</option>
-                      {contractRates
-                        .filter((row) => row.roomTypeId !== matchedContractRate?.roomTypeId)
-                        .map((row) => (
-                          <option key={row.roomTypeId} value={`contract:${row.roomTypeId}`}>
-                            {formatCompanyContractRate(row)}
-                          </option>
-                        ))}
-                      {companyHints
-                        .filter((row) => row.planId && row.planId !== ratePlanId)
-                        .map((row) => (
-                          <option key={row.planId} value={row.planId!}>
-                            {row.label}
-                          </option>
-                        ))}
-                    </select>
-                    {companyAgreementLabel ? (
-                      <p className="text-[10px] text-muted-foreground">{companyAgreementLabel}</p>
-                    ) : null}
-                  </Field>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Field label="Billing Arrangement">
-                      <select
-                        className={CONTROL}
-                        value={billingRuleId}
-                        onChange={(event) => onBillingRuleIdChange(event.target.value)}
-                        aria-label="Billing Arrangement"
-                      >
-                        <option value="">—</option>
-                        {billingRules.map((row) => (
-                          <option key={row.id} value={row.id}>
-                            {row.name}
-                          </option>
-                        ))}
-                      </select>
-                      {billingHintCopy ? (
-                        <p className="text-[10px] text-muted-foreground">
-                          {billingHintCopy}. Folios post in Cashiering.
-                        </p>
-                      ) : null}
-                    </Field>
-                    <Field label="Travel Purpose">
-                      <select
-                        className={CONTROL}
-                        value={purposeOfStay}
-                        onChange={(event) => onPurposeOfStayChange(event.target.value)}
-                        aria-label="Travel Purpose"
-                      >
-                        <option value="">—</option>
-                        {purposeOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
+                    />
+                  </div>
+                  <div className="border-t border-[#E7E0D4] pt-3">
+                    <SummaryChoice
+                      label="Billing Arrangement"
+                      ariaLabel="Billing Arrangement"
+                      primary={billingHint?.name || "—"}
+                      detail={billingHint?.payerKindLabel || ""}
+                      icon={<FileText className="size-3.5" aria-hidden />}
+                      value={billingRuleId}
+                      options={[
+                        { value: "", label: "—" },
+                        ...billingRules.map((row) => ({ value: row.id, label: row.name })),
+                      ]}
+                      onChange={onBillingRuleIdChange}
+                    />
                   </div>
                 </div>
               ) : null}
@@ -627,84 +680,53 @@ export function CreateReservationBookingDetails({
                 onMasterChange={onTravelAgentMasterChange}
               />
               {travelAgentMaster ? (
-                <div className="space-y-2" data-testid="booking-details-travel-agent-details">
-                  <Field label="Contact Person">
-                    <select
-                      className={CONTROL}
-                      value={travelAgentContactId}
-                      onChange={(event) => onTravelAgentContactIdChange(event.target.value)}
-                      aria-label="Contact Person"
-                    >
-                      <option value="">—</option>
-                      {agentContacts.map((row) => (
-                        <option key={row.id} value={row.id}>
-                          {companyContactOptionLabel(row)}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Agency Rate">
-                    <select
-                      className={CONTROL}
-                      value={ratePlanId}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        if (value && !value.startsWith("contract:")) onApplyRatePlan(value);
-                      }}
-                      aria-label="Agency Rate"
-                    >
-                      <option value={ratePlanId || ""}>{agencyRateLabel}</option>
-                      {agencyContractRates
+                <div
+                  className="mt-3 grid gap-3 border-t border-[#E7E0D4] pt-3 sm:grid-cols-2"
+                  data-testid="booking-details-travel-agent-details"
+                >
+                  <SummaryChoice
+                    label="Contact Person"
+                    ariaLabel="Contact Person"
+                    primary={agentContactSummary.primary}
+                    detail={agentContactSummary.detail}
+                    value={travelAgentContactId}
+                    options={[
+                      { value: "", label: "—" },
+                      ...agentContacts.map((row) => ({
+                        value: row.id,
+                        label: companyContactOptionLabel(row),
+                      })),
+                    ]}
+                    onChange={onTravelAgentContactIdChange}
+                  />
+                  <SummaryChoice
+                    label="Agency Rate"
+                    ariaLabel="Agency Rate"
+                    primary={agencyRateSummary.primary}
+                    detail={agencyRateSummary.detail}
+                    value={ratePlanId || ""}
+                    options={[
+                      { value: ratePlanId || "", label: agencyRateLabel },
+                      ...agencyContractRates
                         .filter((row) => row.roomTypeId !== matchedAgencyRate?.roomTypeId)
-                        .map((row) => (
-                          <option key={row.roomTypeId} value={`contract:${row.roomTypeId}`}>
-                            {formatCompanyContractRate(row)}
-                          </option>
-                        ))}
-                      {agencyHints
+                        .map((row) => ({
+                          value: `contract:${row.roomTypeId}`,
+                          label: formatCompanyContractRate(row),
+                        })),
+                      ...agencyHints
                         .filter((row) => row.planId && row.planId !== ratePlanId)
-                        .map((row) => (
-                          <option key={row.planId} value={row.planId!}>
-                            {row.label}
-                          </option>
-                        ))}
-                    </select>
-                    {agencyAgreementLabel ? (
-                      <p className="text-[10px] text-muted-foreground">{agencyAgreementLabel}</p>
-                    ) : null}
-                  </Field>
-                  <Field label="Agency Reference">
-                    <Input
-                      className={CONTROL}
-                      value={externalReference}
-                      maxLength={120}
-                      onChange={(event) => onExternalReferenceChange(event.target.value)}
-                      placeholder="Optional"
-                      aria-label="Agency Reference"
-                    />
-                  </Field>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Field label="Commission Type">
-                      <Input
-                        className={CONTROL}
-                        disabled
-                        readOnly
-                        value={commissionTypeLabel}
-                        placeholder="—"
-                        aria-label="Commission Type"
-                      />
-                    </Field>
-                    <Field label="Commission %">
-                      <Input
-                        className={CONTROL}
-                        disabled
-                        readOnly
-                        value={commissionDisplay}
-                        placeholder="—"
-                        aria-label="Commission"
-                      />
-                    </Field>
-                  </div>
+                        .map((row) => ({ value: row.planId!, label: row.label })),
+                    ]}
+                    onChange={(value) => {
+                      if (value && !value.startsWith("contract:")) onApplyRatePlan(value);
+                    }}
+                  />
+                  <MetaValue
+                    label="Commission Type"
+                    value={commissionTypeLabel}
+                    ariaLabel="Commission Type"
+                  />
+                  <MetaValue label="Commission" value={commissionValue} ariaLabel="Commission" />
                 </div>
               ) : null}
             </div>
@@ -713,64 +735,64 @@ export function CreateReservationBookingDetails({
           {relationTab === "group" ? (
             <div className="space-y-2" data-testid="booking-details-group-tab">
               {linkedGroupId ? (
-                <div className="space-y-2" data-testid="booking-details-group-details">
-                  <div className="flex items-center justify-between gap-2 rounded-[6px] border border-[#E7E0D4] bg-white px-2 py-1.5">
-                    <p className="min-w-0 truncate text-sm font-medium text-[#251605]">
+                <div data-testid="booking-details-group-details">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+                      <Users className="size-4" aria-hidden />
+                    </span>
+                    <p className="min-w-0 flex-1 break-words text-sm font-medium text-[#251605]">
                       {selectedGroup?.name ?? "Group"}
+                      {selectedGroup?.code ? (
+                        <span className="font-normal text-[#6B5E4E]">{` · ${selectedGroup.code}`}</span>
+                      ) : null}
                     </p>
+                    <span className="shrink-0 rounded-full bg-[#FBF6EE] px-2 py-0.5 text-[10px] font-medium text-[#8A6A24]">
+                      Group
+                    </span>
                     <button
                       type="button"
                       data-testid="change-group"
-                      className="shrink-0 rounded-[6px] border border-[#CCCCCC] px-2 py-1 text-xs"
+                      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[6px] border border-[#E4D3A8] bg-white px-2 text-xs font-medium text-[#8A6A24]"
                       onClick={() => {
                         focusGroupSearch.current = true;
                         onLinkedGroupChange(null, null);
                         setGroupQuery("");
                       }}
                     >
+                      <RefreshCw className="size-3" aria-hidden />
                       Change Group
                     </button>
                   </div>
-                  <Field label="Block">
-                    <select
-                      className={CONTROL}
+                  <div className="mt-3 grid gap-3 border-t border-[#E7E0D4] pt-3 sm:grid-cols-2">
+                    <SummaryChoice
+                      label="Block"
+                      ariaLabel="Block"
+                      primary={selectedBlock?.roomTypeName ?? "—"}
                       value={linkedBlockId ?? ""}
-                      onChange={(event) =>
-                        onLinkedGroupChange(linkedGroupId, event.target.value || null)
-                      }
-                      aria-label="Block"
-                    >
-                      <option value="">—</option>
-                      {selectedBlocks.map((row) => (
-                        <option key={row.id} value={row.id}>
-                          {row.roomTypeName ?? row.id}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Field label="Group Rate">
-                      <Input
-                        className={CONTROL}
-                        disabled
-                        readOnly
-                        value={selectedGroup?.ratePlanId ? usingRateLabel : "—"}
-                        aria-label="Group Rate"
-                      />
-                    </Field>
-                    <Field label="Cut-off Date">
-                      <Input className={CONTROL} type="date" disabled readOnly value={cutoffDate} />
-                    </Field>
+                      options={[
+                        { value: "", label: "—" },
+                        ...selectedBlocks.map((row) => ({
+                          value: row.id,
+                          label: row.roomTypeName ?? "Block",
+                        })),
+                      ]}
+                      onChange={(value) => onLinkedGroupChange(linkedGroupId, value || null)}
+                    />
+                    <MetaValue
+                      label="Group Rate"
+                      value={selectedGroup?.ratePlanId ? usingRateLabel : "—"}
+                    />
+                    <MetaValue label="Cut-off Date" value={cutoffDate || "—"} />
                   </div>
-                  <div className="rounded-[6px] border border-[#E7E0D4] bg-white px-2 py-2">
-                    <p className="text-[11px] font-medium text-[#6B5E4E]">Pickup Status</p>
+                  <div className="mt-3">
+                    <p className="text-[11px] leading-4 text-[#6B5E4E]">Pickup</p>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#E7E0D4]">
                       <div
-                        className="h-full rounded-full bg-[#B8954F]"
+                        className="h-full rounded-full bg-[#C89933]"
                         style={{ width: `${pickupPct}%` }}
                       />
                     </div>
-                    <p className="mt-1 text-[10px] text-muted-foreground">
+                    <p className="mt-1 text-xs text-[#251605]">
                       {`${pickupPicked} of ${pickupBlocked || "—"} rooms picked up`}
                     </p>
                   </div>
@@ -813,226 +835,348 @@ export function CreateReservationBookingDetails({
             </div>
           ) : null}
         </BookingCard>
-      </div>
 
-      <div className="grid items-start gap-3 lg:grid-cols-2">
-        <BookingCard step={3} testId="booking-details-packages" title="Packages & Add-ons">
-          {packagesSlot}
-        </BookingCard>
-
-        <div className="grid content-start gap-3">
-          <BookingCard
-            step={4}
-            testId="booking-details-guest-requests"
-            title="Guest Requests & Preferences"
-          >
-            <div className="space-y-2" data-testid="booking-details-saved-preferences">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-                Saved Preferences
+        <BookingCard
+          className="order-4 lg:order-none"
+          icon={<ClipboardList className="size-3.5" aria-hidden />}
+          testId="booking-details-guest-requests"
+          title="Guest Requests & Preferences"
+          action={
+            <button
+              type="button"
+              className="inline-flex h-8 items-center rounded-[6px] border border-[#E4D3A8] bg-white px-2.5 text-xs font-medium text-[#8A6A24] disabled:opacity-40"
+              data-testid="apply-saved-preferences"
+              disabled={savedPreferences.length === 0}
+              onClick={() => {
+                if (!specialRequests.trim()) {
+                  onSpecialRequestsChange(
+                    mergeSpecialRequests(
+                      "",
+                      preferenceApplyText(savedPreferences),
+                      SPECIAL_REQUEST_MAX,
+                    ),
+                  );
+                  return;
+                }
+                setApplyConfirmOpen(true);
+              }}
+            >
+              Apply to this reservation
+            </button>
+          }
+        >
+          <div className="space-y-2" data-testid="booking-details-saved-preferences">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
+              Saved Preferences
+            </p>
+            {!guest ? (
+              <p className="text-xs text-muted-foreground">
+                Select a guest to load saved preferences.
               </p>
-              {!guest ? (
-                <p className="text-xs text-muted-foreground">
-                  Select a guest to load saved preferences.
+            ) : savedPreferencesLoading ? (
+              <p className="text-xs text-muted-foreground">Loading saved preferences…</p>
+            ) : savedPreferences.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No saved preferences for this guest.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {savedPreferences.map((row) => (
+                  <span
+                    key={row.typeId}
+                    className="inline-flex items-center gap-1 rounded-[6px] border border-[#CCCCCC] bg-white px-2 py-0.5 text-xs text-[#251605]"
+                    data-testid="saved-preference-chip"
+                  >
+                    <span className="text-[#6B5E4E]">{row.label}</span>
+                    <span aria-hidden="true">·</span>
+                    <span className="font-medium">{row.value}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+            {applyConfirmOpen ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-[6px] border border-[#CCCCCC] bg-white px-2 py-1.5">
+                <p className="text-[11px] text-muted-foreground">
+                  Special requests already has text. Append the saved preferences?
                 </p>
-              ) : savedPreferencesLoading ? (
-                <p className="text-xs text-muted-foreground">Loading saved preferences…</p>
-              ) : savedPreferences.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No saved preferences for this guest.
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {savedPreferences.map((row) => (
-                    <span
-                      key={row.typeId}
-                      className="inline-flex items-center gap-1 rounded-[6px] border border-[#CCCCCC] bg-white px-2 py-0.5 text-xs text-[#251605]"
-                      data-testid="saved-preference-chip"
-                    >
-                      <span className="text-[#6B5E4E]">{row.label}:</span>
-                      <span className="font-medium">{row.value}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <button
-                type="button"
-                className="text-[11px] font-medium text-[#8A6A24] disabled:opacity-40"
-                data-testid="apply-saved-preferences"
-                disabled={savedPreferences.length === 0}
-                onClick={() => {
-                  if (!specialRequests.trim()) {
+                <button
+                  type="button"
+                  className="text-[11px] font-medium text-[#8A6A24]"
+                  data-testid="confirm-apply-preferences"
+                  onClick={() => {
                     onSpecialRequestsChange(
                       mergeSpecialRequests(
-                        "",
+                        specialRequests,
                         preferenceApplyText(savedPreferences),
                         SPECIAL_REQUEST_MAX,
                       ),
                     );
-                    return;
-                  }
-                  setApplyConfirmOpen(true);
-                }}
-              >
-                Apply to this reservation
-              </button>
-              {applyConfirmOpen ? (
-                <div className="flex flex-wrap items-center gap-2 rounded-[6px] border border-[#CCCCCC] bg-white px-2 py-1.5">
-                  <p className="text-[11px] text-muted-foreground">
-                    Special requests already has text. Append the saved preferences?
-                  </p>
-                  <button
-                    type="button"
-                    className="text-[11px] font-medium text-[#8A6A24]"
-                    data-testid="confirm-apply-preferences"
-                    onClick={() => {
-                      onSpecialRequestsChange(
-                        mergeSpecialRequests(
-                          specialRequests,
-                          preferenceApplyText(savedPreferences),
-                          SPECIAL_REQUEST_MAX,
-                        ),
-                      );
-                      setApplyConfirmOpen(false);
-                    }}
-                  >
-                    Append
-                  </button>
-                  <button
-                    type="button"
-                    className="text-[11px] text-muted-foreground"
-                    onClick={() => setApplyConfirmOpen(false)}
-                  >
-                    Keep current text
-                  </button>
-                </div>
-              ) : null}
-            </div>
-            <div
-              className="mt-3 space-y-1 border-t border-[#CCCCCC] pt-3"
-              data-testid="booking-details-service-requests"
-            >
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-                Service Requests
+                    setApplyConfirmOpen(false);
+                  }}
+                >
+                  Append
+                </button>
+                <button
+                  type="button"
+                  className="text-[11px] text-muted-foreground"
+                  onClick={() => setApplyConfirmOpen(false)}
+                >
+                  Keep current text
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <div
+            className="mt-3 space-y-1 border-t border-[#CCCCCC] pt-3"
+            data-testid="booking-details-service-requests"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
+              Service Requests
+            </p>
+            {!guest ? (
+              <p className="text-xs text-muted-foreground">
+                Select a guest to choose service types.
               </p>
-              {!guest ? (
-                <p className="text-xs text-muted-foreground">
-                  Select a guest to choose service types.
-                </p>
-              ) : serviceTypesLoading ? (
-                <p className="text-xs text-muted-foreground">Loading service types…</p>
-              ) : serviceTypes.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No service types configured.</p>
-              ) : (
-                <ul className="max-h-40 space-y-1 overflow-y-auto">
-                  {serviceTypes.map((row) => {
-                    const selected = selectedServiceRequests.find(
-                      (item) => item.serviceTypeId === row.id,
-                    );
-                    return (
-                      <li key={row.id} className="grid gap-1">
-                        <label className="flex items-center gap-2 text-xs text-[#251605]">
-                          <Checkbox
-                            checked={Boolean(selected)}
-                            onCheckedChange={(checked) => {
-                              if (checked === true) {
-                                onSelectedServiceRequestsChange([
-                                  ...selectedServiceRequests,
-                                  { serviceTypeId: row.id, name: row.name, description: "" },
-                                ]);
-                                return;
-                              }
-                              onSelectedServiceRequestsChange(
-                                selectedServiceRequests.filter(
-                                  (item) => item.serviceTypeId !== row.id,
-                                ),
-                              );
-                            }}
-                          />
-                          <span className="min-w-0 flex-1 font-medium">{row.name}</span>
-                          <span className="text-[10px] text-[#8A7B68]">{row.categoryName}</span>
-                        </label>
-                        {selected ? (
-                          <Input
-                            className={cn(CONTROL, "ml-6")}
-                            value={selected.description}
-                            placeholder={row.name}
-                            aria-label={`Description for ${row.name}`}
-                            data-testid="selected-service-description"
-                            onChange={(event) =>
-                              onSelectedServiceRequestsChange(
-                                selectedServiceRequests.map((item) =>
-                                  item.serviceTypeId === row.id
-                                    ? { ...item, description: event.target.value }
-                                    : item,
-                                ),
-                              )
+            ) : serviceTypesLoading ? (
+              <p className="text-xs text-muted-foreground">Loading service types…</p>
+            ) : serviceTypes.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No service types configured.</p>
+            ) : (
+              <ul className="max-h-32 space-y-0.5 overflow-y-auto pr-1">
+                {serviceTypes.map((row) => {
+                  const selected = selectedServiceRequests.find(
+                    (item) => item.serviceTypeId === row.id,
+                  );
+                  return (
+                    <li key={row.id} className="grid gap-1">
+                      <label className="flex items-center gap-2 text-xs text-[#251605]">
+                        <Checkbox
+                          checked={Boolean(selected)}
+                          onCheckedChange={(checked) => {
+                            if (checked === true) {
+                              onSelectedServiceRequestsChange([
+                                ...selectedServiceRequests,
+                                { serviceTypeId: row.id, name: row.name, description: "" },
+                              ]);
+                              return;
                             }
-                          />
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-            <div className="mt-3 grid gap-3 border-t border-[#CCCCCC] pt-3 lg:grid-cols-2">
-              <Field label="Special Requests">
-                <Textarea
-                  className={cn(PMS_OP_TEXTAREA, "min-h-[64px] resize-none text-sm")}
-                  maxLength={SPECIAL_REQUEST_MAX}
-                  value={specialRequests}
-                  onChange={(event) =>
-                    onSpecialRequestsChange(event.target.value.slice(0, SPECIAL_REQUEST_MAX))
-                  }
-                  placeholder="e.g. High floor, extra bed, airport pickup..."
-                />
+                            onSelectedServiceRequestsChange(
+                              selectedServiceRequests.filter(
+                                (item) => item.serviceTypeId !== row.id,
+                              ),
+                            );
+                          }}
+                        />
+                        <span className="min-w-0 flex-1 font-medium">{row.name}</span>
+                        <span className="shrink-0 rounded-full bg-[#F3EDE3] px-2 py-0.5 text-[11px] font-medium text-[#4A4034]">
+                          {row.categoryName}
+                        </span>
+                      </label>
+                      {selected ? (
+                        <Input
+                          className={cn(CONTROL, "ml-6")}
+                          value={selected.description}
+                          placeholder={row.name}
+                          aria-label={`Description for ${row.name}`}
+                          data-testid="selected-service-description"
+                          onChange={(event) =>
+                            onSelectedServiceRequestsChange(
+                              selectedServiceRequests.map((item) =>
+                                item.serviceTypeId === row.id
+                                  ? { ...item, description: event.target.value }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+          <div className="mt-3 grid items-stretch gap-3 border-t border-[#CCCCCC] pt-3 lg:grid-cols-2">
+            <Field label="Special Requests">
+              <Textarea
+                className={cn(PMS_OP_TEXTAREA, "min-h-24 resize-none text-sm")}
+                maxLength={SPECIAL_REQUEST_MAX}
+                value={specialRequests}
+                onChange={(event) =>
+                  onSpecialRequestsChange(event.target.value.slice(0, SPECIAL_REQUEST_MAX))
+                }
+                placeholder="e.g. High floor, extra bed, airport pickup..."
+              />
+              <div className="flex items-center justify-between gap-2">
                 <p className="text-[10px] text-muted-foreground">
                   Reservation-specific guest requests
                 </p>
-                <p className="text-right text-[10px] text-muted-foreground">
+                <p className="shrink-0 text-[10px] text-muted-foreground">
                   {requestLength}/{SPECIAL_REQUEST_MAX}
                 </p>
-              </Field>
-              <Field label="Internal Notes">
-                <Textarea
-                  className={cn(PMS_OP_TEXTAREA, "min-h-[64px] resize-none text-sm")}
-                  data-testid="booking-details-internal-notes"
-                  value={notes}
-                  onChange={(event) => onNotesChange(event.target.value)}
-                  placeholder="Staff-only notes for this draft"
-                />
-                <p className="text-[10px] text-muted-foreground">Staff-only notes</p>
-              </Field>
-            </div>
-          </BookingCard>
+              </div>
+            </Field>
+            <Field label="Internal Notes">
+              <Textarea
+                className={cn(PMS_OP_TEXTAREA, "min-h-24 resize-none text-sm")}
+                data-testid="booking-details-internal-notes"
+                value={notes}
+                onChange={(event) => onNotesChange(event.target.value)}
+                placeholder="Staff-only notes for this draft"
+              />
+              <p className="text-[10px] text-muted-foreground">Staff-only notes</p>
+            </Field>
+          </div>
           {roomAssignment}
-        </div>
+        </BookingCard>
       </div>
     </div>
   );
 }
 
 function BookingCard({
-  step,
+  icon,
   testId,
   title,
+  className,
+  action,
   children,
 }: {
-  step: number;
+  icon: ReactNode;
   testId?: string;
   title: string;
+  className?: string;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <section className={cn(PMS_OP_PANEL, "p-3")} data-testid={testId}>
-      <div className="flex items-center gap-2">
-        <span className="grid size-5 place-items-center rounded-[6px] bg-[#F6F3EC] text-[11px] font-semibold text-[#8B6914]">
-          {step}
-        </span>
-        <h2 className="font-display text-base text-[#251605]">{title}</h2>
+    <section
+      className={cn(
+        PMS_OP_PANEL,
+        "!rounded-[6px] !border-[#CCCCCC] !shadow-none h-fit min-w-0 p-4",
+        className,
+      )}
+      data-testid={testId}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-2">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+            {icon}
+          </span>
+          <h2 className="text-sm font-semibold text-[#251605]">{title}</h2>
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       <div className="mt-3">{children}</div>
     </section>
+  );
+}
+
+function SummaryChoice({
+  label,
+  ariaLabel,
+  primary,
+  detail,
+  value,
+  options,
+  onChange,
+  icon,
+}: {
+  label: string;
+  ariaLabel: string;
+  primary: string;
+  detail?: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  icon?: ReactNode;
+}) {
+  const interactive = options.filter((option) => option.value).length > 1;
+  const menuOptions = options.filter(
+    (option, index, list) =>
+      list.findIndex((row) => (row.value || SUMMARY_NONE) === (option.value || SUMMARY_NONE)) ===
+      index,
+  );
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] leading-4 text-[#6B5E4E]">{label}</p>
+      <div className="relative mt-0.5 flex min-w-0 items-start gap-2">
+        {icon ? (
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+            {icon}
+          </span>
+        ) : null}
+        <div className="min-w-0 flex-1">
+          {interactive ? (
+            <Select
+              value={value || SUMMARY_NONE}
+              onValueChange={(next) => onChange(next === SUMMARY_NONE ? "" : next)}
+            >
+              <SelectTrigger
+                aria-label={ariaLabel}
+                className="!h-auto min-h-0 w-full justify-between gap-1 !rounded-[6px] !border-0 !bg-transparent !px-0 py-0 text-left text-sm font-medium text-[#251605] !shadow-none focus:ring-1 focus:ring-[#C89933]"
+              >
+                <span className="min-w-0 break-words">{primary || "—"}</span>
+              </SelectTrigger>
+              <SelectContent className={NORU_MENU}>
+                {menuOptions.map((option, index) => (
+                  <SelectItem key={`${option.value}-${index}`} value={option.value || SUMMARY_NONE}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-sm font-medium leading-5 text-[#251605]" aria-label={ariaLabel}>
+              <span className="min-w-0 break-words">{primary || "—"}</span>
+            </p>
+          )}
+          {detail ? <p className="text-xs leading-4 text-[#8A7B68]">{detail}</p> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function contactSummary(
+  contact: {
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+    whatsapp?: string | null;
+  } | null,
+) {
+  if (!contact) return { primary: "—", detail: "" };
+  const reach = [contact.phone, contact.whatsapp, contact.email]
+    .map((value) => (value ?? "").trim())
+    .filter(Boolean);
+  return { primary: contact.name.trim() || "—", detail: [...new Set(reach)].join(" · ") };
+}
+
+function splitSummary(label: string) {
+  const text = label.trim();
+  const splitAt = text.indexOf(" · ");
+  if (splitAt < 0) return { primary: text || "—", detail: "" };
+  return { primary: text.slice(0, splitAt).trim() || "—", detail: text.slice(splitAt + 3).trim() };
+}
+
+function MetaValue({
+  label,
+  value,
+  ariaLabel,
+}: {
+  label: string;
+  value: string;
+  ariaLabel?: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] leading-4 text-[#6B5E4E]">{label}</p>
+      <p
+        className="mt-0.5 break-words text-sm font-medium leading-5 text-[#251605]"
+        aria-label={ariaLabel ?? label}
+      >
+        {value || "—"}
+      </p>
+    </div>
   );
 }
 

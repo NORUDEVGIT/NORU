@@ -126,7 +126,7 @@ describe("Phase 1 workspace overlay routing", () => {
     expect(createPage).toContain("Guest, Stay & Availability");
     expect(createPage).not.toContain('id: "availability"');
     expect(createPage).toContain("Booking Details");
-    expect(createPage).toContain("Policies & Guarantee");
+    expect(createPage).toContain("Policies & Payment");
     expect(createPage).toContain("Review & Confirm");
     expect(createPage).toContain("<CreateReservationReview");
     expect(createPage).toContain('data-testid="create-reservation-stepper"');

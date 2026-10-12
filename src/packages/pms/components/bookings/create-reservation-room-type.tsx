@@ -29,6 +29,12 @@ export type RoomTypeCatalogDetails = {
   amenityLabels?: string[];
 };
 
+function availabilityBadgeLabel(state: RoomTypeAvailabilityState, available: number): string {
+  if (state === "none") return ROOM_TYPE_AVAILABILITY_LABELS.none;
+  if (available === 1) return "1 room left";
+  return `${available} rooms available`;
+}
+
 function AvailabilityBadge({
   state,
   available,
@@ -41,17 +47,51 @@ function AvailabilityBadge({
       data-testid={`availability-state-${state}`}
       data-availability-state={state}
       className={cn(
-        "inline-flex min-h-8 items-center justify-center rounded-[6px] px-2 py-1 text-center text-[10px] font-semibold uppercase leading-tight tracking-wide",
-        state === "available" && "bg-emerald-500/15 text-emerald-800",
-        state === "limited" && "bg-amber-500/15 text-amber-800",
-        state === "none" && "bg-muted text-muted-foreground",
+        "inline-flex min-h-8 items-center justify-center rounded-[6px] px-2.5 py-1 text-center text-xs font-semibold leading-tight",
+        state === "available" && "bg-[#E5F2E4] text-[#2F6B3A]",
+        state === "limited" && "bg-[#F8E8C8] text-[#8A641A]",
+        state === "none" && "bg-[#F3EDE3] text-[#6B5E4E]",
       )}
     >
-      {state === "none"
-        ? ROOM_TYPE_AVAILABILITY_LABELS.none
-        : state === "limited"
-          ? `${available} Available - ${ROOM_TYPE_AVAILABILITY_LABELS.limited}`
-          : `${available} Available`}
+      {availabilityBadgeLabel(state, available)}
+    </span>
+  );
+}
+
+export function roomDisplayLabels(details: RoomTypeCatalogDetails | null | undefined): string[] {
+  if (!details) return [];
+  const amenityLabels = (details.amenityLabels ?? []).filter((label) => label.trim());
+  const attributes = [details.bedType, details.roomView, details.roomSize].filter(
+    (label): label is string => Boolean(label?.trim()),
+  );
+  return [...amenityLabels, ...attributes].filter(
+    (label, index, all) => all.indexOf(label) === index,
+  );
+}
+
+export function AmenityStrip({ labels, title }: { labels: string[]; title?: string }) {
+  if (labels.length === 0) return null;
+  const shown = labels.slice(0, 4);
+  const extra = labels.length - shown.length;
+  return (
+    <span
+      className="mt-1.5 flex flex-wrap gap-1"
+      data-testid="room-amenity-strip"
+      title={title || labels.join(" · ")}
+    >
+      {shown.map((label) => (
+        <span
+          key={label}
+          className="inline-flex max-w-full items-center truncate rounded-full bg-[#F7F4EE] px-1.5 py-0.5 text-[10px] text-[#6B5E4E]"
+        >
+          {label}
+        </span>
+      ))}
+      {extra > 0 ? (
+        <span className="inline-flex items-center rounded-full bg-[#F7F4EE] px-1.5 py-0.5 text-[10px] font-medium text-[#6B5E4E]">
+          +{extra} more
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -170,20 +210,25 @@ export function CreateReservationRoomType({
   return (
     <section
       id="create-reservation-availability"
-      className={cn(PMS_OP_PANEL, "!shadow-none min-w-0")}
+      className={cn(PMS_OP_PANEL, "!rounded-[6px] !border-[#CCCCCC] !shadow-none min-w-0")}
       data-testid="create-reservation-room-type"
     >
       <div
-        className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E7E0D4] px-3 py-3"
+        className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E7E0D4] px-4 py-3"
         data-testid="availability-header"
       >
-        <div className="min-w-0">
-          <h2 className="font-display text-base text-[#251605]">Availability & Room Selection</h2>
-          {headerSummary ?? (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Select a room type and rate plan that best fits your guest&apos;s needs.
-            </p>
-          )}
+        <div className="flex min-w-0 items-start gap-2">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+            <BedDouble className="size-3.5" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-[#251605]">Availability & Room Selection</h2>
+            {headerSummary ?? (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Select a room type and rate plan that best fits your guest&apos;s needs.
+              </p>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 xl:flex-nowrap">
           {onModifySearch ? (
@@ -198,8 +243,8 @@ export function CreateReservationRoomType({
               Modify Search
             </Button>
           ) : null}
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Show rates in
+          <label className="flex items-center gap-2 text-xs text-[#6B5E4E]">
+            Display rates in
             <select
               className="h-8 !rounded-[6px] border border-[#CCCCCC] bg-white px-2 text-sm text-[#251605]"
               value={currencyCode ?? ""}
@@ -221,16 +266,6 @@ export function CreateReservationRoomType({
               ))}
             </select>
           </label>
-          {/* TODO: wire Rate & Revenue comparison read */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={cn(PMS_OP_BTN_COMPACT, "text-muted-foreground")}
-            disabled
-          >
-            Compare Rates
-          </Button>
         </div>
       </div>
       {/* CREATE_RESERVATION_SECTION4_SCOPE */}
@@ -302,6 +337,7 @@ export function CreateReservationRoomType({
                     const amenityLabels = (details?.amenityLabels ?? []).filter((label) =>
                       label.trim(),
                     );
+                    const stripLabels = roomDisplayLabels(details);
                     const coverUrl = details?.coverUrl ?? row.coverUrl;
                     return (
                       <li
@@ -347,11 +383,10 @@ export function CreateReservationRoomType({
                                     {details.description}
                                   </span>
                                 ) : null}
-                                {amenityLabels.length > 0 ? (
-                                  <span className="mt-1 line-clamp-2 block text-xs text-muted-foreground">
-                                    {amenityLabels.join(" · ")}
-                                  </span>
-                                ) : null}
+                                <AmenityStrip
+                                  labels={stripLabels}
+                                  title={amenityLabels.join(" · ")}
+                                />
                               </span>
                             </button>
                           </div>

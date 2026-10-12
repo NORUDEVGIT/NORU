@@ -23,6 +23,7 @@ import {
   type DetailWorkspaceTab,
   type ReservationDetailOverviewInput,
 } from "@/packages/pms/lib/reservation-detail-overview";
+import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
 
 type GuestBits = {
   profileNumber?: string | null;
@@ -68,13 +69,17 @@ export function ReservationDetailOverviewDashboard({
   const cancellation =
     snapshotDisplayName(reservation.cancellationPolicySnapshot) ??
     snapshotField(reservation.refundabilitySnapshot, ["cancellation", "cancellation_policy"]);
-  const noShow =
-    snapshotField(reservation.refundabilitySnapshot, ["no_show", "no_show_policy", "noshow"]) ??
-    snapshotField(reservation.cancellationPolicySnapshot, ["no_show", "no_show_policy"]);
-  const earlyDeparture = snapshotField(reservation.refundabilitySnapshot, [
-    "early_departure",
-    "early_departure_policy",
-  ]);
+  const noShowName = snapshotDisplayName(reservation.noShowPolicySnapshot);
+  const noShowPenalty = snapshotField(reservation.noShowPolicySnapshot, ["penalty_type"]);
+  const noShow = noShowName
+    ? noShowPenalty
+      ? `${noShowName} · ${noShowPenalty.replaceAll("_", " ")}`
+      : noShowName
+    : null;
+  const earlyDeparture = earlyDepartureReservationLabel({
+    snapshot: reservation.earlyDeparturePolicySnapshot,
+    legacyRefundabilitySnapshot: reservation.refundabilitySnapshot,
+  });
   const vipTreatment = reservation.guestVip ? "Yes" : dash;
 
   return (
@@ -223,6 +228,7 @@ export function ReservationDetailOverviewDashboard({
               ["Card Number", detailGuaranteeCardNumber(reservation.guaranteeMethod)],
               ["Card Holder Name", dash],
               ["Expiry Date", dash],
+              ["Deposit Policy", reviewDash(deposit?.name)],
               [
                 "Deposit Required",
                 deposit?.required == null ? dash : deposit.required ? "Yes" : "No",

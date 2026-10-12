@@ -27,9 +27,11 @@ import {
   getRatesCard2,
   saveRateCancellationPolicyCard2,
   saveRateCategoryCard2,
+  saveRateEarlyDeparturePolicyCard2,
   saveRateNoShowPolicyCard2,
   saveRatePlanCard2,
   saveRateRefundabilityCard2,
+  setRateEarlyDeparturePolicyActiveCard2,
 } from "@/packages/pms/lib/rates-card2.functions";
 import {
   CANCELLATION_PENALTY_TYPE_LABELS,
@@ -53,6 +55,7 @@ import {
   type PredefinedRateCategory,
   type RateCancellationPolicyRow,
   type RateCategoryRow,
+  type RateEarlyDeparturePolicyRow,
   type RateNoShowPolicyRow,
   type RatePlanRow,
   type RateRefundabilityKind,
@@ -60,6 +63,11 @@ import {
   type RatesCard2Snapshot,
 } from "@/packages/pms/lib/rates-card2.server";
 import { penaltyNeedsValue } from "@/packages/pms/lib/cancellation-policy-rules";
+import {
+  EARLY_DEPARTURE_PENALTY_TYPE_LABELS,
+  EARLY_DEPARTURE_PENALTY_TYPES,
+  type EarlyDeparturePenaltyType,
+} from "@/packages/pms/lib/early-departure-policy";
 import { formatRateValidity } from "@/packages/pms/lib/pms-property-setup-card2";
 import { cn } from "@/shared/lib/utils";
 
@@ -94,18 +102,24 @@ export function PmsPropertySetupCard2Rates({
   const saveCancellation = useServerFn(saveRateCancellationPolicyCard2);
   const saveRefundability = useServerFn(saveRateRefundabilityCard2);
   const saveNoShow = useServerFn(saveRateNoShowPolicyCard2);
+  const saveEarlyDeparture = useServerFn(saveRateEarlyDeparturePolicyCard2);
+  const setEarlyDepartureActive = useServerFn(setRateEarlyDeparturePolicyActiveCard2);
 
   const [categorySearch, setCategorySearch] = useState("");
   const [planSearch, setPlanSearch] = useState("");
   const [cancelSearch, setCancelSearch] = useState("");
   const [refundSearch, setRefundSearch] = useState("");
   const [noShowSearch, setNoShowSearch] = useState("");
+  const [earlyDepartureSearch, setEarlyDepartureSearch] = useState("");
   const [categoryDraft, setCategoryDraft] = useState<RateCategoryRow | "new" | null>(null);
   const [planDraft, setPlanDraft] = useState<RatePlanRow | "new" | null>(null);
   const [batchPending, setBatchPending] = useState(false);
   const [cancelDraft, setCancelDraft] = useState<RateCancellationPolicyRow | "new" | null>(null);
   const [refundDraft, setRefundDraft] = useState<RateRefundabilityRow | "new" | null>(null);
   const [noShowDraft, setNoShowDraft] = useState<RateNoShowPolicyRow | "new" | null>(null);
+  const [earlyDepartureDraft, setEarlyDepartureDraft] = useState<
+    RateEarlyDeparturePolicyRow | "new" | null
+  >(null);
 
   const query = useQuery({
     queryKey: ["pms-card2-rates", restaurantId],
@@ -120,7 +134,9 @@ export function PmsPropertySetupCard2Rates({
   const mealPlans = snapshot?.mealPlans ?? [];
   const cancellationPolicies = snapshot?.cancellationPolicies ?? [];
   const refundabilityCodes = snapshot?.refundabilityCodes ?? [];
+  const depositPolicies = snapshot?.depositPolicies ?? [];
   const noShowPolicies = snapshot?.noShowPolicies ?? [];
+  const earlyDeparturePolicies = snapshot?.earlyDeparturePolicies ?? [];
   const currencyCode = snapshot?.currencyCode ?? "USD";
 
   useEffect(() => {
@@ -169,6 +185,19 @@ export function PmsPropertySetupCard2Rates({
         ),
       ),
     [noShowPolicies, noShowSearch],
+  );
+  const filteredEarlyDeparturePolicies = useMemo(
+    () =>
+      earlyDeparturePolicies.filter((row) =>
+        matchesQuery(
+          earlyDepartureSearch,
+          row.code,
+          row.name,
+          row.description ?? "",
+          EARLY_DEPARTURE_PENALTY_TYPE_LABELS[row.penaltyType] ?? row.penaltyType,
+        ),
+      ),
+    [earlyDeparturePolicies, earlyDepartureSearch],
   );
 
   function invalidate() {
@@ -254,6 +283,24 @@ export function PmsPropertySetupCard2Rates({
       setNoShowDraft(null);
       invalidate();
     },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const earlyDepartureMut = useMutation({
+    mutationFn: (input: Parameters<typeof saveEarlyDeparture>[0]["data"]) =>
+      saveEarlyDeparture({ data: input }),
+    onSuccess: () => {
+      toast.success("Early departure policy saved.");
+      setEarlyDepartureDraft(null);
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const earlyDepartureActiveMut = useMutation({
+    mutationFn: (input: { id: string; active: boolean }) =>
+      setEarlyDepartureActive({ data: { restaurantId, ...input } }),
+    onSuccess: () => invalidate(),
     onError: (error: Error) => toast.error(error.message),
   });
 
@@ -429,6 +476,46 @@ export function PmsPropertySetupCard2Rates({
             }))}
           />
 
+          <Card3ListSection
+            title="Early departure policies"
+            icon="checklist"
+            search={earlyDepartureSearch}
+            onSearch={setEarlyDepartureSearch}
+            placeholder="Search early departure policies"
+            addLabel="Add early departure policy"
+            onAdd={() => setEarlyDepartureDraft("new")}
+            canEdit={canEdit}
+            empty="No early departure policies yet."
+            columns={["Code", "Name", "Penalty", "Status"]}
+            rows={filteredEarlyDeparturePolicies.map((row) => ({
+              id: row.id,
+              cells: [
+                row.code,
+                row.name,
+                row.penaltyType === "percent_stay"
+                  ? `${row.penaltyValue}% of stay`
+                  : row.penaltyType === "fixed_amount"
+                    ? `${currencyCode} ${row.penaltyValue}`
+                    : EARLY_DEPARTURE_PENALTY_TYPE_LABELS[row.penaltyType],
+                <span
+                  key="status"
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  <Switch
+                    checked={row.active}
+                    disabled={!canEdit || earlyDepartureActiveMut.isPending}
+                    aria-label={`${row.code} active`}
+                    onCheckedChange={(active) =>
+                      earlyDepartureActiveMut.mutate({ id: row.id, active })
+                    }
+                  />
+                </span>,
+              ],
+              onEdit: () => setEarlyDepartureDraft(row),
+            }))}
+          />
+
           <CategoryDrawer
             key={categoryDraft === "new" ? "cat-new" : (categoryDraft?.id ?? "cat-closed")}
             open={categoryDraft !== null}
@@ -450,6 +537,9 @@ export function PmsPropertySetupCard2Rates({
             mealPlans={mealPlans}
             cancellationPolicies={cancellationPolicies}
             refundabilityCodes={refundabilityCodes}
+            depositPolicies={depositPolicies}
+            noShowPolicies={noShowPolicies}
+            earlyDeparturePolicies={earlyDeparturePolicies}
             value={planDraft === "new" || planDraft === null ? null : planDraft}
             pending={planMut.isPending}
             onClose={() => setPlanDraft(null)}
@@ -485,6 +575,23 @@ export function PmsPropertySetupCard2Rates({
             pending={noShowMut.isPending}
             onClose={() => setNoShowDraft(null)}
             onSave={(payload) => noShowMut.mutate({ restaurantId, ...payload })}
+          />
+
+          <EarlyDepartureDrawer
+            key={
+              earlyDepartureDraft === "new" ? "ed-new" : (earlyDepartureDraft?.id ?? "ed-closed")
+            }
+            open={earlyDepartureDraft !== null}
+            canEdit={canEdit}
+            value={
+              earlyDepartureDraft === "new" || earlyDepartureDraft === null
+                ? null
+                : earlyDepartureDraft
+            }
+            currencyCode={currencyCode}
+            pending={earlyDepartureMut.isPending}
+            onClose={() => setEarlyDepartureDraft(null)}
+            onSave={(payload) => earlyDepartureMut.mutate({ restaurantId, ...payload })}
           />
         </div>
       )}
@@ -846,6 +953,9 @@ function PlanDrawer({
   mealPlans,
   cancellationPolicies,
   refundabilityCodes,
+  depositPolicies,
+  noShowPolicies,
+  earlyDeparturePolicies,
   value,
   pending,
   onClose,
@@ -858,6 +968,9 @@ function PlanDrawer({
   mealPlans: RatesCard2Snapshot["mealPlans"];
   cancellationPolicies: RateCancellationPolicyRow[];
   refundabilityCodes: RateRefundabilityRow[];
+  depositPolicies: RatesCard2Snapshot["depositPolicies"];
+  noShowPolicies: RatesCard2Snapshot["noShowPolicies"];
+  earlyDeparturePolicies: RatesCard2Snapshot["earlyDeparturePolicies"];
   value: RatePlanRow | null;
   pending: boolean;
   onClose: () => void;
@@ -874,6 +987,9 @@ function PlanDrawer({
     mealPlanId: string | null;
     cancellationPolicyId: string | null;
     refundabilityId: string | null;
+    depositPolicyId: string | null;
+    noShowPolicyId: string | null;
+    earlyDeparturePolicyId: string | null;
     active: boolean;
   }) => void;
 }) {
@@ -890,6 +1006,11 @@ function PlanDrawer({
     value?.cancellationPolicyId ?? NONE,
   );
   const [refundabilityId, setRefundabilityId] = useState(value?.refundabilityId ?? NONE);
+  const [depositPolicyId, setDepositPolicyId] = useState(value?.depositPolicyId ?? NONE);
+  const [noShowPolicyId, setNoShowPolicyId] = useState(value?.noShowPolicyId ?? NONE);
+  const [earlyDeparturePolicyId, setEarlyDeparturePolicyId] = useState(
+    value?.earlyDeparturePolicyId ?? NONE,
+  );
   const [active, setActive] = useState(value?.active ?? true);
 
   return (
@@ -915,6 +1036,9 @@ function PlanDrawer({
           mealPlanId: optionalId(mealPlanId),
           cancellationPolicyId: optionalId(cancellationPolicyId),
           refundabilityId: optionalId(refundabilityId),
+          depositPolicyId: optionalId(depositPolicyId),
+          noShowPolicyId: optionalId(noShowPolicyId),
+          earlyDeparturePolicyId: optionalId(earlyDeparturePolicyId),
           active,
         })
       }
@@ -1017,41 +1141,114 @@ function PlanDrawer({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1">
-          <Label>Cancellation policy</Label>
-          <Select
-            value={cancellationPolicyId}
-            disabled={!canEdit}
-            onValueChange={setCancellationPolicyId}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="None" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>None</SelectItem>
-              {cancellationPolicies.map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  {row.code} — {row.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label>Refundability</Label>
-          <Select value={refundabilityId} disabled={!canEdit} onValueChange={setRefundabilityId}>
-            <SelectTrigger>
-              <SelectValue placeholder="None" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>None</SelectItem>
-              {refundabilityCodes.map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  {row.code} — {row.name} ({REFUNDABILITY_KIND_LABELS[row.kind]})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="space-y-3 rounded-xl border px-3 py-3">
+          <p className="text-xs font-medium text-muted-foreground">Policies</p>
+          <div className="space-y-1">
+            <Label>Cancellation policy</Label>
+            <Select
+              value={cancellationPolicyId}
+              disabled={!canEdit}
+              onValueChange={setCancellationPolicyId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>None</SelectItem>
+                {cancellationPolicies.map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.code} — {row.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Refundability</Label>
+            <Select value={refundabilityId} disabled={!canEdit} onValueChange={setRefundabilityId}>
+              <SelectTrigger>
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>None</SelectItem>
+                {refundabilityCodes.map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.code} — {row.name} ({REFUNDABILITY_KIND_LABELS[row.kind]})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Deposit policy</Label>
+            <Select value={depositPolicyId} disabled={!canEdit} onValueChange={setDepositPolicyId}>
+              <SelectTrigger>
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>None</SelectItem>
+                {depositPolicies.length === 0 ? (
+                  <SelectItem value="__empty_deposit__" disabled>
+                    No deposit policies configured
+                  </SelectItem>
+                ) : (
+                  depositPolicies.map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.code} — {row.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>No-show policy</Label>
+            <Select value={noShowPolicyId} disabled={!canEdit} onValueChange={setNoShowPolicyId}>
+              <SelectTrigger>
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>None</SelectItem>
+                {noShowPolicies.length === 0 ? (
+                  <SelectItem value="__empty_no_show__" disabled>
+                    No no-show policies configured
+                  </SelectItem>
+                ) : (
+                  noShowPolicies.map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.code} — {row.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Early departure policy</Label>
+            <Select
+              value={earlyDeparturePolicyId}
+              disabled={!canEdit}
+              onValueChange={setEarlyDeparturePolicyId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>None</SelectItem>
+                {earlyDeparturePolicies.length === 0 ? (
+                  <SelectItem value="__empty_early_departure__" disabled>
+                    No early departure policies configured
+                  </SelectItem>
+                ) : (
+                  earlyDeparturePolicies.map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.code} — {row.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="space-y-1">
           <Label htmlFor="plan-rate">Base rate</Label>
@@ -1569,6 +1766,139 @@ function NoShowDrawer({
             disabled={!canEdit}
             onCheckedChange={setActive}
           />
+        </div>
+      </div>
+    </Card3OverlapSheet>
+  );
+}
+
+function EarlyDepartureDrawer({
+  open,
+  canEdit,
+  value,
+  currencyCode,
+  pending,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  canEdit: boolean;
+  value: RateEarlyDeparturePolicyRow | null;
+  currencyCode: string;
+  pending: boolean;
+  onClose: () => void;
+  onSave: (payload: {
+    id?: string;
+    code: string;
+    name: string;
+    description: string;
+    penaltyType: EarlyDeparturePenaltyType;
+    penaltyValue: number;
+    active: boolean;
+  }) => void;
+}) {
+  const [code, setCode] = useState(value?.code ?? "");
+  const [name, setName] = useState(value?.name ?? "");
+  const [description, setDescription] = useState(value?.description ?? "");
+  const [penaltyType, setPenaltyType] = useState<EarlyDeparturePenaltyType>(
+    value?.penaltyType ?? "none",
+  );
+  const [penaltyValue, setPenaltyValue] = useState(String(value?.penaltyValue ?? 0));
+  const [active, setActive] = useState(value?.active ?? true);
+  const needsValue = penaltyType === "percent_stay" || penaltyType === "fixed_amount";
+
+  return (
+    <Card3OverlapSheet
+      open={open}
+      onClose={onClose}
+      title={value ? "Edit early departure policy" : "Add early departure policy"}
+      description="Stay terms used by rate plans. This does not post a checkout charge."
+      canEdit={canEdit}
+      pending={pending}
+      submitLabel="Save early departure policy"
+      onSubmit={() =>
+        onSave({
+          ...(value ? { id: value.id } : {}),
+          code: code.trim().toUpperCase(),
+          name: name.trim(),
+          description: description.trim(),
+          penaltyType,
+          penaltyValue: needsValue ? Number(penaltyValue) || 0 : 0,
+          active,
+        })
+      }
+    >
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label htmlFor="ed-code">Code</Label>
+          <Input
+            id="ed-code"
+            value={code}
+            maxLength={30}
+            disabled={!canEdit}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="ed-name">Name</Label>
+          <Input
+            id="ed-name"
+            value={name}
+            maxLength={120}
+            disabled={!canEdit}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="ed-penalty">Penalty type</Label>
+          <Select
+            value={penaltyType}
+            disabled={!canEdit}
+            onValueChange={(next) => setPenaltyType(next as EarlyDeparturePenaltyType)}
+          >
+            <SelectTrigger id="ed-penalty">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {EARLY_DEPARTURE_PENALTY_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {EARLY_DEPARTURE_PENALTY_TYPE_LABELS[type]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {needsValue ? (
+          <div className="space-y-1">
+            <Label htmlFor="ed-value">
+              {penaltyType === "percent_stay" ? "Percentage" : `Fixed amount (${currencyCode})`}
+            </Label>
+            <Input
+              id="ed-value"
+              type="number"
+              min={0}
+              max={penaltyType === "percent_stay" ? 100 : undefined}
+              step="0.01"
+              value={penaltyValue}
+              disabled={!canEdit}
+              onChange={(event) => setPenaltyValue(event.target.value)}
+            />
+          </div>
+        ) : null}
+        <div className="space-y-1">
+          <Label htmlFor="ed-description">Description</Label>
+          <Textarea
+            id="ed-description"
+            value={description}
+            maxLength={500}
+            rows={3}
+            disabled={!canEdit}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </div>
+        <div className="flex items-center justify-between rounded-xl border px-3 py-2">
+          <Label htmlFor="ed-active">Active</Label>
+          <Switch id="ed-active" checked={active} disabled={!canEdit} onCheckedChange={setActive} />
         </div>
       </div>
     </Card3OverlapSheet>

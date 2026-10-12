@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronDown, Printer, Send } from "lucide-react";
+import { ArrowLeft, ChevronDown, Printer } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -19,6 +19,7 @@ import {
 } from "@/shared/components/ui/dialog";
 import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
 import {
+  AssignRoomDialog,
   CheckInDialog,
   CheckOutDialog,
   NoShowDialog,
@@ -37,6 +38,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import {
@@ -57,13 +59,19 @@ import { ReservationDetailRequestsTab } from "@/packages/pms/components/workspac
 import { ReservationDetailNotesTab } from "@/packages/pms/components/workspaces/reservation-detail-notes";
 import {
   arriveInLabel,
+  bookedByLabel,
+  channelLabel,
   COMMUNICATION_DEFERRED_COPY,
   DETAIL_DASH,
   DETAIL_SIDEBAR_ITEMS,
   depositStatusLabel,
   LINKED_DEFERRED_COPY,
   parseDepositRequirementSnapshot,
+  snapshotDisplayName,
+  snapshotField,
+  sourceLabel,
   stayStatusLabel,
+  storedRatePerNight,
   type DetailWorkspaceTab,
 } from "@/packages/pms/lib/reservation-detail-overview";
 import {
@@ -81,7 +89,11 @@ import {
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import { reservationAmendImpact } from "@/packages/pms/lib/reservation-amend-impact";
 import { reservationHistoryChanges } from "@/packages/pms/lib/reservation-history-display";
-import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
+import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
+import {
+  PROPERTY_BUSINESS_DATE_KEY,
+  usePropertyBusinessDate,
+} from "@/packages/pms/lib/use-property-business-date";
 import { listGuests } from "@/packages/pms/lib/guests.functions";
 import { quoteStay } from "@/packages/pms/lib/rates.functions";
 import {
@@ -95,6 +107,33 @@ import { useMoney, useRestaurantTime } from "@/core/state/property-format";
 import { GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
 import { ReservationGuestMastersCard } from "@/packages/pms/components/guests/reservation-guest-masters";
 import { getGuest } from "@/packages/pms/lib/guests.functions";
+import { ReservationPrintDocument } from "@/packages/pms/components/bookings/reservation-print-document";
+import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
+import { snapshotDueDate } from "@/packages/pms/lib/reservation-detail-folio";
+import { guestProfilePreferenceChips } from "@/packages/pms/lib/reservation-detail-requests";
+import { appliedPackagesTotal } from "@/packages/pms/lib/reservation-detail-packages";
+import {
+  reviewNoShowCopy,
+  reviewRefundabilityCopy,
+} from "@/packages/pms/lib/create-reservation-review";
+import {
+  buildPersistedReservationPrintData,
+  confirmedTimestampFromHistory,
+  formatPrintDateTime,
+  formatPropertyContactAddress,
+} from "@/packages/pms/lib/reservation-print-document";
+import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
+import {
+  getReservationActions,
+  type ReservationActionId,
+  type ReservationActionResult,
+} from "@/packages/pms/lib/reservation-actions";
+import {
+  reservationDetailActionInput,
+  reservationDetailActionIsDestructive,
+  reservationDetailActionLabel,
+  reservationDetailSecondaryActions,
+} from "@/packages/pms/lib/reservation-detail-actions";
 import { PmsDocumentHeader } from "@/packages/pms/components/settings/pms-document-header";
 import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
 
@@ -102,7 +141,7 @@ import { cn } from "@/shared/lib/utils";
 
 const UNASSIGNED = "unassigned";
 
-type FrontOfficeAction = "check_in" | "check_out" | "no_show" | "change_room";
+type FrontOfficeAction = "assign_room" | "check_in" | "check_out" | "no_show" | "change_room";
 
 const DETAIL_TABS: Array<{ id: DetailWorkspaceTab; label: string; deferred?: boolean }> = [
   { id: "overview", label: "Overview" },
@@ -115,12 +154,14 @@ export function ReservationDetailWorkspace({
   embedded = false,
   onCopiedReservation,
   onBackToList,
+  onEditReservation,
 }: {
   membership: RestaurantMembership;
   reservationId: string;
   embedded?: boolean;
   onCopiedReservation?: (reservationId: string) => void;
   onBackToList?: () => void;
+  onEditReservation?: () => void;
 }) {
   const restaurantId = membership.restaurant.id;
   const set1 = usePmsSet1Foundation(restaurantId);
@@ -128,10 +169,18 @@ export function ReservationDetailWorkspace({
   const { dateTime, timezone } = useRestaurantTime();
   const money = useMoney();
   const businessDate = usePropertyBusinessDate(restaurantId, timezone);
+  const fetchBusinessDate = useServerFn(getPropertyBusinessDate);
+  const businessDateQuery = useQuery({
+    queryKey: [PROPERTY_BUSINESS_DATE_KEY, restaurantId],
+    queryFn: () => fetchBusinessDate({ data: { restaurantId } }),
+    retry: false,
+  });
+  const actionBusinessDate = businessDateQuery.data?.businessDate ?? null;
 
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchReservation = useServerFn(getReservation);
   const fetchGuest = useServerFn(getGuest);
+  const fetchCommercial = useServerFn(getReservationCommercialAttribution);
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
   const fetchRooms = useServerFn(listAssignableRooms);
   const submitAmend = useServerFn(amendReservation);
@@ -164,6 +213,19 @@ export function ReservationDetailWorkspace({
     queryKey: ["guest", restaurantId, reservation?.guestId],
     queryFn: () => fetchGuest({ data: { restaurantId, guestId: reservation!.guestId } }),
     enabled: canManage && Boolean(reservation?.guestId),
+    retry: false,
+  });
+  const commercialQuery = useQuery({
+    queryKey: ["reservation-commercial", restaurantId, reservation?.id, "packages"],
+    queryFn: () =>
+      fetchCommercial({
+        data: {
+          restaurantId,
+          reservationId: reservation!.id,
+          roomSubtotal: reservation!.roomSubtotal,
+        },
+      }),
+    enabled: canManage && Boolean(reservation?.id),
     retry: false,
   });
 
@@ -293,67 +355,58 @@ export function ReservationDetailWorkspace({
     guestEmail: reservation.guestEmail,
     guaranteeMethod: reservation.guaranteeMethod,
   };
-  const showCheckIn = reservation.status === "confirmed";
-  const showCheckOut = reservation.status === "checked_in";
-  const showChangeRoom = reservation.status === "checked_in" && Boolean(reservation.roomId);
-  const showNoShow = reservation.status === "confirmed" && reservation.arrivalDate <= businessDate;
-
-  const lifecycleButtons = !cancelled ? (
-    <>
-      {reservation.status === "pending" ? (
-        <Button
-          disabled={statusMutation.isPending}
-          onClick={() => statusMutation.mutate({ status: "confirmed" })}
-        >
-          Confirm
-        </Button>
-      ) : null}
-      {showCheckIn ? (
-        <Button variant="outline" onClick={() => setFoAction("check_in")}>
-          Check In
-        </Button>
-      ) : null}
-      {showCheckOut ? (
-        <Button variant="outline" onClick={() => setFoAction("check_out")}>
-          Check Out
-        </Button>
-      ) : null}
-      {showChangeRoom ? (
-        <Button variant="outline" onClick={() => setFoAction("change_room")}>
-          Change Room
-        </Button>
-      ) : null}
-      {showNoShow ? (
-        <Button variant="outline" onClick={() => setFoAction("no_show")}>
-          Mark No-Show
-        </Button>
-      ) : null}
-      <Button variant="outline" onClick={() => setAmendOpen(true)}>
-        Amend stay
-      </Button>
-      <Button
-        variant="outline"
-        disabled={copyMutation.isPending}
-        onClick={() => copyMutation.mutate()}
-      >
-        Copy stay
-      </Button>
-      <Button
-        variant="outline"
-        className="border-destructive/40 text-destructive hover:bg-destructive/5"
-        onClick={() => setCancelOpen(true)}
-      >
-        Cancel reservation
-      </Button>
-    </>
-  ) : (
-    <Button
-      disabled={statusMutation.isPending}
-      onClick={() => statusMutation.mutate({ status: "pending" })}
-    >
-      Restore reservation
-    </Button>
-  );
+  const detailActions =
+    actionBusinessDate === null
+      ? null
+      : getReservationActions(
+          reservationDetailActionInput({
+            status: reservation.status,
+            businessDate: actionBusinessDate,
+            arrivalDate: reservation.arrivalDate,
+            departureDate: reservation.departureDate,
+            roomId: reservation.roomId,
+            role: accessQuery.data?.role ?? "",
+          }),
+        );
+  function runDetailAction(actionId: ReservationActionId) {
+    switch (actionId) {
+      case "confirm":
+        statusMutation.mutate({ status: "confirmed" });
+        return;
+      case "reactivate":
+        statusMutation.mutate({ status: "pending" });
+        return;
+      case "cancel":
+        setCancelOpen(true);
+        return;
+      case "assign_room":
+      case "check_in":
+      case "check_out":
+      case "no_show":
+      case "change_room":
+        setFoAction(actionId);
+        return;
+      case "copy":
+        copyMutation.mutate();
+        return;
+      case "edit":
+        if (onEditReservation) onEditReservation();
+        else setAmendOpen(true);
+        return;
+      case "open_folio":
+        setDetailTab("folio");
+        return;
+      default:
+        return;
+    }
+  }
+  const detailActionBar = detailActions ? (
+    <ReservationDetailActionBar
+      result={detailActions}
+      busy={statusMutation.isPending || copyMutation.isPending}
+      onAction={runDetailAction}
+    />
+  ) : null;
 
   const childDialogs = (
     <>
@@ -373,6 +426,16 @@ export function ReservationDetailWorkspace({
         open={cancelOpen}
         onOpenChange={setCancelOpen}
       />
+      {foAction === "assign_room" ? (
+        <AssignRoomDialog
+          restaurantId={restaurantId}
+          stay={foStay}
+          open
+          onOpenChange={(open) => {
+            if (!open) setFoAction(null);
+          }}
+        />
+      ) : null}
       {foAction === "check_in" ? (
         <CheckInDialog
           restaurantId={restaurantId}
@@ -423,6 +486,101 @@ export function ReservationDetailWorkspace({
       (row) => row.roomTypeId === reservation.roomTypeId,
     );
     const assigned = Boolean(reservation.roomId && reservation.roomNumber);
+    const appliedPackages = commercialQuery.data?.packages ?? [];
+    const packagesKnown = commercialQuery.isFetched && !commercialQuery.isError;
+    const ratePerNight = storedRatePerNight(
+      reservation.nightlyRates,
+      reservation.roomSubtotal,
+      reservation.nights,
+    );
+    const noShowName = snapshotDisplayName(reservation.noShowPolicySnapshot);
+    const noShowPenalty = snapshotField(reservation.noShowPolicySnapshot, ["penalty_type"]);
+    const printData = buildPersistedReservationPrintData({
+      generatedAt: formatPrintDateTime(new Date()) ?? "",
+      propertyName: membership.restaurant.name,
+      propertyAddress: formatPropertyContactAddress([
+        membership.restaurant.address,
+        membership.restaurant.city,
+        membership.restaurant.postcode,
+        membership.restaurant.country,
+      ]),
+      propertyPhone: membership.restaurant.phone,
+      propertyEmail: membership.restaurant.email,
+      status: reservation.status,
+      confirmationNumber: reservation.confirmationNumber,
+      createdAt: reservation.createdAt,
+      confirmedAt: confirmedTimestampFromHistory(history),
+      guestName: reservation.guestName,
+      phone: reservation.guestPhone,
+      email: reservation.guestEmail,
+      nationality: guestQuery.data?.guest?.nationality ?? null,
+      idDocumentNumber: guestQuery.data?.guest?.idDocumentNumber ?? null,
+      bookedBy: bookedByLabel(reservation.bookerGuestId, reservation.guestId),
+      bookingSource: sourceLabel(reservation.source, reservation.commercialBookingSource),
+      salesChannel: channelLabel(reservation.source, reservation.salesChannel),
+      marketSegment: reservation.marketSegment,
+      companyName: reservation.companyName,
+      travelAgentName: reservation.travelAgentName,
+      groupName: reservation.groupName,
+      arrivalDate: reservation.arrivalDate,
+      departureDate: reservation.departureDate,
+      nights: reservation.nights,
+      rooms: reservation.roomsRequested,
+      adults: reservation.adults,
+      children: reservation.children,
+      infants: reservation.infants,
+      roomImageUrl: roomType?.coverUrl ?? null,
+      roomName: reservation.roomTypeName,
+      roomCode: reservation.roomTypeCode ?? null,
+      ratePlan: reservation.ratePlanName,
+      inclusions: null,
+      ratePerNight: ratePerNight == null ? null : money(ratePerNight),
+      roomTotal: reservation.roomSubtotal == null ? null : money(reservation.roomSubtotal),
+      packages: appliedPackages.map((row) => ({
+        name: row.packageName,
+        chargeBasis: row.chargeBasis,
+        quantity: Number.isFinite(row.quantity) ? row.quantity : null,
+        unitAmount: Number.isFinite(row.unitAmount) ? money(row.unitAmount) : null,
+        amount: Number.isFinite(row.appliedAmount) ? money(row.appliedAmount) : null,
+        inclusions:
+          row.components
+            .map((item) => item.label.trim() || item.componentType.trim())
+            .filter((value) => value && !/^[0-9a-f-]{36}$/i.test(value))
+            .join(", ") || null,
+      })),
+      packagesKnown,
+      packagesTotal:
+        packagesKnown && appliedPackages.length > 0
+          ? money(appliedPackagesTotal(appliedPackages))
+          : null,
+      paymentType: reservation.guaranteeMethod,
+      paymentMethod: deposit?.tenderCode ?? reservation.guaranteeMethod,
+      depositRequired: deposit?.required == null ? null : deposit.required ? "Yes" : "No",
+      depositAmount: deposit?.amount == null ? null : money(deposit.amount),
+      depositDueDate: snapshotDueDate(reservation.depositRequirementSnapshot),
+      paymentTerms: [],
+      cancellation:
+        snapshotDisplayName(reservation.cancellationPolicySnapshot) ??
+        snapshotField(reservation.refundabilitySnapshot, ["cancellation", "cancellation_policy"]),
+      noShow: reviewNoShowCopy(
+        noShowName,
+        noShowPenalty ? noShowPenalty.replaceAll("_", " ") : null,
+      ),
+      earlyDeparture: earlyDepartureReservationLabel({
+        snapshot: reservation.earlyDeparturePolicySnapshot,
+        legacyRefundabilitySnapshot: reservation.refundabilitySnapshot,
+      }),
+      refundability: reviewRefundabilityCopy(
+        snapshotField(reservation.refundabilitySnapshot, ["kind", "policy_kind", "refundability"]),
+        snapshotDisplayName(reservation.refundabilitySnapshot),
+      ),
+      preferences: guestProfilePreferenceChips(guestQuery.data?.preferences).map(
+        (chip) => chip.label,
+      ),
+      serviceRequests: [],
+      specialRequests: reservation.specialRequests,
+      roomAssignment: reservation.roomNumber ? `Room ${reservation.roomNumber}` : null,
+    });
     const stayPanel = (
       <ReservationDetailStayTab
         restaurantId={restaurantId}
@@ -534,6 +692,7 @@ export function ReservationDetailWorkspace({
 
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-workspace">
+        <ReservationPrintDocument data={printData} />
         <header className="shrink-0 border-b border-[#DDD4C5] bg-white px-5 py-3 pr-12">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Reservation Detail
@@ -551,79 +710,17 @@ export function ReservationDetailWorkspace({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
-                <Printer className="size-3.5" />
-                Print
-              </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled
-                title="Send is not available in this workspace yet."
+                data-testid="reservation-detail-print"
+                onClick={() => window.print()}
               >
-                <Send className="size-3.5" />
-                Send
+                <Printer className="size-3.5" />
+                Print
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="outline" size="sm">
-                    More Actions
-                    <ChevronDown className="size-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="z-[80]">
-                  {!cancelled && reservation.status === "pending" ? (
-                    <DropdownMenuItem
-                      disabled={statusMutation.isPending}
-                      onClick={() => statusMutation.mutate({ status: "confirmed" })}
-                    >
-                      Confirm
-                    </DropdownMenuItem>
-                  ) : null}
-                  {showCheckIn ? (
-                    <DropdownMenuItem onClick={() => setFoAction("check_in")}>
-                      Check In
-                    </DropdownMenuItem>
-                  ) : null}
-                  {showCheckOut ? (
-                    <DropdownMenuItem onClick={() => setFoAction("check_out")}>
-                      Check Out
-                    </DropdownMenuItem>
-                  ) : null}
-                  {showChangeRoom ? (
-                    <DropdownMenuItem onClick={() => setFoAction("change_room")}>
-                      Change Room
-                    </DropdownMenuItem>
-                  ) : null}
-                  {showNoShow ? (
-                    <DropdownMenuItem onClick={() => setFoAction("no_show")}>
-                      Mark No-Show
-                    </DropdownMenuItem>
-                  ) : null}
-                  <DropdownMenuItem
-                    disabled={copyMutation.isPending}
-                    onClick={() => copyMutation.mutate()}
-                  >
-                    Copy stay
-                  </DropdownMenuItem>
-                  {!cancelled ? (
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={() => setCancelOpen(true)}
-                    >
-                      Cancel reservation
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem
-                      disabled={statusMutation.isPending}
-                      onClick={() => statusMutation.mutate({ status: "pending" })}
-                    >
-                      Restore reservation
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {detailActionBar}
               <Button type="button" variant="outline" size="sm" onClick={() => onBackToList?.()}>
                 <ArrowLeft className="size-3.5" />
                 Back to List
@@ -778,7 +875,19 @@ export function ReservationDetailWorkspace({
             {reservation.roomNumber ? ` · Room ${reservation.roomNumber}` : ""}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">{lifecycleButtons}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid="reservation-detail-print"
+            onClick={() => window.print()}
+          >
+            <Printer className="size-3.5" />
+            Print
+          </Button>
+          {detailActionBar}
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -1037,6 +1146,72 @@ function NotesEditor({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function ReservationDetailActionBar({
+  result,
+  busy,
+  onAction,
+}: {
+  result: ReservationActionResult;
+  busy: boolean;
+  onAction: (actionId: ReservationActionId) => void;
+}) {
+  const secondary = reservationDetailSecondaryActions(result);
+  const primary = result.primaryAction;
+  return (
+    <>
+      {primary ? (
+        <Button
+          type="button"
+          size="sm"
+          data-testid="reservation-detail-primary"
+          disabled={busy}
+          onClick={() => onAction(primary.id)}
+        >
+          {reservationDetailActionLabel(primary)}
+        </Button>
+      ) : null}
+      {secondary.length > 0 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid="reservation-detail-more-actions"
+            >
+              More Actions
+              <ChevronDown className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="z-[80]">
+            {secondary.map((action, index) => {
+              const destructive = reservationDetailActionIsDestructive(action.id);
+              const previous = secondary[index - 1];
+              const divider =
+                destructive &&
+                previous != null &&
+                !reservationDetailActionIsDestructive(previous.id);
+              return (
+                <Fragment key={action.id}>
+                  {divider ? <DropdownMenuSeparator /> : null}
+                  <DropdownMenuItem
+                    className={destructive ? "text-destructive" : undefined}
+                    disabled={busy}
+                    data-testid={`reservation-detail-action-${action.id}`}
+                    onClick={() => onAction(action.id)}
+                  >
+                    {reservationDetailActionLabel(action)}
+                  </DropdownMenuItem>
+                </Fragment>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+    </>
   );
 }
 

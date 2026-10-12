@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Search, UserPlus } from "lucide-react";
+import { CalendarDays, Globe, Mail, Phone, Search, User, UserPlus } from "lucide-react";
 
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { Button } from "@/shared/components/ui/button";
@@ -35,7 +35,6 @@ import {
   PMS_OP_BTN_COMPACT,
   PMS_OP_BTN_OUTLINE,
   PMS_OP_INPUT,
-  PMS_OP_PANEL,
 } from "@/packages/pms/lib/pms-operational-surface";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -66,6 +65,28 @@ function guestResultMeta(row: GuestSummary): string {
   return [row.profileNumber ? `Guest ID ${row.profileNumber}` : null, row.phone, row.email]
     .filter(Boolean)
     .join(" · ");
+}
+
+function guestInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const letters = parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "");
+  return letters.join("") || "G";
+}
+
+const CARD = "min-w-0 h-full rounded-[6px] border border-[#CCCCCC] bg-white p-4 shadow-none";
+
+function PanelHeading({ icon, title, helper }: { icon: ReactNode; title: string; helper: string }) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <h2 className="text-sm font-semibold text-[#251605]">{title}</h2>
+        <p className="text-xs text-[#6B5E4E]">{helper}</p>
+      </div>
+    </div>
+  );
 }
 
 type GuestPicker = {
@@ -283,11 +304,12 @@ export function CreateReservationGuestSearch() {
   const picker = useGuestPickerContext();
 
   return (
-    <section
-      className={cn(PMS_OP_PANEL, "!shadow-none min-w-0 h-full p-3")}
-      data-testid="guest-search-panel"
-    >
-      <h2 className="font-display text-base text-[#251605]">Guest Search</h2>
+    <section className={CARD} data-testid="guest-search-panel">
+      <PanelHeading
+        icon={<Search className="size-3.5" aria-hidden />}
+        title="Guest Search"
+        helper="Search for an existing guest or create a new one."
+      />
       <div className="mt-3 space-y-2">
         <div className="relative min-w-0">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6B5E4E]" />
@@ -299,7 +321,7 @@ export function CreateReservationGuestSearch() {
             ref={picker.searchInputRef}
             className={cn(PMS_OP_INPUT, "pl-9")}
             data-testid="guest-search"
-            placeholder="Search guest by name, phone, email or guest ID"
+            placeholder="Search by name, phone, email or guest ID..."
             value={picker.guestSearch}
             autoComplete="off"
             onChange={(event) => picker.setGuestSearch(event.target.value)}
@@ -319,7 +341,7 @@ export function CreateReservationGuestSearch() {
         ) : null}
         {picker.showResults ? (
           <div
-            className="max-h-56 overflow-y-auto border border-[#DDD4C5] bg-white"
+            className="max-h-56 overflow-y-auto rounded-[6px] border border-[#CCCCCC] bg-white"
             data-testid="guest-search-results"
           >
             {picker.searching ? (
@@ -334,9 +356,12 @@ export function CreateReservationGuestSearch() {
                   <li key={row.id} className="border-b border-[#E7E0D4] last:border-b-0">
                     <button
                       type="button"
-                      className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-[#FAF8F4]"
+                      className="flex w-full items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-[#FAF8F4]"
                       onClick={() => picker.selectListedGuest(row)}
                     >
+                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#F3EDE3] text-[11px] font-semibold text-[#251605]">
+                        {guestInitials(row.fullName)}
+                      </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-[#251605]">
                           {row.fullName}
@@ -344,18 +369,10 @@ export function CreateReservationGuestSearch() {
                           <GuestRestrictionBadges guest={row} />
                         </span>
                         {guestResultMeta(row) ? (
-                          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                          <span className="mt-0.5 block truncate text-xs text-[#6B5E4E]">
                             {guestResultMeta(row)}
                           </span>
                         ) : null}
-                        {row.nationality ? (
-                          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                            {row.nationality}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="shrink-0 pt-0.5 text-xs font-medium text-[#251605]">
-                        Select
                       </span>
                     </button>
                   </li>
@@ -374,47 +391,46 @@ export function CreateReservationGuestSelected() {
   const guest = picker.guest;
 
   return (
-    <section
-      className={cn(PMS_OP_PANEL, "!shadow-none min-w-0 h-full p-3")}
-      data-testid="selected-guest-panel"
-    >
-      <h2 className="font-display text-base text-[#251605]">Selected Guest</h2>
+    <section className={CARD} data-testid="selected-guest-panel">
+      <PanelHeading
+        icon={<User className="size-3.5" aria-hidden />}
+        title="Selected Guest"
+        helper={guest ? "Guest attached to this reservation." : "Select a guest to continue."}
+      />
       {guest ? (
         <div className="mt-3" data-testid="selected-guest-card">
-          <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-[#251605]">
-            {guest.fullName}
-            {guest.vipStatus ? <VipBadge /> : null}
-            <GuestRestrictionBadges guest={guest} />
-          </p>
-          <dl className="mt-2 grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
+          <div className="flex items-start gap-2.5">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#F3EDE3] text-xs font-semibold text-[#251605]">
+              {guestInitials(guest.fullName)}
+            </span>
             <div className="min-w-0">
-              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Guest ID
-              </dt>
-              <dd className="truncate">{guest.profileNumber ?? "—"}</dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Phone</dt>
-              <dd className="truncate">{guest.phone ?? "—"}</dd>
-            </div>
-            <div className="min-w-0 sm:col-span-2">
-              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Email</dt>
-              <dd className="truncate">{guest.email ?? "—"}</dd>
-            </div>
-            {guest.nationality ? (
-              <div className="min-w-0">
-                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Nationality
-                </dt>
-                <dd className="truncate">{guest.nationality}</dd>
+              <p className="truncate text-sm font-semibold text-[#251605]">{guest.fullName}</p>
+              <p className="truncate text-xs text-[#6B5E4E]">
+                {guest.profileNumber ? `Guest ID ${guest.profileNumber}` : "Guest ID —"}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                {guest.vipStatus ? <VipBadge /> : null}
+                <GuestRestrictionBadges guest={guest} />
               </div>
-            ) : null}
-            <div className="min-w-0">
-              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Last stay
-              </dt>
-              <dd>{formatLastStay(guest.lastStayAt)}</dd>
             </div>
+          </div>
+          <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <GuestFact icon={<Mail className="size-3.5" aria-hidden />} label="Email">
+              {guest.email ?? "—"}
+            </GuestFact>
+            <GuestFact icon={<Phone className="size-3.5" aria-hidden />} label="Phone">
+              {guest.phone ?? "—"}
+            </GuestFact>
+            {guest.nationality ? (
+              <GuestFact icon={<Globe className="size-3.5" aria-hidden />} label="Nationality">
+                {guest.nationality}
+              </GuestFact>
+            ) : null}
+            {formatLastStay(guest.lastStayAt) !== "—" ? (
+              <GuestFact icon={<CalendarDays className="size-3.5" aria-hidden />} label="Last stay">
+                {formatLastStay(guest.lastStayAt)}
+              </GuestFact>
+            ) : null}
           </dl>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button
@@ -443,10 +459,30 @@ export function CreateReservationGuestSelected() {
           </div>
         </div>
       ) : (
-        <p className="mt-3 text-sm text-muted-foreground" data-testid="selected-guest-empty">
-          No guest selected. Select a guest to continue
+        <p className="mt-4 text-sm text-[#6B5E4E]" data-testid="selected-guest-empty">
+          No guest selected. Select a guest to continue.
         </p>
       )}
     </section>
+  );
+}
+
+function GuestFact({
+  icon,
+  label,
+  children,
+}: {
+  icon: ReactNode;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-1.5">
+      <span className="mt-0.5 text-[#C89933]">{icon}</span>
+      <div className="min-w-0">
+        <dt className="text-[10px] uppercase tracking-wide text-[#6B5E4E]">{label}</dt>
+        <dd className="truncate text-sm text-[#251605]">{children}</dd>
+      </div>
+    </div>
   );
 }

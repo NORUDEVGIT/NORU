@@ -4,10 +4,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import {
-  cancellationPolicyDraftSchema,
   contractTypeDraftSchema,
   noShowPolicyDraftSchema,
-  type CancellationPolicyRecord,
   type ContractTypeRecord,
   type NoShowPolicyRecord,
 } from "./corporate-contracts.server";
@@ -171,234 +169,7 @@ export const setPmsContractTypeActive = createServerFn({ method: "POST" })
   });
 
 // ---------------------------------------------------------------------------
-// 2. Cancellation Policies Master Server Functions
-// ---------------------------------------------------------------------------
-
-export const listPmsCancellationPolicies = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z
-      .object({
-        restaurantId: idSchema,
-        activeOnly: z.boolean().optional(),
-      })
-      .parse(input),
-  )
-  .handler(async ({ data, context }): Promise<CancellationPolicyRecord[]> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
-    const db: DbClient = context.supabase;
-
-    let query = db
-      .from("pms_rate_cancellation_policies")
-      .select("id, restaurant_id, code, name, description, policy_kind, window_value, window_unit, cutoff_time, penalty_type, penalty_value, deadline_hours, active, created_at, updated_at")
-      .eq("restaurant_id", data.restaurantId)
-      .order("name", { ascending: true });
-
-    if (data.activeOnly) {
-      query = query.eq("active", true);
-    }
-
-    let { data: rows, error } = await query;
-    if (error || !rows?.length) {
-      const fallbackQuery = db
-        .from("pms_cancellation_policies")
-        .select("id, restaurant_id, code, name, description, cutoff_hours, penalty_type, penalty_value, refundable_before_cutoff, is_default, active, created_at, updated_at")
-        .eq("restaurant_id", data.restaurantId)
-        .order("is_default", { ascending: false })
-        .order("name", { ascending: true });
-      const fallbackRes = data.activeOnly ? await fallbackQuery.eq("active", true) : await fallbackQuery;
-      if (fallbackRes.data?.length) {
-        return (fallbackRes.data as any[]).map((r) => ({
-          id: r.id,
-          restaurantId: r.restaurant_id,
-          code: r.code,
-          name: r.name,
-          description: r.description ?? null,
-          cutoffHours: Number(r.cutoff_hours ?? 24),
-          penaltyType: r.penalty_type,
-          penaltyValue: Number(r.penalty_value ?? 0),
-          refundableBeforeCutoff: Boolean(r.refundable_before_cutoff),
-          isDefault: Boolean(r.is_default),
-          active: Boolean(r.active),
-          createdAt: r.created_at,
-          updatedAt: r.updated_at,
-        }));
-      }
-      if (error && error.code !== "42P01") {
-        return [];
-      }
-    }
-
-    return (rows ?? []).map((r: any) => {
-      const policyKind = r.policy_kind || "flexible";
-      const windowUnit = r.window_unit || "hours_before_arrival";
-      const windowValue = r.window_value != null ? Number(r.window_value) : null;
-      const cutoffHours = r.cutoff_hours != null
-        ? Number(r.cutoff_hours)
-        : r.deadline_hours != null
-          ? Number(r.deadline_hours)
-          : windowUnit === "days_before_arrival" && windowValue != null
-            ? windowValue * 24
-            : windowValue != null
-              ? windowValue
-              : (policyKind === "non_refundable" ? 0 : 24);
-
-      const rawPenalty = String(r.penalty_type ?? "none").toLowerCase();
-      const penaltyType: PolicyPenaltyType =
-        rawPenalty === "percentage" || rawPenalty === "percent" || rawPenalty === "percent_stay"
-          ? "percent_stay"
-          : rawPenalty === "fixed" || rawPenalty === "fixed_amount"
-            ? "fixed_amount"
-            : rawPenalty === "first_night" || rawPenalty === "nights"
-              ? "first_night"
-              : rawPenalty === "full_stay"
-                ? "full_stay"
-                : "none";
-
-      return {
-        id: r.id,
-        restaurantId: r.restaurant_id,
-        code: r.code,
-        name: r.name,
-        description: r.description ?? null,
-        cutoffHours,
-        penaltyType,
-        penaltyValue: Number(r.penalty_value ?? 0),
-        refundableBeforeCutoff: r.refundable_before_cutoff !== undefined
-          ? Boolean(r.refundable_before_cutoff)
-          : policyKind !== "non_refundable",
-        isDefault: Boolean(r.is_default),
-        active: Boolean(r.active),
-        createdAt: r.created_at,
-        updatedAt: r.updated_at,
-      };
-    });
-  });
-
-export const savePmsCancellationPolicy = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z
-      .object({
-        restaurantId: idSchema,
-        draft: cancellationPolicyDraftSchema,
-      })
-      .parse(input),
-  )
-  .handler(async ({ data, context }): Promise<CancellationPolicyRecord> => {
-    await requireRoomManager(context as never, data.restaurantId);
-    const db: DbClient = context.supabase;
-    const { draft } = data;
-
-    // Check code uniqueness
-    const codeCheckQuery = db
-      .from("pms_cancellation_policies")
-      .select("id")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("code", draft.code);
-
-    if (draft.id) {
-      codeCheckQuery.neq("id", draft.id);
-    }
-
-    const { data: existingCode } = await codeCheckQuery.maybeSingle();
-    if (existingCode) {
-      throw new Error(`A cancellation policy with code "${draft.code}" already exists.`);
-    }
-
-    // Default policy rule: If setting isDefault to true, unset any existing default first
-    if (draft.isDefault) {
-      await db
-        .from("pms_cancellation_policies")
-        .update({ is_default: false, updated_at: new Date().toISOString() })
-        .eq("restaurant_id", data.restaurantId)
-        .eq("is_default", true);
-    }
-
-    const payload = {
-      restaurant_id: data.restaurantId,
-      code: draft.code,
-      name: draft.name,
-      description: draft.description?.trim() || null,
-      cutoff_hours: draft.cutoffHours,
-      penalty_type: draft.penaltyType,
-      penalty_value: draft.penaltyType === "none" || draft.penaltyType === "first_night" || draft.penaltyType === "full_stay"
-        ? 0
-        : draft.penaltyValue,
-      refundable_before_cutoff: draft.refundableBeforeCutoff,
-      is_default: draft.isDefault,
-      active: draft.active,
-      updated_at: new Date().toISOString(),
-    };
-
-    let result;
-    if (draft.id) {
-      result = await db
-        .from("pms_cancellation_policies")
-        .update(payload)
-        .eq("id", draft.id)
-        .eq("restaurant_id", data.restaurantId)
-        .select()
-        .single();
-    } else {
-      result = await db
-        .from("pms_cancellation_policies")
-        .insert({ ...payload, created_at: new Date().toISOString() })
-        .select()
-        .single();
-    }
-
-    if (result.error) {
-      throw new Error(`Failed to save cancellation policy: ${result.error.message}`);
-    }
-
-    const r = result.data;
-    return {
-      id: r.id,
-      restaurantId: r.restaurant_id,
-      code: r.code,
-      name: r.name,
-      description: r.description ?? null,
-      cutoffHours: Number(r.cutoff_hours ?? 24),
-      penaltyType: r.penalty_type,
-      penaltyValue: Number(r.penalty_value ?? 0),
-      refundableBeforeCutoff: Boolean(r.refundable_before_cutoff),
-      isDefault: Boolean(r.is_default),
-      active: Boolean(r.active),
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-    };
-  });
-
-export const setPmsCancellationPolicyActive = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z
-      .object({
-        restaurantId: idSchema,
-        id: idSchema,
-        active: z.boolean(),
-      })
-      .parse(input),
-  )
-  .handler(async ({ data, context }): Promise<{ success: boolean }> => {
-    await requireRoomManager(context as never, data.restaurantId);
-    const db: DbClient = context.supabase;
-
-    const { error } = await db
-      .from("pms_cancellation_policies")
-      .update({ active: data.active, updated_at: new Date().toISOString() })
-      .eq("id", data.id)
-      .eq("restaurant_id", data.restaurantId);
-
-    if (error) {
-      throw new Error(`Failed to toggle cancellation policy: ${error.message}`);
-    }
-    return { success: true };
-  });
-
-// ---------------------------------------------------------------------------
-// 3. No-Show Policies Master Server Functions
+// 2. No-Show Policies Master Server Functions
 // ---------------------------------------------------------------------------
 
 export const listPmsNoShowPolicies = createServerFn({ method: "POST" })
@@ -857,13 +628,16 @@ export interface CompanyContractCreateConfig {
     id: string;
     code: string;
     name: string;
-    cutoffHours: number;
+    description: string | null;
     penaltyType: string;
     penaltyValue: number;
-    refundableBeforeCutoff: boolean;
+    policyKind: string | null;
+    windowValue: number | null;
+    windowUnit: string | null;
+    cutoffTime: string | null;
+    deadlineHours: number | null;
     isDefault: boolean;
     active: boolean;
-    description: string | null;
   }>;
   noShowPolicies: Array<{
     id: string;
@@ -964,26 +738,14 @@ export const getCompanyContractCreateConfig = createServerFn({ method: "POST" })
       .order("is_default", { ascending: false })
       .order("name", { ascending: true });
 
-    // Load active cancellation policies from Card 2 rates catalogue
-    let cancellationPoliciesRes = await db
+    const cancellationPoliciesRes = await db
       .from("pms_rate_cancellation_policies")
-      .select("id, code, name, description, policy_kind, window_value, window_unit, deadline_hours, penalty_type, penalty_value, active")
+      .select(
+        "id, code, name, description, policy_kind, window_value, window_unit, cutoff_time, deadline_hours, penalty_type, penalty_value, active",
+      )
       .eq("restaurant_id", restaurantId)
       .eq("active", true)
       .order("name", { ascending: true });
-
-    if (cancellationPoliciesRes.error || !cancellationPoliciesRes.data?.length) {
-      const fallback = await db
-        .from("pms_cancellation_policies")
-        .select("id, code, name, cutoff_hours, penalty_type, penalty_value, refundable_before_cutoff, is_default, active, description")
-        .eq("restaurant_id", restaurantId)
-        .eq("active", true)
-        .order("is_default", { ascending: false })
-        .order("name", { ascending: true });
-      if (!fallback.error && fallback.data?.length) {
-        cancellationPoliciesRes = fallback;
-      }
-    }
 
     // Load active no-show policies
     const noShowPoliciesRes = await db
@@ -1059,47 +821,23 @@ export const getCompanyContractCreateConfig = createServerFn({ method: "POST" })
         active: Boolean(dp.active),
         description: dp.description ?? null,
       })),
-      cancellationPolicies: (cancellationPoliciesRes.data ?? []).map((cp: any) => {
-        const policyKind = cp.policy_kind || "flexible";
-        const windowUnit = cp.window_unit || "hours_before_arrival";
-        const windowValue = cp.window_value != null ? Number(cp.window_value) : null;
-        const cutoffHours = cp.cutoff_hours != null
-          ? Number(cp.cutoff_hours)
-          : cp.deadline_hours != null
-            ? Number(cp.deadline_hours)
-            : windowUnit === "days_before_arrival" && windowValue != null
-              ? windowValue * 24
-              : windowValue != null
-                ? windowValue
-                : (policyKind === "non_refundable" ? 0 : 24);
-
-        const rawPenalty = String(cp.penalty_type ?? "none").toLowerCase();
-        const penaltyType: PolicyPenaltyType =
-          rawPenalty === "percentage" || rawPenalty === "percent" || rawPenalty === "percent_stay"
-            ? "percent_stay"
-            : rawPenalty === "fixed" || rawPenalty === "fixed_amount"
-              ? "fixed_amount"
-              : rawPenalty === "first_night" || rawPenalty === "nights"
-                ? "first_night"
-                : rawPenalty === "full_stay"
-                  ? "full_stay"
-                  : "none";
-
-        return {
-          id: cp.id,
-          code: cp.code,
-          name: cp.name,
-          cutoffHours,
-          penaltyType,
-          penaltyValue: Number(cp.penalty_value ?? 0),
-          refundableBeforeCutoff: cp.refundable_before_cutoff !== undefined
-            ? Boolean(cp.refundable_before_cutoff)
-            : policyKind !== "non_refundable",
-          isDefault: Boolean(cp.is_default),
-          active: Boolean(cp.active),
-          description: cp.description ?? null,
-        };
-      }),
+      cancellationPolicies: (
+        (cancellationPoliciesRes.data ?? []) as Array<Record<string, unknown>>
+      ).map((cp) => ({
+        id: String(cp.id),
+        code: String(cp.code ?? ""),
+        name: String(cp.name ?? ""),
+        description: cp.description == null ? null : String(cp.description),
+        penaltyType: String(cp.penalty_type ?? "none"),
+        penaltyValue: Number(cp.penalty_value ?? 0),
+        policyKind: cp.policy_kind == null ? null : String(cp.policy_kind),
+        windowValue: cp.window_value == null ? null : Number(cp.window_value),
+        windowUnit: cp.window_unit == null ? null : String(cp.window_unit),
+        cutoffTime: cp.cutoff_time == null ? null : String(cp.cutoff_time),
+        deadlineHours: cp.deadline_hours == null ? null : Number(cp.deadline_hours),
+        isDefault: false,
+        active: cp.active !== false,
+      })),
       noShowPolicies: (noShowPoliciesRes.data ?? []).map((nsp: any) => ({
         id: nsp.id,
         code: nsp.code,

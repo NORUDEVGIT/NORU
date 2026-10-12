@@ -30,7 +30,7 @@ describe("Create reservation 4-step workflow", () => {
     assert.match(block, /Guest, Stay & Availability/);
     assert.match(block, /Continue to Booking Details/);
     assert.match(block, /Booking Details/);
-    assert.match(block, /Policies & Guarantee/);
+    assert.match(block, /Policies & Payment/);
     assert.match(block, /Review & Confirm/);
     assert.doesNotMatch(block, /Search Availability/);
     assert.doesNotMatch(block, /id: "availability"/);

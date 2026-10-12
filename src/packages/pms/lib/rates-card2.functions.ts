@@ -23,17 +23,24 @@ import {
   RATE_REFUNDABILITY_KINDS,
   evaluateRatesCard2Readiness,
   findMatchingPredefinedCategory,
+  type Card2DepositPolicyRef,
   type Card2MealPlanRef,
   type Card2RoomTypeRef,
   type PolicyPenaltyType,
   type RateCancellationPolicyRow,
   type RateCategoryRow,
+  type RateEarlyDeparturePolicyRow,
   type RateNoShowPolicyRow,
   type RatePlanRow,
   type RateRefundabilityKind,
   type RateRefundabilityRow,
   type RatesCard2Snapshot,
 } from "./rates-card2.server";
+import {
+  EARLY_DEPARTURE_PENALTY_TYPES,
+  resolvedEarlyDeparturePenaltyValue,
+} from "./early-departure-policy";
+import { foreignRatePlanPolicyMessage } from "./rate-plan-policy-link";
 
 type DbClient = any;
 
@@ -63,30 +70,35 @@ const categorySchema = z.object({
   isCustom: z.boolean().optional(),
 });
 
-const planSchema = z.object({
-  restaurantId: idSchema,
-  id: idSchema.optional(),
-  categoryId: idSchema,
-  roomTypeId: idSchema,
-  code: setupCode,
-  name: z.string().trim().min(1).max(120),
-  description: z.string().trim().max(1000).nullable().optional(),
-  baseRate: z.number().min(0).max(10_000_000),
-  validFrom: dateSchema,
-  validTo: dateSchema,
-  mealPlanId: idSchema.nullable().optional(),
-  cancellationPolicyId: idSchema.nullable().optional(),
-  refundabilityId: idSchema.nullable().optional(),
-  active: z.boolean(),
-}).superRefine((value, ctx) => {
-  if (value.validFrom && value.validTo && value.validTo < value.validFrom) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["validTo"],
-      message: "Valid until cannot be before valid from.",
-    });
-  }
-});
+const planSchema = z
+  .object({
+    restaurantId: idSchema,
+    id: idSchema.optional(),
+    categoryId: idSchema,
+    roomTypeId: idSchema,
+    code: setupCode,
+    name: z.string().trim().min(1).max(120),
+    description: z.string().trim().max(1000).nullable().optional(),
+    baseRate: z.number().min(0).max(10_000_000),
+    validFrom: dateSchema,
+    validTo: dateSchema,
+    mealPlanId: idSchema.nullable().optional(),
+    cancellationPolicyId: idSchema.nullable().optional(),
+    refundabilityId: idSchema.nullable().optional(),
+    depositPolicyId: idSchema.nullable().optional(),
+    noShowPolicyId: idSchema.nullable().optional(),
+    earlyDeparturePolicyId: idSchema.nullable().optional(),
+    active: z.boolean(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.validFrom && value.validTo && value.validTo < value.validFrom) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["validTo"],
+        message: "Valid until cannot be before valid from.",
+      });
+    }
+  });
 
 const cancellationSchema = z
   .object({
@@ -147,6 +159,28 @@ const noShowPolicySchema = z.object({
   isDefault: z.boolean(),
   active: z.boolean(),
 });
+
+const earlyDeparturePolicySchema = z
+  .object({
+    restaurantId: idSchema,
+    id: idSchema.optional(),
+    code: setupCode,
+    name: z.string().trim().min(1).max(120),
+    description: z.string().trim().max(500).nullable().optional(),
+    penaltyType: z.enum(EARLY_DEPARTURE_PENALTY_TYPES),
+    penaltyValue: z.number().min(0).max(10_000_000),
+    active: z.boolean(),
+  })
+  .superRefine((value, ctx) => {
+    const resolved = resolvedEarlyDeparturePenaltyValue(value.penaltyType, value.penaltyValue);
+    if (!resolved.ok) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["penaltyValue"],
+        message: resolved.message,
+      });
+    }
+  });
 
 function unavailable(error: { code?: string; message?: string } | null): never {
   if (error?.code === "42P01" || error?.code === "PGRST205") {
@@ -230,9 +264,20 @@ export async function loadRatesCard2Snapshot(
 ): Promise<RatesCard2Snapshot> {
   const basePlanSelect =
     "id, code, name, description, rate_category_id, room_type_id, currency, base_rate, valid_from, valid_to, active";
-  const compositionPlanSelect = `${basePlanSelect}, meal_plan_id, cancellation_policy_id, refundability_id`;
+  const compositionPlanSelect = `${basePlanSelect}, meal_plan_id, cancellation_policy_id, refundability_id, deposit_policy_id, no_show_policy_id, early_departure_policy_id`;
 
-  const [types, categories, meals, cancellations, refundability, noShows, composedPlans, restaurant] = await Promise.all([
+  const [
+    types,
+    categories,
+    meals,
+    cancellations,
+    refundability,
+    deposits,
+    noShows,
+    earlyDepartures,
+    composedPlans,
+    restaurant,
+  ] = await Promise.all([
     db
       .from("room_types")
       .select("id, code, name, active")
@@ -261,10 +306,20 @@ export async function loadRatesCard2Snapshot(
       .eq("restaurant_id", restaurantId)
       .order("code"),
     db
+      .from("pms_deposit_policies")
+      .select("id, code, name, active")
+      .eq("restaurant_id", restaurantId)
+      .order("code"),
+    db
       .from("pms_no_show_policies")
       .select(
         "id, code, name, description, penalty_type, penalty_value, release_hour, is_default, active",
       )
+      .eq("restaurant_id", restaurantId)
+      .order("code"),
+    db
+      .from("pms_early_departure_policies")
+      .select("id, code, name, description, penalty_type, penalty_value, active")
       .eq("restaurant_id", restaurantId)
       .order("code"),
     db
@@ -325,6 +380,15 @@ export async function loadRatesCard2Snapshot(
         };
       });
 
+  const depositPolicies: Card2DepositPolicyRef[] = deposits.error
+    ? []
+    : (deposits.data ?? []).map((row: any) => ({
+        id: row.id,
+        code: String(row.code ?? "").toUpperCase(),
+        name: String(row.name ?? ""),
+        active: row.active !== false,
+      }));
+
   const noShowPolicies: RateNoShowPolicyRow[] = noShows.error
     ? []
     : (noShows.data ?? []).map((row: any) => ({
@@ -336,6 +400,22 @@ export async function loadRatesCard2Snapshot(
         penaltyValue: Number(row.penalty_value ?? 0),
         releaseHour: Number(row.release_hour ?? 18),
         isDefault: Boolean(row.is_default),
+        active: row.active !== false,
+      }));
+
+  const earlyDeparturePolicies: RateEarlyDeparturePolicyRow[] = earlyDepartures.error
+    ? []
+    : (earlyDepartures.data ?? []).map((row: any) => ({
+        id: row.id,
+        code: String(row.code ?? "").toUpperCase(),
+        name: String(row.name ?? ""),
+        description: String(row.description ?? ""),
+        penaltyType: (EARLY_DEPARTURE_PENALTY_TYPES as readonly string[]).includes(
+          String(row.penalty_type),
+        )
+          ? row.penalty_type
+          : "none",
+        penaltyValue: Number(row.penalty_value ?? 0),
         active: row.active !== false,
       }));
 
@@ -362,6 +442,9 @@ export async function loadRatesCard2Snapshot(
   const mealById = new Map(mealPlans.map((row) => [row.id, row]));
   const cancelById = new Map(cancellationPolicies.map((row) => [row.id, row]));
   const refundById = new Map(refundabilityCodes.map((row) => [row.id, row]));
+  const depositById = new Map(depositPolicies.map((row) => [row.id, row]));
+  const noShowById = new Map(noShowPolicies.map((row) => [row.id, row]));
+  const earlyDepartureById = new Map(earlyDeparturePolicies.map((row) => [row.id, row]));
 
   const planRows: RatePlanRow[] = (planData ?? []).map((row: any) => {
     const type = typeById.get(row.room_type_id);
@@ -371,6 +454,11 @@ export async function loadRatesCard2Snapshot(
       ? cancelById.get(row.cancellation_policy_id)
       : undefined;
     const refund = row.refundability_id ? refundById.get(row.refundability_id) : undefined;
+    const deposit = row.deposit_policy_id ? depositById.get(row.deposit_policy_id) : undefined;
+    const noShow = row.no_show_policy_id ? noShowById.get(row.no_show_policy_id) : undefined;
+    const earlyDeparture = row.early_departure_policy_id
+      ? earlyDepartureById.get(row.early_departure_policy_id)
+      : undefined;
     return {
       id: row.id,
       code: String(row.code ?? "").toUpperCase(),
@@ -393,6 +481,12 @@ export async function loadRatesCard2Snapshot(
       refundabilityId: row.refundability_id ?? null,
       refundabilityName: refund?.name ?? "",
       refundabilityKind: refund?.kind ?? null,
+      depositPolicyId: row.deposit_policy_id ?? null,
+      depositPolicyName: deposit?.name ?? "",
+      noShowPolicyId: row.no_show_policy_id ?? null,
+      noShowPolicyName: noShow?.name ?? "",
+      earlyDeparturePolicyId: row.early_departure_policy_id ?? null,
+      earlyDeparturePolicyName: earlyDeparture?.name ?? "",
       active: row.active !== false,
     };
   });
@@ -403,7 +497,9 @@ export async function loadRatesCard2Snapshot(
     mealPlans,
     cancellationPolicies,
     refundabilityCodes,
+    depositPolicies,
     noShowPolicies,
+    earlyDeparturePolicies,
     plans: planRows,
     currencyCode: String((restaurant?.data as any)?.currency_code ?? "USD").toUpperCase(),
   };
@@ -542,8 +638,33 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
             .eq("restaurant_id", data.restaurantId)
             .maybeSingle()
         : Promise.resolve({ data: { id: true }, error: null }),
+      data.depositPolicyId
+        ? db
+            .from("pms_deposit_policies")
+            .select("id")
+            .eq("id", data.depositPolicyId)
+            .eq("restaurant_id", data.restaurantId)
+            .maybeSingle()
+        : Promise.resolve({ data: { id: true }, error: null }),
+      data.noShowPolicyId
+        ? db
+            .from("pms_no_show_policies")
+            .select("id")
+            .eq("id", data.noShowPolicyId)
+            .eq("restaurant_id", data.restaurantId)
+            .maybeSingle()
+        : Promise.resolve({ data: { id: true }, error: null }),
+      data.earlyDeparturePolicyId
+        ? db
+            .from("pms_early_departure_policies")
+            .select("id")
+            .eq("id", data.earlyDeparturePolicyId)
+            .eq("restaurant_id", data.restaurantId)
+            .maybeSingle()
+        : Promise.resolve({ data: { id: true }, error: null }),
     ]);
-    const [category, roomType, restaurant, meal, cancel, refund] = lookups;
+    const [category, roomType, restaurant, meal, cancel, refund, deposit, noShow, earlyDeparture] =
+      lookups;
 
     if (category.error) unavailable(category.error);
     if (roomType.error) unavailable(roomType.error);
@@ -558,6 +679,24 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
     if (data.refundabilityId && (refund.error || !refund.data)) {
       throw new Error("That refundability code doesn't belong to this property.");
     }
+    const depositMessage = foreignRatePlanPolicyMessage(
+      "deposit",
+      data.depositPolicyId,
+      !deposit.error && Boolean(deposit.data),
+    );
+    if (depositMessage) throw new Error(depositMessage);
+    const noShowMessage = foreignRatePlanPolicyMessage(
+      "no-show",
+      data.noShowPolicyId,
+      !noShow.error && Boolean(noShow.data),
+    );
+    if (noShowMessage) throw new Error(noShowMessage);
+    const earlyDepartureMessage = foreignRatePlanPolicyMessage(
+      "early-departure",
+      data.earlyDeparturePolicyId,
+      !earlyDeparture.error && Boolean(earlyDeparture.data),
+    );
+    if (earlyDepartureMessage) throw new Error(earlyDepartureMessage);
 
     const payload = {
       restaurant_id: data.restaurantId,
@@ -573,6 +712,9 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
       meal_plan_id: data.mealPlanId || null,
       cancellation_policy_id: data.cancellationPolicyId || null,
       refundability_id: data.refundabilityId || null,
+      deposit_policy_id: data.depositPolicyId || null,
+      no_show_policy_id: data.noShowPolicyId || null,
+      early_departure_policy_id: data.earlyDeparturePolicyId || null,
       active: data.active,
     };
 
@@ -587,6 +729,9 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
           meal_plan_id: _meal,
           cancellation_policy_id: _cancel,
           refundability_id: _refund,
+          deposit_policy_id: _deposit,
+          no_show_policy_id: _noShow,
+          early_departure_policy_id: _earlyDeparture,
           ...basePayload
         } = payload;
         const retry = await db
@@ -605,6 +750,9 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
           meal_plan_id: _meal,
           cancellation_policy_id: _cancel,
           refundability_id: _refund,
+          deposit_policy_id: _deposit,
+          no_show_policy_id: _noShow,
+          early_departure_policy_id: _earlyDeparture,
           ...basePayload
         } = payload;
         const retry = await db.from("hotel_rate_plans").insert(basePayload);
@@ -669,46 +817,6 @@ export const saveRateCancellationPolicyCard2 = createServerFn({ method: "POST" }
     await writeAudit(db, data.restaurantId, context.userId, "card2_rate_cancellation_saved", {
       detail: `${data.code} ${data.name}`,
     });
-
-    // Dual-write sync into pms_cancellation_policies to guarantee backward compatibility and prevent FK violations
-    try {
-      const mirrorPenalty: PolicyPenaltyType =
-        data.penaltyType === "percentage" || data.penaltyType === "percent"
-          ? "percent_stay"
-          : data.penaltyType === "fixed" || data.penaltyType === "fixed_amount"
-            ? "fixed_amount"
-            : data.penaltyType === "first_night" || data.penaltyType === "nights"
-              ? "first_night"
-              : data.penaltyType === "full_stay"
-                ? "full_stay"
-                : "none";
-      const savedRes = await db
-        .from("pms_rate_cancellation_policies")
-        .select("id")
-        .eq("restaurant_id", data.restaurantId)
-        .eq("code", data.code)
-        .maybeSingle();
-      const savedId = data.id || savedRes?.data?.id;
-      if (savedId) {
-        await db.from("pms_cancellation_policies").upsert(
-          {
-            id: savedId,
-            restaurant_id: data.restaurantId,
-            code: data.code,
-            name: data.name,
-            description: data.description?.trim() ? data.description.trim() : null,
-            cutoff_hours: payload.deadline_hours ?? 24,
-            penalty_type: mirrorPenalty,
-            penalty_value: payload.penalty_value,
-            refundable_before_cutoff: data.policyKind !== "non_refundable",
-            active: data.active,
-          },
-          { onConflict: "restaurant_id,code" },
-        );
-      }
-    } catch {
-      // Non-blocking sync
-    }
 
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
@@ -790,6 +898,65 @@ export const saveRateNoShowPolicyCard2 = createServerFn({ method: "POST" })
       detail: `${data.code} ${data.name}`,
     });
 
+    const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
+    return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
+  });
+
+export const saveRateEarlyDeparturePolicyCard2 = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => earlyDeparturePolicySchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const resolved = resolvedEarlyDeparturePenaltyValue(data.penaltyType, data.penaltyValue);
+    if (!resolved.ok) throw new Error(resolved.message);
+    const payload = {
+      restaurant_id: data.restaurantId,
+      code: data.code,
+      name: data.name,
+      description: data.description?.trim() ? data.description.trim() : null,
+      penalty_type: data.penaltyType,
+      penalty_value: resolved.penaltyValue,
+      active: data.active,
+    };
+    const result = data.id
+      ? await db
+          .from("pms_early_departure_policies")
+          .update(payload)
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
+      : await db.from("pms_early_departure_policies").insert(payload);
+    if (result.error?.code === "23505") {
+      throw new Error("That early departure policy code is already used for this property.");
+    }
+    if (result.error) unavailable(result.error);
+    await writeAudit(db, data.restaurantId, context.userId, "card2_rate_early_departure_saved", {
+      detail: `${data.code} ${data.name}`,
+    });
+    const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
+    return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
+  });
+
+export const setRateEarlyDeparturePolicyActiveCard2 = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        id: idSchema,
+        active: z.boolean(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const result = await db
+      .from("pms_early_departure_policies")
+      .update({ active: data.active })
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (result.error) unavailable(result.error);
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
   });
