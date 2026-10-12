@@ -43,7 +43,11 @@ import {
 } from "./guest-company-detail-workspace";
 import { guestStayAccessForRole } from "./guests.functions";
 import { isUpcomingStay, knownMoneyTotal, mapReservationToStay } from "./guest-profile-wave3";
-import { getCorporateAgreementExpiryState } from "./corporate-contracts.server";
+import {
+  getCorporateAgreementExpiryState,
+  resolveAgreementCancellation,
+  type CanonicalAgreementCancellationRow,
+} from "./corporate-contracts.server";
 import { nightsBetween } from "./reservation-dates";
 import { propertyToday } from "./reservations.server";
 import { maskIdNumber } from "./guest-profile-wave2";
@@ -1908,7 +1912,7 @@ export const listCompanyContracts = createServerFn({ method: "POST" })
     let agreements = await db
       .from("pms_corporate_agreements")
       .select(
-        "id, code, name, contract_number, valid_from, valid_to, currency_code, description, active, auto_renew, notice_period_days, signed_at, signed_by, file_storage_path, contract_type_id, pricing_method, rate_plan_id, discount_type, discount_value, deposit_policy_id, cancellation_policy_id, no_show_policy_id, rate_plan_scope, rate_plan_ids, discount_application, rate_plan_discounts",
+        "id, code, name, contract_number, valid_from, valid_to, currency_code, description, active, auto_renew, notice_period_days, signed_at, signed_by, file_storage_path, contract_type_id, pricing_method, rate_plan_id, discount_type, discount_value, deposit_policy_id, rate_cancellation_policy_id, no_show_policy_id, rate_plan_scope, rate_plan_ids, discount_application, rate_plan_discounts",
       )
       .eq("restaurant_id", data.restaurantId)
       .eq("company_id", data.companyId)
@@ -1917,7 +1921,7 @@ export const listCompanyContracts = createServerFn({ method: "POST" })
       agreements = await db
         .from("pms_corporate_agreements")
         .select(
-          "id, code, name, contract_number, valid_from, valid_to, currency_code, description, active, auto_renew, notice_period_days, signed_at, signed_by, file_storage_path, contract_type_id, pricing_method, rate_plan_id, discount_type, discount_value, deposit_policy_id, cancellation_policy_id, no_show_policy_id",
+          "id, code, name, contract_number, valid_from, valid_to, currency_code, description, active, auto_renew, notice_period_days, signed_at, signed_by, file_storage_path, contract_type_id, pricing_method, rate_plan_id, discount_type, discount_value, deposit_policy_id, no_show_policy_id",
         )
         .eq("restaurant_id", data.restaurantId)
         .eq("company_id", data.companyId)
@@ -1935,9 +1939,48 @@ export const listCompanyContracts = createServerFn({ method: "POST" })
     }
     if (agreements.error && isMissingSchemaError(agreements.error)) return { items: [], rates: [], kpis: { total: 0, active: 0, expiring: 0, expired: 0 } };
     if (agreements.error) throw new Error(agreements.error.message);
-    const items = ((agreements.data ?? []) as Array<Record<string, unknown>>).map((row) => {
+    const agreementRows = (agreements.data ?? []) as Array<Record<string, unknown>>;
+    const ratePolicyIds = [
+      ...new Set(
+        agreementRows
+          .map((row) =>
+            row.rate_cancellation_policy_id ? String(row.rate_cancellation_policy_id) : "",
+          )
+          .filter(Boolean),
+      ),
+    ];
+    const canonicalPolicies = ratePolicyIds.length
+      ? await db
+          .from("pms_rate_cancellation_policies")
+          .select(
+            "id, code, name, description, penalty_type, penalty_value, policy_kind, window_value, window_unit, cutoff_time, deadline_hours",
+          )
+          .eq("restaurant_id", data.restaurantId)
+          .in("id", ratePolicyIds)
+      : { data: [], error: null };
+    const canonicalById = new Map<string, CanonicalAgreementCancellationRow>();
+    for (const row of (canonicalPolicies.data ?? []) as Array<Record<string, unknown>>) {
+      canonicalById.set(String(row.id), {
+        id: String(row.id),
+        code: String(row.code ?? ""),
+        name: String(row.name ?? ""),
+        description: row.description == null ? null : String(row.description),
+        penaltyType: String(row.penalty_type ?? "none"),
+        penaltyValue: Number(row.penalty_value ?? 0),
+        policyKind: row.policy_kind == null ? null : String(row.policy_kind),
+        windowValue: row.window_value == null ? null : Number(row.window_value),
+        windowUnit: row.window_unit == null ? null : String(row.window_unit),
+        cutoffTime: row.cutoff_time == null ? null : String(row.cutoff_time),
+        deadlineHours: row.deadline_hours == null ? null : Number(row.deadline_hours),
+      });
+    }
+    const items = agreementRows.map((row) => {
       const status = agreementStatus(
-        { active: row.active !== false, validFrom: String(row.valid_from ?? ""), validTo: String(row.valid_to ?? "") },
+        {
+          active: row.active !== false,
+          validFrom: String(row.valid_from ?? ""),
+          validTo: String(row.valid_to ?? ""),
+        },
         today,
       );
       const expiry = getCorporateAgreementExpiryState(
@@ -1968,7 +2011,20 @@ export const listCompanyContracts = createServerFn({ method: "POST" })
         discountType: row.discount_type ? String(row.discount_type) : null,
         discountValue: row.discount_value != null ? Number(row.discount_value) : null,
         depositPolicyId: row.deposit_policy_id ? String(row.deposit_policy_id) : null,
-        cancellationPolicyId: row.cancellation_policy_id ? String(row.cancellation_policy_id) : null,
+        rateCancellationPolicyId: row.rate_cancellation_policy_id
+          ? String(row.rate_cancellation_policy_id)
+          : null,
+        cancellationPolicyId: row.rate_cancellation_policy_id
+          ? String(row.rate_cancellation_policy_id)
+          : null,
+        cancellationPolicy: resolveAgreementCancellation({
+          rateCancellationPolicyId: row.rate_cancellation_policy_id
+            ? String(row.rate_cancellation_policy_id)
+            : null,
+          canonical: row.rate_cancellation_policy_id
+            ? (canonicalById.get(String(row.rate_cancellation_policy_id)) ?? null)
+            : null,
+        }),
         noShowPolicyId: row.no_show_policy_id ? String(row.no_show_policy_id) : null,
         autoRenew: row.auto_renew === true,
         noticePeriodDays: row.notice_period_days == null ? null : Number(row.notice_period_days),

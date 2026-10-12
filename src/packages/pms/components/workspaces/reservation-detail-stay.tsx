@@ -43,6 +43,7 @@ import {
   snapshotDisplayName,
   snapshotField,
 } from "@/packages/pms/lib/reservation-detail-overview";
+import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
 import {
   buildStayDraft,
   nextStayExtension,
@@ -612,10 +613,10 @@ function StaySummaryRail({
   const assigned = Boolean(reservation.roomId && reservation.roomNumber);
   const cancellation = snapshotDisplayName(reservation.cancellationPolicySnapshot);
   const noShow = snapshotField(reservation.refundabilitySnapshot, ["no_show", "no_show_policy"]);
-  const earlyDeparture = snapshotField(reservation.refundabilitySnapshot, [
-    "early_departure",
-    "early_departure_policy",
-  ]);
+  const earlyDeparture = earlyDepartureReservationLabel({
+    snapshot: reservation.earlyDeparturePolicySnapshot,
+    legacyRefundabilitySnapshot: reservation.refundabilitySnapshot,
+  });
   const stayNightsLabel =
     nights || nightsBetween(reservation.arrivalDate, reservation.departureDate);
 

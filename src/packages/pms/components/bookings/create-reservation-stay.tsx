@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { BedDouble } from "lucide-react";
 import { addDays, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import {
   CREATE_RESERVATION_MIN_NIGHTS,
@@ -152,10 +153,21 @@ export function CreateReservationStay({
   return (
     <section
       id="create-reservation-stay-information"
-      className={cn(PMS_OP_PANEL, "!shadow-none @container h-full scroll-mt-3 p-3")}
+      className={cn(
+        PMS_OP_PANEL,
+        "!rounded-[6px] !border-[#CCCCCC] !shadow-none @container h-full scroll-mt-3 p-4",
+      )}
       data-testid="create-reservation-stay"
     >
-      <h2 className="font-display text-base text-[#251605]">{title}</h2>
+      <div className="flex items-start gap-2">
+        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+          <BedDouble className="size-3.5" aria-hidden />
+        </span>
+        <div>
+          <h2 className="text-sm font-semibold text-[#251605]">{title}</h2>
+          <p className="text-xs text-[#6B5E4E]">Enter stay details to check availability.</p>
+        </div>
+      </div>
       <div className="mt-3 grid grid-cols-2 gap-x-2 gap-y-2 @min-[24rem]:grid-cols-3">
         <div className="min-w-0 space-y-1">
           <StayFieldLabel htmlFor="arrival">Arrival Date</StayFieldLabel>

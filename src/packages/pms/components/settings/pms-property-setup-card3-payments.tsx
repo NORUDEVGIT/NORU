@@ -162,7 +162,8 @@ export function PmsPropertySetupCard3Payments({
         <div className="space-y-4" data-testid="pms-card3-payments">
           <Card3InheritedStrip>
             Payment methods reuse the existing accepted-tenders catalogue. Deposit policies are Card
-            3 setup rules in {currencyCode}. SET1 restaurants.deposit_* columns are not written
+            3 setup rules in {currencyCode}. Cancellation policies are managed in Rate &amp; Pricing.
+            SET1 restaurants.deposit_* columns are not written
             here. Gateways stay on Card 6. This configuration makes no reservation or folio
             operational changes.
           </Card3InheritedStrip>

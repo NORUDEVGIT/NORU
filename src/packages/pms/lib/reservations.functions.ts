@@ -25,9 +25,16 @@ import {
   section7PersistApplied,
 } from "./create-reservation-phase1-section7";
 import {
+  buildEarlyDeparturePolicySnapshot,
+  type EarlyDeparturePolicyMaster,
+} from "./early-departure-policy";
+import {
   asDepositPolicyType,
+  assertLinkedStayPolicyResolved,
   assertReservationTenderCode,
-  buildDepositRequirementSnapshot,
+  buildNoShowPolicySnapshot,
+  ratePlanStayPolicyWrite,
+  type NoShowPolicyMaster,
 } from "./create-reservation-step4";
 import { DEPOSIT_POLICY_TYPE_LABELS, type DepositPolicyCard3Row } from "./payments-card3.server";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
@@ -96,6 +103,10 @@ export interface ReservationDetail extends ReservationSummary {
   purposeOfStay: string | null;
   salesChannel: string | null;
   depositRequirementSnapshot: unknown;
+  noShowPolicyId: string | null;
+  noShowPolicySnapshot: unknown;
+  earlyDeparturePolicyId: string | null;
+  earlyDeparturePolicySnapshot: unknown;
   cancellationPolicySnapshot: unknown;
   refundabilitySnapshot: unknown;
   createdByStaffMembershipId: string | null;
@@ -179,6 +190,18 @@ const RESERVATION_DETAIL_SELECT = RESERVATION_SELECT.replace(
   expected_arrival_at, late_checkout_until,`,
 );
 
+const RESERVATION_DETAIL_POLICY_SELECT = RESERVATION_DETAIL_SELECT.replace(
+  "deposit_requirement_snapshot, cancellation_policy_snapshot, refundability_snapshot,",
+  `deposit_requirement_snapshot, cancellation_policy_snapshot, refundability_snapshot,
+  no_show_policy_id, no_show_policy_snapshot,`,
+);
+
+const RESERVATION_DETAIL_EARLY_SELECT = RESERVATION_DETAIL_POLICY_SELECT.replace(
+  "no_show_policy_id, no_show_policy_snapshot,",
+  `no_show_policy_id, no_show_policy_snapshot,
+  early_departure_policy_id, early_departure_policy_snapshot,`,
+);
+
 type NameRelation = { name: string; code?: string | null } | null;
 type GuestRelation = {
   first_name: string;
@@ -227,6 +250,10 @@ type ReservationRow = {
   purpose_of_stay?: string | null;
   commercial_sales_channel?: string | null;
   deposit_requirement_snapshot?: unknown;
+  no_show_policy_id?: string | null;
+  no_show_policy_snapshot?: unknown;
+  early_departure_policy_id?: string | null;
+  early_departure_policy_snapshot?: unknown;
   cancellation_policy_snapshot?: unknown;
   refundability_snapshot?: unknown;
   created_by_staff_membership_id?: string | null;
@@ -302,6 +329,10 @@ function toDetail(row: ReservationRow): ReservationDetail {
     purposeOfStay: row.purpose_of_stay ?? null,
     salesChannel: row.commercial_sales_channel ?? null,
     depositRequirementSnapshot: row.deposit_requirement_snapshot ?? null,
+    noShowPolicyId: row.no_show_policy_id ?? null,
+    noShowPolicySnapshot: row.no_show_policy_snapshot ?? null,
+    earlyDeparturePolicyId: row.early_departure_policy_id ?? null,
+    earlyDeparturePolicySnapshot: row.early_departure_policy_snapshot ?? null,
     cancellationPolicySnapshot: row.cancellation_policy_snapshot ?? null,
     refundabilitySnapshot: row.refundability_snapshot ?? null,
     createdByStaffMembershipId: row.created_by_staff_membership_id ?? null,
@@ -636,12 +667,30 @@ export const getReservation = createServerFn({ method: "POST" })
     }): Promise<{ reservation: ReservationDetail; history: ReservationHistoryEntry[] }> => {
       await requireReservationManager(context as never, data.restaurantId);
 
-      const detailQuery = await context.supabase
+      const earlyQuery = await context.supabase
         .from("hotel_reservations")
-        .select(RESERVATION_DETAIL_SELECT)
+        .select(RESERVATION_DETAIL_EARLY_SELECT)
         .eq("restaurant_id", data.restaurantId)
         .eq("id", data.reservationId)
         .maybeSingle();
+      const policyQuery =
+        earlyQuery.error && isMissingSchemaError(earlyQuery.error)
+          ? await context.supabase
+              .from("hotel_reservations")
+              .select(RESERVATION_DETAIL_POLICY_SELECT)
+              .eq("restaurant_id", data.restaurantId)
+              .eq("id", data.reservationId)
+              .maybeSingle()
+          : earlyQuery;
+      const detailQuery =
+        policyQuery.error && isMissingSchemaError(policyQuery.error)
+          ? await context.supabase
+              .from("hotel_reservations")
+              .select(RESERVATION_DETAIL_SELECT)
+              .eq("restaurant_id", data.restaurantId)
+              .eq("id", data.reservationId)
+              .maybeSingle()
+          : policyQuery;
       const fallbackQuery =
         detailQuery.error && isMissingSchemaError(detailQuery.error)
           ? await context.supabase
@@ -732,12 +781,134 @@ function toDepositPolicyCard3(row: {
   };
 }
 
+type RatePlanStayPolicies = {
+  schemaReady: boolean;
+  deposit: DepositPolicyCard3Row | null;
+  noShow: NoShowPolicyMaster | null;
+  earlyDeparture: EarlyDeparturePolicyMaster | null;
+};
+
+async function loadRatePlanStayPolicies(
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
+  restaurantId: string,
+  ratePlanId: string | null,
+): Promise<RatePlanStayPolicies> {
+  if (!ratePlanId) {
+    return { schemaReady: true, deposit: null, noShow: null, earlyDeparture: null };
+  }
+  const plan = await supabaseAdmin
+    .from("hotel_rate_plans")
+    .select("deposit_policy_id, no_show_policy_id")
+    .eq("id", ratePlanId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (plan.error) {
+    if (isMissingSchemaError(plan.error)) {
+      return { schemaReady: false, deposit: null, noShow: null, earlyDeparture: null };
+    }
+    throw new Error(plan.error.message);
+  }
+  if (!plan.data) throw new Error("That rate plan doesn't belong to this property.");
+
+  const depositId = plan.data.deposit_policy_id ?? null;
+  const noShowId = plan.data.no_show_policy_id ?? null;
+  let deposit: DepositPolicyCard3Row | null = null;
+  if (depositId) {
+    const row = await supabaseAdmin
+      .from("pms_deposit_policies")
+      .select(
+        "id, code, name, description, required, deposit_type, deposit_value, is_default, active",
+      )
+      .eq("id", depositId)
+      .eq("restaurant_id", restaurantId)
+      .maybeSingle();
+    if (row.error) throw new Error(row.error.message);
+    assertLinkedStayPolicyResolved("deposit", depositId, Boolean(row.data));
+    deposit = toDepositPolicyCard3(row.data as Parameters<typeof toDepositPolicyCard3>[0]);
+  }
+
+  let noShow: NoShowPolicyMaster | null = null;
+  if (noShowId) {
+    const row = await supabaseAdmin
+      .from("pms_no_show_policies")
+      .select("id, code, name, description, penalty_type, penalty_value, release_hour, active")
+      .eq("id", noShowId)
+      .eq("restaurant_id", restaurantId)
+      .maybeSingle();
+    if (row.error) throw new Error(row.error.message);
+    assertLinkedStayPolicyResolved("no-show", noShowId, Boolean(row.data));
+    const master = row.data as {
+      id: string;
+      code: string | null;
+      name: string | null;
+      description: string | null;
+      penalty_type: string | null;
+      penalty_value: number | string | null;
+      release_hour: number | null;
+      active: boolean | null;
+    };
+    noShow = {
+      id: master.id,
+      code: String(master.code ?? ""),
+      name: String(master.name ?? ""),
+      description: master.description,
+      penaltyType: String(master.penalty_type ?? ""),
+      penaltyValue: Number(master.penalty_value ?? 0),
+      releaseHour: Number(master.release_hour ?? 0),
+      active: master.active !== false,
+    };
+    buildNoShowPolicySnapshot(noShow);
+  }
+
+  let earlyDeparture: EarlyDeparturePolicyMaster | null = null;
+  const earlyPlan = await supabaseAdmin
+    .from("hotel_rate_plans")
+    .select("early_departure_policy_id")
+    .eq("id", ratePlanId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (earlyPlan.error) {
+    if (!isMissingSchemaError(earlyPlan.error)) throw new Error(earlyPlan.error.message);
+  } else {
+    const earlyId = earlyPlan.data?.early_departure_policy_id ?? null;
+    if (earlyId) {
+      const row = await supabaseAdmin
+        .from("pms_early_departure_policies")
+        .select("id, code, name, description, penalty_type, penalty_value")
+        .eq("id", earlyId)
+        .eq("restaurant_id", restaurantId)
+        .maybeSingle();
+      if (row.error) throw new Error(row.error.message);
+      assertLinkedStayPolicyResolved("early-departure", earlyId, Boolean(row.data));
+      const master = row.data as {
+        id: string;
+        code: string | null;
+        name: string | null;
+        description: string | null;
+        penalty_type: string | null;
+        penalty_value: number | string | null;
+      };
+      earlyDeparture = {
+        id: master.id,
+        code: String(master.code ?? ""),
+        name: String(master.name ?? ""),
+        description: master.description,
+        penaltyType: String(master.penalty_type ?? ""),
+        penaltyValue: Number(master.penalty_value ?? 0),
+      };
+      buildEarlyDeparturePolicySnapshot(earlyDeparture);
+    }
+  }
+
+  return { schemaReady: true, deposit, noShow, earlyDeparture };
+}
+
 async function persistDepositRequirementSnapshot(
   supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
   input: {
     restaurantId: string;
     reservationId: string;
-    depositPolicyId: string | null;
+    stayPolicies: RatePlanStayPolicies;
     depositTenderCode: string | null;
     guaranteeMethod: string | null;
     roomSubtotal: number | null;
@@ -753,32 +924,10 @@ async function persistDepositRequirementSnapshot(
   if (input.depositTenderCode)
     assertReservationTenderCode(input.depositTenderCode, activeTenderCodes);
 
-  const policies = await supabaseAdmin
-    .from("pms_deposit_policies")
-    .select(
-      "id, code, name, description, required, deposit_type, deposit_value, is_default, active",
-    )
-    .eq("restaurant_id", input.restaurantId);
-  if (policies.error) {
-    if (isMissingSchemaError(policies.error)) return;
-    throw new Error(policies.error.message);
-  }
-  const rows = ((policies.data ?? []) as Array<Parameters<typeof toDepositPolicyCard3>[0]>).map(
-    toDepositPolicyCard3,
-  );
-  const selected = input.depositPolicyId
-    ? (rows.find((row) => row.id === input.depositPolicyId) ?? null)
-    : (rows.find((row) => row.active && row.isDefault) ?? null);
-  if (input.depositPolicyId && !selected) {
-    throw new Error("That deposit policy doesn't belong to this property.");
-  }
-  if (selected && !selected.active) {
-    throw new Error("That deposit policy is not active.");
-  }
-  if (!selected) return;
-
-  const snapshot = buildDepositRequirementSnapshot({
-    policy: selected,
+  const write = ratePlanStayPolicyWrite({
+    deposit: input.stayPolicies.deposit,
+    noShow: input.stayPolicies.noShow,
+    earlyDeparture: input.stayPolicies.earlyDeparture,
     quote: {
       subtotal: input.roomSubtotal,
       nightly: input.nightly,
@@ -787,15 +936,46 @@ async function persistDepositRequirementSnapshot(
     currency: input.currency ?? "",
     intendedTenderCode: input.depositTenderCode,
   });
+  if (!input.stayPolicies.schemaReady) {
+    if (write.early_departure_policy_id) {
+      throw new Error(
+        "The rate plan early departure policy could not be stored on this reservation.",
+      );
+    }
+    return;
+  }
+  const stayColumns = {
+    deposit_policy_id: write.deposit_policy_id,
+    deposit_requirement_snapshot: write.deposit_requirement_snapshot as unknown as Json,
+    no_show_policy_id: write.no_show_policy_id,
+    no_show_policy_snapshot: write.no_show_policy_snapshot as unknown as Json,
+  };
   const { error } = await supabaseAdmin
     .from("hotel_reservations")
     .update({
-      deposit_policy_id: selected.id,
-      deposit_requirement_snapshot: snapshot as unknown as Json,
+      ...stayColumns,
+      early_departure_policy_id: write.early_departure_policy_id,
+      early_departure_policy_snapshot: write.early_departure_policy_snapshot as unknown as Json,
     })
     .eq("restaurant_id", input.restaurantId)
     .eq("id", input.reservationId);
-  if (error && !isMissingSchemaError(error)) throw new Error(error.message);
+  if (!error) return;
+  if (!isMissingSchemaError(error)) throw new Error(error.message);
+  if (write.early_departure_policy_id) {
+    throw new Error(
+      "The rate plan early departure policy could not be stored on this reservation.",
+    );
+  }
+  const retry = await supabaseAdmin
+    .from("hotel_reservations")
+    .update(stayColumns)
+    .eq("restaurant_id", input.restaurantId)
+    .eq("id", input.reservationId);
+  if (!retry.error) return;
+  if (isMissingSchemaError(retry.error) && !write.deposit_policy_id && !write.no_show_policy_id) {
+    return;
+  }
+  throw new Error(retry.error.message);
 }
 
 const stayInputSchema = z.object({
@@ -849,7 +1029,6 @@ export const createReservation = createServerFn({ method: "POST" })
         companyContactId: idSchema.nullable().optional(),
         travelAgentContactId: idSchema.nullable().optional(),
         bookerGuestId: idSchema.nullable().optional(),
-        depositPolicyId: idSchema.nullable().optional(),
         depositTenderCode: z.string().max(80).nullable().optional(),
       })
       .parse(input),
@@ -925,6 +1104,11 @@ export const createReservation = createServerFn({ method: "POST" })
           roomTypeId: data.roomTypeId,
         });
       }
+      const stayPolicies = await loadRatePlanStayPolicies(
+        supabaseAdmin,
+        data.restaurantId,
+        data.ratePlanId ?? null,
+      );
       const pricedArgs = {
         _restaurant_id: data.restaurantId,
         _guest_id: data.guestId,
@@ -1026,7 +1210,7 @@ export const createReservation = createServerFn({ method: "POST" })
       await persistDepositRequirementSnapshot(supabaseAdmin, {
         restaurantId: data.restaurantId,
         reservationId: row.id,
-        depositPolicyId: data.depositPolicyId ?? null,
+        stayPolicies,
         depositTenderCode: blankToNull(data.depositTenderCode),
         guaranteeMethod: persistApplied ? blankToNull(data.guaranteeMethod) : null,
         roomSubtotal: row.room_subtotal == null ? null : Number(row.room_subtotal),

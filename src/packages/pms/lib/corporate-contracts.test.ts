@@ -7,9 +7,7 @@ import { dirname } from "node:path";
 
 import {
   contractTypeDraftSchema,
-  cancellationPolicyDraftSchema,
   noShowPolicyDraftSchema,
-  buildCancellationPolicyPreview,
   buildNoShowPolicyPreview,
   getCorporateAgreementExpiryState,
   validateCorporateAgreementPayload,
@@ -88,92 +86,6 @@ describe("1. Contract Types Master Domain", () => {
     if (inactive.success) {
       assert.equal(inactive.data.active, false);
     }
-  });
-});
-
-describe("2. Cancellation Policies Master Domain", () => {
-  it("validates a standard 24h first-night cancellation policy", () => {
-    const result = cancellationPolicyDraftSchema.safeParse({
-      code: "CANCEL_24H_1N",
-      name: "Standard 24h Free / 1st Night",
-      cutoffHours: 24,
-      penaltyType: "first_night",
-      penaltyValue: 0,
-      refundableBeforeCutoff: true,
-      isDefault: true,
-      active: true,
-    });
-    assert.equal(result.success, true);
-    if (result.success) {
-      assert.equal(result.data.isDefault, true);
-      assert.equal(result.data.cutoffHours, 24);
-    }
-  });
-
-  it("validates a percent-of-stay cancellation policy", () => {
-    const result = cancellationPolicyDraftSchema.safeParse({
-      code: "CANCEL_48H_50PCT",
-      name: "48h 50% Stay Penalty",
-      cutoffHours: 48,
-      penaltyType: "percent_stay",
-      penaltyValue: 50,
-      refundableBeforeCutoff: true,
-      isDefault: false,
-      active: true,
-    });
-    assert.equal(result.success, true);
-  });
-
-  it("rejects percentage penalty > 100%", () => {
-    const result = cancellationPolicyDraftSchema.safeParse({
-      code: "CANCEL_INVALID",
-      name: "Invalid Percentage",
-      cutoffHours: 24,
-      penaltyType: "percent_stay",
-      penaltyValue: 150,
-      refundableBeforeCutoff: true,
-      isDefault: false,
-      active: true,
-    });
-    assert.equal(result.success, false);
-    if (!result.success) {
-      const issue = result.error.issues.find((i) => i.path.includes("penaltyValue"));
-      assert.ok(issue, "Expected error on penaltyValue exceeding 100%");
-    }
-  });
-
-  it("rejects negative cutoff hours", () => {
-    const result = cancellationPolicyDraftSchema.safeParse({
-      code: "CANCEL_NEG",
-      name: "Negative Cutoff",
-      cutoffHours: -5,
-      penaltyType: "none",
-      penaltyValue: 0,
-      refundableBeforeCutoff: true,
-      isDefault: false,
-      active: true,
-    });
-    assert.equal(result.success, false);
-  });
-
-  it("generates clear operational descriptions for UI preview", () => {
-    const preview1 = buildCancellationPolicyPreview(24, "first_night", 0, true);
-    assert.equal(
-      preview1,
-      "Free cancellation until 24 hours prior to check-in. 1st night room & tax penalty applies after cutoff.",
-    );
-
-    const preview2 = buildCancellationPolicyPreview(0, "full_stay", 0, false);
-    assert.equal(
-      preview2,
-      "Non-refundable prior to check-in. 100% full stay charged after cutoff.",
-    );
-
-    const preview3 = buildCancellationPolicyPreview(48, "percent_stay", 50, true);
-    assert.equal(
-      preview3,
-      "Free cancellation until 48 hours prior to check-in. 50% of total stay charged after cutoff.",
-    );
   });
 });
 

@@ -93,10 +93,11 @@ describe("Reservation Detail Overview-first", () => {
 
   it("reuses existing actions instead of inventing new backends", () => {
     expect(workspace).toContain("window.print()");
-    expect(workspace).toContain("Send is not available in this workspace yet.");
+    expect(workspace).not.toContain("Send is not available in this workspace yet.");
+    expect(workspace).toContain("getReservationActions(");
     expect(workspace).toContain("setAmendOpen(true)");
     expect(workspace).toContain("<CheckInDialog");
-    expect(workspace).toContain("Copy stay");
+    expect(workspace).toContain("copyMutation.mutate()");
     expect(workspace).toContain("Open guest profile");
   });
 });

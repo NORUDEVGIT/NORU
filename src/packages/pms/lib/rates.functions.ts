@@ -20,10 +20,8 @@ import { requireReservationManager } from "./reservations.server";
 import { computeBookedRevenueOverview } from "./revenue/revenue-metrics";
 import { loadQuoteMerchandising } from "./rate-quote-read-model.server";
 import { breakfastLabelFromMealPlan, deriveCancellationDisplay } from "./cancellation-deadline";
-import {
-  parsePackageInclusionType,
-  type RatePlanPackageLink,
-} from "./rate-plan-package-inclusion";
+import { foreignRatePlanPolicyMessage } from "./rate-plan-policy-link";
+import { parsePackageInclusionType, type RatePlanPackageLink } from "./rate-plan-package-inclusion";
 
 const idSchema = z.string().uuid();
 
@@ -61,6 +59,17 @@ export interface RatePlan {
   refundabilityId: string | null;
   refundabilityName: string;
   refundabilityKind: string | null;
+  depositPolicyId: string | null;
+  depositPolicyName: string;
+  noShowPolicyId: string | null;
+  noShowPolicyName: string;
+  noShowPenaltyType?: string | null;
+  noShowPenaltyValue?: number | null;
+  earlyDeparturePolicyId: string | null;
+  earlyDeparturePolicyName: string;
+  earlyDeparturePenaltyType: string | null;
+  earlyDeparturePenaltyValue: number | null;
+  earlyDepartureDescription: string | null;
   minAdvanceDays: number | null;
   maxAdvanceDays: number | null;
   packages: RatePlanPackageLink[];
@@ -183,7 +192,7 @@ const PLAN_SELECT_BASE = `
 `;
 const PLAN_SELECT = `
   id, code, name, description, rate_category_id, room_type_id, currency, base_rate,
-  valid_from, valid_to, meal_plan_id, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days, active,
+  valid_from, valid_to, meal_plan_id, cancellation_policy_id, refundability_id, deposit_policy_id, no_show_policy_id, early_departure_policy_id, min_advance_days, max_advance_days, active,
   hotel_rate_categories!hotel_rate_plans_category_same_property ( name ),
   room_types!hotel_rate_plans_type_same_property ( name )
 `;
@@ -206,6 +215,9 @@ type PlanRow = {
   meal_plan_id?: string | null;
   cancellation_policy_id: string | null;
   refundability_id: string | null;
+  deposit_policy_id?: string | null;
+  no_show_policy_id?: string | null;
+  early_departure_policy_id?: string | null;
   min_advance_days: number | null;
   max_advance_days: number | null;
   active: boolean;
@@ -235,6 +247,17 @@ function toPlan(row: PlanRow): RatePlan {
     refundabilityId: row.refundability_id,
     refundabilityName: "",
     refundabilityKind: null,
+    depositPolicyId: row.deposit_policy_id ?? null,
+    depositPolicyName: "",
+    noShowPolicyId: row.no_show_policy_id ?? null,
+    noShowPolicyName: "",
+    noShowPenaltyType: null,
+    noShowPenaltyValue: null,
+    earlyDeparturePolicyId: row.early_departure_policy_id ?? null,
+    earlyDeparturePolicyName: "",
+    earlyDeparturePenaltyType: null,
+    earlyDeparturePenaltyValue: null,
+    earlyDepartureDescription: null,
     minAdvanceDays: row.min_advance_days == null ? null : Number(row.min_advance_days),
     maxAdvanceDays: row.max_advance_days == null ? null : Number(row.max_advance_days),
     packages: [],
@@ -247,37 +270,74 @@ async function hydrateRatePlanMerchandising(
   restaurantId: string,
   plans: RatePlan[],
 ): Promise<RatePlan[]> {
-  const mealIds = [...new Set(plans.map((row) => row.mealPlanId).filter((id): id is string => Boolean(id)))];
+  const mealIds = [
+    ...new Set(plans.map((row) => row.mealPlanId).filter((id): id is string => Boolean(id))),
+  ];
   const cancelIds = [
-    ...new Set(plans.map((row) => row.cancellationPolicyId).filter((id): id is string => Boolean(id))),
+    ...new Set(
+      plans.map((row) => row.cancellationPolicyId).filter((id): id is string => Boolean(id)),
+    ),
   ];
   const refundIds = [
     ...new Set(plans.map((row) => row.refundabilityId).filter((id): id is string => Boolean(id))),
   ];
+  const depositIds = [
+    ...new Set(plans.map((row) => row.depositPolicyId).filter((id): id is string => Boolean(id))),
+  ];
+  const noShowIds = [
+    ...new Set(plans.map((row) => row.noShowPolicyId).filter((id): id is string => Boolean(id))),
+  ];
+  const earlyDepartureIds = [
+    ...new Set(
+      plans.map((row) => row.earlyDeparturePolicyId).filter((id): id is string => Boolean(id)),
+    ),
+  ];
 
-  const [meals, cancellations, refundability] = await Promise.all([
-    mealIds.length
-      ? db
-          .from("pms_meal_plans")
-          .select("id, name, includes_breakfast")
-          .eq("restaurant_id", restaurantId)
-          .in("id", mealIds)
-      : Promise.resolve({ data: [], error: null }),
-    cancelIds.length
-      ? db
-          .from("pms_rate_cancellation_policies")
-          .select("id, name, policy_kind, window_value, window_unit, cutoff_time, deadline_hours")
-          .eq("restaurant_id", restaurantId)
-          .in("id", cancelIds)
-      : Promise.resolve({ data: [], error: null }),
-    refundIds.length
-      ? db
-          .from("pms_rate_refundability_codes")
-          .select("id, name, kind")
-          .eq("restaurant_id", restaurantId)
-          .in("id", refundIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  const [meals, cancellations, refundability, deposits, noShows, earlyDepartures] =
+    await Promise.all([
+      mealIds.length
+        ? db
+            .from("pms_meal_plans")
+            .select("id, name, includes_breakfast")
+            .eq("restaurant_id", restaurantId)
+            .in("id", mealIds)
+        : Promise.resolve({ data: [], error: null }),
+      cancelIds.length
+        ? db
+            .from("pms_rate_cancellation_policies")
+            .select("id, name, policy_kind, window_value, window_unit, cutoff_time, deadline_hours")
+            .eq("restaurant_id", restaurantId)
+            .in("id", cancelIds)
+        : Promise.resolve({ data: [], error: null }),
+      refundIds.length
+        ? db
+            .from("pms_rate_refundability_codes")
+            .select("id, name, kind")
+            .eq("restaurant_id", restaurantId)
+            .in("id", refundIds)
+        : Promise.resolve({ data: [], error: null }),
+      depositIds.length
+        ? db
+            .from("pms_deposit_policies")
+            .select("id, name")
+            .eq("restaurant_id", restaurantId)
+            .in("id", depositIds)
+        : Promise.resolve({ data: [], error: null }),
+      noShowIds.length
+        ? db
+            .from("pms_no_show_policies")
+            .select("id, name, penalty_type, penalty_value")
+            .eq("restaurant_id", restaurantId)
+            .in("id", noShowIds)
+        : Promise.resolve({ data: [], error: null }),
+      earlyDepartureIds.length
+        ? db
+            .from("pms_early_departure_policies")
+            .select("id, name, description, penalty_type, penalty_value")
+            .eq("restaurant_id", restaurantId)
+            .in("id", earlyDepartureIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
 
   let cancelRows = cancellations;
   if (cancellations.error && missingColumn(cancellations.error) && cancelIds.length > 0) {
@@ -288,17 +348,54 @@ async function hydrateRatePlanMerchandising(
       .in("id", cancelIds);
   }
 
+  let noShowRows = noShows;
+  if (noShows.error && missingColumn(noShows.error) && noShowIds.length > 0) {
+    noShowRows = await db
+      .from("pms_no_show_policies")
+      .select("id, name")
+      .eq("restaurant_id", restaurantId)
+      .in("id", noShowIds);
+  }
+
   const mealById = new Map(
-    ((meals.data ?? []) as { id: string; name: string; includes_breakfast: boolean | null }[]).map((row) => [
-      row.id,
-      row,
-    ]),
+    ((meals.data ?? []) as { id: string; name: string; includes_breakfast: boolean | null }[]).map(
+      (row) => [row.id, row],
+    ),
   );
   const cancelById = new Map(
     ((cancelRows.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row]),
   );
   const refundById = new Map(
-    ((refundability.data ?? []) as { id: string; name: string; kind: string | null }[]).map((row) => [row.id, row]),
+    ((refundability.data ?? []) as { id: string; name: string; kind: string | null }[]).map(
+      (row) => [row.id, row],
+    ),
+  );
+  const depositById = new Map(
+    ((deposits.error ? [] : (deposits.data ?? [])) as { id: string; name: string }[]).map((row) => [
+      row.id,
+      row,
+    ]),
+  );
+  const noShowById = new Map(
+    (
+      (noShowRows.error ? [] : (noShowRows.data ?? [])) as {
+        id: string;
+        name: string;
+        penalty_type?: string | null;
+        penalty_value?: number | null;
+      }[]
+    ).map((row) => [row.id, row]),
+  );
+  const earlyDepartureById = new Map(
+    (
+      (earlyDepartures.error ? [] : (earlyDepartures.data ?? [])) as {
+        id: string;
+        name: string;
+        description: string | null;
+        penalty_type: string | null;
+        penalty_value: number | string | null;
+      }[]
+    ).map((row) => [row.id, row]),
   );
 
   const packagesByPlan = await loadRatePlanPackageLinks(
@@ -309,8 +406,15 @@ async function hydrateRatePlanMerchandising(
 
   return plans.map((plan) => {
     const meal = plan.mealPlanId ? mealById.get(plan.mealPlanId) : undefined;
-    const cancel = plan.cancellationPolicyId ? cancelById.get(plan.cancellationPolicyId) : undefined;
+    const cancel = plan.cancellationPolicyId
+      ? cancelById.get(plan.cancellationPolicyId)
+      : undefined;
     const refund = plan.refundabilityId ? refundById.get(plan.refundabilityId) : undefined;
+    const deposit = plan.depositPolicyId ? depositById.get(plan.depositPolicyId) : undefined;
+    const noShow = plan.noShowPolicyId ? noShowById.get(plan.noShowPolicyId) : undefined;
+    const earlyDeparture = plan.earlyDeparturePolicyId
+      ? earlyDepartureById.get(plan.earlyDeparturePolicyId)
+      : undefined;
     return {
       ...plan,
       mealPlanName: meal?.name ?? "",
@@ -318,6 +422,15 @@ async function hydrateRatePlanMerchandising(
       cancellationName: cancel?.name ?? "",
       refundabilityName: refund?.name ?? "",
       refundabilityKind: refund?.kind ?? null,
+      depositPolicyName: deposit?.name ?? "",
+      noShowPolicyName: noShow?.name ?? "",
+      noShowPenaltyType: noShow?.penalty_type ?? null,
+      noShowPenaltyValue: noShow?.penalty_value == null ? null : Number(noShow.penalty_value),
+      earlyDeparturePolicyName: earlyDeparture?.name ?? "",
+      earlyDeparturePenaltyType: earlyDeparture?.penalty_type ?? null,
+      earlyDeparturePenaltyValue:
+        earlyDeparture?.penalty_value == null ? null : Number(earlyDeparture.penalty_value),
+      earlyDepartureDescription: earlyDeparture?.description?.trim() || null,
       packages: packagesByPlan.get(plan.id) ?? [],
     };
   });
@@ -395,7 +508,11 @@ async function loadRatePlanPackageLinks(
   ];
   const [meals, amenities, services] = await Promise.all([
     componentMealIds.length
-      ? db.from("pms_meal_plans").select("id, name").eq("restaurant_id", restaurantId).in("id", componentMealIds)
+      ? db
+          .from("pms_meal_plans")
+          .select("id, name")
+          .eq("restaurant_id", restaurantId)
+          .in("id", componentMealIds)
       : Promise.resolve({ data: [], error: null }),
     componentAmenityIds.length
       ? db
@@ -412,7 +529,9 @@ async function loadRatePlanPackageLinks(
           .in("id", componentServiceIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  const mealName = new Map(((meals.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]));
+  const mealName = new Map(
+    ((meals.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]),
+  );
   const amenityName = new Map(
     ((amenities.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]),
   );
@@ -462,13 +581,21 @@ async function loadRatePlans(
   apply: (query: any) => any,
 ): Promise<RatePlan[]> {
   const composed = await apply(
-    supabase.from("hotel_rate_plans").select(PLAN_SELECT).eq("restaurant_id", restaurantId).order("code"),
+    supabase
+      .from("hotel_rate_plans")
+      .select(PLAN_SELECT)
+      .eq("restaurant_id", restaurantId)
+      .order("code"),
   );
   let rows = composed.data;
   if (composed.error) {
     if (!missingColumn(composed.error)) throw new Error(composed.error.message);
     const fallback = await apply(
-      supabase.from("hotel_rate_plans").select(PLAN_SELECT_BASE).eq("restaurant_id", restaurantId).order("code"),
+      supabase
+        .from("hotel_rate_plans")
+        .select(PLAN_SELECT_BASE)
+        .eq("restaurant_id", restaurantId)
+        .order("code"),
     );
     if (fallback.error) throw new Error(fallback.error.message);
     rows = fallback.data;
@@ -515,6 +642,9 @@ export const saveRatePlan = createServerFn({ method: "POST" })
         validTo: dateSchema.nullable().optional(),
         cancellationPolicyId: idSchema.nullable().optional(),
         refundabilityId: idSchema.nullable().optional(),
+        depositPolicyId: idSchema.nullable().optional(),
+        noShowPolicyId: idSchema.nullable().optional(),
+        earlyDeparturePolicyId: idSchema.nullable().optional(),
         minAdvanceDays: z.number().int().min(0).max(365).nullable().optional(),
         maxAdvanceDays: z.number().int().min(0).max(365).nullable().optional(),
         active: z.boolean().optional(),
@@ -538,10 +668,60 @@ export const saveRatePlan = createServerFn({ method: "POST" })
         .eq("id", data.roomTypeId)
         .eq("restaurant_id", data.restaurantId)
         .maybeSingle(),
-      context.supabase.from("restaurants").select("currency_code").eq("id", data.restaurantId).maybeSingle(),
+      context.supabase
+        .from("restaurants")
+        .select("currency_code")
+        .eq("id", data.restaurantId)
+        .maybeSingle(),
     ]);
-    if (!category) return { ok: false, message: "That rate category doesn't belong to this property." };
+    if (!category)
+      return { ok: false, message: "That rate category doesn't belong to this property." };
     if (!roomType) return { ok: false, message: "That room type doesn't belong to this property." };
+
+    const [depositLookup, noShowLookup, earlyDepartureLookup] = await Promise.all([
+      data.depositPolicyId
+        ? context.supabase
+            .from("pms_deposit_policies")
+            .select("id")
+            .eq("id", data.depositPolicyId)
+            .eq("restaurant_id", data.restaurantId)
+            .maybeSingle()
+        : Promise.resolve({ data: { id: true }, error: null }),
+      data.noShowPolicyId
+        ? context.supabase
+            .from("pms_no_show_policies")
+            .select("id")
+            .eq("id", data.noShowPolicyId)
+            .eq("restaurant_id", data.restaurantId)
+            .maybeSingle()
+        : Promise.resolve({ data: { id: true }, error: null }),
+      data.earlyDeparturePolicyId
+        ? context.supabase
+            .from("pms_early_departure_policies")
+            .select("id")
+            .eq("id", data.earlyDeparturePolicyId)
+            .eq("restaurant_id", data.restaurantId)
+            .maybeSingle()
+        : Promise.resolve({ data: { id: true }, error: null }),
+    ]);
+    const depositMessage = foreignRatePlanPolicyMessage(
+      "deposit",
+      data.depositPolicyId,
+      !depositLookup.error && Boolean(depositLookup.data),
+    );
+    if (depositMessage) return { ok: false, message: depositMessage };
+    const noShowMessage = foreignRatePlanPolicyMessage(
+      "no-show",
+      data.noShowPolicyId,
+      !noShowLookup.error && Boolean(noShowLookup.data),
+    );
+    if (noShowMessage) return { ok: false, message: noShowMessage };
+    const earlyDepartureMessage = foreignRatePlanPolicyMessage(
+      "early-departure",
+      data.earlyDeparturePolicyId,
+      !earlyDepartureLookup.error && Boolean(earlyDepartureLookup.data),
+    );
+    if (earlyDepartureMessage) return { ok: false, message: earlyDepartureMessage };
 
     const payload = {
       restaurant_id: data.restaurantId,
@@ -559,6 +739,11 @@ export const saveRatePlan = createServerFn({ method: "POST" })
       min_advance_days: data.minAdvanceDays ?? null,
       max_advance_days: data.maxAdvanceDays ?? null,
       active: data.active ?? true,
+      ...(data.depositPolicyId !== undefined ? { deposit_policy_id: data.depositPolicyId } : {}),
+      ...(data.noShowPolicyId !== undefined ? { no_show_policy_id: data.noShowPolicyId } : {}),
+      ...(data.earlyDeparturePolicyId !== undefined
+        ? { early_departure_policy_id: data.earlyDeparturePolicyId }
+        : {}),
     };
 
     if (data.ratePlanId) {
@@ -604,7 +789,12 @@ async function assertPlan(context: { supabase: never }, restaurantId: string, ra
         eq: (
           c: string,
           v: string,
-        ) => { eq: (c: string, v: string) => { maybeSingle: () => Promise<{ data: { base_rate: number | string } | null }> } };
+        ) => {
+          eq: (
+            c: string,
+            v: string,
+          ) => { maybeSingle: () => Promise<{ data: { base_rate: number | string } | null }> };
+        };
       };
     };
   };
@@ -623,7 +813,9 @@ async function assertPlan(context: { supabase: never }, restaurantId: string, ra
 export const listRateCalendar = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, ratePlanId: idSchema, from: dateSchema, to: dateSchema }).parse(input),
+    z
+      .object({ restaurantId: idSchema, ratePlanId: idSchema, from: dateSchema, to: dateSchema })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<RateCalendarRow[]> => {
     await requireRateManager(context as never, data.restaurantId);
@@ -702,7 +894,9 @@ export const saveRateOverride = createServerFn({ method: "POST" })
 export const listRateRestrictions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, ratePlanId: idSchema, from: dateSchema, to: dateSchema }).parse(input),
+    z
+      .object({ restaurantId: idSchema, ratePlanId: idSchema, from: dateSchema, to: dateSchema })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<RateRestrictionRow[]> => {
     await requireRateManager(context as never, data.restaurantId);
@@ -710,7 +904,9 @@ export const listRateRestrictions = createServerFn({ method: "POST" })
 
     const { data: rows, error } = await context.supabase
       .from("hotel_rate_restrictions")
-      .select("restriction_date, min_stay, max_stay, closed_to_arrival, closed_to_departure, stop_sell")
+      .select(
+        "restriction_date, min_stay, max_stay, closed_to_arrival, closed_to_departure, stop_sell",
+      )
       .eq("restaurant_id", data.restaurantId)
       .eq("rate_plan_id", data.ratePlanId)
       .gte("restriction_date", data.from)
@@ -815,6 +1011,17 @@ export interface RatePlanQuote {
   cancellationLabel: string;
   refundabilityLabel: string;
   refundabilityKind: string | null;
+  depositPolicyId: string | null;
+  depositPolicyName: string;
+  noShowPolicyId: string | null;
+  noShowPolicyName: string;
+  noShowPenaltyType?: string | null;
+  noShowPenaltyValue?: number | null;
+  earlyDeparturePolicyId: string | null;
+  earlyDeparturePolicyName: string;
+  earlyDeparturePenaltyType: string | null;
+  earlyDeparturePenaltyValue: number | null;
+  earlyDepartureDescription: string | null;
 }
 
 /** Authoritative server pricing for every plan of a room type across a stay. */
@@ -832,7 +1039,13 @@ export const quoteStay = createServerFn({ method: "POST" })
         adults: z.number().int().min(1).max(20).optional(),
         children: z.number().int().min(0).max(20).optional(),
         infants: z.number().int().min(0).max(20).optional(),
-        quoteCurrency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).nullable().optional(),
+        quoteCurrency: z
+          .string()
+          .trim()
+          .toUpperCase()
+          .regex(/^[A-Z]{3}$/)
+          .nullable()
+          .optional(),
       })
       .parse(input),
   )
@@ -851,8 +1064,16 @@ export const quoteStay = createServerFn({ method: "POST" })
       string,
       { cancellationLabel: string; refundabilityLabel: string; refundabilityKind: string | null }
     >();
-    const cancelIds = [...new Set(plans.map((plan) => plan.cancellationPolicyId).filter((id): id is string => Boolean(id)))];
-    const refundIds = [...new Set(plans.map((plan) => plan.refundabilityId).filter((id): id is string => Boolean(id)))];
+    const cancelIds = [
+      ...new Set(
+        plans.map((plan) => plan.cancellationPolicyId).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const refundIds = [
+      ...new Set(
+        plans.map((plan) => plan.refundabilityId).filter((id): id is string => Boolean(id)),
+      ),
+    ];
     const cancelNames = new Map<
       string,
       {
@@ -901,7 +1122,9 @@ export const quoteStay = createServerFn({ method: "POST" })
       }
     }
     for (const plan of plans) {
-      const cancel = plan.cancellationPolicyId ? cancelNames.get(plan.cancellationPolicyId) : undefined;
+      const cancel = plan.cancellationPolicyId
+        ? cancelNames.get(plan.cancellationPolicyId)
+        : undefined;
       const derived = cancel
         ? deriveCancellationDisplay({
             policyName: cancel.name,
@@ -916,8 +1139,12 @@ export const quoteStay = createServerFn({ method: "POST" })
         : null;
       policyLabels.set(plan.id, {
         cancellationLabel: derived?.label ?? (cancel?.name || "—"),
-        refundabilityLabel: plan.refundabilityId ? refundNames.get(plan.refundabilityId) ?? "—" : "—",
-        refundabilityKind: plan.refundabilityId ? refundKinds.get(plan.refundabilityId) || null : null,
+        refundabilityLabel: plan.refundabilityId
+          ? (refundNames.get(plan.refundabilityId) ?? "—")
+          : "—",
+        refundabilityKind: plan.refundabilityId
+          ? refundKinds.get(plan.refundabilityId) || null
+          : null,
       });
     }
 
@@ -958,6 +1185,17 @@ export const quoteStay = createServerFn({ method: "POST" })
           cancellationLabel: extra?.cancellationLabel ?? "—",
           refundabilityLabel: extra?.refundabilityLabel ?? "—",
           refundabilityKind: extra?.refundabilityKind ?? null,
+          depositPolicyId: plan.depositPolicyId,
+          depositPolicyName: plan.depositPolicyName || "",
+          noShowPolicyId: plan.noShowPolicyId,
+          noShowPolicyName: plan.noShowPolicyName || "",
+          noShowPenaltyType: plan.noShowPenaltyType ?? null,
+          noShowPenaltyValue: plan.noShowPenaltyValue ?? null,
+          earlyDeparturePolicyId: plan.earlyDeparturePolicyId,
+          earlyDeparturePolicyName: plan.earlyDeparturePolicyName || "",
+          earlyDeparturePenaltyType: plan.earlyDeparturePenaltyType,
+          earlyDeparturePenaltyValue: plan.earlyDeparturePenaltyValue,
+          earlyDepartureDescription: plan.earlyDepartureDescription,
         });
         continue;
       }
@@ -971,6 +1209,17 @@ export const quoteStay = createServerFn({ method: "POST" })
         cancellationLabel: extra?.cancellationLabel ?? "—",
         refundabilityLabel: extra?.refundabilityLabel ?? "—",
         refundabilityKind: extra?.refundabilityKind ?? null,
+        depositPolicyId: plan.depositPolicyId,
+        depositPolicyName: plan.depositPolicyName || "",
+        noShowPolicyId: plan.noShowPolicyId,
+        noShowPolicyName: plan.noShowPolicyName || "",
+        noShowPenaltyType: plan.noShowPenaltyType ?? null,
+        noShowPenaltyValue: plan.noShowPenaltyValue ?? null,
+        earlyDeparturePolicyId: plan.earlyDeparturePolicyId,
+        earlyDeparturePolicyName: plan.earlyDeparturePolicyName || "",
+        earlyDeparturePenaltyType: plan.earlyDeparturePenaltyType,
+        earlyDeparturePenaltyValue: plan.earlyDeparturePenaltyValue,
+        earlyDepartureDescription: plan.earlyDepartureDescription,
       });
     }
     return out;
@@ -1000,7 +1249,13 @@ export const quoteFlexibleStay = createServerFn({ method: "POST" })
         adults: z.number().int().min(1).max(20).optional(),
         children: z.number().int().min(0).max(20).optional(),
         infants: z.number().int().min(0).max(20).optional(),
-        quoteCurrency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).nullable().optional(),
+        quoteCurrency: z
+          .string()
+          .trim()
+          .toUpperCase()
+          .regex(/^[A-Z]{3}$/)
+          .nullable()
+          .optional(),
       })
       .parse(input),
   )
@@ -1117,14 +1372,18 @@ export const listAccountRatePlanHints = createServerFn({ method: "POST" })
 
       let agreementResult = await supabaseAdmin
         .from("pms_corporate_agreements")
-        .select("id, name, code, status, active, valid_from, valid_to, currency_code, pricing_method, rate_plan_scope, discount_type, discount_value, rate_plan_id, rate_plan_ids")
+        .select(
+          "id, name, code, status, active, valid_from, valid_to, currency_code, pricing_method, rate_plan_scope, discount_type, discount_value, rate_plan_id, rate_plan_ids",
+        )
         .eq("restaurant_id", data.restaurantId)
         .eq("company_id", data.accountId)
         .order("valid_from", { ascending: false });
       if (agreementResult.error?.code === "42703" || agreementResult.error?.code === "PGRST204") {
         agreementResult = await supabaseAdmin
           .from("pms_corporate_agreements")
-          .select("id, name, code, status, active, valid_from, valid_to, currency_code, rate_plan_id")
+          .select(
+            "id, name, code, status, active, valid_from, valid_to, currency_code, rate_plan_id",
+          )
           .eq("restaurant_id", data.restaurantId)
           .eq("company_id", data.accountId)
           .order("valid_from", { ascending: false });
@@ -1232,7 +1491,9 @@ export const listAccountRatePlanHints = createServerFn({ method: "POST" })
 export const repriceReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, reservationId: idSchema, ratePlanId: idSchema }).parse(input),
+    z
+      .object({ restaurantId: idSchema, reservationId: idSchema, ratePlanId: idSchema })
+      .parse(input),
   )
   .handler(
     async ({
@@ -1270,7 +1531,8 @@ export const repriceReservation = createServerFn({ method: "POST" })
       if (error) return { ok: false, message: rateError(error.message).message };
 
       const row = updated as unknown as { id: string; room_subtotal: number | string };
-      const { getReservationPromotionAttribution } = await import("./revenue/commercial-promotion.server");
+      const { getReservationPromotionAttribution } =
+        await import("./revenue/commercial-promotion.server");
       const attribution = await getReservationPromotionAttribution(supabaseAdmin, {
         restaurantId: data.restaurantId,
         reservationId: row.id,
@@ -1295,7 +1557,13 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, from: dateSchema, to: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RevenueOverview> => {
-    await requireModuleRole(context as never, data.restaurantId, "reports_analytics", REPORTS_ROLES, "You don't have access to Reports & Analytics for this property.");
+    await requireModuleRole(
+      context as never,
+      data.restaurantId,
+      "reports_analytics",
+      REPORTS_ROLES,
+      "You don't have access to Reports & Analytics for this property.",
+    );
     // Phase 8E2 — hotel revenue reporting is a PMS-owned read.
     const { requirePmsPackage } = await import("./pms-package.server");
     await requirePmsPackage(data.restaurantId);

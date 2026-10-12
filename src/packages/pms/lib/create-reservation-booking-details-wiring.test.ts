@@ -60,7 +60,8 @@ describe("Create reservation Booking Details wiring", () => {
     assert.match(details, /listCompanyContacts/);
     assert.match(details, /listAccountRatePlanHints/);
     assert.match(details, /getBillingCard3/);
-    assert.match(details, /listPurposeOfStay/);
+    assert.doesNotMatch(details, /Travel Purpose/);
+    assert.doesNotMatch(details, /listPurposeOfStay/);
     assert.match(details, /enabled: Boolean\(companyMaster\?\.id\)/);
     assert.match(picker, /change-company/);
     assert.match(picker, /onMasterChange\(null\)/);
@@ -77,8 +78,9 @@ describe("Create reservation Booking Details wiring", () => {
     assert.match(details, /listTravelAgentContacts/);
     assert.match(details, /listTravelAgentCommissionPlans/);
     assert.match(details, /agencyHintsQuery\.data\?\.hints/);
-    assert.match(details, /aria-label="Agency Rate"/);
-    assert.match(details, /aria-label="Commission Type"/);
+    assert.match(details, /ariaLabel="Agency Rate"/);
+    assert.match(details, /ariaLabel="Commission Type"/);
+    assert.match(details, /ariaLabel="Commission"/);
     assert.match(details, /readOnly/);
     assert.match(picker, /change-ta/);
     assert.match(page, /function handleTravelAgentMasterChange/);

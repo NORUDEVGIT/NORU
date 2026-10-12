@@ -99,110 +99,7 @@ export const contractTypeDraftSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// 2. Cancellation Policies Master
-// ---------------------------------------------------------------------------
-
-export interface CancellationPolicyRecord {
-  id: string;
-  restaurantId: string;
-  code: string;
-  name: string;
-  description: string | null;
-  cutoffHours: number;
-  penaltyType: PolicyPenaltyType;
-  penaltyValue: number;
-  refundableBeforeCutoff: boolean;
-  isDefault: boolean;
-  active: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CancellationPolicyDraft {
-  id?: string;
-  code: string;
-  name: string;
-  description?: string;
-  cutoffHours: number;
-  penaltyType: PolicyPenaltyType;
-  penaltyValue: number;
-  refundableBeforeCutoff: boolean;
-  isDefault: boolean;
-  active: boolean;
-}
-
-export const cancellationPolicyDraftSchema = z.object({
-  id: z.string().uuid().optional(),
-  code: z
-    .string()
-    .trim()
-    .min(1, "Cancellation policy code is required.")
-    .max(30, "Code must not exceed 30 characters.")
-    .regex(/^[A-Z0-9_]+$/, "Code must consist of uppercase letters, numbers, and underscores."),
-  name: z
-    .string()
-    .trim()
-    .min(1, "Policy name is required.")
-    .max(120, "Name must not exceed 120 characters."),
-  description: z.string().trim().max(500).optional().default(""),
-  cutoffHours: z.number().int().min(0, "Cutoff hours must be 0 or greater."),
-  penaltyType: z.enum(POLICY_PENALTY_TYPES),
-  penaltyValue: z.number().min(0, "Penalty value must be 0 or greater.").default(0),
-  refundableBeforeCutoff: z.boolean().default(true),
-  isDefault: z.boolean().default(false),
-  active: z.boolean().default(true),
-}).refine(
-  (data) => {
-    if (data.penaltyType === "percent_stay" && data.penaltyValue > 100) {
-      return false;
-    }
-    return true;
-  },
-  {
-    message: "Percentage penalty cannot exceed 100%.",
-    path: ["penaltyValue"],
-  },
-);
-
-export function buildCancellationPolicyPreview(
-  cutoffHours: number,
-  penaltyType: PolicyPenaltyType,
-  penaltyValue: number,
-  refundableBeforeCutoff: boolean,
-): string {
-  const cutoffText =
-    cutoffHours === 0
-      ? "until day of arrival"
-      : `until ${cutoffHours} hours prior to check-in`;
-
-  const refundableText = refundableBeforeCutoff
-    ? `Free cancellation ${cutoffText}.`
-    : `Non-refundable prior to check-in.`;
-
-  let penaltyText = "";
-  switch (penaltyType) {
-    case "none":
-      penaltyText = "No penalty applies upon late cancellation.";
-      break;
-    case "first_night":
-      penaltyText = "1st night room & tax penalty applies after cutoff.";
-      break;
-    case "percent_stay":
-      penaltyText = `${penaltyValue}% of total stay charged after cutoff.`;
-      break;
-    case "fixed_amount":
-      penaltyText = `Fixed fee of ${penaltyValue} charged after cutoff.`;
-      break;
-    case "full_stay":
-      penaltyText = "100% full stay charged after cutoff.";
-      break;
-  }
-
-  return `${refundableText} ${penaltyText}`;
-}
-
-// ---------------------------------------------------------------------------
-// 3. No-Show Policies Master
+// 2. No-Show Policies Master
 // ---------------------------------------------------------------------------
 
 export interface NoShowPolicyRecord {
@@ -512,4 +409,115 @@ export function validateCorporateAgreementPayload(
     valid: errors.length === 0,
     errors,
   };
+}
+
+export const CANONICAL_CANCELLATION_PROPERTY_ERROR =
+  "That cancellation policy doesn't belong to this property.";
+
+export type CanonicalAgreementCancellationRow = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  penaltyType: string;
+  penaltyValue: number;
+  policyKind: string | null;
+  windowValue: number | null;
+  windowUnit: string | null;
+  cutoffTime: string | null;
+  deadlineHours: number | null;
+};
+
+export type AgreementCancellationView = {
+  source: "canonical";
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  penaltyType: string;
+  penaltyValue: number;
+  policyKind: string | null;
+  windowValue: number | null;
+  windowUnit: string | null;
+  cutoffTime: string | null;
+  deadlineHours: number | null;
+};
+
+export type AgreementCancellationWrite = {
+  rate_cancellation_policy_id: string | null;
+};
+
+/**
+ * Corporate agreement cancellation comes only from pms_rate_cancellation_policies.
+ */
+export function resolveAgreementCancellation(input: {
+  rateCancellationPolicyId: string | null;
+  canonical: CanonicalAgreementCancellationRow | null;
+}): AgreementCancellationView | null {
+  if (!input.rateCancellationPolicyId) return null;
+  if (!input.canonical || input.canonical.id !== input.rateCancellationPolicyId) return null;
+  return {
+    source: "canonical",
+    id: input.canonical.id,
+    code: input.canonical.code,
+    name: input.canonical.name,
+    description: input.canonical.description,
+    penaltyType: input.canonical.penaltyType,
+    penaltyValue: input.canonical.penaltyValue,
+    policyKind: input.canonical.policyKind,
+    windowValue: input.canonical.windowValue,
+    windowUnit: input.canonical.windowUnit,
+    cutoffTime: input.canonical.cutoffTime,
+    deadlineHours: input.canonical.deadlineHours,
+  };
+}
+
+/**
+ * Selections bind only to pms_rate_cancellation_policies for the same property.
+ * An empty selection clears the canonical field.
+ */
+export function agreementCancellationColumnsForSave(input: {
+  selectedPolicyId: string | null;
+  canonical: { id: string; restaurantId: string } | null;
+  restaurantId: string;
+}): AgreementCancellationWrite {
+  if (!input.selectedPolicyId) {
+    return { rate_cancellation_policy_id: null };
+  }
+  if (
+    input.canonical &&
+    input.canonical.id === input.selectedPolicyId &&
+    input.canonical.restaurantId === input.restaurantId
+  ) {
+    return { rate_cancellation_policy_id: input.selectedPolicyId };
+  }
+  throw new Error(CANONICAL_CANCELLATION_PROPERTY_ERROR);
+}
+
+export function formatCanonicalCancellationPreview(policy: {
+  name?: string | null;
+  penaltyType: string;
+  penaltyValue: number;
+  policyKind?: string | null;
+  windowValue?: number | null;
+  windowUnit?: string | null;
+  cutoffTime?: string | null;
+  deadlineHours?: number | null;
+}): string {
+  const kind = policy.policyKind === "non_refundable" ? "Non-refundable." : null;
+  let window = "";
+  if (policy.windowValue != null && Number.isFinite(policy.windowValue)) {
+    const unit = policy.windowUnit === "days_before_arrival" ? "days" : "hours";
+    window = `${policy.windowValue} ${unit} before arrival`;
+    if (policy.cutoffTime) window = `${window} at ${policy.cutoffTime}`;
+  } else if (policy.deadlineHours != null && Number.isFinite(policy.deadlineHours)) {
+    window = `${policy.deadlineHours} hours before arrival`;
+  }
+  const penalty =
+    policy.penaltyType && policy.penaltyType !== "none"
+      ? `Penalty ${policy.penaltyType} (${policy.penaltyValue}).`
+      : "No penalty.";
+  return [kind, window ? `${window}.` : null, penalty, policy.name?.trim() || null]
+    .filter(Boolean)
+    .join(" ");
 }

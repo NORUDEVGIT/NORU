@@ -64,7 +64,7 @@ function unavailable(error: { code?: string; message?: string } | null | undefin
 }
 
 const TA_MASTER_COLUMNS =
-  "id, name, trade_name, code, email, phone, phone_alt, email_alt, address_line1, address_line2, city, region, country, postal_code, website, notes, account_status, agency_type, agency_type_other, primary_contact_name, billing_contact_name, iata_license_number, license_expiry_date, tax_id, business_registration_number, commission_label, commission_type, commission_currency_note, contract_reference, contract_start_date, contract_end_date, contract_status, contract_signed_with, payment_terms, credit_limit_note, billing_instruction, negotiated_rate_reference, logo_storage_path, preferred_currency, market_segment_id, booking_access, max_advance_booking_days, min_stay_nights, max_stay_nights, group_bookings_allowed, credit_limit_amount, billing_currency_code, default_payment_method_id, payment_timing, default_billing_rule_id, credit_account_enabled, credit_days, credit_status, default_deposit_policy_id, default_cancellation_policy_id, default_no_show_policy_id, booking_notes, created_at, updated_at";
+  "id, name, trade_name, code, email, phone, phone_alt, email_alt, address_line1, address_line2, city, region, country, postal_code, website, notes, account_status, agency_type, agency_type_other, primary_contact_name, billing_contact_name, iata_license_number, license_expiry_date, tax_id, business_registration_number, commission_label, commission_type, commission_currency_note, contract_reference, contract_start_date, contract_end_date, contract_status, contract_signed_with, payment_terms, credit_limit_note, billing_instruction, negotiated_rate_reference, logo_storage_path, preferred_currency, market_segment_id, booking_access, max_advance_booking_days, min_stay_nights, max_stay_nights, group_bookings_allowed, credit_limit_amount, billing_currency_code, default_payment_method_id, payment_timing, default_billing_rule_id, credit_account_enabled, credit_days, credit_status, default_deposit_policy_id, rate_cancellation_policy_id, default_no_show_policy_id, booking_notes, created_at, updated_at";
 
 export type TravelAgentMasterRow = {
   id: string;
@@ -121,7 +121,7 @@ export type TravelAgentMasterRow = {
   credit_days?: number | null;
   credit_status?: string | null;
   default_deposit_policy_id?: string | null;
-  default_cancellation_policy_id?: string | null;
+  rate_cancellation_policy_id?: string | null;
   default_no_show_policy_id?: string | null;
   booking_notes?: string | null;
   created_at: string;
@@ -262,7 +262,7 @@ function mapAgency(agency: TravelAgentMasterRow, logoUrl: string | null) {
     creditDays: agency.credit_days ?? null,
     creditStatus: agency.credit_status ?? null,
     defaultDepositPolicyId: agency.default_deposit_policy_id ?? null,
-    defaultCancellationPolicyId: agency.default_cancellation_policy_id ?? null,
+    defaultCancellationPolicyId: agency.rate_cancellation_policy_id ?? null,
     defaultNoShowPolicyId: agency.default_no_show_policy_id ?? null,
     bookingNotes: agency.booking_notes ?? null,
     logoUrl,
@@ -1622,7 +1622,7 @@ export const listTravelAgentBilling = createServerFn({ method: "POST" })
         creditDays: agency.credit_days ?? null,
         creditStatus: agency.credit_status ?? null,
         defaultDepositPolicyId: agency.default_deposit_policy_id ?? null,
-        defaultCancellationPolicyId: agency.default_cancellation_policy_id ?? null,
+        defaultCancellationPolicyId: agency.rate_cancellation_policy_id ?? null,
         defaultNoShowPolicyId: agency.default_no_show_policy_id ?? null,
         bookingNotes: agency.booking_notes ?? null,
         moneyAvailable,
@@ -1731,7 +1731,7 @@ export const updateTravelAgentSettings = createServerFn({ method: "POST" })
       credit_days: data.creditDays ?? null,
       credit_status: data.creditStatus || null,
       default_deposit_policy_id: data.defaultDepositPolicyId || null,
-      default_cancellation_policy_id: data.defaultCancellationPolicyId || null,
+      rate_cancellation_policy_id: data.defaultCancellationPolicyId || null,
       default_no_show_policy_id: data.defaultNoShowPolicyId || null,
       booking_notes: blankToNull(data.bookingNotes),
     };
@@ -1752,6 +1752,7 @@ export const updateTravelAgentSettings = createServerFn({ method: "POST" })
       delete fallback["max_stay_nights"];
       delete fallback["group_bookings_allowed"];
       delete fallback["credit_limit_amount"];
+      delete fallback["rate_cancellation_policy_id"];
       const retry = await db
         .from("guest_account_masters")
         .update(fallback)
