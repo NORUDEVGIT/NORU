@@ -110,7 +110,10 @@ export function CreateReservationRate({
                 return (
                   <tr
                     key={row.plan.id}
-                    className={cn("border-t border-[#E7E0D4]", isSelected && "bg-[#F4E9D0]/80")}
+                    className={cn(
+                      "border-t border-[#E7E0D4]",
+                      isSelected && "bg-[#FBF6EE] shadow-[inset_3px_0_0_#C89933]",
+                    )}
                   >
                     <td className="px-2 py-1.5 align-middle">
                       <button

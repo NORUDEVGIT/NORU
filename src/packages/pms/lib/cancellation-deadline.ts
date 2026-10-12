@@ -33,6 +33,7 @@ function formatUntil(iso: string, timeZone: string | null | undefined): string {
     timeZone: zone,
     day: "numeric",
     month: "short",
+    year: "numeric",
   }).format(instant);
   const time = new Intl.DateTimeFormat("en-GB", {
     timeZone: zone,
@@ -40,10 +41,12 @@ function formatUntil(iso: string, timeZone: string | null | undefined): string {
     minute: "2-digit",
     hour12: false,
   }).format(instant);
-  return `${date} ${time.replace(/^24:/, "00:")}`;
+  return `${date} · ${time.replace(/^24:/, "00:")}`;
 }
 
-export function deriveCancellationDisplay(input: CancellationDeadlineInput): DerivedCancellationDisplay {
+export function deriveCancellationDisplay(
+  input: CancellationDeadlineInput,
+): DerivedCancellationDisplay {
   const name = input.policyName.trim();
   const kind = parseCancellationPolicyKind(input.policyKind);
   if (kind === "non_refundable") {

@@ -16,7 +16,7 @@ describe("cancellation deadline merchandising", () => {
       timeZone: "UTC",
     });
     assert.equal(display.kind, "free_until");
-    assert.match(display.label, /Free cancellation until 3 Oct 18:00/);
+    assert.match(display.label, /Free cancellation until 3 Oct 2026 · 18:00/);
     assert.equal(display.untilAt, "2026-10-03T18:00:00.000Z");
   });
 
@@ -55,8 +55,14 @@ describe("cancellation deadline merchandising", () => {
 
   it("labels breakfast from the meal plan, not packages", () => {
     assert.equal(breakfastLabelFromMealPlan({ mealPlanId: null, breakfastIncluded: true }), "—");
-    assert.equal(breakfastLabelFromMealPlan({ mealPlanId: "m1", breakfastIncluded: true }), "Included");
-    assert.equal(breakfastLabelFromMealPlan({ mealPlanId: "m1", breakfastIncluded: false }), "Not included");
+    assert.equal(
+      breakfastLabelFromMealPlan({ mealPlanId: "m1", breakfastIncluded: true }),
+      "Included",
+    );
+    assert.equal(
+      breakfastLabelFromMealPlan({ mealPlanId: "m1", breakfastIncluded: false }),
+      "Not included",
+    );
   });
 
   it("stays out of price_hotel_stay arguments", () => {

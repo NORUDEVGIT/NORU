@@ -9,6 +9,9 @@ import {
   maskGuaranteePan,
   preferenceFlagFromRequests,
   reviewDash,
+  reviewIncludedItems,
+  reviewNoShowCopy,
+  reviewRefundabilityCopy,
 } from "./create-reservation-review.ts";
 
 const page = readFileSync(
@@ -19,26 +22,55 @@ const reviewUi = readFileSync(
   new URL("../components/bookings/create-reservation-review.tsx", import.meta.url),
   "utf8",
 );
+const reviewPrint = readFileSync(
+  new URL("../components/bookings/reservation-print-document.tsx", import.meta.url),
+  "utf8",
+);
 const createFns = readFileSync(new URL("./reservations.functions.ts", import.meta.url), "utf8");
 
-describe("Create Reservation Step 5 review dashboard", () => {
-  it("renders the compact six-card layout, summary rail, and acknowledgements", () => {
+describe("Create Reservation Step 4 review workspace", () => {
+  it("renders nine cards in three rows", () => {
+    const ids = [...reviewUi.matchAll(/testId="(review-card-[^"]+)"/g)].map((match) => match[1]);
+    assert.deepEqual(ids, [
+      "review-card-guest",
+      "review-card-stay",
+      "review-card-rate",
+      "review-card-source",
+      "review-card-guarantee",
+      "review-card-policies",
+      "review-card-packages",
+      "review-card-requests",
+      "review-card-print",
+    ]);
+    assert.match(reviewUi, /grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3/);
+    assert.match(reviewUi, /h-full !rounded-\[6px\]/);
+    assert.doesNotMatch(reviewUi, /items-start gap-3 md:grid-cols-2/);
+    assert.doesNotMatch(reviewUi, /!h-fit|h-fit/);
+    assert.doesNotMatch(reviewUi, /h-\[\d|min-h-\[\d/);
+    assert.doesNotMatch(reviewUi, /col-span-full|xl:col-span-3|lg:col-span-3/);
+    assert.match(reviewUi, /title="Payment & Deposit"/);
+    assert.match(reviewUi, /title="Stay Policies"/);
+    assert.doesNotMatch(reviewUi, /title="Guarantee & Deposit"/);
+    assert.doesNotMatch(reviewUi, /Policies & Additional Information/);
+    assert.doesNotMatch(reviewUi, /data-testid="review-policy-ack"/);
+    assert.doesNotMatch(reviewUi, /Guest informed about cancellation policy/);
+    assert.doesNotMatch(reviewUi, /Guest consent for deposit and guarantee/);
+    assert.doesNotMatch(reviewUi, /Special terms and conditions apply/);
+    assert.match(reviewUi, /No packages selected/);
+    assert.match(reviewUi, /chargeBasisLabel/);
+    assert.match(reviewUi, /priceLabel/);
+    assert.match(reviewUi, /Includes:/);
+    assert.match(reviewUi, /No saved preferences/);
+    assert.match(reviewUi, /No service requests selected/);
+    assert.match(reviewUi, /Print a clean reservation review before confirmation/);
     assert.match(page, /CreateReservationReview/);
-    assert.doesNotMatch(page, /data-testid="create-reservation-summary"/);
-    assert.match(reviewUi, /data-testid="create-reservation-review"/);
-    assert.match(reviewUi, /testId="review-card-guest"/);
-    assert.match(reviewUi, /testId="review-card-stay"/);
-    assert.match(reviewUi, /testId="review-card-rate"/);
-    assert.match(reviewUi, /testId="review-card-source"/);
-    assert.match(reviewUi, /testId="review-card-guarantee"/);
-    assert.match(reviewUi, /testId="review-card-policies"/);
-    assert.match(reviewUi, /lg:grid-cols-3/);
-    assert.match(reviewUi, /data-testid="review-policy-ack"/);
-    assert.match(page, /cancellationLabel=\{selectedQuote\?\.cancellationLabel/);
-    assert.match(page, /data-testid="create-reservation-actions"/);
+    assert.match(page, /savedPreferences=\{savedPreferenceRows\}/);
+    assert.match(page, /selectedServiceRequests=\{selectedServiceRequests\}/);
+    assert.match(page, /selectedPackages=/);
     assert.match(page, /data-testid="save-as-pending"/);
     assert.match(page, /data-testid="confirm-guarantee"/);
-    assert.doesNotMatch(reviewUi, /TODO: wire to a confirmation preview reader/);
+    assert.match(page, /create\.mutate\("pending"\)/);
+    assert.match(page, /create\.mutate\("confirmed"\)/);
   });
 
   it("routes Edit actions to existing wizard steps", () => {
@@ -53,7 +85,6 @@ describe("Create Reservation Step 5 review dashboard", () => {
     assert.match(reviewUi, /testId="review-card-packages"/);
     assert.match(reviewUi, /No packages selected/);
     assert.match(reviewUi, /Includes:/);
-    assert.match(reviewUi, /Package prices are separate from the room total/);
     const packagesCard = reviewUi.slice(reviewUi.indexOf('testId="review-card-packages"') - 220);
     assert.match(packagesCard.slice(0, 260), /CREATE_REVIEW_STEPS\.bookingDetails/);
     assert.match(page, /selectedPackages=/);
@@ -71,7 +102,7 @@ describe("Create Reservation Step 5 review dashboard", () => {
     assert.doesNotMatch(reviewUi, /createFileRoute/);
   });
 
-  it("masks card PAN and never prints CVV or a raw 16-digit number", () => {
+  it("keeps card numbers and CVV out of the review and the print summary", () => {
     assert.equal(maskGuaranteePan("4111111111111111"), "•••• •••• •••• 1111");
     assert.equal(maskGuaranteePan("4111 1111 1111 4587"), "•••• •••• •••• 4587");
     assert.equal(maskGuaranteePan(""), "—");
@@ -79,7 +110,30 @@ describe("Create Reservation Step 5 review dashboard", () => {
     assert.equal(isCardGuaranteeMethod("CASH"), false);
     assert.doesNotMatch(maskGuaranteePan("4111111111111111"), /4111111111111111/);
     assert.doesNotMatch(reviewUi, /cvv|CVV|cvc|CVC/i);
-    assert.match(reviewUi, /maskGuaranteePan/);
+    assert.doesNotMatch(reviewPrint, /cvv|CVV|cardNumber|Card Number/i);
+    const printBody = reviewPrint.slice(
+      reviewPrint.indexOf("<article"),
+      reviewPrint.indexOf("</article>"),
+    );
+    assert.match(reviewUi, /<ReservationPrintDocument/);
+    assert.match(reviewPrint, /data-testid="reservation-print-document"/);
+    assert.match(reviewUi, /onClick=\{\(\) => window\.print\(\)\}/);
+    assert.match(reviewUi, /buildDraftReservationPrintData/);
+    assert.match(reviewPrint, /\{data\.title\}/);
+    assert.match(reviewPrint, /@media print/);
+    assert.match(reviewPrint, /body \* \{ visibility: hidden; \}/);
+    assert.doesNotMatch(reviewPrint, /ReservationReviewPrint|reservation-review-print/);
+    assert.doesNotMatch(printBody, />\s*Edit\s*</);
+    assert.doesNotMatch(printBody, /save-as-pending|confirm-guarantee|create-reservation-stepper/);
+    assert.doesNotMatch(reviewUi, /create\.mutate|submitReservation/);
+    assert.doesNotMatch(reviewPrint, /create\.mutate|submitReservation/);
+    assert.equal(reviewIncludedItems(["Included", "WiFi"]), "Breakfast included · WiFi");
+    assert.equal(
+      reviewRefundabilityCopy("non_refundable", "Advance purchase"),
+      "Non-refundable · Advance purchase",
+    );
+    assert.equal(reviewNoShowCopy("Standard", "First night"), "Standard · First night");
+    assert.equal(reviewNoShowCopy("", null), null);
   });
 
   it("renders missing values as a clean dash", () => {

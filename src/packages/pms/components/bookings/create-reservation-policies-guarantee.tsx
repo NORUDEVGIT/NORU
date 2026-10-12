@@ -1,11 +1,6 @@
-import { Banknote, Ban, FileText } from "lucide-react";
+import { Ban, CalendarDays, CircleDollarSign, Info, LogOut } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
-import { Input } from "@/shared/components/ui/input";
-import { Textarea } from "@/shared/components/ui/textarea";
-import type { GuaranteeMethodOption } from "@/packages/pms/lib/create-reservation-phase1-section7";
 import {
   computeDepositRequirementAmount,
   type DepositComputeQuote,
@@ -16,32 +11,12 @@ import {
 } from "@/packages/pms/lib/payments-card3";
 import { cn } from "@/shared/lib/utils";
 
-const CONTROL =
-  "h-8 w-full rounded-md border border-[#DDD4C5] bg-white px-2 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#F7F2EA] disabled:text-muted-foreground";
-const NOTES_MAX = 500;
-
-/** Frontend-only policy labels until Settings catalogue is wired. */
-export const LOCAL_STAY_POLICY_OPTIONS = [
-  { value: "charge_full_stay", label: "Charge full stay amount" },
-  { value: "charge_first_night", label: "Charge first night" },
-  { value: "no_charge", label: "No charge" },
-  { value: "custom", label: "Custom policy" },
-] as const;
-
-export function stayPolicyLabel(value: string | null | undefined): string {
-  const match = LOCAL_STAY_POLICY_OPTIONS.find((row) => row.value === value);
-  return match?.label ?? (value?.trim() ? value : "—");
-}
-
 export type CreateReservationPoliciesState = {
-  depositPolicyId: string;
   depositDueDate: string;
   depositPaymentMethod: string;
   depositReference: string;
   cancelPolicyMode: "hotel" | "different";
   cancelPolicyCode: string;
-  noShowPolicy: string;
-  earlyDeparturePolicy: string;
   ackInformed: boolean;
   ackConsent: boolean;
   ackNonRefundable: boolean;
@@ -52,14 +27,11 @@ export type CreateReservationPoliciesState = {
 };
 
 export const EMPTY_CREATE_RESERVATION_POLICIES: CreateReservationPoliciesState = {
-  depositPolicyId: "",
   depositDueDate: "",
   depositPaymentMethod: "",
   depositReference: "",
   cancelPolicyMode: "hotel",
   cancelPolicyCode: "",
-  noShowPolicy: "",
-  earlyDeparturePolicy: "",
   ackInformed: false,
   ackConsent: false,
   ackNonRefundable: false,
@@ -71,366 +43,298 @@ export const EMPTY_CREATE_RESERVATION_POLICIES: CreateReservationPoliciesState =
 
 export function CreateReservationPoliciesGuarantee({
   guarantee,
-  policies,
-  onPoliciesChange,
-  notes,
-  onNotesChange,
   money,
-  hotelCancelSummary,
-  depositPaymentOptions,
-  depositPolicies,
-  depositPolicyHint,
   depositQuote,
-  quotedNonRefundable,
+  ratePlanDepositPolicy,
+  ratePlanDepositLabel,
+  cancellationName,
+  cancellationDetail,
+  refundabilityLabel,
+  refundabilityNonRefundable,
+  ratePlanNoShowLabel,
+  ratePlanNoShowPenalty,
+  ratePlanEarlyDepartureName,
+  ratePlanEarlyDeparturePenalty,
+  refundabilityKind,
 }: {
   guarantee: ReactNode;
-  policies: CreateReservationPoliciesState;
-  onPoliciesChange: (patch: Partial<CreateReservationPoliciesState>) => void;
-  notes: string;
-  onNotesChange: (value: string) => void;
   money: (value: number) => string;
-  hotelCancelSummary: string | null;
-  depositPaymentOptions: GuaranteeMethodOption[];
-  depositPolicies: DepositPolicyCard3Row[];
-  depositPolicyHint: string | null;
   depositQuote: DepositComputeQuote | null;
-  quotedNonRefundable: boolean;
+  ratePlanDepositPolicy: DepositPolicyCard3Row | null;
+  ratePlanDepositLabel?: string | null;
+  cancellationName?: string | null;
+  cancellationDetail?: string | null;
+  refundabilityLabel?: string | null;
+  refundabilityNonRefundable?: boolean;
+  refundabilityKind?: string | null;
+  ratePlanNoShowLabel?: string | null;
+  ratePlanNoShowPenalty?: string | null;
+  ratePlanEarlyDepartureName?: string | null;
+  ratePlanEarlyDeparturePenalty?: string | null;
 }) {
-  const selectedPolicy =
-    depositPolicies.find((row) => row.id === policies.depositPolicyId) ?? null;
-  const previewAmount = selectedPolicy
-    ? computeDepositRequirementAmount(selectedPolicy, depositQuote)
+  const previewAmount = ratePlanDepositPolicy
+    ? computeDepositRequirementAmount(ratePlanDepositPolicy, depositQuote)
     : null;
-  const depositFieldsOpen = Boolean(selectedPolicy);
+  const depositName = ratePlanDepositPolicy?.name || ratePlanDepositLabel || "";
+  const policyValue = ratePlanDepositPolicy
+    ? ratePlanDepositPolicy.depositType === "percent"
+      ? `${ratePlanDepositPolicy.depositValue}%`
+      : ratePlanDepositPolicy.depositType === "none"
+        ? "—"
+        : String(ratePlanDepositPolicy.depositValue)
+    : null;
+  const cancelName = present(cancellationName);
+  const cancelDetail = present(cancellationDetail);
+  const refund = refundabilityCopy(refundabilityLabel, refundabilityKind);
+  const afterDeadline =
+    cancelDetail?.startsWith("Free cancellation") && refund?.title ? refund.title : null;
 
   return (
     <div className="space-y-3" data-testid="create-reservation-policies-guarantee">
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
         {guarantee}
 
-        <PolicyCard
-          icon={<Banknote className="size-4 text-[#B8954F]" />}
-          title="Deposit Information"
-          subtitle="Settings deposit policy for this stay. Cashiering posts money."
+        <section
+          className="h-fit rounded-[6px] border border-[#CCCCCC] bg-white p-4 shadow-none"
+          data-testid="deposit-policy"
         >
-          {depositPolicyHint ? (
-            <p
-              className="rounded-md border border-[#E7E0D4] bg-[#F7F4EE] px-2 py-1.5 text-[11px] text-[#251605]"
-              data-testid="deposit-policy-hint"
-            >
-              {depositPolicyHint}
-            </p>
-          ) : (
-            <p className="text-[11px] text-muted-foreground">
-              No active default deposit policy in Settings. Pick an active policy or leave none.
-            </p>
-          )}
-          <div className="mt-2">
-            <Field label="Deposit Policy">
-              <select
-                className={CONTROL}
-                value={policies.depositPolicyId}
-                onChange={(event) => onPoliciesChange({ depositPolicyId: event.target.value })}
-                aria-label="Deposit Policy"
-                data-testid="deposit-policy"
-              >
-                <option value="">—</option>
-                {depositPolicies.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.name}
-                    {row.isDefault ? " (default)" : ""}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          {selectedPolicy ? (
-            <dl className="mt-3 grid gap-2 text-[11px] text-[#251605] sm:grid-cols-2">
-              <div>
-                <dt className="text-[#6B5E4E]">Required</dt>
-                <dd>{selectedPolicy.required ? "Required" : "Not required"}</dd>
-              </div>
-              <div>
-                <dt className="text-[#6B5E4E]">Deposit type</dt>
-                <dd>{DEPOSIT_POLICY_TYPE_LABELS[selectedPolicy.depositType]}</dd>
-              </div>
-              <div>
-                <dt className="text-[#6B5E4E]">Policy value</dt>
-                <dd>
-                  {selectedPolicy.depositType === "percent"
-                    ? `${selectedPolicy.depositValue}%`
-                    : selectedPolicy.depositType === "none"
-                      ? "—"
-                      : String(selectedPolicy.depositValue)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#6B5E4E]">Computed amount (preview)</dt>
-                <dd>
-                  {previewAmount != null ? money(previewAmount) : "—"}
-                  <span className="block text-[10px] text-muted-foreground">
-                    Server recomputes this at create. Not posted.
-                  </span>
-                </dd>
-              </div>
-            </dl>
-          ) : null}
-
-          <div className={cn("mt-3 grid gap-2 sm:grid-cols-2", !depositFieldsOpen && "opacity-60")}>
-            <Field label="Deposit Due Date">
-              <Input
-                className={CONTROL}
-                type="date"
-                disabled={!depositFieldsOpen}
-                value={policies.depositDueDate}
-                onChange={(event) => onPoliciesChange({ depositDueDate: event.target.value })}
-                aria-label="Deposit Due Date"
-              />
-            </Field>
-            <Field label="Payment Method">
-              <select
-                className={CONTROL}
-                disabled={!depositFieldsOpen}
-                value={policies.depositPaymentMethod}
-                onChange={(event) => onPoliciesChange({ depositPaymentMethod: event.target.value })}
-                aria-label="Payment Method"
-              >
-                <option value="">—</option>
-                <option value="same_as_guarantee">Same as Guarantee</option>
-                {depositPaymentOptions.map((option) => (
-                  <option key={`deposit-${option.value}`} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <div className="sm:col-span-2">
-              <Field label="Payment Reference (Optional)">
-                <Input
-                  className={CONTROL}
-                  disabled={!depositFieldsOpen}
-                  value={policies.depositReference}
-                  maxLength={120}
-                  onChange={(event) => onPoliciesChange({ depositReference: event.target.value })}
-                  placeholder="e.g. transaction ID, authorization code..."
-                  aria-label="Payment Reference"
-                />
-              </Field>
+          <div className="flex items-start gap-2">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+              <CircleDollarSign className="size-3.5" aria-hidden />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold text-[#251605]">Deposit</h2>
+              <p className="text-xs text-[#6B5E4E]">Based on the selected rate plan.</p>
             </div>
           </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            Due date and payment reference are not stored on create. Cashiering posts the deposit.
-          </p>
-        </PolicyCard>
-      </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <PolicyCard
-          icon={<Ban className="size-4 text-[#B8954F]" />}
-          title="Cancellation Policy"
-          subtitle="Hotel default is the selected rate plan’s quoted policy."
-        >
-          <p className="mb-2 text-[11px] text-muted-foreground">
-            Create snapshots the rate plan policy. A different policy is not stored and
-            would require a re-quote.
-          </p>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1.5 text-sm text-[#251605]">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="cancel-policy-mode"
-                  className="accent-[#B8954F]"
-                  checked={policies.cancelPolicyMode === "hotel"}
-                  onChange={() => onPoliciesChange({ cancelPolicyMode: "hotel" })}
-                />
-                Use Hotel Default Policy
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="cancel-policy-mode"
-                  className="accent-[#B8954F]"
-                  checked={policies.cancelPolicyMode === "different"}
-                  onChange={() => onPoliciesChange({ cancelPolicyMode: "different" })}
-                />
-                Use Different Policy
-              </label>
-              {policies.cancelPolicyMode === "different" ? (
-                <div className="flex items-end gap-2">
-                  {/* TODO: wire cancellation policy picker from Settings / rate-plan catalogue. */}
-                  <select
-                    className={CONTROL}
-                    value={policies.cancelPolicyCode}
-                    onChange={(event) => onPoliciesChange({ cancelPolicyCode: event.target.value })}
-                    aria-label="Cancellation policy"
-                  >
-                    <option value="">—</option>
-                    {hotelCancelSummary ? (
-                      <option value="quoted">{hotelCancelSummary}</option>
-                    ) : null}
-                  </select>
-                  <Button type="button" variant="outline" size="sm" className="h-8 shrink-0" disabled>
-                    View Details
-                  </Button>
+          {depositName ? (
+            <div
+              className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2"
+              data-testid="rate-plan-deposit-policy"
+            >
+              <dl className="space-y-2 text-sm text-[#251605]">
+                <div>
+                  <dt className="text-xs text-[#6B5E4E]">Deposit Policy</dt>
+                  <dd className="font-medium">{depositName}</dd>
                 </div>
+                {ratePlanDepositPolicy ? (
+                  <>
+                    <div>
+                      <dt className="text-xs text-[#6B5E4E]">Required</dt>
+                      <dd>{ratePlanDepositPolicy.required ? "Yes" : "No"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-[#6B5E4E]">Policy Value</dt>
+                      <dd>{policyValue}</dd>
+                    </div>
+                  </>
+                ) : null}
+              </dl>
+              {ratePlanDepositPolicy ? (
+                <dl className="space-y-2 text-sm text-[#251605]">
+                  <div>
+                    <dt className="text-xs text-[#6B5E4E]">Deposit Type</dt>
+                    <dd>{DEPOSIT_POLICY_TYPE_LABELS[ratePlanDepositPolicy.depositType]}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-[#6B5E4E]">Deposit Amount</dt>
+                    <dd className="text-lg font-semibold text-[#C89933]">
+                      {previewAmount != null ? money(previewAmount) : "—"}
+                    </dd>
+                    <p className="text-xs text-[#6B5E4E]">
+                      {ratePlanDepositPolicy.required ? "Required deposit" : "Not required"}
+                    </p>
+                  </div>
+                </dl>
               ) : null}
             </div>
-            <div className="rounded-md border border-[#E7E0D4] bg-[#F7F4EE] px-3 py-2">
-              <p className="text-[11px] font-medium text-[#6B5E4E]">Policy Summary</p>
-              <p className="mt-1 text-[11px] text-[#251605]">
-                {hotelCancelSummary || "No cancellation summary on the selected rate."}
-              </p>
-            </div>
-          </div>
-        </PolicyCard>
+          ) : (
+            <p className="mt-3 text-sm text-[#6B5E4E]">No deposit policy configured</p>
+          )}
 
-        <PolicyCard
-          icon={<FileText className="size-4 text-[#B8954F]" />}
-          title="No-Show & Early Departure Policy"
-          subtitle="Define no-show and early departure conditions."
-        >
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Field label="No-Show Policy">
-              {/* TODO: wire no-show policy from Settings reservation rules. */}
-              <select
-                className={CONTROL}
-                value={policies.noShowPolicy}
-                onChange={(event) => onPoliciesChange({ noShowPolicy: event.target.value })}
-                aria-label="No-Show Policy"
-              >
-                <option value="">—</option>
-                {LOCAL_STAY_POLICY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Early Departure Policy">
-              {/* TODO: wire early-departure policy from Settings reservation rules. */}
-              <select
-                className={CONTROL}
-                value={policies.earlyDeparturePolicy}
-                onChange={(event) => onPoliciesChange({ earlyDeparturePolicy: event.target.value })}
-                aria-label="Early Departure Policy"
-              >
-                <option value="">—</option>
-                {LOCAL_STAY_POLICY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <div className="mt-3 space-y-1.5">
-            <p className="text-[11px] font-medium text-[#6B5E4E]">Additional Policies</p>
-            {/* TODO: acknowledgements are frontend-only until consent persistence exists. */}
-            <Ack
-              label="I have informed the guest about the cancellation and no-show policy."
-              checked={policies.ackInformed}
-              onCheckedChange={(checked) => onPoliciesChange({ ackInformed: checked })}
-            />
-            <Ack
-              label="I have received guest consent for the deposit and guarantee."
-              checked={policies.ackConsent}
-              onCheckedChange={(checked) => onPoliciesChange({ ackConsent: checked })}
-            />
-            <Ack
-              label="This is a non-refundable reservation."
-              checked={quotedNonRefundable || policies.ackNonRefundable}
-              disabled={quotedNonRefundable}
-              onCheckedChange={(checked) => onPoliciesChange({ ackNonRefundable: checked })}
-            />
-            {quotedNonRefundable ? (
-              <p className="text-[10px] text-muted-foreground">
-                Derived from the selected rate’s refundability. Not stored as a separate flag.
-              </p>
-            ) : null}
-            <Ack
-              label="Special terms and conditions apply."
-              checked={policies.ackSpecialTerms}
-              onCheckedChange={(checked) => onPoliciesChange({ ackSpecialTerms: checked })}
-            />
-          </div>
-        </PolicyCard>
+          <p className="mt-3 flex items-start gap-1.5 text-xs text-[#6B5E4E]">
+            <Info className="mt-0.5 size-3.5 shrink-0 text-[#C89933]" aria-hidden />
+            Collected separately.
+          </p>
+        </section>
       </div>
 
-      <section className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-2 shadow-sm">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-display text-sm text-[#251605]">Internal Notes (Optional)</h2>
-          <p className="text-[10px] text-muted-foreground">
-            {notes.length}/{NOTES_MAX}
-          </p>
+      <section
+        className="rounded-[6px] border border-[#CCCCCC] bg-white p-4 shadow-none"
+        data-testid="stay-policies"
+      >
+        <div className="flex items-start gap-2">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+            <CalendarDays className="size-3.5" aria-hidden />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-[#251605]">Stay Policies</h2>
+            <p className="text-xs text-[#6B5E4E]">
+              Policies are inherited from the selected rate plan.
+            </p>
+          </div>
         </div>
-        <Textarea
-          className="mt-1 min-h-[72px] resize-none text-sm"
-          maxLength={NOTES_MAX}
-          value={notes}
-          onChange={(event) => onNotesChange(event.target.value.slice(0, NOTES_MAX))}
-          placeholder="Add internal notes for hotel staff (not visible to guest)..."
-          aria-label="Internal notes"
-        />
+
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <PolicySummary
+            testId="stay-policy-cancellation"
+            tone="green"
+            icon={<CalendarDays className="size-3.5" aria-hidden />}
+            title="Cancellation"
+          >
+            {cancelName || cancelDetail ? (
+              <>
+                {cancelName ? <Badge tone="green">{cancelName}</Badge> : null}
+                {cancelDetail ? <p className="text-xs text-[#251605]">{cancelDetail}</p> : null}
+                {afterDeadline ? (
+                  <p className="text-xs text-[#6B5E4E]">After deadline: {afterDeadline}</p>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-xs text-[#6B5E4E]">No cancellation policy configured</p>
+            )}
+          </PolicySummary>
+
+          <PolicySummary
+            testId="stay-policy-no-show"
+            tone="sand"
+            icon={<Ban className="size-3.5" aria-hidden />}
+            title="No-show"
+          >
+            {ratePlanNoShowLabel ? (
+              <>
+                <Badge tone="sand" testId="rate-plan-no-show-policy">
+                  {ratePlanNoShowLabel}
+                </Badge>
+                {ratePlanNoShowPenalty ? (
+                  <p className="text-xs text-[#251605]" data-testid="rate-plan-no-show-penalty">
+                    {ratePlanNoShowPenalty}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-xs text-[#6B5E4E]" data-testid="rate-plan-no-show-policy">
+                No no-show policy configured
+              </p>
+            )}
+          </PolicySummary>
+
+          <PolicySummary
+            testId="stay-policy-early-departure"
+            tone="sand"
+            icon={<LogOut className="size-3.5" aria-hidden />}
+            title="Early Departure"
+          >
+            {ratePlanEarlyDepartureName ? (
+              <div data-testid="rate-plan-early-departure-policy">
+                <Badge tone="sand">{ratePlanEarlyDepartureName}</Badge>
+                {ratePlanEarlyDeparturePenalty ? (
+                  <p
+                    className="text-xs text-[#251605]"
+                    data-testid="rate-plan-early-departure-penalty"
+                  >
+                    {ratePlanEarlyDeparturePenalty}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-xs text-[#6B5E4E]" data-testid="rate-plan-early-departure-policy">
+                No early departure policy configured
+              </p>
+            )}
+          </PolicySummary>
+
+          <PolicySummary
+            testId="stay-policy-refundability"
+            tone={refundabilityNonRefundable ? "rose" : "sand"}
+            icon={<Ban className="size-3.5" aria-hidden />}
+            title="Refundability"
+          >
+            {refund ? (
+              <>
+                <Badge tone={refundabilityNonRefundable ? "rose" : "sand"}>{refund.title}</Badge>
+                {refund.detail ? <p className="text-xs text-[#6B5E4E]">{refund.detail}</p> : null}
+              </>
+            ) : (
+              <p className="text-xs text-[#6B5E4E]">No refundability configured</p>
+            )}
+          </PolicySummary>
+        </div>
       </section>
     </div>
   );
 }
 
-function PolicyCard({
+function refundabilityCopy(
+  label: string | null | undefined,
+  kind: string | null | undefined,
+): { title: string; detail: string | null } | null {
+  const name = present(label);
+  const title =
+    kind === "non_refundable" ? "Non-refundable" : kind === "refundable" ? "Refundable" : name;
+  if (!title) return null;
+  return { title, detail: name && name !== title ? name : null };
+}
+
+function present(value: string | null | undefined): string | null {
+  const text = value?.trim() ?? "";
+  if (!text || text === "—") return null;
+  return text;
+}
+
+function PolicySummary({
   title,
-  subtitle,
   icon,
+  tone,
+  testId,
   children,
 }: {
   title: string;
-  subtitle: string;
   icon: ReactNode;
+  tone: "green" | "sand" | "rose";
+  testId: string;
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-      <div className="flex items-start gap-2">
+    <article
+      className={cn(
+        "h-fit rounded-[6px] border p-3",
+        tone === "green" && "border-[#D7E5D4] bg-[#F4F8F2]",
+        tone === "sand" && "border-[#EFE4D0] bg-[#FBF6EE]",
+        tone === "rose" && "border-[#F0D4D4] bg-[#FDF4F4]",
+      )}
+      data-testid={testId}
+    >
+      <div className="flex items-center gap-1.5 text-xs font-medium text-[#6B5E4E]">
         {icon}
-        <div>
-          <h2 className="font-display text-base text-[#251605]">{title}</h2>
-          <p className="text-[11px] text-muted-foreground">{subtitle}</p>
-        </div>
+        <span>{title}</span>
       </div>
-      <div className="mt-3">{children}</div>
-    </section>
+      <div className="mt-2 space-y-1">{children}</div>
+    </article>
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="grid gap-1">
-      <p className="text-[11px] font-medium text-[#6B5E4E]">{label}</p>
-      {children}
-    </div>
-  );
-}
-
-function Ack({
-  label,
-  checked,
-  onCheckedChange,
-  disabled,
+function Badge({
+  children,
+  tone,
+  testId,
 }: {
-  label: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  disabled?: boolean;
+  children: ReactNode;
+  tone: "green" | "sand" | "rose";
+  testId?: string;
 }) {
   return (
-    <label className="flex items-start gap-2 text-[12px] text-[#251605]">
-      <Checkbox
-        className="mt-0.5"
-        checked={checked}
-        disabled={disabled}
-        onCheckedChange={(value) => onCheckedChange(value === true)}
-      />
-      {label}
-    </label>
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+        tone === "green" && "bg-[#E5F2E4] text-[#2F6B3A]",
+        tone === "sand" && "bg-[#F3E6CC] text-[#8A641A]",
+        tone === "rose" && "bg-[#F8E4E4] text-[#9B3A3A]",
+      )}
+      data-testid={testId}
+    >
+      {children}
+    </span>
   );
 }

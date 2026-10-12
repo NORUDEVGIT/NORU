@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Briefcase, Search } from "lucide-react";
+import { Building2, Briefcase, RefreshCw, Search } from "lucide-react";
 
 import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
 import { GuestTravelAgentFormDialog } from "@/packages/pms/components/guests/guest-travel-agent-form-dialog";
@@ -147,20 +147,32 @@ export function CreateReservationMasterPicker({
       )}
       data-testid={copy.testId}
     >
-      <Label>{copy.label}</Label>
+      {compact && master ? null : <Label>{copy.label}</Label>}
       {master ? (
         <div
           className={cn(
-            "flex flex-wrap items-center gap-2 rounded-xl border border-border",
-            compact ? "p-2" : "gap-3 p-3",
+            "flex items-center gap-2",
+            compact ? "min-w-0 flex-wrap" : "flex-wrap gap-3 rounded-xl border border-border p-3",
           )}
           data-testid={copy.selectedTestId}
         >
-          <div className="min-w-0">
-            <p className={cn("font-medium", compact && "text-sm")}>
+          {compact ? (
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+              <Icon className="size-4" aria-hidden />
+            </span>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <p className={cn("font-medium", compact && "break-words text-sm text-[#251605]")}>
               {master.name}
               {master.code ? (
-                <span className="ml-2 text-xs text-muted-foreground">{master.code}</span>
+                <span
+                  className={cn(
+                    "text-xs text-muted-foreground",
+                    compact ? "font-normal text-[#6B5E4E]" : "ml-2",
+                  )}
+                >
+                  {compact ? ` · ${master.code}` : master.code}
+                </span>
               ) : null}
             </p>
             {showCreate && !compact ? (
@@ -180,10 +192,19 @@ export function CreateReservationMasterPicker({
               </>
             ) : null}
           </div>
+          {compact ? (
+            <span className="shrink-0 rounded-full bg-[#FBF6EE] px-2 py-0.5 text-[10px] font-medium text-[#8A6A24]">
+              {copy.label}
+            </span>
+          ) : null}
           <Button
             variant="outline"
             size="sm"
-            className="ml-auto h-7"
+            className={cn(
+              "ml-auto h-7",
+              compact &&
+                "h-8 shrink-0 gap-1 !rounded-[6px] !border-[#E4D3A8] bg-white px-2 text-xs font-medium text-[#8A6A24] !shadow-none hover:bg-[#FBF6EE]",
+            )}
             data-testid={copy.changeTestId}
             disabled={disabled}
             onClick={() => {
@@ -192,6 +213,7 @@ export function CreateReservationMasterPicker({
               setSearch("");
             }}
           >
+            {compact ? <RefreshCw className="size-3" aria-hidden /> : null}
             {copy.changeLabel}
           </Button>
         </div>
@@ -202,7 +224,7 @@ export function CreateReservationMasterPicker({
               <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 ref={searchInputRef}
-                className={cn("pl-9", compact && "h-8")}
+                className={cn("pl-9", compact && "h-10 !rounded-[6px] !border-[#CCCCCC]")}
                 data-testid={copy.searchTestId}
                 placeholder={copy.searchPlaceholder}
                 value={search}

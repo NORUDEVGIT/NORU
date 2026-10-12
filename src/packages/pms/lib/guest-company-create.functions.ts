@@ -25,7 +25,10 @@ import {
   type GuestCompanyCreateDraft,
   type GuestCompanyCreateStepId,
 } from "./guest-company-create-workspace";
-import { validateCorporateAgreementPayload } from "./corporate-contracts.server";
+import {
+  agreementCancellationColumnsForSave,
+  validateCorporateAgreementPayload,
+} from "./corporate-contracts.server";
 import { countryCodeFromInput } from "./pms-geography";
 import {
   CANONICAL_BILLING_RULES,
@@ -989,7 +992,7 @@ export const getCompanyEditDraft = createServerFn({ method: "POST" })
     }
 
     const agreementColumns =
-      "id, contract_type_id, name, code, contract_number, valid_from, valid_to, currency_code, status, pricing_method, rate_plan_id, rate_plan_scope, rate_plan_ids, discount_application, discount_type, discount_value, rate_plan_discounts, deposit_policy_id, cancellation_policy_id, no_show_policy_id, description, created_at";
+      "id, contract_type_id, name, code, contract_number, valid_from, valid_to, currency_code, status, pricing_method, rate_plan_id, rate_plan_scope, rate_plan_ids, discount_application, discount_type, discount_value, rate_plan_discounts, deposit_policy_id, rate_cancellation_policy_id, no_show_policy_id, description, created_at";
     let agreementRow: Record<string, unknown> | null = null;
     const agreementRes = await db
       .from("pms_corporate_agreements")
@@ -1002,7 +1005,7 @@ export const getCompanyEditDraft = createServerFn({ method: "POST" })
       const fallback = await db
         .from("pms_corporate_agreements")
         .select(
-          "id, contract_type_id, name, code, contract_number, valid_from, valid_to, currency_code, status, pricing_method, rate_plan_id, discount_type, discount_value, deposit_policy_id, cancellation_policy_id, no_show_policy_id, description, created_at",
+          "id, contract_type_id, name, code, contract_number, valid_from, valid_to, currency_code, status, pricing_method, rate_plan_id, discount_type, discount_value, deposit_policy_id, no_show_policy_id, description, created_at",
         )
         .eq("restaurant_id", data.restaurantId)
         .eq("company_id", data.companyId)
@@ -1092,8 +1095,9 @@ export const getCompanyEditDraft = createServerFn({ method: "POST" })
             discountValue: agreementRow.discount_value as number | string | null,
             ratePlanDiscounts: discounts,
             depositPolicyId: agreementRow.deposit_policy_id == null ? null : String(agreementRow.deposit_policy_id),
-            cancellationPolicyId:
-              agreementRow.cancellation_policy_id == null ? null : String(agreementRow.cancellation_policy_id),
+            cancellationPolicyId: agreementRow.rate_cancellation_policy_id
+              ? String(agreementRow.rate_cancellation_policy_id)
+              : null,
             noShowPolicyId: agreementRow.no_show_policy_id == null ? null : String(agreementRow.no_show_policy_id),
             notes: agreementRow.description == null ? null : String(agreementRow.description),
           }
@@ -1235,6 +1239,27 @@ export async function persistCompanyContract(
     throw new Error("Selected contract type does not belong to this property.");
   }
 
+  const selectedPolicyId = contract.cancellationPolicyId || null;
+  let canonicalPolicy: { id: string; restaurantId: string } | null = null;
+  if (selectedPolicyId) {
+    const found = await db
+      .from("pms_rate_cancellation_policies")
+      .select("id, restaurant_id")
+      .eq("id", selectedPolicyId)
+      .maybeSingle();
+    if (found.data?.id) {
+      canonicalPolicy = {
+        id: String(found.data.id),
+        restaurantId: String(found.data.restaurant_id ?? ""),
+      };
+    }
+  }
+  const cancellationColumns = agreementCancellationColumnsForSave({
+    selectedPolicyId,
+    canonical: canonicalPolicy,
+    restaurantId,
+  });
+
   // 3. Insert real pms_corporate_agreements row
   const agreementPayload: Record<string, any> = {
     restaurant_id: restaurantId,
@@ -1257,45 +1282,10 @@ export async function persistCompanyContract(
     discount_value: primaryDiscountValue,
     rate_plan_discounts: contract.ratePlanDiscounts || [],
     deposit_policy_id: contract.depositPolicyId || null,
-    cancellation_policy_id: contract.cancellationPolicyId || null,
+    ...cancellationColumns,
     no_show_policy_id: contract.noShowPolicyId || null,
     description: contract.notes?.trim() || null,
   };
-
-  if (contract.cancellationPolicyId) {
-    try {
-      const exists = await db
-        .from("pms_cancellation_policies")
-        .select("id")
-        .eq("id", contract.cancellationPolicyId)
-        .maybeSingle();
-      if (!exists.data) {
-        const card2Policy = await db
-          .from("pms_rate_cancellation_policies")
-          .select("*")
-          .eq("id", contract.cancellationPolicyId)
-          .maybeSingle();
-        if (card2Policy.data) {
-          await db.from("pms_cancellation_policies").upsert(
-            {
-              id: card2Policy.data.id,
-              restaurant_id: card2Policy.data.restaurant_id,
-              code: card2Policy.data.code,
-              name: card2Policy.data.name,
-              description: card2Policy.data.description,
-              cutoff_hours: card2Policy.data.deadline_hours ?? 24,
-              penalty_type: "none",
-              penalty_value: card2Policy.data.penalty_value ?? 0,
-              active: true,
-            },
-            { onConflict: "restaurant_id,code" },
-          );
-        }
-      }
-    } catch {
-      // Non-blocking sync
-    }
-  }
 
   let replacedExisting = false;
   let agreementInsert: { data: { id: string } | null; error: { message?: string; code?: string } | null } = {
@@ -1312,21 +1302,6 @@ export async function persistCompanyContract(
       .eq("company_id", companyId)
       .select("id")
       .maybeSingle();
-    if (
-      updated.error &&
-      (updated.error.code === "23503" ||
-        updated.error.message?.includes("cancellation_policy") ||
-        updated.error.message?.includes("foreign key"))
-    ) {
-      updated = await db
-        .from("pms_corporate_agreements")
-        .update({ ...updatePayload, cancellation_policy_id: null })
-        .eq("id", contract.agreementId)
-        .eq("restaurant_id", restaurantId)
-        .eq("company_id", companyId)
-        .select("id")
-        .maybeSingle();
-    }
     if (updated.error && (updated.error.code === "42703" || updated.error.code === "PGRST204")) {
       const fallbackUpdate = {
         contract_type_id: contract.contractTypeId,
@@ -1343,7 +1318,7 @@ export async function persistCompanyContract(
         discount_type: primaryDiscountType,
         discount_value: primaryDiscountValue,
         deposit_policy_id: contract.depositPolicyId || null,
-        cancellation_policy_id: contract.cancellationPolicyId || null,
+        rate_cancellation_policy_id: cancellationColumns.rate_cancellation_policy_id,
         no_show_policy_id: contract.noShowPolicyId || null,
         description: contract.notes?.trim() || null,
       };
@@ -1366,69 +1341,41 @@ export async function persistCompanyContract(
   }
 
   if (!replacedExisting) {
-  agreementInsert = await db
-    .from("pms_corporate_agreements")
-    .insert(agreementPayload)
-    .select("id")
-    .single();
-
-  if (
-    agreementInsert.error &&
-    (agreementInsert.error.code === "23503" ||
-      agreementInsert.error.message?.includes("cancellation_policy") ||
-      agreementInsert.error.message?.includes("foreign key"))
-  ) {
-    const safePayload = { ...agreementPayload, cancellation_policy_id: null };
     agreementInsert = await db
       .from("pms_corporate_agreements")
-      .insert(safePayload)
-      .select("id")
-      .single();
-  }
-
-  if (agreementInsert.error) {
-    // If the live database does not have the extended columns yet, fallback seamlessly
-    const fallbackPayload = {
-      restaurant_id: restaurantId,
-      company_id: companyId,
-      contract_type_id: contract.contractTypeId,
-      name: contract.name.trim(),
-      code,
-      contract_number: (contract.contractNumber || code).trim(),
-      valid_from: contract.validFrom,
-      valid_to: contract.validTo,
-      currency_code: currencyCode,
-      status: contract.status || "active",
-      active: contract.status === "active",
-      pricing_method: contract.pricingMethod,
-      rate_plan_id: primaryRatePlanId,
-      discount_type: primaryDiscountType,
-      discount_value: primaryDiscountValue,
-      deposit_policy_id: contract.depositPolicyId || null,
-      cancellation_policy_id: contract.cancellationPolicyId || null,
-      no_show_policy_id: contract.noShowPolicyId || null,
-      description: contract.notes?.trim() || null,
-    };
-    agreementInsert = await db
-      .from("pms_corporate_agreements")
-      .insert(fallbackPayload)
+      .insert(agreementPayload)
       .select("id")
       .single();
 
-    if (
-      agreementInsert.error &&
-      (agreementInsert.error.code === "23503" ||
-        agreementInsert.error.message?.includes("cancellation_policy") ||
-        agreementInsert.error.message?.includes("foreign key"))
-    ) {
-      const safeFallback = { ...fallbackPayload, cancellation_policy_id: null };
+    if (agreementInsert.error) {
+      // If the live database does not have the extended columns yet, fallback seamlessly
+      const fallbackPayload = {
+        restaurant_id: restaurantId,
+        company_id: companyId,
+        contract_type_id: contract.contractTypeId,
+        name: contract.name.trim(),
+        code,
+        contract_number: (contract.contractNumber || code).trim(),
+        valid_from: contract.validFrom,
+        valid_to: contract.validTo,
+        currency_code: currencyCode,
+        status: contract.status || "active",
+        active: contract.status === "active",
+        pricing_method: contract.pricingMethod,
+        rate_plan_id: primaryRatePlanId,
+        discount_type: primaryDiscountType,
+        discount_value: primaryDiscountValue,
+        deposit_policy_id: contract.depositPolicyId || null,
+        rate_cancellation_policy_id: cancellationColumns.rate_cancellation_policy_id,
+        no_show_policy_id: contract.noShowPolicyId || null,
+        description: contract.notes?.trim() || null,
+      };
       agreementInsert = await db
         .from("pms_corporate_agreements")
-        .insert(safeFallback)
+        .insert(fallbackPayload)
         .select("id")
         .single();
     }
-  }
   }
 
   if (agreementInsert.error) {

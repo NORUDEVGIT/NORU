@@ -78,6 +78,12 @@ function emptyPlanFields() {
     refundabilityId: null as string | null,
     refundabilityName: "",
     refundabilityKind: null,
+    depositPolicyId: null as string | null,
+    depositPolicyName: "",
+    noShowPolicyId: null as string | null,
+    noShowPolicyName: "",
+    earlyDeparturePolicyId: null as string | null,
+    earlyDeparturePolicyName: "",
   };
 }
 
@@ -88,6 +94,9 @@ function makeSnapshot(partial?: Partial<RatesCard2Snapshot>): RatesCard2Snapshot
     mealPlans: [],
     cancellationPolicies: [],
     refundabilityCodes: [],
+    depositPolicies: [],
+    noShowPolicies: [],
+    earlyDeparturePolicies: [],
     plans: [],
     ...partial,
   };

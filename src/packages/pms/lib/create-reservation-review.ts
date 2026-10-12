@@ -49,6 +49,47 @@ export function yesNoFromBoolean(value: boolean | null | undefined): string {
   return value ? "Yes" : "No";
 }
 
+/** Joins quote inclusion labels already loaded for the stay. Does not price anything. */
+export function reviewIncludedItems(parts: Array<string | null | undefined>): string | null {
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const part of parts) {
+    for (const piece of String(part ?? "").split("·")) {
+      const text = piece.trim();
+      if (!text || text === "—" || text === "Not included") continue;
+      const label = text === "Included" ? "Breakfast included" : text;
+      const key = label.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(label);
+    }
+  }
+  return items.length > 0 ? items.join(" · ") : null;
+}
+
+/** Mirrors the Step 3 refundability title. Partial kinds keep the catalogue name. */
+export function reviewRefundabilityCopy(
+  kind: string | null | undefined,
+  label: string | null | undefined,
+): string | null {
+  const name = label?.trim() && label.trim() !== "—" ? label.trim() : "";
+  const title =
+    kind === "non_refundable" ? "Non-refundable" : kind === "refundable" ? "Refundable" : name;
+  if (!title) return null;
+  return name && name !== title ? `${title} · ${name}` : title;
+}
+
+export function reviewNoShowCopy(
+  name: string | null | undefined,
+  penalty: string | null | undefined,
+): string | null {
+  const policy = name?.trim() && name.trim() !== "—" ? name.trim() : "";
+  const result = penalty?.trim() ?? "";
+  if (!policy && !result) return null;
+  if (policy && result) return `${policy} · ${result}`;
+  return policy || result;
+}
+
 export const CREATE_REVIEW_STEPS = {
   guestStayAvailability: 0,
   bookingDetails: 1,

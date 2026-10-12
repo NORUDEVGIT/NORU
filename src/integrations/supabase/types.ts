@@ -1147,6 +1147,7 @@ export type Database = {
           primary_contact_guest_id: string | null
           primary_contact_name: string | null
           primary_contact_title: string | null
+          rate_cancellation_policy_id: string | null
           region: string | null
           restaurant_id: string
           source_code_id: string | null
@@ -1225,6 +1226,7 @@ export type Database = {
           primary_contact_guest_id?: string | null
           primary_contact_name?: string | null
           primary_contact_title?: string | null
+          rate_cancellation_policy_id?: string | null
           region?: string | null
           restaurant_id: string
           source_code_id?: string | null
@@ -1303,6 +1305,7 @@ export type Database = {
           primary_contact_guest_id?: string | null
           primary_contact_name?: string | null
           primary_contact_title?: string | null
+          rate_cancellation_policy_id?: string | null
           region?: string | null
           restaurant_id?: string
           source_code_id?: string | null
@@ -1349,6 +1352,13 @@ export type Database = {
             columns: ["default_travel_agent_master_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "guest_account_masters"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_account_masters_rate_cancellation_same_property"
+            columns: ["rate_cancellation_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_rate_cancellation_policies"
             referencedColumns: ["id", "restaurant_id"]
           },
           {
@@ -2756,12 +2766,15 @@ export type Database = {
           created_at: string
           created_by_membership_id: string | null
           currency: string
+          deposit_policy_id: string | null
           description: string | null
           id: string
           max_advance_days: number | null
           meal_plan_id: string | null
           min_advance_days: number | null
           name: string
+          no_show_policy_id: string | null
+          early_departure_policy_id: string | null
           rate_category_id: string
           refundability_id: string | null
           restaurant_id: string
@@ -2778,12 +2791,15 @@ export type Database = {
           created_at?: string
           created_by_membership_id?: string | null
           currency: string
+          deposit_policy_id?: string | null
           description?: string | null
           id?: string
           max_advance_days?: number | null
           meal_plan_id?: string | null
           min_advance_days?: number | null
           name: string
+          no_show_policy_id?: string | null
+          early_departure_policy_id?: string | null
           rate_category_id: string
           refundability_id?: string | null
           restaurant_id: string
@@ -2800,12 +2816,15 @@ export type Database = {
           created_at?: string
           created_by_membership_id?: string | null
           currency?: string
+          deposit_policy_id?: string | null
           description?: string | null
           id?: string
           max_advance_days?: number | null
           meal_plan_id?: string | null
           min_advance_days?: number | null
           name?: string
+          no_show_policy_id?: string | null
+          early_departure_policy_id?: string | null
           rate_category_id?: string
           refundability_id?: string | null
           restaurant_id?: string
@@ -2837,10 +2856,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "hotel_rate_plans_deposit_same_property"
+            columns: ["deposit_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_deposit_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
             foreignKeyName: "hotel_rate_plans_meal_plan_same_property"
             columns: ["meal_plan_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "pms_meal_plans"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_rate_plans_no_show_same_property"
+            columns: ["no_show_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_no_show_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_rate_plans_early_departure_same_property"
+            columns: ["early_departure_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_early_departure_policies"
             referencedColumns: ["id", "restaurant_id"]
           },
           {
@@ -3036,6 +3076,10 @@ export type Database = {
           departure_date: string
           deposit_policy_id: string | null
           deposit_requirement_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
           expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
@@ -3089,6 +3133,10 @@ export type Database = {
           departure_date: string
           deposit_policy_id?: string | null
           deposit_requirement_snapshot?: Json | null
+          no_show_policy_id?: string | null
+          no_show_policy_snapshot?: Json | null
+          early_departure_policy_id?: string | null
+          early_departure_policy_snapshot?: Json | null
           expected_arrival_at?: string | null
           external_reference?: string | null
           group_account_master_id?: string | null
@@ -3142,6 +3190,10 @@ export type Database = {
           departure_date?: string
           deposit_policy_id?: string | null
           deposit_requirement_snapshot?: Json | null
+          no_show_policy_id?: string | null
+          no_show_policy_snapshot?: Json | null
+          early_departure_policy_id?: string | null
+          early_departure_policy_snapshot?: Json | null
           expected_arrival_at?: string | null
           external_reference?: string | null
           group_account_master_id?: string | null
@@ -3239,6 +3291,20 @@ export type Database = {
             columns: ["deposit_policy_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "pms_deposit_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_no_show_same_property"
+            columns: ["no_show_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_no_show_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_early_departure_same_property"
+            columns: ["early_departure_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_early_departure_policies"
             referencedColumns: ["id", "restaurant_id"]
           },
           {
@@ -6538,6 +6604,7 @@ export type Database = {
           id: string
           name: string
           notice_period_days: number | null
+          rate_cancellation_policy_id: string | null
           restaurant_id: string
           signed_at: string | null
           signed_by: string | null
@@ -6558,6 +6625,7 @@ export type Database = {
           id?: string
           name: string
           notice_period_days?: number | null
+          rate_cancellation_policy_id?: string | null
           restaurant_id: string
           signed_at?: string | null
           signed_by?: string | null
@@ -6578,6 +6646,7 @@ export type Database = {
           id?: string
           name?: string
           notice_period_days?: number | null
+          rate_cancellation_policy_id?: string | null
           restaurant_id?: string
           signed_at?: string | null
           signed_by?: string | null
@@ -6586,6 +6655,13 @@ export type Database = {
           valid_to?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pms_corporate_agreements_rate_cancellation_same_property"
+            columns: ["rate_cancellation_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_rate_cancellation_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
           {
             foreignKeyName: "pms_corporate_agreements_company_fk"
             columns: ["company_id", "restaurant_id"]
@@ -6797,6 +6873,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pms_deposit_policies_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_early_departure_policies: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          penalty_type: string
+          penalty_value: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          penalty_type: string
+          penalty_value?: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          penalty_type?: string
+          penalty_value?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_early_departure_policies_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"

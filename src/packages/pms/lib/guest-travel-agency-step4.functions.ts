@@ -81,6 +81,17 @@ export const saveTravelAgencyStep4 = createServerFn({ method: "POST" })
     // Validate server-side
     validateTravelAgencyStep4(data as TravelAgencyStep4Payload, config, data.mode);
 
+    if (data.defaultCancellationPolicyId) {
+      const found = await db
+        .from("pms_rate_cancellation_policies")
+        .select("id, restaurant_id")
+        .eq("id", data.defaultCancellationPolicyId)
+        .maybeSingle();
+      if (found.error || !found.data || String(found.data.restaurant_id) !== data.restaurantId) {
+        throw new Error("Selected Cancellation Policy is invalid for this property.");
+      }
+    }
+
     // Derive legacy payment terms text for backward compatibility
     let derivedPaymentTerms = "Due on Departure";
     if (data.paymentTiming === "due_on_arrival") derivedPaymentTerms = "Due on Arrival";
@@ -105,7 +116,7 @@ export const saveTravelAgencyStep4 = createServerFn({ method: "POST" })
         credit_days: data.allowCredit ? data.creditDays ?? null : null,
         credit_status: data.allowCredit ? data.creditStatus || "pending_approval" : null,
         default_deposit_policy_id: data.defaultDepositPolicyId || null,
-        default_cancellation_policy_id: data.defaultCancellationPolicyId || null,
+        rate_cancellation_policy_id: data.defaultCancellationPolicyId || null,
         default_no_show_policy_id: data.defaultNoShowPolicyId || null,
         booking_notes: data.bookingNotes || null,
       })

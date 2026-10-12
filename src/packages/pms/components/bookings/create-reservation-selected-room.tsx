@@ -1,11 +1,16 @@
 import { BedDouble } from "lucide-react";
 
-import type { RoomTypeCatalogDetails } from "@/packages/pms/components/bookings/create-reservation-room-type";
+import {
+  AmenityStrip,
+  roomDisplayLabels,
+  type RoomTypeCatalogDetails,
+} from "@/packages/pms/components/bookings/create-reservation-room-type";
 import type { SelectedRoomTypeMeta } from "@/packages/pms/lib/create-reservation-phase1-section4";
 import {
   rateCopyFromQuote,
   type CreateRateQuoteRow,
 } from "@/packages/pms/lib/create-reservation-phase1-section5";
+import { quotedNonRefundable } from "@/packages/pms/lib/create-reservation-step4";
 import { PMS_OP_BTN_COMPACT, PMS_OP_PANEL } from "@/packages/pms/lib/pms-operational-surface";
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
@@ -58,19 +63,21 @@ function cancellationUntilDate(
 
 function displayCancellation(label: string, arrivalDate: string | null): string {
   const trimmed = label.trim();
-  const match = trimmed.match(
+  const dated = trimmed.match(
+    /^Free cancellation until (\d{1,2}) ([A-Za-z]{3,4}) (\d{4}) · (\d{2}):(\d{2})$/,
+  );
+  const legacy = trimmed.match(
     /^Free cancellation until (\d{1,2}) ([A-Za-z]{3,4}) (\d{2}):(\d{2})$/,
   );
+  const match = dated ?? legacy;
   if (!match) return trimmed || "—";
   const month = CANCELLATION_MONTHS[match[2]!.toLowerCase()];
   if (month == null) return CANCELLATION_FEE_FALLBACK;
-  const until = cancellationUntilDate(
-    Number(match[1]),
-    month,
-    Number(match[3]),
-    Number(match[4]),
-    arrivalDate,
-  );
+  const hours = Number(dated ? match[4] : match[3]);
+  const minutes = Number(dated ? match[5] : match[4]);
+  const until = dated
+    ? new Date(Number(match[3]), month, Number(match[1]), hours, minutes, 0, 0)
+    : cancellationUntilDate(Number(match[1]), month, hours, minutes, arrivalDate);
   if (!until || until.getTime() <= Date.now()) return CANCELLATION_FEE_FALLBACK;
   return trimmed;
 }
@@ -136,17 +143,23 @@ export function CreateReservationSelectedRoom({
   const rateCopy = rateCopyFromQuote(selectedQuote, money);
   const searchIsCurrent = !statusMessage;
   const hasSelection = searchIsCurrent && (selectedRoomType != null || selectedQuote != null);
-  const meta = [catalog?.bedType, catalog?.roomSize, catalog?.roomView].filter((value) =>
-    value?.trim(),
-  );
 
   return (
     <section
-      className={cn(PMS_OP_PANEL, "!shadow-none min-w-0 p-3 xl:sticky xl:top-0")}
+      className={cn(
+        PMS_OP_PANEL,
+        "!rounded-[6px] !border-[#CCCCCC] !shadow-none min-w-0 p-4 xl:sticky xl:top-3",
+      )}
       data-testid="selected-room-rate"
+      data-available={available ?? ""}
     >
       <div className="flex items-start justify-between gap-2">
-        <h2 className="font-display text-base text-[#251605]">Selected Room & Rate</h2>
+        <div className="flex items-start gap-2">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+            <BedDouble className="size-3.5" aria-hidden />
+          </span>
+          <h2 className="text-sm font-semibold text-[#251605]">Selected Room & Rate</h2>
+        </div>
         {hasSelection ? (
           <Button
             type="button"
@@ -182,23 +195,22 @@ export function CreateReservationSelectedRoom({
             </div>
           )}
           <div className="min-w-0">
-            <p className="truncate font-medium text-[#251605]">
+            <p className="truncate text-sm font-semibold text-[#251605]">
               {selectedRoomType?.name ?? "Room"}
             </p>
-            <p className="truncate text-xs text-muted-foreground">
-              {[selectedRoomType?.code, ...meta].filter(Boolean).join(" · ") || "—"}
-            </p>
+            {selectedRoomType?.code ? (
+              <p className="truncate text-xs text-[#6B5E4E]">{selectedRoomType.code}</p>
+            ) : null}
+            <AmenityStrip labels={roomDisplayLabels(catalog)} />
           </div>
-          <dl className="grid grid-cols-1 gap-1">
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
             <SummaryLine label="Rate plan" value={rateCopy.ratePlanLabel} />
             <SummaryLine label="Rate / night" value={rateCopy.ratePerNight} />
             <SummaryLine label="Nights" value={String(nights)} />
             <div className="min-w-0">
-              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Stay total
-              </dt>
+              <dt className="text-[10px] uppercase tracking-wide text-[#6B5E4E]">Stay total</dt>
               <dd
-                className="text-sm font-medium text-[#251605]"
+                className="text-lg font-semibold text-[#C89933]"
                 data-testid="selected-room-stay-total"
               >
                 {rateCopy.totalAmount}
@@ -213,11 +225,33 @@ export function CreateReservationSelectedRoom({
               )}
             />
             {selectedQuote?.refundabilityLabel && selectedQuote.refundabilityLabel !== "—" ? (
-              <SummaryLine label="Refundability" value={selectedQuote.refundabilityLabel} />
+              <div className="min-w-0">
+                <dt className="text-[10px] uppercase tracking-wide text-[#6B5E4E]">
+                  Refundability
+                </dt>
+                <dd
+                  className={cn(
+                    "text-sm",
+                    quotedNonRefundable(selectedQuote.refundabilityKind)
+                      ? "font-medium text-[#9B3A3A]"
+                      : "text-[#251605]",
+                  )}
+                >
+                  {selectedQuote.refundabilityLabel}
+                </dd>
+              </div>
             ) : null}
             <SummaryLine
-              label="Available"
-              value={available == null ? "—" : `${available} ${available === 1 ? "room" : "rooms"}`}
+              label="Deposit policy"
+              value={selectedQuote?.depositPolicyName?.trim() || "None"}
+            />
+            <SummaryLine
+              label="No-show policy"
+              value={selectedQuote?.noShowPolicyName?.trim() || "None"}
+            />
+            <SummaryLine
+              label="Early departure policy"
+              value={selectedQuote?.earlyDeparturePolicyName?.trim() || "None"}
             />
           </dl>
         </div>

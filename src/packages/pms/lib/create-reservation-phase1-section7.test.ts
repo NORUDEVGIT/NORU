@@ -190,7 +190,7 @@ describe("Create Reservation Phase 1 Section 7 lock — AC-CR7-1…24", () => {
     const guarantee = readRel("../components/bookings/create-reservation-guarantee.tsx");
     const picker = readRel("../components/bookings/create-reservation-master-picker.tsx");
     assert.match(guarantee, /guarantee-payment-terms/);
-    assert.match(guarantee, /CREATE_RESERVATION_PAYMENT_TERMS_COPY/);
+    assert.match(guarantee, /Payment collection is handled separately/);
     assert.match(picker, /company-payment-terms/);
     assert.match(CREATE_RESERVATION_CONFIRM_MASTER_REQUIRED, /Company/);
     assert.equal(
@@ -593,7 +593,7 @@ describe("Create Reservation Phase 1 Section 7 lock — AC-CR7-1…24", () => {
     assert.match(CREATE_RESERVATION_SECTION7_PROGRAMME_RULE, /Do not clone legacy chrome/);
     assert.match(CREATE_RESERVATION_SECTION7_PROGRAMME_RULE, /CR-100 OUT/);
     assert.match(guarantee, /data-testid="create-reservation-guarantee"/);
-    assert.match(guarantee, /rounded-2xl border/);
+    assert.match(guarantee, /rounded-\[6px\] border/);
     assert.doesNotMatch(guarantee, /legacy PMS chrome/);
   });
 

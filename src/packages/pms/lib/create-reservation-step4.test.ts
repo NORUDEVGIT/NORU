@@ -10,6 +10,7 @@ import {
   formatGuaranteeCardNumber,
   formatQuotedPolicySummary,
   isCardGuaranteeMethod,
+  noShowPenaltySummary,
   quotedNonRefundable,
   resolveDepositTenderCode,
 } from "./create-reservation-step4.ts";
@@ -40,11 +41,15 @@ describe("Create reservation Step 4 policies layout", () => {
     const layout = readRel("../components/bookings/create-reservation-policies-guarantee.tsx");
     const guarantee = readRel("../components/bookings/create-reservation-guarantee.tsx");
     const page = readRel("../components/bookings/create-reservation-page.tsx");
-    assert.match(guarantee, /Guarantee Information/);
-    assert.match(layout, /Deposit Information/);
-    assert.match(layout, /Cancellation Policy/);
-    assert.match(layout, /No-Show & Early Departure Policy/);
-    assert.match(layout, /Internal Notes \(Optional\)/);
+    assert.match(guarantee, /Payment Information/);
+    assert.match(layout, />Deposit</);
+    assert.match(layout, /title="Cancellation"/);
+    assert.match(layout, /title="No-show"/);
+    assert.match(layout, /Stay Policies/);
+    assert.match(
+      readRel("../components/bookings/create-reservation-booking-details.tsx"),
+      /Internal Notes/,
+    );
     assert.match(guarantee, /data-testid="create-reservation-guarantee"/);
     assert.match(guarantee, /data-testid="guarantee-method"/);
     assert.match(layout, /data-testid="deposit-policy"/);
@@ -62,9 +67,12 @@ describe("Create reservation Step 4 policies layout", () => {
       createCall,
       /cardNumber|cvv|cardExpiry|depositAmount|depositDueDate|depositReference|noShowPolicy|ackInformed/i,
     );
-    assert.match(createCall, /depositPolicyId/);
+    assert.doesNotMatch(createCall, /depositPolicyId/);
     assert.match(createCall, /depositTenderCode/);
-    assert.match(guarantee, /replace raw guarantee card inputs with tokenized payment-provider flow/);
+    assert.match(
+      guarantee,
+      /replace raw guarantee card inputs with tokenized payment-provider flow/,
+    );
     assert.match(guarantee, /CVV is never lifted/);
     assert.doesNotMatch(page, /localStorage|sessionStorage/);
     assert.doesNotMatch(createCall, /\.\.\.step4Policies/);
@@ -74,11 +82,15 @@ describe("Create reservation Step 4 policies layout", () => {
     const page = readRel("../components/bookings/create-reservation-page.tsx");
     const layout = readRel("../components/bookings/create-reservation-policies-guarantee.tsx");
     const functions = readRel("./reservations.functions.ts");
-    const drizzle = readRel("../../../../drizzle/migrations/0118_pms_reservation_step4_deposit.sql");
-    const supabase = readRel("../../../../supabase/migrations/0118_pms_reservation_step4_deposit.sql");
+    const drizzle = readRel(
+      "../../../../drizzle/migrations/0118_pms_reservation_step4_deposit.sql",
+    );
+    const supabase = readRel(
+      "../../../../supabase/migrations/0118_pms_reservation_step4_deposit.sql",
+    );
     assert.match(page, /getPmsPolish1Snapshot/);
     assert.match(page, /getPaymentsCard3/);
-    assert.match(page, /activeDepositPolicies/);
+    assert.match(page, /selectedQuote\?\.depositPolicyId/);
     assert.match(layout, /DEPOSIT_POLICY_TYPE_LABELS/);
     assert.match(functions, /persistDepositRequirementSnapshot/);
     assert.match(functions, /deposit_requirement_snapshot/);
@@ -94,7 +106,9 @@ describe("Create reservation Step 4 policies layout", () => {
       true,
     );
     assert.equal(
-      isCardGuaranteeMethod("VISA", [{ value: "VISA", label: "Visa desk", origin: "setup", typeClass: "card" }]),
+      isCardGuaranteeMethod("VISA", [
+        { value: "VISA", label: "Visa desk", origin: "setup", typeClass: "card" },
+      ]),
       true,
     );
     assert.equal(
@@ -110,16 +124,31 @@ describe("Create reservation Step 4 policies layout", () => {
       nightly: [{ rate: 120 }, { rate: 280 }],
       currency: "USD",
     };
-    assert.equal(computeDepositRequirementAmount({ depositType: "none", depositValue: 0 }, quote), 0);
-    assert.equal(computeDepositRequirementAmount({ depositType: "percent", depositValue: 25 }, quote), 100);
-    assert.equal(computeDepositRequirementAmount({ depositType: "fixed", depositValue: 75 }, quote), 75);
-    assert.equal(computeDepositRequirementAmount({ depositType: "first_night", depositValue: 999 }, quote), 120);
+    assert.equal(
+      computeDepositRequirementAmount({ depositType: "none", depositValue: 0 }, quote),
+      0,
+    );
+    assert.equal(
+      computeDepositRequirementAmount({ depositType: "percent", depositValue: 25 }, quote),
+      100,
+    );
+    assert.equal(
+      computeDepositRequirementAmount({ depositType: "fixed", depositValue: 75 }, quote),
+      75,
+    );
+    assert.equal(
+      computeDepositRequirementAmount({ depositType: "first_night", depositValue: 999 }, quote),
+      120,
+    );
     assert.equal(
       computeDepositRequirementAmount({ depositType: "percent", depositValue: 50 }, null),
       0,
     );
     assert.equal(quotedNonRefundable("non_refundable"), true);
-    assert.equal(formatQuotedPolicySummary("Free cancel", "Refundable"), "Free cancel · Refundable");
+    assert.equal(
+      formatQuotedPolicySummary("Free cancel", "Refundable"),
+      "Free cancel · Refundable",
+    );
     assert.equal(
       defaultActiveDepositPolicy([
         policy({ isDefault: false, id: "a" }),
@@ -132,5 +161,15 @@ describe("Create reservation Step 4 policies layout", () => {
       "CARD",
     );
     assert.equal(resolveDepositTenderCode({ selected: "CASH", guaranteeMethod: "CARD" }), "CASH");
+  });
+
+  it("labels only supported no-show penalties", () => {
+    assert.equal(noShowPenaltySummary("none", 0), "No charge");
+    assert.equal(noShowPenaltySummary("first_night", 0), "First night");
+    assert.equal(noShowPenaltySummary("full_stay", 0), "Full stay");
+    assert.equal(noShowPenaltySummary("percent_stay", 50), "50% of stay");
+    assert.equal(noShowPenaltySummary("fixed_amount", 500, "ETB"), "ETB 500");
+    assert.equal(noShowPenaltySummary("fixed_amount", 500, ""), null);
+    assert.equal(noShowPenaltySummary("mystery", 1), null);
   });
 });

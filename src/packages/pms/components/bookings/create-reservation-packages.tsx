@@ -1,4 +1,7 @@
-import { ReservationPackageMerchandiseGrid } from "@/packages/pms/components/bookings/reservation-package-merchandise";
+import {
+  PackageCoverThumb,
+  ReservationPackageMerchandiseGrid,
+} from "@/packages/pms/components/bookings/reservation-package-merchandise";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { cn } from "@/shared/lib/utils";
@@ -168,16 +171,16 @@ function PackageCatalogueTable({
   }
 
   return (
-    <div className="overflow-x-auto" data-testid="create-reservation-packages-readonly">
-      <table className="w-full border-collapse text-left text-xs">
+    <div className="min-w-0" data-testid="create-reservation-packages-readonly">
+      <table className="w-full table-fixed border-collapse text-left text-xs">
         <thead>
           <tr className="border-b border-[#CCCCCC] text-[10px] uppercase tracking-wide text-[#6B5E4E]">
-            <th className="w-8 py-1 font-medium" />
-            <th className="py-1 pr-2 font-medium">Package</th>
+            <th className="w-7 py-1 font-medium" />
+            <th className="w-[42%] py-1 pr-2 font-medium">Package</th>
             <th className="py-1 pr-2 font-medium">Description</th>
-            <th className="py-1 pr-2 font-medium">Price ({currency})</th>
-            <th className="w-10 py-1 pr-2 font-medium">Qty</th>
-            <th className="py-1 font-medium">Total ({currency})</th>
+            <th className="w-20 py-1 pr-2 text-right font-medium">Price ({currency})</th>
+            <th className="w-9 py-1 pr-2 text-center font-medium">Qty</th>
+            <th className="w-20 py-1 text-right font-medium">Total ({currency})</th>
           </tr>
         </thead>
         <tbody>
@@ -190,7 +193,10 @@ function PackageCatalogueTable({
             return (
               <tr
                 key={card.id}
-                className={cn("border-b border-[#CCCCCC]", selected && "bg-[#FBF6EC]")}
+                className={cn(
+                  "border-b border-[#E7E0D4]",
+                  selected && "bg-[#FBF6EE] shadow-[inset_3px_0_0_#C89933]",
+                )}
                 data-testid={`create-package-${card.id}`}
                 data-selected={selected ? "true" : "false"}
                 data-bindable={bindable ? "true" : "false"}
@@ -208,16 +214,30 @@ function PackageCatalogueTable({
                     }}
                   />
                 </td>
-                <td className="py-1 pr-2 align-middle font-medium text-[#251605]">
-                  {card.name}
-                  <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">
-                    {card.chargeType}
-                  </span>
+                <td className="py-1.5 pr-2 align-middle font-medium text-[#251605]">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div
+                      className="h-16 w-20 shrink-0 overflow-hidden rounded-[6px]"
+                      data-testid={card.coverUrl ? "package-cover-image" : "package-cover-fallback"}
+                    >
+                      <PackageCoverThumb
+                        coverUrl={card.coverUrl}
+                        name={card.name}
+                        className="!h-16 !rounded-[6px] object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block break-words leading-snug">{card.name}</span>
+                      <span className="mt-0.5 block text-[10px] font-normal text-[#6B5E4E]">
+                        {card.chargeType}
+                      </span>
+                    </div>
+                  </div>
                 </td>
-                <td className="max-w-40 py-1 pr-2 align-middle text-muted-foreground">
+                <td className="py-1.5 pr-2 align-middle text-[#6B5E4E]">
                   <span className="line-clamp-2">{card.description.trim() || "—"}</span>
                   {card.chargeBasisHonesty ? (
-                    <span className="mt-0.5 block text-[10px] text-amber-900/80">
+                    <span className="mt-0.5 block text-[10px] text-[#6B5E4E]">
                       {card.chargeBasisHonesty}
                     </span>
                   ) : null}
@@ -230,9 +250,15 @@ function PackageCatalogueTable({
                     </span>
                   ) : null}
                 </td>
-                <td className="py-1 pr-2 align-middle tabular-nums text-[#251605]">{amount}</td>
-                <td className="py-1 pr-2 align-middle tabular-nums text-[#251605]">1</td>
-                <td className="py-1 align-middle tabular-nums text-[#251605]">{amount}</td>
+                <td className="py-1 pr-2 text-right align-middle tabular-nums text-[#251605]">
+                  {amount}
+                </td>
+                <td className="py-1 pr-2 text-center align-middle tabular-nums text-[#251605]">
+                  1
+                </td>
+                <td className="py-1 text-right align-middle font-medium tabular-nums text-[#251605]">
+                  {amount}
+                </td>
               </tr>
             );
           })}

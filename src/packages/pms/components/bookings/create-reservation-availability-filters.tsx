@@ -18,18 +18,20 @@ function FilterCheckbox({
   onChange: () => void;
 }) {
   return (
-    <label className="flex items-start gap-2 text-sm text-[#251605]">
+    <label className="flex items-center gap-2 text-sm text-[#251605]">
       <input
         type="checkbox"
-        className="mt-0.5 size-3.5 accent-[#C89933]"
+        className="size-3.5 accent-[#C89933]"
         checked={checked}
         data-testid={testId}
         onChange={onChange}
       />
-      <span className="min-w-0">
-        {label}
-        {count != null ? <span className="text-muted-foreground"> ({count})</span> : null}
-      </span>
+      <span className="min-w-0 flex-1">{label}</span>
+      {count != null ? (
+        <span className="rounded-full bg-[#F3EDE3] px-1.5 py-0.5 text-[10px] tabular-nums text-[#6B5E4E]">
+          {count}
+        </span>
+      ) : null}
     </label>
   );
 }

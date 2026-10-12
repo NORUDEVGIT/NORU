@@ -173,6 +173,17 @@ export type CreateRateQuoteRow = {
   cancellationLabel: string;
   refundabilityLabel: string;
   refundabilityKind: string | null;
+  depositPolicyId?: string | null;
+  depositPolicyName?: string | null;
+  noShowPolicyId?: string | null;
+  noShowPolicyName?: string | null;
+  noShowPenaltyType?: string | null;
+  noShowPenaltyValue?: number | null;
+  earlyDeparturePolicyId?: string | null;
+  earlyDeparturePolicyName?: string | null;
+  earlyDeparturePenaltyType?: string | null;
+  earlyDeparturePenaltyValue?: number | null;
+  earlyDepartureDescription?: string | null;
 };
 
 export const CREATE_RATE_QUOTE_UNSPECIFIED = "—";

@@ -48,7 +48,7 @@ export const CARD3_DOMAINS = [
   {
     id: "payments-deposits",
     title: "Payments & Deposits",
-    description: "Configure payment methods, deposit rules and payment policies.",
+    description: "Configure payment methods and deposit policies.",
     icon: "credit-card",
   },
   {
