@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Printer, Trash2 } from "lucide-react";
+import { ChevronUp, FileText, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { roundCredit, type CreditNoteSnapshot } from "@/packages/pms/lib/cashiering-credit-notes";
@@ -469,11 +469,13 @@ export function CreditNoteSection({
                   <td className="px-3 py-2 text-right">
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant={viewNoteId === note.id ? "secondary" : "outline"}
                       className="mr-2 h-8"
-                      onClick={() => setViewNoteId(note.id)}
+                      onClick={() =>
+                        setViewNoteId((current) => (current === note.id ? null : note.id))
+                      }
                     >
-                      View
+                      {viewNoteId === note.id ? "Collapse" : "View"}
                     </Button>
                     {manageable ? (
                       <Button
@@ -493,7 +495,23 @@ export function CreditNoteSection({
           </table>
         )}
         {viewed ? (
-          <div className="border-t border-[#E8E1D7] p-4">
+          <div className="border-t border-[#E8E1D7] p-4 space-y-3">
+            <div className="flex items-center justify-between rounded-lg border border-[#E8E1D7] bg-[#F7F4EE] px-4 py-2.5">
+              <div className="flex items-center gap-2">
+                <FileText className="size-4 text-[#8a6a1f]" />
+                <span className="text-sm font-medium">
+                  Viewing Credit Note {viewed.noteNumber}
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 border-[#E8E1D7] bg-white text-xs hover:bg-[#F2ECE1]"
+                onClick={() => setViewNoteId(null)}
+              >
+                <ChevronUp className="size-3.5" /> Collapse credit note
+              </Button>
+            </div>
             <CreditNoteDocument
               snapshot={viewed.snapshot}
               money={money}
@@ -502,6 +520,16 @@ export function CreditNoteSection({
               invoiceProperty={invoiceProperty}
               liveProperty={liveProperty}
             />
+            <div className="flex justify-end pt-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 border-[#E8E1D7] bg-white text-xs hover:bg-[#F2ECE1]"
+                onClick={() => setViewNoteId(null)}
+              >
+                <ChevronUp className="size-3.5" /> Collapse credit note
+              </Button>
+            </div>
           </div>
         ) : null}
       </div>

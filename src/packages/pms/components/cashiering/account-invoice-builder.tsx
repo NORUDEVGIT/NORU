@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { FileText, Printer, Trash2 } from "lucide-react";
+import { ChevronUp, FileText, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -610,11 +610,13 @@ export function AccountInvoiceWorkspace({
                       <td className="px-3 py-2 text-right">
                         <Button
                           size="sm"
-                          variant="outline"
+                          variant={viewInvoiceId === invoice.id ? "secondary" : "outline"}
                           className="mr-2 h-8"
-                          onClick={() => setViewInvoiceId(invoice.id)}
+                          onClick={() =>
+                            setViewInvoiceId((current) => (current === invoice.id ? null : invoice.id))
+                          }
                         >
-                          View
+                          {viewInvoiceId === invoice.id ? "Collapse" : "View"}
                         </Button>
                         {canManage ? (
                           <Button
@@ -636,7 +638,23 @@ export function AccountInvoiceWorkspace({
           </div>
         )}
         {viewedInvoice ? (
-          <div className="border-t border-[#E8E1D7] p-4">
+          <div className="border-t border-[#E8E1D7] p-4 space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-[#E8E1D7] bg-[#F7F4EE] px-4 py-2.5">
+              <div className="flex items-center gap-2">
+                <FileText className="size-4 text-[#8a6a1f]" />
+                <span className="text-sm font-medium">
+                  Viewing Invoice {viewedInvoice.issuedNumber}
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 border-[#E8E1D7] bg-white text-xs hover:bg-[#F2ECE1]"
+                onClick={() => setViewInvoiceId(null)}
+              >
+                <ChevronUp className="size-3.5" /> Collapse invoice
+              </Button>
+            </div>
             <AccountInvoicePrint
               invoice={viewedInvoice}
               money={money}
@@ -725,6 +743,16 @@ export function AccountInvoiceWorkspace({
               dateTime={dateTime}
               onIssued={refresh}
             />
+            <div className="flex justify-end pt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1 border-[#E8E1D7] bg-white text-xs hover:bg-[#F2ECE1]"
+                onClick={() => setViewInvoiceId(null)}
+              >
+                <ChevronUp className="size-3.5" /> Collapse invoice
+              </Button>
+            </div>
           </div>
         ) : null}
       </div>

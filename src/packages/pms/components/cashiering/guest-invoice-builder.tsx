@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { FileText, Plus, Printer, Trash2 } from "lucide-react";
+import { ChevronUp, FileText, Plus, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { FolioInvoicePreview } from "@/packages/pms/components/cashiering/folio-invoice-panel";
@@ -609,11 +609,13 @@ export function GuestInvoiceWorkspace({
                     <td className="px-3 py-2 text-right">
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant={openInvoiceId === invoice.id ? "secondary" : "outline"}
                         className="mr-2 h-7"
-                        onClick={() => setOpenInvoiceId(invoice.id)}
+                        onClick={() =>
+                          setOpenInvoiceId((current) => (current === invoice.id ? null : invoice.id))
+                        }
                       >
-                        View
+                        {openInvoiceId === invoice.id ? "Collapse" : "View"}
                       </Button>
                       {workspace.capabilities.canReprintInvoice ? (
                         <Button
@@ -634,7 +636,26 @@ export function GuestInvoiceWorkspace({
           </div>
         )}
         {openInvoice ? (
-          <div className="border-t border-[#E8E1D7] p-4">
+          <div className="border-t border-[#E8E1D7] p-4 space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-[#E8E1D7] bg-[#F7F4EE] px-4 py-2.5">
+              <div className="flex items-center gap-2">
+                <FileText className="size-4 text-[#8a6a1f]" />
+                <span className="text-sm font-medium">
+                  Viewing Invoice {openInvoice.issuedNumber}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  ({openInvoice.coverageScope === "legacy_folio" ? "Whole folio" : "Itemized"})
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 border-[#E8E1D7] bg-white text-xs hover:bg-[#F2ECE1]"
+                onClick={() => setOpenInvoiceId(null)}
+              >
+                <ChevronUp className="size-3.5" /> Collapse invoice
+              </Button>
+            </div>
             <FolioInvoicePreview
               invoice={openInvoice}
               money={money}
@@ -666,6 +687,16 @@ export function GuestInvoiceWorkspace({
               onIssued={onChanged}
               onPostCharge={onPostCharge}
             />
+            <div className="flex justify-end pt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1 border-[#E8E1D7] bg-white text-xs hover:bg-[#F2ECE1]"
+                onClick={() => setOpenInvoiceId(null)}
+              >
+                <ChevronUp className="size-3.5" /> Collapse invoice
+              </Button>
+            </div>
           </div>
         ) : null}
       </div>
