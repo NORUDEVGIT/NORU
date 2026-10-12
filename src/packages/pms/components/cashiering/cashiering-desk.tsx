@@ -6,15 +6,23 @@ import {
   ArrowUpRight,
   Banknote,
   CheckCircle2,
+  ChevronRight,
   CircleAlert,
   Clock3,
   Coins,
+  CreditCard,
+  ExternalLink,
+  Eye,
   FileText,
   MoreHorizontal,
   Plus,
+  Receipt,
+  RotateCcw,
   Search,
   SlidersHorizontal,
+  Split,
   Undo2,
+  Wallet,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -79,6 +87,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
@@ -225,7 +234,11 @@ export function CashieringDesk({
   canManage: boolean;
   membershipId: string;
   role: string;
-  onTab: (tab: CashieringTabId, folio?: string | null) => void;
+  onTab: (
+    tab: CashieringTabId,
+    folio?: string | null,
+    extra?: Partial<CashieringSearchParams>,
+  ) => void;
 }) {
   const businessDate = usePropertyBusinessDate(restaurantId, timezone);
   const money = useMoney();
@@ -425,6 +438,12 @@ export function CashieringDesk({
           }}
           restaurantId={restaurantId}
           onRefresh={refresh}
+          returnToTab={searchParams.returnToTab}
+          onReturn={() => {
+            if (searchParams.returnToTab) {
+              onTab(searchParams.returnToTab, null);
+            }
+          }}
         />
       ) : null}
 
@@ -461,7 +480,7 @@ export function CashieringDesk({
           canManage={canManage}
           money={money}
           dateTime={dateTime}
-          onNavigate={(next) => onTab(next, null)}
+          onNavigate={(next, extra) => onTab(next, null, extra)}
         />
       ) : null}
     </div>
@@ -505,6 +524,8 @@ function Overview({
   onChooseActivity,
   restaurantId,
   onRefresh,
+  returnToTab,
+  onReturn,
 }: {
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
@@ -558,6 +579,8 @@ function Overview({
   onChooseActivity: (row: LedgerEntryRow) => void;
   restaurantId: string;
   onRefresh: () => void;
+  returnToTab?: CashieringTabId;
+  onReturn?: () => void;
 }) {
   return (
     <div className="space-y-4">
@@ -779,6 +802,8 @@ function Overview({
         onChooseFolio={onChooseFolio}
         onChooseActivity={onChooseActivity}
         dashboard={dashboard}
+        returnToTab={returnToTab}
+        onReturn={onReturn}
       />
     </div>
   );
@@ -1361,6 +1386,8 @@ function FinancialActivityPanel({
   onChooseFolio,
   onChooseActivity,
   dashboard,
+  returnToTab,
+  onReturn,
 }: {
   activity: CashieringActivityFilter;
   rows: LedgerEntryRow[];
@@ -1388,6 +1415,8 @@ function FinancialActivityPanel({
         transfersSupported?: boolean;
       }
     | undefined;
+  returnToTab?: CashieringTabId;
+  onReturn?: () => void;
 }) {
   const title =
     activity === "all"
@@ -1453,8 +1482,12 @@ function FinancialActivityPanel({
             selected={selected}
             canOperate={canOperate}
             canManage={canManage}
+            money={money}
+            onSelectActivity={onActivity}
           />
-        ) : activity === "transfer" ? null : (
+        ) : activity === "transfer" ? (
+          <TransferActivityHelp selected={selected} money={money} />
+        ) : (
           <div className="space-y-4">
             <ReceivePanel
               kind={activity}
@@ -1469,6 +1502,8 @@ function FinancialActivityPanel({
               depositPolicySummary={depositPolicySummary}
               authorizerNote={authorizerNote}
               onPosted={onRefresh}
+              returnToTab={returnToTab}
+              onReturn={onReturn}
             />
             {activity === "deposit" ? (
               <DepositAllocationForm
@@ -1503,67 +1538,253 @@ function FinancialActivityPanel({
   );
 }
 
+function TransferActivityHelp({
+  selected,
+  money,
+}: {
+  selected: FolioDetail | null;
+  money: (value: number) => string;
+}) {
+  return (
+    <aside className="space-y-3 rounded-xl border border-[#DDD4C5] bg-card p-4 shadow-xs">
+      <div className="flex items-center gap-2.5 border-b border-[#E8E1D7] pb-3">
+        <div className="flex size-8 items-center justify-center rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] text-[#8A6A24]">
+          <ArrowLeftRight className="size-4" />
+        </div>
+        <div>
+          <h3 className="font-display text-sm font-semibold text-[#251605]">Folio Transfers</h3>
+          <p className="text-[11px] text-[#7A7167]">Reallocate balances across active accounts</p>
+        </div>
+      </div>
+
+      {selected ? (
+        <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[#7A7167]">Selected Folio</span>
+            <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800 border border-emerald-200">
+              Active
+            </span>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-[#251605]">{selected.guestName}</p>
+            <p className="text-[11px] text-[#7A7167]">
+              {selected.folioNumber} {selected.roomNumber ? `· Room ${selected.roomNumber}` : ""}
+            </p>
+          </div>
+          <div className="flex items-center justify-between pt-1 border-t border-[#E8E1D7]/60 text-xs">
+            <span className="text-[#7A7167]">Current Balance</span>
+            <span className="font-bold tabular-nums text-[#251605]">{money(selected.balance)}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F4]/50 p-3.5 text-center text-xs text-[#7A7167]">
+          Select a source folio from the list or ledger above to start transferring items.
+        </div>
+      )}
+
+      <div className="space-y-1.5 text-xs text-[#5F554B]">
+        <p className="text-[11px] font-medium text-[#251605]">Transfer Capabilities:</p>
+        <ul className="space-y-1 text-[11px] text-[#7A7167]">
+          <li className="flex items-start gap-1.5">
+            <span className="mt-1 size-1 rounded-full bg-[#8A6A24]" />
+            <span>Move individual guest line items between room folios.</span>
+          </li>
+          <li className="flex items-start gap-1.5">
+            <span className="mt-1 size-1 rounded-full bg-[#8A6A24]" />
+            <span>Transfer balances to corporate or city ledger accounts.</span>
+          </li>
+          <li className="flex items-start gap-1.5">
+            <span className="mt-1 size-1 rounded-full bg-[#8A6A24]" />
+            <span>Use the full transfer workspace rendered below.</span>
+          </li>
+        </ul>
+      </div>
+    </aside>
+  );
+}
+
 function FinancialActivityHelp({
   selected,
   canOperate,
   canManage,
+  money,
+  onSelectActivity,
 }: {
   selected: FolioDetail | null;
   canOperate: boolean;
   canManage: boolean;
+  money?: (value: number) => string;
+  onSelectActivity?: (activity: CashieringActivityFilter) => void;
 }) {
   if (!selected) {
     return (
-      <aside className="rounded-xl border border-dashed border-[#DDD4C5] bg-[#FAF8F4]/50 p-6 text-center text-sm text-[#7A7167]">
-        Select a guest folio in the table above, or open Payments, Deposits or Refunds and choose
-        the folio there. Click a recorded line for its actions.
+      <aside className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-card p-5 shadow-xs">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-9 items-center justify-center rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] text-[#8A6A24]">
+              <Wallet className="size-4.5" />
+            </div>
+            <div>
+              <h3 className="font-display text-sm font-semibold text-[#251605]">
+                Financial Actions
+              </h3>
+              <p className="text-[11px] text-[#7A7167]">Direct folio operations & settlement</p>
+            </div>
+          </div>
+          <p className="text-xs text-[#5F554B] leading-relaxed">
+            Select a guest folio from the table above or click any transaction row in the ledger to
+            view balance details, record receipts, or take instant financial action.
+          </p>
+
+          <div className="grid gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => onSelectActivity?.("payment")}
+              className="flex items-center justify-between rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] px-3 py-2 text-xs font-medium text-[#251605] hover:border-[#146C43] hover:bg-white transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Banknote className="size-3.5 text-[#146C43]" />
+                <span>Receive Payment</span>
+              </div>
+              <ChevronRight className="size-3 text-[#7A7167]" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectActivity?.("deposit")}
+              className="flex items-center justify-between rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] px-3 py-2 text-xs font-medium text-[#251605] hover:border-[#8A6A24] hover:bg-white transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Coins className="size-3.5 text-[#8A6A24]" />
+                <span>Record Deposit</span>
+              </div>
+              <ChevronRight className="size-3 text-[#7A7167]" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectActivity?.("refund")}
+              className="flex items-center justify-between rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] px-3 py-2 text-xs font-medium text-[#251605] hover:border-[#B91C1C] hover:bg-white transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Undo2 className="size-3.5 text-[#B91C1C]" />
+                <span>Post Refund</span>
+              </div>
+              <ChevronRight className="size-3 text-[#7A7167]" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectActivity?.("transfer")}
+              className="flex items-center justify-between rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] px-3 py-2 text-xs font-medium text-[#251605] hover:border-[#0369A1] hover:bg-white transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <ArrowLeftRight className="size-3.5 text-[#0369A1]" />
+                <span>Balance Transfer</span>
+              </div>
+              <ChevronRight className="size-3 text-[#7A7167]" />
+            </button>
+          </div>
+        </div>
       </aside>
     );
   }
+
   const open = selected.status === "open";
+  const hasBalance = selected.balance > 0.009;
+
   return (
-    <aside className="space-y-3 rounded-xl border border-[#DDD4C5] bg-card p-4 shadow-xs">
-      <div>
-        <h3 className="font-display font-semibold text-[#251605]">{selected.guestName}</h3>
-        <p className="text-xs text-[#7A7167]">{selected.folioNumber}</p>
+    <aside className="space-y-4 rounded-xl border border-[#DDD4C5] bg-card p-4 shadow-xs">
+      <div className="flex items-start justify-between gap-3 border-b border-[#E8E1D7] pb-3">
+        <div>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#7A7167]">
+            Active Guest Folio
+          </span>
+          <h3 className="font-display text-sm font-bold text-[#251605]">{selected.guestName}</h3>
+          <p className="text-[11px] text-[#7A7167]">
+            {selected.folioNumber}
+            {selected.roomNumber ? ` · Room ${selected.roomNumber}` : ""}
+            {selected.roomTypeName ? ` · ${selected.roomTypeName}` : ""}
+          </p>
+        </div>
+        <span
+          className={cn(
+            "inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold border",
+            open
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-[#DDD4C5] bg-[#FAF8F4] text-[#7A7167]",
+          )}
+        >
+          {open ? "Open Folio" : "Closed"}
+        </span>
       </div>
+
+      <div
+        className={cn(
+          "rounded-lg border p-3",
+          hasBalance
+            ? "border-amber-200 bg-amber-50/60"
+            : "border-[#E8E1D7] bg-[#FAF8F4]",
+        )}
+      >
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-[#7A7167]">
+          Outstanding Balance
+        </span>
+        <p
+          className={cn(
+            "font-display text-xl font-bold tabular-nums mt-0.5",
+            hasBalance ? "text-[#B91C1C]" : "text-[#146C43]",
+          )}
+        >
+          {money ? money(selected.balance) : selected.balance.toFixed(2)}
+        </p>
+      </div>
+
       <div className="grid gap-2">
-        <Button asChild variant="outline">
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="h-9 justify-start gap-2 border-[#DDD4C5] bg-white text-xs font-semibold text-[#251605] hover:border-[#C89933] hover:bg-[#FAF8F4]"
+        >
           <Link to="/restaurant/pms/cashiering/folios/$folioId" params={{ folioId: selected.id }}>
-            Open folio
+            <ExternalLink className="size-3.5 text-[#8A6A24]" />
+            <span>Open Folio Workspace</span>
           </Link>
         </Button>
+
         {canOperate && open ? (
           <>
-            <Button asChild variant="outline">
-              <Link
-                to="/restaurant/pms/cashiering/folios/$folioId"
-                params={{ folioId: selected.id }}
-                search={{ action: "payment" }}
-              >
-                Receive payment
-              </Link>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onSelectActivity?.("payment")}
+              className="h-9 justify-start gap-2 border-[#DDD4C5] bg-white text-xs font-semibold text-[#251605] hover:border-[#146C43] hover:bg-[#FAF8F4]"
+            >
+              <Banknote className="size-3.5 text-[#146C43]" />
+              <span>Receive Payment</span>
             </Button>
-            <Button asChild variant="outline">
-              <Link
-                to="/restaurant/pms/cashiering/folios/$folioId"
-                params={{ folioId: selected.id }}
-                search={{ action: "deposit" }}
-              >
-                Record deposit
-              </Link>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onSelectActivity?.("deposit")}
+              className="h-9 justify-start gap-2 border-[#DDD4C5] bg-white text-xs font-semibold text-[#251605] hover:border-[#8A6A24] hover:bg-[#FAF8F4]"
+            >
+              <Coins className="size-3.5 text-[#8A6A24]" />
+              <span>Record Deposit</span>
             </Button>
           </>
         ) : null}
+
         {canManage && open ? (
-          <Button asChild variant="outline">
-            <Link
-              to="/restaurant/pms/cashiering/folios/$folioId"
-              params={{ folioId: selected.id }}
-              search={{ action: "refund" }}
-            >
-              Post refund
-            </Link>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onSelectActivity?.("refund")}
+            className="h-9 justify-start gap-2 border-[#DDD4C5] bg-white text-xs font-semibold text-[#251605] hover:border-[#B91C1C] hover:bg-[#FAF8F4]"
+          >
+            <Undo2 className="size-3.5 text-[#B91C1C]" />
+            <span>Post Refund</span>
           </Button>
         ) : null}
       </div>
@@ -1583,75 +1804,111 @@ function ActivityRowActions({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" size="sm" variant="outline" className="min-h-11 sm:min-h-8">
-          Actions
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1 border-[#DDD4C5] bg-white px-2 text-[11px] font-semibold text-[#251605] hover:border-[#C89933] hover:bg-[#FAF8F4] shadow-2xs"
+        >
+          <span>Actions</span>
+          <MoreHorizontal className="size-3 text-[#7A7167]" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem asChild>
+      <DropdownMenuContent align="end" className="w-56 rounded-xl border border-[#DDD4C5] bg-white p-1.5 shadow-lg">
+        <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]">
           <Link
             to="/restaurant/pms/cashiering/folios/$folioId"
             params={{ folioId: row.folioId }}
             search={{ tab: "payments" }}
+            className="flex items-center gap-2"
           >
-            View transaction details
+            <Eye className="size-3.5 text-[#5F554B]" />
+            <span>View transaction details</span>
           </Link>
         </DropdownMenuItem>
+
         {row.type === "payment" && canAllocate ? (
-          <DropdownMenuItem asChild>
+          <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]">
             <Link
               to="/restaurant/pms/cashiering/folios/$folioId"
               params={{ folioId: row.folioId }}
               search={{ tab: "payments" }}
+              className="flex items-center gap-2 text-[#8A6A24]"
             >
-              Review allocation options
+              <Split className="size-3.5 text-[#8A6A24]" />
+              <span>Review allocation options</span>
             </Link>
           </DropdownMenuItem>
         ) : null}
+
         {row.type === "deposit" && canManage ? (
-          <DropdownMenuItem asChild>
+          <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]">
             <Link
               to="/restaurant/pms/cashiering/folios/$folioId"
               params={{ folioId: row.folioId }}
               search={{ tab: "payments" }}
+              className="flex items-center gap-2 text-[#146C43]"
             >
-              View receipt or apply deposit
+              <Receipt className="size-3.5 text-[#146C43]" />
+              <span>View receipt or apply deposit</span>
             </Link>
           </DropdownMenuItem>
         ) : null}
+
         {(row.type === "payment" || row.type === "deposit") && canManage ? (
-          <DropdownMenuItem asChild>
+          <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]">
             <Link
               to="/restaurant/pms/cashiering/folios/$folioId"
               params={{ folioId: row.folioId }}
               search={{ action: "refund", tab: "payments" }}
+              className="flex items-center gap-2 text-[#B91C1C]"
             >
-              Refund available amount
+              <RotateCcw className="size-3.5 text-[#B91C1C]" />
+              <span>Refund available amount</span>
             </Link>
           </DropdownMenuItem>
         ) : null}
+
         {row.type === "transfer_in" || row.type === "transfer_out" ? (
-          <DropdownMenuItem asChild>
+          <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]">
             <Link
               to="/restaurant/pms/cashiering/folios/$folioId"
               params={{ folioId: row.folioId }}
               search={{ tab: "transfers" }}
+              className="flex items-center gap-2 text-[#0369A1]"
             >
-              Open transfer on folio
+              <ArrowLeftRight className="size-3.5 text-[#0369A1]" />
+              <span>Open transfer on folio</span>
             </Link>
           </DropdownMenuItem>
         ) : null}
+
         {row.type === "refund" ? (
-          <DropdownMenuItem asChild>
+          <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]">
             <Link
               to="/restaurant/pms/cashiering/folios/$folioId"
               params={{ folioId: row.folioId }}
               search={{ tab: "payments" }}
+              className="flex items-center gap-2"
             >
-              View original tender
+              <CreditCard className="size-3.5 text-[#5F554B]" />
+              <span>View original tender</span>
             </Link>
           </DropdownMenuItem>
         ) : null}
+
+        <DropdownMenuSeparator className="my-1 bg-[#E8E1D7]" />
+
+        <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium text-[#7A7167] hover:bg-[#FAF8F4]">
+          <Link
+            to="/restaurant/pms/cashiering/folios/$folioId"
+            params={{ folioId: row.folioId }}
+            className="flex items-center gap-2"
+          >
+            <ExternalLink className="size-3.5 text-[#7A7167]" />
+            <span>Open folio workspace</span>
+          </Link>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1775,6 +2032,8 @@ function ReceivePanel({
   depositPolicySummary,
   authorizerNote,
   onPosted,
+  returnToTab,
+  onReturn,
 }: {
   kind: "payment" | "deposit" | "refund";
   restaurantId: string;
@@ -1803,6 +2062,8 @@ function ReceivePanel({
   depositPolicySummary?: string | null;
   authorizerNote?: string | null;
   onPosted: () => void;
+  returnToTab?: CashieringTabId;
+  onReturn?: () => void;
 }) {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("");
@@ -1860,19 +2121,19 @@ function ReceivePanel({
       ? {
           title: "Receive Payment",
           cta: "Post Payment",
-          note: "Records a payment on the guest folio. No card number is collected.",
+          note: "Records payment tender directly to guest folio.",
         }
       : kind === "deposit"
         ? {
-            title: "Record Deposit Credit",
-            cta: "Record Deposit",
-            note: "A deposit is a folio credit on this guest folio.",
-          }
-        : {
-            title: "Record Refund",
-            cta: "Post Refund",
-            note: "Posts a refund linked to a payment. Only an owner or manager can post it.",
-          };
+          title: "Record Deposit Credit",
+          cta: "Record Deposit",
+          note: "Posts advance payment or security deposit credit to folio.",
+        }
+      : {
+          title: "Record Correction Refund",
+          cta: "Post Refund",
+          note: "Reverses posted payment tender. Requires manager authorization.",
+        };
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -1906,12 +2167,16 @@ function ReceivePanel({
         toast.error(result.message);
         return;
       }
-      toast.success("Posted to folio");
+      toast.success("Posted to folio successfully");
       setIdempotencyKey(crypto.randomUUID());
       setAmount("");
       setReference("");
       setNotes("");
       onPosted();
+      if (returnToTab && onReturn) {
+        toast.info("Returning to previous workspace…");
+        onReturn();
+      }
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -1919,97 +2184,170 @@ function ReceivePanel({
   return (
     <section
       className={cn(
-        "space-y-4 rounded-xl border bg-card p-4 shadow-sm",
-        kind === "payment" && "border-emerald-200",
-        kind === "deposit" && "border-[#E4D3A8]",
-        kind === "refund" && "border-rose-200",
+        "space-y-4 rounded-xl border bg-card p-4 shadow-xs",
+        kind === "payment" && "border-emerald-300/80",
+        kind === "deposit" && "border-[#E0D0AE]",
+        kind === "refund" && "border-rose-300/80",
       )}
       data-testid={`cashiering-${kind}-panel`}
     >
-      <h2 className="text-sm font-semibold">{copy.title}</h2>
-      <p className="mt-1 text-xs text-muted-foreground">{copy.note}</p>
-      {kind === "deposit" && depositPolicySummary ? (
-        <p className="text-sm text-muted-foreground">{depositPolicySummary}</p>
-      ) : null}
-      <div>
-        <Label htmlFor={`${kind}-folio`}>Guest folio</Label>
-        <select
-          id={`${kind}-folio`}
-          className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
-          value={folio?.id ?? pendingFolioId ?? ""}
-          onChange={(event) => {
-            if (event.target.value) onChooseFolio(event.target.value);
-          }}
-        >
-          <option value="">Choose a folio</option>
-          {folios
-            .filter((row) => row.status === "open" || row.id === (folio?.id ?? pendingFolioId))
-            .map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.folioNumber} · {row.guestName}
-              </option>
-            ))}
-        </select>
-      </div>
-      {!folio && pendingFolioId ? (
-        <p className="text-sm text-muted-foreground">Loading the selected folio…</p>
-      ) : !folio ? (
-        <p className="text-sm text-muted-foreground">
-          Choose the guest folio above, or click its row in the guest folio list. A payment or
-          deposit does not need an existing line. A refund uses a payment or deposit on the folio
-          you choose.
-        </p>
-      ) : (
-        <div className="space-y-4">
-          <div>
-            <p className="font-medium">{folio.guestName}</p>
-            <p className="text-xs text-muted-foreground">
-              {folio.folioNumber}
-              {folio.roomNumber ? ` · Room ${folio.roomNumber}` : ""}
-              {folio.roomTypeName ? ` · ${folio.roomTypeName}` : ""}
-            </p>
-          </div>
-          <div
-            className={cn(
-              "rounded-lg px-3 py-2",
-              folio.balance > 0.009 ? "bg-destructive/10" : "bg-muted/40",
+      <div className="flex items-start justify-between gap-3 border-b border-[#E8E1D7] pb-3">
+        <div>
+          <div className="flex items-center gap-1.5">
+            {kind === "payment" ? (
+              <Banknote className="size-4 text-[#146C43]" />
+            ) : kind === "deposit" ? (
+              <Coins className="size-4 text-[#8A6A24]" />
+            ) : (
+              <Undo2 className="size-4 text-[#B91C1C]" />
             )}
-          >
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Outstanding Balance
-            </p>
-            <p
-              className={cn(
-                "font-display text-xl tabular-nums",
-                folio.balance > 0.009 && "text-destructive",
-              )}
-            >
-              {money(folio.balance)}
-            </p>
+            <h2 className="font-display text-sm font-bold text-[#251605]">{copy.title}</h2>
           </div>
+          <p className="mt-0.5 text-[11px] text-[#7A7167]">{copy.note}</p>
+        </div>
+        <span
+          className={cn(
+            "inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider border",
+            kind === "payment" && "border-emerald-200 bg-emerald-50 text-emerald-800",
+            kind === "deposit" && "border-amber-200 bg-amber-50 text-amber-800",
+            kind === "refund" && "border-rose-200 bg-rose-50 text-rose-800",
+          )}
+        >
+          {kind}
+        </span>
+      </div>
+
+      {returnToTab && onReturn ? (
+        <div className="flex items-center justify-between rounded-lg border border-[#C89933]/40 bg-[#FAF5EB] px-3 py-2 text-xs shadow-2xs">
+          <div className="flex items-center gap-2">
+            <span className="flex size-2 rounded-full bg-[#8A6A24] animate-pulse" />
+            <span className="text-[#251605]">
+              Initiated from <strong>Cashier Shift</strong>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onReturn}
+            className="font-semibold text-[#8A6A24] hover:text-[#5B4310] hover:underline cursor-pointer"
+          >
+            Cancel & Return
+          </button>
+        </div>
+      ) : null}
+
+      {kind === "deposit" && depositPolicySummary ? (
+        <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] p-2.5 text-xs text-[#5F554B]">
+          <span className="font-semibold text-[#251605]">Deposit Policy: </span>
+          {depositPolicySummary}
+        </div>
+      ) : null}
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`${kind}-folio`} className="text-xs font-semibold text-[#251605]">
+          Target Guest Folio
+        </Label>
+        <div className="relative">
+          <select
+            id={`${kind}-folio`}
+            className="flex h-10 w-full appearance-none rounded-lg border border-[#DDD4C5] bg-white px-3 py-2 pr-8 text-xs font-medium text-[#251605] shadow-2xs transition-colors hover:border-[#C89933] focus:border-[#C89933] focus:outline-hidden focus:ring-2 focus:ring-[#C89933]/20"
+            value={folio?.id ?? pendingFolioId ?? ""}
+            onChange={(event) => {
+              if (event.target.value) onChooseFolio(event.target.value);
+            }}
+          >
+            <option value="">Select guest folio…</option>
+            {folios
+              .filter((row) => row.status === "open" || row.id === (folio?.id ?? pendingFolioId))
+              .map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.folioNumber} · {row.guestName} {row.roomNumber ? `(Room ${row.roomNumber})` : ""}
+                </option>
+              ))}
+          </select>
+          <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 rotate-90 text-[#7A7167]" />
+        </div>
+      </div>
+
+      {!folio && pendingFolioId ? (
+        <p className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] p-3 text-center text-xs text-[#7A7167]">
+          Loading selected folio…
+        </p>
+      ) : !folio ? (
+        <div className="rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F4]/50 p-4 text-center text-xs text-[#7A7167]">
+          Choose an active guest folio above or select any line in the ledger to begin.
+        </div>
+      ) : (
+        <div className="space-y-3.5">
+          <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] p-3 space-y-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#7A7167]">
+                  Selected Folio
+                </span>
+                <p className="text-xs font-bold text-[#251605]">{folio.guestName}</p>
+                <p className="text-[11px] text-[#7A7167]">
+                  {folio.folioNumber}
+                  {folio.roomNumber ? ` · Room ${folio.roomNumber}` : ""}
+                  {folio.roomTypeName ? ` · ${folio.roomTypeName}` : ""}
+                </p>
+              </div>
+              <span
+                className={cn(
+                  "inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold border",
+                  folio.status === "open"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-[#DDD4C5] bg-[#FAF8F4] text-[#7A7167]",
+                )}
+              >
+                {folio.status === "open" ? "Open" : "Closed"}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between rounded-md border border-[#E8E1D7] bg-white px-3 py-2">
+              <div>
+                <p className="text-[10px] uppercase font-semibold text-[#7A7167]">Outstanding Balance</p>
+                <p
+                  className={cn(
+                    "font-display text-base font-bold tabular-nums",
+                    folio.balance > 0.009 ? "text-[#B91C1C]" : "text-[#146C43]",
+                  )}
+                >
+                  {money(folio.balance)}
+                </p>
+              </div>
+              {kind === "payment" && folio.balance > 0.009 ? (
+                <button
+                  type="button"
+                  onClick={() => setAmount(folio.balance.toFixed(2))}
+                  className="rounded-md border border-[#C89933]/50 bg-[#FAF5EB] px-2.5 py-1 text-[11px] font-semibold text-[#8A6A24] hover:bg-[#F3EAD5] transition-colors cursor-pointer"
+                >
+                  Fill Balance
+                </button>
+              ) : null}
+            </div>
+          </div>
+
           {folio.status !== "open" ? (
-            <p className="text-sm text-muted-foreground">
-              This folio is closed. New lines cannot be posted.
+            <p className="rounded-lg border border-rose-200 bg-rose-50/60 p-3 text-xs text-[#B91C1C]">
+              This folio is closed. New transactions cannot be posted.
             </p>
           ) : !canPost ? (
-            <p className="text-sm text-muted-foreground">
-              Your role cannot post this kind of folio line.
+            <p className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs text-[#8A6A24]">
+              Your role does not have authorization to post this transaction.
             </p>
           ) : (
-            <div className="space-y-3 rounded-lg border border-border/80 bg-background p-3">
-              <div>
-                <Label htmlFor={`${kind}-method`}>Payment method</Label>
+            <div className="space-y-3 rounded-lg border border-[#E8E1D7] bg-[#FAF8F4]/60 p-3.5">
+              <div className="space-y-1">
+                <Label htmlFor={`${kind}-method`} className="text-xs font-semibold text-[#251605]">
+                  Payment Method
+                </Label>
                 {tenders.length === 0 ? (
-                  <p className="text-sm text-[#C89933]">
-                    No active payment methods. Configure them in{" "}
-                    <a href={POLISH1_PAYMENT_METHODS_HREF} className="underline">
-                      Payment methods
-                    </a>
-                    .
+                  <p className="text-xs text-[#C89933]">
+                    No active payment methods configured.
                   </p>
                 ) : (
                   <Select value={method} onValueChange={setMethod}>
-                    <SelectTrigger id={`${kind}-method`} className="min-h-11">
+                    <SelectTrigger id={`${kind}-method`} className="h-10 border-[#DDD4C5] bg-white text-xs font-medium">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -2022,82 +2360,93 @@ function ReceivePanel({
                   </Select>
                 )}
               </div>
+
               {kind === "refund" ? (
-                <div>
-                  <Label htmlFor="refund-source">Source line</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="refund-source" className="text-xs font-semibold text-[#251605]">
+                    Source Line to Correct
+                  </Label>
                   <Select value={sourceId} onValueChange={setSourceId}>
-                    <SelectTrigger id="refund-source" className="min-h-11">
+                    <SelectTrigger id="refund-source" className="h-10 border-[#DDD4C5] bg-white text-xs font-medium">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {refundSources.map((line) => (
                         <SelectItem key={line.id} value={line.id}>
-                          {labelTransactionType(line.type)} · {line.description} ·{" "}
-                          {money(line.amount)}
+                          {labelTransactionType(line.type)} · {line.description} · {money(line.amount)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   {refundSource ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Original line: {labelTransactionType(refundSource.type)} ·{" "}
-                      {refundSource.description} · {money(refundSource.amount)}. The original line
-                      amount stays as posted.
-                    </p>
+                    <div className="rounded-md border border-[#E8E1D7] bg-white p-2 text-[11px] text-[#5F554B]">
+                      <span>Original Line: <strong>{labelTransactionType(refundSource.type)}</strong> · {refundSource.description} · {money(refundSource.amount)}</span>
+                      {refundRemaining != null ? (
+                        <span className="block mt-0.5 text-[#146C43] font-medium">
+                          Remaining refundable: {money(refundRemaining)}
+                        </span>
+                      ) : null}
+                    </div>
                   ) : (
-                    <p className="mt-1 text-sm text-destructive">
-                      This folio has no payment to refund.
+                    <p className="text-xs text-[#B91C1C]">
+                      This folio has no prior payment or deposit eligible for refund.
                     </p>
                   )}
-                  {refundRemaining != null ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Remaining on this payment: {money(refundRemaining)}.
-                    </p>
-                  ) : null}
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {authorizerNote ?? "Only an owner or manager can post this correction."}{" "}
-                    Approval thresholds are not enforced on this post.
+                  <p className="text-[10px] text-[#7A7167]">
+                    {authorizerNote ?? "Owner or Manager authorization required."}
                   </p>
                 </div>
               ) : null}
-              <div>
-                <Label htmlFor={`${kind}-amount`}>Amount</Label>
+
+              <div className="space-y-1">
+                <Label htmlFor={`${kind}-amount`} className="text-xs font-semibold text-[#251605]">
+                  Amount
+                </Label>
                 <Input
                   id={`${kind}-amount`}
                   type="number"
                   min="0"
                   step="0.01"
+                  placeholder="0.00"
                   value={amount}
                   onChange={(event) => setAmount(event.target.value)}
-                  className="min-h-11"
+                  className="h-10 border-[#DDD4C5] bg-white text-sm font-semibold tabular-nums focus-visible:border-[#C89933] focus-visible:ring-[#C89933]/20"
                 />
               </div>
-              <div>
-                <Label htmlFor={`${kind}-reference`}>Reference (optional)</Label>
+
+              <div className="space-y-1">
+                <Label htmlFor={`${kind}-reference`} className="text-xs font-semibold text-[#251605]">
+                  Reference (optional)
+                </Label>
                 <Input
                   id={`${kind}-reference`}
+                  placeholder="e.g. Auth Code, Receipt #, Check #"
                   value={reference}
                   onChange={(event) => setReference(event.target.value)}
-                  className="min-h-11"
+                  className="h-9 border-[#DDD4C5] bg-white text-xs"
                 />
               </div>
-              <div>
-                <Label htmlFor={`${kind}-notes`}>
-                  {kind === "refund" ? "Reason" : "Notes (optional)"}
+
+              <div className="space-y-1">
+                <Label htmlFor={`${kind}-notes`} className="text-xs font-semibold text-[#251605]">
+                  {kind === "refund" ? "Reason (required)" : "Notes (optional)"}
                 </Label>
                 <Textarea
                   id={`${kind}-notes`}
+                  placeholder={kind === "refund" ? "State reason for refund..." : "Additional notes..."}
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
+                  className="min-h-16 border-[#DDD4C5] bg-white text-xs"
                 />
               </div>
+
               <Button
                 type="button"
                 className={cn(
-                  "min-h-11 w-full",
-                  kind === "payment" && "bg-[#2563eb] text-white hover:bg-[#1d4ed8]",
-                  kind === "deposit" && "bg-[#C89933] text-[#251605] hover:bg-[#B5882D]",
-                  kind === "refund" && "bg-rose-600 text-white hover:bg-rose-700",
+                  "h-10 w-full font-semibold shadow-xs transition-colors cursor-pointer",
+                  kind === "payment" && "bg-[#146C43] text-white hover:bg-[#0E5233]",
+                  kind === "deposit" && "bg-[#8A6A24] text-white hover:bg-[#6D541C]",
+                  kind === "refund" && "bg-[#B91C1C] text-white hover:bg-[#991B1B]",
                 )}
                 disabled={
                   mutation.isPending ||
@@ -2106,7 +2455,7 @@ function ReceivePanel({
                 }
                 onClick={() => mutation.mutate()}
               >
-                {copy.cta}
+                {mutation.isPending ? "Posting…" : copy.cta}
               </Button>
             </div>
           )}

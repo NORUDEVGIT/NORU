@@ -65,7 +65,7 @@ describe("cashiering desk shell", () => {
     assert.match(chrome, /RoomInventoryChrome/);
     assert.match(chrome, /activeModule="Cashiering"/);
     assert.match(chrome, /cashiering-workspace-nav/);
-    assert.match(chrome, /\+ Post Payment/);
+    assert.doesNotMatch(chrome, /\+ Post Payment/);
     assert.doesNotMatch(chrome, /label: "Payments"|label: "Deposits"|label: "Refunds"/);
     assert.match(read("../components/cashiering/cashiering-desk.tsx"), /Financial Activity/);
     assert.doesNotMatch(workspace, /FoundationPanel/);

@@ -73,6 +73,7 @@ export type CashieringSearchParams = {
   paymentState?: string;
   activity?: CashieringActivityFilter;
   sort?: string;
+  returnToTab?: CashieringTabId;
 };
 
 export function cashieringTabSearch(

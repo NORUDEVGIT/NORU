@@ -47,7 +47,7 @@ import {
   variancePresentation,
   visibleShiftHistory,
 } from "@/packages/pms/lib/cashiering-control";
-import type { CashieringTabId } from "@/packages/pms/lib/cashiering-shell";
+import type { CashieringSearchParams, CashieringTabId } from "@/packages/pms/lib/cashiering-shell";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -80,7 +80,7 @@ export function CashierControl({
   canManage: boolean;
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
-  onNavigate: (tab: CashieringTabId) => void;
+  onNavigate: (tab: CashieringTabId, extra?: Partial<CashieringSearchParams>) => void;
 }) {
   const queryClient = useQueryClient();
   const [now, setNow] = useState(() => Date.now());
@@ -591,7 +591,11 @@ function MyShiftCard({
 // 2. QUICK ACTIONS CARD
 // ============================================================================
 
-function QuickActionsCard({ onNavigate }: { onNavigate: (tab: CashieringTabId) => void }) {
+function QuickActionsCard({
+  onNavigate,
+}: {
+  onNavigate: (tab: CashieringTabId, extra?: Partial<CashieringSearchParams>) => void;
+}) {
   return (
     <section className={`${CARD} flex flex-col h-full`}>
       <div className="flex items-center justify-between border-b border-[#E8E1D7] px-4 py-3">
@@ -605,62 +609,73 @@ function QuickActionsCard({ onNavigate }: { onNavigate: (tab: CashieringTabId) =
         {/* Primary Action */}
         <button
           type="button"
-          onClick={() => onNavigate("folios")}
+          onClick={() => onNavigate("folios", { returnToTab: "cashier-shift" })}
           className="col-span-2 flex items-center gap-2.5 rounded-lg border border-[#E0D0AE] bg-[#FAF5EB] px-3 py-2.5 text-xs font-semibold text-[#251605] hover:bg-[#F3EAD5] transition-colors shadow-2xs"
         >
           <Search className="size-4 text-[#8A6A24]" />
           <span>Find Folio</span>
         </button>
 
-        {/* Secondary Actions */}
+        {/* Receive Payment: Opens Overview payment panel and returns to cashier-shift after posting */}
         <button
           type="button"
-          onClick={() => onNavigate("folios")}
+          onClick={() =>
+            onNavigate("overview", { activity: "payment", returnToTab: "cashier-shift" })
+          }
           className="flex items-center gap-2 rounded-lg border border-[#E8E1D7] bg-white px-2.5 py-2 text-xs font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors shadow-2xs"
         >
           <CreditCard className="size-3.5 text-[#146C43]" />
           <span>Receive Payment</span>
         </button>
 
+        {/* Record Deposit: Opens Overview deposit panel and returns to cashier-shift after posting */}
         <button
           type="button"
-          onClick={() => onNavigate("folios")}
+          onClick={() =>
+            onNavigate("overview", { activity: "deposit", returnToTab: "cashier-shift" })
+          }
           className="flex items-center gap-2 rounded-lg border border-[#E8E1D7] bg-white px-2.5 py-2 text-xs font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors shadow-2xs"
         >
           <PiggyBank className="size-3.5 text-[#0369A1]" />
           <span>Record Deposit</span>
         </button>
 
+        {/* Post Charge: Navigates to Folios with return context */}
         <button
           type="button"
-          onClick={() => onNavigate("folios")}
+          onClick={() => onNavigate("folios", { returnToTab: "cashier-shift" })}
           className="flex items-center gap-2 rounded-lg border border-[#E8E1D7] bg-white px-2.5 py-2 text-xs font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors shadow-2xs"
         >
           <PlusCircle className="size-3.5 text-[#8A6A24]" />
           <span>Post Charge</span>
         </button>
 
+        {/* Create Invoice: Navigates to Folios for billing */}
         <button
           type="button"
-          onClick={() => onNavigate("folios")}
+          onClick={() => onNavigate("folios", { returnToTab: "cashier-shift" })}
           className="flex items-center gap-2 rounded-lg border border-[#E8E1D7] bg-white px-2.5 py-2 text-xs font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors shadow-2xs"
         >
           <FileText className="size-3.5 text-[#5F554B]" />
           <span>Create Invoice</span>
         </button>
 
+        {/* Company Invoice: Navigates to Accounts workspace */}
         <button
           type="button"
-          onClick={() => onNavigate("accounts")}
+          onClick={() => onNavigate("accounts", { returnToTab: "cashier-shift" })}
           className="flex items-center gap-2 rounded-lg border border-[#E8E1D7] bg-white px-2.5 py-2 text-xs font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors shadow-2xs"
         >
           <Building2 className="size-3.5 text-[#4338CA]" />
           <span>Company Invoice</span>
         </button>
 
+        {/* Settlement: Navigates to Open Folios with return context */}
         <button
           type="button"
-          onClick={() => onNavigate("folios")}
+          onClick={() =>
+            onNavigate("folios", { folioStatus: "open", returnToTab: "cashier-shift" })
+          }
           className="flex items-center gap-2 rounded-lg border border-[#E8E1D7] bg-white px-2.5 py-2 text-xs font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors shadow-2xs"
         >
           <Receipt className="size-3.5 text-[#B45309]" />

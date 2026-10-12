@@ -2027,6 +2027,7 @@ export function FolioSidebar({
             <Link
               to="/restaurant/pms/guests/$guestId"
               params={{ guestId: folio.guestId }}
+              search={{ returnTo: `/restaurant/pms/cashiering/folios/${folio.id}` }}
               data-testid="folio-view-guest"
             >
               View Guest Profile <ArrowRight className="size-3.5" />
@@ -2082,6 +2083,7 @@ export function FolioSidebar({
             <Link
               to="/restaurant/pms/reservations/$reservationId"
               params={{ reservationId: folio.reservationId }}
+              search={{ returnTo: `/restaurant/pms/cashiering/folios/${folio.id}` }}
               data-testid="folio-view-reservation"
             >
               View Reservation <ArrowRight className="size-3.5" />

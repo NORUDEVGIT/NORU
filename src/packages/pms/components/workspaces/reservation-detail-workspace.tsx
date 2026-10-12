@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -122,6 +122,7 @@ export function ReservationDetailWorkspace({
   onCopiedReservation?: (reservationId: string) => void;
   onBackToList?: () => void;
 }) {
+  const navigate = useNavigate();
   const restaurantId = membership.restaurant.id;
   const set1 = usePmsSet1Foundation(restaurantId);
   const queryClient = useQueryClient();
@@ -624,9 +625,22 @@ export function ReservationDetailWorkspace({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button type="button" variant="outline" size="sm" onClick={() => onBackToList?.()}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (onBackToList) {
+                    onBackToList();
+                  } else if (typeof window !== "undefined" && window.history.length > 1) {
+                    window.history.back();
+                  } else {
+                    void navigate({ to: "/restaurant/pms/reservations" });
+                  }
+                }}
+              >
                 <ArrowLeft className="size-3.5" />
-                Back to List
+                Back to Previous Page
               </Button>
             </div>
           </div>

@@ -304,7 +304,10 @@ export function FinancialAccountWorkspacePage({
                         <Link
                           to="/restaurant/pms/guests/$guestId"
                           params={{ guestId: workspace.master.id }}
-                          search={guestProfileSearch({ type: profileType, nav: "overview" })}
+                          search={{
+                            ...guestProfileSearch({ type: profileType, nav: "overview" }),
+                            returnTo: `/restaurant/pms/cashiering/accounts/${accountId}`,
+                          }}
                           data-testid="view-profile"
                         >
                           {isGroup ? "View group profile" : "View company profile"}
@@ -330,7 +333,7 @@ export function FinancialAccountWorkspacePage({
                         ? "bg-[#C89933] text-[#251605] shadow-2xs"
                         : "bg-white border border-[#E8E1D7] text-[#5F554B] hover:bg-[#FAF8F4] hover:text-[#251605]",
                     )}
-                    onClick={() => setTab(item.id)}
+                    onClick={() => (item.id === "invoices" ? openInvoices() : setTab(item.id))}
                   >
                     {item.label}
                   </button>
@@ -608,7 +611,10 @@ export function FinancialAccountWorkspacePage({
                           <Link
                             to="/restaurant/pms/guests/$guestId"
                             params={{ guestId: workspace.master.id }}
-                            search={guestProfileSearch({ type: profileType, nav: "overview" })}
+                            search={{
+                              ...guestProfileSearch({ type: profileType, nav: "overview" }),
+                              returnTo: `/restaurant/pms/cashiering/accounts/${accountId}`,
+                            }}
                           >
                             {isGroup ? (
                               <UsersRound className="size-3.5" />
