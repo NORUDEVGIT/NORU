@@ -971,21 +971,7 @@ function FolioWorkspaceBody({
         ratePlan={folio.ratePlanName}
         roomNumber={folio.roomNumber}
         documentProperty={documentPropertyQuery.data ?? null}
-        grossCharges={
-          workspace.financialSummary.netCharges +
-          workspace.financialSummary.tax +
-          workspace.financialSummary.serviceCharge
-        }
         paymentAllocationNets={workspace.paymentAllocationNets}
-        onAllocatePosted={
-          workspace.canAllocateInvoices
-            ? (paymentId) => {
-                setAllocatePaymentId(paymentId);
-                setAllocateInvoiceId(null);
-                setAllocateOpen(true);
-              }
-            : undefined
-        }
         authorizerNote={correctionNotice?.authorizer ?? null}
         thresholdNote={
           (entryType === "adjustment"

@@ -1591,7 +1591,7 @@ function TransferActivityHelp({
           </li>
           <li className="flex items-start gap-1.5">
             <span className="mt-1 size-1 rounded-full bg-[#8A6A24]" />
-            <span>Transfer balances to corporate or city ledger accounts.</span>
+            <span>Transfer balances to company or group accounts.</span>
           </li>
           <li className="flex items-start gap-1.5">
             <span className="mt-1 size-1 rounded-full bg-[#8A6A24]" />

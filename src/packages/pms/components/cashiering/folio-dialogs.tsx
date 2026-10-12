@@ -56,7 +56,6 @@ import {
   remainingOnPaymentSource,
   type TransactionType,
 } from "@/packages/pms/lib/cashiering.server";
-import type { FolioFinancialSummary } from "@/packages/pms/lib/folio-workspace";
 import { projectedFolioBalance } from "@/packages/pms/lib/cashiering-tender-state";
 import { useMoney, useRestaurantTime } from "@/core/state/property-format";
 import { Checkbox } from "@/shared/components/ui/checkbox";
@@ -94,9 +93,6 @@ export type TenderReceipt = {
   roomNumber?: string | null;
   property?: CashieringDocumentProperty | null;
   folioBalance: number;
-  grossCharges: number;
-  depositUnapplied?: number | null;
-  paymentRefundable?: number | null;
   depositPolicySummary?: string | null;
 };
 
@@ -106,13 +102,6 @@ export type TenderReceiptBuildContext = {
   depositPolicySummary?: string | null;
 };
 
-function grossFolioCharges(summary: FolioFinancialSummary): number {
-  return (
-    Math.round((summary.netCharges + summary.tax + summary.serviceCharge + Number.EPSILON) * 100) /
-    100
-  );
-}
-
 export function buildTenderReceiptFromFolioRow(
   row: FolioTransactionRow,
   workspace: FolioWorkspace,
@@ -120,8 +109,6 @@ export function buildTenderReceiptFromFolioRow(
 ): TenderReceipt | null {
   if (row.type !== "payment" && row.type !== "deposit") return null;
   const folio = workspace.folio;
-  const depositLine = workspace.depositLines.find((line) => line.transaction.id === row.id);
-  const summary = workspace.financialSummary;
   const nights =
     folio.arrivalDate && folio.departureDate
       ? stayNights(folio.arrivalDate, folio.departureDate)
@@ -151,12 +138,6 @@ export function buildTenderReceiptFromFolioRow(
     ratePlan: folio.ratePlanName,
     currencyCode: folio.currency,
     folioBalance: folio.balance,
-    grossCharges: grossFolioCharges(summary),
-    depositUnapplied: row.type === "deposit" ? (depositLine?.available ?? 0) : null,
-    paymentRefundable:
-      row.type === "payment"
-        ? (remainingOnPaymentSource(row, workspace.folio.transactions) ?? 0)
-        : null,
     depositPolicySummary: ctx.depositPolicySummary ?? null,
   };
 }
@@ -228,11 +209,9 @@ export function FolioEntryDialog({
   ratePlan = null,
   roomNumber = null,
   documentProperty = null,
-  grossCharges = null,
   onClose,
   onDone,
   paymentAllocationNets = {},
-  onAllocatePosted,
 }: {
   restaurantId: string;
   folioId: string;
@@ -263,11 +242,9 @@ export function FolioEntryDialog({
   ratePlan?: string | null;
   roomNumber?: string | null;
   documentProperty?: CashieringDocumentProperty | null;
-  grossCharges?: number | null;
   onClose: () => void;
   onDone: () => void;
   paymentAllocationNets?: Record<string, number>;
-  onAllocatePosted?: (paymentId: string) => void;
 }) {
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
@@ -278,7 +255,6 @@ export function FolioEntryDialog({
   const [receivedFrom, setReceivedFrom] = useState("");
   const [printReceipt, setPrintReceipt] = useState(true);
   const [receipt, setReceipt] = useState<TenderReceipt | null>(null);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const set1 = usePmsSet1Foundation(restaurantId);
   const tenders = cashieringTenderOptions({
@@ -416,14 +392,10 @@ export function FolioEntryDialog({
           ratePlan,
           currencyCode: currencyCode?.trim() || "ETB",
           folioBalance: projected ?? currentBalance ?? 0,
-          grossCharges: grossCharges ?? 0,
-          depositUnapplied: type === "deposit" ? val : null,
-          paymentRefundable: type === "payment" ? val : null,
           depositPolicySummary: depositPolicySummary ?? null,
         };
-        setReceipt(newReceipt);
-        setShowReceiptModal(true);
         if (printReceipt) {
+          setReceipt(newReceipt);
           window.setTimeout(() => window.print(), 100);
         }
       }
@@ -712,24 +684,6 @@ export function FolioEntryDialog({
         </DialogContent>
       </Dialog>
       {receipt ? <TenderReceiptPrint receipt={receipt} money={money} dateTime={dateTime} /> : null}
-      <DepositReceiptModal
-        receipt={receipt}
-        open={showReceiptModal && receipt !== null}
-        money={money}
-        dateTime={dateTime}
-        onAllocate={
-          onAllocatePosted && receipt?.kind === "payment" && receipt.transactionId !== "—"
-            ? () => {
-                const paymentId = receipt.transactionId;
-                setShowReceiptModal(false);
-                onAllocatePosted(paymentId);
-              }
-            : undefined
-        }
-        onClose={() => {
-          setShowReceiptModal(false);
-        }}
-      />
     </>
   );
 }
@@ -977,33 +931,6 @@ export function TenderReceiptDocument({
           <Coins className="size-3.5 text-[#0E2C6C]" />
           <span>Financial Details</span>
         </div>
-        <div className="space-y-1 pl-5 text-slate-700">
-          <div className="flex items-baseline justify-between py-0.5">
-            <span className="font-medium text-slate-800">
-              Charges on folio (incl. tax &amp; service)
-            </span>
-            <span className="font-semibold tabular-nums text-slate-900">
-              {money(receipt.grossCharges)} {currency}
-            </span>
-          </div>
-          {isDeposit && receipt.depositUnapplied != null ? (
-            <div className="flex items-baseline justify-between py-0.5">
-              <span className="font-medium text-slate-800">Unapplied deposit credit</span>
-              <span className="font-semibold tabular-nums text-slate-900">
-                {money(receipt.depositUnapplied)} {currency}
-              </span>
-            </div>
-          ) : null}
-          {!isDeposit && receipt.paymentRefundable != null ? (
-            <div className="flex items-baseline justify-between py-0.5">
-              <span className="font-medium text-slate-800">Refundable on this payment</span>
-              <span className="font-semibold tabular-nums text-slate-900">
-                {money(Math.max(0, receipt.paymentRefundable))} {currency}
-              </span>
-            </div>
-          ) : null}
-        </div>
-
         <div className="flex items-center justify-between rounded-lg border border-emerald-200/90 bg-[#ECFDF5] px-3.5 py-2.5 text-[#065F46]">
           <span className="text-xs font-bold">
             {isDeposit ? "Deposit Received" : "Payment Received"}

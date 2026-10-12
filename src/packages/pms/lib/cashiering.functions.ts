@@ -1434,7 +1434,7 @@ export const previewFolioChargeCorrection = createServerFn({ method: "GET" })
       _restaurant_id: data.restaurantId,
       _source_transaction_id: data.sourceTransactionId,
       _mode: data.mode,
-      _amount: data.amount ?? undefined,
+      _amount: data.amount ?? null,
     });
     if (error) throw cashierError(error.message);
     return readCorrectionPreview(preview);
@@ -1469,7 +1469,7 @@ export const postFolioChargeCorrection = createServerFn({ method: "POST" })
       _restaurant_id: data.restaurantId,
       _source_transaction_id: data.sourceTransactionId,
       _mode: data.mode,
-      _amount: data.amount ?? undefined,
+      _amount: data.amount ?? null,
       _description: data.description.trim(),
       _membership_id: me.id,
       _idempotency_key: assertIdempotencyKey(data.idempotencyKey),
