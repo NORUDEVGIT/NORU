@@ -5,14 +5,26 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
   Building2,
+  ChevronDown,
+  ExternalLink,
   FileText,
   Landmark,
+  Lock,
   Receipt,
   Scale,
+  Undo2,
   UsersRound,
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/core/state/property-format";
@@ -246,8 +258,8 @@ export function FinancialAccountWorkspacePage({
                   </div>
                 </div>
 
-                {/* Right: Balance Card & Action Buttons */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center lg:items-end gap-3 shrink-0">
+                {/* Right: Balance Card & Unified Actions */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
                   <div className="rounded-xl border border-[#E8E1D7] bg-[#FAF8F4] p-3 text-right shadow-2xs min-w-[160px]">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[#7A7167]">
                       Current balance
@@ -271,7 +283,7 @@ export function FinancialAccountWorkspacePage({
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap sm:flex-col gap-2">
+                  <div className="flex items-center gap-2">
                     {workspace.capabilities.canReceivePayment ? (
                       <Button
                         size="sm"
@@ -279,41 +291,104 @@ export function FinancialAccountWorkspacePage({
                           setCompose("payment");
                           setTab("payments");
                         }}
-                        className="h-9 gap-1.5 bg-[#C89933] text-[#251605] hover:bg-[#B5882D] text-xs font-semibold px-3 shadow-2xs"
+                        className="h-9 gap-1.5 bg-[#C89933] text-[#251605] hover:bg-[#B5882D] text-xs font-semibold px-3.5 shadow-2xs cursor-pointer"
                       >
                         <Landmark className="size-3.5" /> Receive Payment
                       </Button>
                     ) : null}
-                    {workspace.capabilities.canCreateInvoice ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={openInvoices}
-                        className="h-9 gap-1.5 border-[#E8E1D7] text-xs font-semibold text-[#251605] hover:bg-[#FAF8F4]"
-                      >
-                        <FileText className="size-3.5" /> Create Invoice
-                      </Button>
-                    ) : null}
-                    {workspace.capabilities.canViewProfile ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        asChild
-                        className="h-9 gap-1.5 border-[#E8E1D7] text-xs font-semibold text-[#251605] hover:bg-[#FAF8F4]"
-                      >
-                        <Link
-                          to="/restaurant/pms/guests/$guestId"
-                          params={{ guestId: workspace.master.id }}
-                          search={{
-                            ...guestProfileSearch({ type: profileType, nav: "overview" }),
-                            returnTo: `/restaurant/pms/cashiering/accounts/${accountId}`,
-                          }}
-                          data-testid="view-profile"
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-9 gap-1.5 border-[#E8E1D7] bg-white text-xs font-semibold text-[#251605] hover:bg-[#FAF8F4] px-3 shadow-2xs cursor-pointer"
+                          data-testid="folio-actions"
                         >
-                          {isGroup ? "View group profile" : "View company profile"}
-                        </Link>
-                      </Button>
-                    ) : null}
+                          Actions <ChevronDown className="size-3.5 text-[#7A7167]" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56 rounded-xl border border-[#DDD4C5] bg-white p-1.5 shadow-lg">
+                        {workspace.capabilities.canReceivePayment ? (
+                          <DropdownMenuItem
+                            className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
+                            onClick={() => {
+                              setCompose("payment");
+                              setTab("payments");
+                            }}
+                          >
+                            <Landmark className="mr-2 size-3.5 text-[#146C43]" /> Receive Payment
+                          </DropdownMenuItem>
+                        ) : null}
+                        {workspace.capabilities.canCreateInvoice ? (
+                          <DropdownMenuItem
+                            className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
+                            onClick={openInvoices}
+                          >
+                            <FileText className="mr-2 size-3.5 text-[#8A6A24]" /> Create Invoice
+                          </DropdownMenuItem>
+                        ) : null}
+                        <DropdownMenuItem
+                          className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
+                          onClick={() => setTab("charges")}
+                        >
+                          <Receipt className="mr-2 size-3.5 text-[#5F554B]" /> View Source Charges
+                        </DropdownMenuItem>
+                        {workspace.capabilities.canWriteOff ? (
+                          <DropdownMenuItem
+                            className="cursor-pointer rounded-lg text-xs font-medium text-[#B91C1C] hover:bg-[#FEF2F2]"
+                            onClick={() => {
+                              setCompose("writeoff");
+                              setTab("payments");
+                            }}
+                          >
+                            <Undo2 className="mr-2 size-3.5 text-[#B91C1C]" /> Write Off Balance
+                          </DropdownMenuItem>
+                        ) : null}
+
+                        <DropdownMenuSeparator className="my-1 bg-[#E8E1D7]" />
+
+                        {workspace.capabilities.canViewProfile ? (
+                          <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium text-[#5F554B] hover:bg-[#FAF8F4]">
+                            <Link
+                              to="/restaurant/pms/guests/$guestId"
+                              params={{ guestId: workspace.master.id }}
+                              search={{
+                                ...guestProfileSearch({ type: profileType, nav: "overview" }),
+                                returnTo: `/restaurant/pms/cashiering/accounts/${accountId}`,
+                              }}
+                              data-testid="view-profile"
+                            >
+                              <ExternalLink className="mr-2 size-3.5 text-[#7A7167]" />
+                              {isGroup ? "View group profile" : "View company profile"}
+                            </Link>
+                          </DropdownMenuItem>
+                        ) : null}
+
+                        {workspace.account.status === "open" &&
+                        (membership.role === "owner" || membership.role === "manager") ? (
+                          <>
+                            <DropdownMenuSeparator className="my-1 bg-[#E8E1D7]" />
+                            <DropdownMenuItem
+                              className={cn(
+                                "cursor-pointer rounded-lg text-xs font-medium",
+                                workspace.capabilities.canClose
+                                  ? "text-[#B91C1C] hover:bg-[#FEF2F2]"
+                                  : "text-[#A89F91] cursor-not-allowed",
+                              )}
+                              disabled={!workspace.capabilities.canClose || closeMut.isPending}
+                              data-testid="close-account"
+                              onClick={() => {
+                                if (workspace.capabilities.canClose) closeMut.mutate();
+                              }}
+                            >
+                              <Lock className="mr-2 size-3.5 text-[#B91C1C]" />
+                              Close Account
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </div>
@@ -535,13 +610,25 @@ export function FinancialAccountWorkspacePage({
                     </section>
                   </div>
 
-                  {/* Right 4 Cols: Entity Details & Quick Actions */}
+                  {/* Right 4 Cols: Entity Details & Billing Summary */}
                   <aside className="space-y-4 lg:col-span-4">
                     {/* Entity Details Card */}
                     <section className={cn(CARD, "p-4 space-y-2.5 text-xs")}>
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-[#8A6A24] border-b border-[#E8E1D7] pb-2">
-                        {isGroup ? "Group Information" : "Company Information"}
-                      </h2>
+                      <div className="flex items-center justify-between border-b border-[#E8E1D7] pb-2">
+                        <h2 className="text-xs font-bold uppercase tracking-wider text-[#8A6A24]">
+                          {isGroup ? "Group Information" : "Company Information"}
+                        </h2>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[10px] font-semibold border",
+                            workspace.account.status === "open"
+                              ? "bg-[#E7F6EE] text-[#146C43] border-[#A3E0C1]"
+                              : "bg-[#F5F2EC] text-[#7A7167] border-[#E0D7CA]",
+                          )}
+                        >
+                          {workspace.account.status === "open" ? "Open" : "Closed"}
+                        </span>
+                      </div>
                       <Info label="Financial account" value={workspace.account.accountNumber} />
                       <Info
                         label="Account type"
@@ -605,7 +692,7 @@ export function FinancialAccountWorkspacePage({
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full h-8 text-xs border-[#E8E1D7] gap-1.5"
+                          className="w-full h-8 text-xs border-[#E8E1D7] gap-1.5 mt-2"
                           asChild
                         >
                           <Link
@@ -615,6 +702,7 @@ export function FinancialAccountWorkspacePage({
                               ...guestProfileSearch({ type: profileType, nav: "overview" }),
                               returnTo: `/restaurant/pms/cashiering/accounts/${accountId}`,
                             }}
+                            data-testid="view-profile"
                           >
                             {isGroup ? (
                               <UsersRound className="size-3.5" />
@@ -627,84 +715,31 @@ export function FinancialAccountWorkspacePage({
                       ) : null}
                     </section>
 
-                    {/* Quick Actions Card */}
-                    <section className={cn(CARD, "p-4 space-y-2.5 text-xs")}>
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-[#8A6A24] border-b border-[#E8E1D7] pb-2">
-                        Quick Actions
-                      </h2>
-                      {workspace.account.status === "closed" ? (
-                        <p className="text-xs text-[#7A7167]" data-testid="account-closed-note">
+                    {/* Account Lifecycle / Management Note */}
+                    {workspace.account.status === "closed" ? (
+                      <div
+                        className="rounded-xl border border-[#DDD4C5] bg-[#FAF8F4] p-3 text-xs text-[#7A7167]"
+                        data-testid="account-closed-note"
+                      >
+                        <p className="font-semibold text-[#251605]">Account Closed</p>
+                        <p className="mt-0.5">
                           This account is closed. Documents and the profile remain available.
                         </p>
-                      ) : null}
-                      {workspace.capabilities.canReceivePayment ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start h-8 text-xs border-[#E8E1D7] gap-2 hover:bg-[#FAF8F4]"
-                          onClick={() => {
-                            setCompose("payment");
-                            setTab("payments");
-                          }}
+                      </div>
+                    ) : null}
+
+                    {workspace.account.status === "open" &&
+                    (membership.role === "owner" || membership.role === "manager") &&
+                    !workspace.capabilities.canClose ? (
+                      <div className="rounded-xl border border-[#E8E1D7] bg-[#FAF8F4] p-3 text-xs text-[#7A7167]">
+                        <p
+                          className="text-[11px] text-[#A89F91]"
+                          data-testid="close-account-reason"
                         >
-                          <Landmark className="size-3.5 text-[#146C43]" /> Receive payment
-                        </Button>
-                      ) : null}
-                      {workspace.capabilities.canCreateInvoice ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start h-8 text-xs border-[#E8E1D7] gap-2 hover:bg-[#FAF8F4]"
-                          onClick={openInvoices}
-                        >
-                          <FileText className="size-3.5 text-[#8A6A24]" /> Create invoice
-                        </Button>
-                      ) : null}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-start h-8 text-xs border-[#E8E1D7] gap-2 hover:bg-[#FAF8F4]"
-                        onClick={() => setTab("charges")}
-                      >
-                        <Receipt className="size-3.5 text-[#5F554B]" /> View source charges
-                      </Button>
-                      {workspace.capabilities.canWriteOff ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start h-8 text-xs border-[#E8E1D7] gap-2 text-[#B91C1C] hover:bg-[#FEF2F2]"
-                          onClick={() => {
-                            setCompose("writeoff");
-                            setTab("payments");
-                          }}
-                        >
-                          Write off
-                        </Button>
-                      ) : null}
-                      {workspace.account.status === "open" &&
-                      (membership.role === "owner" || membership.role === "manager") ? (
-                        <div className="space-y-1 pt-1 border-t border-[#E8E1D7]">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full justify-start h-8 text-xs border-[#E8E1D7] text-[#B91C1C] hover:bg-[#FEF2F2]"
-                            disabled={!workspace.capabilities.canClose || closeMut.isPending}
-                            data-testid="close-account"
-                            onClick={() => closeMut.mutate()}
-                          >
-                            Close account
-                          </Button>
-                          {!workspace.capabilities.canClose ? (
-                            <p
-                              className="text-[11px] text-[#A89F91]"
-                              data-testid="close-account-reason"
-                            >
-                              Account balance must be zero before closing.
-                            </p>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </section>
+                          Account balance must be zero before closing.
+                        </p>
+                      </div>
+                    ) : null}
                   </aside>
                 </div>
               </div>
