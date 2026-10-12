@@ -53,6 +53,17 @@ import {
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { Checkbox } from "@/shared/components/ui/checkbox";
+import {
+  DepositReceiptModal,
+  TenderReceiptPrint,
+  type TenderReceipt,
+} from "@/packages/pms/components/cashiering/folio-dialogs";
+import { getCashieringDocumentProperty } from "@/packages/pms/lib/cashiering-invoices.functions";
+import {
+  cashieringPropertyHotelName,
+  type CashieringDocumentProperty,
+} from "@/packages/pms/lib/cashiering-document-property";
 import { cn } from "@/shared/lib/utils";
 
 const CARD = "rounded-xl border border-[#E8E1D7] bg-white shadow-sm";
@@ -122,6 +133,13 @@ export function FinancialAccountPayments({
     amount: number;
     activeAmount: number;
   } | null>(null);
+  const [receipt, setReceipt] = useState<TenderReceipt | null>(null);
+  const fetchProperty = useServerFn(getCashieringDocumentProperty);
+  const propertyQuery = useQuery({
+    queryKey: ["cashiering-document-property", restaurantId],
+    queryFn: () => fetchProperty({ data: { restaurantId } }),
+  });
+  const documentProperty: CashieringDocumentProperty | null = propertyQuery.data ?? null;
 
   const paymentsQuery = useQuery({
     queryKey: [
@@ -495,8 +513,10 @@ export function FinancialAccountPayments({
         balance={shownBalance}
         actorOpenCashShift={result?.actorOpenCashShift ?? false}
         money={money}
+        documentProperty={documentProperty}
         onOpenChange={setPaymentOpen}
         onPosted={refreshMoney}
+        onReceipt={(r) => setReceipt(r)}
       />
       <WriteOffDialog
         open={writeOffOpen}
@@ -558,6 +578,18 @@ export function FinancialAccountPayments({
           if (!open) setReverseAllocation(null);
         }}
       />
+      {receipt ? (
+        <>
+          <DepositReceiptModal
+            receipt={receipt}
+            open={Boolean(receipt)}
+            money={money}
+            dateTime={dateTime}
+            onClose={() => setReceipt(null)}
+          />
+          <TenderReceiptPrint receipt={receipt} money={money} dateTime={dateTime} />
+        </>
+      ) : null}
     </section>
   );
 }
@@ -573,8 +605,10 @@ function PaymentDialog({
   balance,
   actorOpenCashShift,
   money,
+  documentProperty,
   onOpenChange,
   onPosted,
+  onReceipt,
 }: {
   open: boolean;
   postingKey: string;
@@ -586,14 +620,17 @@ function PaymentDialog({
   balance: number;
   actorOpenCashShift: boolean;
   money: Money;
+  documentProperty: CashieringDocumentProperty | null;
   onOpenChange: (open: boolean) => void;
   onPosted: () => void;
+  onReceipt?: (receipt: TenderReceipt) => void;
 }) {
   const post = useServerFn(postFinancialAccountEntry);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("");
   const [receivedFrom, setReceivedFrom] = useState("");
   const [notes, setNotes] = useState("");
+  const [printReceipt, setPrintReceipt] = useState(true);
   const parsed = parsePositiveAmount(amount);
   const credit = parsed == null ? null : overpaymentCredit(balance, parsed);
   const projected = parsed == null ? null : projectedAccountBalance(balance, "payment", parsed);
@@ -605,6 +642,7 @@ function PaymentDialog({
     setMethod("");
     setReceivedFrom("");
     setNotes("");
+    setPrintReceipt(true);
   }, [open, postingKey]);
 
   const mutation = useMutation({
@@ -628,6 +666,27 @@ function PaymentDialog({
       if (!result.ok) {
         toast.error(result.message);
         return;
+      }
+      if (printReceipt) {
+        const receiptData: TenderReceipt = {
+          kind: "payment",
+          transactionId: result.id || postingKey,
+          postedAt: new Date().toISOString(),
+          receivedFrom: receivedFrom.trim(),
+          amount: parsed ?? 0,
+          method: accountMethodLabel(method as AccountTenderMethod),
+          notes: notes.trim(),
+          folioNumber: accountNumber,
+          guestName: accountName,
+          propertyName: cashieringPropertyHotelName(documentProperty) || "Property",
+          property: documentProperty,
+          currencyCode: currency,
+          folioBalance: projected ?? balance,
+        };
+        onReceipt?.(receiptData);
+        window.setTimeout(() => {
+          window.print();
+        }, 120);
       }
       toast.success("Payment posted.");
       onOpenChange(false);
@@ -685,6 +744,13 @@ function PaymentDialog({
               onChange={(event) => setNotes(event.target.value)}
             />
           </Field>
+          <label className="flex items-center gap-2 text-sm font-medium text-[#251605] cursor-pointer">
+            <Checkbox
+              checked={printReceipt}
+              onCheckedChange={(checked) => setPrintReceipt(checked === true)}
+            />
+            <span>Print receipt</span>
+          </label>
           {parsed != null && projected != null ? (
             <div className="space-y-1 rounded-lg bg-[#F7F4EE] px-3 py-2">
               <Info label="Current balance" value={formatBalance(money, balance)} />

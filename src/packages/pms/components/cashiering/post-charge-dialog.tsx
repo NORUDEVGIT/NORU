@@ -686,7 +686,7 @@ function ServiceFields({
       <div className="space-y-1.5">
         <Label htmlFor="post-charge-department">Department</Label>
         <Select
-          value={departmentId ?? undefined}
+          value={departmentId ?? ""}
           disabled={loading || Boolean(error) || empty}
           onValueChange={onDepartment}
         >

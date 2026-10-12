@@ -47,6 +47,22 @@ export async function loadCashieringDocumentProperty(
   ]
     .map((part) => (typeof part === "string" ? part.trim() : ""))
     .find(Boolean);
+  let resolvedLogoUrl = typeof row.logo_url === "string" ? row.logo_url.trim() : null;
+  if (resolvedLogoUrl && !/^(https?:\/\/|data:)/i.test(resolvedLogoUrl)) {
+    const candidates = [
+      resolvedLogoUrl,
+      resolvedLogoUrl.startsWith(`${restaurantId}/`) ? resolvedLogoUrl : `${restaurantId}/${resolvedLogoUrl}`,
+      resolvedLogoUrl.replace(new RegExp(`^${restaurantId}/`), ""),
+    ];
+    try {
+      const { signRoomImages } = await import("./rooms.server");
+      const signed = await signRoomImages(candidates);
+      resolvedLogoUrl = candidates.map((c) => signed.get(c)).find(Boolean) ?? null;
+    } catch {
+      resolvedLogoUrl = null;
+    }
+  }
+
   return mapCashieringDocumentProperty({
     currencyCode: row.currency_code,
     legalEntityName: row.legal_entity_name,
@@ -59,7 +75,7 @@ export async function loadCashieringDocumentProperty(
     fullAddress: composedAddress ?? null,
     phone: row.phone,
     email: row.email,
-    logoUrl: row.logo_url,
+    logoUrl: resolvedLogoUrl,
     displayName:
       row.trading_name ?? row.brand_name ?? row.legal_entity_name ?? row.legal_name ?? row.name,
   });

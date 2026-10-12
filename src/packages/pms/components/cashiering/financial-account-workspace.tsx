@@ -48,6 +48,15 @@ import { cashieringTabSearch, type CashieringTabId } from "@/packages/pms/lib/ca
 import type { FinancialAccountRow } from "@/packages/pms/lib/cashiering-phases.functions";
 import { guestProfileSearch } from "@/packages/pms/lib/guest-profile-wave1";
 import { formatBalance } from "@/packages/pms/components/cashiering/folio-workspace-panels";
+import {
+  DepositReceiptModal,
+  TenderReceiptPrint,
+  type TenderReceipt,
+} from "@/packages/pms/components/cashiering/folio-dialogs";
+import {
+  AccountPaymentDialog,
+  type AccountPaymentKind,
+} from "@/packages/pms/components/cashiering/financial-account-payment-dialog";
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
 
@@ -89,6 +98,9 @@ export function FinancialAccountWorkspacePage({
   const [chargeFolioLabel, setChargeFolioLabel] = useState<string | null>(null);
   const [compose, setCompose] = useState<"payment" | "writeoff" | null>(null);
   const clearCompose = useCallback(() => setCompose(null), []);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentKind, setPaymentKind] = useState<AccountPaymentKind>("payment");
+  const [receipt, setReceipt] = useState<TenderReceipt | null>(null);
   const fetchWorkspace = useServerFn(getFinancialAccountWorkspace);
   const closeAccount = useServerFn(closeFinancialAccount);
   const workspaceQuery = useQuery({
@@ -288,8 +300,8 @@ export function FinancialAccountWorkspacePage({
                       <Button
                         size="sm"
                         onClick={() => {
-                          setCompose("payment");
-                          setTab("payments");
+                          setPaymentKind("payment");
+                          setPaymentDialogOpen(true);
                         }}
                         className="h-9 gap-1.5 bg-[#C89933] text-[#251605] hover:bg-[#B5882D] text-xs font-semibold px-3.5 shadow-2xs cursor-pointer"
                       >
@@ -310,15 +322,26 @@ export function FinancialAccountWorkspacePage({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-56 rounded-xl border border-[#DDD4C5] bg-white p-1.5 shadow-lg">
                         {workspace.capabilities.canReceivePayment ? (
-                          <DropdownMenuItem
-                            className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
-                            onClick={() => {
-                              setCompose("payment");
-                              setTab("payments");
-                            }}
-                          >
-                            <Landmark className="mr-2 size-3.5 text-[#146C43]" /> Receive Payment
-                          </DropdownMenuItem>
+                          <>
+                            <DropdownMenuItem
+                              className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
+                              onClick={() => {
+                                setPaymentKind("payment");
+                                setPaymentDialogOpen(true);
+                              }}
+                            >
+                              <Landmark className="mr-2 size-3.5 text-[#146C43]" /> Receive Payment
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
+                              onClick={() => {
+                                setPaymentKind("deposit");
+                                setPaymentDialogOpen(true);
+                              }}
+                            >
+                              <Wallet className="mr-2 size-3.5 text-[#8A6A24]" /> Receive Deposit
+                            </DropdownMenuItem>
+                          </>
                         ) : null}
                         {workspace.capabilities.canCreateInvoice ? (
                           <DropdownMenuItem
@@ -842,6 +865,39 @@ export function FinancialAccountWorkspacePage({
           </>
         )}
       </div>
+
+      {workspace ? (
+        <AccountPaymentDialog
+          open={paymentDialogOpen}
+          initialKind={paymentKind}
+          restaurantId={restaurantId}
+          accountId={accountId}
+          accountName={workspace.master.name}
+          accountNumber={workspace.account.accountNumber}
+          contactPhone={workspace.master.phone}
+          contactEmail={workspace.master.email}
+          currency={workspace.account.currency}
+          balance={workspace.account.balance}
+          money={money}
+          dateTime={dateTime}
+          onOpenChange={setPaymentDialogOpen}
+          onPosted={refresh}
+          onReceipt={(r) => setReceipt(r)}
+        />
+      ) : null}
+
+      {receipt ? (
+        <>
+          <DepositReceiptModal
+            receipt={receipt}
+            open={Boolean(receipt)}
+            money={money}
+            dateTime={dateTime}
+            onClose={() => setReceipt(null)}
+          />
+          <TenderReceiptPrint receipt={receipt} money={money} dateTime={dateTime} />
+        </>
+      ) : null}
     </CashieringChrome>
   );
 }

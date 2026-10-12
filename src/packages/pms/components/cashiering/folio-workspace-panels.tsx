@@ -1667,7 +1667,10 @@ function SettlementPaymentCard({
   useEffect(() => {
     setAmount(String(outstanding));
     setPayKey(idempotencyKey("pay"));
-  }, [outstanding, folioId]);
+    if (guestName?.trim()) {
+      setReceivedFrom((prev) => (prev.trim() ? prev : guestName.trim()));
+    }
+  }, [outstanding, folioId, guestName]);
 
   useEffect(() => {
     if (!tenders.some((row) => row.code === method)) setMethod(tenders[0]?.code ?? "");
@@ -1679,7 +1682,8 @@ function SettlementPaymentCard({
       if (!Number.isFinite(value) || value <= 0)
         throw new Error("Enter an amount greater than zero.");
       if (!method) throw new Error("Choose a payment method.");
-      if (!receivedFrom.trim()) throw new Error("Enter who the money was received from.");
+      const payer = receivedFrom.trim() || guestName.trim();
+      if (!payer) throw new Error("Enter who the money was received from.");
       if (!notes.trim()) throw new Error("Enter a note for this payment.");
       return post({
         data: {
@@ -1689,7 +1693,7 @@ function SettlementPaymentCard({
           amount: value,
           description: notes.trim(),
           method,
-          receivedFrom: receivedFrom.trim(),
+          receivedFrom: payer,
           idempotencyKey: payKey,
         },
       });

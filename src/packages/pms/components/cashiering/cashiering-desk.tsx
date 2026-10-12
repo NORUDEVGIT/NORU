@@ -71,6 +71,7 @@ import type {
   CashieringSearchParams,
   CashieringTabId,
 } from "@/packages/pms/lib/cashiering-shell";
+import { stayNights } from "@/packages/pms/lib/folio-workspace";
 import { remainingOnPaymentSource } from "@/packages/pms/lib/cashiering.server";
 import {
   POLISH1_PAYMENT_METHODS_HREF,
@@ -93,6 +94,17 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { Checkbox } from "@/shared/components/ui/checkbox";
+import {
+  DepositReceiptModal,
+  TenderReceiptPrint,
+  type TenderReceipt,
+} from "@/packages/pms/components/cashiering/folio-dialogs";
+import { getCashieringDocumentProperty } from "@/packages/pms/lib/cashiering-invoices.functions";
+import {
+  cashieringPropertyHotelName,
+  type CashieringDocumentProperty,
+} from "@/packages/pms/lib/cashiering-document-property";
 import {
   Select,
   SelectContent,
@@ -582,6 +594,13 @@ function Overview({
   returnToTab?: CashieringTabId;
   onReturn?: () => void;
 }) {
+  const fetchDocumentProperty = useServerFn(getCashieringDocumentProperty);
+  const documentPropertyQuery = useQuery({
+    queryKey: ["cashiering-document-property", restaurantId],
+    queryFn: () => fetchDocumentProperty({ data: { restaurantId } }),
+  });
+  const documentProperty = documentPropertyQuery.data ?? null;
+
   return (
     <div className="space-y-4">
       {loading ? (
@@ -804,6 +823,7 @@ function Overview({
         dashboard={dashboard}
         returnToTab={returnToTab}
         onReturn={onReturn}
+        documentProperty={documentProperty}
       />
     </div>
   );
@@ -1388,6 +1408,7 @@ function FinancialActivityPanel({
   dashboard,
   returnToTab,
   onReturn,
+  documentProperty,
 }: {
   activity: CashieringActivityFilter;
   rows: LedgerEntryRow[];
@@ -1417,7 +1438,17 @@ function FinancialActivityPanel({
     | undefined;
   returnToTab?: CashieringTabId;
   onReturn?: () => void;
+  documentProperty?: CashieringDocumentProperty | null;
 }) {
+  const [receipt, setReceipt] = useState<TenderReceipt | null>(null);
+
+  useEffect(() => {
+    if (!receipt) return;
+    const clear = () => setReceipt(null);
+    window.addEventListener("afterprint", clear);
+    return () => window.removeEventListener("afterprint", clear);
+  }, [receipt]);
+
   const title =
     activity === "all"
       ? "Financial Activity"
@@ -1504,6 +1535,8 @@ function FinancialActivityPanel({
               onPosted={onRefresh}
               returnToTab={returnToTab}
               onReturn={onReturn}
+              documentProperty={documentProperty}
+              onReceipt={(r) => setReceipt(r)}
             />
             {activity === "deposit" ? (
               <DepositAllocationForm
@@ -1533,6 +1566,19 @@ function FinancialActivityPanel({
           onRefresh={onRefresh}
           onSelectFolio={onChooseFolio}
         />
+      ) : null}
+
+      {receipt ? (
+        <>
+          <DepositReceiptModal
+            receipt={receipt}
+            open={Boolean(receipt)}
+            money={money}
+            dateTime={dateTime}
+            onClose={() => setReceipt(null)}
+          />
+          <TenderReceiptPrint receipt={receipt} money={money} dateTime={dateTime} />
+        </>
       ) : null}
     </section>
   );
@@ -2034,25 +2080,12 @@ function ReceivePanel({
   onPosted,
   returnToTab,
   onReturn,
+  documentProperty,
+  onReceipt,
 }: {
   kind: "payment" | "deposit" | "refund";
   restaurantId: string;
-  folio: {
-    id: string;
-    folioNumber: string;
-    guestName: string;
-    roomNumber: string | null;
-    roomTypeName: string | null;
-    status: "open" | "closed";
-    balance: number;
-    transactions?: Array<{
-      id: string;
-      type: string;
-      description: string;
-      amount: number;
-      originalTransactionId: string | null;
-    }>;
-  } | null;
+  folio: FolioDetail | null;
   folios: FolioRow[];
   preferredSourceId: string | null;
   pendingFolioId: string | null;
@@ -2064,12 +2097,16 @@ function ReceivePanel({
   onPosted: () => void;
   returnToTab?: CashieringTabId;
   onReturn?: () => void;
+  documentProperty?: CashieringDocumentProperty | null;
+  onReceipt?: (receipt: TenderReceipt) => void;
 }) {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("");
+  const [receivedFrom, setReceivedFrom] = useState(() => folio?.guestName?.trim() ?? "");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [sourceId, setSourceId] = useState("none");
+  const [printReceipt, setPrintReceipt] = useState(true);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const set1 = usePmsSet1Foundation(restaurantId);
   const tenders = cashieringTenderOptions({
@@ -2086,9 +2123,11 @@ function ReceivePanel({
     setAmount("");
     setReference("");
     setNotes("");
+    setReceivedFrom(folio?.guestName?.trim() ?? "");
     setSourceId("none");
+    setPrintReceipt(true);
     setIdempotencyKey(crypto.randomUUID());
-  }, [folio?.id, kind]);
+  }, [folio?.id, folio?.guestName, kind]);
 
   const refundSources = useMemo(
     () =>
@@ -2141,6 +2180,10 @@ function ReceivePanel({
       const value = Number(amount);
       if (!Number.isFinite(value) || value <= 0)
         throw new Error("Enter an amount greater than zero.");
+      const payer = receivedFrom.trim() || folio.guestName?.trim() || "";
+      if ((kind === "payment" || kind === "deposit") && !payer) {
+        throw new Error("Enter who the money was received from.");
+      }
       if (kind === "refund" && notes.trim() === "") throw new Error("Enter a reason.");
       if (kind === "refund" && !refundSources.some((line) => line.id === sourceId)) {
         throw new Error("Choose the folio line this corrects.");
@@ -2158,6 +2201,7 @@ function ReceivePanel({
           description,
           method,
           idempotencyKey,
+          ...(kind === "payment" || kind === "deposit" ? { receivedFrom: payer } : {}),
           ...(kind === "refund" ? { originalTransactionId: sourceId } : {}),
         },
       });
@@ -2166,6 +2210,54 @@ function ReceivePanel({
       if (!result.ok) {
         toast.error(result.message);
         return;
+      }
+      const value = Number(amount);
+      const payer = receivedFrom.trim() || folio?.guestName?.trim() || "Guest";
+      if (printReceipt && (kind === "payment" || kind === "deposit") && folio) {
+        const methodObj = tenders.find((row) => row.code === method);
+        const selectedRow = folios.find((r) => r.id === folio.id) ?? null;
+        const arrivalDate = folio.arrivalDate ?? selectedRow?.arrivalDate ?? null;
+        const departureDate = folio.departureDate ?? selectedRow?.departureDate ?? null;
+        const nights =
+          arrivalDate && departureDate ? stayNights(arrivalDate, departureDate) : null;
+        const confirmationNumber =
+          folio.confirmationNumber ?? selectedRow?.confirmationNumber ?? null;
+        const guestPhone = folio.guestPhone ?? null;
+        const guestEmail = folio.guestEmail ?? null;
+        const roomNumber = folio.roomNumber ?? selectedRow?.roomNumber ?? null;
+        const roomType = folio.roomTypeName ?? selectedRow?.roomTypeName ?? null;
+        const ratePlan = folio.ratePlanName ?? selectedRow?.ratePlanName ?? null;
+        const currencyCode = folio.currency ?? selectedRow?.currency ?? "ETB";
+
+        const receiptData: TenderReceipt = {
+          kind,
+          transactionId: result.id || idempotencyKey,
+          postedAt: new Date().toISOString(),
+          receivedFrom: payer,
+          amount: Number.isFinite(value) ? value : 0,
+          method: methodObj?.name || method,
+          notes: [reference.trim(), notes.trim()].filter(Boolean).join(" · "),
+          folioNumber: folio.folioNumber,
+          guestName: folio.guestName,
+          propertyName: cashieringPropertyHotelName(documentProperty) || "Property",
+          property: documentProperty ?? null,
+          confirmationNumber,
+          guestPhone,
+          guestEmail,
+          arrivalDate,
+          departureDate,
+          nights,
+          roomNumber,
+          roomType,
+          ratePlan,
+          currencyCode,
+          folioBalance: folio.balance - (Number.isFinite(value) ? value : 0),
+          depositPolicySummary: depositPolicySummary ?? null,
+        };
+        onReceipt?.(receiptData);
+        window.setTimeout(() => {
+          window.print();
+        }, 120);
       }
       toast.success("Posted to folio successfully");
       setIdempotencyKey(crypto.randomUUID());
@@ -2414,6 +2506,21 @@ function ReceivePanel({
                 />
               </div>
 
+              {kind === "payment" || kind === "deposit" ? (
+                <div className="space-y-1">
+                  <Label htmlFor={`${kind}-received-from`} className="text-xs font-semibold text-[#251605]">
+                    Received from
+                  </Label>
+                  <Input
+                    id={`${kind}-received-from`}
+                    placeholder="Name of payer or company"
+                    value={receivedFrom}
+                    onChange={(event) => setReceivedFrom(event.target.value)}
+                    className="h-10 border-[#DDD4C5] bg-white text-xs font-medium focus-visible:border-[#C89933] focus-visible:ring-[#C89933]/20"
+                  />
+                </div>
+              ) : null}
+
               <div className="space-y-1">
                 <Label htmlFor={`${kind}-reference`} className="text-xs font-semibold text-[#251605]">
                   Reference (optional)
@@ -2439,6 +2546,16 @@ function ReceivePanel({
                   className="min-h-16 border-[#DDD4C5] bg-white text-xs"
                 />
               </div>
+
+              {kind === "payment" || kind === "deposit" ? (
+                <label className="flex items-center gap-2 rounded-lg border border-[#DDD4C5] bg-white px-3 py-2 text-xs font-semibold text-[#251605] cursor-pointer hover:bg-[#FAF8F4]">
+                  <Checkbox
+                    checked={printReceipt}
+                    onCheckedChange={(checked) => setPrintReceipt(checked === true)}
+                  />
+                  <span>Print receipt</span>
+                </label>
+              ) : null}
 
               <Button
                 type="button"

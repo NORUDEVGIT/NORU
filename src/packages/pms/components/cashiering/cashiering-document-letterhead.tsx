@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   cashieringPropertyHotelName,
   type CashieringDocumentProperty,
@@ -17,14 +18,18 @@ export function CashieringDocumentLetterhead({
   const phone = property?.phone?.trim();
   const email = property?.email?.trim();
   const address = property?.fullAddress?.trim();
+  const [imgError, setImgError] = useState(false);
+  const validLogoUrl =
+    property?.logoUrl && !imgError && /^(https?:\/\/|data:|\/)/i.test(property.logoUrl.trim());
 
   return (
     <div className="space-y-1">
       <div className="mb-2 text-slate-900">
-        {property?.logoUrl ? (
+        {validLogoUrl ? (
           <img
             src={property.logoUrl}
             alt=""
+            onError={() => setImgError(true)}
             className={`${logoClassName} max-h-12 w-auto rounded-lg object-contain object-left`}
           />
         ) : (

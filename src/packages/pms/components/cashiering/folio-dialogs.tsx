@@ -337,7 +337,8 @@ export function FolioEntryDialog({
       if (!Number.isFinite(value) || value === 0) throw new Error("Enter an amount.");
       if (type !== "adjustment" && value <= 0)
         throw new Error("Enter an amount greater than zero.");
-      if (isTenderReceipt && receivedFrom.trim() === "")
+      const payer = receivedFrom.trim() || guestName?.trim() || "";
+      if (isTenderReceipt && !payer)
         throw new Error("Enter who the money was received from.");
       if (description.trim() === "" && !isTenderReceipt)
         throw new Error(needsSource ? "Enter a reason." : "Enter a description.");
@@ -350,9 +351,9 @@ export function FolioEntryDialog({
           folioId,
           type,
           amount: value,
-          description: description.trim() || receivedFrom.trim(),
+          description: description.trim() || payer,
           idempotencyKey,
-          ...(isTenderReceipt ? { receivedFrom: receivedFrom.trim() } : {}),
+          ...(isTenderReceipt ? { receivedFrom: payer } : {}),
           ...(needsMethod ? { method } : {}),
           ...(needsSource && sourceId !== "none" ? { originalTransactionId: sourceId } : {}),
         },
@@ -755,13 +756,18 @@ function TenderReceiptPropertyHeader({ receipt }: { receipt: TenderReceipt }) {
   const legalAddress = property?.fullAddress?.trim();
   const brandAddress = property?.fullAddress?.trim();
 
+  const [imgError, setImgError] = useState(false);
+  const validLogoUrl =
+    property?.logoUrl && !imgError && /^(https?:\/\/|data:|\/)/i.test(property.logoUrl.trim());
+
   return (
     <div className="flex items-start justify-between gap-4 pb-1">
       <div className="space-y-0.5 min-w-0">
-        {property?.logoUrl ? (
+        {validLogoUrl ? (
           <img
             src={property.logoUrl}
             alt=""
+            onError={() => setImgError(true)}
             className="mb-1 max-h-11 w-auto object-contain object-left"
           />
         ) : (
@@ -858,15 +864,21 @@ export function TenderReceiptDocument({
         </div>
       </div>
 
-      {/* Section 1: Guest Information */}
+      {/* Section 1: Guest / Account Information */}
       <div className="space-y-1.5 border-t border-slate-200 pt-3 text-xs">
         <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs tracking-wide">
           <User className="size-3.5 text-[#0E2C6C]" />
-          <span>Guest Information</span>
+          <span>
+            {receipt.arrivalDate || receipt.roomNumber
+              ? "Guest Information"
+              : "Account / Client Information"}
+          </span>
         </div>
         <div className="space-y-1 pl-5 text-slate-700">
           <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
-            <span className="text-slate-500">Guest Name</span>
+            <span className="text-slate-500">
+              {receipt.arrivalDate || receipt.roomNumber ? "Guest Name" : "Name"}
+            </span>
             <span>:</span>
             <span className="font-semibold text-slate-950">
               {receipt.guestName || receipt.receivedFrom}
@@ -885,45 +897,47 @@ export function TenderReceiptDocument({
         </div>
       </div>
 
-      {/* Section 2: Stay Information */}
-      <div className="space-y-1.5 border-t border-slate-200 pt-3 text-xs">
-        <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs tracking-wide">
-          <CalendarDays className="size-3.5 text-[#0E2C6C]" />
-          <span>Stay Information</span>
+      {/* Section 2: Stay Information (when stay details exist) */}
+      {receipt.arrivalDate || receipt.departureDate || receipt.roomNumber ? (
+        <div className="space-y-1.5 border-t border-slate-200 pt-3 text-xs">
+          <div className="flex items-center gap-1.5 font-bold text-slate-900 text-xs tracking-wide">
+            <CalendarDays className="size-3.5 text-[#0E2C6C]" />
+            <span>Stay Information</span>
+          </div>
+          <div className="space-y-1 pl-5 text-slate-700">
+            <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
+              <span className="text-slate-500">Arrival Date</span>
+              <span>:</span>
+              <span>{formatReceiptStayDate(receipt.arrivalDate)}</span>
+            </div>
+            <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
+              <span className="text-slate-500">Departure Date</span>
+              <span>:</span>
+              <span>{formatReceiptStayDate(receipt.departureDate)}</span>
+            </div>
+            <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
+              <span className="text-slate-500">Room</span>
+              <span>:</span>
+              <span>{receiptField(receipt.roomNumber)}</span>
+            </div>
+            <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
+              <span className="text-slate-500">Nights</span>
+              <span>:</span>
+              <span>{nights ?? "—"}</span>
+            </div>
+            <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
+              <span className="text-slate-500">Room Type</span>
+              <span>:</span>
+              <span>{receiptField(receipt.roomType)}</span>
+            </div>
+            <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
+              <span className="text-slate-500">Rate Plan</span>
+              <span>:</span>
+              <span>{receiptField(receipt.ratePlan)}</span>
+            </div>
+          </div>
         </div>
-        <div className="space-y-1 pl-5 text-slate-700">
-          <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
-            <span className="text-slate-500">Arrival Date</span>
-            <span>:</span>
-            <span>{formatReceiptStayDate(receipt.arrivalDate)}</span>
-          </div>
-          <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
-            <span className="text-slate-500">Departure Date</span>
-            <span>:</span>
-            <span>{formatReceiptStayDate(receipt.departureDate)}</span>
-          </div>
-          <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
-            <span className="text-slate-500">Room</span>
-            <span>:</span>
-            <span>{receiptField(receipt.roomNumber)}</span>
-          </div>
-          <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
-            <span className="text-slate-500">Nights</span>
-            <span>:</span>
-            <span>{nights ?? "—"}</span>
-          </div>
-          <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
-            <span className="text-slate-500">Room Type</span>
-            <span>:</span>
-            <span>{receiptField(receipt.roomType)}</span>
-          </div>
-          <div className="grid grid-cols-[115px_12px_1fr] items-baseline">
-            <span className="text-slate-500">Rate Plan</span>
-            <span>:</span>
-            <span>{receiptField(receipt.ratePlan)}</span>
-          </div>
-        </div>
-      </div>
+      ) : null}
 
       {/* Section 3: Financial Details with Emerald & Sand Card Highlights */}
       <div className="space-y-2 border-t border-slate-200 pt-3 text-xs">
@@ -941,7 +955,9 @@ export function TenderReceiptDocument({
         </div>
 
         <div className="flex items-center justify-between rounded-lg border border-[#E8E1D7] bg-[#FEFDF9] px-3.5 py-2.5 text-slate-900">
-          <span className="text-xs font-bold">Folio balance</span>
+          <span className="text-xs font-bold">
+            {receipt.arrivalDate || receipt.roomNumber ? "Folio balance" : "Account balance"}
+          </span>
           <span className="text-sm font-extrabold tabular-nums">
             {money(receipt.folioBalance)} {currency}
           </span>
@@ -953,14 +969,20 @@ export function TenderReceiptDocument({
           <p>Deposit policy: {receipt.depositPolicySummary}</p>
         ) : isDeposit ? (
           <p>
-            This deposit is recorded on the guest folio and may be applied to charges per property
-            policy.
+            This deposit is recorded on the{" "}
+            {receipt.arrivalDate || receipt.roomNumber ? "guest folio" : "financial account"} and may
+            be applied to charges per property policy.
           </p>
         ) : (
-          <p>This payment is recorded on the guest folio.</p>
+          <p>
+            This payment is recorded on the{" "}
+            {receipt.arrivalDate || receipt.roomNumber ? "guest folio" : "financial account"}.
+          </p>
         )}
         <p className="text-[10px] text-slate-400">
-          This receipt is not a tax invoice. Amounts reflect the folio ledger at the time shown.
+          This receipt is not a tax invoice. Amounts reflect the{" "}
+          {receipt.arrivalDate || receipt.roomNumber ? "folio ledger" : "account ledger"} at the time
+          shown.
         </p>
       </div>
     </div>
