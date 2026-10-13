@@ -11,6 +11,7 @@ import { requireCashierManager, requireCashieringAccess } from "../cashiering.se
 import { requireRoomManager } from "../rooms.server";
 import { loadFiscalRegistrationExchange } from "./fiscal-exchange.server.ts";
 import { getCreditNoteFiscalState, queueCreditNoteFiscal } from "./fiscal-credit-note.server.ts";
+import { getDebitNoteFiscalState, queueDebitNoteFiscal } from "./fiscal-debit-note.server.ts";
 import {
   getGuestInvoiceFiscalState,
   queueGuestInvoiceFiscal,
@@ -962,6 +963,56 @@ export const registerCreditNoteFiscal = createServerFn({ method: "POST" })
           : result.status === "queued"
             ? "Fiscal credit note registration queued"
             : `Fiscal credit note registration failed: ${result.registration?.lastError ?? "The fiscal service did not accept the credit note."}`.slice(
+                0,
+                400,
+              ),
+    });
+    return result;
+  });
+
+export const getDebitNoteFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, debitNoteId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    return getDebitNoteFiscalState(await admin(), data);
+  });
+
+export const registerDebitNoteFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, debitNoteId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashierManager(context as never, data.restaurantId);
+    const db = await admin();
+    const queued = await queueDebitNoteFiscal(db, data);
+    if (queued.status === "not_eligible" || queued.status === "registered") return queued;
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        queued.status === "failed"
+          ? "Fiscal debit note registration retry requested"
+          : "Fiscal debit note registration requested",
+    });
+    await processFiscalOutbox(db, 10);
+    const result = await getDebitNoteFiscalState(db, data);
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        result.status === "registered"
+          ? "Fiscal debit note registration succeeded"
+          : result.status === "queued"
+            ? "Fiscal debit note registration queued"
+            : `Fiscal debit note registration failed: ${result.registration?.lastError ?? "The fiscal service did not accept the debit note."}`.slice(
                 0,
                 400,
               ),

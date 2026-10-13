@@ -21,6 +21,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { cn } from "@/shared/lib/utils";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
+import { DebitNoteFiscalSection } from "@/packages/pms/components/cashiering/debit-note-fiscal-section";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
 import {
   mergeCashieringDocumentProperty,
@@ -559,9 +560,7 @@ export function DebitNoteSection({
             <div className="flex items-center justify-between rounded-lg border border-[#E8E1D7] bg-[#F7F4EE] px-4 py-2.5">
               <div className="flex items-center gap-2">
                 <FileText className="size-4 text-[#8a6a1f]" />
-                <span className="text-sm font-medium">
-                  Viewing Debit Note {viewed.noteNumber}
-                </span>
+                <span className="text-sm font-medium">Viewing Debit Note {viewed.noteNumber}</span>
               </div>
               <Button
                 size="sm"
@@ -572,6 +571,15 @@ export function DebitNoteSection({
                 <ChevronUp className="size-3.5" /> Collapse debit note
               </Button>
             </div>
+            {guestInvoiceId ? (
+              <DebitNoteFiscalSection
+                restaurantId={restaurantId}
+                debitNoteId={viewed.id}
+                canRegister={manageable}
+                canInspect={manageable}
+                money={money}
+              />
+            ) : null}
             <DebitNoteDocument
               snapshot={viewed.snapshot}
               money={money}
@@ -709,7 +717,9 @@ function DebitNoteDocument({
           <p className="text-sm font-bold text-slate-950">{snapshot.billToName}</p>
         </div>
         <div className="space-y-0.5">
-          <p className="font-bold text-[#0E2C6C] uppercase tracking-wider text-[11px]">Reason for Debit</p>
+          <p className="font-bold text-[#0E2C6C] uppercase tracking-wider text-[11px]">
+            Reason for Debit
+          </p>
           <p className="text-xs font-medium text-slate-800">{snapshot.reason}</p>
         </div>
       </section>
@@ -730,7 +740,10 @@ function DebitNoteDocument({
           </thead>
           <tbody className="divide-y divide-[#EDF3FA]/70">
             {snapshot.groups.map((group) => (
-              <tr key={`${group.description}-${group.gross}`} className="transition-colors hover:bg-slate-50/60">
+              <tr
+                key={`${group.description}-${group.gross}`}
+                className="transition-colors hover:bg-slate-50/60"
+              >
                 <td className="px-3 py-2.5 text-slate-800">
                   <span className="font-medium text-slate-900 block">{group.description}</span>
                   {group.sourceGuest ? (
@@ -778,7 +791,9 @@ function DebitNoteDocument({
           {snapshot.totals.serviceCharge !== 0 ? (
             <div className="flex justify-between items-center text-slate-700">
               <span className="font-bold text-[#0E2C6C]">Service Charge</span>
-              <span className="tabular-nums font-semibold">{money(snapshot.totals.serviceCharge)}</span>
+              <span className="tabular-nums font-semibold">
+                {money(snapshot.totals.serviceCharge)}
+              </span>
             </div>
           ) : null}
           <div className="flex justify-between items-baseline pt-2 border-t border-slate-200">
@@ -789,7 +804,9 @@ function DebitNoteDocument({
           </div>
           <div className="flex justify-between items-center pt-1 text-slate-600 border-t border-slate-100">
             <span className="font-medium">Net Invoice after Debit</span>
-            <span className="tabular-nums font-semibold text-slate-900">{money(snapshot.totals.netInvoice)}</span>
+            <span className="tabular-nums font-semibold text-slate-900">
+              {money(snapshot.totals.netInvoice)}
+            </span>
           </div>
         </div>
 

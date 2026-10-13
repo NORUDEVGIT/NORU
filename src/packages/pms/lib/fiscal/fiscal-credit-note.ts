@@ -17,8 +17,14 @@
  *
  * Debit notes and sales receipts are not built here.
  */
-import { FISCAL_DOCUMENT_MODE } from "./fiscal.types.ts";
 import { fiscalMoney, formatFiscalDocumentDate } from "./fiscal-guest-invoice.ts";
+import {
+  invoiceGroupParentIds,
+  parseOriginalFiscalInvoice,
+  uniqueInvoiceGroupIndex,
+  type OriginalFiscalLine,
+} from "./fiscal-original-invoice.ts";
+import { FISCAL_DOCUMENT_MODE } from "./fiscal.types.ts";
 
 export const FISCAL_P3_SOURCE = "credit_note" as const;
 export const FISCAL_P3_DOCUMENT = "CRE" as const;
@@ -119,20 +125,6 @@ export type CreditNoteFiscalAssessment =
   | { ok: true; payload: FiscalCrePayload; preview: CreditNoteFiscalPreview }
   | { ok: false; reasons: string[]; missingDevice: boolean };
 
-type OriginalLine = {
-  index: number;
-  unit: string;
-  taxCode: string;
-  itemCode: number | string;
-  quantity: number;
-  unitPrice: number;
-  preTax: number;
-  tax: number;
-  nature: string;
-  harmonization: string | null;
-  description: string;
-};
-
 type CreditGroup = {
   sourceGroupId: string;
   pretax: number;
@@ -168,7 +160,7 @@ export function assessCreditNoteFiscal(
   }
 
   const original = input.originalRegistration;
-  const request = original ? parseOriginalRequest(original.requestSnapshot) : null;
+  const request = original ? parseOriginalFiscalInvoice(original.requestSnapshot) : null;
   if (!original || original.status !== "REGISTERED") {
     reasons.push("Original invoice has not been fiscally registered.");
   } else {
@@ -188,7 +180,7 @@ export function assessCreditNoteFiscal(
   }
 
   const credits = parseCreditGroups(input.creditSnapshot);
-  const invoiceGroups = parseInvoiceGroupIds(input.invoiceSnapshot);
+  const invoiceGroups = invoiceGroupParentIds(input.invoiceSnapshot);
   if (!credits) reasons.push("This credit note does not have frozen credit groups.");
   if (credits?.some((group) => group.serviceCharge > 0.009)) {
     reasons.push(
@@ -199,16 +191,14 @@ export function assessCreditNoteFiscal(
     return { ok: false, reasons, missingDevice };
   }
 
-  const matches: Array<{ credit: CreditGroup; line: OriginalLine }> = [];
+  const matches: Array<{ credit: CreditGroup; line: OriginalFiscalLine }> = [];
   for (const credit of credits) {
-    const indexes = invoiceGroups
-      .map((id, index) => (id === credit.sourceGroupId ? index : -1))
-      .filter((index) => index >= 0);
-    if (indexes.length !== 1 || !request.lines[indexes[0]]) {
+    const index = uniqueInvoiceGroupIndex(invoiceGroups, credit.sourceGroupId);
+    if (index == null || !request.lines[index]) {
       reasons.push("Credit Note line cannot be matched to an original fiscal invoice line.");
       continue;
     }
-    const line = request.lines[indexes[0]];
+    const line = request.lines[index];
     if (matches.some((match) => match.line.index === line.index)) {
       reasons.push("Credit Note line cannot be matched to an original fiscal invoice line.");
       continue;
@@ -316,7 +306,7 @@ export function assessCreditNoteFiscal(
 }
 
 function creditPrice(
-  line: OriginalLine,
+  line: OriginalFiscalLine,
   pretax: number,
 ): { ok: true; quantity: number; unitPrice: number } | { ok: false; reason: string } {
   if (pretax <= 0) {
@@ -339,61 +329,6 @@ function creditPrice(
   return { ok: true, quantity: 1, unitPrice };
 }
 
-function parseOriginalRequest(snapshot: unknown): {
-  transactionType: string;
-  lines: OriginalLine[];
-} | null {
-  const row = record(snapshot);
-  if (!row || row.Type !== "INV") return null;
-  const info = record(row.info);
-  const items = info?.ItemList;
-  if (!Array.isArray(items) || items.length === 0) return null;
-  if ("ItemList" in row || "ValueDetails" in row) return null;
-  const lines = items.map(parseOriginalLine);
-  if (lines.some((line) => line == null)) return null;
-  const transactionType = typeof row.TransactionType === "string" ? row.TransactionType : "";
-  return { transactionType, lines: lines as OriginalLine[] };
-}
-
-function parseOriginalLine(value: unknown, index: number): OriginalLine | null {
-  const row = record(value);
-  if (!row) return null;
-  const description = typeof row.ProductDescription === "string" ? row.ProductDescription : "";
-  const taxCode = typeof row.TaxCode === "string" ? row.TaxCode.trim() : "";
-  const unit = typeof row.Unit === "string" ? row.Unit.trim() : "";
-  const nature = typeof row.NatureOfSupplies === "string" ? row.NatureOfSupplies.trim() : "";
-  const itemCode = copiedItemCode(row.ItemCode);
-  if (!description || !taxCode || !unit || !nature || itemCode == null) return null;
-  const preTax = fiscalMoney(numberValue(row.PreTaxValue));
-  const tax = fiscalMoney(numberValue(row.TaxAmount));
-  const quantity = numberValue(row.Quantity);
-  const unitPrice = fiscalMoney(numberValue(row.UnitPrice));
-  return {
-    index,
-    unit,
-    taxCode,
-    itemCode,
-    quantity,
-    unitPrice,
-    preTax,
-    tax,
-    nature,
-    harmonization:
-      row.HarmonizationCode == null
-        ? null
-        : typeof row.HarmonizationCode === "string"
-          ? row.HarmonizationCode
-          : null,
-    description,
-  };
-}
-
-function copiedItemCode(value: unknown): number | string | null {
-  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return value;
-  if (typeof value === "string" && value.trim().length > 0) return value.trim();
-  return null;
-}
-
 function parseCreditGroups(snapshot: unknown): CreditGroup[] | null {
   const row = record(snapshot);
   if (!Array.isArray(row?.groups) || row.groups.length === 0) return null;
@@ -410,12 +345,6 @@ function parseCreditGroups(snapshot: unknown): CreditGroup[] | null {
   });
   if (groups.some((group) => group == null)) return null;
   return groups as CreditGroup[];
-}
-
-function parseInvoiceGroupIds(snapshot: unknown): Array<string | null> {
-  const row = record(snapshot);
-  if (!Array.isArray(row?.groups)) return [];
-  return row.groups.map((group) => text(record(group)?.parentTransactionId));
 }
 
 function record(value: unknown): Record<string, unknown> | null {
