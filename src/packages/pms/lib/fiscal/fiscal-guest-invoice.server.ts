@@ -153,6 +153,7 @@ export async function sendStoredFiscalRequest(
   row: Record<string, unknown>,
   fetchImpl: FiscalFetch | undefined,
   documentLabel: string,
+  endpoint = "receive_request",
 ): Promise<void> {
   const registrationId = String(row.id ?? "");
   const integrationId = String(row.integration_id ?? "");
@@ -173,6 +174,7 @@ export async function sendStoredFiscalRequest(
       started,
       latencyMs: 0,
       registered: null,
+      endpoint,
     });
     return;
   }
@@ -184,6 +186,7 @@ export async function sendStoredFiscalRequest(
       config,
       payload,
       fetchImpl,
+      endpoint,
     });
     const rule = parseFiscalRuleValidation(response.body);
     if (rule) {
@@ -200,6 +203,7 @@ export async function sendStoredFiscalRequest(
         latencyMs: response.latencyMs,
         registered: null,
         retryable: false,
+        endpoint,
       });
       return;
     }
@@ -220,6 +224,7 @@ export async function sendStoredFiscalRequest(
         started,
         latencyMs: response.latencyMs,
         registered: parsed,
+        endpoint,
       });
       return;
     }
@@ -255,6 +260,7 @@ export async function sendStoredFiscalRequest(
       latencyMs: response.latencyMs,
       registered: null,
       retryable: classified.retryable,
+      endpoint,
     });
   } catch (error) {
     const fiscal = error instanceof FiscalError ? error : null;
@@ -273,6 +279,7 @@ export async function sendStoredFiscalRequest(
       latencyMs: Date.now() - started.getTime(),
       registered: null,
       retryable: classified.retryable,
+      endpoint,
     });
   }
 }
@@ -285,6 +292,7 @@ async function sendWithToken(
     config: Pick<FiscalConnectionConfig, "baseUrl" | "taxpayerTin" | "client">;
     payload: unknown;
     fetchImpl?: FiscalFetch;
+    endpoint: string;
   },
 ) {
   const firstToken = await getValidFiscalToken(db, {
@@ -298,6 +306,7 @@ async function sendWithToken(
     accessToken: firstToken.accessToken,
     payload: input.payload,
     fetchImpl: input.fetchImpl,
+    path: input.endpoint,
   });
   if (first.httpStatus !== 401) return first;
   await invalidateFiscalToken(db, input.integrationId);
@@ -312,6 +321,7 @@ async function sendWithToken(
     accessToken: refreshed.accessToken,
     payload: input.payload,
     fetchImpl: input.fetchImpl,
+    path: input.endpoint,
   });
 }
 
@@ -330,12 +340,13 @@ async function finishAttempt(
     latencyMs: number;
     registered: ReturnType<typeof parseFiscalInvoiceSuccess> | null;
     retryable?: boolean;
+    endpoint?: string;
   },
 ) {
   await db.from("fiscal_registration_attempts").insert({
     registration_id: input.registrationId,
     attempt_number: input.attemptNumber,
-    endpoint: "receive_request",
+    endpoint: input.endpoint ?? "receive_request",
     request_hash: fiscalPayloadHash(input.payload as FiscalInvPayload),
     request_body: redactFiscalPayload(input.payload),
     http_status: input.httpStatus,

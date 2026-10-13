@@ -258,12 +258,13 @@ describe("fiscal redaction, retry, and state", () => {
 
   it("does not send documents from the outbox dispatcher", async () => {
     assert.throws(
-      () => dispatchFiscalDocument("SALES_RECEIPT", "guest_allocation"),
+      () => dispatchFiscalDocument("WITHHOLDING", "withholding"),
       (error: unknown) => error instanceof FiscalError,
     );
     assert.doesNotThrow(() => dispatchFiscalDocument("INV", "guest_invoice"));
     assert.doesNotThrow(() => dispatchFiscalDocument("CRE", "credit_note"));
     assert.doesNotThrow(() => dispatchFiscalDocument("DEB", "debit_note"));
+    assert.doesNotThrow(() => dispatchFiscalDocument("SALES_RECEIPT", "guest_allocation"));
     const db = {
       rpc: async () => ({ data: [], error: null }),
       from: () => ({

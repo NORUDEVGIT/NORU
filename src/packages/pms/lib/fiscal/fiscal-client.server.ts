@@ -130,15 +130,17 @@ export async function postFiscalReceiveRequest(input: {
   payload: unknown;
   fetchImpl?: FiscalFetch;
   timeoutMs?: number;
+  path?: string;
 }): Promise<FiscalReceiveResult> {
   const fetchImpl = input.fetchImpl ?? fetch;
   const timeoutMs = input.timeoutMs ?? FISCAL_REQUEST_TIMEOUT_MS;
+  const path = input.path ?? "receive_request";
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = Date.now();
   let response: Response;
   try {
-    response = await fetchImpl(joinUrl(input.baseUrl, "receive_request"), {
+    response = await fetchImpl(joinUrl(input.baseUrl, path), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

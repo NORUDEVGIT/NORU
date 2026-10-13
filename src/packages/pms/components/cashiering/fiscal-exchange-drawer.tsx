@@ -77,7 +77,41 @@ export function FiscalExchangeDrawer({
               <TabsContent value="overview">
                 <dl className="space-y-1 rounded-xl border border-[#E8E1D7] bg-white p-4 text-sm shadow-sm">
                   <Row label="Invoice" value={registration.invoiceNumber ?? "—"} />
-                  <Row label="Document type" value={registration.documentType} />
+                  <Row
+                    label="Document type"
+                    value={
+                      registration.documentType === "SALES_RECEIPT"
+                        ? "Sales receipt"
+                        : registration.documentType
+                    }
+                  />
+                  {salesReceiptFields(registration.requestSnapshot) ? (
+                    <>
+                      <Row label="Allocation" value={registration.sourceId} />
+                      <Row
+                        label="Invoice IRN"
+                        value={salesReceiptFields(registration.requestSnapshot)?.invoiceIrn ?? "—"}
+                      />
+                      <Row
+                        label="Fiscal invoice document no."
+                        value={
+                          salesReceiptFields(registration.requestSnapshot)?.documentNumber ?? "—"
+                        }
+                      />
+                      <Row
+                        label="This payment"
+                        value={salesReceiptFields(registration.requestSnapshot)?.paid ?? "—"}
+                      />
+                      <Row
+                        label="Coverage"
+                        value={salesReceiptFields(registration.requestSnapshot)?.coverage ?? "—"}
+                      />
+                      <Row
+                        label="Remaining after payment"
+                        value={salesReceiptFields(registration.requestSnapshot)?.remaining ?? "—"}
+                      />
+                    </>
+                  ) : null}
                   <Row label="Transaction ID" value={registration.trnxId} />
                   <Row
                     label="Status"
@@ -205,6 +239,19 @@ function AttemptCard({
       </div>
     </details>
   );
+}
+
+function salesReceiptFields(snapshot: unknown) {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+  const row = snapshot as Record<string, unknown>;
+  if (row.PaymentCoverage !== "PARTIAL" && row.PaymentCoverage !== "FULL") return null;
+  return {
+    invoiceIrn: typeof row.InvoiceIRN === "string" ? row.InvoiceIRN : "—",
+    documentNumber: typeof row.invoice_document_no === "string" ? row.invoice_document_no : "—",
+    paid: typeof row.InvoicePaidAmount === "number" ? row.InvoicePaidAmount.toFixed(2) : "—",
+    coverage: row.PaymentCoverage,
+    remaining: typeof row.RemainingAmount === "number" ? row.RemainingAmount.toFixed(2) : "—",
+  };
 }
 
 function Row({ label, value }: { label: string; value: string }) {

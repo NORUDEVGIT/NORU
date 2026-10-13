@@ -1,6 +1,7 @@
 /**
  * Fiscal outbox. Claims due registrations and sends a guest B2C INV, a guest
- * credit-note CRE, or a guest debit-note DEB. Every other document type is
+ * credit-note CRE, a guest debit-note DEB, or a guest allocation sales receipt.
+ * Every other document type is
  * recorded as not enabled and is not marked REGISTERED.
  *
  * No job runner exists in this repository (no pg_cron, no Vercel cron). The
@@ -10,6 +11,8 @@ import { sendClaimedCreditNote } from "./fiscal-credit-note.server.ts";
 import { p3HandlerEnabled } from "./fiscal-credit-note.ts";
 import { sendClaimedDebitNote } from "./fiscal-debit-note.server.ts";
 import { p4HandlerEnabled } from "./fiscal-debit-note.ts";
+import { sendClaimedSalesReceipt } from "./fiscal-sales-receipt.server.ts";
+import { p5HandlerEnabled } from "./fiscal-sales-receipt.ts";
 import { sendClaimedGuestInvoice } from "./fiscal-guest-invoice.server.ts";
 import { p2HandlerEnabled } from "./fiscal-guest-invoice.ts";
 import {
@@ -29,7 +32,8 @@ export function dispatchFiscalDocument(type: FiscalDocumentType, sourceType = ""
   if (
     p2HandlerEnabled(type, sourceType) ||
     p3HandlerEnabled(type, sourceType) ||
-    p4HandlerEnabled(type, sourceType)
+    p4HandlerEnabled(type, sourceType) ||
+    p5HandlerEnabled(type, sourceType)
   ) {
     return;
   }
@@ -49,6 +53,8 @@ export async function processFiscalOutbox(db: Db, limit = 10): Promise<{ process
       await sendClaimedCreditNote(db, row);
     } else if (p4HandlerEnabled(documentType, sourceType)) {
       await sendClaimedDebitNote(db, row);
+    } else if (p5HandlerEnabled(documentType, sourceType)) {
+      await sendClaimedSalesReceipt(db, row);
     } else {
       await recordUnsupported(db, row);
     }

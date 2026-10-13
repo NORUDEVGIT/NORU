@@ -679,6 +679,7 @@ export function GuestInvoiceWorkspace({
               legacy={openInvoice.coverageScope === "legacy_folio"}
               money={money}
               dateTime={dateTime}
+              canManage={workspace.canManage}
             />
             <CreditNoteSection
               restaurantId={restaurantId}

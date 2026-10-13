@@ -13,6 +13,10 @@ import { loadFiscalRegistrationExchange } from "./fiscal-exchange.server.ts";
 import { getCreditNoteFiscalState, queueCreditNoteFiscal } from "./fiscal-credit-note.server.ts";
 import { getDebitNoteFiscalState, queueDebitNoteFiscal } from "./fiscal-debit-note.server.ts";
 import {
+  getGuestInvoiceSalesReceipts,
+  queueGuestAllocationSalesReceipt,
+} from "./fiscal-sales-receipt.server.ts";
+import {
   getGuestInvoiceFiscalState,
   queueGuestInvoiceFiscal,
 } from "./fiscal-guest-invoice.server.ts";
@@ -1019,6 +1023,74 @@ export const registerDebitNoteFiscal = createServerFn({ method: "POST" })
     });
     return result;
   });
+
+export const getGuestInvoiceSalesReceiptFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    return getGuestInvoiceSalesReceipts(await admin(), data);
+  });
+
+export const registerGuestAllocationSalesReceipt = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, allocationId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashierManager(context as never, data.restaurantId);
+    const db = await admin();
+    const queued = await queueGuestAllocationSalesReceipt(db, data);
+    if (queued.status === "not_eligible" || queued.status === "registered") return queued;
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        queued.status === "failed"
+          ? "Fiscal sales receipt retry requested"
+          : "Fiscal sales receipt requested",
+    });
+    await processFiscalOutbox(db, 10);
+    const lines = await getGuestInvoiceSalesReceipts(db, {
+      restaurantId: data.restaurantId,
+      invoiceId: await allocationInvoiceId(db, data.restaurantId, data.allocationId),
+    });
+    const result = lines.lines.find((line) => line.allocationId === data.allocationId) ?? queued;
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        result.status === "registered"
+          ? "Fiscal sales receipt registration succeeded"
+          : result.status === "queued"
+            ? "Fiscal sales receipt registration queued"
+            : `Fiscal sales receipt registration failed: ${result.registration?.lastError ?? "The fiscal service did not accept the sales receipt."}`.slice(
+                0,
+                400,
+              ),
+    });
+    return result;
+  });
+
+async function allocationInvoiceId(db: Db, restaurantId: string, allocationId: string) {
+  const result = await db
+    .from("guest_payment_invoice_allocations")
+    .select("invoice_id")
+    .eq("id", allocationId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const invoiceId = fiscalRecord(result.data)?.invoice_id;
+  if (typeof invoiceId !== "string") {
+    throw new FiscalError("FISCAL_NOT_ELIGIBLE", "That payment allocation was not found.");
+  }
+  return invoiceId;
+}
 
 export const getGuestInvoiceFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

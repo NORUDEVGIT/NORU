@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { methodLabel } from "@/packages/pms/components/cashiering/cashiering-desk-shared";
+import { GuestSalesReceiptSection } from "@/packages/pms/components/cashiering/guest-sales-receipt-section";
 import {
   applyGuestPaymentInvoiceAllocations,
   getGuestInvoiceSettlement,
@@ -144,6 +145,7 @@ export function GuestInvoiceSettlementDetail({
   legacy,
   money,
   dateTime,
+  canManage = false,
 }: {
   restaurantId: string;
   folioId: string;
@@ -151,6 +153,7 @@ export function GuestInvoiceSettlementDetail({
   legacy: boolean;
   money: Money;
   dateTime: DateTime;
+  canManage?: boolean;
 }) {
   const fetchSettlement = useServerFn(getGuestInvoiceSettlement);
   const query = useQuery({
@@ -215,6 +218,13 @@ export function GuestInvoiceSettlementDetail({
           </ul>
         )}
       </div>
+      <GuestSalesReceiptSection
+        restaurantId={restaurantId}
+        invoiceId={invoiceId}
+        canRegister={canManage}
+        canInspect={canManage}
+        money={money}
+      />
     </div>
   );
 }
