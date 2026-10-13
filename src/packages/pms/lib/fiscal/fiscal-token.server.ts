@@ -81,6 +81,17 @@ export async function getValidFiscalToken(
   throw new FiscalError("FISCAL_AUTH_FAILED", "Authentication was rejected by the fiscal service.");
 }
 
+export async function invalidateFiscalToken(db: Db, integrationId: string): Promise<void> {
+  await db
+    .from("fiscal_integration_tokens")
+    .update({
+      access_token: "",
+      expires_at: "1970-01-01T00:00:00.000Z",
+      refresh_lease_until: null,
+    })
+    .eq("integration_id", integrationId);
+}
+
 export async function fiscalTokenStatus(
   db: Db,
   integrationId: string,

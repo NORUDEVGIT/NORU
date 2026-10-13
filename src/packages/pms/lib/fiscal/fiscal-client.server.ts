@@ -2,11 +2,12 @@
  * Server-only fiscal HTTP client. TLS verification stays on. This module
  * never disables certificate checks and never reads credentials from the browser.
  *
- * P1 implements authenticate and testConnection. Document endpoints are not called.
+ * P1 implements authenticate. P2 posts a guest B2C INV to receive_request.
  */
 import {
   FISCAL_REQUEST_TIMEOUT_MS,
   FiscalError,
+  fiscalNonJsonBody,
   redactFiscalPayload,
   type FiscalAuthRequest,
 } from "./fiscal.types.ts";
@@ -30,7 +31,11 @@ async function readBody(response: Response): Promise<unknown> {
   try {
     return JSON.parse(text) as unknown;
   } catch {
-    return { nonJson: true };
+    return fiscalNonJsonBody({
+      httpStatus: response.status,
+      contentType: response.headers.get("content-type"),
+      rawText: text,
+    });
   }
 }
 
@@ -111,6 +116,53 @@ export async function authenticateFiscal(input: {
     );
   }
   return { accessToken: token, expiresIn, httpStatus: response.status, latencyMs };
+}
+
+export type FiscalReceiveResult = {
+  httpStatus: number;
+  body: unknown;
+  latencyMs: number;
+};
+
+export async function postFiscalReceiveRequest(input: {
+  baseUrl: string;
+  accessToken: string;
+  payload: unknown;
+  fetchImpl?: FiscalFetch;
+  timeoutMs?: number;
+}): Promise<FiscalReceiveResult> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const timeoutMs = input.timeoutMs ?? FISCAL_REQUEST_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const started = Date.now();
+  let response: Response;
+  try {
+    response = await fetchImpl(joinUrl(input.baseUrl, "receive_request"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${input.accessToken}`,
+      },
+      body: JSON.stringify(input.payload),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    const aborted = error instanceof Error && error.name === "AbortError";
+    throw new FiscalError(
+      aborted ? "FISCAL_TIMEOUT" : "FISCAL_NETWORK_ERROR",
+      aborted
+        ? "The fiscal service did not respond in time."
+        : "NORU could not reach the fiscal service.",
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+  return {
+    httpStatus: response.status,
+    body: await readBody(response),
+    latencyMs: Date.now() - started,
+  };
 }
 
 export function safeAuthActivity(input: { httpStatus?: number | null; message: string }) {

@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { authenticateFiscal } from "./fiscal-client.server.ts";
+import { authenticateFiscal, postFiscalReceiveRequest } from "./fiscal-client.server.ts";
 import { dispatchFiscalDocument, processFiscalOutbox } from "./fiscal-outbox.server.ts";
 import { getValidFiscalToken } from "./fiscal-token.server.ts";
 import {
+  FISCAL_RAW_BODY_LIMIT,
+  FISCAL_RETRY_DELAYS_MS,
   FiscalError,
   canTransitionFiscalStatus,
   classifyFiscalFailure,
@@ -16,6 +18,8 @@ import {
   redactFiscalPayload,
   requireExternalCode,
 } from "./fiscal.types.ts";
+import { guestInvoiceTrnxId } from "./fiscal-guest-invoice.ts";
+import { buildFiscalRegistrationExchange } from "./fiscal-exchange.ts";
 
 const migration = readFileSync(
   new URL(
@@ -30,6 +34,10 @@ const fiscalSources = [
   "fiscal-secrets.server.ts",
   "fiscal-token.server.ts",
   "fiscal-outbox.server.ts",
+  "fiscal-guest-invoice.ts",
+  "fiscal-guest-invoice.server.ts",
+  "fiscal-exchange.ts",
+  "fiscal-exchange.server.ts",
   "fiscal.functions.ts",
 ]
   .map((name) => readFileSync(new URL(`./${name}`, import.meta.url), "utf8"))
@@ -239,7 +247,6 @@ describe("fiscal redaction, retry, and state", () => {
       taxMapped: 0,
       taxTotal: 2,
       roomMapped: false,
-      modeMapped: 0,
       buyerMapped: 0,
     });
     assert.equal(ready.authReady, true);
@@ -249,9 +256,10 @@ describe("fiscal redaction, retry, and state", () => {
 
   it("does not send documents from the outbox dispatcher", async () => {
     assert.throws(
-      () => dispatchFiscalDocument("INV"),
+      () => dispatchFiscalDocument("CRE", "credit_note"),
       (error: unknown) => error instanceof FiscalError,
     );
+    assert.doesNotThrow(() => dispatchFiscalDocument("INV", "guest_invoice"));
     const db = {
       rpc: async () => ({ data: [], error: null }),
       from: () => ({
@@ -261,5 +269,156 @@ describe("fiscal redaction, retry, and state", () => {
     };
     const result = await processFiscalOutbox(db, 10);
     assert.deepEqual(result, { processed: 0 });
+  });
+});
+
+describe("fiscal non-JSON provider responses", () => {
+  const payload = { Type: "INV", trnx_id: guestInvoiceTrnxId("invoice-1"), TaxCode: "VAT15" };
+
+  it("keeps a valid JSON body unchanged and sends the given payload", async () => {
+    let sent = "";
+    const result = await postFiscalReceiveRequest({
+      baseUrl: "https://example.test",
+      accessToken: "secret-token",
+      payload,
+      fetchImpl: async (_url, init) => {
+        sent = String(init?.body ?? "");
+        return new Response(JSON.stringify({ status: "A", irn: "IRN-1", documentNumber: "9" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+    assert.equal(sent, JSON.stringify(payload));
+    assert.equal(sent.includes("secret-token"), false);
+    assert.deepEqual(result.body, { status: "A", irn: "IRN-1", documentNumber: "9" });
+    assert.equal("nonJson" in (result.body as object), false);
+  });
+
+  it("preserves plain text and HTML from an HTTP 500", async () => {
+    const text = await postFiscalReceiveRequest({
+      baseUrl: "https://example.test",
+      accessToken: "secret-token",
+      payload,
+      fetchImpl: async () =>
+        new Response("provider failed", { status: 500, headers: { "content-type": "text/plain" } }),
+    });
+    assert.deepEqual(text.body, {
+      nonJson: true,
+      httpStatus: 500,
+      contentType: "text/plain",
+      rawBody: "provider failed",
+      rawBodyTruncated: false,
+    });
+    const html = await postFiscalReceiveRequest({
+      baseUrl: "https://example.test",
+      accessToken: "secret-token",
+      payload,
+      fetchImpl: async () =>
+        new Response("<html>password=hello Authorization: Bearer abc.def</html>", {
+          status: 500,
+          headers: { "content-type": "text/html" },
+        }),
+    });
+    const body = html.body as {
+      contentType: string;
+      rawBody: string;
+      httpStatus: number;
+    };
+    assert.equal(body.httpStatus, 500);
+    assert.equal(body.contentType, "text/html");
+    assert.equal(body.rawBody.includes("hello"), false);
+    assert.equal(body.rawBody.includes("abc.def"), false);
+    assert.equal(body.rawBody.includes("[redacted]"), true);
+  });
+
+  it("truncates a long raw body and flags the cut", async () => {
+    const result = await postFiscalReceiveRequest({
+      baseUrl: "https://example.test",
+      accessToken: "secret-token",
+      payload,
+      fetchImpl: async () => new Response("x".repeat(FISCAL_RAW_BODY_LIMIT + 25), { status: 503 }),
+    });
+    const body = result.body as { rawBody: string; rawBodyTruncated: boolean; httpStatus: number };
+    assert.equal(body.rawBody.length, FISCAL_RAW_BODY_LIMIT);
+    assert.equal(body.rawBodyTruncated, true);
+    assert.equal(body.httpStatus, 503);
+  });
+
+  it("shows the stored non-JSON body in the exchange and redacts secrets again", () => {
+    const exchange = buildFiscalRegistrationExchange({
+      registration: {
+        id: "reg",
+        source_type: "guest_invoice",
+        source_id: "invoice-1",
+        fiscal_document_type: "INV",
+        status: "FAILED",
+        trnx_id: guestInvoiceTrnxId("invoice-1"),
+        response_snapshot: {
+          nonJson: true,
+          httpStatus: 500,
+          contentType: "text/html",
+          rawBody: "password=hello",
+          rawBodyTruncated: false,
+        },
+      },
+      attempts: [],
+      invoiceNumber: "INV-1",
+    });
+    const response = exchange.registration.responseSnapshot as {
+      rawBody: string;
+      nonJson: boolean;
+    };
+    assert.equal(exchange.registration.responseState, "ready");
+    assert.equal(response.nonJson, true);
+    assert.equal(response.rawBody.includes("hello"), false);
+  });
+
+  it("keeps a connection failure and a timeout free of a fake provider body", async () => {
+    await assert.rejects(
+      postFiscalReceiveRequest({
+        baseUrl: "https://example.test",
+        accessToken: "secret-token",
+        payload,
+        fetchImpl: async () => {
+          throw new Error("connect ECONNREFUSED");
+        },
+      }),
+      (error: unknown) =>
+        error instanceof FiscalError && error.code === "FISCAL_NETWORK_ERROR" && !("body" in error),
+    );
+    await assert.rejects(
+      postFiscalReceiveRequest({
+        baseUrl: "https://example.test",
+        accessToken: "secret-token",
+        payload,
+        timeoutMs: 20,
+        fetchImpl: (_url, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+            );
+          }),
+      }),
+      (error: unknown) => error instanceof FiscalError && error.code === "FISCAL_TIMEOUT",
+    );
+    assert.equal(
+      classifyFiscalFailure({ code: "FISCAL_HTTP_ERROR", httpStatus: 500 }).retryable,
+      true,
+    );
+    assert.equal(
+      classifyFiscalFailure({ code: "FISCAL_HTTP_ERROR", httpStatus: 500 }).outcome,
+      "retryable_error",
+    );
+    assert.equal(classifyFiscalFailure({ code: "FISCAL_TIMEOUT" }).outcome, "timeout");
+    assert.equal(
+      classifyFiscalFailure({ code: "FISCAL_PROVIDER_REJECTED", httpStatus: 400 }).retryable,
+      false,
+    );
+    assert.deepEqual(FISCAL_RETRY_DELAYS_MS, [60_000, 300_000, 900_000, 3_600_000, 14_400_000]);
+    assert.equal(guestInvoiceTrnxId("invoice-1"), "gi-invoice-1");
+    const builder = readFileSync(new URL("./fiscal-guest-invoice.ts", import.meta.url), "utf8");
+    assert.equal(builder.includes("fiscalNonJsonBody"), false);
+    assert.equal(builder.includes("FISCAL_HTTP_ERROR"), false);
   });
 });

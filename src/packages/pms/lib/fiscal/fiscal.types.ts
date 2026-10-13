@@ -16,6 +16,32 @@ export const FISCAL_PROVIDER = "erp_fiscal";
 export const FISCAL_CATEGORY = "fiscal";
 export const FISCAL_INTEGRATION_NAME = "ERP / Fiscal Integration";
 
+/** Provider document Mode for the current invoice integration. Not a payment method. */
+export const FISCAL_DOCUMENT_MODE = "CASH" as const;
+
+/** Provider unit sent on every fiscal invoice line. Not configured per item. */
+export const FISCAL_ITEM_UNIT = "PCS" as const;
+
+export const FISCAL_NATURE_OF_SUPPLIES = ["service", "goods"] as const;
+export type FiscalNatureOfSupplies = (typeof FISCAL_NATURE_OF_SUPPLIES)[number];
+
+/**
+ * ItemCode is stored as text and sent as a JSON number when it is a strict
+ * positive integer with no leading zeros. "001" is not coerced to 1.
+ */
+export function fiscalItemCodeNumber(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^[1-9][0-9]{0,8}$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+export function fiscalNatureOfSupplies(value: string): FiscalNatureOfSupplies | null {
+  return (FISCAL_NATURE_OF_SUPPLIES as readonly string[]).includes(value)
+    ? (value as FiscalNatureOfSupplies)
+    : null;
+}
+
 export const FISCAL_ENVIRONMENTS = ["TEST", "PRODUCTION"] as const;
 export type FiscalEnvironment = (typeof FISCAL_ENVIRONMENTS)[number];
 
@@ -82,10 +108,14 @@ export const FISCAL_ERROR_CODES = [
   "FISCAL_AUTH_RESPONSE_INVALID",
   "FISCAL_TIMEOUT",
   "FISCAL_NETWORK_ERROR",
+  "FISCAL_HTTP_ERROR",
   "FISCAL_MAPPING_INVALID",
   "FISCAL_SECRET_STORE_UNAVAILABLE",
   "FISCAL_HANDLER_NOT_ENABLED",
   "FISCAL_FORBIDDEN",
+  "FISCAL_NOT_ELIGIBLE",
+  "FISCAL_PROVIDER_REJECTED",
+  "FISCAL_RESPONSE_INVALID",
 ] as const;
 export type FiscalErrorCode = (typeof FISCAL_ERROR_CODES)[number];
 
@@ -106,10 +136,14 @@ export const FISCAL_SAFE_MESSAGES: Record<FiscalErrorCode, string> = {
     "The fiscal service returned an unexpected authentication response.",
   FISCAL_TIMEOUT: "The fiscal service did not respond in time.",
   FISCAL_NETWORK_ERROR: "NORU could not reach the fiscal service.",
+  FISCAL_HTTP_ERROR: "The fiscal service returned an HTTP error.",
   FISCAL_MAPPING_INVALID: "That fiscal mapping is not valid.",
   FISCAL_SECRET_STORE_UNAVAILABLE: "The server secret store is unavailable.",
-  FISCAL_HANDLER_NOT_ENABLED: "Fiscal document registration is not enabled yet.",
+  FISCAL_HANDLER_NOT_ENABLED: "That fiscal document type is not enabled yet.",
   FISCAL_FORBIDDEN: "You don't have permission to change fiscal integration settings.",
+  FISCAL_NOT_ELIGIBLE: "This invoice is not eligible for fiscal registration.",
+  FISCAL_PROVIDER_REJECTED: "The fiscal service rejected the invoice.",
+  FISCAL_RESPONSE_INVALID: "The fiscal service returned an unexpected registration response.",
 };
 
 export type FiscalAuthRequest = {
@@ -215,6 +249,41 @@ export function maskDeviceId(deviceId: string): string {
 const SECRET_KEY =
   /(secret|password|passwd|api[_-]?key|token|private|credential|passphrase|authorization)/i;
 
+export const FISCAL_RAW_BODY_LIMIT = 10_000;
+
+const SECRET_TEXT =
+  /\b(authorization|password|passwd|username|access[_-]?token|refresh[_-]?token|api[_-]?key|secret|cookie|session)\b(\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s&<,;]+)/gi;
+
+export function redactFiscalText(value: string): string {
+  return value
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/g, "Bearer [redacted]")
+    .replace(/\bBasic\s+[A-Za-z0-9+/=]+/g, "Basic [redacted]")
+    .replace(SECRET_TEXT, "$1$2[redacted]");
+}
+
+export function fiscalNonJsonBody(input: {
+  httpStatus: number;
+  contentType: string | null;
+  rawText: string;
+}): {
+  nonJson: true;
+  httpStatus: number;
+  contentType: string | null;
+  rawBody: string;
+  rawBodyTruncated: boolean;
+} {
+  const truncated = input.rawText.length > FISCAL_RAW_BODY_LIMIT;
+  return {
+    nonJson: true,
+    httpStatus: input.httpStatus,
+    contentType: input.contentType,
+    rawBody: redactFiscalText(
+      truncated ? input.rawText.slice(0, FISCAL_RAW_BODY_LIMIT) : input.rawText,
+    ),
+    rawBodyTruncated: truncated,
+  };
+}
+
 export function redactFiscalPayload(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((item) => redactFiscalPayload(item));
   if (!value || typeof value !== "object") return value;
@@ -246,6 +315,15 @@ export function classifyFiscalFailure(input: {
   code?: FiscalErrorCode;
   httpStatus?: number | null;
 }): { outcome: FiscalAttemptOutcome; retryable: boolean } {
+  if (
+    input.code === "FISCAL_PROVIDER_REJECTED" ||
+    input.code === "FISCAL_RESPONSE_INVALID" ||
+    input.code === "FISCAL_NOT_ELIGIBLE" ||
+    input.code === "FISCAL_MAPPING_INVALID" ||
+    input.code === "FISCAL_HANDLER_NOT_ENABLED"
+  ) {
+    return { outcome: "fatal_error", retryable: false };
+  }
   if (input.code === "FISCAL_TIMEOUT") return { outcome: "timeout", retryable: true };
   if (input.code === "FISCAL_NETWORK_ERROR") return { outcome: "retryable_error", retryable: true };
   if (
@@ -317,7 +395,6 @@ export function fiscalReadiness(input: {
   taxMapped: number;
   taxTotal: number;
   roomMapped: boolean;
-  modeMapped: number;
   buyerMapped: number;
 }): FiscalReadiness {
   const connectionConfigured =
@@ -327,7 +404,7 @@ export function fiscalReadiness(input: {
   const deviceConfigured = input.deviceId.trim().length > 0;
   const taxMappingsConfigured = input.taxTotal > 0 && input.taxMapped >= input.taxTotal;
   const itemMappingsConfigured = input.roomMapped;
-  const modeMappingsConfigured = input.modeMapped >= FISCAL_MODE_CONTEXTS.length;
+  const modeMappingsConfigured = FISCAL_DOCUMENT_MODE === "CASH";
   const buyerMappingsConfigured = input.buyerMapped > 0;
   return {
     authReady: connectionConfigured && input.credentialsConfigured,
@@ -344,12 +421,13 @@ export function fiscalReadiness(input: {
 }
 
 export type FiscalDbResult = {
-  data: Record<string, unknown> | Record<string, unknown>[] | string | null;
+  data: Record<string, unknown> | Record<string, unknown>[] | string | number | null;
   error: { message: string } | null;
 };
 
 export function fiscalRecord(data: FiscalDbResult["data"]): Record<string, unknown> | null {
-  if (!data || typeof data === "string" || Array.isArray(data)) return null;
+  if (!data || typeof data === "string" || typeof data === "number" || Array.isArray(data))
+    return null;
   return data;
 }
 

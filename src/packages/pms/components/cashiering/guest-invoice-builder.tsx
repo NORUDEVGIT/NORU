@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ChevronUp, FileText, Plus, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { GuestInvoiceFiscalSection } from "@/packages/pms/components/cashiering/guest-invoice-fiscal-section";
 import { FolioInvoicePreview } from "@/packages/pms/components/cashiering/folio-invoice-panel";
 import { GuestInvoiceSettlementDetail } from "@/packages/pms/components/cashiering/guest-payment-allocation-drawer";
 import { listGuestInvoiceSettlementForFolio } from "@/packages/pms/lib/cashiering-guest-allocation.functions";
@@ -612,7 +613,9 @@ export function GuestInvoiceWorkspace({
                         variant={openInvoiceId === invoice.id ? "secondary" : "outline"}
                         className="mr-2 h-7"
                         onClick={() =>
-                          setOpenInvoiceId((current) => (current === invoice.id ? null : invoice.id))
+                          setOpenInvoiceId((current) =>
+                            current === invoice.id ? null : invoice.id,
+                          )
                         }
                       >
                         {openInvoiceId === invoice.id ? "Collapse" : "View"}
@@ -656,6 +659,13 @@ export function GuestInvoiceWorkspace({
                 <ChevronUp className="size-3.5" /> Collapse invoice
               </Button>
             </div>
+            <GuestInvoiceFiscalSection
+              restaurantId={restaurantId}
+              invoiceId={openInvoice.id}
+              canRegister={workspace.canManage}
+              canInspect={workspace.canManage}
+              money={money}
+            />
             <FolioInvoicePreview
               invoice={openInvoice}
               money={money}

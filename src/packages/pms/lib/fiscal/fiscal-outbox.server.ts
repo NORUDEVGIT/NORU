@@ -1,12 +1,14 @@
 /**
- * Outbox skeleton. P1 claims rows and records that document handlers are not
- * enabled. It never calls a document registration endpoint and never marks a
- * row REGISTERED.
+ * Fiscal outbox. Claims due registrations and sends only a guest B2C INV.
+ * Every other document type is recorded as not enabled and is not marked
+ * REGISTERED.
  *
  * No job runner exists in this repository (no pg_cron, no Vercel cron). The
- * processor is a protected server function. With no financial hooks in P1 it
- * normally finds zero rows.
+ * processor runs from the guest-invoice register action and from the manager
+ * outbox server function.
  */
+import { sendClaimedGuestInvoice } from "./fiscal-guest-invoice.server.ts";
+import { p2HandlerEnabled } from "./fiscal-guest-invoice.ts";
 import {
   FiscalError,
   classifyFiscalFailure,
@@ -18,20 +20,34 @@ import {
 
 type Db = FiscalDb;
 
-const HANDLER_NOTE = "Fiscal document registration is not enabled yet.";
+const HANDLER_NOTE = "That fiscal document type is not enabled yet.";
 
-export function dispatchFiscalDocument(_type: FiscalDocumentType): never {
+export function dispatchFiscalDocument(type: FiscalDocumentType, sourceType = ""): void {
+  if (p2HandlerEnabled(type, sourceType)) return;
   throw new FiscalError("FISCAL_HANDLER_NOT_ENABLED", HANDLER_NOTE);
 }
 
 export async function processFiscalOutbox(db: Db, limit = 10): Promise<{ processed: number }> {
   const claimed = await db.rpc("claim_fiscal_registrations", { _limit: limit });
   if (claimed.error) throw new Error(claimed.error.message);
-  const rows = Array.isArray(claimed.data) ? claimed.data : [];
+  const rows = claimedRows(claimed.data);
   for (const row of rows) {
-    await recordUnsupported(db, row);
+    if (p2HandlerEnabled(String(row.fiscal_document_type ?? ""), String(row.source_type ?? ""))) {
+      await sendClaimedGuestInvoice(db, row);
+    } else {
+      await recordUnsupported(db, row);
+    }
   }
   return { processed: rows.length };
+}
+
+function claimedRows(data: unknown): Record<string, unknown>[] {
+  if (Array.isArray(data)) return data.filter(isRecord);
+  return isRecord(data) ? [data] : [];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 async function recordUnsupported(db: Db, row: Record<string, unknown>) {

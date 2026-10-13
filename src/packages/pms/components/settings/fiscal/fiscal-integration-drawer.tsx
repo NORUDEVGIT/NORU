@@ -27,14 +27,16 @@ import {
   saveFiscalCredentials,
   saveFiscalIntegrationConfig,
   saveFiscalItemMapping,
-  saveFiscalModeMapping,
   saveFiscalTaxMapping,
   testFiscalConnection,
 } from "@/packages/pms/lib/fiscal/fiscal.functions";
 import {
-  FISCAL_MODE_CONTEXT_LABELS,
+  FISCAL_DOCUMENT_MODE,
+  FISCAL_ITEM_UNIT,
+  fiscalItemCodeNumber,
+  fiscalNatureOfSupplies,
   type FiscalCatalogRow,
-  type FiscalModeContext,
+  type FiscalNatureOfSupplies,
 } from "@/packages/pms/lib/fiscal/fiscal.types";
 
 type MappingSnapshot = {
@@ -44,8 +46,6 @@ type MappingSnapshot = {
   serviceTypes: FiscalCatalogRow[];
   itemMappings: FiscalCatalogRow[];
   chargeSources: readonly string[];
-  modeContexts: readonly FiscalModeContext[];
-  modeMappings: FiscalCatalogRow[];
   buyerTypes: readonly string[];
 };
 
@@ -80,7 +80,6 @@ export function FiscalIntegrationDrawer({
   const testConnection = useServerFn(testFiscalConnection);
   const saveTax = useServerFn(saveFiscalTaxMapping);
   const saveItem = useServerFn(saveFiscalItemMapping);
-  const saveMode = useServerFn(saveFiscalModeMapping);
   const saveBuyer = useServerFn(saveFiscalBuyerCodeMapping);
 
   const query = useQuery({
@@ -162,8 +161,9 @@ export function FiscalIntegrationDrawer({
             ERP / Fiscal Integration
           </SheetTitle>
           <SheetDescription>
-            Connect NORU financial documents to the external fiscal service. Fiscal document
-            registration is not yet enabled.
+            Connect NORU financial documents to the external fiscal service. Guest B2C invoice
+            registration can be started from an issued invoice. Other fiscal documents are not
+            enabled.
           </SheetDescription>
         </SheetHeader>
         <div className="flex gap-2 border-b border-[#E5DED1] px-6 py-3">
@@ -304,15 +304,23 @@ export function FiscalIntegrationDrawer({
             <FiscalMappings
               status={status}
               canEdit={canEdit}
-              onTax={(input) => saveTax({ data: { restaurantId, ...input } }).then(() => refresh())}
-              onItem={(input) =>
-                saveItem({ data: { restaurantId, ...input } }).then(() => refresh())
+              onTax={(input) =>
+                saveTax({ data: { restaurantId, ...input } }).then(async () => {
+                  await refresh();
+                  toast.success("Tax mapping saved.");
+                })
               }
-              onMode={(input) =>
-                saveMode({ data: { restaurantId, ...input } }).then(() => refresh())
+              onItem={(input) =>
+                saveItem({ data: { restaurantId, ...input } }).then(async () => {
+                  await refresh();
+                  toast.success("Item mapping saved.");
+                })
               }
               onBuyer={(input) =>
-                saveBuyer({ data: { restaurantId, ...input } }).then(() => refresh())
+                saveBuyer({ data: { restaurantId, ...input } }).then(async () => {
+                  await refresh();
+                  toast.success("Buyer code saved.");
+                })
               }
             />
           ) : null}
@@ -347,9 +355,7 @@ export function FiscalIntegrationDrawer({
                 / {status.taxes.length} mapped
               </p>
               <p>Items: {status.itemMappings.length} configured</p>
-              <p>
-                Modes: {status.modeMappings.length} / {status.modeContexts.length}
-              </p>
+              <p>Document mode: {FISCAL_DOCUMENT_MODE}</p>
               <p>Buyer codes: {status.buyerMappings.length} configured</p>
               <p>
                 Queue: {status.queue.pending} pending, {status.queue.failed} failed,{" "}
@@ -391,7 +397,6 @@ function FiscalMappings({
   canEdit,
   onTax,
   onItem,
-  onMode,
   onBuyer,
 }: {
   status: MappingSnapshot;
@@ -407,11 +412,9 @@ function FiscalMappings({
     chargeSource: string | null;
     isDefault: boolean;
     externalItemCode: string;
-    externalUnit: string;
-    natureOfSupplies: string;
+    natureOfSupplies: FiscalNatureOfSupplies;
     harmonizationCode: string | null;
   }) => Promise<unknown>;
-  onMode: (input: { documentContext: FiscalModeContext; externalMode: string }) => Promise<unknown>;
   onBuyer: (input: {
     mappingType: string;
     internalValue: string;
@@ -422,6 +425,10 @@ function FiscalMappings({
     <div className="space-y-6">
       <section className="space-y-2">
         <h3 className="font-medium text-[#251605]">Tax codes</h3>
+        <p className="text-xs text-muted-foreground">
+          Enter the provider TaxCode for each NORU tax. VAT15 and VAT0 are known examples. The
+          percentage is not copied automatically.
+        </p>
         {status.taxes.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No NORU taxes are configured for this property.
@@ -468,12 +475,13 @@ function FiscalMappings({
       <section className="space-y-2">
         <h3 className="font-medium text-[#251605]">Items</h3>
         <p className="text-xs text-muted-foreground">
-          Room and service fiscal mappings are required before document registration can be enabled.
-          Do not copy sample codes.
+          Leave the item code blank to assign the next number. Nature is Service or Goods. Unit is{" "}
+          {FISCAL_ITEM_UNIT} for every item.
         </p>
         <ItemRow
-          title="Room revenue"
-          detail="charge source: room"
+          title="Room Accommodation"
+          detail="One fiscal item for every rate plan"
+          defaultNature="service"
           current={status.itemMappings.find(
             (row: FiscalCatalogRow) => row.charge_source === "room",
           )}
@@ -566,29 +574,6 @@ function FiscalMappings({
           }
         />
       </section>
-      <section className="space-y-2">
-        <h3 className="font-medium text-[#251605]">Fiscal mode</h3>
-        <p className="text-xs text-muted-foreground">
-          Valid fiscal Mode values must be confirmed with the provider.
-        </p>
-        {status.modeContexts.map((context: FiscalModeContext) => {
-          const current = status.modeMappings.find(
-            (row: FiscalCatalogRow) => row.document_context === context,
-          );
-          return (
-            <MappingRow
-              key={context}
-              title={FISCAL_MODE_CONTEXT_LABELS[context]}
-              detail=""
-              statusLabel={current ? "Mapped" : "Missing"}
-              canEdit={canEdit}
-              initial={current?.external_mode ?? ""}
-              placeholder="External Mode"
-              onSave={(value) => onMode({ documentContext: context, externalMode: value })}
-            />
-          );
-        })}
-      </section>
       <BuyerRow canEdit={canEdit} types={status.buyerTypes} onSave={onBuyer} />
     </div>
   );
@@ -644,76 +629,104 @@ function ItemRow({
   detail,
   current,
   canEdit,
+  defaultNature,
   onSave,
 }: {
   title: string;
   detail: string;
   current: FiscalCatalogRow | undefined;
   canEdit: boolean;
+  defaultNature?: FiscalNatureOfSupplies;
   onSave: (values: {
     externalItemCode: string;
-    externalUnit: string;
-    natureOfSupplies: string;
+    natureOfSupplies: FiscalNatureOfSupplies;
     harmonizationCode: string | null;
   }) => Promise<unknown>;
 }) {
+  const storedNature = fiscalNatureOfSupplies(current?.nature_of_supplies ?? "");
+  const invalidNature = Boolean(current?.nature_of_supplies) && storedNature == null;
   const [itemCode, setItemCode] = useState(current?.external_item_code ?? "");
-  const [unit, setUnit] = useState(current?.external_unit ?? "");
-  const [nature, setNature] = useState(current?.nature_of_supplies ?? "");
+  const [nature, setNature] = useState<FiscalNatureOfSupplies | "">(
+    storedNature ?? (current ? "" : (defaultNature ?? "")),
+  );
   const [harmonization, setHarmonization] = useState(current?.harmonization_code ?? "");
   useEffect(() => {
+    const nextNature = fiscalNatureOfSupplies(current?.nature_of_supplies ?? "");
     setItemCode(current?.external_item_code ?? "");
-    setUnit(current?.external_unit ?? "");
-    setNature(current?.nature_of_supplies ?? "");
+    setNature(nextNature ?? (current ? "" : (defaultNature ?? "")));
     setHarmonization(current?.harmonization_code ?? "");
-  }, [current]);
+  }, [current, defaultNature]);
   const complete = Boolean(
-    current?.external_item_code && current?.external_unit && current?.nature_of_supplies,
+    fiscalItemCodeNumber(current?.external_item_code ?? "") &&
+    fiscalNatureOfSupplies(current?.nature_of_supplies ?? ""),
   );
   return (
     <div className="space-y-2 rounded-xl border border-[#E5DED1] p-3">
       <p className="text-sm font-medium text-[#251605]">{title}</p>
       <p className="text-xs text-muted-foreground">
-        {detail} · {complete ? "Mapped" : "Incomplete"}
+        {detail} · {complete ? "Mapped" : "Incomplete"} · Unit {FISCAL_ITEM_UNIT}
       </p>
+      {invalidNature ? (
+        <p className="text-xs text-destructive">
+          Stored nature “{current?.nature_of_supplies}” must be corrected to Service or Goods.
+        </p>
+      ) : null}
       <div className="grid gap-2 md:grid-cols-2">
-        <Input
-          value={itemCode}
-          placeholder="ERP ItemCode"
-          onChange={(event) => setItemCode(event.target.value)}
-          disabled={!canEdit}
-        />
-        <Input
-          value={unit}
-          placeholder="ERP Unit"
-          onChange={(event) => setUnit(event.target.value)}
-          disabled={!canEdit}
-        />
-        <Input
-          value={nature}
-          placeholder="Nature of supplies"
-          onChange={(event) => setNature(event.target.value)}
-          disabled={!canEdit}
-        />
-        <Input
-          value={harmonization}
-          placeholder="Harmonization code (optional)"
-          onChange={(event) => setHarmonization(event.target.value)}
-          disabled={!canEdit}
-        />
+        <div className="space-y-1">
+          <Label>Fiscal item code</Label>
+          <Input
+            value={itemCode}
+            placeholder="Assigned on save"
+            onChange={(event) => setItemCode(event.target.value)}
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label>Nature of supplies</Label>
+          <Select
+            value={nature || undefined}
+            onValueChange={(value) => setNature(value as FiscalNatureOfSupplies)}
+            disabled={!canEdit}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Service or Goods" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="service">Service</SelectItem>
+              <SelectItem value="goods">Goods</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1 md:col-span-2">
+          <Label>Harmonization code</Label>
+          <Input
+            value={harmonization}
+            placeholder="Optional"
+            onChange={(event) => setHarmonization(event.target.value)}
+            disabled={!canEdit}
+          />
+        </div>
       </div>
       {canEdit ? (
         <Button
           type="button"
           variant="outline"
-          onClick={() =>
+          onClick={() => {
+            const chosen = fiscalNatureOfSupplies(nature);
+            if (!chosen) {
+              toast.error("Choose Service or Goods.");
+              return;
+            }
+            if (itemCode.trim().length > 0 && fiscalItemCodeNumber(itemCode) == null) {
+              toast.error("Fiscal item code must be a whole number such as 1001.");
+              return;
+            }
             onSave({
               externalItemCode: itemCode,
-              externalUnit: unit,
-              natureOfSupplies: nature,
+              natureOfSupplies: chosen,
               harmonizationCode: harmonization.trim() || null,
-            }).catch((error: Error) => toast.error(error.message))
-          }
+            }).catch((error: Error) => toast.error(error.message));
+          }}
         >
           Save
         </Button>

@@ -7,7 +7,13 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
+import { requireCashierManager, requireCashieringAccess } from "../cashiering.server";
 import { requireRoomManager } from "../rooms.server";
+import { loadFiscalRegistrationExchange } from "./fiscal-exchange.server.ts";
+import {
+  getGuestInvoiceFiscalState,
+  queueGuestInvoiceFiscal,
+} from "./fiscal-guest-invoice.server.ts";
 import { authenticateFiscal } from "./fiscal-client.server.ts";
 import { processFiscalOutbox, retryFiscalRegistration } from "./fiscal-outbox.server.ts";
 import {
@@ -21,10 +27,13 @@ import {
   FISCAL_CHARGE_SOURCES,
   FISCAL_ENVIRONMENTS,
   FISCAL_INTEGRATION_NAME,
+  FISCAL_ITEM_UNIT,
   FISCAL_MODE_CONTEXTS,
+  FISCAL_NATURE_OF_SUPPLIES,
   FISCAL_PROVIDER,
   FISCAL_SAFE_MESSAGES,
   FiscalError,
+  fiscalItemCodeNumber,
   fiscalReadiness,
   fiscalRecord,
   fiscalRecords,
@@ -129,7 +138,10 @@ function catalog(data: FiscalDbResult["data"]): FiscalCatalogRow[] {
 }
 
 function safeError(error: unknown): never {
-  if (error instanceof FiscalError) throw new Error(FISCAL_SAFE_MESSAGES[error.code]);
+  if (error instanceof FiscalError) {
+    if (error.code === "FISCAL_MAPPING_INVALID") throw new Error(error.message);
+    throw new Error(FISCAL_SAFE_MESSAGES[error.code]);
+  }
   throw error instanceof Error ? error : new Error("The fiscal integration is unavailable.");
 }
 
@@ -305,7 +317,6 @@ export const getFiscalIntegrationStatus = createServerFn({ method: "POST" })
       taxMapped: taxRows.filter((tax) => mappedTaxIds.has(tax.id)).length,
       taxTotal: taxRows.length,
       roomMapped,
-      modeMapped: modeMapRows.filter((item) => item.active !== false).length,
       buyerMapped: buyerMapRows.filter((item) => item.active !== false).length,
     });
     const queueRows = fiscalRecords(queue.data);
@@ -324,7 +335,8 @@ export const getFiscalIntegrationStatus = createServerFn({ method: "POST" })
         password: credentialsConfigured ? "Configured" : "Missing",
       },
       readiness,
-      registrationNotice: "Fiscal document registration is not yet enabled.",
+      registrationNotice:
+        "Guest B2C invoice registration can be started from an issued invoice. Other fiscal documents are not enabled.",
       buyerNotice: "Additional buyer identity fields will be required for B2B fiscal invoices.",
       lastTestAt: row?.last_test_at ?? null,
       lastTestResult: row?.last_test_result ?? null,
@@ -533,7 +545,7 @@ export const testFiscalConnection = createServerFn({ method: "POST" })
         taxpayerTinMasked: maskTin(config.taxpayerTin),
         expiresAt,
         notice:
-          "Connection works. Document registration setup is still incomplete, and fiscal document registration is not yet enabled.",
+          "Connection works. Guest B2C invoice registration still needs its mappings. Other fiscal documents are not enabled.",
       };
     } catch (error) {
       const message =
@@ -649,6 +661,43 @@ export const saveFiscalTaxMapping = createServerFn({ method: "POST" })
     }
   });
 
+async function assignFiscalItemCode(
+  db: Db,
+  restaurantId: string,
+  requested: string,
+  exceptMappingId: string | null,
+): Promise<string> {
+  const trimmed = requested.trim();
+  const numeric = trimmed.length === 0 ? null : fiscalItemCodeNumber(trimmed);
+  if (trimmed.length > 0 && numeric == null) {
+    throw new FiscalError(
+      "FISCAL_MAPPING_INVALID",
+      "Fiscal item code must be a whole number such as 1001.",
+    );
+  }
+  const result = await db.rpc("allocate_fiscal_item_code", {
+    _restaurant_id: restaurantId,
+    _requested: numeric,
+    _except_mapping_id: exceptMappingId,
+  });
+  if (result.error) {
+    if (result.error.message.includes("FISCAL_ITEM_CODE_USED")) {
+      throw new FiscalError("FISCAL_MAPPING_INVALID", "That fiscal item code is already used.");
+    }
+    throw new FiscalError("FISCAL_MAPPING_INVALID", "The fiscal item code could not be assigned.");
+  }
+  const assigned =
+    typeof result.data === "number"
+      ? result.data
+      : typeof result.data === "string"
+        ? Number(result.data)
+        : Number.NaN;
+  if (!Number.isInteger(assigned)) {
+    throw new FiscalError("FISCAL_MAPPING_INVALID", "The fiscal item code could not be assigned.");
+  }
+  return String(assigned);
+}
+
 export const saveFiscalItemMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -659,9 +708,8 @@ export const saveFiscalItemMapping = createServerFn({ method: "POST" })
         departmentId: idSchema.nullable(),
         chargeSource: z.enum(FISCAL_CHARGE_SOURCES).nullable(),
         isDefault: z.boolean(),
-        externalItemCode: z.string().max(40),
-        externalUnit: z.string().max(20),
-        natureOfSupplies: z.string().max(40),
+        externalItemCode: z.string().max(40).optional().default(""),
+        natureOfSupplies: z.enum(FISCAL_NATURE_OF_SUPPLIES),
         harmonizationCode: z.string().max(40).nullable(),
       })
       .parse(input),
@@ -711,6 +759,13 @@ export const saveFiscalItemMapping = createServerFn({ method: "POST" })
       else if (data.chargeSource) lookup = lookup.eq("charge_source", data.chargeSource);
       else lookup = lookup.eq("is_default", true);
       const existing = await lookup.maybeSingle();
+      const existingId = rowId(existing.data);
+      const itemCode = await assignFiscalItemCode(
+        db,
+        data.restaurantId,
+        data.externalItemCode,
+        existingId,
+      );
       const payload = {
         restaurant_id: data.restaurantId,
         integration_id: row.id,
@@ -718,18 +773,25 @@ export const saveFiscalItemMapping = createServerFn({ method: "POST" })
         department_id: data.departmentId,
         charge_source: data.chargeSource,
         is_default: data.isDefault,
-        external_item_code: requireExternalCode(data.externalItemCode, "Item code"),
-        external_unit: requireExternalCode(data.externalUnit, "Unit"),
-        nature_of_supplies: requireExternalCode(data.natureOfSupplies, "Nature of supplies"),
+        external_item_code: itemCode,
+        external_unit: FISCAL_ITEM_UNIT,
+        nature_of_supplies: data.natureOfSupplies,
         harmonization_code: data.harmonizationCode?.trim() || null,
         active: true,
       };
-      const existingId = rowId(existing.data);
       const saved = existingId
         ? await db.from("fiscal_item_mappings").update(payload).eq("id", existingId)
         : await db.from("fiscal_item_mappings").insert(payload);
-      if (saved.error)
+      if (saved.error) {
+        const message = saved.error.message;
+        if (
+          message.includes("fiscal_item_mappings_property_code_unique") ||
+          message.includes("duplicate key")
+        ) {
+          throw new FiscalError("FISCAL_MAPPING_INVALID", "That fiscal item code is already used.");
+        }
         throw new FiscalError("FISCAL_MAPPING_INVALID", "That item mapping could not be saved.");
+      }
       await touchMapping(db, data.restaurantId, context.userId, row.id);
       return { ok: true };
     } catch (error) {
@@ -852,5 +914,85 @@ export const retryFiscalRegistrationNow = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!fiscalRecord(owned.data)) throw new Error("That fiscal registration does not exist.");
     await retryFiscalRegistration(db, data.registrationId);
+    await processFiscalOutbox(db, 10);
     return { ok: true };
   });
+
+export const getGuestInvoiceFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    return getGuestInvoiceFiscalState(await admin(), data);
+  });
+
+export const getFiscalRegistrationExchange = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, registrationId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashierManager(context as never, data.restaurantId);
+    try {
+      return await loadFiscalRegistrationExchange(await admin(), data);
+    } catch (error) {
+      safeError(error);
+    }
+  });
+
+export const registerGuestInvoiceFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashierManager(context as never, data.restaurantId);
+    const db = await admin();
+    const queued = await queueGuestInvoiceFiscal(db, data);
+    if (queued.status === "not_eligible" || queued.status === "registered") return queued;
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        queued.status === "failed"
+          ? "Fiscal guest invoice registration retry requested"
+          : "Fiscal guest invoice registration requested",
+    });
+    await processFiscalOutbox(db, 10);
+    const result = await getGuestInvoiceFiscalState(db, data);
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        result.status === "registered"
+          ? "Fiscal guest invoice registration succeeded"
+          : result.status === "queued"
+            ? "Fiscal guest invoice registration queued"
+            : `Fiscal guest invoice registration failed: ${result.registration?.lastError ?? "The fiscal service did not accept the invoice."}`.slice(
+                0,
+                400,
+              ),
+    });
+    return result;
+  });
+
+async function fiscalIntegrationId(db: Db, restaurantId: string): Promise<string> {
+  const result = await db
+    .from("pms_integrations")
+    .select("id")
+    .eq("restaurant_id", restaurantId)
+    .eq("category", FISCAL_CATEGORY)
+    .eq("provider", FISCAL_PROVIDER)
+    .maybeSingle();
+  const id = fiscalRecord(result.data)?.id;
+  if (typeof id !== "string") {
+    throw new FiscalError("FISCAL_CONFIG_MISSING", "Save the fiscal connection before continuing.");
+  }
+  return id;
+}

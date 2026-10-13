@@ -220,8 +220,9 @@ export function Card6IntegrationsTab({
           <div>
             <p className="font-medium text-[#251605]">ERP / Fiscal Integration</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Connect NORU financial documents to the external fiscal service. Fiscal document
-              registration is not yet enabled.
+              Connect NORU financial documents to the external fiscal service. Guest B2C invoice
+              registration can be started from an issued invoice. Other fiscal documents are not
+              enabled.
             </p>
           </div>
           {canEdit ? (
