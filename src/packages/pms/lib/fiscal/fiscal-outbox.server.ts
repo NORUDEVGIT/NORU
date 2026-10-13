@@ -1,6 +1,7 @@
 /**
- * Fiscal outbox. Claims due registrations and sends a guest B2C INV, a guest
- * credit-note CRE, a guest debit-note DEB, or a guest allocation sales receipt.
+ * Fiscal outbox. Claims due registrations and sends a guest B2C INV, a company
+ * B2B INV, a guest credit-note CRE, a guest debit-note DEB, or a guest
+ * allocation sales receipt.
  * Every other document type is
  * recorded as not enabled and is not marked REGISTERED.
  *
@@ -13,6 +14,8 @@ import { sendClaimedDebitNote } from "./fiscal-debit-note.server.ts";
 import { p4HandlerEnabled } from "./fiscal-debit-note.ts";
 import { sendClaimedSalesReceipt } from "./fiscal-sales-receipt.server.ts";
 import { p5HandlerEnabled } from "./fiscal-sales-receipt.ts";
+import { sendClaimedCompanyInvoice } from "./fiscal-company-invoice.server.ts";
+import { p6HandlerEnabled } from "./fiscal-company-invoice.ts";
 import { sendClaimedGuestInvoice } from "./fiscal-guest-invoice.server.ts";
 import { p2HandlerEnabled } from "./fiscal-guest-invoice.ts";
 import {
@@ -33,7 +36,8 @@ export function dispatchFiscalDocument(type: FiscalDocumentType, sourceType = ""
     p2HandlerEnabled(type, sourceType) ||
     p3HandlerEnabled(type, sourceType) ||
     p4HandlerEnabled(type, sourceType) ||
-    p5HandlerEnabled(type, sourceType)
+    p5HandlerEnabled(type, sourceType) ||
+    p6HandlerEnabled(type, sourceType)
   ) {
     return;
   }
@@ -49,6 +53,8 @@ export async function processFiscalOutbox(db: Db, limit = 10): Promise<{ process
     const sourceType = String(row.source_type ?? "");
     if (p2HandlerEnabled(documentType, sourceType)) {
       await sendClaimedGuestInvoice(db, row);
+    } else if (p6HandlerEnabled(documentType, sourceType)) {
+      await sendClaimedCompanyInvoice(db, row);
     } else if (p3HandlerEnabled(documentType, sourceType)) {
       await sendClaimedCreditNote(db, row);
     } else if (p4HandlerEnabled(documentType, sourceType)) {

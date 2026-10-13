@@ -39,6 +39,9 @@ export type AccountBillTo = {
   paymentTerms: string | null;
   creditDays: number | null;
   address: string | null;
+  registrationNumber: string | null;
+  city: string | null;
+  region: string | null;
 };
 
 export type AccountInvoiceSnapshot = {
@@ -182,6 +185,9 @@ export function mapAccountBillTo(value: unknown, kind: AccountInvoiceKind): Acco
     creditDays:
       company && row.creditDays != null && row.creditDays !== "" ? num(row.creditDays) : null,
     address: company ? text(row.address) : null,
+    registrationNumber: company ? text(row.registrationNumber) : null,
+    city: company ? text(row.city) : null,
+    region: company ? text(row.region) : null,
   };
 }
 

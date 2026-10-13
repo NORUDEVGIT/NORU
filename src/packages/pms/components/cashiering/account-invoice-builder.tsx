@@ -11,6 +11,7 @@ import {
 import { settlementStateLabel } from "@/packages/pms/lib/cashiering-account-allocation";
 import { accountMethodLabel } from "@/packages/pms/lib/cashiering-account-payments";
 import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
+import { CompanyInvoiceFiscalSection } from "@/packages/pms/components/cashiering/company-invoice-fiscal-section";
 import { DebitNoteSection } from "@/packages/pms/components/cashiering/debit-note-panel";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
@@ -613,7 +614,9 @@ export function AccountInvoiceWorkspace({
                           variant={viewInvoiceId === invoice.id ? "secondary" : "outline"}
                           className="mr-2 h-8"
                           onClick={() =>
-                            setViewInvoiceId((current) => (current === invoice.id ? null : invoice.id))
+                            setViewInvoiceId((current) =>
+                              current === invoice.id ? null : invoice.id,
+                            )
                           }
                         >
                           {viewInvoiceId === invoice.id ? "Collapse" : "View"}
@@ -662,6 +665,15 @@ export function AccountInvoiceWorkspace({
               screen
               liveProperty={documentProperty}
             />
+            {viewedInvoice.snapshot.account.accountKind === "company" ? (
+              <CompanyInvoiceFiscalSection
+                restaurantId={restaurantId}
+                invoiceId={viewedInvoice.id}
+                canRegister={canManage}
+                canInspect={canManage}
+                money={money}
+              />
+            ) : null}
             {settlementDetailQuery.data ? (
               <section
                 className="mt-4 space-y-2 rounded-xl border border-[#E8E1D7] p-4 text-sm"

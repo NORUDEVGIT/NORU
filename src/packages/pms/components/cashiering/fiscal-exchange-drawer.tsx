@@ -112,6 +112,25 @@ export function FiscalExchangeDrawer({
                       />
                     </>
                   ) : null}
+                  {companyBuyerFields(registration.requestSnapshot) ? (
+                    <>
+                      <Row
+                        label="Company"
+                        value={companyBuyerFields(registration.requestSnapshot)?.legalName ?? "—"}
+                      />
+                      <Row label="Transaction type" value="B2B" />
+                      <Row
+                        label="TIN"
+                        value={companyBuyerFields(registration.requestSnapshot)?.tin ?? "—"}
+                      />
+                      {companyBuyerFields(registration.requestSnapshot)?.vatNumber ? (
+                        <Row
+                          label="Registration / VAT"
+                          value={companyBuyerFields(registration.requestSnapshot)?.vatNumber ?? "—"}
+                        />
+                      ) : null}
+                    </>
+                  ) : null}
                   <Row label="Transaction ID" value={registration.trnxId} />
                   <Row
                     label="Status"
@@ -251,6 +270,27 @@ function salesReceiptFields(snapshot: unknown) {
     paid: typeof row.InvoicePaidAmount === "number" ? row.InvoicePaidAmount.toFixed(2) : "—",
     coverage: row.PaymentCoverage,
     remaining: typeof row.RemainingAmount === "number" ? row.RemainingAmount.toFixed(2) : "—",
+  };
+}
+
+function companyBuyerFields(snapshot: unknown) {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+  const row = snapshot as Record<string, unknown>;
+  if (row.TransactionType !== "B2B" || row.Type !== "INV") return null;
+  const info =
+    row.info && typeof row.info === "object" && !Array.isArray(row.info)
+      ? (row.info as Record<string, unknown>)
+      : null;
+  const buyer =
+    info?.BuyerDetails && typeof info.BuyerDetails === "object" && !Array.isArray(info.BuyerDetails)
+      ? (info.BuyerDetails as Record<string, unknown>)
+      : null;
+  if (!buyer) return null;
+  return {
+    legalName: typeof buyer.LegalName === "string" ? buyer.LegalName : "—",
+    tin: typeof buyer.Tin === "string" ? buyer.Tin : "—",
+    vatNumber:
+      typeof buyer.VatNumber === "string" && buyer.VatNumber.trim() ? buyer.VatNumber : null,
   };
 }
 
