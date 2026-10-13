@@ -77,6 +77,7 @@ import {
   type IntegrationCategory,
   type SimulatedTestOutcome,
 } from "@/packages/pms/lib/integrations-catalog";
+import { FiscalIntegrationDrawer } from "@/packages/pms/components/settings/fiscal/fiscal-integration-drawer";
 
 const ENVIRONMENT_LABELS = { sandbox: "Sandbox", production: "Production" } as const;
 
@@ -115,6 +116,7 @@ export function Card6IntegrationsTab({
   } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<IntegrationRecord | null>(null);
   const [logsFor, setLogsFor] = useState<IntegrationRecord | null>(null);
+  const [fiscalOpen, setFiscalOpen] = useState(false);
 
   const queryKey = ["pms-card6-integrations", restaurantId];
   const query = useQuery({
@@ -209,6 +211,31 @@ export function Card6IntegrationsTab({
         />
         <IntegrationSummaryCard label="Errors" value={summary.errors} tone="danger" />
       </div>
+
+      <article
+        className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm"
+        data-testid="fiscal-integration-card"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-medium text-[#251605]">ERP / Fiscal Integration</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Connect NORU financial documents to the external fiscal service. Fiscal document
+              registration is not yet enabled.
+            </p>
+          </div>
+          {canEdit ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFiscalOpen(true)}
+              data-testid="fiscal-configure"
+            >
+              Configure
+            </Button>
+          ) : null}
+        </div>
+      </article>
 
       {records.length > 0 ? (
         <IntegrationNotice tone="warning">{SECRET_REENTRY_NOTICE}</IntegrationNotice>
@@ -326,7 +353,13 @@ export function Card6IntegrationsTab({
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           onSelect={() =>
-                            setDrawer({ category: row.category, record: row, startWithTest: false })
+                            row.category === "fiscal"
+                              ? setFiscalOpen(true)
+                              : setDrawer({
+                                  category: row.category,
+                                  record: row,
+                                  startWithTest: false,
+                                })
                           }
                           disabled={!canEdit}
                         >
@@ -334,7 +367,13 @@ export function Card6IntegrationsTab({
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onSelect={() =>
-                            setDrawer({ category: row.category, record: row, startWithTest: true })
+                            row.category === "fiscal"
+                              ? setFiscalOpen(true)
+                              : setDrawer({
+                                  category: row.category,
+                                  record: row,
+                                  startWithTest: true,
+                                })
                           }
                           disabled={!canEdit}
                         >
@@ -376,6 +415,13 @@ export function Card6IntegrationsTab({
           setTypeDialogOpen(false);
           setDrawer({ category, record: null, startWithTest: false });
         }}
+      />
+
+      <FiscalIntegrationDrawer
+        open={fiscalOpen}
+        onOpenChange={setFiscalOpen}
+        restaurantId={restaurantId}
+        canEdit={canEdit}
       />
 
       {drawer ? (

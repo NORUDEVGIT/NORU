@@ -35,7 +35,7 @@ export function Card6IntegrationTypeDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
-          {INTEGRATION_CATALOG.map((category) => (
+          {INTEGRATION_CATALOG.filter((category) => category.id !== "fiscal").map((category) => (
             <button
               key={category.id}
               type="button"
