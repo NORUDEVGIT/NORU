@@ -1,12 +1,13 @@
 /**
- * Fiscal outbox. Claims due registrations and sends only a guest B2C INV.
- * Every other document type is recorded as not enabled and is not marked
- * REGISTERED.
+ * Fiscal outbox. Claims due registrations and sends a guest B2C INV or a
+ * guest credit-note CRE. Every other document type is recorded as not enabled
+ * and is not marked REGISTERED.
  *
  * No job runner exists in this repository (no pg_cron, no Vercel cron). The
- * processor runs from the guest-invoice register action and from the manager
- * outbox server function.
+ * processor runs from the register action and from the manager outbox function.
  */
+import { sendClaimedCreditNote } from "./fiscal-credit-note.server.ts";
+import { p3HandlerEnabled } from "./fiscal-credit-note.ts";
 import { sendClaimedGuestInvoice } from "./fiscal-guest-invoice.server.ts";
 import { p2HandlerEnabled } from "./fiscal-guest-invoice.ts";
 import {
@@ -23,7 +24,7 @@ type Db = FiscalDb;
 const HANDLER_NOTE = "That fiscal document type is not enabled yet.";
 
 export function dispatchFiscalDocument(type: FiscalDocumentType, sourceType = ""): void {
-  if (p2HandlerEnabled(type, sourceType)) return;
+  if (p2HandlerEnabled(type, sourceType) || p3HandlerEnabled(type, sourceType)) return;
   throw new FiscalError("FISCAL_HANDLER_NOT_ENABLED", HANDLER_NOTE);
 }
 
@@ -32,8 +33,12 @@ export async function processFiscalOutbox(db: Db, limit = 10): Promise<{ process
   if (claimed.error) throw new Error(claimed.error.message);
   const rows = claimedRows(claimed.data);
   for (const row of rows) {
-    if (p2HandlerEnabled(String(row.fiscal_document_type ?? ""), String(row.source_type ?? ""))) {
+    const documentType = String(row.fiscal_document_type ?? "");
+    const sourceType = String(row.source_type ?? "");
+    if (p2HandlerEnabled(documentType, sourceType)) {
       await sendClaimedGuestInvoice(db, row);
+    } else if (p3HandlerEnabled(documentType, sourceType)) {
+      await sendClaimedCreditNote(db, row);
     } else {
       await recordUnsupported(db, row);
     }

@@ -12,6 +12,7 @@ import {
   fiscalQrSrc,
   guestInvoiceTrnxId,
   parseFiscalInvoiceSuccess,
+  parseFiscalRuleValidation,
   type FiscalInvPayload,
   type FiscalItemMapping,
   type FiscalTaxMapping,
@@ -144,6 +145,15 @@ export async function sendClaimedGuestInvoice(
   row: Record<string, unknown>,
   fetchImpl?: FiscalFetch,
 ): Promise<void> {
+  return sendStoredFiscalRequest(db, row, fetchImpl, "invoice");
+}
+
+export async function sendStoredFiscalRequest(
+  db: Db,
+  row: Record<string, unknown>,
+  fetchImpl: FiscalFetch | undefined,
+  documentLabel: string,
+): Promise<void> {
   const registrationId = String(row.id ?? "");
   const integrationId = String(row.integration_id ?? "");
   const restaurantId = String(row.restaurant_id ?? "");
@@ -175,6 +185,24 @@ export async function sendClaimedGuestInvoice(
       payload,
       fetchImpl,
     });
+    const rule = parseFiscalRuleValidation(response.body);
+    if (rule) {
+      await finishAttempt(db, {
+        registrationId,
+        attemptNumber,
+        payload,
+        httpStatus: response.httpStatus,
+        responseBody: redactFiscalPayload(response.body),
+        outcome: "fatal_error",
+        code: "FISCAL_PROVIDER_REJECTED",
+        message: rule,
+        started,
+        latencyMs: response.latencyMs,
+        registered: null,
+        retryable: false,
+      });
+      return;
+    }
     const parsed =
       response.httpStatus >= 200 && response.httpStatus < 300
         ? parseFiscalInvoiceSuccess(response.body)
@@ -222,7 +250,7 @@ export async function sendClaimedGuestInvoice(
             ? "Authentication was rejected by the fiscal service."
             : code === "FISCAL_HTTP_ERROR"
               ? "The fiscal service returned an HTTP error."
-              : "The fiscal service did not accept the invoice.",
+              : `The fiscal service did not accept the ${documentLabel}.`,
       started,
       latencyMs: response.latencyMs,
       registered: null,

@@ -36,6 +36,8 @@ const fiscalSources = [
   "fiscal-outbox.server.ts",
   "fiscal-guest-invoice.ts",
   "fiscal-guest-invoice.server.ts",
+  "fiscal-credit-note.ts",
+  "fiscal-credit-note.server.ts",
   "fiscal-exchange.ts",
   "fiscal-exchange.server.ts",
   "fiscal.functions.ts",
@@ -256,10 +258,11 @@ describe("fiscal redaction, retry, and state", () => {
 
   it("does not send documents from the outbox dispatcher", async () => {
     assert.throws(
-      () => dispatchFiscalDocument("CRE", "credit_note"),
+      () => dispatchFiscalDocument("DEB", "debit_note"),
       (error: unknown) => error instanceof FiscalError,
     );
     assert.doesNotThrow(() => dispatchFiscalDocument("INV", "guest_invoice"));
+    assert.doesNotThrow(() => dispatchFiscalDocument("CRE", "credit_note"));
     const db = {
       rpc: async () => ({ data: [], error: null }),
       from: () => ({

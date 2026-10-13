@@ -36,7 +36,9 @@ export async function loadFiscalRegistrationExchange(
   const invoiceNumber =
     row.source_type === "guest_invoice" && typeof row.source_id === "string"
       ? await guestInvoiceNumber(db, input.restaurantId, row.source_id)
-      : null;
+      : row.source_type === "credit_note" && typeof row.source_id === "string"
+        ? await creditNoteNumber(db, input.restaurantId, row.source_id)
+        : null;
   return buildFiscalRegistrationExchange({
     registration: row,
     attempts: fiscalRecords(attempts.data),
@@ -57,4 +59,19 @@ async function guestInvoiceNumber(
     .maybeSingle();
   const issued = fiscalRecord(result.data)?.issued_number;
   return typeof issued === "string" && issued.trim().length > 0 ? issued : null;
+}
+
+async function creditNoteNumber(
+  db: Db,
+  restaurantId: string,
+  creditNoteId: string,
+): Promise<string | null> {
+  const result = await db
+    .from("invoice_credit_notes")
+    .select("note_number")
+    .eq("id", creditNoteId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const number = fiscalRecord(result.data)?.note_number;
+  return typeof number === "string" && number.trim().length > 0 ? number : null;
 }

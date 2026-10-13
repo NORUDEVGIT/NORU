@@ -363,7 +363,11 @@ export function parseFiscalInvoiceSuccess(body: unknown):
     record.data && typeof record.data === "object" && !Array.isArray(record.data)
       ? (record.data as Record<string, unknown>)
       : null;
-  const source = nested ?? record;
+  const wrapped =
+    record.body && typeof record.body === "object" && !Array.isArray(record.body)
+      ? (record.body as Record<string, unknown>)
+      : null;
+  const source = nested ?? wrapped ?? record;
   const status = source.status ?? record.status;
   const irn = stringField(source.irn) ?? stringField(record.irn);
   const documentNumber = stringField(source.documentNumber) ?? stringField(record.documentNumber);
@@ -390,6 +394,35 @@ export function parseFiscalInvoiceSuccess(body: unknown):
     signedInvoice: stringField(source.signedInvoice) ?? stringField(record.signedInvoice),
     externalStatus: "A",
   };
+}
+
+/** Fatal provider rule rejection. Returns null for transport and non-JSON failures. */
+export function parseFiscalRuleValidation(body: unknown): string | null {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const record = body as Record<string, unknown>;
+  if (record.nonJson === true) return null;
+  const statusCode = Number(record.statusCode ?? 0);
+  const message = typeof record.message === "string" ? record.message.trim() : "";
+  const rule = statusCode === 406 || message.toUpperCase().includes("RULE VALIDATION");
+  if (!rule) return null;
+  const lines = [message || "RULE VALIDATION ERROR"];
+  const portions = Array.isArray(record.body) ? record.body : [];
+  for (const portion of portions) {
+    if (!portion || typeof portion !== "object" || Array.isArray(portion)) continue;
+    const row = portion as Record<string, unknown>;
+    if (typeof row.portion === "string" && row.portion.trim().length > 0) {
+      lines.push(row.portion.trim());
+    }
+    const errors = Array.isArray(row.errorMessage)
+      ? row.errorMessage
+      : typeof row.errorMessage === "string"
+        ? [row.errorMessage]
+        : [];
+    for (const error of errors) {
+      if (typeof error === "string" && error.trim().length > 0) lines.push(error.trim());
+    }
+  }
+  return lines.join("\n").slice(0, 1000);
 }
 
 export function fiscalQrSrc(value: string | null | undefined): string | null {
