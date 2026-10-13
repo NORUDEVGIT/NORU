@@ -266,6 +266,7 @@ describe("fiscal redaction, retry, and state", () => {
     assert.doesNotThrow(() => dispatchFiscalDocument("DEB", "debit_note"));
     assert.doesNotThrow(() => dispatchFiscalDocument("SALES_RECEIPT", "guest_allocation"));
     assert.doesNotThrow(() => dispatchFiscalDocument("INV", "account_invoice"));
+    assert.doesNotThrow(() => dispatchFiscalDocument("SALES_RECEIPT", "account_allocation"));
     const db = {
       rpc: async () => ({ data: [], error: null }),
       from: () => ({

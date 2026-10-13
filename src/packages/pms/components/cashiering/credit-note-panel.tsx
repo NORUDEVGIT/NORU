@@ -18,6 +18,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { cn } from "@/shared/lib/utils";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
+import { CompanyCreditNoteFiscalSection } from "@/packages/pms/components/cashiering/company-credit-note-fiscal-section";
 import { CreditNoteFiscalSection } from "@/packages/pms/components/cashiering/credit-note-fiscal-section";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
 import {
@@ -513,6 +514,15 @@ export function CreditNoteSection({
             </div>
             {guestInvoiceId ? (
               <CreditNoteFiscalSection
+                restaurantId={restaurantId}
+                creditNoteId={viewed.id}
+                canRegister={canManage}
+                canInspect={canManage}
+                money={money}
+              />
+            ) : null}
+            {accountInvoiceId && !guestInvoiceId ? (
+              <CompanyCreditNoteFiscalSection
                 restaurantId={restaurantId}
                 creditNoteId={viewed.id}
                 canRegister={canManage}

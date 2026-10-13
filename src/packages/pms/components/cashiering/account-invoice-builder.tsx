@@ -12,6 +12,7 @@ import { settlementStateLabel } from "@/packages/pms/lib/cashiering-account-allo
 import { accountMethodLabel } from "@/packages/pms/lib/cashiering-account-payments";
 import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
 import { CompanyInvoiceFiscalSection } from "@/packages/pms/components/cashiering/company-invoice-fiscal-section";
+import { CompanySalesReceiptSection } from "@/packages/pms/components/cashiering/company-sales-receipt-section";
 import { DebitNoteSection } from "@/packages/pms/components/cashiering/debit-note-panel";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
@@ -738,6 +739,15 @@ export function AccountInvoiceWorkspace({
                   </div>
                 ) : null}
               </section>
+            ) : null}
+            {viewedInvoice.snapshot.account.accountKind === "company" ? (
+              <CompanySalesReceiptSection
+                restaurantId={restaurantId}
+                invoiceId={viewedInvoice.id}
+                canRegister={canManage}
+                canInspect={canManage}
+                money={money}
+              />
             ) : null}
             <CreditNoteSection
               restaurantId={restaurantId}

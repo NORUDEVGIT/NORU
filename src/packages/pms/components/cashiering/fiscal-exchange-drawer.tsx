@@ -129,6 +129,14 @@ export function FiscalExchangeDrawer({
                           value={companyBuyerFields(registration.requestSnapshot)?.vatNumber ?? "—"}
                         />
                       ) : null}
+                      {companyBuyerFields(registration.requestSnapshot)?.relatedDocument ? (
+                        <Row
+                          label="Related document"
+                          value={
+                            companyBuyerFields(registration.requestSnapshot)?.relatedDocument ?? "—"
+                          }
+                        />
+                      ) : null}
                     </>
                   ) : null}
                   <Row label="Transaction ID" value={registration.trnxId} />
@@ -276,7 +284,7 @@ function salesReceiptFields(snapshot: unknown) {
 function companyBuyerFields(snapshot: unknown) {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
   const row = snapshot as Record<string, unknown>;
-  if (row.TransactionType !== "B2B" || row.Type !== "INV") return null;
+  if (row.TransactionType !== "B2B") return null;
   const info =
     row.info && typeof row.info === "object" && !Array.isArray(row.info)
       ? (row.info as Record<string, unknown>)
@@ -291,6 +299,10 @@ function companyBuyerFields(snapshot: unknown) {
     tin: typeof buyer.Tin === "string" ? buyer.Tin : "—",
     vatNumber:
       typeof buyer.VatNumber === "string" && buyer.VatNumber.trim() ? buyer.VatNumber : null,
+    relatedDocument:
+      typeof row.RelatedDocument === "string" && row.RelatedDocument.trim()
+        ? row.RelatedDocument
+        : null,
   };
 }
 

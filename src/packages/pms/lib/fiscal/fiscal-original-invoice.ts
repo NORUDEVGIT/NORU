@@ -36,6 +36,28 @@ export function parseOriginalFiscalInvoice(snapshot: unknown): {
   return { transactionType, lines: lines as OriginalFiscalLine[] };
 }
 
+/** Exact BuyerDetails object from a stored INV request, including null fields. */
+export function copyOriginalBuyerDetails(snapshot: unknown): Record<string, unknown> | null {
+  const info = record(record(snapshot)?.info);
+  const buyer = record(info?.BuyerDetails);
+  if (!buyer) return null;
+  return { ...buyer };
+}
+
+export function originalInvoiceTotal(snapshot: unknown): number | null {
+  const details = record(record(record(snapshot)?.info)?.ValueDetails);
+  if (!details || !("TotalValue" in details)) return null;
+  const total = numberValue(details.TotalValue);
+  return Number.isFinite(total) ? fiscalMoney(total) : null;
+}
+
+/** Company invoice groups are keyed by sourceGroupId. Guest groups use parentTransactionId. */
+export function invoiceGroupSourceIds(snapshot: unknown): Array<string | null> {
+  const row = record(snapshot);
+  if (!Array.isArray(row?.groups)) return [];
+  return row.groups.map((group) => text(record(group)?.sourceGroupId));
+}
+
 export function invoiceGroupParentIds(snapshot: unknown): Array<string | null> {
   const row = record(snapshot);
   if (!Array.isArray(row?.groups)) return [];

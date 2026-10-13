@@ -12,9 +12,21 @@ import { requireRoomManager } from "../rooms.server";
 import { loadFiscalRegistrationExchange } from "./fiscal-exchange.server.ts";
 import { getCreditNoteFiscalState, queueCreditNoteFiscal } from "./fiscal-credit-note.server.ts";
 import {
+  getCompanyCreditFiscalState,
+  queueCompanyCreditFiscal,
+} from "./fiscal-company-credit-note.server.ts";
+import {
+  getCompanyDebitFiscalState,
+  queueCompanyDebitFiscal,
+} from "./fiscal-company-debit-note.server.ts";
+import {
   getCompanyInvoiceFiscalState,
   queueCompanyInvoiceFiscal,
 } from "./fiscal-company-invoice.server.ts";
+import {
+  getCompanyInvoiceSalesReceipts,
+  queueCompanyAllocationSalesReceipt,
+} from "./fiscal-company-sales-receipt.server.ts";
 import { getDebitNoteFiscalState, queueDebitNoteFiscal } from "./fiscal-debit-note.server.ts";
 import {
   getGuestInvoiceSalesReceipts,
@@ -1145,6 +1157,174 @@ export const registerCompanyInvoiceFiscal = createServerFn({ method: "POST" })
     });
     return result;
   });
+
+export const getCompanyCreditNoteFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, creditNoteId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    return getCompanyCreditFiscalState(await admin(), data);
+  });
+
+export const registerCompanyCreditNoteFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, creditNoteId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashierManager(context as never, data.restaurantId);
+    const db = await admin();
+    const queued = await queueCompanyCreditFiscal(db, data);
+    if (queued.status === "not_eligible" || queued.status === "registered") return queued;
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        queued.status === "failed"
+          ? "Fiscal company credit note registration retry requested"
+          : "Fiscal company credit note registration requested",
+    });
+    await processFiscalOutbox(db, 10);
+    const result = await getCompanyCreditFiscalState(db, data);
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        result.status === "registered"
+          ? "Fiscal company credit note registration succeeded"
+          : result.status === "queued"
+            ? "Fiscal company credit note registration queued"
+            : `Fiscal company credit note registration failed: ${result.registration?.lastError ?? "The fiscal service did not accept the credit note."}`.slice(
+                0,
+                400,
+              ),
+    });
+    return result;
+  });
+
+export const getCompanyDebitNoteFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, debitNoteId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    return getCompanyDebitFiscalState(await admin(), data);
+  });
+
+export const registerCompanyDebitNoteFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, debitNoteId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashierManager(context as never, data.restaurantId);
+    const db = await admin();
+    const queued = await queueCompanyDebitFiscal(db, data);
+    if (queued.status === "not_eligible" || queued.status === "registered") return queued;
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        queued.status === "failed"
+          ? "Fiscal company debit note registration retry requested"
+          : "Fiscal company debit note registration requested",
+    });
+    await processFiscalOutbox(db, 10);
+    const result = await getCompanyDebitFiscalState(db, data);
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        result.status === "registered"
+          ? "Fiscal company debit note registration succeeded"
+          : result.status === "queued"
+            ? "Fiscal company debit note registration queued"
+            : `Fiscal company debit note registration failed: ${result.registration?.lastError ?? "The fiscal service did not accept the debit note."}`.slice(
+                0,
+                400,
+              ),
+    });
+    return result;
+  });
+
+export const getCompanyInvoiceSalesReceiptFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    return getCompanyInvoiceSalesReceipts(await admin(), data);
+  });
+
+export const registerCompanyAllocationSalesReceipt = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, allocationId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashierManager(context as never, data.restaurantId);
+    const db = await admin();
+    const queued = await queueCompanyAllocationSalesReceipt(db, data);
+    if (queued.status === "not_eligible" || queued.status === "registered") return queued;
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        queued.status === "failed"
+          ? "Fiscal company sales receipt retry requested"
+          : "Fiscal company sales receipt requested",
+    });
+    await processFiscalOutbox(db, 10);
+    const lines = await getCompanyInvoiceSalesReceipts(db, {
+      restaurantId: data.restaurantId,
+      invoiceId: await companyAllocationInvoiceId(db, data.restaurantId, data.allocationId),
+    });
+    const result = lines.lines.find((line) => line.allocationId === data.allocationId) ?? queued;
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        result.status === "registered"
+          ? "Fiscal company sales receipt registration succeeded"
+          : result.status === "queued"
+            ? "Fiscal company sales receipt registration queued"
+            : `Fiscal company sales receipt registration failed: ${result.registration?.lastError ?? "The fiscal service did not accept the sales receipt."}`.slice(
+                0,
+                400,
+              ),
+    });
+    return result;
+  });
+
+async function companyAllocationInvoiceId(db: Db, restaurantId: string, allocationId: string) {
+  const result = await db
+    .from("financial_account_payment_allocations")
+    .select("invoice_id")
+    .eq("id", allocationId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const invoiceId = fiscalRecord(result.data)?.invoice_id;
+  if (typeof invoiceId !== "string") {
+    throw new FiscalError("FISCAL_NOT_ELIGIBLE", "That payment allocation was not found.");
+  }
+  return invoiceId;
+}
 
 export const getGuestInvoiceFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

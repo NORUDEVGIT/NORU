@@ -21,6 +21,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { cn } from "@/shared/lib/utils";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
+import { CompanyDebitNoteFiscalSection } from "@/packages/pms/components/cashiering/company-debit-note-fiscal-section";
 import { DebitNoteFiscalSection } from "@/packages/pms/components/cashiering/debit-note-fiscal-section";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
 import {
@@ -573,6 +574,15 @@ export function DebitNoteSection({
             </div>
             {guestInvoiceId ? (
               <DebitNoteFiscalSection
+                restaurantId={restaurantId}
+                debitNoteId={viewed.id}
+                canRegister={manageable}
+                canInspect={manageable}
+                money={money}
+              />
+            ) : null}
+            {accountInvoiceId && !guestInvoiceId ? (
+              <CompanyDebitNoteFiscalSection
                 restaurantId={restaurantId}
                 debitNoteId={viewed.id}
                 canRegister={manageable}
