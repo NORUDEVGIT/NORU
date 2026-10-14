@@ -98,6 +98,9 @@ describe("fiscal sales receipt eligibility and payload", () => {
     assert.equal(result.payload.client, "ERP");
     assert.equal(result.payload.device_id, "001096");
     assert.equal(result.payload.tax_payer_tin, "0026716178");
+    assert.deepEqual(result.payload.info, {});
+    assert.equal("BuyerDetails" in result.payload.info, false);
+    assert.equal("BuyerDetails" in result.payload, false);
     assert.equal("Mode" in result.payload, false);
     assert.equal("ItemList" in result.payload, false);
     assert.equal("ValueDetails" in result.payload, false);
@@ -415,6 +418,8 @@ describe("fiscal sales receipt registration safety", () => {
     assert.match(frozen, /"InvoicePaidAmount":5/);
     assert.match(frozen, /"RemainingAmount":7/);
     assert.match(frozen, /"PaymentCoverage":"PARTIAL"/);
+    assert.match(frozen, /"info":\{\}/);
+    assert.equal(frozen.includes("BuyerDetails"), false);
     const listed = await getGuestInvoiceSalesReceipts(memoryDb(sharedTables()), {
       restaurantId: PROPERTY,
       invoiceId: INVOICE_ID,

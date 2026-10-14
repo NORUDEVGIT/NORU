@@ -12,6 +12,8 @@
  *
  * PARTIAL matches a captured provider request. FULL, with remaining 0, is the
  * zero-outstanding counterpart and still needs a live provider check.
+ * The live provider requires a top-level info object. B2C sends an empty
+ * object. BuyerDetails are not sent on a guest receipt.
  * Receipt cancellation is not built here.
  */
 import { propertyCalendarDate } from "../cashiering-control.ts";
@@ -58,6 +60,7 @@ export type FiscalSalesReceiptPayload = {
   InvoicePaidAmount: number;
   invoice_document_no: string;
   invoice_total_amount: number;
+  info: Record<string, never>;
 };
 
 export type SalesReceiptPrior = {
@@ -218,6 +221,7 @@ export function assessSalesReceiptFiscal(
     InvoicePaidAmount: projection.paid,
     invoice_document_no: original.documentNumber.trim(),
     invoice_total_amount: projection.invoiceTotal,
+    info: {},
   };
   return { ok: true, payload, preview: projection };
 }
