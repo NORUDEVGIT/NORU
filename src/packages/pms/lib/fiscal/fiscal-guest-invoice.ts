@@ -31,6 +31,15 @@ import { createHash } from "node:crypto";
 
 import type { GuestFiscalCustomerType, GuestTaxBuyerDetails } from "../guest-tax-identities.ts";
 import {
+  expandFiscalGroup,
+  fiscalNoTaxCode,
+  numberFiscalLines,
+  reconcileFiscalInvoice,
+  type FiscalLineDraft,
+  type FiscalLinkDraft,
+  type NoruFiscalLineLink,
+} from "./fiscal-line-expansion.ts";
+import {
   FISCAL_DOCUMENT_MODE,
   FISCAL_ITEM_UNIT,
   FiscalError,
@@ -59,6 +68,11 @@ export type FiscalTaxMapping = {
   pmsTaxId: string | null;
   externalTaxCode: string;
   active: boolean;
+  fiscalTreatment?: "SAME_LINE_TAX" | "SEPARATE_ITEM" | null;
+  externalItemCode?: string | null;
+  externalUnit?: string | null;
+  natureOfSupplies?: string | null;
+  harmonizationCode?: string | null;
 };
 
 export type GuestInvoiceFiscalInput = {
@@ -119,6 +133,7 @@ export type FiscalInvPayload = {
   tax_payer_tin: string;
   RelatedDocument: null;
   TransactionType: GuestFiscalCustomerType;
+  noruFiscalLines?: NoruFiscalLineLink[];
 };
 
 export type GuestInvoiceFiscalPreview = {
@@ -143,8 +158,14 @@ export type GuestInvoiceFiscalAssessment =
       missingDevice: boolean;
     };
 
-type FrozenTax = { taxId: string | null; name: string; amount: number };
+type FrozenTax = {
+  transactionId: string | null;
+  taxId: string | null;
+  name: string;
+  amount: number;
+};
 type FrozenGroup = {
+  groupKey: string;
   description: string;
   chargeSource: string | null;
   serviceTypeId: string | null;
@@ -225,21 +246,13 @@ export function assessGuestInvoiceFiscal(
     reasons.push("Device ID is missing.");
   }
 
-  const lines: FiscalInvLine[] = [];
+  const drafts: FiscalLineDraft[] = [];
+  const linkDrafts: FiscalLinkDraft[] = [];
+  let expanded = 0;
   if (!parsed || parsed.currency !== "ETB" || parsed.hasServiceCharge) {
     return { ok: false, reasons, missingTaxes, missingItems, missingMode, missingDevice };
   }
   parsed.groups.forEach((group, index) => {
-    if (group.taxLines.length > 1) {
-      reasons.push(`This invoice line has more than one tax component: "${group.description}".`);
-      return;
-    }
-    const tax = resolveTax(group, input.taxMappings);
-    if (!tax.ok) {
-      missingTaxes.push(tax.label);
-      reasons.push(tax.reason);
-      return;
-    }
     const item = resolveItem(group, input.itemMappings);
     if (!item) {
       missingItems.push(group.description);
@@ -265,37 +278,46 @@ export function assessGuestInvoiceFiscal(
       reasons.push(price.reason);
       return;
     }
-    lines.push({
-      Unit: FISCAL_ITEM_UNIT,
-      TaxCode: tax.code,
-      Discount: 0,
-      ItemCode: itemCode,
-      Quantity: price.quantity,
-      TaxAmount: group.taxTotal,
-      UnitPrice: price.unitPrice,
-      LineNumber: index + 1,
-      PreTaxValue: group.subtotal,
-      ExciseTaxValue: 0,
-      TotalLineAmount: fiscalMoney(group.subtotal + group.taxTotal),
-      NatureOfSupplies: nature,
-      HarmonizationCode: item.harmonizationCode?.trim() || null,
-      ProductDescription: group.description,
+    const fiscalGroup = expandFiscalGroup({
+      groupKey: group.groupKey || `group-${index}`,
+      description: group.description,
+      subtotal: group.subtotal,
+      taxTotal: group.taxTotal,
+      taxLines: group.taxLines,
+      taxMappings: input.taxMappings,
+      noTaxCode: fiscalNoTaxCode(input.taxMappings),
+      source: {
+        itemCode,
+        nature,
+        harmonizationCode: item.harmonizationCode?.trim() || null,
+        quantity: price.quantity,
+        unitPrice: price.unitPrice,
+      },
     });
+    if (!fiscalGroup.ok) {
+      if (fiscalGroup.missingTax) missingTaxes.push(fiscalGroup.missingTax);
+      reasons.push(fiscalGroup.reason);
+      return;
+    }
+    drafts.push(...fiscalGroup.lines);
+    linkDrafts.push(...fiscalGroup.links);
+    expanded += 1;
   });
 
-  if (lines.length !== parsed.groups.length || reasons.length > 0) {
+  if (expanded !== parsed.groups.length || reasons.length > 0) {
     return { ok: false, reasons, missingTaxes, missingItems, missingMode, missingDevice };
   }
-
-  const pretax = fiscalMoney(lines.reduce((sum, line) => sum + line.PreTaxValue, 0));
-  const tax = fiscalMoney(lines.reduce((sum, line) => sum + line.TaxAmount, 0));
-  const total = fiscalMoney(lines.reduce((sum, line) => sum + line.TotalLineAmount, 0));
-  if (
-    Math.abs(pretax - parsed.subtotal) > 0.01 ||
-    Math.abs(tax - parsed.tax) > 0.01 ||
-    Math.abs(total - parsed.total) > 0.01
-  ) {
-    reasons.push("The fiscal lines do not match the frozen invoice totals.");
+  const numbered = numberFiscalLines(drafts, linkDrafts);
+  const lines = numbered.lines;
+  const reconciled = reconcileFiscalInvoice({
+    lines,
+    links: numbered.links,
+    subtotal: parsed.subtotal,
+    tax: parsed.tax,
+    total: parsed.total,
+  });
+  if (!reconciled.ok) {
+    reasons.push(reconciled.reason);
     return { ok: false, reasons, missingTaxes, missingItems, missingMode, missingDevice };
   }
 
@@ -312,8 +334,8 @@ export function assessGuestInvoiceFiscal(
 
   const valueDetails = {
     Discount: 0,
-    TaxValue: parsed.tax,
-    TotalValue: parsed.total,
+    TaxValue: reconciled.taxValue,
+    TotalValue: reconciled.totalValue,
     ExciseValue: 0,
     InvoiceCurrency: "ETB" as const,
     IncomeWithholdValue: 0,
@@ -332,6 +354,7 @@ export function assessGuestInvoiceFiscal(
     tax_payer_tin: input.connection.taxpayerTin.trim(),
     RelatedDocument: null,
     TransactionType: fiscalCustomerType,
+    noruFiscalLines: numbered.links,
   };
   return {
     ok: true,
@@ -342,9 +365,9 @@ export function assessGuestInvoiceFiscal(
       transactionType: fiscalCustomerType,
       currency: "ETB",
       mode: FISCAL_DOCUMENT_MODE,
-      pretax: parsed.subtotal,
-      tax: parsed.tax,
-      total: parsed.total,
+      pretax: reconciled.sourcePretax,
+      tax: reconciled.taxValue,
+      total: reconciled.totalValue,
     },
   };
 }
@@ -481,33 +504,6 @@ function frozenLinePrice(
   return { ok: true, quantity: 1, unitPrice: group.subtotal };
 }
 
-function resolveTax(
-  group: FrozenGroup,
-  mappings: FiscalTaxMapping[],
-): { ok: true; code: string } | { ok: false; label: string; reason: string } {
-  const active = mappings.filter((mapping) => mapping.active);
-  if (group.taxLines.length === 0) {
-    const noTax = active.find((mapping) => mapping.mappingKind === "NO_TAX");
-    if (!noTax) {
-      return { ok: false, label: "No tax", reason: 'Missing tax mapping for "No tax".' };
-    }
-    return { ok: true, code: noTax.externalTaxCode.trim() };
-  }
-  const tax = group.taxLines[0];
-  const mapped = active.find(
-    (mapping) =>
-      mapping.mappingKind === "TAX" && mapping.pmsTaxId && mapping.pmsTaxId === tax.taxId,
-  );
-  if (!mapped) {
-    return {
-      ok: false,
-      label: tax.name,
-      reason: `Missing tax mapping for "${tax.name}".`,
-    };
-  }
-  return { ok: true, code: mapped.externalTaxCode.trim() };
-}
-
 function resolveItem(group: FrozenGroup, mappings: FiscalItemMapping[]): FiscalItemMapping | null {
   const active = mappings.filter((mapping) => mapping.active);
   // Rate plan is not a classifier. Room charges share the room mapping.
@@ -581,6 +577,7 @@ function parseGroup(value: unknown): FrozenGroup | null {
     : [];
   if (Array.isArray(row.taxLines) && taxLines.length !== row.taxLines.length) return null;
   return {
+    groupKey: textOrNull(row.parentTransactionId) ?? textOrNull(row.sourceGroupId) ?? "",
     description: String(row.description ?? "Invoice line"),
     chargeSource: textOrNull(row.chargeSource),
     serviceTypeId: textOrNull(chargeSnapshot?.serviceTypeId),
@@ -601,6 +598,7 @@ function parseTax(value: unknown): FrozenTax | null {
   if (!row) return null;
   const snap = record(row.taxSnapshot);
   return {
+    transactionId: textOrNull(row.id),
     taxId: textOrNull(snap?.taxId),
     name: String(row.name ?? snap?.name ?? row.description ?? "Tax"),
     amount: fiscalMoney(numberValue(row.amount)),

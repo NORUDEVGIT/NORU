@@ -135,6 +135,7 @@ describe("guest invoice fiscal eligibility", () => {
     group.subtotal = 200;
     group.taxTotal = 30;
     group.grossTotal = 230;
+    (group.taxLines as Array<Record<string, unknown>>)[0].amount = 30;
     body.totals = { subtotal: 200, tax: 30, serviceCharge: 0, invoiceTotal: 230 };
     const result = assessGuestInvoiceFiscal(INVOICE_ID, input({ snapshot: body }));
     assert.equal(result.ok, true);
@@ -157,6 +158,7 @@ describe("guest invoice fiscal eligibility", () => {
     group.subtotal = 66130;
     group.taxTotal = 9919.5;
     group.grossTotal = 76049.5;
+    (group.taxLines as Array<Record<string, unknown>>)[0].amount = 9919.5;
     body.totals = { subtotal: 66130, tax: 9919.5, serviceCharge: 0, invoiceTotal: 76049.5 };
     const result = assessGuestInvoiceFiscal(INVOICE_ID, input({ snapshot: body }));
     assert.equal(result.ok, true);

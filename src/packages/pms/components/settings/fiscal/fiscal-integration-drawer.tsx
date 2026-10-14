@@ -405,6 +405,10 @@ function FiscalMappings({
     mappingKind: "TAX" | "NO_TAX";
     pmsTaxId: string | null;
     externalTaxCode: string;
+    fiscalTreatment?: "SAME_LINE_TAX" | "SEPARATE_ITEM";
+    externalItemCode?: string;
+    natureOfSupplies?: FiscalNatureOfSupplies;
+    harmonizationCode?: string | null;
   }) => Promise<unknown>;
   onItem: (input: {
     serviceTypeId: string | null;
@@ -426,8 +430,9 @@ function FiscalMappings({
       <section className="space-y-2">
         <h3 className="font-medium text-[#251605]">Tax codes</h3>
         <p className="text-xs text-muted-foreground">
-          Enter the provider TaxCode for each NORU tax. VAT15 and VAT0 are known examples. The
-          percentage is not copied automatically.
+          Enter the provider TaxCode for each NORU tax. Apply it on the source item, or create a
+          separate fiscal item. VAT15 and VAT0 are known examples. The percentage is not copied
+          automatically.
         </p>
         {status.taxes.length === 0 ? (
           <p className="text-sm text-muted-foreground">
@@ -439,16 +444,19 @@ function FiscalMappings({
             (row: FiscalCatalogRow) => row.pms_tax_id === tax.id,
           );
           return (
-            <MappingRow
+            <TaxMappingRow
               key={tax.id}
               title={`${tax.name} (${tax.code})`}
               detail={`${tax.charge_type} ${tax.amount}`}
-              statusLabel={current ? "Mapped" : "Missing"}
+              current={current}
               canEdit={canEdit}
-              initial={current?.external_tax_code ?? ""}
-              placeholder="External TaxCode"
-              onSave={(value) =>
-                onTax({ mappingKind: "TAX", pmsTaxId: tax.id, externalTaxCode: value })
+              onSave={(values) =>
+                onTax({
+                  mappingKind: "TAX",
+                  pmsTaxId: tax.id,
+                  externalTaxCode: values.taxCode,
+                  ...values,
+                })
               }
             />
           );
@@ -468,7 +476,12 @@ function FiscalMappings({
           }
           placeholder="External code for untaxed lines"
           onSave={(value) =>
-            onTax({ mappingKind: "NO_TAX", pmsTaxId: null, externalTaxCode: value })
+            onTax({
+              mappingKind: "NO_TAX",
+              pmsTaxId: null,
+              externalTaxCode: value,
+              fiscalTreatment: "SAME_LINE_TAX",
+            })
           }
         />
       </section>
@@ -575,6 +588,154 @@ function FiscalMappings({
         />
       </section>
       <BuyerRow canEdit={canEdit} types={status.buyerTypes} onSave={onBuyer} />
+    </div>
+  );
+}
+
+function TaxMappingRow({
+  title,
+  detail,
+  current,
+  canEdit,
+  onSave,
+}: {
+  title: string;
+  detail: string;
+  current: FiscalCatalogRow | undefined;
+  canEdit: boolean;
+  onSave: (values: {
+    taxCode: string;
+    fiscalTreatment: "SAME_LINE_TAX" | "SEPARATE_ITEM";
+    externalItemCode: string;
+    natureOfSupplies: FiscalNatureOfSupplies;
+    harmonizationCode: string | null;
+  }) => Promise<unknown>;
+}) {
+  const separate = current?.fiscal_treatment === "SEPARATE_ITEM";
+  const [taxCode, setTaxCode] = useState(current?.external_tax_code ?? "");
+  const [treatment, setTreatment] = useState<"SAME_LINE_TAX" | "SEPARATE_ITEM">(
+    separate ? "SEPARATE_ITEM" : "SAME_LINE_TAX",
+  );
+  const [itemCode, setItemCode] = useState(current?.external_item_code ?? "");
+  const [nature, setNature] = useState<FiscalNatureOfSupplies>(
+    fiscalNatureOfSupplies(current?.nature_of_supplies ?? "") ?? "service",
+  );
+  const [harmonization, setHarmonization] = useState(current?.harmonization_code ?? "");
+  useEffect(() => {
+    setTaxCode(current?.external_tax_code ?? "");
+    setTreatment(current?.fiscal_treatment === "SEPARATE_ITEM" ? "SEPARATE_ITEM" : "SAME_LINE_TAX");
+    setItemCode(current?.external_item_code ?? "");
+    setNature(fiscalNatureOfSupplies(current?.nature_of_supplies ?? "") ?? "service");
+    setHarmonization(current?.harmonization_code ?? "");
+  }, [current]);
+  return (
+    <div className="space-y-2 rounded-xl border border-[#E5DED1] p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-[#251605]">{title}</p>
+          <p className="text-xs text-muted-foreground">
+            {detail} · {current ? (separate ? "Separate item" : "Mapped") : "Missing"}
+          </p>
+        </div>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        <div className="space-y-1">
+          <Label>Provider tax code</Label>
+          <Input
+            value={taxCode}
+            placeholder="External TaxCode"
+            onChange={(event) => setTaxCode(event.target.value)}
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label>Fiscal treatment</Label>
+          <Select
+            value={treatment}
+            onValueChange={(value) => setTreatment(value as "SAME_LINE_TAX" | "SEPARATE_ITEM")}
+            disabled={!canEdit}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="SAME_LINE_TAX">Apply on source item</SelectItem>
+              <SelectItem value="SEPARATE_ITEM">Create separate fiscal item</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {treatment === "SEPARATE_ITEM" ? (
+          <>
+            <div className="space-y-1">
+              <Label>Fiscal item code</Label>
+              <Input
+                value={itemCode}
+                placeholder="Assigned on save"
+                onChange={(event) => setItemCode(event.target.value)}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Nature of supplies</Label>
+              <Select
+                value={nature}
+                onValueChange={(value) => setNature(value as FiscalNatureOfSupplies)}
+                disabled={!canEdit}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="service">Service</SelectItem>
+                  <SelectItem value="goods">Goods</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Unit</Label>
+              <Input value={FISCAL_ITEM_UNIT} disabled />
+            </div>
+            <div className="space-y-1">
+              <Label>Harmonization code</Label>
+              <Input
+                value={harmonization}
+                placeholder="Optional"
+                onChange={(event) => setHarmonization(event.target.value)}
+                disabled={!canEdit}
+              />
+            </div>
+          </>
+        ) : null}
+      </div>
+      {canEdit ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            if (taxCode.trim().length === 0) {
+              toast.error("External tax code is required.");
+              return;
+            }
+            if (
+              treatment === "SEPARATE_ITEM" &&
+              itemCode.trim() &&
+              fiscalItemCodeNumber(itemCode) == null
+            ) {
+              toast.error("Fiscal item code must be a whole number such as 1001.");
+              return;
+            }
+            onSave({
+              taxCode,
+              fiscalTreatment: treatment,
+              externalItemCode: itemCode,
+              natureOfSupplies: nature,
+              harmonizationCode: harmonization.trim() || null,
+            }).catch((error: Error) => toast.error(error.message));
+          }}
+        >
+          Save
+        </Button>
+      ) : null}
     </div>
   );
 }

@@ -127,6 +127,7 @@ function catalog(data: FiscalDbResult["data"]): FiscalCatalogRow[] {
     mapping_kind: typeof row.mapping_kind === "string" ? row.mapping_kind : undefined,
     external_tax_code:
       typeof row.external_tax_code === "string" ? row.external_tax_code : undefined,
+    fiscal_treatment: typeof row.fiscal_treatment === "string" ? row.fiscal_treatment : undefined,
     external_item_code:
       typeof row.external_item_code === "string" ? row.external_item_code : undefined,
     external_unit: typeof row.external_unit === "string" ? row.external_unit : undefined,
@@ -616,6 +617,10 @@ export const saveFiscalTaxMapping = createServerFn({ method: "POST" })
         mappingKind: z.enum(["TAX", "NO_TAX"]),
         pmsTaxId: idSchema.nullable(),
         externalTaxCode: z.string().max(40),
+        fiscalTreatment: z.enum(["SAME_LINE_TAX", "SEPARATE_ITEM"]).optional(),
+        externalItemCode: z.string().max(40).optional(),
+        natureOfSupplies: z.enum(FISCAL_NATURE_OF_SUPPLIES).optional(),
+        harmonizationCode: z.string().max(40).nullable().optional(),
       })
       .parse(input),
   )
@@ -625,6 +630,10 @@ export const saveFiscalTaxMapping = createServerFn({ method: "POST" })
       const code = requireExternalCode(data.externalTaxCode, "External tax code");
       const db = await admin();
       const row = await requireFiscalRow(db, data.restaurantId);
+      const treatment = data.fiscalTreatment ?? "SAME_LINE_TAX";
+      if (data.mappingKind === "NO_TAX" && treatment === "SEPARATE_ITEM") {
+        throw new FiscalError("FISCAL_MAPPING_INVALID", "No tax cannot be a separate fiscal item.");
+      }
       if (data.mappingKind === "TAX") {
         if (!data.pmsTaxId) throw new FiscalError("FISCAL_MAPPING_INVALID", "Choose a NORU tax.");
         const tax = await db
@@ -653,9 +662,35 @@ export const saveFiscalTaxMapping = createServerFn({ method: "POST" })
           active: true,
         };
         const existingId = rowId(existing.data);
+        const itemFields =
+          treatment === "SEPARATE_ITEM"
+            ? {
+                fiscal_treatment: "SEPARATE_ITEM" as const,
+                external_item_code: await assignFiscalItemCode(
+                  db,
+                  data.restaurantId,
+                  data.externalItemCode ?? "",
+                  existingId,
+                ),
+                external_unit: FISCAL_ITEM_UNIT,
+                nature_of_supplies: data.natureOfSupplies ?? "service",
+                harmonization_code: data.harmonizationCode?.trim() || null,
+              }
+            : data.fiscalTreatment
+              ? {
+                  fiscal_treatment: "SAME_LINE_TAX" as const,
+                  external_item_code: null,
+                  external_unit: null,
+                  nature_of_supplies: null,
+                  harmonization_code: null,
+                }
+              : {};
         const saved = existingId
-          ? await db.from("fiscal_tax_code_mappings").update(payload).eq("id", existingId)
-          : await db.from("fiscal_tax_code_mappings").insert(payload);
+          ? await db
+              .from("fiscal_tax_code_mappings")
+              .update({ ...payload, ...itemFields })
+              .eq("id", existingId)
+          : await db.from("fiscal_tax_code_mappings").insert({ ...payload, ...itemFields });
         if (saved.error)
           throw new FiscalError("FISCAL_MAPPING_INVALID", "That tax mapping could not be saved.");
       } else {
@@ -674,9 +709,21 @@ export const saveFiscalTaxMapping = createServerFn({ method: "POST" })
           active: true,
         };
         const existingId = rowId(existing.data);
+        const itemFields = data.fiscalTreatment
+          ? {
+              fiscal_treatment: "SAME_LINE_TAX" as const,
+              external_item_code: null,
+              external_unit: null,
+              nature_of_supplies: null,
+              harmonization_code: null,
+            }
+          : {};
         const saved = existingId
-          ? await db.from("fiscal_tax_code_mappings").update(payload).eq("id", existingId)
-          : await db.from("fiscal_tax_code_mappings").insert(payload);
+          ? await db
+              .from("fiscal_tax_code_mappings")
+              .update({ ...payload, ...itemFields })
+              .eq("id", existingId)
+          : await db.from("fiscal_tax_code_mappings").insert({ ...payload, ...itemFields });
         if (saved.error)
           throw new FiscalError("FISCAL_MAPPING_INVALID", "That tax mapping could not be saved.");
       }

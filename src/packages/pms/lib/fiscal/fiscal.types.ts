@@ -460,6 +460,7 @@ export type FiscalCatalogRow = {
   pms_tax_id?: string | null;
   mapping_kind?: string;
   external_tax_code?: string;
+  fiscal_treatment?: string;
   external_item_code?: string;
   external_unit?: string;
   nature_of_supplies?: string;

@@ -5,6 +5,11 @@
  * BuyerDetails are copied from the original B2B INV request. Amounts are the
  * positive debit magnitudes. A debit may exceed the original line.
  */
+import {
+  debitTaxComponents,
+  expandLinkedDebitGroup,
+  readNoruFiscalLines,
+} from "./fiscal-line-expansion.ts";
 import { fiscalMoney, formatFiscalDocumentDate } from "./fiscal-guest-invoice.ts";
 import {
   copyOriginalBuyerDetails,
@@ -150,19 +155,64 @@ export function assessCompanyDebitFiscal(
   if (reasons.length > 0 || !request || !buyer || !debits || !original?.irn) {
     return { ok: false, reasons, missingDevice };
   }
-  const single = request.lines.length === 1 && invoiceGroups.length === 1;
-  const matches: Array<{ debit: DebitGroup; line: OriginalFiscalLine; explicit: boolean }> = [];
-  for (const debit of debits) {
-    const index = uniqueInvoiceGroupIndex(invoiceGroups, debit.sourceGroupId);
-    const explicitLine = index == null ? null : (request.lines[index] ?? null);
-    const line = explicitLine ?? (single ? request.lines[0] : null);
-    if (!line) {
-      reasons.push("Debit Note line cannot be matched to an original fiscal invoice line.");
-      continue;
+  const storedLinks = readNoruFiscalLines(original.requestSnapshot);
+  const matches: Array<{
+    debit: DebitGroup;
+    line: OriginalFiscalLine;
+    explicit: boolean;
+    pretax: number;
+    tax: number;
+  }> = [];
+  if (storedLinks.length > 0) {
+    for (const debit of debits) {
+      const expanded = expandLinkedDebitGroup({
+        groupKey: debit.sourceGroupId,
+        pretax: debit.pretax,
+        tax: debit.tax,
+        components: debitTaxComponents(input.debitSnapshot, debit.sourceGroupId),
+        links: storedLinks,
+        lines: request.lines,
+        invoiceGroupCount: invoiceGroups.length,
+      });
+      if (!expanded.ok) {
+        reasons.push(expanded.reason);
+        continue;
+      }
+      for (const part of expanded.parts) {
+        const line = request.lines[part.line.index];
+        if (!line || matches.some((match) => match.line.index === line.index)) {
+          reasons.push("Debit Note line cannot be matched to an original fiscal invoice line.");
+          continue;
+        }
+        matches.push({
+          debit,
+          line,
+          explicit: expanded.explicit && part.role === "source",
+          pretax: part.pretax,
+          tax: part.tax,
+        });
+      }
     }
-    matches.push({ debit, line, explicit: explicitLine != null });
+  } else {
+    const single = request.lines.length === 1 && invoiceGroups.length === 1;
+    for (const debit of debits) {
+      const index = uniqueInvoiceGroupIndex(invoiceGroups, debit.sourceGroupId);
+      const explicitLine = index == null ? null : (request.lines[index] ?? null);
+      const line = explicitLine ?? (single ? request.lines[0] : null);
+      if (!line) {
+        reasons.push("Debit Note line cannot be matched to an original fiscal invoice line.");
+        continue;
+      }
+      matches.push({
+        debit,
+        line,
+        explicit: explicitLine != null,
+        pretax: debit.pretax,
+        tax: debit.tax,
+      });
+    }
   }
-  if (matches.length !== debits.length || reasons.length > 0) {
+  if (matches.length === 0 || reasons.length > 0) {
     return { ok: false, reasons, missingDevice };
   }
   matches.sort((left, right) => left.line.index - right.line.index);
@@ -178,7 +228,7 @@ export function assessCompanyDebitFiscal(
   }
   const itemList: Array<Record<string, unknown>> = [];
   for (const [offset, match] of matches.entries()) {
-    const price = debitPrice(match.debit, match.explicit);
+    const price = debitPrice({ ...match.debit, pretax: match.pretax }, match.explicit);
     if (!price.ok) {
       reasons.push(price.reason);
       continue;
@@ -189,12 +239,12 @@ export function assessCompanyDebitFiscal(
       Discount: 0,
       ItemCode: match.line.itemCode,
       Quantity: price.quantity,
-      TaxAmount: match.debit.tax,
+      TaxAmount: match.tax,
       UnitPrice: price.unitPrice,
       LineNumber: offset + 1,
-      PreTaxValue: match.debit.pretax,
+      PreTaxValue: match.pretax,
       ExciseTaxValue: 0,
-      TotalLineAmount: fiscalMoney(match.debit.pretax + match.debit.tax),
+      TotalLineAmount: fiscalMoney(match.pretax + match.tax),
       NatureOfSupplies: match.line.nature,
       HarmonizationCode: match.line.harmonization,
       ProductDescription: match.line.description,

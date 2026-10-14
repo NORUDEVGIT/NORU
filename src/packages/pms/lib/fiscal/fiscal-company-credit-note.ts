@@ -6,6 +6,12 @@
  * positive credited magnitudes. Current company profile and mappings are not
  * read.
  */
+import {
+  expandCorrectionGroup,
+  noteComponents,
+  readNoruFiscalLines,
+  type NoteComponent,
+} from "./fiscal-line-expansion.ts";
 import { fiscalMoney, formatFiscalDocumentDate } from "./fiscal-guest-invoice.ts";
 import {
   copyOriginalBuyerDetails,
@@ -90,7 +96,13 @@ export type CompanyCreditAssessment =
   | { ok: true; payload: CompanyCreditPayload; preview: CompanyCreditPreview }
   | { ok: false; reasons: string[]; missingDevice: boolean };
 
-type CreditGroup = { sourceGroupId: string; pretax: number; tax: number; serviceCharge: number };
+type CreditGroup = {
+  sourceGroupId: string;
+  pretax: number;
+  tax: number;
+  serviceCharge: number;
+  components: NoteComponent[];
+};
 
 export function assessCompanyCreditFiscal(
   creditNoteId: string,
@@ -122,25 +134,51 @@ export function assessCompanyCreditFiscal(
   if (reasons.length > 0 || !request || !buyer || !credits || !original?.irn) {
     return { ok: false, reasons, missingDevice };
   }
-  const matches: Array<{ credit: CreditGroup; line: OriginalFiscalLine }> = [];
-  for (const credit of credits) {
-    const index = uniqueInvoiceGroupIndex(invoiceGroups, credit.sourceGroupId);
-    if (index == null || !request.lines[index]) {
-      reasons.push("Credit Note line cannot be matched to an original fiscal invoice line.");
-      continue;
+  const storedLinks = readNoruFiscalLines(original.requestSnapshot);
+  const matches: Array<{ line: OriginalFiscalLine; pretax: number; tax: number }> = [];
+  if (storedLinks.length > 0) {
+    for (const credit of credits) {
+      const expanded = expandCorrectionGroup({
+        groupKey: credit.sourceGroupId,
+        pretax: credit.pretax,
+        tax: credit.tax,
+        components: credit.components,
+        links: storedLinks,
+        lines: request.lines,
+      });
+      if (!expanded.ok) {
+        reasons.push(expanded.reason);
+        continue;
+      }
+      for (const part of expanded.parts) {
+        const line = request.lines[part.line.index];
+        if (!line || matches.some((match) => match.line.index === line.index)) {
+          reasons.push("Credit Note line cannot be matched to an original fiscal invoice line.");
+          continue;
+        }
+        matches.push({ line, pretax: part.pretax, tax: part.tax });
+      }
     }
-    const line = request.lines[index];
-    if (matches.some((match) => match.line.index === line.index)) {
-      reasons.push("Credit Note line cannot be matched to an original fiscal invoice line.");
-      continue;
+  } else {
+    for (const credit of credits) {
+      const index = uniqueInvoiceGroupIndex(invoiceGroups, credit.sourceGroupId);
+      if (index == null || !request.lines[index]) {
+        reasons.push("Credit Note line cannot be matched to an original fiscal invoice line.");
+        continue;
+      }
+      const line = request.lines[index];
+      if (matches.some((match) => match.line.index === line.index)) {
+        reasons.push("Credit Note line cannot be matched to an original fiscal invoice line.");
+        continue;
+      }
+      if (credit.pretax > line.preTax + 0.01 || credit.tax > line.tax + 0.01) {
+        reasons.push("Credit Note amount exceeds the original fiscal line.");
+        continue;
+      }
+      matches.push({ line, pretax: credit.pretax, tax: credit.tax });
     }
-    if (credit.pretax > line.preTax + 0.01 || credit.tax > line.tax + 0.01) {
-      reasons.push("Credit Note amount exceeds the original fiscal line.");
-      continue;
-    }
-    matches.push({ credit, line });
   }
-  if (matches.length !== credits.length || reasons.length > 0) {
+  if (matches.length === 0 || reasons.length > 0) {
     return { ok: false, reasons, missingDevice };
   }
   matches.sort((left, right) => left.line.index - right.line.index);
@@ -155,7 +193,7 @@ export function assessCompanyCreditFiscal(
     };
   }
   const lines = matches.map((match, offset) => {
-    const price = creditPrice(match.line, match.credit.pretax);
+    const price = creditPrice(match.line, match.pretax);
     return { match, price, offset };
   });
   if (lines.some((line) => !line.price.ok)) {
@@ -167,17 +205,17 @@ export function assessCompanyCreditFiscal(
   }
   const itemList = lines.map((line) => {
     const price = line.price.ok ? line.price : { quantity: 1, unitPrice: 0 };
-    const total = fiscalMoney(line.match.credit.pretax + line.match.credit.tax);
+    const total = fiscalMoney(line.match.pretax + line.match.tax);
     return {
       Unit: line.match.line.unit,
       TaxCode: line.match.line.taxCode,
       Discount: 0,
       ItemCode: line.match.line.itemCode,
       Quantity: price.quantity,
-      TaxAmount: line.match.credit.tax,
+      TaxAmount: line.match.tax,
       UnitPrice: price.unitPrice,
       LineNumber: line.offset + 1,
-      PreTaxValue: line.match.credit.pretax,
+      PreTaxValue: line.match.pretax,
       ExciseTaxValue: 0,
       TotalLineAmount: total,
       NatureOfSupplies: line.match.line.nature,
@@ -328,6 +366,7 @@ function parseCreditGroups(snapshot: unknown): CreditGroup[] | null {
       pretax: fiscalMoney(Math.abs(numberValue(item.subtotal))),
       tax: fiscalMoney(Math.abs(numberValue(item.tax))),
       serviceCharge: fiscalMoney(Math.abs(numberValue(item.serviceCharge))),
+      components: noteComponents(item),
     };
   });
   if (groups.some((group) => group == null)) return null;

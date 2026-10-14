@@ -17,8 +17,16 @@
  * as null.
  */
 import {
+  expandFiscalGroup,
+  fiscalNoTaxCode,
+  numberFiscalLines,
+  reconcileFiscalInvoice,
+  type FiscalLineDraft,
+  type FiscalLinkDraft,
+  type NoruFiscalLineLink,
+} from "./fiscal-line-expansion.ts";
+import {
   FISCAL_DOCUMENT_MODE,
-  FISCAL_ITEM_UNIT,
   fiscalItemCodeNumber,
   fiscalNatureOfSupplies,
 } from "./fiscal.types.ts";
@@ -82,6 +90,7 @@ export type CompanyInvoicePayload = {
   tax_payer_tin: string;
   RelatedDocument: null;
   TransactionType: "B2B";
+  noruFiscalLines?: NoruFiscalLineLink[];
 };
 
 export type CompanyInvoiceFiscalPreview = {
@@ -124,8 +133,14 @@ export type CompanyInvoiceFiscalAssessment =
       missingDevice: boolean;
     };
 
-type FrozenTax = { taxId: string | null; name: string; amount: number };
+type FrozenTax = {
+  transactionId: string | null;
+  taxId: string | null;
+  name: string;
+  amount: number;
+};
 type FrozenGroup = {
+  groupKey: string;
   description: string;
   chargeSource: string | null;
   serviceTypeId: string | null;
@@ -185,7 +200,9 @@ export function assessCompanyInvoiceFiscal(
     reasons.push("Device ID is missing.");
   }
 
-  const lines: FiscalInvLine[] = [];
+  const drafts: FiscalLineDraft[] = [];
+  const linkDrafts: FiscalLinkDraft[] = [];
+  let expanded = 0;
   const company =
     parsed != null &&
     parsed.accountKind === "company" &&
@@ -201,27 +218,13 @@ export function assessCompanyInvoiceFiscal(
         );
         return;
       }
-      if (group.taxTotal > 0.01 && (group.taxLines.length === 0 || !group.taxLines[0]?.taxId)) {
+      if (
+        group.taxTotal > 0.01 &&
+        (group.taxLines.length === 0 || group.taxLines.some((tax) => !tax.taxId))
+      ) {
         reasons.push(
           `This company invoice does not freeze the tax identity required for fiscal mapping: "${group.description}".`,
         );
-        return;
-      }
-      if (group.taxLines.length > 1) {
-        reasons.push(`This invoice line has more than one tax component: "${group.description}".`);
-        return;
-      }
-      if (
-        group.taxLines.length === 1 &&
-        Math.abs(fiscalMoney(group.taxLines[0].amount) - group.taxTotal) > 0.01
-      ) {
-        reasons.push(`The frozen tax for "${group.description}" does not match the line tax.`);
-        return;
-      }
-      const tax = resolveTax(group, input.taxMappings);
-      if (!tax.ok) {
-        missingTaxes.push(tax.label);
-        reasons.push(tax.reason);
         return;
       }
       const item = resolveItem(group, input.itemMappings);
@@ -249,38 +252,47 @@ export function assessCompanyInvoiceFiscal(
         reasons.push(price.reason);
         return;
       }
-      lines.push({
-        Unit: FISCAL_ITEM_UNIT,
-        TaxCode: tax.code,
-        Discount: 0,
-        ItemCode: itemCode,
-        Quantity: price.quantity,
-        TaxAmount: group.taxTotal,
-        UnitPrice: price.unitPrice,
-        LineNumber: index + 1,
-        PreTaxValue: group.subtotal,
-        ExciseTaxValue: 0,
-        TotalLineAmount: fiscalMoney(group.subtotal + group.taxTotal),
-        NatureOfSupplies: nature,
-        HarmonizationCode: item.harmonizationCode?.trim() || null,
-        ProductDescription: group.description,
+      const fiscalGroup = expandFiscalGroup({
+        groupKey: group.groupKey || `group-${index}`,
+        description: group.description,
+        subtotal: group.subtotal,
+        taxTotal: group.taxTotal,
+        taxLines: group.taxLines,
+        taxMappings: input.taxMappings,
+        noTaxCode: fiscalNoTaxCode(input.taxMappings),
+        source: {
+          itemCode,
+          nature,
+          harmonizationCode: item.harmonizationCode?.trim() || null,
+          quantity: price.quantity,
+          unitPrice: price.unitPrice,
+        },
       });
+      if (!fiscalGroup.ok) {
+        if (fiscalGroup.missingTax) missingTaxes.push(fiscalGroup.missingTax);
+        reasons.push(fiscalGroup.reason);
+        return;
+      }
+      drafts.push(...fiscalGroup.lines);
+      linkDrafts.push(...fiscalGroup.links);
+      expanded += 1;
     });
   }
 
-  if (!company || !parsed || lines.length !== parsed.groups.length || reasons.length > 0) {
+  if (!company || !parsed || expanded !== parsed.groups.length || reasons.length > 0) {
     return { ok: false, reasons, missingTaxes, missingItems, missingDevice };
   }
-
-  const pretax = fiscalMoney(lines.reduce((sum, line) => sum + line.PreTaxValue, 0));
-  const tax = fiscalMoney(lines.reduce((sum, line) => sum + line.TaxAmount, 0));
-  const total = fiscalMoney(lines.reduce((sum, line) => sum + line.TotalLineAmount, 0));
-  if (
-    Math.abs(pretax - parsed.subtotal) > 0.01 ||
-    Math.abs(tax - parsed.tax) > 0.01 ||
-    Math.abs(total - parsed.total) > 0.01
-  ) {
-    reasons.push("The fiscal lines do not match the frozen invoice totals.");
+  const numbered = numberFiscalLines(drafts, linkDrafts);
+  const lines = numbered.lines;
+  const reconciled = reconcileFiscalInvoice({
+    lines,
+    links: numbered.links,
+    subtotal: parsed.subtotal,
+    tax: parsed.tax,
+    total: parsed.total,
+  });
+  if (!reconciled.ok) {
+    reasons.push(reconciled.reason);
     return { ok: false, reasons, missingTaxes, missingItems, missingDevice };
   }
 
@@ -315,8 +327,8 @@ export function assessCompanyInvoiceFiscal(
       ItemList: lines,
       ValueDetails: {
         Discount: 0,
-        TaxValue: parsed.tax,
-        TotalValue: parsed.total,
+        TaxValue: reconciled.taxValue,
+        TotalValue: reconciled.totalValue,
         ExciseValue: 0,
         InvoiceCurrency: "ETB",
         IncomeWithholdValue: 0,
@@ -330,6 +342,7 @@ export function assessCompanyInvoiceFiscal(
     tax_payer_tin: input.connection.taxpayerTin.trim(),
     RelatedDocument: null,
     TransactionType: "B2B",
+    noruFiscalLines: numbered.links,
   };
   return {
     ok: true,
@@ -345,9 +358,9 @@ export function assessCompanyInvoiceFiscal(
       region: buyer.Region,
       transactionType: "B2B",
       currency: "ETB",
-      pretax: parsed.subtotal,
-      tax: parsed.tax,
-      total: parsed.total,
+      pretax: reconciled.sourcePretax,
+      tax: reconciled.taxValue,
+      total: reconciled.totalValue,
     },
   };
 }
@@ -445,6 +458,7 @@ function parseGroup(value: unknown): FrozenGroup | null {
   const departmentId = optionalText(chargeSnapshot?.departmentId);
   const chargeSource = optionalText(row.chargeSource);
   return {
+    groupKey: optionalText(row.sourceGroupId) ?? optionalText(row.parentTransactionId) ?? "",
     description: optionalText(row.description) ?? "Invoice line",
     chargeSource,
     serviceTypeId,
@@ -464,33 +478,11 @@ function parseTax(value: unknown): FrozenTax | null {
   if (!row) return null;
   const snap = record(row.taxSnapshot);
   return {
+    transactionId: optionalText(row.id),
     taxId: optionalText(snap?.taxId),
     name: optionalText(row.name) ?? optionalText(snap?.name) ?? "Tax",
     amount: fiscalMoney(numberValue(row.amount)),
   };
-}
-
-function resolveTax(
-  group: FrozenGroup,
-  mappings: FiscalTaxMapping[],
-): { ok: true; code: string } | { ok: false; label: string; reason: string } {
-  const active = mappings.filter((mapping) => mapping.active);
-  if (group.taxLines.length === 0) {
-    const noTax = active.find((mapping) => mapping.mappingKind === "NO_TAX");
-    if (!noTax) {
-      return { ok: false, label: "No tax", reason: 'Missing tax mapping for "No tax".' };
-    }
-    return { ok: true, code: noTax.externalTaxCode.trim() };
-  }
-  const tax = group.taxLines[0];
-  const mapped = active.find(
-    (mapping) =>
-      mapping.mappingKind === "TAX" && mapping.pmsTaxId && mapping.pmsTaxId === tax.taxId,
-  );
-  if (!mapped) {
-    return { ok: false, label: tax.name, reason: `Missing tax mapping for "${tax.name}".` };
-  }
-  return { ok: true, code: mapped.externalTaxCode.trim() };
 }
 
 function resolveItem(group: FrozenGroup, mappings: FiscalItemMapping[]): FiscalItemMapping | null {

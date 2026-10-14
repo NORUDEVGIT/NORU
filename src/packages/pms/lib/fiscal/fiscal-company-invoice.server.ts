@@ -290,6 +290,11 @@ function taxMapping(row: Record<string, unknown>): FiscalTaxMapping {
     pmsTaxId: typeof row.pms_tax_id === "string" ? row.pms_tax_id : null,
     externalTaxCode: String(row.external_tax_code ?? ""),
     active: row.active !== false,
+    fiscalTreatment: row.fiscal_treatment === "SEPARATE_ITEM" ? "SEPARATE_ITEM" : "SAME_LINE_TAX",
+    externalItemCode: typeof row.external_item_code === "string" ? row.external_item_code : null,
+    externalUnit: typeof row.external_unit === "string" ? row.external_unit : null,
+    natureOfSupplies: typeof row.nature_of_supplies === "string" ? row.nature_of_supplies : null,
+    harmonizationCode: typeof row.harmonization_code === "string" ? row.harmonization_code : null,
   };
 }
 
