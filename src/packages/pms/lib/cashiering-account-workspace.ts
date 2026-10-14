@@ -199,6 +199,11 @@ export function recentAccountActivity(lines: ActivityLine[], limit = 8): Activit
 export function activityTypeLabel(
   line: Pick<ActivityLine, "type" | "description" | "transferId" | "referenceType">,
 ): string {
+  if (line.referenceType === "withholding_certificate") {
+    return line.description.toLowerCase().includes("reversal")
+      ? "Withholding Reversal"
+      : "Withholding Certificate";
+  }
   if (
     line.referenceType === "settlement_write_off" ||
     line.description.toLowerCase().includes("write-off")

@@ -19,7 +19,8 @@ export type HistoryKind =
   | "transfer_in"
   | "transfer_out"
   | "write_off"
-  | "credit_note";
+  | "credit_note"
+  | "withholding";
 
 export type HistoryQuickFilter =
   "all" | "charges" | "payments" | "deposits" | "refunds" | "adjustments" | "transfers";
@@ -141,6 +142,7 @@ const KIND_LABEL: Record<HistoryKind, string> = {
   transfer_out: "Transfer out",
   write_off: "Write-off",
   credit_note: "Credit note",
+  withholding: "Withholding Certificate",
 };
 
 const METHOD_LABEL: Record<string, string> = {
@@ -444,17 +446,19 @@ export function buildFinancialHistory(input: HistoryBuildInput): HistoryEvent[] 
   for (const row of rows) {
     if (consumed.has(row.id)) continue;
     const kind: HistoryKind =
-      row.type === "adjustment" && row.referenceType === "settlement_write_off"
-        ? "write_off"
-        : row.type === "payment" ||
-            row.type === "deposit" ||
-            row.type === "refund" ||
-            row.type === "discount" ||
-            row.type === "adjustment" ||
-            row.type === "transfer_in" ||
-            row.type === "transfer_out"
-          ? row.type
-          : "adjustment";
+      row.referenceType === "withholding_certificate"
+        ? "withholding"
+        : row.type === "adjustment" && row.referenceType === "settlement_write_off"
+          ? "write_off"
+          : row.type === "payment" ||
+              row.type === "deposit" ||
+              row.type === "refund" ||
+              row.type === "discount" ||
+              row.type === "adjustment" ||
+              row.type === "transfer_in" ||
+              row.type === "transfer_out"
+            ? row.type
+            : "adjustment";
     const state =
       kind === "payment" || kind === "deposit"
         ? tenderState(row, rows, input.allocations)
@@ -480,6 +484,12 @@ export function buildFinancialHistory(input: HistoryBuildInput): HistoryEvent[] 
         debitNoteId: null,
         debitNoteNumber: null,
         counterparty: null,
+        label:
+          kind === "withholding"
+            ? row.amount > 0
+              ? "Withholding Reversal"
+              : "Withholding Certificate"
+            : undefined,
       }),
     );
   }
@@ -596,7 +606,8 @@ export type HistoryDetail =
   | { kind: "transfer_in"; lines: string[] }
   | { kind: "transfer_out"; lines: string[] }
   | { kind: "write_off"; lines: string[] }
-  | { kind: "credit_note"; lines: string[] };
+  | { kind: "credit_note"; lines: string[] }
+  | { kind: "withholding"; lines: string[] };
 
 function moneyLine(label: string, amount: number): string {
   return `${label}|${roundMoney(amount)}`;

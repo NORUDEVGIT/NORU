@@ -69,6 +69,7 @@ export type CompanyReceiptInput = {
   invoiceNumber: string | null;
   timezone: string;
   hasAdjustingNotes: boolean;
+  hasActiveWithholding: boolean;
   priors: Array<{ amount: number; fiscalRegistered: boolean }>;
   connection: {
     enabled: boolean;
@@ -114,6 +115,11 @@ export function assessCompanyReceiptFiscal(
   if (input.hasAdjustingNotes) {
     reasons.push(
       "Sales Receipt for invoices adjusted by Credit/Debit Notes is not supported in the current fiscal phase.",
+    );
+  }
+  if (input.hasActiveWithholding) {
+    reasons.push(
+      "Fiscal Sales Receipt is not supported after withholding has been recorded for this invoice.",
     );
   }
   if (!input.connection.enabled) reasons.push("The fiscal integration is disabled.");

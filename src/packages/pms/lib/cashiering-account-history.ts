@@ -38,6 +38,7 @@ export type LedgerEventType =
   | "write_off"
   | "correction"
   | "credit_note"
+  | "withholding"
   | "adjustment";
 
 export type AccountLedgerGroup = {
@@ -397,6 +398,19 @@ export function groupAccountLedger(
   for (const row of rows) {
     if (consumed.has(row.id)) continue;
     consumed.add(row.id);
+    if (row.referenceType === "withholding_certificate") {
+      groups.push(
+        groupOf(
+          `tx:${row.id}`,
+          "withholding",
+          row.amount > 0 ? "Withholding Reversal" : "Withholding Certificate",
+          [row],
+          currency,
+          row.description,
+        ),
+      );
+      continue;
+    }
     if (
       row.referenceType === "settlement_write_off" ||
       (row.type === "adjustment" && /write-off/i.test(row.description))

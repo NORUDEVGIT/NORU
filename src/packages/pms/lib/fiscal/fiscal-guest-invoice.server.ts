@@ -148,12 +148,30 @@ export async function sendClaimedGuestInvoice(
   return sendStoredFiscalRequest(db, row, fetchImpl, "invoice");
 }
 
+type StoredFiscalSuccess = {
+  ok: true;
+  irn?: string | null;
+  documentNumber?: string | null;
+  externalId?: string | null;
+  externalRrn?: string | null;
+  acknowledgedAtRaw: string | null;
+  acknowledgedAt: string | null;
+  signedQr: string | null;
+  signedInvoice: string | null;
+  externalStatus: string;
+};
+
 export async function sendStoredFiscalRequest(
   db: Db,
   row: Record<string, unknown>,
   fetchImpl: FiscalFetch | undefined,
   documentLabel: string,
   endpoint = "receive_request",
+  parseSuccess: (
+    body: unknown,
+  ) =>
+    | StoredFiscalSuccess
+    | { ok: false; fatal: boolean; message: string } = parseFiscalInvoiceSuccess,
 ): Promise<void> {
   const registrationId = String(row.id ?? "");
   const integrationId = String(row.integration_id ?? "");
@@ -208,9 +226,7 @@ export async function sendStoredFiscalRequest(
       return;
     }
     const parsed =
-      response.httpStatus >= 200 && response.httpStatus < 300
-        ? parseFiscalInvoiceSuccess(response.body)
-        : null;
+      response.httpStatus >= 200 && response.httpStatus < 300 ? parseSuccess(response.body) : null;
     if (parsed?.ok) {
       await finishAttempt(db, {
         registrationId,
@@ -338,7 +354,7 @@ async function finishAttempt(
     message: string | null;
     started: Date;
     latencyMs: number;
-    registered: ReturnType<typeof parseFiscalInvoiceSuccess> | null;
+    registered: StoredFiscalSuccess | { ok: false; fatal: boolean; message: string } | null;
     retryable?: boolean;
     endpoint?: string;
   },
@@ -360,34 +376,37 @@ async function finishAttempt(
   });
   const success = input.registered && input.registered.ok ? input.registered : null;
   const next = input.retryable ? nextFiscalRetryAt(input.attemptNumber, input.started) : null;
+  const registered = success
+    ? {
+        status: "REGISTERED",
+        external_status: success.externalStatus,
+        signed_qr: success.signedQr,
+        signed_document: success.signedInvoice,
+        acknowledged_at: success.acknowledgedAt,
+        acknowledged_at_raw: success.acknowledgedAtRaw,
+        registered_at: new Date().toISOString(),
+        response_snapshot: input.responseBody,
+        attempt_count: input.attemptNumber,
+        next_attempt_at: null,
+        last_error_code: null,
+        last_error_message: null,
+        ...(success.irn ? { external_irn: success.irn } : {}),
+        ...(success.documentNumber ? { external_document_number: success.documentNumber } : {}),
+        ...(success.externalId ? { external_id: success.externalId } : {}),
+        ...(success.externalRrn ? { external_rrn: success.externalRrn } : {}),
+      }
+    : null;
   await db
     .from("fiscal_registrations")
     .update(
-      success
-        ? {
-            status: "REGISTERED",
-            external_irn: success.irn,
-            external_document_number: success.documentNumber,
-            external_status: success.externalStatus,
-            signed_qr: success.signedQr,
-            signed_document: success.signedInvoice,
-            acknowledged_at: success.acknowledgedAt,
-            acknowledged_at_raw: success.acknowledgedAtRaw,
-            registered_at: new Date().toISOString(),
-            response_snapshot: input.responseBody,
-            attempt_count: input.attemptNumber,
-            next_attempt_at: null,
-            last_error_code: null,
-            last_error_message: null,
-          }
-        : {
-            status: "FAILED",
-            attempt_count: input.attemptNumber,
-            next_attempt_at: next ? next.toISOString() : null,
-            last_error_code: input.code,
-            last_error_message: input.message,
-            response_snapshot: input.responseBody,
-          },
+      registered ?? {
+        status: "FAILED",
+        attempt_count: input.attemptNumber,
+        next_attempt_at: next ? next.toISOString() : null,
+        last_error_code: input.code,
+        last_error_message: input.message,
+        response_snapshot: input.responseBody,
+      },
     )
     .eq("id", input.registrationId);
 }

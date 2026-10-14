@@ -39,6 +39,8 @@ export type FiscalRegistrationExchange = {
     trnxId: string;
     externalStatus: string | null;
     externalIrn: string | null;
+    externalRrn: string | null;
+    externalId: string | null;
     externalDocumentNumber: string | null;
     createdAt: string | null;
     registeredAt: string | null;
@@ -129,6 +131,8 @@ export function buildFiscalRegistrationExchange(input: {
       trnxId: text(input.registration.trnx_id) ?? "",
       externalStatus: text(input.registration.external_status),
       externalIrn: text(input.registration.external_irn),
+      externalRrn: text(input.registration.external_rrn),
+      externalId: text(input.registration.external_id),
       externalDocumentNumber: text(input.registration.external_document_number),
       createdAt: text(input.registration.created_at),
       registeredAt: text(input.registration.registered_at),

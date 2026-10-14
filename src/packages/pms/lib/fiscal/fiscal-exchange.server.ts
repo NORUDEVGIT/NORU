@@ -18,7 +18,7 @@ export async function loadFiscalRegistrationExchange(
   const registration = await db
     .from("fiscal_registrations")
     .select(
-      "id, restaurant_id, source_type, source_id, fiscal_document_type, status, trnx_id, external_status, external_irn, external_document_number, created_at, registered_at, acknowledged_at, attempt_count, next_attempt_at, last_error_code, last_error_message, request_snapshot, response_snapshot",
+      "id, restaurant_id, source_type, source_id, fiscal_document_type, status, trnx_id, external_status, external_irn, external_rrn, external_id, external_document_number, created_at, registered_at, acknowledged_at, attempt_count, next_attempt_at, last_error_code, last_error_message, request_snapshot, response_snapshot",
     )
     .eq("id", input.registrationId)
     .eq("restaurant_id", input.restaurantId)
@@ -46,7 +46,9 @@ export async function loadFiscalRegistrationExchange(
               ? await accountInvoiceNumber(db, input.restaurantId, row.source_id)
               : row.source_type === "account_allocation" && typeof row.source_id === "string"
                 ? await accountAllocationInvoiceNumber(db, input.restaurantId, row.source_id)
-                : null;
+                : row.source_type === "withholding" && typeof row.source_id === "string"
+                  ? await withholdingInvoiceNumber(db, input.restaurantId, row.source_id)
+                  : null;
   return buildFiscalRegistrationExchange({
     registration: row,
     attempts: fiscalRecords(attempts.data),
@@ -81,6 +83,21 @@ async function accountAllocationInvoiceNumber(
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
   const invoiceId = fiscalRecord(allocation.data)?.invoice_id;
+  return typeof invoiceId === "string" ? accountInvoiceNumber(db, restaurantId, invoiceId) : null;
+}
+
+async function withholdingInvoiceNumber(
+  db: Db,
+  restaurantId: string,
+  certificateId: string,
+): Promise<string | null> {
+  const certificate = await db
+    .from("withholding_certificates")
+    .select("invoice_id")
+    .eq("id", certificateId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const invoiceId = fiscalRecord(certificate.data)?.invoice_id;
   return typeof invoiceId === "string" ? accountInvoiceNumber(db, restaurantId, invoiceId) : null;
 }
 

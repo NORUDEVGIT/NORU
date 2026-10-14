@@ -203,6 +203,7 @@ type InvoiceContext = {
   currency: string;
   timezone: string;
   hasAdjustingNotes: boolean;
+  hasActiveWithholding: boolean;
   paymentKinds: Map<string, "payment" | "deposit" | "other">;
   allocations: AllocationRow[];
   registrations: StoredRegistration[];
@@ -253,6 +254,24 @@ async function loadInvoice(
   const noteRows = fiscalRecords((await notes).data).filter(
     (row) => row.note_type === "credit" || row.note_type === "debit",
   );
+  const withholdingResult = await db
+    .from("withholding_certificates")
+    .select("id, amount, reverses_certificate_id")
+    .eq("restaurant_id", restaurantId)
+    .eq("invoice_id", invoiceId);
+  const withholdingRows = fiscalRecords((await withholdingResult).data);
+  const reversedCertificates = new Set(
+    withholdingRows
+      .map((row) => row.reverses_certificate_id)
+      .filter((id): id is string => typeof id === "string"),
+  );
+  const hasActiveWithholding = withholdingRows.some(
+    (row) =>
+      row.reverses_certificate_id == null &&
+      typeof row.id === "string" &&
+      !reversedCertificates.has(row.id) &&
+      Number(row.amount) > 0,
+  );
   const originalResult = invoice
     ? await db
         .from("fiscal_registrations")
@@ -300,6 +319,7 @@ async function loadInvoice(
       text(account?.currency) ?? text(record(record(snapshot)?.property)?.currencyCode) ?? "",
     timezone: text(fiscalRecord(property.data)?.timezone) ?? "UTC",
     hasAdjustingNotes: noteRows.length > 0,
+    hasActiveWithholding,
     paymentKinds,
     allocations,
     registrations,
@@ -333,6 +353,7 @@ function assess(context: InvoiceContext, allocation: AllocationRow): CompanyRece
     invoiceNumber: context.invoiceNumber,
     timezone: context.timezone,
     hasAdjustingNotes: context.hasAdjustingNotes,
+    hasActiveWithholding: context.hasActiveWithholding,
     priors: earlier.map((row) => ({
       amount: row.amount,
       fiscalRegistered: findRegistration(context.registrations, row.id)?.status === "REGISTERED",

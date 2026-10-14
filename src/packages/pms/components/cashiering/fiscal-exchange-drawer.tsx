@@ -82,7 +82,9 @@ export function FiscalExchangeDrawer({
                     value={
                       registration.documentType === "SALES_RECEIPT"
                         ? "Sales receipt"
-                        : registration.documentType
+                        : registration.documentType === "WITHHOLDING"
+                          ? "Withholding"
+                          : registration.documentType
                     }
                   />
                   {salesReceiptFields(registration.requestSnapshot) ? (
@@ -110,6 +112,41 @@ export function FiscalExchangeDrawer({
                         label="Remaining after payment"
                         value={salesReceiptFields(registration.requestSnapshot)?.remaining ?? "—"}
                       />
+                    </>
+                  ) : null}
+                  {withholdingFields(registration.requestSnapshot) ? (
+                    <>
+                      <Row
+                        label="Company"
+                        value={withholdingFields(registration.requestSnapshot)?.company ?? "—"}
+                      />
+                      <Row
+                        label="Certificate"
+                        value={registration.trnxId || registration.sourceId}
+                      />
+                      <Row
+                        label="Certificate date"
+                        value={
+                          withholdingFields(registration.requestSnapshot)?.certificateDate ?? "—"
+                        }
+                      />
+                      <Row
+                        label="Buyer TIN"
+                        value={withholdingFields(registration.requestSnapshot)?.buyerTin ?? "—"}
+                      />
+                      <Row
+                        label="Invoice IRN"
+                        value={withholdingFields(registration.requestSnapshot)?.invoiceIrn ?? "—"}
+                      />
+                      <Row
+                        label="Pretax base"
+                        value={withholdingFields(registration.requestSnapshot)?.pretax ?? "—"}
+                      />
+                      <Row
+                        label="Withholding amount"
+                        value={withholdingFields(registration.requestSnapshot)?.amount ?? "—"}
+                      />
+                      <Row label="RRN" value={registration.externalRrn ?? "—"} />
                     </>
                   ) : null}
                   {companyBuyerFields(registration.requestSnapshot) ? (
@@ -278,6 +315,28 @@ function salesReceiptFields(snapshot: unknown) {
     paid: typeof row.InvoicePaidAmount === "number" ? row.InvoicePaidAmount.toFixed(2) : "—",
     coverage: row.PaymentCoverage,
     remaining: typeof row.RemainingAmount === "number" ? row.RemainingAmount.toFixed(2) : "—",
+  };
+}
+
+function withholdingFields(snapshot: unknown) {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+  const row = snapshot as Record<string, unknown>;
+  if (typeof row.WithholdingAmount !== "number") return null;
+  const info =
+    row.info && typeof row.info === "object" && !Array.isArray(row.info)
+      ? (row.info as Record<string, unknown>)
+      : null;
+  const buyer =
+    info?.BuyerDetails && typeof info.BuyerDetails === "object" && !Array.isArray(info.BuyerDetails)
+      ? (info.BuyerDetails as Record<string, unknown>)
+      : null;
+  return {
+    company: typeof buyer?.LegalName === "string" ? buyer.LegalName : "—",
+    certificateDate: typeof row.source_date === "string" ? row.source_date : "—",
+    buyerTin: typeof row.invoice_buyer_tin === "string" ? row.invoice_buyer_tin : "—",
+    invoiceIrn: typeof row.invoice_irn === "string" ? row.invoice_irn : "—",
+    pretax: typeof row.PreTaxAmount === "number" ? row.PreTaxAmount.toFixed(2) : "—",
+    amount: row.WithholdingAmount.toFixed(2),
   };
 }
 

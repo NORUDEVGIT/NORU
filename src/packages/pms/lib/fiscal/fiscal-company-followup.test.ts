@@ -202,6 +202,7 @@ function receiptInput(overrides: Partial<CompanyReceiptInput> = {}): CompanyRece
     invoiceNumber: "AINV-0012",
     timezone: "Africa/Addis_Ababa",
     hasAdjustingNotes: false,
+    hasActiveWithholding: false,
     priors: [],
     connection: connection(),
     originalRegistration: {
@@ -482,6 +483,7 @@ describe("company B2B sales receipt", () => {
         /BuyerDetails/,
       ],
       [{ hasAdjustingNotes: true }, /Credit\/Debit Notes/],
+      [{ hasActiveWithholding: true }, /withholding has been recorded/],
     ];
     const missingBuyer = receiptRequest();
     delete (missingBuyer.info as { BuyerDetails?: unknown }).BuyerDetails;

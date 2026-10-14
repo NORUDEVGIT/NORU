@@ -27,6 +27,10 @@ import {
   getCompanyInvoiceSalesReceipts,
   queueCompanyAllocationSalesReceipt,
 } from "./fiscal-company-sales-receipt.server.ts";
+import {
+  getCompanyInvoiceWithholding,
+  queueCompanyWithholding,
+} from "./fiscal-company-withholding.server.ts";
 import { getDebitNoteFiscalState, queueDebitNoteFiscal } from "./fiscal-debit-note.server.ts";
 import {
   getGuestInvoiceSalesReceipts,
@@ -1389,6 +1393,83 @@ export const registerGuestInvoiceFiscal = createServerFn({ method: "POST" })
     });
     return result;
   });
+
+export const getCompanyInvoiceWithholdingFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    const board = await getCompanyInvoiceWithholding(await admin(), data);
+    return {
+      ...board,
+      canRecord: me.role === "owner" || me.role === "manager" || me.role === "accountant",
+      canRegister: me.role === "owner" || me.role === "manager",
+    };
+  });
+
+export const registerCompanyWithholdingFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, certificateId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashierManager(context as never, data.restaurantId);
+    const db = await admin();
+    const queued = await queueCompanyWithholding(db, data);
+    if (queued.status === "not_eligible" || queued.status === "registered") return queued;
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        queued.status === "failed"
+          ? "Fiscal withholding retry requested"
+          : "Fiscal withholding registration requested",
+    });
+    await processFiscalOutbox(db, 10);
+    const board = await getCompanyInvoiceWithholding(db, {
+      restaurantId: data.restaurantId,
+      invoiceId: await withholdingCertificateInvoiceId(db, data.restaurantId, data.certificateId),
+    });
+    const result = board.lines.find((line) => line.certificateId === data.certificateId) ?? queued;
+    await logActivity(db, {
+      restaurantId: data.restaurantId,
+      userId: context.userId,
+      integrationId: await fiscalIntegrationId(db, data.restaurantId),
+      event: "updated",
+      detail:
+        result.status === "registered"
+          ? "Fiscal withholding registration succeeded"
+          : result.status === "queued"
+            ? "Fiscal withholding registration queued"
+            : `Fiscal withholding registration failed: ${result.registration?.lastError ?? "The fiscal service did not accept the withholding."}`.slice(
+                0,
+                400,
+              ),
+    });
+    return result;
+  });
+
+async function withholdingCertificateInvoiceId(
+  db: Db,
+  restaurantId: string,
+  certificateId: string,
+) {
+  const result = await db
+    .from("withholding_certificates")
+    .select("invoice_id")
+    .eq("id", certificateId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const invoiceId = fiscalRecord(result.data)?.invoice_id;
+  if (typeof invoiceId !== "string") {
+    throw new FiscalError("FISCAL_NOT_ELIGIBLE", "That withholding certificate was not found.");
+  }
+  return invoiceId;
+}
 
 async function fiscalIntegrationId(db: Db, restaurantId: string): Promise<string> {
   const result = await db

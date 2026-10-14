@@ -50,8 +50,28 @@ export function invoiceEffectiveNet(invoiceTotal: number, noteDeltas: readonly n
   return roundAllocationMoney(invoiceTotal + notes);
 }
 
-export function invoiceOutstanding(effectiveNet: number, allocatedNet: number): number {
-  return roundAllocationMoney(effectiveNet - allocatedNet);
+export function invoiceOutstanding(
+  effectiveNet: number,
+  allocatedNet: number,
+  withholdingNet = 0,
+): number {
+  return roundAllocationMoney(effectiveNet - allocatedNet - withholdingNet);
+}
+
+/** Positive certificates that have not been reversed. Reversal rows are excluded. */
+export function activeWithholdingNet(
+  rows: readonly { id: string; amount: number; reversesCertificateId: string | null }[],
+): number {
+  const reversed = new Set(
+    rows
+      .map((row) => row.reversesCertificateId)
+      .filter((id): id is string => typeof id === "string" && id.length > 0),
+  );
+  return roundAllocationMoney(
+    rows
+      .filter((row) => row.reversesCertificateId == null && !reversed.has(row.id))
+      .reduce((sum, row) => sum + row.amount, 0),
+  );
 }
 
 /** Display-only. Financial checks use the unclamped outstanding amount. */
@@ -60,12 +80,16 @@ export function displayOutstanding(outstanding: number): number {
   return Math.abs(rounded) <= ALLOCATION_TOLERANCE ? 0 : rounded;
 }
 
-export function settlementState(effectiveNet: number, allocatedNet: number): SettlementState {
+export function settlementState(
+  effectiveNet: number,
+  allocatedNet: number,
+  withholdingNet = 0,
+): SettlementState {
   const net = roundAllocationMoney(effectiveNet);
-  const allocated = roundAllocationMoney(allocatedNet);
-  const outstanding = invoiceOutstanding(net, allocated);
+  const settled = roundAllocationMoney(allocatedNet + withholdingNet);
+  const outstanding = invoiceOutstanding(net, allocatedNet, withholdingNet);
   if (net <= ALLOCATION_TOLERANCE) return "NO_AMOUNT_DUE";
-  if (allocated <= ALLOCATION_TOLERANCE) return "UNPAID";
+  if (settled <= ALLOCATION_TOLERANCE) return "UNPAID";
   if (outstanding > ALLOCATION_TOLERANCE) return "PARTIALLY_PAID";
   return "PAID";
 }
@@ -112,34 +136,40 @@ export function summarizeInvoiceSettlement(input: {
   invoiceTotal: number;
   noteDeltas: readonly number[];
   allocatedNet: number;
+  withholdingNet?: number;
 }): {
   originalAmount: number;
   effectiveNet: number;
   allocated: number;
+  withholding: number;
   outstanding: number;
   settlementState: SettlementState;
 } {
   const originalAmount = roundAllocationMoney(input.invoiceTotal);
   const effectiveNet = invoiceEffectiveNet(originalAmount, input.noteDeltas);
   const allocated = roundAllocationMoney(input.allocatedNet);
+  const withholding = roundAllocationMoney(input.withholdingNet ?? 0);
   return {
     originalAmount,
     effectiveNet,
     allocated,
-    outstanding: invoiceOutstanding(effectiveNet, allocated),
-    settlementState: settlementState(effectiveNet, allocated),
+    withholding,
+    outstanding: invoiceOutstanding(effectiveNet, allocated, withholding),
+    settlementState: settlementState(effectiveNet, allocated, withholding),
   };
 }
 
 /**
  * Credit note guard. Projected effective net is the snapshot total plus existing
- * note headers minus this credit. Reject when that would fall below active allocations.
+ * note headers minus this credit. Reject when that would fall below payments plus
+ * active withholding.
  */
 export function creditNoteAllocationGuard(input: {
   invoiceTotal: number;
   existingNoteDeltas: readonly number[];
   creditAmount: number;
   allocatedNet: number;
+  withholdingNet?: number;
 }):
   | { ok: true; projectedNet: number }
   | {
@@ -153,7 +183,7 @@ export function creditNoteAllocationGuard(input: {
     ...input.existingNoteDeltas,
     -roundAllocationMoney(input.creditAmount),
   ]);
-  const allocated = roundAllocationMoney(input.allocatedNet);
+  const allocated = roundAllocationMoney(input.allocatedNet + (input.withholdingNet ?? 0));
   if (projectedNet < allocated - ALLOCATION_TOLERANCE) {
     return {
       ok: false,
@@ -180,6 +210,7 @@ export type AllocationTargetCheck = {
   paymentAllocated: number;
   invoiceEffectiveNet: number;
   invoiceAllocated: number;
+  invoiceWithholding?: number;
   amount: number;
 };
 
@@ -200,7 +231,11 @@ export function reviewAllocationTarget(
   }
   if (!(input.amount > 0)) return { ok: false, code: "ALLOCATION_AMOUNT_INVALID" };
   const available = paymentAvailable(input.face, input.refunded, input.paymentAllocated);
-  const outstanding = invoiceOutstanding(input.invoiceEffectiveNet, input.invoiceAllocated);
+  const outstanding = invoiceOutstanding(
+    input.invoiceEffectiveNet,
+    input.invoiceAllocated,
+    input.invoiceWithholding ?? 0,
+  );
   if (roundAllocationMoney(input.amount) > available + ALLOCATION_TOLERANCE) {
     return { ok: false, code: "ALLOCATION_EXCEEDS_PAYMENT" };
   }

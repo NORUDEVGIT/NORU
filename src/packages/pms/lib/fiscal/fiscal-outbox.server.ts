@@ -1,8 +1,8 @@
 /**
  * Fiscal outbox. Claims due registrations and sends a guest B2C INV, a company
  * B2B INV, a credit-note CRE, a debit-note DEB, a guest allocation sales
- * receipt, or a company allocation sales receipt.
- * Every other document type is
+ * receipt, a company allocation sales receipt, or a company withholding
+ * certificate. Every other document type is
  * recorded as not enabled and is not marked REGISTERED.
  *
  * No job runner exists in this repository (no pg_cron, no Vercel cron). The
@@ -14,6 +14,8 @@ import { sendClaimedDebitNote } from "./fiscal-debit-note.server.ts";
 import { p4HandlerEnabled } from "./fiscal-debit-note.ts";
 import { sendClaimedCompanyReceipt } from "./fiscal-company-sales-receipt.server.ts";
 import { p7ReceiptEnabled } from "./fiscal-company-sales-receipt.ts";
+import { sendClaimedWithholding } from "./fiscal-company-withholding.server.ts";
+import { p8HandlerEnabled } from "./fiscal-company-withholding.ts";
 import { sendClaimedSalesReceipt } from "./fiscal-sales-receipt.server.ts";
 import { p5HandlerEnabled } from "./fiscal-sales-receipt.ts";
 import { sendClaimedCompanyInvoice } from "./fiscal-company-invoice.server.ts";
@@ -40,7 +42,8 @@ export function dispatchFiscalDocument(type: FiscalDocumentType, sourceType = ""
     p4HandlerEnabled(type, sourceType) ||
     p5HandlerEnabled(type, sourceType) ||
     p6HandlerEnabled(type, sourceType) ||
-    p7ReceiptEnabled(type, sourceType)
+    p7ReceiptEnabled(type, sourceType) ||
+    p8HandlerEnabled(type, sourceType)
   ) {
     return;
   }
@@ -66,6 +69,8 @@ export async function processFiscalOutbox(db: Db, limit = 10): Promise<{ process
       await sendClaimedSalesReceipt(db, row);
     } else if (p7ReceiptEnabled(documentType, sourceType)) {
       await sendClaimedCompanyReceipt(db, row);
+    } else if (p8HandlerEnabled(documentType, sourceType)) {
+      await sendClaimedWithholding(db, row);
     } else {
       await recordUnsupported(db, row);
     }

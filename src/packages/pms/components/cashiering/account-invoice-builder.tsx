@@ -13,6 +13,7 @@ import { accountMethodLabel } from "@/packages/pms/lib/cashiering-account-paymen
 import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
 import { CompanyInvoiceFiscalSection } from "@/packages/pms/components/cashiering/company-invoice-fiscal-section";
 import { CompanySalesReceiptSection } from "@/packages/pms/components/cashiering/company-sales-receipt-section";
+import { CompanyWithholdingSection } from "@/packages/pms/components/cashiering/company-withholding-section";
 import { DebitNoteSection } from "@/packages/pms/components/cashiering/debit-note-panel";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
@@ -685,7 +686,7 @@ export function AccountInvoiceWorkspace({
                   Document state remains Issued. Settlement is derived.
                 </p>
                 <p className="flex justify-between">
-                  <span>Original invoice</span>
+                  <span>Invoice total</span>
                   <span className="tabular-nums">
                     {money(settlementDetailQuery.data.originalAmount)}
                   </span>
@@ -709,9 +710,15 @@ export function AccountInvoiceWorkspace({
                   </span>
                 </p>
                 <p className="flex justify-between">
-                  <span>Allocated</span>
+                  <span>Payments allocated</span>
                   <span className="tabular-nums">
                     {money(settlementDetailQuery.data.allocated)}
+                  </span>
+                </p>
+                <p className="flex justify-between">
+                  <span>Withholding</span>
+                  <span className="tabular-nums">
+                    {money(settlementDetailQuery.data.withholding)}
                   </span>
                 </p>
                 <p className="flex justify-between">
@@ -739,6 +746,14 @@ export function AccountInvoiceWorkspace({
                   </div>
                 ) : null}
               </section>
+            ) : null}
+            {viewedInvoice.snapshot.account.accountKind === "company" ? (
+              <CompanyWithholdingSection
+                restaurantId={restaurantId}
+                invoiceId={viewedInvoice.id}
+                accountOpen={board?.account.status === "open"}
+                money={money}
+              />
             ) : null}
             {viewedInvoice.snapshot.account.accountKind === "company" ? (
               <CompanySalesReceiptSection

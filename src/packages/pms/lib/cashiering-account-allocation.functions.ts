@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
+  activeWithholdingNet,
   allocationCapabilities,
   invoiceOriginalAmount,
   noteTotals,
@@ -54,6 +55,7 @@ export type InvoiceSettlementRow = {
   debitNoteTotal: number;
   effectiveNet: number;
   allocated: number;
+  withholding: number;
   outstanding: number;
   settlementState: SettlementState;
   currency: string;
@@ -390,8 +392,22 @@ async function loadSettlements(
   if (allocations.error && allocations.error.code !== "42P01") {
     throw cashierError(allocations.error.message);
   }
+  const certificates = await supabaseAdmin
+    .from("withholding_certificates")
+    .select("id, invoice_id, amount, reverses_certificate_id")
+    .eq("restaurant_id", restaurantId)
+    .eq("financial_account_id", account.id);
+  if (certificates.error && certificates.error.code !== "42P01") {
+    throw cashierError(certificates.error.message);
+  }
   const noteRows = (notes.data ?? []) as NoteRow[];
   const allocRows = (allocations.data ?? []) as AllocRow[];
+  const certificateRows = (certificates.data ?? []) as Array<{
+    id: string;
+    invoice_id: string;
+    amount: number | string;
+    reverses_certificate_id: string | null;
+  }>;
   return ((invoices.data ?? []) as InvoiceRow[])
     .filter((invoice) => invoice.issued_number)
     .map((invoice) => {
@@ -407,10 +423,20 @@ async function loadSettlements(
           .filter((row) => row.invoice_id === invoice.id)
           .reduce((sum, row) => sum + Number(row.amount), 0),
       );
+      const withholding = activeWithholdingNet(
+        certificateRows
+          .filter((row) => row.invoice_id === invoice.id)
+          .map((row) => ({
+            id: row.id,
+            amount: Number(row.amount),
+            reversesCertificateId: row.reverses_certificate_id,
+          })),
+      );
       const summary = summarizeInvoiceSettlement({
         invoiceTotal: invoiceOriginalAmount(invoice.snapshot),
         noteDeltas: invoiceNotes.map((note) => Number(note.total_delta)),
         allocatedNet: allocated,
+        withholdingNet: withholding,
       });
       return {
         invoiceId: invoice.id,
@@ -421,6 +447,7 @@ async function loadSettlements(
         debitNoteTotal: totals.debitNoteTotal,
         effectiveNet: summary.effectiveNet,
         allocated: summary.allocated,
+        withholding: summary.withholding,
         outstanding: summary.outstanding,
         settlementState: summary.settlementState,
         currency: invoice.snapshot?.account?.currency || account.currency,
