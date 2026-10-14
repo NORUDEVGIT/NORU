@@ -234,7 +234,7 @@ describe("fiscal sales receipt eligibility and payload", () => {
             requestSnapshot: { ...originalRequest(), TransactionType: "B2B" },
           },
         },
-        /B2C/,
+        /BuyerDetails/,
       ],
     ];
     for (const [override, pattern] of cases) {

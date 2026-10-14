@@ -239,8 +239,8 @@ export function CompanyWithholdingSection({
       ))}
 
       <Dialog open={recording} onOpenChange={setRecording}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="flex max-h-[90vh] flex-col gap-4 overflow-hidden">
+          <DialogHeader className="shrink-0 pr-6">
             <DialogTitle>Record withholding</DialogTitle>
             <DialogDescription>
               Enter the certificate amount and pretax base. NORU does not calculate a withholding
@@ -248,7 +248,7 @@ export function CompanyWithholdingSection({
             </DialogDescription>
           </DialogHeader>
           {board ? (
-            <div className="space-y-3 text-sm">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 text-sm">
               <ReadOnly label="Company" value={board.companyName || "—"} />
               <ReadOnly label="Invoice number" value={board.invoiceNumber ?? "—"} />
               <ReadOnly label="Invoice total" value={money(board.invoiceTotal)} />
@@ -311,7 +311,7 @@ export function CompanyWithholdingSection({
               </div>
             </div>
           ) : null}
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-[#E8E1D7] pt-3">
             <Button type="button" variant="outline" onClick={() => setRecording(false)}>
               Cancel
             </Button>
@@ -327,15 +327,15 @@ export function CompanyWithholdingSection({
       </Dialog>
 
       <Dialog open={Boolean(reversing)} onOpenChange={(open) => !open && setReversingId(null)}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="flex max-h-[90vh] flex-col gap-4 overflow-hidden">
+          <DialogHeader className="shrink-0 pr-6">
             <DialogTitle>Reverse withholding</DialogTitle>
             <DialogDescription>
               This adds a reversal. The original certificate stays on the account.
             </DialogDescription>
           </DialogHeader>
           {board && reversing ? (
-            <div className="space-y-3 text-sm">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 text-sm">
               <ReadOnly
                 label="Certificate"
                 value={reversing.reference || reversing.certificateId}
@@ -356,7 +356,7 @@ export function CompanyWithholdingSection({
               </div>
             </div>
           ) : null}
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-[#E8E1D7] pt-3">
             <Button type="button" variant="outline" onClick={() => setReversingId(null)}>
               Cancel
             </Button>

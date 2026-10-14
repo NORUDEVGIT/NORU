@@ -424,7 +424,7 @@ describe("fiscal debit note eligibility and payload", () => {
     );
     assert.equal(business.ok, false);
     if (business.ok) return;
-    assert.match(business.reasons.join(" "), /B2C/);
+    assert.match(business.reasons.join(" "), /BuyerDetails/);
     const service = assessDebitNoteFiscal(
       NOTE_ID,
       input({ debitSnapshot: debitSnapshot([debitGroup({ serviceCharge: 4 })]) }),

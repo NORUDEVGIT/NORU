@@ -21,6 +21,7 @@
  */
 import { fiscalMoney, formatFiscalDocumentDate } from "./fiscal-guest-invoice.ts";
 import {
+  copyOriginalBuyerDetails,
   invoiceGroupParentIds,
   parseOriginalFiscalInvoice,
   uniqueInvoiceGroupIndex,
@@ -50,7 +51,7 @@ export type DebitNoteFiscalPreview = {
   originalInvoiceNumber: string | null;
   originalFiscalDocumentNumber: string | null;
   relatedIrn: string;
-  transactionType: "B2C";
+  transactionType: "B2C" | "B2B";
   currency: "ETB";
   mode: typeof FISCAL_DOCUMENT_MODE;
   pretax: number;
@@ -91,13 +92,14 @@ export type FiscalDebPayload = {
       IncomeWithholdValue: number;
       TransactionWithholdValue: number;
     };
+    BuyerDetails?: Record<string, unknown>;
   };
   client: string;
   trnx_id: string;
   device_id: string;
   tax_payer_tin: string;
   RelatedDocument: string;
-  TransactionType: "B2C";
+  TransactionType: "B2C" | "B2B";
 };
 
 export type DebitNoteFiscalInput = {
@@ -179,8 +181,13 @@ export function assessDebitNoteFiscal(
       );
     }
   }
-  if (request && request.transactionType !== "B2C") {
-    reasons.push("Only a B2C debit note can be registered in the current fiscal phase.");
+  const inheritedBuyer =
+    request?.transactionType === "B2B" ? copyOriginalBuyerDetails(original?.requestSnapshot) : null;
+  if (request && request.transactionType !== "B2C" && request.transactionType !== "B2B") {
+    reasons.push("Only a B2C or B2B debit note can be registered in the current fiscal phase.");
+  }
+  if (request?.transactionType === "B2B" && !inheritedBuyer) {
+    reasons.push("Original fiscal BuyerDetails are missing.");
   }
 
   const debits = parseDebitGroups(input.debitSnapshot);
@@ -260,28 +267,29 @@ export function assessDebitNoteFiscal(
     return { ok: false, reasons, missingDevice };
   }
   const document = record(record(input.debitSnapshot)?.document);
+  const transactionType = request.transactionType === "B2B" ? "B2B" : "B2C";
+  const valueDetails = {
+    Discount: 0,
+    TaxValue: tax,
+    TotalValue: total,
+    ExciseValue: 0,
+    InvoiceCurrency: "ETB" as const,
+    IncomeWithholdValue: 0,
+    TransactionWithholdValue: 0,
+  };
   const payload: FiscalDebPayload = {
     Date: issuedAt,
     Mode: FISCAL_DOCUMENT_MODE,
     Type: "DEB",
-    info: {
-      ItemList: lines,
-      ValueDetails: {
-        Discount: 0,
-        TaxValue: tax,
-        TotalValue: total,
-        ExciseValue: 0,
-        InvoiceCurrency: "ETB",
-        IncomeWithholdValue: 0,
-        TransactionWithholdValue: 0,
-      },
-    },
+    info: inheritedBuyer
+      ? { ItemList: lines, ValueDetails: valueDetails, BuyerDetails: inheritedBuyer }
+      : { ItemList: lines, ValueDetails: valueDetails },
     client: input.connection.client.trim(),
     trnx_id: debitNoteTrnxId(debitNoteId),
     device_id: input.connection.deviceId.trim(),
     tax_payer_tin: input.connection.taxpayerTin.trim(),
     RelatedDocument: original.irn.trim(),
-    TransactionType: "B2C",
+    TransactionType: transactionType,
   };
   return {
     ok: true,
@@ -291,7 +299,7 @@ export function assessDebitNoteFiscal(
       originalInvoiceNumber: text(document?.originalInvoiceNumber),
       originalFiscalDocumentNumber: original.documentNumber,
       relatedIrn: original.irn.trim(),
-      transactionType: "B2C",
+      transactionType,
       currency: "ETB",
       mode: FISCAL_DOCUMENT_MODE,
       pretax,

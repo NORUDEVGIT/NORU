@@ -139,6 +139,14 @@ describe("company and group account invoices", () => {
     assert.equal(frozen.lines[0]?.sourceGuest, "James");
   });
 
+  it("saves selected company charges without an ambiguous source_id", () => {
+    const fix = read("../../../../supabase/migrations/0158_account_invoice_draft_source_id.sql");
+    const drizzleFix = read("../../../../drizzle/migrations/0158_account_invoice_draft_source_id.sql");
+    assert.equal(fix, drizzleFix);
+    assert.match(fix, /AS selected\(source_group_id\)/);
+    assert.doesNotMatch(fix, /AS source_id/);
+  });
+
   it("reprints without rewriting the snapshot", () => {
     const reprintAt = sql.indexOf("FUNCTION public.reprint_financial_account_invoice");
     const reprintBody = sql.slice(reprintAt, sql.indexOf("DO $account_invoice_guards$"));

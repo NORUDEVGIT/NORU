@@ -1,10 +1,20 @@
 /**
- * Phase 2 guest B2C INV registration.
+ * Phase 2 guest INV registration.
  *
  * Builds the payload from the frozen invoice, stores one stable registration,
- * and sends the stored snapshot. It does not change the invoice or the ledger.
+ * and sends the stored snapshot. B2C is the default. B2B copies BuyerDetails
+ * from the selected saved tax identity when the row is first created. A later
+ * retry sends that stored snapshot and does not read the identity again.
+ * It does not change the invoice or the ledger.
  * The HTTP call happens after the registration row is saved.
  */
+import {
+  buildGuestBuyerDetails,
+  guestLegalNamePrefill,
+  guestTaxIdentitySelectable,
+  type GuestFiscalCustomerType,
+  type GuestTaxBuyerDetails,
+} from "../guest-tax-identities.ts";
 import { postFiscalReceiveRequest, type FiscalFetch } from "./fiscal-client.server.ts";
 import {
   assessGuestInvoiceFiscal,
@@ -57,6 +67,30 @@ export type GuestInvoiceFiscalState = {
     qrSrc: string | null;
     qrStored: boolean;
   } | null;
+  choiceLocked: boolean;
+  guestId: string | null;
+  guestPrefill: GuestTaxIdentityPrefill | null;
+  taxIdentities: GuestTaxIdentityChoice[];
+};
+
+export type GuestTaxIdentityPrefill = {
+  legalName: string;
+  phone: string | null;
+  email: string | null;
+  city: string | null;
+  region: string | null;
+};
+
+export type GuestTaxIdentityChoice = {
+  id: string;
+  legalName: string;
+  tin: string;
+  registrationNumber: string | null;
+  phone: string | null;
+  email: string | null;
+  city: string | null;
+  region: string | null;
+  isDefault: boolean;
 };
 
 export async function getGuestInvoiceFiscalState(
@@ -75,16 +109,29 @@ export async function getGuestInvoiceFiscalState(
     itemMappings: context.itemMappings,
   });
   const registration = await findRegistration(db, input.restaurantId, invoice.id);
-  return presentState(assessment, registration);
+  const state = presentState(assessment, registration);
+  if (registration) return { ...state, choiceLocked: true, taxIdentities: [] };
+  const guestId = await invoiceGuestId(db, input.restaurantId, invoice.snapshot);
+  return {
+    ...state,
+    guestId,
+    guestPrefill: guestId ? await guestTaxPrefill(db, input.restaurantId, guestId) : null,
+    taxIdentities: guestId ? await listActiveTaxIdentities(db, input.restaurantId, guestId) : [],
+  };
 }
 
 export async function queueGuestInvoiceFiscal(
   db: Db,
-  input: { restaurantId: string; invoiceId: string },
+  input: {
+    restaurantId: string;
+    invoiceId: string;
+    fiscalType?: GuestFiscalCustomerType;
+    taxIdentityId?: string | null;
+  },
 ): Promise<GuestInvoiceFiscalState> {
   const invoice = await loadInvoice(db, input.restaurantId, input.invoiceId);
   const context = await loadFiscalContext(db, input.restaurantId);
-  const assessment = assessGuestInvoiceFiscal(invoice.id, {
+  const fiscalInput = {
     issued: true,
     coverageScope: invoice.coverageScope,
     snapshot: invoice.snapshot,
@@ -92,7 +139,8 @@ export async function queueGuestInvoiceFiscal(
     mode: context.mode,
     taxMappings: context.taxMappings,
     itemMappings: context.itemMappings,
-  });
+  };
+  const assessment = assessGuestInvoiceFiscal(invoice.id, fiscalInput);
   if (!assessment.ok) return presentState(assessment, null);
   const existing = await findRegistration(db, input.restaurantId, invoice.id);
   if (existing?.status === "REGISTERED" || existing?.status === "PENDING") {
@@ -111,6 +159,47 @@ export async function queueGuestInvoiceFiscal(
     const refreshed = await findRegistration(db, input.restaurantId, invoice.id);
     return presentState(assessment, refreshed);
   }
+  let queued = assessment;
+  if (input.fiscalType === "B2B") {
+    const guestId = await invoiceGuestId(db, input.restaurantId, invoice.snapshot);
+    const identity =
+      guestId && input.taxIdentityId
+        ? await loadTaxIdentity(db, input.restaurantId, guestId, input.taxIdentityId)
+        : null;
+    const buyer: GuestTaxBuyerDetails | null = identity ? buildGuestBuyerDetails(identity) : null;
+    const selectable =
+      guestId != null &&
+      identity != null &&
+      guestTaxIdentitySelectable(
+        {
+          restaurantId: input.restaurantId,
+          guestProfileId: identity.guestProfileId,
+          isActive: identity.isActive,
+          legalName: identity.legalName,
+          tin: identity.tin,
+        },
+        { restaurantId: input.restaurantId, guestProfileId: guestId },
+      );
+    if (!selectable || !buyer) {
+      return presentState(
+        {
+          ok: false,
+          reasons: ["Select an active tax identity for this guest."],
+          missingTaxes: [],
+          missingItems: [],
+          missingMode: false,
+          missingDevice: false,
+        },
+        null,
+      );
+    }
+    queued = assessGuestInvoiceFiscal(invoice.id, {
+      ...fiscalInput,
+      fiscalCustomerType: "B2B",
+      buyer,
+    });
+    if (!queued.ok) return presentState(queued, null);
+  }
   const inserted = await db
     .from("fiscal_registrations")
     .insert({
@@ -124,8 +213,8 @@ export async function queueGuestInvoiceFiscal(
       fiscal_document_type: "INV",
       trnx_id: guestInvoiceTrnxId(invoice.id),
       status: "PENDING",
-      request_snapshot: assessment.payload,
-      request_hash: fiscalPayloadHash(assessment.payload),
+      request_snapshot: queued.payload,
+      request_hash: fiscalPayloadHash(queued.payload),
       attempt_count: 0,
       next_attempt_at: new Date(Date.now() - 1000).toISOString(),
     })
@@ -552,6 +641,10 @@ function presentState(
       canRegister: assessment.ok,
       canRetry: false,
       registration: null,
+      choiceLocked: false,
+      guestId: null,
+      guestPrefill: null,
+      taxIdentities: [],
     };
   }
   const view = {
@@ -572,10 +665,24 @@ function presentState(
       canRegister: false,
       canRetry: false,
       registration: view,
+      choiceLocked: true,
+      guestId: null,
+      guestPrefill: null,
+      taxIdentities: [],
     };
   }
   if (registration.status === "PENDING") {
-    return { ...base, status: "queued", canRegister: false, canRetry: false, registration: view };
+    return {
+      ...base,
+      status: "queued",
+      canRegister: false,
+      canRetry: false,
+      registration: view,
+      choiceLocked: true,
+      guestId: null,
+      guestPrefill: null,
+      taxIdentities: [],
+    };
   }
   return {
     ...base,
@@ -583,7 +690,122 @@ function presentState(
     canRegister: false,
     canRetry: assessment.ok,
     registration: view,
+    choiceLocked: true,
+    guestId: null,
+    guestPrefill: null,
+    taxIdentities: [],
   };
+}
+
+async function invoiceGuestId(db: Db, restaurantId: string, snapshot: unknown) {
+  const folio = record(record(snapshot)?.folio);
+  const folioId = typeof folio?.id === "string" ? folio.id : null;
+  if (!folioId) return null;
+  const result = await db
+    .from("guest_folios")
+    .select("guest_id")
+    .eq("id", folioId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (result.error) return null;
+  const guestId = fiscalRecord(result.data)?.guest_id;
+  return typeof guestId === "string" ? guestId : null;
+}
+
+async function guestTaxPrefill(
+  db: Db,
+  restaurantId: string,
+  guestProfileId: string,
+): Promise<GuestTaxIdentityPrefill | null> {
+  const result = await db
+    .from("guest_profiles")
+    .select("first_name, middle_name, last_name, phone, email, city, region")
+    .eq("id", guestProfileId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (result.error) return null;
+  const row = fiscalRecord(result.data);
+  if (!row) return null;
+  return {
+    legalName: guestLegalNamePrefill({
+      firstName: typeof row.first_name === "string" ? row.first_name : "",
+      middleName: typeof row.middle_name === "string" ? row.middle_name : null,
+      lastName: typeof row.last_name === "string" ? row.last_name : null,
+    }),
+    phone: optionalText(row.phone),
+    email: optionalText(row.email),
+    city: optionalText(row.city),
+    region: optionalText(row.region),
+  };
+}
+
+async function listActiveTaxIdentities(
+  db: Db,
+  restaurantId: string,
+  guestProfileId: string,
+): Promise<GuestTaxIdentityChoice[]> {
+  const result = await db
+    .from("guest_tax_identities")
+    .select(
+      "id, legal_name, tin, registration_number, phone, email, city, region, is_default, is_active",
+    )
+    .eq("restaurant_id", restaurantId)
+    .eq("guest_profile_id", guestProfileId)
+    .eq("is_active", true);
+  if (result.error) return [];
+  return fiscalRecords(result.data).flatMap((row) => {
+    if (typeof row.id !== "string" || row.is_active === false) return [];
+    const legalName = typeof row.legal_name === "string" ? row.legal_name : "";
+    const tin = typeof row.tin === "string" ? row.tin : "";
+    if (legalName.trim().length === 0 || tin.trim().length === 0) return [];
+    return [
+      {
+        id: row.id,
+        legalName,
+        tin,
+        registrationNumber: optionalText(row.registration_number),
+        phone: optionalText(row.phone),
+        email: optionalText(row.email),
+        city: optionalText(row.city),
+        region: optionalText(row.region),
+        isDefault: row.is_default === true,
+      },
+    ];
+  });
+}
+
+async function loadTaxIdentity(
+  db: Db,
+  restaurantId: string,
+  guestProfileId: string,
+  identityId: string,
+) {
+  const result = await db
+    .from("guest_tax_identities")
+    .select(
+      "id, restaurant_id, guest_profile_id, legal_name, tin, registration_number, phone, email, city, region, is_active",
+    )
+    .eq("id", identityId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (result.error) return null;
+  const row = fiscalRecord(result.data);
+  if (!row || row.guest_profile_id !== guestProfileId || row.is_active !== true) return null;
+  return {
+    guestProfileId,
+    isActive: true,
+    legalName: typeof row.legal_name === "string" ? row.legal_name : "",
+    tin: typeof row.tin === "string" ? row.tin : "",
+    registrationNumber: optionalText(row.registration_number),
+    phone: optionalText(row.phone),
+    email: optionalText(row.email),
+    city: optionalText(row.city),
+    region: optionalText(row.region),
+  };
+}
+
+function optionalText(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 function taxMapping(row: Record<string, unknown>): FiscalTaxMapping {

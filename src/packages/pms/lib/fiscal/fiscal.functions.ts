@@ -1357,12 +1357,24 @@ export const getFiscalRegistrationExchange = createServerFn({ method: "POST" })
 export const registerGuestInvoiceFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
+    z
+      .object({
+        restaurantId: idSchema,
+        invoiceId: idSchema,
+        fiscalType: z.enum(["B2C", "B2B"]).optional(),
+        taxIdentityId: idSchema.optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     await requireCashierManager(context as never, data.restaurantId);
     const db = await admin();
-    const queued = await queueGuestInvoiceFiscal(db, data);
+    const queued = await queueGuestInvoiceFiscal(db, {
+      restaurantId: data.restaurantId,
+      invoiceId: data.invoiceId,
+      ...(data.fiscalType ? { fiscalType: data.fiscalType } : {}),
+      ...(data.taxIdentityId ? { taxIdentityId: data.taxIdentityId } : {}),
+    });
     if (queued.status === "not_eligible" || queued.status === "registered") return queued;
     await logActivity(db, {
       restaurantId: data.restaurantId,

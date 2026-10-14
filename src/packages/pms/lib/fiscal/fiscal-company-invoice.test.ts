@@ -31,6 +31,19 @@ import {
 const INVOICE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TAX_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
+function billTo() {
+  return {
+    name: "Alpha PLC",
+    taxId: "123",
+    phone: "111",
+    email: "alpha@example.com",
+    address: "Bole Atlas, Addis Ababa",
+    registrationNumber: "VAT-A",
+    city: "Addis Ababa",
+    region: "Addis Ababa",
+  };
+}
+
 function snapshot(overrides: Record<string, unknown> = {}) {
   return {
     version: 1,
@@ -39,16 +52,7 @@ function snapshot(overrides: Record<string, unknown> = {}) {
     document: { issuedNumber: "INV-0042" },
     property: { currencyCode: "ETB" },
     account: { id: "acct-1", accountNumber: "CA-1", accountKind: "company", currency: "ETB" },
-    billTo: {
-      name: "Alpha PLC",
-      taxId: "123",
-      phone: "111",
-      email: "alpha@example.com",
-      address: "Bole Atlas, Addis Ababa",
-      registrationNumber: "VAT-A",
-      city: "Addis Ababa",
-      region: "Addis Ababa",
-    },
+    billTo: billTo(),
     groups: [
       {
         description: "Room Accommodation",
@@ -128,7 +132,7 @@ describe("company B2B fiscal invoice", () => {
     assert.equal(buyer.Phone, "111");
     assert.equal(buyer.Email, "alpha@example.com");
     assert.equal(buyer.City, "Addis Ababa");
-    assert.equal(buyer.Region, "Addis Ababa");
+    assert.equal(buyer.Region, null);
     assert.equal(buyer.Zone, null);
     assert.equal(buyer.Wereda, null);
     assert.equal(buyer.Kebele, null);
@@ -158,6 +162,43 @@ describe("company B2B fiscal invoice", () => {
       original.payload.info.BuyerDetails.LegalName,
     );
     assert.equal(companyInvoiceTrnxId(INVOICE_ID), original.payload.trnx_id);
+  });
+
+  it("sends a region name as null and preserves a numeric provider code", () => {
+    const named = assessCompanyInvoiceFiscal(
+      INVOICE_ID,
+      input({ snapshot: snapshot({ billTo: { ...billTo(), region: "Oromia" } }) }),
+    );
+    assert.equal(named.ok, true);
+    if (!named.ok) return;
+    assert.equal("BuyerDetails" in named.payload.info, true);
+    assert.equal(named.payload.info.BuyerDetails.LegalName, "Alpha PLC");
+    assert.equal(named.payload.info.BuyerDetails.Tin, "123");
+    assert.equal(named.payload.info.BuyerDetails.VatNumber, "VAT-A");
+    assert.equal(named.payload.info.BuyerDetails.City, "Addis Ababa");
+    assert.equal(named.payload.info.BuyerDetails.Region, null);
+
+    for (const region of ["Addis Ababa", "Oromia", "1234", "1A", "", "   "]) {
+      const result = assessCompanyInvoiceFiscal(
+        INVOICE_ID,
+        input({ snapshot: snapshot({ billTo: { ...billTo(), region } }) }),
+      );
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.payload.info.BuyerDetails.Region, null);
+      assert.equal(result.payload.info.BuyerDetails.City, "Addis Ababa");
+    }
+
+    for (const region of ["1", "12", "001", "123", " 12 "]) {
+      const result = assessCompanyInvoiceFiscal(
+        INVOICE_ID,
+        input({ snapshot: snapshot({ billTo: { ...billTo(), region } }) }),
+      );
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.payload.info.BuyerDetails.Region, region.trim());
+      assert.equal(result.payload.info.BuyerDetails.City, "Addis Ababa");
+    }
   });
 
   it("allows a null registration number and blocks incomplete buyers", () => {
@@ -431,6 +472,57 @@ describe("company B2B fiscal invoice", () => {
     assert.match(functions, /getCompanyInvoiceFiscal[\s\S]{0,400}requireCashieringAccess/);
     assert.match(functions, /registerCompanyInvoiceFiscal[\s\S]{0,500}requireCashierManager/);
   });
+
+  it("leaves a failed company request snapshot unchanged on retry", async () => {
+    const { db, tables } = memoryDb();
+    const stored = {
+      TransactionType: "B2B",
+      info: {
+        BuyerDetails: {
+          LegalName: "test company",
+          Tin: "0026716178",
+          VatNumber: "2321231200",
+          City: "Addis Ababa",
+          Region: "Addis Ababa",
+        },
+        ValueDetails: { TaxValue: 0, TotalValue: 12 },
+      },
+    };
+    tables.fiscal_registrations.push({
+      id: "reg-failed",
+      restaurant_id: "property-1",
+      source_type: "account_invoice",
+      source_id: INVOICE_ID,
+      fiscal_document_type: "INV",
+      status: "FAILED",
+      trnx_id: `ci-${INVOICE_ID}`,
+      request_snapshot: stored,
+      external_irn: null,
+      external_document_number: null,
+      acknowledged_at: null,
+      registered_at: null,
+      signed_qr: null,
+      last_error_message: "The fiscal service returned an unexpected registration response.",
+    });
+    const result = await queueCompanyInvoiceFiscal(db, {
+      restaurantId: "property-1",
+      invoiceId: INVOICE_ID,
+    });
+    assert.equal(result.status, "queued");
+    assert.equal(tables.fiscal_registrations.length, 1);
+    assert.equal(tables.fiscal_registrations[0].status, "PENDING");
+    assert.equal(tables.fiscal_registrations[0].request_snapshot, stored);
+    assert.equal(stored.info.BuyerDetails.Region, "Addis Ababa");
+    assert.equal(stored.info.BuyerDetails.City, "Addis Ababa");
+    assert.equal(result.preview?.region, "Addis Ababa");
+    const server = readFileSync(
+      new URL("./fiscal-company-invoice.server.ts", import.meta.url),
+      "utf8",
+    );
+    const failed = server.slice(server.indexOf('existing?.status === "FAILED"'));
+    const retry = failed.slice(0, failed.indexOf("const inserted"));
+    assert.equal(retry.includes("request_snapshot"), false);
+  });
 });
 
 const firstSnapshot = snapshot();
@@ -508,8 +600,9 @@ function query(tables: Record<string, Record<string, unknown>[]>, table: string)
       tables[table].push(stored);
       return { data: stored, error: null };
     }
-    if (action === "update") {
+    if (action === "update" && values) {
       if (table !== "fiscal_registrations") throw new Error(`Unexpected update ${table}`);
+      for (const row of rows) Object.assign(row, values);
       return { data: null, error: null };
     }
     return { data: rows, error: null };

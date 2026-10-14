@@ -2,8 +2,9 @@
  * Phase 5 sales-receipt payload builder.
  *
  * A fiscal sales receipt registers one active guest payment allocation against
- * one already-registered B2C invoice. It does not post a payment. The request
- * is frozen when the registration row is created.
+ * one already-registered guest invoice. It does not post a payment. The request
+ * is frozen when the registration row is created. Transaction type and, for
+ * B2B, BuyerDetails are copied from the original INV snapshot.
  *
  * invoice_total_amount is the original INV ValueDetails.TotalValue.
  * InvoicePaidAmount is this allocation only. RemainingAmount is that fiscal
@@ -12,12 +13,13 @@
  *
  * PARTIAL matches a captured provider request. FULL, with remaining 0, is the
  * zero-outstanding counterpart and still needs a live provider check.
- * The live provider requires a top-level info object. B2C sends an empty
- * object. BuyerDetails are not sent on a guest receipt.
+ * The live provider requires a top-level info object. A B2C receipt sends an
+ * empty object. A B2B receipt sends the original INV BuyerDetails only.
  * Receipt cancellation is not built here.
  */
 import { propertyCalendarDate } from "../cashiering-control.ts";
 import { fiscalMoney } from "./fiscal-guest-invoice.ts";
+import { copyOriginalBuyerDetails } from "./fiscal-original-invoice.ts";
 
 export const FISCAL_P5_SOURCE = "guest_allocation" as const;
 export const FISCAL_P5_DOCUMENT = "SALES_RECEIPT" as const;
@@ -38,7 +40,7 @@ export type SalesReceiptPreview = {
   invoiceNumber: string | null;
   fiscalDocumentNumber: string;
   invoiceIrn: string;
-  transactionType: "B2C";
+  transactionType: "B2C" | "B2B";
   invoiceTotal: number;
   paid: number;
   remaining: number;
@@ -56,11 +58,11 @@ export type FiscalSalesReceiptPayload = {
   tax_payer_tin: string;
   PaymentCoverage: SalesReceiptCoverage;
   RemainingAmount: number;
-  TransactionType: "B2C";
+  TransactionType: "B2C" | "B2B";
   InvoicePaidAmount: number;
   invoice_document_no: string;
   invoice_total_amount: number;
-  info: Record<string, never>;
+  info: Record<string, never> | { BuyerDetails: Record<string, unknown> };
 };
 
 export type SalesReceiptPrior = {
@@ -156,8 +158,13 @@ export function assessSalesReceiptFiscal(
       );
     }
   }
-  if (request && request.transactionType !== "B2C") {
-    reasons.push("Only a B2C sales receipt can be registered in the current fiscal phase.");
+  const inheritedBuyer =
+    request?.transactionType === "B2B" ? copyOriginalBuyerDetails(original?.requestSnapshot) : null;
+  if (request && request.transactionType !== "B2C" && request.transactionType !== "B2B") {
+    reasons.push("Only a B2C or B2B sales receipt can be registered in the current fiscal phase.");
+  }
+  if (request?.transactionType === "B2B" && !inheritedBuyer) {
+    reasons.push("Original fiscal BuyerDetails are missing.");
   }
   if (input.priors.some((prior) => !prior.fiscalRegistered)) {
     reasons.push("An earlier payment allocation must be fiscalized first.");
@@ -173,7 +180,8 @@ export function assessSalesReceiptFiscal(
     invoiceTotal != null &&
     original?.irn &&
     original.documentNumber &&
-    request?.transactionType === "B2C" &&
+    (request?.transactionType === "B2C" ||
+      (request?.transactionType === "B2B" && inheritedBuyer)) &&
     paid > 0.009
   ) {
     const outstandingBefore = fiscalMoney(invoiceTotal - priorTotal);
@@ -194,7 +202,7 @@ export function assessSalesReceiptFiscal(
         invoiceNumber: input.invoiceNumber,
         fiscalDocumentNumber: original.documentNumber.trim(),
         invoiceIrn: original.irn.trim(),
-        transactionType: "B2C",
+        transactionType: request.transactionType === "B2B" ? "B2B" : "B2C",
         invoiceTotal,
         paid,
         remaining,
@@ -217,11 +225,14 @@ export function assessSalesReceiptFiscal(
     tax_payer_tin: input.connection.taxpayerTin.trim(),
     PaymentCoverage: projection.coverage,
     RemainingAmount: projection.remaining,
-    TransactionType: "B2C",
+    TransactionType: projection.transactionType,
     InvoicePaidAmount: projection.paid,
     invoice_document_no: original.documentNumber.trim(),
     invoice_total_amount: projection.invoiceTotal,
-    info: {},
+    info:
+      projection.transactionType === "B2B" && inheritedBuyer
+        ? { BuyerDetails: inheritedBuyer }
+        : {},
   };
   return { ok: true, payload, preview: projection };
 }
@@ -241,7 +252,7 @@ export function salesReceiptPreviewFromPayload(payload: unknown): SalesReceiptPr
     invoiceNumber: null,
     fiscalDocumentNumber: documentNumber,
     invoiceIrn: irn,
-    transactionType: "B2C",
+    transactionType: row.TransactionType === "B2B" ? "B2B" : "B2C",
     invoiceTotal: fiscalMoney(numberValue(row.invoice_total_amount)),
     paid: fiscalMoney(numberValue(row.InvoicePaidAmount)),
     remaining: fiscalMoney(numberValue(row.RemainingAmount)),

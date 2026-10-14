@@ -325,6 +325,67 @@ describe("company B2B credit note", () => {
   });
 });
 
+describe("historical company buyer details", () => {
+  it("copies a stored free-text Region onto credit, debit, and sales receipt", () => {
+    const creditRequest = originalRequest();
+    const creditBuyer = creditRequest.info.BuyerDetails as { Region: string; City: string };
+    creditBuyer.Region = "Addis Ababa";
+    creditBuyer.City = "Addis Ababa";
+    const credit = assessCompanyCreditFiscal(
+      CREDIT_ID,
+      creditInput({
+        originalRegistration: {
+          status: "REGISTERED",
+          irn: IRN,
+          documentNumber: "5001",
+          requestSnapshot: creditRequest,
+        },
+      }),
+    );
+    const debitRequest = originalRequest();
+    const debitBuyer = debitRequest.info.BuyerDetails as { Region: string; City: string };
+    debitBuyer.Region = "Addis Ababa";
+    debitBuyer.City = "Addis Ababa";
+    const debit = assessCompanyDebitFiscal(
+      DEBIT_ID,
+      debitInput({
+        originalRegistration: {
+          status: "REGISTERED",
+          irn: IRN,
+          documentNumber: "5001",
+          requestSnapshot: debitRequest,
+        },
+      }),
+    );
+    const receiptSnapshot = receiptRequest();
+    const receiptBuyer = receiptSnapshot.info.BuyerDetails as { Region: string; City: string };
+    receiptBuyer.Region = "Addis Ababa";
+    receiptBuyer.City = "Addis Ababa";
+    const receipt = assessCompanyReceiptFiscal(
+      ALLOC_A,
+      receiptInput({
+        originalRegistration: {
+          status: "REGISTERED",
+          irn: IRN,
+          documentNumber: "5001",
+          requestSnapshot: receiptSnapshot,
+        },
+      }),
+    );
+    assert.equal(credit.ok && debit.ok && receipt.ok, true);
+    if (!credit.ok || !debit.ok || !receipt.ok) return;
+    assert.equal(credit.payload.info.BuyerDetails.Region, "Addis Ababa");
+    assert.equal(debit.payload.info.BuyerDetails.Region, "Addis Ababa");
+    assert.equal(receipt.payload.info.BuyerDetails.Region, "Addis Ababa");
+    assert.equal(credit.payload.info.BuyerDetails.City, "Addis Ababa");
+    assert.equal(debit.payload.info.BuyerDetails.City, "Addis Ababa");
+    assert.equal(receipt.payload.info.BuyerDetails.City, "Addis Ababa");
+    assert.equal(credit.payload.info.BuyerDetails.LegalName, "Alpha PLC");
+    assert.equal(debit.payload.info.BuyerDetails.LegalName, "Alpha PLC");
+    assert.equal(receipt.payload.info.BuyerDetails.LegalName, "Alpha PLC");
+  });
+});
+
 describe("company B2B debit note", () => {
   it("copies buyer and item identity and uses the issued debit amount", () => {
     const result = assessCompanyDebitFiscal(DEBIT_ID, debitInput());

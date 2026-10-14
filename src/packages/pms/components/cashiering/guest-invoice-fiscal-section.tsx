@@ -4,10 +4,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { FiscalExchangeDrawer } from "@/packages/pms/components/cashiering/fiscal-exchange-drawer";
+import { GuestTaxIdentityDialog } from "@/packages/pms/components/guests/guest-tax-identity-editor";
 import {
   getGuestInvoiceFiscal,
   registerGuestInvoiceFiscal,
 } from "@/packages/pms/lib/fiscal/fiscal.functions";
+import { defaultFiscalCustomerType } from "@/packages/pms/lib/guest-tax-identities";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -38,12 +40,16 @@ export function GuestInvoiceFiscalSection({
   const register = useServerFn(registerGuestInvoiceFiscal);
   const [open, setOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [identityOpen, setIdentityOpen] = useState(false);
+  const [fiscalType, setFiscalType] = useState<"B2C" | "B2B">(defaultFiscalCustomerType());
+  const [taxIdentityId, setTaxIdentityId] = useState("");
   const query = useQuery({
     queryKey: ["guest-invoice-fiscal", restaurantId, invoiceId],
     queryFn: () => load({ data: { restaurantId, invoiceId } }),
   });
   const mutation = useMutation({
-    mutationFn: () => register({ data: { restaurantId, invoiceId } }),
+    mutationFn: (body: { fiscalType?: "B2C" | "B2B"; taxIdentityId?: string }) =>
+      register({ data: { restaurantId, invoiceId, ...body } }),
     onSuccess: async (result) => {
       setOpen(false);
       await queryClient.invalidateQueries({
@@ -57,6 +63,8 @@ export function GuestInvoiceFiscalSection({
     onError: (error: Error) => toast.error(error.message),
   });
   const state = query.data;
+  const selectedIdentity =
+    state?.taxIdentities.find((identity) => identity.id === taxIdentityId) ?? null;
   const statusLabel =
     state?.status === "registered"
       ? "Registered"
@@ -127,8 +135,18 @@ export function GuestInvoiceFiscalSection({
             : "hidden"
         }
       >
-        {canRegister && state?.canRegister ? (
-          <Button type="button" onClick={() => setOpen(true)} data-testid="register-fiscal-invoice">
+        {canRegister && state?.canRegister && !state.choiceLocked ? (
+          <Button
+            type="button"
+            onClick={() => {
+              setFiscalType(defaultFiscalCustomerType());
+              setTaxIdentityId(
+                state.taxIdentities.find((identity) => identity.isDefault)?.id ?? "",
+              );
+              setOpen(true);
+            }}
+            data-testid="register-fiscal-invoice"
+          >
             Register fiscal invoice
           </Button>
         ) : null}
@@ -137,7 +155,7 @@ export function GuestInvoiceFiscalSection({
             type="button"
             variant="outline"
             disabled={mutation.isPending}
-            onClick={() => mutation.mutate()}
+            onClick={() => mutation.mutate({})}
           >
             {mutation.isPending ? "Retrying..." : "Retry fiscal registration"}
           </Button>
@@ -154,20 +172,96 @@ export function GuestInvoiceFiscalSection({
         ) : null}
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Register fiscal invoice</DialogTitle>
             <DialogDescription>
-              These amounts come from the issued NORU invoice. Transaction type is B2C.
+              These amounts come from the issued NORU invoice. Choose the fiscal customer type. A
+              saved tax identity does not select B2B by itself.
             </DialogDescription>
           </DialogHeader>
+          <fieldset className="space-y-2 text-sm">
+            <legend className="font-medium text-[#251605]">Fiscal customer type</legend>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="fiscal-customer-type"
+                checked={fiscalType === "B2C"}
+                onChange={() => setFiscalType("B2C")}
+              />
+              Consumer — B2C
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="fiscal-customer-type"
+                checked={fiscalType === "B2B"}
+                onChange={() => setFiscalType("B2B")}
+              />
+              TIN / Business — B2B
+            </label>
+          </fieldset>
+          {fiscalType === "B2B" ? (
+            <div className="space-y-2 text-sm">
+              <label className="block font-medium text-[#251605]" htmlFor="buyer-identity">
+                Buyer identity
+              </label>
+              <select
+                id="buyer-identity"
+                className="w-full rounded-md border border-[#DDD4C5] bg-white px-2 py-2"
+                value={taxIdentityId}
+                onChange={(event) => setTaxIdentityId(event.target.value)}
+              >
+                <option value="">Select a tax identity</option>
+                {(state?.taxIdentities ?? []).map((identity) => (
+                  <option key={identity.id} value={identity.id}>
+                    {identity.legalName} — TIN {identity.tin}
+                  </option>
+                ))}
+              </select>
+              {selectedIdentity ? (
+                <div className="space-y-1 rounded-md bg-[#FAF8F5] p-3">
+                  <p>Legal name: {selectedIdentity.legalName}</p>
+                  <p>TIN: {selectedIdentity.tin}</p>
+                  <p>Registration number: {selectedIdentity.registrationNumber ?? "—"}</p>
+                  <p>Phone: {selectedIdentity.phone ?? "—"}</p>
+                  <p>Email: {selectedIdentity.email ?? "—"}</p>
+                  <p>City: {selectedIdentity.city ?? "—"}</p>
+                  <p>Region: {selectedIdentity.region ?? "—"}</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  Select an active tax identity for this guest.
+                </p>
+              )}
+              {state?.guestId ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIdentityOpen(true)}
+                >
+                  + Add new tax identity
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
           {state?.preview ? (
             <div className="space-y-1 text-sm">
+              <p>Fiscal type: {fiscalType}</p>
+              {fiscalType === "B2B" && selectedIdentity ? (
+                <>
+                  <p>Legal name: {selectedIdentity.legalName}</p>
+                  <p>TIN: {selectedIdentity.tin}</p>
+                  <p>Registration / VAT number: {selectedIdentity.registrationNumber ?? "—"}</p>
+                  <p>Phone: {selectedIdentity.phone ?? "—"}</p>
+                  <p>Email: {selectedIdentity.email ?? "—"}</p>
+                  <p>City: {selectedIdentity.city ?? "—"}</p>
+                  <p>Region: {selectedIdentity.region ?? "—"}</p>
+                </>
+              ) : null}
               <p>NORU invoice: {state.preview.invoiceNumber}</p>
-              <p>Guest: {state.preview.guestName}</p>
-              <p>Transaction type: B2C</p>
               <p>Currency: ETB</p>
-              <p>Fiscal mode: {state.preview.mode}</p>
               <p>Pretax: {money(state.preview.pretax)}</p>
               <p>Tax: {money(state.preview.tax)}</p>
               <p>Total: {money(state.preview.total)}</p>
@@ -177,12 +271,37 @@ export function GuestInvoiceFiscalSection({
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="button" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+            <Button
+              type="button"
+              disabled={mutation.isPending || (fiscalType === "B2B" && !selectedIdentity)}
+              onClick={() =>
+                mutation.mutate({
+                  fiscalType,
+                  taxIdentityId: fiscalType === "B2B" ? taxIdentityId : undefined,
+                })
+              }
+            >
               {mutation.isPending ? "Registering..." : "Register"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {state?.guestId ? (
+        <GuestTaxIdentityDialog
+          open={identityOpen}
+          onOpenChange={setIdentityOpen}
+          restaurantId={restaurantId}
+          guestId={state.guestId}
+          prefill={state.guestPrefill}
+          onSaved={async (id) => {
+            setTaxIdentityId(id);
+            setFiscalType("B2B");
+            await queryClient.invalidateQueries({
+              queryKey: ["guest-invoice-fiscal", restaurantId, invoiceId],
+            });
+          }}
+        />
+      ) : null}
       {canInspect && state?.registration?.id ? (
         <FiscalExchangeDrawer
           open={exchangeOpen}

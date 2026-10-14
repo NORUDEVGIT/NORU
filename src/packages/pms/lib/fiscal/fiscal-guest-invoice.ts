@@ -1,8 +1,10 @@
 /**
  * Phase 2 guest-invoice payload builder.
  *
- * Only an already-issued guest charge-group invoice in ETB, treated as B2C,
- * can become a fiscal INV. Amounts come from the frozen invoice snapshot.
+ * Only an already-issued guest charge-group invoice in ETB can become a fiscal
+ * INV. The operator chooses B2C or B2B when the registration is created.
+ * B2C is the default and sends no BuyerDetails. B2B copies BuyerDetails from
+ * the selected saved tax identity. Amounts come from the frozen invoice snapshot.
  * Tax codes and item identity come from property mappings. This module does
  * not post ledger rows and does not call the fiscal API.
  *
@@ -27,6 +29,7 @@
  */
 import { createHash } from "node:crypto";
 
+import type { GuestFiscalCustomerType, GuestTaxBuyerDetails } from "../guest-tax-identities.ts";
 import {
   FISCAL_DOCUMENT_MODE,
   FISCAL_ITEM_UNIT,
@@ -72,6 +75,8 @@ export type GuestInvoiceFiscalInput = {
   mode: string | null;
   taxMappings: FiscalTaxMapping[];
   itemMappings: FiscalItemMapping[];
+  fiscalCustomerType?: GuestFiscalCustomerType;
+  buyer?: GuestTaxBuyerDetails | null;
 };
 
 export type FiscalInvLine = {
@@ -106,19 +111,20 @@ export type FiscalInvPayload = {
       IncomeWithholdValue: number;
       TransactionWithholdValue: number;
     };
+    BuyerDetails?: GuestTaxBuyerDetails;
   };
   client: string;
   trnx_id: string;
   device_id: string;
   tax_payer_tin: string;
   RelatedDocument: null;
-  TransactionType: "B2C";
+  TransactionType: GuestFiscalCustomerType;
 };
 
 export type GuestInvoiceFiscalPreview = {
   invoiceNumber: string;
   guestName: string;
-  transactionType: "B2C";
+  transactionType: GuestFiscalCustomerType;
   currency: "ETB";
   mode: string;
   pretax: number;
@@ -293,28 +299,39 @@ export function assessGuestInvoiceFiscal(
     return { ok: false, reasons, missingTaxes, missingItems, missingMode, missingDevice };
   }
 
+  const fiscalCustomerType = input.fiscalCustomerType === "B2B" ? "B2B" : "B2C";
+  const buyer = fiscalCustomerType === "B2B" ? (input.buyer ?? null) : null;
+  if (fiscalCustomerType === "B2B" && !buyer) {
+    reasons.push("Select an active tax identity for this guest.");
+    return { ok: false, reasons, missingTaxes, missingItems, missingMode, missingDevice };
+  }
+  if (buyer && (buyer.LegalName.trim().length === 0 || buyer.Tin.trim().length === 0)) {
+    reasons.push("The selected tax identity needs a legal name and TIN.");
+    return { ok: false, reasons, missingTaxes, missingItems, missingMode, missingDevice };
+  }
+
+  const valueDetails = {
+    Discount: 0,
+    TaxValue: parsed.tax,
+    TotalValue: parsed.total,
+    ExciseValue: 0,
+    InvoiceCurrency: "ETB" as const,
+    IncomeWithholdValue: 0,
+    TransactionWithholdValue: 0,
+  };
   const payload: FiscalInvPayload = {
     Date: formatFiscalDocumentDate(parsed.issuedAt),
     Mode: FISCAL_DOCUMENT_MODE,
     Type: "INV",
-    info: {
-      ItemList: lines,
-      ValueDetails: {
-        Discount: 0,
-        TaxValue: parsed.tax,
-        TotalValue: parsed.total,
-        ExciseValue: 0,
-        InvoiceCurrency: "ETB",
-        IncomeWithholdValue: 0,
-        TransactionWithholdValue: 0,
-      },
-    },
+    info: buyer
+      ? { ItemList: lines, ValueDetails: valueDetails, BuyerDetails: buyer }
+      : { ItemList: lines, ValueDetails: valueDetails },
     client: input.connection.client.trim(),
     trnx_id: guestInvoiceTrnxId(invoiceId),
     device_id: input.connection.deviceId.trim(),
     tax_payer_tin: input.connection.taxpayerTin.trim(),
     RelatedDocument: null,
-    TransactionType: "B2C",
+    TransactionType: fiscalCustomerType,
   };
   return {
     ok: true,
@@ -322,7 +339,7 @@ export function assessGuestInvoiceFiscal(
     preview: {
       invoiceNumber: parsed.invoiceNumber,
       guestName: parsed.guestName,
-      transactionType: "B2C",
+      transactionType: fiscalCustomerType,
       currency: "ETB",
       mode: FISCAL_DOCUMENT_MODE,
       pretax: parsed.subtotal,

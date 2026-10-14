@@ -12,7 +12,9 @@
  *
  * BuyerDetails.IdType is the provider example KID. IdNumber stays null.
  * Registration number is sent as VatNumber. A missing registration number does
- * not block registration.
+ * not block registration. Region is sent only when the frozen value is already
+ * a 1–3 digit provider code. A region name is stored on the invoice and sent
+ * as null.
  */
 import {
   FISCAL_DOCUMENT_MODE,
@@ -27,6 +29,7 @@ import {
   type FiscalItemMapping,
   type FiscalTaxMapping,
 } from "./fiscal-guest-invoice.ts";
+import { normalizeFiscalRegion } from "./fiscal-region.ts";
 
 export const FISCAL_P6_SOURCE = "account_invoice" as const;
 export const FISCAL_P6_DOCUMENT = "INV" as const;
@@ -298,7 +301,7 @@ export function assessCompanyInvoiceFiscal(
     Tin: parsed.tin,
     LegalName: parsed.legalName,
     Phone: parsed.phone,
-    Region: parsed.region,
+    Region: normalizeFiscalRegion(parsed.region),
     VatNumber: parsed.vatNumber,
     Wereda: null,
     Zone: null,
