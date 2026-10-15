@@ -773,22 +773,31 @@ export function AccountsPanel({
 
       {/* Modal: Open Financial Account */}
       <Dialog open={openModal} onOpenChange={setOpenModal}>
-        <DialogContent className="max-w-lg bg-white border border-[#E8E1D7] rounded-xl p-0 overflow-hidden shadow-lg">
-          <DialogHeader className="border-b border-[#E8E1D7] px-6 py-4 bg-[#FAF8F4]">
-            <DialogTitle className="text-base font-semibold text-[#251605]">
-              Open Financial Account
-            </DialogTitle>
-            <DialogDescription className="text-xs text-[#7A7167] mt-0.5">
-              Real company, group, or master billing accounts — not Guest Profile stay aggregates.
-            </DialogDescription>
+        <DialogContent className="max-h-[92vh] sm:max-w-lg overflow-hidden p-0 rounded-2xl border border-[#E8E1D7] bg-[#FAF8F5] shadow-2xl flex flex-col">
+          <DialogHeader className="shrink-0 border-b border-[#E8E1D7] bg-white px-6 py-4">
+            <div className="flex items-center gap-3.5">
+              <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-[#E5DECE] bg-[#F4E9D0] text-[#765719] shadow-xs">
+                <Building2 className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="font-display text-lg font-bold tracking-tight text-[#251605]">
+                  Open Financial Account
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#7A6B58] mt-0.5">
+                  Establish an official corporate or group billing ledger for master charges and invoicing.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           {!canManage ? (
-            <p className="p-6 text-sm text-amber-800">
-              Only an owner or manager can open accounts.
-            </p>
+            <div className="p-6">
+              <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs font-medium text-amber-900">
+                Only a cashiering manager or administrator can open new financial accounts.
+              </p>
+            </div>
           ) : (
-            <div className="p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#FAF8F5]">
               <CashieringMasterPicker
                 restaurantId={restaurantId}
                 masterKind={masterKind}
@@ -796,23 +805,52 @@ export function AccountsPanel({
                 selected={selectedMaster}
                 onSelectedChange={setSelectedMaster}
               />
+
               {existingFinancialAccount ? (
-                <div className="rounded-lg bg-[#FFFBEB] p-3 border border-[#FCD34D] text-xs text-amber-900">
-                  Financial account already open ({existingFinancialAccount.accountNumber}
-                  {existingFinancialAccount.status === "closed" ? ", closed" : ""}).{" "}
+                <div className="rounded-xl bg-[#FFFBEB] p-3.5 border border-[#FCD34D] text-xs text-amber-900 flex items-center justify-between gap-2 shadow-2xs">
+                  <div>
+                    <span className="font-semibold">Account already exists:</span>{" "}
+                    {existingFinancialAccount.accountNumber}
+                    {existingFinancialAccount.status === "closed" ? " (Closed)" : ""}
+                  </div>
                   <Link
                     to="/restaurant/pms/cashiering/accounts/$accountId"
                     params={{ accountId: existingFinancialAccount.id }}
-                    className="font-semibold underline"
+                    className="font-bold text-[#8A641A] underline underline-offset-2 shrink-0 hover:text-[#725315]"
                   >
-                    Open workspace
+                    Open Workspace →
                   </Link>
                 </div>
               ) : null}
-              <div>
-                <Label htmlFor="account-currency" className="text-xs font-semibold text-[#251605]">
-                  Billing Currency
-                </Label>
+
+              {/* Billing Currency Card */}
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="account-currency" className="text-xs font-semibold text-[#251605]">
+                    Billing Currency
+                  </Label>
+                  <div className="flex gap-1">
+                    {["ETB", "USD", "EUR"].map((code) => (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => {
+                          setCurrencyEdited(true);
+                          setCurrency(code);
+                        }}
+                        className={cn(
+                          "px-2 py-0.5 rounded text-[10px] font-bold border transition-colors",
+                          currency === code
+                            ? "border-[#C89933] bg-[#FAF5EB] text-[#8A641A]"
+                            : "border-[#E8E1D7] text-[#7A6B58] hover:bg-[#FAF8F5]",
+                        )}
+                      >
+                        {code}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <Input
                   id="account-currency"
                   value={currency}
@@ -821,41 +859,42 @@ export function AccountsPanel({
                     setCurrencyEdited(true);
                     setCurrency(e.target.value.toUpperCase());
                   }}
-                  className="mt-1 h-10 text-xs font-semibold uppercase"
+                  className="h-9 text-xs font-semibold uppercase tracking-wider"
                 />
+
                 {selectedMaster ? (
-                  <p className="mt-1 text-[11px] text-[#7A7167]">
+                  <p className="text-[11px] text-[#7A6B58] leading-relaxed">
                     {savedMasterCurrency
-                      ? `Filled from the ${selectedMaster.accountType === "group" ? "group" : "company"} profile. Change it if this account should use another currency.`
+                      ? `Inherited from ${selectedMaster.accountType === "group" ? "group" : "company"} profile. You may customize this account's currency before opening.`
                       : masterCurrencyQuery.isSuccess
-                        ? "No currency is saved on this profile, so the property currency is shown. You can change it."
-                        : "Loading the currency saved on this profile."}
+                        ? "No default currency saved on profile; defaulting to hotel property currency."
+                        : "Detecting default currency from profile…"}
                   </p>
                 ) : null}
               </div>
             </div>
           )}
 
-          <DialogFooter className="border-t border-[#E8E1D7] px-6 py-3 bg-[#FAF8F4] flex items-center justify-end gap-2">
+          <DialogFooter className="shrink-0 border-t border-[#E8E1D7] bg-white px-6 py-3 flex items-center justify-end gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setOpenModal(false)}
-              className="h-9"
+              className="h-9 border-[#DDD4C5] text-xs hover:bg-[#FAF8F5]"
             >
               Cancel
             </Button>
             <Button
               type="button"
               size="sm"
-              className="h-9 bg-[#C89933] text-[#251605] hover:bg-[#B5882D] font-semibold px-4"
+              className="h-9 bg-[#8A641A] text-white hover:bg-[#735315] font-semibold px-4 text-xs shadow-xs"
               disabled={
                 !selectedMaster || Boolean(existingFinancialAccount) || openMutation.isPending
               }
               onClick={() => openMutation.mutate()}
             >
-              {openMutation.isPending ? "Opening…" : "Open Financial Account"}
+              {openMutation.isPending ? "Opening Account…" : "Open Financial Account"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ReceiptText } from "lucide-react";
+import { ReceiptText, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { FiscalExchangeDrawer } from "@/packages/pms/components/cashiering/fiscal-exchange-drawer";
@@ -160,36 +160,86 @@ export function GuestSalesReceiptSection({
         </div>
       ) : null}
       <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setAllocationId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Register fiscal sales receipt</DialogTitle>
-            <DialogDescription>
-              This registers the existing allocation. It does not post another payment.
-            </DialogDescription>
+        <DialogContent className="max-h-[90vh] sm:max-w-lg overflow-hidden p-0 rounded-2xl border border-[#E8E1D7] bg-[#FAF8F5] shadow-2xl flex flex-col">
+          <DialogHeader className="shrink-0 border-b border-[#E8E1D7] bg-white px-6 py-4">
+            <div className="flex items-center gap-3.5">
+              <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 shadow-xs">
+                <ReceiptText className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="font-display text-lg font-bold tracking-tight text-[#251605]">
+                  Register Fiscal Sales Receipt
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#7A6B58] mt-0.5">
+                  Legal proof of payment registration referencing invoice and allocation.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
+
           {selected?.preview ? (
-            <div className="space-y-1 text-sm">
-              <p>Invoice: {selected.preview.invoiceNumber ?? "—"}</p>
-              <p>Fiscal invoice document no.: {selected.preview.fiscalDocumentNumber}</p>
-              <p>Invoice IRN: {selected.preview.invoiceIrn}</p>
-              <p>Payment / allocation: {money(selected.amount)}</p>
-              <p>Invoice total: {money(selected.preview.invoiceTotal)}</p>
-              <p>This payment: {money(selected.preview.paid)}</p>
-              <p>Remaining after payment: {money(selected.preview.remaining)}</p>
-              <p>Payment coverage: {selected.preview.coverage}</p>
-              <p>Transaction type: {selected.preview.transactionType}</p>
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#FAF8F5]">
+              {/* Document Reference Info */}
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between border-b border-[#E8E1D7]/70 pb-2">
+                  <span className="font-semibold text-xs text-[#251605]">Invoice Context</span>
+                  <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                    {selected.preview.coverage.toUpperCase()}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-[#7A6B58]">
+                  <div>Invoice: {selected.preview.invoiceNumber ?? "—"}</div>
+                  <div>Fiscal Doc: {selected.preview.fiscalDocumentNumber || "—"}</div>
+                  <div className="col-span-2 truncate">Invoice IRN: {selected.preview.invoiceIrn || "—"}</div>
+                  <div>Type: {selected.preview.transactionType}</div>
+                  <div>Invoice Total: {money(selected.preview.invoiceTotal)}</div>
+                </div>
+              </div>
+
+              {/* Payment Summary */}
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-3">
+                <span className="font-semibold text-xs text-[#251605]">Payment Allocation</span>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2.5">
+                    <p className="text-[10px] font-medium text-[#7A6B58]">Allocated Amount</p>
+                    <p className="font-display text-sm font-bold tabular-nums text-emerald-700">
+                      {money(selected.amount)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2.5">
+                    <p className="text-[10px] font-medium text-[#7A6B58]">Total Paid</p>
+                    <p className="font-display text-sm font-bold tabular-nums text-[#251605]">
+                      {money(selected.preview.paid)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2.5">
+                    <p className="text-[10px] font-medium text-[#7A6B58]">Remaining Balance</p>
+                    <p className="font-display text-sm font-bold tabular-nums text-[#251605]">
+                      {money(selected.preview.remaining)}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setAllocationId(null)}>
+
+          <DialogFooter className="shrink-0 border-t border-[#E8E1D7] bg-white px-6 py-3 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAllocationId(null)}
+              className="h-9 border-[#DDD4C5] text-xs hover:bg-[#FAF8F5]"
+            >
               Cancel
             </Button>
             <Button
               type="button"
               disabled={mutation.isPending || !selected}
               onClick={() => selected && mutation.mutate(selected.allocationId)}
+              className="h-9 bg-[#8A641A] text-white hover:bg-[#735315] text-xs font-semibold px-4 shadow-xs"
             >
-              {mutation.isPending ? "Registering..." : "Register"}
+              {mutation.isPending ? "Registering…" : "Confirm Sales Receipt"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { ArrowDownLeft, FileText, ShieldCheck } from "lucide-react";
+
 import { FiscalExchangeDrawer } from "@/packages/pms/components/cashiering/fiscal-exchange-drawer";
 import {
   getCreditNoteFiscal,
@@ -131,38 +133,109 @@ export function CreditNoteFiscalSection({
         ) : null}
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Register fiscal credit note</DialogTitle>
-            <DialogDescription>
-              Item identity comes from the original fiscal invoice. Amounts come from this credit
-              note.
-            </DialogDescription>
+        <DialogContent className="max-h-[90vh] sm:max-w-xl overflow-hidden p-0 rounded-2xl border border-[#E8E1D7] bg-[#FAF8F5] shadow-2xl flex flex-col">
+          <DialogHeader className="shrink-0 border-b border-[#E8E1D7] bg-white px-6 py-4">
+            <div className="flex items-center gap-3.5">
+              <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 shadow-xs">
+                <ArrowDownLeft className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="font-display text-lg font-bold tracking-tight text-[#251605]">
+                  Register Fiscal Credit Note
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#7A6B58] mt-0.5">
+                  Legal credit memo registration referencing the original fiscal invoice and IRN.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
+
           {state?.preview ? (
-            <div className="space-y-1 text-sm">
-              <p>Credit note: {state.preview.noteNumber}</p>
-              <p>Original invoice: {state.preview.originalInvoiceNumber ?? "—"}</p>
-              <p>Original fiscal document: {state.preview.originalFiscalDocumentNumber ?? "—"}</p>
-              <p>Related IRN: {state.preview.relatedIrn}</p>
-              <p>Transaction type: {state.preview.transactionType}</p>
-              <p>Currency: {state.preview.currency}</p>
-              <p>Pretax credit: {money(state.preview.pretax)}</p>
-              <p>Tax credit: {money(state.preview.tax)}</p>
-              <p>Total credit: {money(state.preview.total)}</p>
-              {state.preview.lines.map((line) => (
-                <p key={`${line.itemCode}-${line.productDescription}`}>
-                  {line.productDescription} · Item {line.itemCode} · {money(line.creditedAmount)}
-                </p>
-              ))}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#FAF8F5]">
+              {/* Document Reference Info */}
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between border-b border-[#E8E1D7]/70 pb-2">
+                  <span className="font-semibold text-xs text-[#251605]">Credit Note Reference</span>
+                  <span className="rounded bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800">
+                    {state.preview.noteNumber}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-[#7A6B58]">
+                  <div>Original Invoice: {state.preview.originalInvoiceNumber ?? "—"}</div>
+                  <div>Fiscal Doc: {state.preview.originalFiscalDocumentNumber ?? "—"}</div>
+                  <div className="col-span-2 truncate">Related IRN: {state.preview.relatedIrn || "—"}</div>
+                  <div>Type: {state.preview.transactionType}</div>
+                  <div>Currency: {state.preview.currency}</div>
+                </div>
+              </div>
+
+              {/* Credited Lines */}
+              {state.preview.lines.length > 0 ? (
+                <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-2">
+                  <span className="font-semibold text-xs text-[#251605]">Credited Item Adjustments</span>
+                  <div className="divide-y divide-[#E8E1D7]/60 text-xs">
+                    {state.preview.lines.map((line) => (
+                      <div
+                        key={`${line.itemCode}-${line.productDescription}`}
+                        className="flex items-center justify-between py-1.5"
+                      >
+                        <div>
+                          <p className="font-medium text-[#251605]">{line.productDescription}</p>
+                          <p className="text-[10px] text-[#7A6B58]">Item code: {line.itemCode}</p>
+                        </div>
+                        <span className="font-semibold tabular-nums text-blue-700">
+                          {money(line.creditedAmount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Totals Summary */}
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-3">
+                <span className="font-semibold text-xs text-[#251605]">Credit Note Totals</span>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2.5">
+                    <p className="text-[10px] font-medium text-[#7A6B58]">Pretax Credit</p>
+                    <p className="font-display text-sm font-bold tabular-nums text-[#251605]">
+                      {money(state.preview.pretax)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2.5">
+                    <p className="text-[10px] font-medium text-[#7A6B58]">Tax Credit</p>
+                    <p className="font-display text-sm font-bold tabular-nums text-[#251605]">
+                      {money(state.preview.tax)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-2.5">
+                    <p className="text-[10px] font-medium text-blue-800">Total Credit</p>
+                    <p className="font-display text-sm font-bold tabular-nums text-blue-900">
+                      {money(state.preview.total)}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+
+          <DialogFooter className="shrink-0 border-t border-[#E8E1D7] bg-white px-6 py-3 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              className="h-9 border-[#DDD4C5] text-xs hover:bg-[#FAF8F5]"
+            >
               Cancel
             </Button>
-            <Button type="button" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
-              {mutation.isPending ? "Registering..." : "Register"}
+            <Button
+              type="button"
+              disabled={mutation.isPending}
+              onClick={() => mutation.mutate()}
+              className="h-9 bg-[#8A641A] text-white hover:bg-[#735315] text-xs font-semibold px-4 shadow-xs"
+            >
+              {mutation.isPending ? "Registering…" : "Confirm Fiscal Credit Note"}
             </Button>
           </DialogFooter>
         </DialogContent>

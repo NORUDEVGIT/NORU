@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { Building2, ShieldCheck, User } from "lucide-react";
+
 import { FiscalExchangeDrawer } from "@/packages/pms/components/cashiering/fiscal-exchange-drawer";
 import { GuestTaxIdentityDialog } from "@/packages/pms/components/guests/guest-tax-identity-editor";
 import {
@@ -19,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import { cn } from "@/shared/lib/utils";
 
 const SETTINGS_HREF = "/restaurant/settings#connectivity-distribution";
 
@@ -172,103 +175,186 @@ export function GuestInvoiceFiscalSection({
         ) : null}
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Register fiscal invoice</DialogTitle>
-            <DialogDescription>
-              These amounts come from the issued NORU invoice. Choose the fiscal customer type. A
-              saved tax identity does not select B2B by itself.
-            </DialogDescription>
+        <DialogContent className="max-h-[90vh] sm:max-w-xl overflow-hidden p-0 rounded-2xl border border-[#E8E1D7] bg-[#FAF8F5] shadow-2xl flex flex-col">
+          <DialogHeader className="shrink-0 border-b border-[#E8E1D7] bg-white px-6 py-4">
+            <div className="flex items-center gap-3.5">
+              <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-[#E5DECE] bg-[#F4E9D0] text-[#765719] shadow-xs">
+                <ShieldCheck className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="font-display text-lg font-bold tracking-tight text-[#251605]">
+                  Register Fiscal Invoice
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#7A6B58] mt-0.5">
+                  Verify fiscal customer type and transmit legal electronic registration.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
-          <fieldset className="space-y-2 text-sm">
-            <legend className="font-medium text-[#251605]">Fiscal customer type</legend>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="fiscal-customer-type"
-                checked={fiscalType === "B2C"}
-                onChange={() => setFiscalType("B2C")}
-              />
-              Consumer — B2C
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="fiscal-customer-type"
-                checked={fiscalType === "B2B"}
-                onChange={() => setFiscalType("B2B")}
-              />
-              TIN / Business — B2B
-            </label>
-          </fieldset>
-          {fiscalType === "B2B" ? (
-            <div className="space-y-2 text-sm">
-              <label className="block font-medium text-[#251605]" htmlFor="buyer-identity">
-                Buyer identity
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#FAF8F5]">
+            {/* Customer Type Choice Cards */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-[#7A6B58]">
+                Fiscal Customer Classification
               </label>
-              <select
-                id="buyer-identity"
-                className="w-full rounded-md border border-[#DDD4C5] bg-white px-2 py-2"
-                value={taxIdentityId}
-                onChange={(event) => setTaxIdentityId(event.target.value)}
-              >
-                <option value="">Select a tax identity</option>
-                {(state?.taxIdentities ?? []).map((identity) => (
-                  <option key={identity.id} value={identity.id}>
-                    {identity.legalName} — TIN {identity.tin}
-                  </option>
-                ))}
-              </select>
-              {selectedIdentity ? (
-                <div className="space-y-1 rounded-md bg-[#FAF8F5] p-3">
-                  <p>Legal name: {selectedIdentity.legalName}</p>
-                  <p>TIN: {selectedIdentity.tin}</p>
-                  <p>Registration number: {selectedIdentity.registrationNumber ?? "—"}</p>
-                  <p>Phone: {selectedIdentity.phone ?? "—"}</p>
-                  <p>Email: {selectedIdentity.email ?? "—"}</p>
-                  <p>City: {selectedIdentity.city ?? "—"}</p>
-                  <p>Region: {selectedIdentity.region ?? "—"}</p>
-                </div>
-              ) : (
-                <p className="text-muted-foreground">
-                  Select an active tax identity for this guest.
-                </p>
-              )}
-              {state?.guestId ? (
-                <Button
+              <div className="grid grid-cols-2 gap-3">
+                <button
                   type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIdentityOpen(true)}
+                  onClick={() => setFiscalType("B2C")}
+                  className={cn(
+                    "flex flex-col items-start rounded-xl border p-3.5 text-left transition-all shadow-2xs",
+                    fiscalType === "B2C"
+                      ? "border-[#C89933] bg-white ring-2 ring-[#C89933]/20"
+                      : "border-[#E8E1D7] bg-white/70 hover:bg-white text-[#7A6B58]",
+                  )}
                 >
-                  + Add new tax identity
-                </Button>
-              ) : null}
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={cn(
+                        "grid size-7 place-items-center rounded-lg",
+                        fiscalType === "B2C" ? "bg-[#FAF5EB] text-[#8A641A]" : "bg-neutral-100 text-neutral-500",
+                      )}
+                    >
+                      <User className="size-3.5" />
+                    </div>
+                    <span className="font-semibold text-xs text-[#251605]">Consumer (B2C)</span>
+                  </div>
+                  <p className="mt-2 text-[11px] text-[#7A6B58]">
+                    Standard retail / individual guest receipt without company TIN.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFiscalType("B2B")}
+                  className={cn(
+                    "flex flex-col items-start rounded-xl border p-3.5 text-left transition-all shadow-2xs",
+                    fiscalType === "B2B"
+                      ? "border-[#C89933] bg-white ring-2 ring-[#C89933]/20"
+                      : "border-[#E8E1D7] bg-white/70 hover:bg-white text-[#7A6B58]",
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={cn(
+                        "grid size-7 place-items-center rounded-lg",
+                        fiscalType === "B2B" ? "bg-[#FAF5EB] text-[#8A641A]" : "bg-neutral-100 text-neutral-500",
+                      )}
+                    >
+                      <Building2 className="size-3.5" />
+                    </div>
+                    <span className="font-semibold text-xs text-[#251605]">Business (B2B)</span>
+                  </div>
+                  <p className="mt-2 text-[11px] text-[#7A6B58]">
+                    Corporate customer with legal registered TIN and VAT number.
+                  </p>
+                </button>
+              </div>
             </div>
-          ) : null}
-          {state?.preview ? (
-            <div className="space-y-1 text-sm">
-              <p>Fiscal type: {fiscalType}</p>
-              {fiscalType === "B2B" && selectedIdentity ? (
-                <>
-                  <p>Legal name: {selectedIdentity.legalName}</p>
-                  <p>TIN: {selectedIdentity.tin}</p>
-                  <p>Registration / VAT number: {selectedIdentity.registrationNumber ?? "—"}</p>
-                  <p>Phone: {selectedIdentity.phone ?? "—"}</p>
-                  <p>Email: {selectedIdentity.email ?? "—"}</p>
-                  <p>City: {selectedIdentity.city ?? "—"}</p>
-                  <p>Region: {selectedIdentity.region ?? "—"}</p>
-                </>
-              ) : null}
-              <p>NORU invoice: {state.preview.invoiceNumber}</p>
-              <p>Currency: ETB</p>
-              <p>Pretax: {money(state.preview.pretax)}</p>
-              <p>Tax: {money(state.preview.tax)}</p>
-              <p>Total: {money(state.preview.total)}</p>
-            </div>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+
+            {/* B2B Buyer Identity */}
+            {fiscalType === "B2B" ? (
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="buyer-identity" className="text-xs font-semibold text-[#251605]">
+                    Select Buyer Tax Identity
+                  </label>
+                  {state?.guestId ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIdentityOpen(true)}
+                      className="h-6 text-[11px] text-[#8A641A] hover:bg-[#FAF5EB] font-semibold px-2"
+                    >
+                      + Add New Identity
+                    </Button>
+                  ) : null}
+                </div>
+
+                <select
+                  id="buyer-identity"
+                  className="h-9 w-full rounded-lg border border-[#DDD4C5] bg-white px-3 text-xs text-[#251605] shadow-2xs focus:border-[#C89933] focus:outline-none focus:ring-2 focus:ring-[#C89933]/20"
+                  value={taxIdentityId}
+                  onChange={(event) => setTaxIdentityId(event.target.value)}
+                >
+                  <option value="">Choose an active tax identity...</option>
+                  {(state?.taxIdentities ?? []).map((identity) => (
+                    <option key={identity.id} value={identity.id}>
+                      {identity.legalName} — TIN {identity.tin}
+                    </option>
+                  ))}
+                </select>
+
+                {selectedIdentity ? (
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3 text-xs space-y-1.5">
+                    <div className="flex justify-between items-center border-b border-[#E8E1D7]/70 pb-1.5">
+                      <span className="font-semibold text-[#251605]">{selectedIdentity.legalName}</span>
+                      <span className="rounded bg-[#C89933]/15 px-1.5 py-0.5 text-[10px] font-bold text-[#8A641A]">
+                        TIN {selectedIdentity.tin}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-[#7A6B58] pt-1">
+                      <div>Reg/VAT: {selectedIdentity.registrationNumber || "—"}</div>
+                      <div>Phone: {selectedIdentity.phone || "—"}</div>
+                      <div>Email: {selectedIdentity.email || "—"}</div>
+                      <div>
+                        Location:{" "}
+                        {[selectedIdentity.city, selectedIdentity.region].filter(Boolean).join(", ") ||
+                          "—"}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-amber-800 bg-amber-50 rounded-lg p-2.5 border border-amber-200/60">
+                    A verified tax identity is required for B2B fiscal invoice registration.
+                  </p>
+                )}
+              </div>
+            ) : null}
+
+            {/* Document Totals Card */}
+            {state?.preview ? (
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-[#251605]">NORU Document Totals</span>
+                  <span className="rounded-md border border-[#E8E1D7] bg-[#FAF8F5] px-2 py-0.5 text-[11px] font-medium text-[#7A6B58]">
+                    Invoice {state.preview.invoiceNumber}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2.5">
+                    <p className="text-[10px] font-medium text-[#7A6B58]">Pretax Base</p>
+                    <p className="font-display text-sm font-bold tabular-nums text-[#251605]">
+                      {money(state.preview.pretax)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2.5">
+                    <p className="text-[10px] font-medium text-[#7A6B58]">Tax Amount</p>
+                    <p className="font-display text-sm font-bold tabular-nums text-[#251605]">
+                      {money(state.preview.tax)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#C89933]/30 bg-[#FAF5EB] p-2.5">
+                    <p className="text-[10px] font-medium text-[#8A641A]">Grand Total</p>
+                    <p className="font-display text-sm font-bold tabular-nums text-[#251605]">
+                      {money(state.preview.total)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter className="shrink-0 border-t border-[#E8E1D7] bg-white px-6 py-3 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              className="h-9 border-[#DDD4C5] text-xs hover:bg-[#FAF8F5]"
+            >
               Cancel
             </Button>
             <Button
@@ -280,8 +366,9 @@ export function GuestInvoiceFiscalSection({
                   taxIdentityId: fiscalType === "B2B" ? taxIdentityId : undefined,
                 })
               }
+              className="h-9 bg-[#8A641A] text-white hover:bg-[#735315] text-xs font-semibold px-4 shadow-xs"
             >
-              {mutation.isPending ? "Registering..." : "Register"}
+              {mutation.isPending ? "Registering…" : "Confirm Fiscal Registration"}
             </Button>
           </DialogFooter>
         </DialogContent>

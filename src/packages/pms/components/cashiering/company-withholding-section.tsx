@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ReceiptText } from "lucide-react";
+import { Building2, FileText, ReceiptText, RotateCcw, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { FiscalExchangeDrawer } from "@/packages/pms/components/cashiering/fiscal-exchange-drawer";
@@ -25,6 +25,7 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { cn } from "@/shared/lib/utils";
 
 const STATUS_LABEL = {
   not_registered: "Not registered",
@@ -239,133 +240,237 @@ export function CompanyWithholdingSection({
       ))}
 
       <Dialog open={recording} onOpenChange={setRecording}>
-        <DialogContent className="flex max-h-[90vh] flex-col gap-4 overflow-hidden">
-          <DialogHeader className="shrink-0 pr-6">
-            <DialogTitle>Record withholding</DialogTitle>
-            <DialogDescription>
-              Enter the certificate amount and pretax base. NORU does not calculate a withholding
-              rate.
-            </DialogDescription>
+        <DialogContent className="max-h-[92vh] sm:max-w-2xl overflow-hidden p-0 rounded-2xl border border-[#E8E1D7] bg-[#FAF8F5] shadow-2xl flex flex-col">
+          <DialogHeader className="shrink-0 border-b border-[#E8E1D7] bg-white px-6 py-4">
+            <div className="flex items-center gap-3.5">
+              <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-[#E5DECE] bg-[#F4E9D0] text-[#765719] shadow-xs">
+                <ReceiptText className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="font-display text-lg font-bold tracking-tight text-[#251605]">
+                  Record Withholding Certificate
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#7A6B58] mt-0.5">
+                  Record legal tax withholding deducted by client. NORU applies exact certificate amounts.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
+
           {board ? (
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 text-sm">
-              <ReadOnly label="Company" value={board.companyName || "—"} />
-              <ReadOnly label="Invoice number" value={board.invoiceNumber ?? "—"} />
-              <ReadOnly label="Invoice total" value={money(board.invoiceTotal)} />
-              <ReadOnly label="Effective invoice total" value={money(board.effectiveNet)} />
-              <ReadOnly label="Payments allocated" value={money(board.paymentsAllocated)} />
-              <ReadOnly label="Existing withholding" value={money(board.withholding)} />
-              <ReadOnly label="Current outstanding" value={money(board.outstanding)} />
-              <ReadOnly label="Fiscal invoice status" value={board.fiscalInvoiceStatus} />
-              <ReadOnly label="Fiscal invoice IRN" value={board.fiscalIrn ?? "—"} />
-              <ReadOnly label="Frozen invoice subtotal" value={money(board.subtotal)} />
-              <ReadOnly
-                label="Original fiscal pretax sum"
-                value={board.fiscalPretax == null ? "—" : money(board.fiscalPretax)}
-              />
-              <div className="space-y-1">
-                <Label htmlFor="withholding-amount">Withholding amount</Label>
-                <Input
-                  id="withholding-amount"
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                />
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#FAF8F5]">
+              {/* Invoice & Account Context Card */}
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between border-b border-[#E8E1D7]/70 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="size-4 text-[#8A641A]" />
+                    <span className="font-semibold text-xs text-[#251605]">{board.companyName || "—"}</span>
+                  </div>
+                  <span className="rounded bg-[#FAF5EB] px-2 py-0.5 text-[10px] font-bold text-[#8A641A] border border-[#EADFCB]">
+                    Invoice {board.invoiceNumber ?? "—"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2">
+                    <p className="text-[10px] font-medium text-[#7A6B58]">Invoice Total</p>
+                    <p className="font-display text-xs font-bold tabular-nums text-[#251605]">
+                      {money(board.invoiceTotal)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2">
+                    <p className="text-[10px] font-medium text-[#7A6B58]">Allocated Paid</p>
+                    <p className="font-display text-xs font-bold tabular-nums text-emerald-700">
+                      {money(board.paymentsAllocated)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2">
+                    <p className="text-[10px] font-medium text-[#7A6B58]">Existing Withheld</p>
+                    <p className="font-display text-xs font-bold tabular-nums text-[#251605]">
+                      {money(board.withholding)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-2">
+                    <p className="text-[10px] font-medium text-amber-900">Outstanding</p>
+                    <p className="font-display text-xs font-bold tabular-nums text-amber-950">
+                      {money(board.outstanding)}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="withholding-pretax">Pretax base</Label>
-                <Input
-                  id="withholding-pretax"
-                  inputMode="decimal"
-                  value={pretax}
-                  onChange={(event) => setPretax(event.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Confirm this amount before recording. It is not taken from a tax rate.
-                </p>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="withholding-date">Certificate date</Label>
-                <Input
-                  id="withholding-date"
-                  type="date"
-                  value={certificateDate}
-                  onChange={(event) => setCertificateDate(event.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="withholding-reference">Certificate / reference number</Label>
-                <Input
-                  id="withholding-reference"
-                  value={reference}
-                  onChange={(event) => setReference(event.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="withholding-reason">Reason / notes</Label>
-                <Textarea
-                  id="withholding-reason"
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                />
+
+              {/* Certificate Input Fields */}
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-3">
+                <span className="font-semibold text-xs text-[#251605]">Certificate Details</span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="withholding-amount" className="text-xs font-semibold text-[#251605]">
+                      Withholding Deducted Amount *
+                    </Label>
+                    <Input
+                      id="withholding-amount"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="withholding-pretax" className="text-xs font-semibold text-[#251605]">
+                      Pretax Base Subject to Withholding *
+                    </Label>
+                    <Input
+                      id="withholding-pretax"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      value={pretax}
+                      onChange={(event) => setPretax(event.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="withholding-date" className="text-xs font-semibold text-[#251605]">
+                      Certificate Date *
+                    </Label>
+                    <Input
+                      id="withholding-date"
+                      type="date"
+                      value={certificateDate}
+                      onChange={(event) => setCertificateDate(event.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="withholding-reference" className="text-xs font-semibold text-[#251605]">
+                      Certificate / Reference Number
+                    </Label>
+                    <Input
+                      id="withholding-reference"
+                      placeholder="e.g. WHT-2026-0042"
+                      value={reference}
+                      onChange={(event) => setReference(event.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1">
+                    <Label htmlFor="withholding-reason" className="text-xs font-semibold text-[#251605]">
+                      Reason / Reference Notes
+                    </Label>
+                    <Textarea
+                      id="withholding-reason"
+                      placeholder="Optional remarks regarding this tax deduction certificate..."
+                      rows={2}
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                      className="text-xs resize-none"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           ) : null}
-          <DialogFooter className="shrink-0 border-t border-[#E8E1D7] pt-3">
-            <Button type="button" variant="outline" onClick={() => setRecording(false)}>
+
+          <DialogFooter className="shrink-0 border-t border-[#E8E1D7] bg-white px-6 py-3 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRecording(false)}
+              className="h-9 border-[#DDD4C5] text-xs hover:bg-[#FAF8F5]"
+            >
               Cancel
             </Button>
             <Button
               type="button"
               disabled={recordMutation.isPending || !amount || !pretax || !certificateDate}
               onClick={() => recordMutation.mutate()}
+              className="h-9 bg-[#8A641A] text-white hover:bg-[#735315] text-xs font-semibold px-4 shadow-xs"
             >
-              Record withholding
+              {recordMutation.isPending ? "Recording…" : "Record Withholding"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={Boolean(reversing)} onOpenChange={(open) => !open && setReversingId(null)}>
-        <DialogContent className="flex max-h-[90vh] flex-col gap-4 overflow-hidden">
-          <DialogHeader className="shrink-0 pr-6">
-            <DialogTitle>Reverse withholding</DialogTitle>
-            <DialogDescription>
-              This adds a reversal. The original certificate stays on the account.
-            </DialogDescription>
+        <DialogContent className="max-h-[90vh] sm:max-w-lg overflow-hidden p-0 rounded-2xl border border-[#E8E1D7] bg-[#FAF8F5] shadow-2xl flex flex-col">
+          <DialogHeader className="shrink-0 border-b border-[#E8E1D7] bg-white px-6 py-4">
+            <div className="flex items-center gap-3.5">
+              <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 shadow-xs">
+                <RotateCcw className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="font-display text-lg font-bold tracking-tight text-[#251605]">
+                  Reverse Withholding Certificate
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#7A6B58] mt-0.5">
+                  Void deduction certificate and restore receivable balance.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
+
           {board && reversing ? (
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 text-sm">
-              <ReadOnly
-                label="Certificate"
-                value={reversing.reference || reversing.certificateId}
-              />
-              <ReadOnly label="Amount" value={money(reversing.amount)} />
-              <ReadOnly label="Invoice" value={board.invoiceNumber ?? "—"} />
-              <ReadOnly
-                label="Outstanding after reversal"
-                value={money(board.outstanding + reversing.amount)}
-              />
-              <div className="space-y-1">
-                <Label htmlFor="withholding-reverse-reason">Reason</Label>
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#FAF8F5]">
+              {/* Reversal Impact Card */}
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between border-b border-[#E8E1D7]/70 pb-2">
+                  <span className="font-semibold text-xs text-[#251605]">Certificate to Reverse</span>
+                  <span className="rounded bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800">
+                    {reversing.reference || reversing.certificateId}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-[#7A6B58]">
+                  <div>Certificate Amount: <span className="font-semibold text-[#251605]">{money(reversing.amount)}</span></div>
+                  <div>Invoice Number: <span className="font-semibold text-[#251605]">{board.invoiceNumber ?? "—"}</span></div>
+                  <div className="col-span-2 pt-1 border-t border-[#E8E1D7]/60">
+                    Restored Outstanding:{" "}
+                    <span className="font-bold text-amber-900 tabular-nums">
+                      {money(board.outstanding + reversing.amount)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reason Input */}
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-2">
+                <Label htmlFor="withholding-reverse-reason" className="text-xs font-semibold text-[#251605]">
+                  Reason for Reversal *
+                </Label>
                 <Textarea
                   id="withholding-reverse-reason"
+                  placeholder="Specify why this withholding certificate is being voided or corrected..."
+                  rows={3}
                   value={reverseReason}
                   onChange={(event) => setReverseReason(event.target.value)}
+                  className="text-xs resize-none"
                 />
               </div>
             </div>
           ) : null}
-          <DialogFooter className="shrink-0 border-t border-[#E8E1D7] pt-3">
-            <Button type="button" variant="outline" onClick={() => setReversingId(null)}>
+
+          <DialogFooter className="shrink-0 border-t border-[#E8E1D7] bg-white px-6 py-3 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setReversingId(null)}
+              className="h-9 border-[#DDD4C5] text-xs hover:bg-[#FAF8F5]"
+            >
               Cancel
             </Button>
             <Button
               type="button"
               disabled={reverseMutation.isPending || reverseReason.trim().length === 0}
               onClick={() => reverseMutation.mutate()}
+              className="h-9 bg-rose-700 text-white hover:bg-rose-800 text-xs font-semibold px-4 shadow-xs"
             >
-              Reverse withholding
+              {reverseMutation.isPending ? "Reversing…" : "Confirm Reversal"}
             </Button>
           </DialogFooter>
         </DialogContent>

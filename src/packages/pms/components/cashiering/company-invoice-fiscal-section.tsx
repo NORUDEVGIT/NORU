@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { Building2, ShieldCheck } from "lucide-react";
+
 import { FiscalExchangeDrawer } from "@/packages/pms/components/cashiering/fiscal-exchange-drawer";
 import {
   getCompanyInvoiceFiscal,
@@ -152,36 +154,90 @@ export function CompanyInvoiceFiscalSection({
         ) : null}
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Register fiscal company invoice</DialogTitle>
-            <DialogDescription>
-              This registers the issued company invoice. It does not post another charge.
-            </DialogDescription>
+        <DialogContent className="max-h-[90vh] sm:max-w-lg overflow-hidden p-0 rounded-2xl border border-[#E8E1D7] bg-[#FAF8F5] shadow-2xl flex flex-col">
+          <DialogHeader className="shrink-0 border-b border-[#E8E1D7] bg-white px-6 py-4">
+            <div className="flex items-center gap-3.5">
+              <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-[#E5DECE] bg-[#F4E9D0] text-[#765719] shadow-xs">
+                <ShieldCheck className="size-5" />
+              </div>
+              <div>
+                <DialogTitle className="font-display text-lg font-bold tracking-tight text-[#251605]">
+                  Register Fiscal Corporate Invoice
+                </DialogTitle>
+                <DialogDescription className="text-xs text-[#7A6B58] mt-0.5">
+                  Legal B2B tax registration with certified electronic fiscal device.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
+
           {preview ? (
-            <div className="space-y-1 text-sm">
-              <p>Company invoice number: {preview.invoiceNumber || "—"}</p>
-              <p>Company legal name: {preview.legalName}</p>
-              <p>TIN: {preview.tin}</p>
-              {preview.vatNumber ? <p>Registration / VAT number: {preview.vatNumber}</p> : null}
-              <p>Transaction type: B2B</p>
-              <p>Currency: ETB</p>
-              <p>Pretax: {money(preview.pretax)}</p>
-              <p>Tax: {money(preview.tax)}</p>
-              <p>Total: {money(preview.total)}</p>
-              {preview.phone ? <p>Phone: {preview.phone}</p> : null}
-              {preview.email ? <p>Email: {preview.email}</p> : null}
-              {preview.city ? <p>City: {preview.city}</p> : null}
-              {preview.region ? <p>Region: {preview.region}</p> : null}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#FAF8F5]">
+              {/* Company Identity Card */}
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between border-b border-[#E8E1D7]/70 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="size-4 text-[#8A641A]" />
+                    <span className="font-semibold text-xs text-[#251605]">{preview.legalName}</span>
+                  </div>
+                  <span className="rounded bg-[#C89933]/15 px-2 py-0.5 text-[10px] font-bold text-[#8A641A]">
+                    TIN {preview.tin}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-[#7A6B58]">
+                  <div>VAT: {preview.vatNumber || "—"}</div>
+                  <div>Invoice: {preview.invoiceNumber || "—"}</div>
+                  <div>Phone: {preview.phone || "—"}</div>
+                  <div>Email: {preview.email || "—"}</div>
+                  <div>Location: {[preview.city, preview.region].filter(Boolean).join(", ") || "—"}</div>
+                  <div>Type: B2B · ETB</div>
+                </div>
+              </div>
+
+              {/* Totals Summary */}
+              <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-3">
+                <span className="font-semibold text-xs text-[#251605]">Fiscal Verification Totals</span>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2.5">
+                    <p className="text-[10px] font-medium text-[#7A6B58]">Pretax Base</p>
+                    <p className="font-display text-sm font-bold tabular-nums text-[#251605]">
+                      {money(preview.pretax)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2.5">
+                    <p className="text-[10px] font-medium text-[#7A6B58]">Tax Amount</p>
+                    <p className="font-display text-sm font-bold tabular-nums text-[#251605]">
+                      {money(preview.tax)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#C89933]/30 bg-[#FAF5EB] p-2.5">
+                    <p className="text-[10px] font-medium text-[#8A641A]">Grand Total</p>
+                    <p className="font-display text-sm font-bold tabular-nums text-[#251605]">
+                      {money(preview.total)}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+
+          <DialogFooter className="shrink-0 border-t border-[#E8E1D7] bg-white px-6 py-3 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              className="h-9 border-[#DDD4C5] text-xs hover:bg-[#FAF8F5]"
+            >
               Cancel
             </Button>
-            <Button type="button" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
-              {mutation.isPending ? "Registering..." : "Register"}
+            <Button
+              type="button"
+              disabled={mutation.isPending}
+              onClick={() => mutation.mutate()}
+              className="h-9 bg-[#8A641A] text-white hover:bg-[#735315] text-xs font-semibold px-4 shadow-xs"
+            >
+              {mutation.isPending ? "Registering…" : "Confirm Fiscal Registration"}
             </Button>
           </DialogFooter>
         </DialogContent>

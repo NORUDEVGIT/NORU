@@ -108,45 +108,60 @@ export function CashieringMasterPicker({
       data-testid="cashiering-master-picker"
     >
       <div>
-        <Label>Master type</Label>
-        <div className="mt-1 flex gap-2">
-          {(["company", "group"] as const).map((kind) => (
-            <Button
-              key={kind}
-              type="button"
-              variant={masterKind === kind ? "default" : "outline"}
-              className="min-h-11 flex-1"
-              disabled={disabled || Boolean(selected)}
-              onClick={() => {
-                onMasterKindChange(kind);
-                onSelectedChange(null);
-                setSearch("");
-              }}
-            >
-              {KIND_COPY[kind].label}
-            </Button>
-          ))}
+        <label className="text-xs font-semibold uppercase tracking-wider text-[#7A6B58]">
+          Entity Classification
+        </label>
+        <div className="mt-1.5 grid grid-cols-2 gap-2">
+          {(["company", "group"] as const).map((kind) => {
+            const isSelected = masterKind === kind;
+            const KindIcon = KIND_COPY[kind].icon;
+            return (
+              <button
+                key={kind}
+                type="button"
+                disabled={disabled || Boolean(selected)}
+                onClick={() => {
+                  onMasterKindChange(kind);
+                  onSelectedChange(null);
+                  setSearch("");
+                }}
+                className={cn(
+                  "flex items-center justify-center gap-2 rounded-xl border py-2.5 px-3 text-xs font-semibold transition-all shadow-2xs",
+                  isSelected
+                    ? "border-[#C89933] bg-[#FAF5EB] text-[#8A641A] ring-1 ring-[#C89933]"
+                    : "border-[#E8E1D7] bg-white text-[#7A6B58] hover:bg-[#FAF8F5]",
+                )}
+              >
+                <KindIcon className="size-4" />
+                <span>{KIND_COPY[kind].label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {selected ? (
         <div
-          className="flex flex-wrap items-center gap-2 rounded-xl border border-border p-3"
+          className="flex items-center justify-between rounded-xl border border-[#C89933]/40 bg-[#FAF5EB] p-3.5 shadow-2xs"
           data-testid="cashiering-master-selected"
         >
-          <Icon className="size-4 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">{selected.name}</p>
-            {selected.code ? (
-              <p className="text-xs text-muted-foreground">{selected.code}</p>
-            ) : null}
-            <p className="text-xs capitalize text-muted-foreground">{selected.accountType}</p>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="grid size-9 place-items-center rounded-lg bg-white border border-[#E5DECE] text-[#8A641A] shrink-0">
+              <Icon className="size-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-xs text-[#251605] truncate">{selected.name}</p>
+              <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[#7A6B58]">
+                {selected.code ? <span className="font-medium text-[#8A641A]">Code: {selected.code}</span> : null}
+                <span className="capitalize">{selected.accountType} Profile</span>
+              </div>
+            </div>
           </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="min-h-11 sm:min-h-8"
+            className="h-7 text-xs border-[#DDD4C5] bg-white hover:bg-[#FAF8F5] text-[#251605]"
             disabled={disabled}
             onClick={() => {
               onSelectedChange(null);
