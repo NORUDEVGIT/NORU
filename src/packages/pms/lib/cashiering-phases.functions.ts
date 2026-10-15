@@ -281,6 +281,37 @@ export const listFinancialAccounts = createServerFn({ method: "GET" })
     return out;
   });
 
+export interface TransferCompanyLinkRow {
+  masterId: string;
+  role: "employer" | "bill_to";
+}
+
+export const listTransferCompanyLinks = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string; guestId: string }) =>
+    z.object({ restaurantId: idSchema, guestId: idSchema }).parse(d),
+  )
+  .handler(async ({ data, context }): Promise<TransferCompanyLinkRow[]> => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin
+      .from("guest_account_links")
+      .select("master_id, role")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .in("role", ["employer", "bill_to"]);
+    if (error) {
+      if (error.code === "42P01" || error.code === "PGRST205") return [];
+      throw cashierError(error.message);
+    }
+    return ((rows ?? []) as Array<{ master_id: string; role: string }>)
+      .filter((row) => row.role === "employer" || row.role === "bill_to")
+      .map((row) => ({
+        masterId: row.master_id,
+        role: row.role as TransferCompanyLinkRow["role"],
+      }));
+  });
+
 export interface FinancialAccountChargeRow {
   id: string;
   type: string;
