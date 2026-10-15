@@ -66,6 +66,7 @@ export function AllocatePaymentDialog({
   money,
   dateTime,
   onOpenChange,
+  focusInvoiceId,
 }: {
   open: boolean;
   restaurantId: string;
@@ -74,6 +75,7 @@ export function AllocatePaymentDialog({
   money: Money;
   dateTime: DateTime;
   onOpenChange: (open: boolean) => void;
+  focusInvoiceId?: string | null | undefined;
 }) {
   const queryClient = useQueryClient();
   const fetchWorkspace = useServerFn(getFinancialAccountPaymentAllocationWorkspace);
@@ -95,6 +97,20 @@ export function AllocatePaymentDialog({
     setStep("edit");
     setKey(postingKey("alloc"));
   }, [open, paymentId]);
+
+  useEffect(() => {
+    if (!open || !focusInvoiceId || !workspace) return;
+    const inv = workspace.invoices.find((i) => i.invoiceId === focusInvoiceId);
+    if (inv) {
+      const defaultAmt = Math.min(Number(workspace.payment.available), Number(inv.outstanding));
+      if (defaultAmt > 0) {
+        setAmounts((prev) => {
+          if (prev[focusInvoiceId]) return prev;
+          return { ...prev, [focusInvoiceId]: defaultAmt.toFixed(2) };
+        });
+      }
+    }
+  }, [open, focusInvoiceId, workspace]);
 
   const chosen = (workspace?.invoices ?? [])
     .map((invoice) => ({ invoice, amount: parsePositiveAmount(amounts[invoice.invoiceId] ?? "") }))
@@ -186,9 +202,26 @@ export function AllocatePaymentDialog({
                     </tr>
                   </thead>
                   <tbody>
-                    {workspace.invoices.map((invoice) => (
-                      <tr key={invoice.invoiceId} className="border-t border-[#E8E1D7]">
-                        <td className="px-2 py-2 font-medium">{invoice.number}</td>
+                    {workspace.invoices.map((invoice) => {
+                      const isFocused = invoice.invoiceId === focusInvoiceId;
+                      return (
+                        <tr
+                          key={invoice.invoiceId}
+                          className={cn(
+                            "border-t border-[#E8E1D7] transition-colors",
+                            isFocused ? "bg-[#FAF5EB] font-medium" : "",
+                          )}
+                        >
+                          <td className="px-2 py-2 font-medium">
+                            <div className="flex items-center gap-1.5">
+                              <span>{invoice.number}</span>
+                              {isFocused ? (
+                                <span className="rounded bg-[#C89933]/20 px-1.5 py-0.5 text-[9px] font-semibold text-[#8A641A]">
+                                  Current Invoice
+                                </span>
+                              ) : null}
+                            </div>
+                          </td>
                         <td className="px-2 py-2">{dateTime(invoice.issuedAt)}</td>
                         <td className="px-2 py-2 text-right tabular-nums">
                           {money(invoice.effectiveNet)}
@@ -214,7 +247,8 @@ export function AllocatePaymentDialog({
                           />
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -29,6 +29,18 @@ import {
 } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { cn } from "@/shared/lib/utils";
+import {
+  AlertCircle,
+  ArrowRight,
+  ArrowRightLeft,
+  CheckCircle2,
+  Coins,
+  CreditCard,
+  FileText,
+  Sparkles,
+  X,
+} from "lucide-react";
 
 type Money = (value: number) => string;
 type DateTime = (iso: string | null | undefined) => string;
@@ -146,6 +158,7 @@ export function GuestInvoiceSettlementDetail({
   money,
   dateTime,
   canManage = false,
+  onAllocate,
 }: {
   restaurantId: string;
   folioId: string;
@@ -153,7 +166,8 @@ export function GuestInvoiceSettlementDetail({
   legacy: boolean;
   money: Money;
   dateTime: DateTime;
-  canManage?: boolean;
+  canManage?: boolean | undefined;
+  onAllocate?: ((invoiceId: string) => void) | undefined;
 }) {
   const fetchSettlement = useServerFn(getGuestInvoiceSettlement);
   const query = useQuery({
@@ -175,28 +189,86 @@ export function GuestInvoiceSettlementDetail({
   if (!settlement?.eligible || settlement.effectiveNet == null) return null;
   return (
     <div
-      className="mt-4 space-y-3 rounded-lg border border-[#E8E1D7] px-4 py-3 text-sm"
+      className="mt-4 space-y-4 rounded-xl border border-[#E8E1D7] bg-white p-5 shadow-xs text-sm"
       data-testid="invoice-settlement-detail"
     >
-      <div className="flex items-center justify-between gap-3">
-        <p className="font-medium">Settlement</p>
-        <p>{settlement.settlementState ? guestSettlementLabel(settlement.settlementState) : "—"}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E8E1D7] pb-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h4 className="font-semibold text-[#251605]">Settlement Status</h4>
+            {settlement.settlementState ? (
+              <span
+                className={cn(
+                  "rounded-md border px-2 py-0.5 text-xs font-semibold",
+                  settlement.settlementState === "settled"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : settlement.settlementState === "partial"
+                      ? "border-blue-200 bg-blue-50 text-blue-800"
+                      : "border-amber-200 bg-amber-50 text-amber-900",
+                )}
+              >
+                {guestSettlementLabel(settlement.settlementState)}
+              </span>
+            ) : null}
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">Document state: Issued</p>
+        </div>
+
+        {canManage && (settlement.outstanding ?? 0) > 0.01 && onAllocate ? (
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => onAllocate(invoiceId)}
+            className="h-8 gap-1.5 bg-[#8A641A] text-white hover:bg-[#735315] text-xs font-semibold px-3 shadow-xs"
+          >
+            <ArrowRightLeft className="size-3.5" />
+            <span>Allocate Payment</span>
+          </Button>
+        ) : null}
       </div>
-      <p className="text-xs text-muted-foreground">Document state: Issued</p>
-      <dl className="grid grid-cols-2 gap-2">
-        <div>Original invoice</div>
-        <div className="text-right tabular-nums">{money(settlement.originalAmount ?? 0)}</div>
-        <div>Credit notes</div>
-        <div className="text-right tabular-nums">{money(settlement.creditNoteTotal)}</div>
-        <div>Debit notes</div>
-        <div className="text-right tabular-nums">{money(settlement.debitNoteTotal)}</div>
-        <div>Effective net</div>
-        <div className="text-right tabular-nums">{money(settlement.effectiveNet)}</div>
-        <div>Allocated</div>
-        <div className="text-right tabular-nums">{money(settlement.allocated)}</div>
-        <div>Outstanding</div>
-        <div className="text-right tabular-nums">{money(settlement.outstanding ?? 0)}</div>
-      </dl>
+
+      {/* 4-KPI Grid */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3">
+          <p className="text-[11px] font-medium text-[#7A6B58]">Original Invoice</p>
+          <p className="font-display text-base font-bold tabular-nums text-[#251605]">
+            {money(settlement.originalAmount ?? 0)}
+          </p>
+        </div>
+        <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3">
+          <p className="text-[11px] font-medium text-[#7A6B58]">Effective Net</p>
+          <p className="font-display text-base font-bold tabular-nums text-[#251605]">
+            {money(settlement.effectiveNet)}
+          </p>
+        </div>
+        <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3">
+          <p className="text-[11px] font-medium text-[#7A6B58]">Allocated Paid</p>
+          <p className="font-display text-base font-bold tabular-nums text-emerald-700">
+            {money(settlement.allocated)}
+          </p>
+        </div>
+        <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+          <p className="text-[11px] font-medium text-amber-900">Outstanding</p>
+          <p className="font-display text-base font-bold tabular-nums text-amber-950">
+            {money(settlement.outstanding ?? 0)}
+          </p>
+        </div>
+      </div>
+
+      <div className="divide-y divide-[#E8E1D7]/60 text-xs">
+        <div className="flex justify-between py-2 text-[#7A6B58]">
+          <span>Credit Notes Applied</span>
+          <span className="tabular-nums font-medium text-[#251605]">
+            {money(settlement.creditNoteTotal)}
+          </span>
+        </div>
+        <div className="flex justify-between py-2 text-[#7A6B58]">
+          <span>Debit Notes Applied</span>
+          <span className="tabular-nums font-medium text-[#251605]">
+            {money(settlement.debitNoteTotal)}
+          </span>
+        </div>
+      </div>
       <div>
         <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Payments
@@ -467,152 +539,445 @@ export function GuestPaymentAllocationDrawer({
 
   const detail = payment.data;
   const operationTotal = selected.reduce((sum, row) => sum + row.amount, 0);
+  const remainingPayment = Math.round(((detail?.available ?? 0) - operationTotal) * 100) / 100;
+  const isOverAllocated = remainingPayment < -0.001;
+
+  const handleSetFull = (invoiceId: string, outstanding: number) => {
+    const available = detail?.available ?? 0;
+    const currentAllocatedToOthers = Object.entries(amounts).reduce((sum, [id, val]) => {
+      if (id === invoiceId) return sum;
+      const num = Number(val);
+      return sum + (Number.isFinite(num) && num > 0 ? num : 0);
+    }, 0);
+    const maxPossible = Math.max(0, Math.round((available - currentAllocatedToOthers) * 100) / 100);
+    const targetAmount = Math.min(outstanding, maxPossible);
+    setAmounts((current) => ({
+      ...current,
+      [invoiceId]: targetAmount > 0 ? targetAmount.toFixed(2) : "",
+    }));
+  };
+
+  const handleClear = (invoiceId: string) => {
+    setAmounts((current) => {
+      const next = { ...current };
+      delete next[invoiceId];
+      return next;
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Allocate payment</DialogTitle>
-          <DialogDescription>
-            Classify this posted payment against issued invoices. The folio balance does not change.
-          </DialogDescription>
-        </DialogHeader>
-        {!paymentId && payments.length > 0 ? (
-          <label className="block text-sm">
-            <span className="mb-1 block text-xs text-muted-foreground">Payment</span>
-            <select
-              className="h-9 w-full rounded-md border border-[#E8E1D7] bg-white px-2"
-              value={pickedPaymentId ?? ""}
-              onChange={(event) => {
-                setPickedPaymentId(event.target.value || null);
-                setReview(null);
-              }}
-            >
-              <option value="">Choose a payment</option>
-              {payments.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.label} · available {money(row.available)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        {detail ? (
-          <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-            <div>
-              <p className="text-xs text-muted-foreground">Amount</p>
-              <p className="tabular-nums">{money(detail.face)}</p>
+      <DialogContent className="max-h-[92vh] sm:max-w-4xl overflow-hidden p-0 rounded-2xl border border-[#E8E1D7] bg-[#FAF8F5] shadow-2xl flex flex-col">
+        {/* Header */}
+        <DialogHeader className="shrink-0 border-b border-[#E8E1D7] bg-white px-6 py-4">
+          <div className="flex items-center gap-3.5">
+            <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-[#E5DECE] bg-[#F4E9D0] text-[#765719] shadow-xs">
+              <ArrowRightLeft className="size-5" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Refunded</p>
-              <p className="tabular-nums">{money(detail.refunded)}</p>
+              <DialogTitle className="font-display text-xl font-bold tracking-tight text-[#251605]">
+                Allocate Payment to Invoices
+              </DialogTitle>
+              <DialogDescription className="text-xs text-[#7A6B58] mt-0.5">
+                Classify posted payment funds against eligible issued invoices. Total folio balance remains unaffected.
+              </DialogDescription>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Already allocated</p>
-              <p className="tabular-nums">{money(detail.allocated)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Available</p>
-              <p className="tabular-nums">{money(detail.available)}</p>
-            </div>
-          </dl>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Choose a posted payment before allocating.
-          </p>
-        )}
-        {!review ? (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th className="py-2">Invoice no.</th>
-                    <th className="py-2">Issued</th>
-                    <th className="py-2 text-right">Effective net</th>
-                    <th className="py-2 text-right">Allocated</th>
-                    <th className="py-2 text-right">Outstanding</th>
-                    <th className="py-2">Allocate amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {eligible.map((row) => (
-                    <tr key={row.invoiceId} className="border-t border-[#E8E1D7]">
-                      <td className="py-2 font-medium">{row.number}</td>
-                      <td className="py-2">{dateTime(row.issuedAt)}</td>
-                      <td className="py-2 text-right tabular-nums">
-                        {money(row.effectiveNet ?? 0)}
-                      </td>
-                      <td className="py-2 text-right tabular-nums">{money(row.allocated)}</td>
-                      <td className="py-2 text-right tabular-nums">
-                        {money(row.outstanding ?? 0)}
-                      </td>
-                      <td className="py-2">
-                        <Input
-                          inputMode="decimal"
-                          value={amounts[row.invoiceId] ?? ""}
-                          placeholder={row.invoiceId === focusInvoiceId ? "Amount" : ""}
-                          onChange={(event) =>
-                            setAmounts((current) => ({
-                              ...current,
-                              [row.invoiceId]: event.target.value,
-                            }))
-                          }
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Total allocation {money(operationTotal)}</span>
-              <span>
-                Remaining payment{" "}
-                {money(Math.round(((detail?.available ?? 0) - operationTotal) * 100) / 100)}
-              </span>
-            </div>
-          </>
-        ) : (
-          <div className="space-y-2 text-sm">
-            <p>Payment available {money(Number(review.payment.available))}</p>
-            {review.targets.map((target) => (
-              <p key={target.invoiceId}>
-                {target.invoiceNumber}: outstanding {money(Number(target.outstanding))}, allocate{" "}
-                {money(Number(target.proposed))}, remaining{" "}
-                {money(Number(target.remainingOutstanding))}
-              </p>
-            ))}
           </div>
-        )}
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+        </DialogHeader>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-[#FAF8F5]">
+          {/* Payment Selection if not pre-bound */}
+          {!paymentId && payments.length > 0 ? (
+            <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-xs space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A6B58]">
+                Select Posted Payment
+              </label>
+              <select
+                className="h-10 w-full rounded-lg border border-[#DDD4C5] bg-white px-3 text-sm text-[#251605] shadow-2xs focus:border-[#C89933] focus:outline-none focus:ring-2 focus:ring-[#C89933]/20"
+                value={pickedPaymentId ?? ""}
+                onChange={(event) => {
+                  setPickedPaymentId(event.target.value || null);
+                  setReview(null);
+                }}
+              >
+                <option value="">Choose a payment to allocate</option>
+                {payments.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.label} · Available {money(row.available)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          {/* Payment Metrics Strip */}
+          {detail ? (
+            <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-xs">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#7A6B58]">
+                  <CreditCard className="size-3.5 text-[#8a6a1f]" /> Payment Balance Details
+                </span>
+                <span className="rounded-md border border-[#E8E1D7] bg-[#F7F4EE] px-2 py-0.5 text-xs font-medium text-[#7A6B58]">
+                  {payment.data?.lines?.length ?? 0} previous {payment.data?.lines?.length === 1 ? "allocation" : "allocations"}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-[#8A7968]">
+                    Face Amount
+                  </p>
+                  <p className="mt-1 font-display text-lg font-bold tabular-nums text-[#251605]">
+                    {money(detail.face)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-[#8A7968]">
+                    Refunded
+                  </p>
+                  <p className="mt-1 font-display text-lg font-bold tabular-nums text-[#7A6B58]">
+                    {money(detail.refunded)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-[#8A7968]">
+                    Already Allocated
+                  </p>
+                  <p className="mt-1 font-display text-lg font-bold tabular-nums text-blue-900">
+                    {money(detail.allocated)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-emerald-300 bg-emerald-50/80 p-3 shadow-xs">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
+                    Available to Allocate
+                  </p>
+                  <p className="mt-1 font-display text-lg font-bold tabular-nums text-emerald-950">
+                    {money(detail.available)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-[#DDD4C5] bg-white p-6 text-center text-sm text-[#7A6B58]">
+              Please choose a posted payment before allocating funds.
+            </div>
+          )}
+
+          {/* Allocation Stage vs Review Stage */}
+          {!review ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-[#7A6B58]">
+                  Outstanding Issued Invoices ({eligible.length})
+                </h4>
+                <p className="text-xs text-[#7A6B58]">
+                  Use the <span className="font-semibold text-[#8A641A]">Max</span> button to quickly allocate up to the remaining amount.
+                </p>
+              </div>
+
+              {eligible.length === 0 ? (
+                <div className="rounded-xl border border-[#E8E1D7] bg-white p-8 text-center text-sm text-[#7A6B58]">
+                  <CheckCircle2 className="mx-auto size-8 text-emerald-600 mb-2 opacity-80" />
+                  <p className="font-semibold text-[#251605]">All invoices are fully settled</p>
+                  <p className="mt-1 text-xs">There are no outstanding eligible invoices on this folio.</p>
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-xl border border-[#E8E1D7] bg-white shadow-xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[700px] text-sm">
+                      <thead className="border-b border-[#E8E1D7] bg-[#F7F4EE] text-left text-[11px] font-semibold uppercase tracking-wider text-[#7A6B58]">
+                        <tr>
+                          <th className="px-4 py-3">Invoice Number</th>
+                          <th className="px-3 py-3">Issued Date</th>
+                          <th className="px-3 py-3 text-right">Effective Net</th>
+                          <th className="px-3 py-3 text-right">Allocated</th>
+                          <th className="px-3 py-3 text-right">Outstanding</th>
+                          <th className="px-4 py-3 w-56 text-right">Allocation Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E8E1D7]/70 text-xs">
+                        {eligible.map((row) => {
+                          const isFocused = row.invoiceId === focusInvoiceId;
+                          const currentVal = amounts[row.invoiceId] ?? "";
+                          const currentNum = Number(currentVal);
+                          const hasVal = Number.isFinite(currentNum) && currentNum > 0;
+                          const isFullyCovered =
+                            hasVal && Math.abs(currentNum - (row.outstanding ?? 0)) < 0.01;
+
+                          return (
+                            <tr
+                              key={row.invoiceId}
+                              className={cn(
+                                "transition-colors hover:bg-[#FAF8F5]",
+                                isFocused && "bg-[#FAF7EE] ring-1 ring-inset ring-[#C89933]/30",
+                              )}
+                            >
+                              <td className="px-4 py-3 font-semibold text-[#251605]">
+                                <div className="flex items-center gap-1.5">
+                                  <span>{row.number}</span>
+                                  {isFocused ? (
+                                    <span className="rounded-md bg-[#C89933]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[#765719]">
+                                      Target
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 text-[#7A6B58]">
+                                {dateTime(row.issuedAt)}
+                              </td>
+                              <td className="px-3 py-3 text-right font-medium tabular-nums text-[#251605]">
+                                {money(row.effectiveNet ?? 0)}
+                              </td>
+                              <td className="px-3 py-3 text-right tabular-nums text-[#7A6B58]">
+                                {money(row.allocated)}
+                              </td>
+                              <td className="px-3 py-3 text-right font-bold tabular-nums text-[#8A641A]">
+                                {money(row.outstanding ?? 0)}
+                              </td>
+                              <td className="px-4 py-2.5 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <div className="relative">
+                                    <Input
+                                      inputMode="decimal"
+                                      value={currentVal}
+                                      placeholder="0.00"
+                                      className={cn(
+                                        "h-8 w-28 text-right tabular-nums font-semibold pr-6 text-xs border-[#DDD4C5] focus-visible:ring-1 focus-visible:ring-[#C89933]",
+                                        hasVal && "border-[#C89933] bg-[#C89933]/5 text-[#251605]",
+                                      )}
+                                      onChange={(event) =>
+                                        setAmounts((current) => ({
+                                          ...current,
+                                          [row.invoiceId]: event.target.value,
+                                        }))
+                                      }
+                                    />
+                                    {hasVal ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleClear(row.invoiceId)}
+                                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        title="Clear amount"
+                                      >
+                                        <X className="size-3" />
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleSetFull(row.invoiceId, row.outstanding ?? 0)}
+                                    className={cn(
+                                      "h-8 px-2.5 text-[11px] font-semibold transition-all border-[#DDD4C5]",
+                                      isFullyCovered
+                                        ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                                        : "bg-white text-[#765719] hover:bg-[#F4E9D0]/50 hover:border-[#C89933]",
+                                    )}
+                                    title="Fill with remaining payment or full outstanding"
+                                  >
+                                    {isFullyCovered ? "Full ✓" : "Max"}
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Live Allocation Summary Banner */}
+              <div
+                className={cn(
+                  "flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 shadow-xs transition-colors",
+                  isOverAllocated
+                    ? "border-red-300 bg-red-50 text-red-950"
+                    : "border-[#E8E1D7] bg-white text-[#251605]",
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  {isOverAllocated ? (
+                    <AlertCircle className="size-4 shrink-0 text-red-600" />
+                  ) : (
+                    <Sparkles className="size-4 shrink-0 text-[#8a6a1f]" />
+                  )}
+                  <div className="text-xs">
+                    <span className="font-semibold">
+                      {selected.length} {selected.length === 1 ? "invoice" : "invoices"} selected
+                    </span>
+                    {isOverAllocated ? (
+                      <span className="ml-2 font-semibold text-red-600">
+                        (Allocated amount exceeds available payment!)
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 text-xs tabular-nums">
+                  <div>
+                    <span className="text-[#8A7968] mr-1.5">Total Allocation:</span>
+                    <span className="font-bold text-sm text-[#251605]">{money(operationTotal)}</span>
+                  </div>
+                  <div className="h-4 w-px bg-[#E8E1D7]" />
+                  <div>
+                    <span className="text-[#8A7968] mr-1.5">Remaining Payment:</span>
+                    <span
+                      className={cn(
+                        "font-bold text-sm",
+                        isOverAllocated ? "text-red-600" : "text-emerald-800",
+                      )}
+                    >
+                      {money(remainingPayment)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Review & Confirmation Step */
+            <div className="space-y-4">
+              <div className="rounded-xl border border-[#C89933]/40 bg-[#FAF7EE] p-4 text-xs text-[#765719] shadow-xs">
+                <p className="font-semibold text-sm text-[#251605]">
+                  Please review allocation changes before confirming
+                </p>
+                <p className="mt-1 text-[#7A6B58]">
+                  The allocated amounts will be bound to each selected invoice and update its settlement status.
+                </p>
+              </div>
+
+              {/* Review Breakdown Cards */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-[#E8E1D7] bg-white p-3.5 shadow-xs">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-[#8A7968]">
+                    Pre-Allocation Balance
+                  </p>
+                  <p className="mt-1 font-display text-base font-bold tabular-nums text-[#251605]">
+                    {money(Number(review.payment.available))}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#E8E1D7] bg-white p-3.5 shadow-xs">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-[#8A7968]">
+                    Total Being Applied
+                  </p>
+                  <p className="mt-1 font-display text-base font-bold tabular-nums text-[#8A641A]">
+                    {money(operationTotal)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-emerald-300 bg-emerald-50/70 p-3.5 shadow-xs">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
+                    Remaining Payment Balance
+                  </p>
+                  <p className="mt-1 font-display text-base font-bold tabular-nums text-emerald-950">
+                    {money(Number(review.payment.available) - operationTotal)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Target Invoices Breakdown Table */}
+              <div className="overflow-hidden rounded-xl border border-[#E8E1D7] bg-white shadow-xs">
+                <table className="w-full text-xs">
+                  <thead className="border-b border-[#E8E1D7] bg-[#F7F4EE] text-left text-[11px] font-semibold uppercase tracking-wider text-[#7A6B58]">
+                    <tr>
+                      <th className="px-4 py-3">Invoice</th>
+                      <th className="px-3 py-3 text-right">Current Outstanding</th>
+                      <th className="px-3 py-3 text-right text-[#8A641A]">Amount to Apply</th>
+                      <th className="px-4 py-3 text-right">New Outstanding</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E8E1D7]/70">
+                    {review.targets.map((target) => {
+                      const remaining = Number(target.remainingOutstanding);
+                      const isSettled = remaining < 0.01;
+                      return (
+                        <tr key={target.invoiceId} className="hover:bg-[#FAF8F5]">
+                          <td className="px-4 py-3 font-semibold text-[#251605]">
+                            {target.invoiceNumber}
+                          </td>
+                          <td className="px-3 py-3 text-right tabular-nums text-[#7A6B58]">
+                            {money(Number(target.outstanding))}
+                          </td>
+                          <td className="px-3 py-3 text-right font-bold tabular-nums text-emerald-800">
+                            +{money(Number(target.proposed))}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums font-semibold">
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1",
+                                isSettled ? "text-emerald-700" : "text-[#251605]",
+                              )}
+                            >
+                              {money(remaining)}
+                              {isSettled ? (
+                                <span className="rounded-md border border-emerald-300 bg-emerald-50 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800">
+                                  Fully Settled ✓
+                                </span>
+                              ) : null}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <DialogFooter className="shrink-0 border-t border-[#E8E1D7] bg-white px-6 py-3.5 flex items-center justify-between sm:justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="border-[#DDD4C5] text-xs font-medium"
+          >
             Cancel
           </Button>
-          {review ? (
-            <>
-              <Button type="button" variant="outline" onClick={() => setReview(null)}>
-                Back
-              </Button>
+          <div className="flex items-center gap-2">
+            {review ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setReview(null)}
+                  className="border-[#DDD4C5] text-xs font-medium"
+                >
+                  Back to Edit
+                </Button>
+                <Button
+                  type="button"
+                  disabled={applyMutation.isPending}
+                  onClick={() => applyMutation.mutate()}
+                  className="h-9 gap-1.5 bg-[#8A641A] px-4 text-xs font-semibold text-white shadow-xs hover:bg-[#735315]"
+                >
+                  <CheckCircle2 className="size-3.5" />
+                  {applyMutation.isPending ? "Allocating…" : "Confirm & Allocate"}
+                </Button>
+              </>
+            ) : (
               <Button
                 type="button"
-                disabled={applyMutation.isPending}
-                onClick={() => applyMutation.mutate()}
+                disabled={
+                  reviewMutation.isPending ||
+                  !pickedPaymentId ||
+                  selected.length === 0 ||
+                  isOverAllocated
+                }
+                onClick={() => reviewMutation.mutate()}
+                className="h-9 gap-1.5 bg-[#8A641A] px-4 text-xs font-semibold text-white shadow-xs hover:bg-[#735315]"
               >
-                {applyMutation.isPending ? "Allocating…" : "Confirm & allocate"}
+                <span>{reviewMutation.isPending ? "Calculating…" : "Review Allocation"}</span>
+                <ArrowRight className="size-3.5" />
               </Button>
-            </>
-          ) : (
-            <Button
-              type="button"
-              disabled={reviewMutation.isPending || !pickedPaymentId}
-              onClick={() => reviewMutation.mutate()}
-            >
-              {reviewMutation.isPending ? "Reviewing…" : "Review allocation"}
-            </Button>
-          )}
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+

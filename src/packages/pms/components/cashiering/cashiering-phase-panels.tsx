@@ -4,8 +4,12 @@ import {
   ArrowLeftRight,
   Building2,
   CircleAlert,
+  Coins,
   FolderOpen,
+  Lock,
+  MoreHorizontal,
   Plus,
+  Receipt,
   Search,
   Users,
   Wallet,
@@ -23,6 +27,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 
 import {
   CashieringMasterPicker,
@@ -680,63 +691,76 @@ export function AccountsPanel({
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <div
-                        className="flex items-center justify-end gap-1.5"
+                        className="flex items-center justify-end"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2.5 text-xs font-semibold border-[#C89933]/50 bg-[#FAF5EB] text-[#8A6A24] hover:bg-[#F3EAD3] hover:text-[#725418]"
-                          onClick={() =>
-                            void navigate({
-                              to: "/restaurant/pms/cashiering/accounts/$accountId",
-                              params: { accountId: row.id },
-                            })
-                          }
-                        >
-                          <FolderOpen className="mr-1 size-3.5" />
-                          Workspace
-                        </Button>
-                        {canManage && row.status === "open" ? (
-                          <>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
                             <Button
                               type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-7 px-2.5 text-xs font-semibold border-[#E8E1D7] text-[#251605] hover:bg-[#FAF8F4]"
-                              onClick={() => setTransferAccount(row)}
+                              size="icon"
+                              variant="ghost"
+                              className="size-8 rounded-lg text-[#736B5E] hover:bg-[#F2ECE1] hover:text-[#251605]"
+                              aria-label={`Actions for account ${row.accountNumber}`}
                             >
-                              Charges
+                              <MoreHorizontal className="size-4" />
                             </Button>
-                            {Math.abs(row.balance) >= 0.01 ? (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2.5 text-xs font-semibold border-[#E8E1D7] text-[#B91C1C] hover:bg-[#FEF2F2]"
-                                onClick={() =>
-                                  writeOffMutation.mutate({
-                                    accountId: row.id,
-                                    amount: row.balance,
-                                  })
-                                }
-                              >
-                                Write off
-                              </Button>
-                            ) : (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2.5 text-xs font-semibold border-[#E8E1D7] text-[#7A7167] hover:bg-[#FAF8F4]"
-                                onClick={() => closeMutation.mutate(row.id)}
-                              >
-                                Close
-                              </Button>
-                            )}
-                          </>
-                        ) : null}
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="w-48 bg-white border border-[#E8E1D7] shadow-md rounded-xl p-1"
+                          >
+                            <DropdownMenuItem
+                              className="cursor-pointer gap-2 rounded-lg text-xs font-medium text-[#251605] hover:bg-[#FAF8F4]"
+                              onClick={() =>
+                                void navigate({
+                                  to: "/restaurant/pms/cashiering/accounts/$accountId",
+                                  params: { accountId: row.id },
+                                })
+                              }
+                            >
+                              <FolderOpen className="size-3.5 text-[#8A6A24]" />
+                              <span>Open Workspace</span>
+                            </DropdownMenuItem>
+
+                            {canManage && row.status === "open" ? (
+                              <>
+                                <DropdownMenuItem
+                                  className="cursor-pointer gap-2 rounded-lg text-xs font-medium text-[#251605] hover:bg-[#FAF8F4]"
+                                  onClick={() => setTransferAccount(row)}
+                                >
+                                  <Receipt className="size-3.5 text-[#736B5E]" />
+                                  <span>Review Charges</span>
+                                </DropdownMenuItem>
+
+                                <DropdownMenuSeparator className="my-1 bg-[#E8E1D7]" />
+
+                                {Math.abs(row.balance) >= 0.01 ? (
+                                  <DropdownMenuItem
+                                    className="cursor-pointer gap-2 rounded-lg text-xs font-medium text-[#B91C1C] hover:bg-[#FEF2F2]"
+                                    onClick={() =>
+                                      writeOffMutation.mutate({
+                                        accountId: row.id,
+                                        amount: row.balance,
+                                      })
+                                    }
+                                  >
+                                    <Coins className="size-3.5 text-[#B91C1C]" />
+                                    <span>Write Off Balance</span>
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem
+                                    className="cursor-pointer gap-2 rounded-lg text-xs font-medium text-[#7A7167] hover:bg-[#FAF8F4]"
+                                    onClick={() => closeMutation.mutate(row.id)}
+                                  >
+                                    <Lock className="size-3.5 text-[#7A7167]" />
+                                    <span>Close Account</span>
+                                  </DropdownMenuItem>
+                                )}
+                              </>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                   </tr>

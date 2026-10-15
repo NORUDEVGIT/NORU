@@ -812,6 +812,11 @@ function FolioWorkspaceBody({
                 onPostCharge={() => openEntry("charge")}
                 onReprint={(invoice) => reprintMut.mutate(invoice)}
                 reprinting={reprintMut.isPending}
+                onAllocate={(invoiceId) => {
+                  setAllocateInvoiceId(invoiceId);
+                  setAllocatePaymentId(null);
+                  setAllocateOpen(true);
+                }}
               />
             ) : null}
             {tab === "history" ? (

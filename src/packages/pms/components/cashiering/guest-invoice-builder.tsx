@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronUp, FileText, Plus, Printer, Trash2 } from "lucide-react";
+import { FileText, Plus, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { GuestInvoiceFiscalSection } from "@/packages/pms/components/cashiering/guest-invoice-fiscal-section";
-import { FolioInvoicePreview } from "@/packages/pms/components/cashiering/folio-invoice-panel";
-import { GuestInvoiceSettlementDetail } from "@/packages/pms/components/cashiering/guest-payment-allocation-drawer";
+import { GuestInvoiceModal } from "@/packages/pms/components/cashiering/guest-invoice-modal";
 import { listGuestInvoiceSettlementForFolio } from "@/packages/pms/lib/cashiering-guest-allocation.functions";
 import { guestSettlementLabel } from "@/packages/pms/lib/cashiering-guest-allocation";
 import { stayNights } from "@/packages/pms/lib/folio-workspace";
-import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
-import { DebitNoteSection } from "@/packages/pms/components/cashiering/debit-note-panel";
 import {
   createGuestFolioInvoiceDraft,
   deleteGuestFolioInvoiceDraft,
@@ -60,15 +56,17 @@ export function GuestInvoiceWorkspace({
   onPostCharge,
   onReprint,
   reprinting,
+  onAllocate,
 }: {
   restaurantId: string;
   workspace: FolioWorkspace;
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
   onChanged: () => void;
-  onPostCharge: () => void;
+  onPostCharge?: (() => void) | undefined;
   onReprint: (invoice: IssuedFolioInvoiceRow) => void;
   reprinting: boolean;
+  onAllocate?: ((invoiceId: string) => void) | undefined;
 }) {
   const folio = workspace.folio;
   const canManage = workspace.canManage && workspace.capabilities.canIssueInvoice;
@@ -105,7 +103,7 @@ export function GuestInvoiceWorkspace({
   const [stateFilter, setStateFilter] = useState("uninvoiced");
   const [search, setSearch] = useState("");
   const [pane, setPane] = useState<"items" | "preview" | "tax">("items");
-  const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
+  const [viewingInvoice, setViewingInvoice] = useState<IssuedFolioInvoiceRow | null>(null);
 
   useEffect(() => {
     if (!board?.draft || !editing) return;
@@ -208,13 +206,17 @@ export function GuestInvoiceWorkspace({
       })) as { ok: boolean; message?: string };
       if (!saved.ok)
         return { ok: false as const, message: saved.message ?? "The draft could not be saved." };
-      return issueDraft({
+      const issueResult = (await issueDraft({
         data: {
           restaurantId,
           draftId: board.draft.id,
           idempotencyKey: `invdraft:${board.draft.id}`,
         },
-      });
+      })) as { ok: boolean; message?: string; invoice?: IssuedFolioInvoiceRow };
+      if (!issueResult.ok || !issueResult.invoice) {
+        return { ok: false as const, message: issueResult.message ?? "The draft could not be issued." };
+      }
+      return { ok: true as const, invoice: issueResult.invoice };
     },
     onSuccess: (result) => {
       if (!result.ok) {
@@ -224,8 +226,7 @@ export function GuestInvoiceWorkspace({
       toast.success(`Invoice ${result.invoice.issuedNumber} issued.`);
       setEditing(false);
       setSelectedIds([]);
-      setNotes("");
-      setOpenInvoiceId(result.invoice.id);
+      setViewingInvoice(result.invoice);
       void boardQuery.refetch();
       onChanged();
     },
@@ -238,7 +239,10 @@ export function GuestInvoiceWorkspace({
     );
   }
 
-  const openInvoice = folio.issuedInvoices.find((invoice) => invoice.id === openInvoiceId) ?? null;
+  const currentViewingInvoice = useMemo(() => {
+    if (!viewingInvoice) return null;
+    return folio.issuedInvoices.find((invoice) => invoice.id === viewingInvoice.id) ?? viewingInvoice;
+  }, [folio.issuedInvoices, viewingInvoice]);
 
   return (
     <section className="space-y-4" data-testid="folio-invoices">
@@ -610,25 +614,23 @@ export function GuestInvoiceWorkspace({
                     <td className="px-3 py-2 text-right">
                       <Button
                         size="sm"
-                        variant={openInvoiceId === invoice.id ? "secondary" : "outline"}
-                        className="mr-2 h-7"
-                        onClick={() =>
-                          setOpenInvoiceId((current) =>
-                            current === invoice.id ? null : invoice.id,
-                          )
-                        }
+                        variant="outline"
+                        className="mr-2 h-7 gap-1.5 border-[#DDD4C5] bg-white text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
+                        onClick={() => setViewingInvoice(invoice)}
                       >
-                        {openInvoiceId === invoice.id ? "Collapse" : "View"}
+                        <FileText className="size-3.5 text-[#8a6a1f]" />
+                        <span>View</span>
                       </Button>
                       {workspace.capabilities.canReprintInvoice ? (
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7"
+                          className="h-7 gap-1 border-[#DDD4C5] bg-white text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
                           disabled={reprinting}
                           onClick={() => onReprint(invoice)}
                         >
-                          <Printer className="size-3.5" /> Reprint
+                          <Printer className="size-3.5 text-[#7A6B58]" />
+                          <span>Reprint</span>
                         </Button>
                       ) : null}
                     </td>
@@ -638,79 +640,34 @@ export function GuestInvoiceWorkspace({
             </table>
           </div>
         )}
-        {openInvoice ? (
-          <div className="border-t border-[#E8E1D7] p-4 space-y-4">
-            <div className="flex items-center justify-between rounded-lg border border-[#E8E1D7] bg-[#F7F4EE] px-4 py-2.5">
-              <div className="flex items-center gap-2">
-                <FileText className="size-4 text-[#8a6a1f]" />
-                <span className="text-sm font-medium">
-                  Viewing Invoice {openInvoice.issuedNumber}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  ({openInvoice.coverageScope === "legacy_folio" ? "Whole folio" : "Itemized"})
-                </span>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 gap-1 border-[#E8E1D7] bg-white text-xs hover:bg-[#F2ECE1]"
-                onClick={() => setOpenInvoiceId(null)}
-              >
-                <ChevronUp className="size-3.5" /> Collapse invoice
-              </Button>
-            </div>
-            <GuestInvoiceFiscalSection
-              restaurantId={restaurantId}
-              invoiceId={openInvoice.id}
-              canRegister={workspace.canManage}
-              canInspect={workspace.canManage}
-              money={money}
-            />
-            <FolioInvoicePreview
-              invoice={openInvoice}
-              money={money}
-              dateTime={dateTime}
-              liveProperty={documentProperty}
-            />
-            <GuestInvoiceSettlementDetail
-              restaurantId={restaurantId}
-              folioId={folio.id}
-              invoiceId={openInvoice.id}
-              legacy={openInvoice.coverageScope === "legacy_folio"}
-              money={money}
-              dateTime={dateTime}
-              canManage={workspace.canManage}
-            />
-            <CreditNoteSection
-              restaurantId={restaurantId}
-              guestInvoiceId={openInvoice.id}
-              canManage={workspace.canManage}
-              money={money}
-              dateTime={dateTime}
-              onIssued={onChanged}
-            />
-            <DebitNoteSection
-              restaurantId={restaurantId}
-              guestInvoiceId={openInvoice.id}
-              canManage={workspace.canManage}
-              money={money}
-              dateTime={dateTime}
-              onIssued={onChanged}
-              onPostCharge={onPostCharge}
-            />
-            <div className="flex justify-end pt-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1 border-[#E8E1D7] bg-white text-xs hover:bg-[#F2ECE1]"
-                onClick={() => setOpenInvoiceId(null)}
-              >
-                <ChevronUp className="size-3.5" /> Collapse invoice
-              </Button>
-            </div>
-          </div>
-        ) : null}
       </div>
+
+      <GuestInvoiceModal
+        open={currentViewingInvoice !== null}
+        invoice={currentViewingInvoice}
+        restaurantId={restaurantId}
+        folio={folio}
+        workspace={workspace}
+        money={money}
+        dateTime={dateTime}
+        documentProperty={documentProperty}
+        settlementState={
+          currentViewingInvoice?.coverageScope === "legacy_folio"
+            ? null
+            : settlementQuery.data?.find((row) => row.invoiceId === currentViewingInvoice?.id)
+                ?.settlementState
+        }
+        onClose={() => setViewingInvoice(null)}
+        onChanged={() => {
+          void boardQuery.refetch();
+          void settlementQuery.refetch();
+          onChanged();
+        }}
+        onReprint={onReprint}
+        reprinting={reprinting}
+        onPostCharge={onPostCharge}
+        onAllocate={onAllocate}
+      />
     </section>
   );
 }
@@ -806,7 +763,7 @@ function InvoiceDraftPreview({
                 <tr key={group.parentTransactionId}>
                   <td className="px-2.5 py-1.5 text-slate-800">{group.description}</td>
                   <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-700">
-                    {money(group.netAmount)}
+                    {money(group.subtotal)}
                   </td>
                   <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-700">
                     {money(groupTax)}

@@ -1,20 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronUp, FileText, Printer, Trash2 } from "lucide-react";
+import { FileText, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  getFinancialAccountInvoiceSettlement,
   listFinancialAccountOutstandingInvoices,
 } from "@/packages/pms/lib/cashiering-account-allocation.functions";
 import { settlementStateLabel } from "@/packages/pms/lib/cashiering-account-allocation";
-import { accountMethodLabel } from "@/packages/pms/lib/cashiering-account-payments";
-import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
-import { CompanyInvoiceFiscalSection } from "@/packages/pms/components/cashiering/company-invoice-fiscal-section";
-import { CompanySalesReceiptSection } from "@/packages/pms/components/cashiering/company-sales-receipt-section";
-import { CompanyWithholdingSection } from "@/packages/pms/components/cashiering/company-withholding-section";
-import { DebitNoteSection } from "@/packages/pms/components/cashiering/debit-note-panel";
+import { AccountInvoiceModal } from "@/packages/pms/components/cashiering/account-invoice-modal";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
 import { mergeCashieringDocumentProperty } from "@/packages/pms/lib/cashiering-document-property";
@@ -71,7 +65,6 @@ export function AccountInvoiceWorkspace({
   const fetchBoard = useServerFn(getFinancialAccountInvoiceBoard);
   const fetchInvoices = useServerFn(listFinancialAccountInvoices);
   const fetchSettlements = useServerFn(listFinancialAccountOutstandingInvoices);
-  const fetchSettlement = useServerFn(getFinancialAccountInvoiceSettlement);
   const previewSelection = useServerFn(previewFinancialAccountInvoiceSelection);
   const createDraft = useServerFn(createFinancialAccountInvoiceDraft);
   const updateDraft = useServerFn(updateFinancialAccountInvoiceDraft);
@@ -94,18 +87,10 @@ export function AccountInvoiceWorkspace({
     queryKey: ["account-invoices", restaurantId, accountId],
     queryFn: () => fetchInvoices({ data: { restaurantId, accountId } }),
   });
-  const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
+  const [viewingInvoice, setViewingInvoice] = useState<IssuedAccountInvoice | null>(null);
   const settlementsQuery = useQuery({
     queryKey: ["account-invoice-settlements", restaurantId, accountId],
     queryFn: () => fetchSettlements({ data: { restaurantId, accountId } }),
-  });
-  const settlementDetailQuery = useQuery({
-    queryKey: ["account-invoice-settlement", restaurantId, accountId, viewInvoiceId],
-    queryFn: () =>
-      fetchSettlement({
-        data: { restaurantId, accountId, invoiceId: viewInvoiceId! },
-      }),
-    enabled: Boolean(viewInvoiceId),
   });
   const board = boardQuery.data;
   const invoices = invoicesQuery.data ?? [];
@@ -238,12 +223,13 @@ export function AccountInvoiceWorkspace({
       setEditing(false);
       setSelectedIds([]);
       setNotes("");
+      setViewingInvoice(result.invoice);
       refresh();
     },
     onError: (error: Error) => toast.error(error.message),
   });
   const reprintMut = useMutation({
-    mutationFn: (invoiceId: string) => reprintInvoice({ data: { restaurantId, invoiceId } }),
+    mutationFn: (invoiceId: string) => reprintInvoice({ data: { restaurantId, accountId, invoiceId } }),
     onSuccess: (result) => {
       if (!result.ok) {
         toast.error(result.message);
@@ -257,7 +243,10 @@ export function AccountInvoiceWorkspace({
   });
 
   const kindLabel = board?.account.accountKind === "group" ? "Group" : "Company";
-  const viewedInvoice = invoices.find((invoice) => invoice.id === viewInvoiceId) ?? null;
+  const currentViewingInvoice = useMemo(() => {
+    if (!viewingInvoice) return null;
+    return invoices.find((invoice) => invoice.id === viewingInvoice.id) ?? viewingInvoice;
+  }, [invoices, viewingInvoice]);
 
   return (
     <section className="space-y-4" data-testid="account-invoices">
@@ -613,25 +602,23 @@ export function AccountInvoiceWorkspace({
                       <td className="px-3 py-2 text-right">
                         <Button
                           size="sm"
-                          variant={viewInvoiceId === invoice.id ? "secondary" : "outline"}
-                          className="mr-2 h-8"
-                          onClick={() =>
-                            setViewInvoiceId((current) =>
-                              current === invoice.id ? null : invoice.id,
-                            )
-                          }
+                          variant="outline"
+                          className="mr-2 h-7 gap-1.5 border-[#DDD4C5] bg-white text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
+                          onClick={() => setViewingInvoice(invoice)}
                         >
-                          {viewInvoiceId === invoice.id ? "Collapse" : "View"}
+                          <FileText className="size-3.5 text-[#8a6a1f]" />
+                          <span>View</span>
                         </Button>
                         {canManage ? (
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-8"
+                            className="h-7 gap-1 border-[#DDD4C5] bg-white text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
                             disabled={reprintMut.isPending}
                             onClick={() => reprintMut.mutate(invoice.id)}
                           >
-                            <Printer className="size-4" /> Reprint
+                            <Printer className="size-3.5 text-[#7A6B58]" />
+                            <span>Reprint</span>
                           </Button>
                         ) : null}
                       </td>
@@ -642,157 +629,23 @@ export function AccountInvoiceWorkspace({
             </table>
           </div>
         )}
-        {viewedInvoice ? (
-          <div className="border-t border-[#E8E1D7] p-4 space-y-4">
-            <div className="flex items-center justify-between rounded-lg border border-[#E8E1D7] bg-[#F7F4EE] px-4 py-2.5">
-              <div className="flex items-center gap-2">
-                <FileText className="size-4 text-[#8a6a1f]" />
-                <span className="text-sm font-medium">
-                  Viewing Invoice {viewedInvoice.issuedNumber}
-                </span>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 gap-1 border-[#E8E1D7] bg-white text-xs hover:bg-[#F2ECE1]"
-                onClick={() => setViewInvoiceId(null)}
-              >
-                <ChevronUp className="size-3.5" /> Collapse invoice
-              </Button>
-            </div>
-            <AccountInvoicePrint
-              invoice={viewedInvoice}
-              money={money}
-              dateTime={dateTime}
-              screen
-              liveProperty={documentProperty}
-            />
-            {viewedInvoice.snapshot.account.accountKind === "company" ? (
-              <CompanyInvoiceFiscalSection
-                restaurantId={restaurantId}
-                invoiceId={viewedInvoice.id}
-                canRegister={canManage}
-                canInspect={canManage}
-                money={money}
-              />
-            ) : null}
-            {settlementDetailQuery.data ? (
-              <section
-                className="mt-4 space-y-2 rounded-xl border border-[#E8E1D7] p-4 text-sm"
-                data-testid="invoice-settlement"
-              >
-                <h4 className="font-medium">Settlement</h4>
-                <p className="text-xs text-muted-foreground">
-                  Document state remains Issued. Settlement is derived.
-                </p>
-                <p className="flex justify-between">
-                  <span>Invoice total</span>
-                  <span className="tabular-nums">
-                    {money(settlementDetailQuery.data.originalAmount)}
-                  </span>
-                </p>
-                <p className="flex justify-between">
-                  <span>Credit notes</span>
-                  <span className="tabular-nums">
-                    {money(settlementDetailQuery.data.creditNoteTotal)}
-                  </span>
-                </p>
-                <p className="flex justify-between">
-                  <span>Debit notes</span>
-                  <span className="tabular-nums">
-                    {money(settlementDetailQuery.data.debitNoteTotal)}
-                  </span>
-                </p>
-                <p className="flex justify-between">
-                  <span>Effective net</span>
-                  <span className="tabular-nums">
-                    {money(settlementDetailQuery.data.effectiveNet)}
-                  </span>
-                </p>
-                <p className="flex justify-between">
-                  <span>Payments allocated</span>
-                  <span className="tabular-nums">
-                    {money(settlementDetailQuery.data.allocated)}
-                  </span>
-                </p>
-                <p className="flex justify-between">
-                  <span>Withholding</span>
-                  <span className="tabular-nums">
-                    {money(settlementDetailQuery.data.withholding)}
-                  </span>
-                </p>
-                <p className="flex justify-between">
-                  <span>Outstanding</span>
-                  <span className="tabular-nums">
-                    {money(settlementDetailQuery.data.outstanding)}
-                  </span>
-                </p>
-                <p className="flex justify-between">
-                  <span>State</span>
-                  <span>{settlementStateLabel(settlementDetailQuery.data.settlementState)}</span>
-                </p>
-                {settlementDetailQuery.data.allocations.length > 0 ? (
-                  <div className="pt-2">
-                    <p className="mb-1 font-medium">Allocations</p>
-                    {settlementDetailQuery.data.allocations.map((line) => (
-                      <p key={line.id} className="flex justify-between gap-3 text-xs">
-                        <span>
-                          {dateTime(line.paymentDate)} · {accountMethodLabel(line.method)} ·{" "}
-                          {line.actorName}
-                        </span>
-                        <span className="tabular-nums">{money(line.amount)}</span>
-                      </p>
-                    ))}
-                  </div>
-                ) : null}
-              </section>
-            ) : null}
-            {viewedInvoice.snapshot.account.accountKind === "company" ? (
-              <CompanyWithholdingSection
-                restaurantId={restaurantId}
-                invoiceId={viewedInvoice.id}
-                accountOpen={board?.account.status === "open"}
-                money={money}
-              />
-            ) : null}
-            {viewedInvoice.snapshot.account.accountKind === "company" ? (
-              <CompanySalesReceiptSection
-                restaurantId={restaurantId}
-                invoiceId={viewedInvoice.id}
-                canRegister={canManage}
-                canInspect={canManage}
-                money={money}
-              />
-            ) : null}
-            <CreditNoteSection
-              restaurantId={restaurantId}
-              accountInvoiceId={viewedInvoice.id}
-              canManage={canManage}
-              money={money}
-              dateTime={dateTime}
-              onIssued={refresh}
-            />
-            <DebitNoteSection
-              restaurantId={restaurantId}
-              accountInvoiceId={viewedInvoice.id}
-              canManage={canManage}
-              money={money}
-              dateTime={dateTime}
-              onIssued={refresh}
-            />
-            <div className="flex justify-end pt-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1 border-[#E8E1D7] bg-white text-xs hover:bg-[#F2ECE1]"
-                onClick={() => setViewInvoiceId(null)}
-              >
-                <ChevronUp className="size-3.5" /> Collapse invoice
-              </Button>
-            </div>
-          </div>
-        ) : null}
       </div>
+
+      <AccountInvoiceModal
+        open={currentViewingInvoice !== null}
+        invoice={currentViewingInvoice}
+        restaurantId={restaurantId}
+        accountId={accountId}
+        accountOpen={board?.account.status === "open"}
+        canManage={canManage}
+        money={money}
+        dateTime={dateTime}
+        documentProperty={documentProperty}
+        onClose={() => setViewingInvoice(null)}
+        onChanged={refresh}
+        onReprint={(invoiceId) => reprintMut.mutate(invoiceId)}
+        reprinting={reprintMut.isPending}
+      />
 
       <CashieringPrintLayer active={printInvoice !== null}>
         {printInvoice ? (
