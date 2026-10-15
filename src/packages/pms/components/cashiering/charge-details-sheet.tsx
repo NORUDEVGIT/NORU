@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Copy, History, MoreVertical, Receipt, SlidersHorizontal, ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, Coins, Copy, History, MoreVertical, Percent, Receipt, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 import { labelTransactionType } from "@/packages/pms/components/cashiering/folio-bits";
@@ -407,31 +407,91 @@ export function ChargeDetailsSheet({
                   <Field key={destination.id} label="Transferred to" value={destination.label} />
                 ))}
               </dl>
-              <div className="border-t border-[#E8E1D7] pt-3">
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Tax / Service
-                </p>
+              <div className="space-y-3 rounded-xl border border-[#E8E1D7] bg-[#FAF8F5] p-3.5">
+                <div className="flex items-center justify-between border-b border-[#E8E1D7]/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="grid size-6 place-items-center rounded-md bg-[#FAF2DE] text-[#8a6a1f]">
+                      <Percent className="size-3.5" />
+                    </span>
+                    <div>
+                      <p className="text-xs font-semibold text-[#251605]">Tax & Service Breakdown</p>
+                      <p className="text-[10px] text-[#7A6B58]">
+                        {group.children.length === 0
+                          ? "No taxes or service fees applied"
+                          : `${group.children.length} item${group.children.length > 1 ? "s" : ""} applied`}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold tabular-nums text-[#251605]">
+                    {money(group.taxService)}
+                  </span>
+                </div>
+
                 {group.children.length === 0 ? (
-                  <p className="text-muted-foreground">—</p>
+                  <p className="py-1 text-xs italic text-muted-foreground">
+                    This charge has no statutory taxes or service fees.
+                  </p>
                 ) : (
-                  <ul className="space-y-2">
-                    {group.children.map((child) => (
-                      <li key={child.id} className="flex items-start justify-between gap-3">
-                        <span>
-                          {postedTaxName(child)}
-                          <span className="ml-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                            {postedTaxMode(child)}
+                  <div className="space-y-2">
+                    {group.children.map((child) => {
+                      const isService = child.category === "service_charge";
+                      const mode = postedTaxMode(child);
+                      const name = postedTaxName(child);
+                      return (
+                        <div
+                          key={child.id}
+                          className="flex items-center justify-between gap-3 rounded-lg border border-[#E8E1D7]/70 bg-white px-3 py-2 text-xs shadow-2xs"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="font-semibold text-[#251605]">{name}</span>
+                              <span
+                                className={cn(
+                                  "rounded px-1.5 py-0.2 text-[9px] font-semibold",
+                                  isService
+                                    ? "border border-sky-200 bg-sky-50 text-sky-800"
+                                    : "border border-amber-200 bg-amber-50 text-amber-900",
+                                )}
+                              >
+                                {isService ? "Service Fee" : "Statutory Tax"}
+                              </span>
+                              <span className="rounded bg-[#F4EFE6] px-1.5 py-0.2 text-[9px] text-[#7A6B58]">
+                                {mode}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-[10px] text-muted-foreground">
+                              {child.postedAt ? dateTime(child.postedAt) : null}
+                              {child.postedBy ? ` · Posted by ${child.postedBy}` : null}
+                            </p>
+                          </div>
+                          <span
+                            className={cn(
+                              "shrink-0 text-xs font-bold tabular-nums",
+                              isService ? "text-sky-900" : "text-amber-900",
+                            )}
+                          >
+                            {money(child.amount)}
                           </span>
-                        </span>
-                        <span className="shrink-0 tabular-nums">{money(child.amount)}</span>
-                      </li>
-                    ))}
-                  </ul>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
-              </div>
-              <div className="flex items-center justify-between border-t border-[#E8E1D7] pt-3 font-semibold">
-                <span>Total</span>
-                <span className="tabular-nums">{money(group.total)}</span>
+
+                <div className="grid grid-cols-3 gap-2 rounded-lg border border-[#E8E1D7] bg-white p-2 text-center text-xs shadow-2xs">
+                  <div>
+                    <span className="text-[10px] font-medium text-[#7A6B58]">Net Base</span>
+                    <p className="font-semibold tabular-nums text-[#251605]">{money(group.net)}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-medium text-[#7A6B58]">Tax & Fees</span>
+                    <p className="font-semibold tabular-nums text-amber-800">+{money(group.taxService)}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[#251605]">Gross Total</span>
+                    <p className="font-bold tabular-nums text-[#251605]">{money(group.total)}</p>
+                  </div>
+                </div>
               </div>
             </div>
           ) : null}

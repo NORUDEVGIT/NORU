@@ -8,12 +8,18 @@ import type { FiscalFetch } from "./fiscal-client.server.ts";
 import {
   assessCompanyReceiptFiscal,
   companyReceiptPreviewFromPayload,
-  companyReceiptTrnxId,
   COMPANY_RECEIPT_REVERSAL_WARNING,
   type CompanyReceiptAssessment,
   type CompanyReceiptPreview,
 } from "./fiscal-company-sales-receipt.ts";
-import { fiscalPayloadHash } from "./fiscal-guest-invoice.ts";
+import { parseFiscalSalesReceiptSuccess } from "./fiscal-sales-receipt.ts";
+import { originalInvoiceTotal } from "./fiscal-original-invoice.ts";
+import {
+  TEST_ADJUSTED_RECEIPT_WARNING,
+  type FiscalNoteAdjustment,
+  type FiscalReceiptEnvironment,
+} from "./fiscal-sales-receipt-adjustment.ts";
+import { fiscalPayloadHash, fiscalQrSrc } from "./fiscal-guest-invoice.ts";
 import { sendStoredFiscalRequest } from "./fiscal-guest-invoice.server.ts";
 import { FiscalError, fiscalRecord, fiscalRecords, type FiscalDb } from "./fiscal.types.ts";
 
@@ -33,7 +39,12 @@ export type CompanyReceiptLine = {
     trnxId: string;
     documentNumber: string | null;
     irn: string | null;
+    rrn: string | null;
+    providerId: string | null;
+    providerStatus: string | null;
     lastError: string | null;
+    qrSrc: string | null;
+    qrStored: boolean;
   } | null;
 };
 
@@ -49,13 +60,14 @@ type AllocationRow = {
 export async function getCompanyInvoiceSalesReceipts(
   db: Db,
   input: { restaurantId: string; invoiceId: string },
-): Promise<{ lines: CompanyReceiptLine[] }> {
+): Promise<{ lines: CompanyReceiptLine[]; testAdjustmentWarning: string | null }> {
   const loaded = await loadInvoice(db, input.restaurantId, input.invoiceId);
   return {
     lines: loaded.allocations
       .filter((row) => row.amount > 0 && !row.reversesId)
       .sort(compareAllocations)
       .map((row) => present(loaded, row, findRegistration(loaded.registrations, row.id))),
+    testAdjustmentWarning: testAdjustmentWarning(loaded),
   };
 }
 
@@ -94,7 +106,7 @@ export async function queueCompanyAllocationSalesReceipt(
       source_type: "account_allocation",
       source_id: allocation.id,
       fiscal_document_type: "SALES_RECEIPT",
-      trnx_id: companyReceiptTrnxId(allocation.id),
+      trnx_id: assessment.payload.trnx_id,
       related_registration_id: loaded.originalRegistrationId,
       status: "PENDING",
       request_snapshot: assessment.payload,
@@ -132,7 +144,14 @@ export async function sendClaimedCompanyReceipt(
     );
     return;
   }
-  return sendStoredFiscalRequest(db, row, fetchImpl, "sales receipt", "sales_receipt");
+  return sendStoredFiscalRequest(
+    db,
+    row,
+    fetchImpl,
+    "sales receipt",
+    "sales_receipt",
+    parseFiscalSalesReceiptSuccess,
+  );
 }
 
 async function allocationStillActive(db: Db, restaurantId: string, allocationId: string) {
@@ -185,6 +204,10 @@ type StoredRegistration = {
   trnxId: string;
   documentNumber: string | null;
   irn: string | null;
+  rrn: string | null;
+  providerId: string | null;
+  providerStatus: string | null;
+  signedQr: string | null;
   lastError: string | null;
   request: unknown;
 };
@@ -203,6 +226,8 @@ type InvoiceContext = {
   currency: string;
   timezone: string;
   hasAdjustingNotes: boolean;
+  fiscalEnvironment: FiscalReceiptEnvironment | null;
+  noteAdjustments: FiscalNoteAdjustment[];
   hasActiveWithholding: boolean;
   paymentKinds: Map<string, "payment" | "deposit" | "other">;
   allocations: AllocationRow[];
@@ -286,7 +311,7 @@ async function loadInvoice(
   const registrationResult = await db
     .from("fiscal_registrations")
     .select(
-      "id, source_id, status, trnx_id, external_irn, external_document_number, last_error_message, request_snapshot",
+      "id, source_id, status, trnx_id, external_irn, external_document_number, external_id, external_rrn, external_status, signed_qr, last_error_message, request_snapshot",
     )
     .eq("restaurant_id", restaurantId)
     .eq("source_type", "account_allocation")
@@ -319,6 +344,8 @@ async function loadInvoice(
       text(account?.currency) ?? text(record(record(snapshot)?.property)?.currencyCode) ?? "",
     timezone: text(fiscalRecord(property.data)?.timezone) ?? "UTC",
     hasAdjustingNotes: noteRows.length > 0,
+    fiscalEnvironment: connection.fiscalEnvironment,
+    noteAdjustments: await loadNoteAdjustments(db, restaurantId, noteRows),
     hasActiveWithholding,
     paymentKinds,
     allocations,
@@ -353,6 +380,8 @@ function assess(context: InvoiceContext, allocation: AllocationRow): CompanyRece
     invoiceNumber: context.invoiceNumber,
     timezone: context.timezone,
     hasAdjustingNotes: context.hasAdjustingNotes,
+    fiscalEnvironment: context.fiscalEnvironment,
+    noteAdjustments: context.noteAdjustments,
     hasActiveWithholding: context.hasActiveWithholding,
     priors: earlier.map((row) => ({
       amount: row.amount,
@@ -380,7 +409,12 @@ function present(
         trnxId: registration.trnxId,
         documentNumber: registration.documentNumber,
         irn: registration.irn,
+        rrn: registration.rrn,
+        providerId: registration.providerId,
+        providerStatus: registration.providerStatus,
         lastError: registration.lastError,
+        qrSrc: fiscalQrSrc(registration.signedQr),
+        qrStored: Boolean(registration.signedQr),
       }
     : null;
   if (registration?.status === "REGISTERED") {
@@ -474,6 +508,7 @@ async function loadConnection(db: Db, restaurantId: string) {
       : null;
   return {
     integrationId: typeof row?.id === "string" ? row.id : "",
+    fiscalEnvironment: fiscalEnvironmentOf(config),
     connection: {
       enabled: row?.enabled !== false && Boolean(row),
       taxpayerTin: String(config.taxpayerTin ?? ""),
@@ -482,6 +517,46 @@ async function loadConnection(db: Db, restaurantId: string) {
       credentialsConfigured: Boolean(credentials && fiscalRecord(credentials.data)),
     },
   };
+}
+
+function testAdjustmentWarning(context: InvoiceContext): string | null {
+  return context.fiscalEnvironment === "TEST" && context.hasAdjustingNotes
+    ? TEST_ADJUSTED_RECEIPT_WARNING
+    : null;
+}
+
+async function loadNoteAdjustments(
+  db: Db,
+  restaurantId: string,
+  notes: Record<string, unknown>[],
+): Promise<FiscalNoteAdjustment[]> {
+  const adjustments: FiscalNoteAdjustment[] = [];
+  for (const note of notes) {
+    const id = text(note.id);
+    if (!id) continue;
+    const debit = note.note_type === "debit";
+    const result = await db
+      .from("fiscal_registrations")
+      .select("status, request_snapshot")
+      .eq("restaurant_id", restaurantId)
+      .eq("source_type", debit ? "debit_note" : "credit_note")
+      .eq("source_id", id)
+      .eq("fiscal_document_type", debit ? "DEB" : "CRE")
+      .maybeSingle();
+    const row = fiscalRecord(result.data);
+    adjustments.push({
+      documentType: debit ? "DEB" : "CRE",
+      status: typeof row?.status === "string" ? row.status : "MISSING",
+      total: row ? originalInvoiceTotal(row.request_snapshot) : null,
+    });
+  }
+  return adjustments;
+}
+
+function fiscalEnvironmentOf(config: Record<string, unknown>): FiscalReceiptEnvironment | null {
+  return config.fiscalEnvironment === "TEST" || config.fiscalEnvironment === "PRODUCTION"
+    ? config.fiscalEnvironment
+    : null;
 }
 
 function mapAllocation(row: Record<string, unknown> | null): AllocationRow | null {
@@ -505,6 +580,11 @@ function mapRegistration(row: Record<string, unknown>): StoredRegistration | nul
     trnxId: typeof row.trnx_id === "string" ? row.trnx_id : "",
     documentNumber: text(row.external_document_number),
     irn: text(row.external_irn),
+    rrn: text(row.external_rrn),
+    providerId: text(row.external_id),
+    providerStatus: text(row.external_status),
+    signedQr:
+      typeof row.signed_qr === "string" && row.signed_qr.trim().length > 0 ? row.signed_qr : null,
     lastError: text(row.last_error_message),
     request: row.request_snapshot ?? null,
   };

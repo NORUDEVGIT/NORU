@@ -446,16 +446,28 @@ export function AccountInvoiceWorkspace({
                             ? "—"
                             : `${group.quantity} × ${group.unitAmount == null ? "—" : money(group.unitAmount)}`}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
+                        <td className="px-3 py-2 text-right tabular-nums text-slate-800">
                           {money(group.subtotal)}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">
-                          {money(group.taxTotal)}
+                          {group.taxTotal > 0 ? (
+                            <span className="font-semibold text-amber-900">
+                              {money(group.taxTotal)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/50">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">
-                          {money(group.serviceChargeTotal)}
+                          {group.serviceChargeTotal > 0 ? (
+                            <span className="font-semibold text-sky-900">
+                              {money(group.serviceChargeTotal)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/50">—</span>
+                          )}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
+                        <td className="px-3 py-2 text-right font-semibold tabular-nums text-[#251605]">
                           {money(group.grossTotal)}
                         </td>
                         <td className="px-3 py-2 text-xs">

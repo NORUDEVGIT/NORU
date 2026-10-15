@@ -288,22 +288,17 @@ export function GuestInvoiceFiscalSection({
                 </select>
 
                 {selectedIdentity ? (
-                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3 text-xs space-y-1.5">
-                    <div className="flex justify-between items-center border-b border-[#E8E1D7]/70 pb-1.5">
-                      <span className="font-semibold text-[#251605]">{selectedIdentity.legalName}</span>
-                      <span className="rounded bg-[#C89933]/15 px-1.5 py-0.5 text-[10px] font-bold text-[#8A641A]">
+                  <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="size-4 text-[#8A641A]" />
+                        <span className="font-semibold text-xs text-[#251605]">
+                          {selectedIdentity.legalName}
+                        </span>
+                      </div>
+                      <span className="rounded bg-[#C89933]/15 px-2 py-0.5 text-[10px] font-bold text-[#8A641A]">
                         TIN {selectedIdentity.tin}
                       </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px] text-[#7A6B58] pt-1">
-                      <div>Reg/VAT: {selectedIdentity.registrationNumber || "—"}</div>
-                      <div>Phone: {selectedIdentity.phone || "—"}</div>
-                      <div>Email: {selectedIdentity.email || "—"}</div>
-                      <div>
-                        Location:{" "}
-                        {[selectedIdentity.city, selectedIdentity.region].filter(Boolean).join(", ") ||
-                          "—"}
-                      </div>
                     </div>
                   </div>
                 ) : (

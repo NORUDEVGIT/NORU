@@ -2,7 +2,10 @@
  * Company B2B sales receipt.
  *
  * One active company payment allocation against one registered B2B invoice.
- * BuyerDetails and the invoice total come from the original INV request.
+ * BuyerDetails and invoice_total_amount come from the original INV request.
+ * A TEST property may fiscalize a receipt after registered credit and debit
+ * notes. RemainingAmount then uses the original total adjusted by those notes.
+ * Production stays blocked when those notes exist.
  * Remaining amount follows allocation order. FULL is the zero-remainder case
  * shown in the provider B2B example. Cancellation is not built here.
  */
@@ -13,6 +16,16 @@ import {
   originalInvoiceTotal,
   parseOriginalFiscalInvoice,
 } from "./fiscal-original-invoice.ts";
+import {
+  adjustedReceiptDecision,
+  type FiscalNoteAdjustment,
+  type FiscalReceiptEnvironment,
+} from "./fiscal-sales-receipt-adjustment.ts";
+import {
+  fiscalReceiptDateTime,
+  fiscalReceiptNumber,
+  fiscalTestReceiptTrnxId,
+} from "./fiscal-sales-receipt-schema.ts";
 
 export const COMPANY_RECEIPT_REVERSAL_WARNING =
   "Fiscal Sales Receipt exists; external receipt cancellation is not yet implemented.";
@@ -46,6 +59,7 @@ export type CompanyReceiptPayload = {
   trnx_id: string;
   device_id: string;
   InvoiceIRN: string;
+  ReceiptNumber?: string;
   ReceiptDate: string;
   source_date: string;
   tax_payer_tin: string;
@@ -67,8 +81,11 @@ export type CompanyReceiptInput = {
   accountKind: string;
   currency: string;
   invoiceNumber: string | null;
+  receiptNumber?: string | null;
   timezone: string;
   hasAdjustingNotes: boolean;
+  fiscalEnvironment?: FiscalReceiptEnvironment | null;
+  noteAdjustments?: FiscalNoteAdjustment[];
   hasActiveWithholding: boolean;
   priors: Array<{ amount: number; fiscalRegistered: boolean }>;
   connection: {
@@ -112,11 +129,6 @@ export function assessCompanyReceiptFiscal(
   if (input.currency.trim().toUpperCase() !== "ETB") {
     reasons.push("Only ETB invoices are currently supported.");
   }
-  if (input.hasAdjustingNotes) {
-    reasons.push(
-      "Sales Receipt for invoices adjusted by Credit/Debit Notes is not supported in the current fiscal phase.",
-    );
-  }
   if (input.hasActiveWithholding) {
     reasons.push(
       "Fiscal Sales Receipt is not supported after withholding has been recorded for this invoice.",
@@ -136,7 +148,16 @@ export function assessCompanyReceiptFiscal(
   const original = input.originalRegistration;
   const request = original ? parseOriginalFiscalInvoice(original.requestSnapshot) : null;
   const buyer = original ? copyOriginalBuyerDetails(original.requestSnapshot) : null;
-  const invoiceTotal = original ? originalInvoiceTotal(original.requestSnapshot) : null;
+  const registeredTotal = original ? originalInvoiceTotal(original.requestSnapshot) : null;
+  const adjustment = adjustedReceiptDecision({
+    hasAdjustingNotes: input.hasAdjustingNotes,
+    fiscalEnvironment: input.fiscalEnvironment,
+    notes: input.noteAdjustments,
+    originalTotal: registeredTotal,
+  });
+  if (adjustment.blockReason) reasons.push(adjustment.blockReason);
+  const invoiceTotal = registeredTotal;
+  const amountDue = adjustment.effectiveTotal ?? registeredTotal;
   if (!original || original.status !== "REGISTERED") {
     reasons.push("Original invoice has not been fiscally registered.");
   } else {
@@ -161,6 +182,13 @@ export function assessCompanyReceiptFiscal(
   const priorTotal = fiscalMoney(
     input.priors.reduce((sum, prior) => sum + fiscalMoney(prior.amount), 0),
   );
+  const sourceDate = receiptDay(input.createdAt, input.timezone);
+  const receiptDate = fiscalReceiptDateTime(input.createdAt, input.timezone);
+  const receiptNumber = fiscalReceiptNumber("company", allocationId, input.receiptNumber);
+  const testExperiment = input.fiscalEnvironment === "TEST";
+  const trnxId = testExperiment
+    ? fiscalTestReceiptTrnxId("company", allocationId)
+    : companyReceiptTrnxId(allocationId);
   let projection: CompanyReceiptPreview | null = null;
   if (
     invoiceTotal != null &&
@@ -170,7 +198,7 @@ export function assessCompanyReceiptFiscal(
     buyer &&
     paid > 0.009
   ) {
-    const outstandingBefore = fiscalMoney(invoiceTotal - priorTotal);
+    const outstandingBefore = fiscalMoney((amountDue ?? 0) - priorTotal);
     const remainingRaw = fiscalMoney(outstandingBefore - paid);
     if (outstandingBefore <= 0.01) {
       reasons.push("This invoice had no amount due before this allocation.");
@@ -178,9 +206,21 @@ export function assessCompanyReceiptFiscal(
       reasons.push("This allocation exceeds the invoice amount that was outstanding before it.");
     }
     if (remainingRaw < -0.01) reasons.push("The sales receipt remaining amount is inconsistent.");
-    const receiptDate = receiptDay(input.createdAt, input.timezone);
-    if (!receiptDate) reasons.push("The allocation time is missing.");
-    if (outstandingBefore > 0.01 && remainingRaw >= -0.01 && receiptDate) {
+    if (!sourceDate || !receiptDate) reasons.push("The allocation time is missing.");
+    if (!testExperiment && !receiptNumber) {
+      reasons.push("A fiscal receipt number could not be assigned.");
+    }
+    if (testExperiment && !trnxId) {
+      reasons.push("A TEST sales receipt transaction id could not be assigned.");
+    }
+    if (
+      outstandingBefore > 0.01 &&
+      remainingRaw >= -0.01 &&
+      sourceDate &&
+      receiptDate &&
+      trnxId &&
+      (testExperiment || receiptNumber)
+    ) {
       const remaining = remainingRaw <= 0.01 ? 0 : remainingRaw;
       projection = {
         invoiceNumber: input.invoiceNumber,
@@ -193,11 +233,20 @@ export function assessCompanyReceiptFiscal(
         paid,
         remaining,
         coverage: remaining > 0.01 ? "PARTIAL" : "FULL",
-        receiptDate,
+        receiptDate: sourceDate,
       };
     }
   }
-  if (reasons.length > 0 || !projection || !buyer || !original?.irn || !original.documentNumber) {
+  if (
+    reasons.length > 0 ||
+    !projection ||
+    !trnxId ||
+    !receiptDate ||
+    (!testExperiment && !receiptNumber) ||
+    !buyer ||
+    !original?.irn ||
+    !original.documentNumber
+  ) {
     return { ok: false, reasons, projection };
   }
   return {
@@ -205,10 +254,11 @@ export function assessCompanyReceiptFiscal(
     preview: projection,
     payload: {
       client: input.connection.client.trim(),
-      trnx_id: companyReceiptTrnxId(allocationId),
+      trnx_id: trnxId,
       device_id: input.connection.deviceId.trim(),
       InvoiceIRN: original.irn.trim(),
-      ReceiptDate: projection.receiptDate,
+      ...(testExperiment || !receiptNumber ? {} : { ReceiptNumber: receiptNumber }),
+      ReceiptDate: receiptDate,
       source_date: projection.receiptDate,
       tax_payer_tin: input.connection.taxpayerTin.trim(),
       PaymentCoverage: projection.coverage,

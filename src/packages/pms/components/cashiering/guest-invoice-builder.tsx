@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { FileText, Plus, Printer, Trash2 } from "lucide-react";
+import { Coins, FileText, Percent, Plus, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { GuestInvoiceModal } from "@/packages/pms/components/cashiering/guest-invoice-modal";
@@ -450,16 +450,28 @@ export function GuestInvoiceWorkspace({
                               ? "—"
                               : `${group.quantity} × ${group.unitAmount == null ? "—" : money(group.unitAmount)}`}
                           </td>
-                          <td className="px-2 py-2 text-right tabular-nums">
+                          <td className="px-2 py-2 text-right tabular-nums text-slate-800">
                             {money(group.subtotal)}
                           </td>
                           <td className="px-2 py-2 text-right tabular-nums">
-                            {money(group.taxTotal)}
+                            {group.taxTotal > 0 ? (
+                              <span className="font-semibold text-amber-900">
+                                {money(group.taxTotal)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
                           </td>
                           <td className="px-2 py-2 text-right tabular-nums">
-                            {money(group.serviceChargeTotal)}
+                            {group.serviceChargeTotal > 0 ? (
+                              <span className="font-semibold text-sky-900">
+                                {money(group.serviceChargeTotal)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
                           </td>
-                          <td className="px-2 py-2 text-right tabular-nums">
+                          <td className="px-2 py-2 text-right font-semibold tabular-nums text-[#251605]">
                             {money(group.grossTotal)}
                           </td>
                           <td className="px-2 py-2 text-xs">
@@ -823,29 +835,70 @@ function TaxBreakdown({
   const taxes = groups.flatMap((group) => group.taxLines);
   const services = groups.flatMap((group) => group.serviceLines);
   if (taxes.length === 0 && services.length === 0) return null;
+
   return (
-    <div className="space-y-2 text-xs">
-      <p className="font-semibold uppercase tracking-wide text-muted-foreground">Tax breakdown</p>
-      {taxes.map((line) => (
-        <p key={line.id} className="flex justify-between gap-2">
-          <span>
-            {line.name}
-            {line.code ? ` (${line.code})` : ""}
-            {line.basis ? ` · ${line.basis}` : ""}
-            {line.calculation ? ` · ${line.calculation}` : ""}
-          </span>
-          <span className="tabular-nums">{money(line.amount)}</span>
+    <div className="space-y-3 rounded-xl border border-[#E8E1D7] bg-[#FAF8F5] p-3.5 shadow-2xs">
+      <div className="flex items-center gap-2 border-b border-[#E8E1D7]/80 pb-2">
+        <span className="grid size-6 place-items-center rounded-md bg-[#FAF2DE] text-[#8a6a1f]">
+          <Percent className="size-3.5" />
+        </span>
+        <p className="text-xs font-bold uppercase tracking-wider text-[#251605]">
+          Tax & Fee Breakdown
         </p>
-      ))}
-      {services.map((line) => (
-        <p key={line.id} className="flex justify-between gap-2">
-          <span>
-            {line.name}
-            {line.basis ? ` · ${line.basis}` : ""}
-          </span>
-          <span className="tabular-nums">{money(line.amount)}</span>
-        </p>
-      ))}
+      </div>
+
+      {taxes.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#7A6B58]">
+            Statutory Taxes
+          </p>
+          <div className="space-y-1">
+            {taxes.map((line) => (
+              <div
+                key={line.id}
+                className="flex items-center justify-between gap-2 rounded-lg border border-[#E8E1D7]/70 bg-white px-2.5 py-1.5 text-xs shadow-2xs"
+              >
+                <div className="min-w-0">
+                  <span className="font-semibold text-[#251605]">{line.name}</span>
+                  {line.code ? (
+                    <span className="ml-1.5 rounded bg-[#F4EFE6] px-1 py-0.2 text-[9px] text-[#7A6B58]">
+                      {line.code}
+                    </span>
+                  ) : null}
+                  {line.basis ? (
+                    <span className="ml-1 text-[10px] text-muted-foreground">· {line.basis}</span>
+                  ) : null}
+                </div>
+                <span className="font-bold tabular-nums text-amber-900">{money(line.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {services.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#7A6B58]">
+            Service Charges
+          </p>
+          <div className="space-y-1">
+            {services.map((line) => (
+              <div
+                key={line.id}
+                className="flex items-center justify-between gap-2 rounded-lg border border-[#E8E1D7]/70 bg-white px-2.5 py-1.5 text-xs shadow-2xs"
+              >
+                <div className="min-w-0">
+                  <span className="font-semibold text-[#251605]">{line.name}</span>
+                  {line.basis ? (
+                    <span className="ml-1 text-[10px] text-muted-foreground">· {line.basis}</span>
+                  ) : null}
+                </div>
+                <span className="font-bold tabular-nums text-sky-900">{money(line.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

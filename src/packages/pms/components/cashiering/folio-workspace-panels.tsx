@@ -9,6 +9,8 @@ import {
   ArrowRight,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Coins,
   CreditCard,
   Eye,
@@ -517,6 +519,11 @@ function ChargeRow({
   dateTime,
   actions,
   selected,
+  hasChildren,
+  isExpanded,
+  onToggleExpand,
+  taxSummaryText,
+  childrenCount,
 }: {
   row: FolioTransactionRow;
   child?: boolean;
@@ -528,11 +535,17 @@ function ChargeRow({
   dateTime: DateTimeFormat;
   actions: RowActions;
   selected?: boolean;
+  hasChildren?: boolean;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
+  taxSummaryText?: string | null;
+  childrenCount?: number;
 }) {
   const source = child ? null : chargeSourceLabel(row);
   const department = child ? null : chargeDepartment(row);
   const quantity = child ? null : chargeQuantity(row);
   const unitAmount = child ? null : chargeUnitAmount(row);
+
   return (
     <tr
       className={cn(
@@ -563,14 +576,54 @@ function ChargeRow({
             {row.description}
           </span>
         ) : (
-          <span className="block">
-            <span className="block">{chargeItemTitle(row)}</span>
-            {source ? (
-              <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                {source}
-              </span>
-            ) : null}
-          </span>
+          <div className="flex items-start gap-1.5">
+            {hasChildren && onToggleExpand ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleExpand();
+                }}
+                className="mt-0.5 grid size-5 shrink-0 place-items-center rounded hover:bg-[#E8E1D7]/60 text-[#7A6B58] hover:text-[#251605] transition-colors cursor-pointer"
+                title={isExpanded ? "Collapse taxes" : "Expand taxes"}
+                aria-label={isExpanded ? "Collapse taxes" : "Expand taxes"}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="size-3.5 text-[#251605]" />
+                ) : (
+                  <ChevronRight className="size-3.5 text-[#7A6B58]" />
+                )}
+              </button>
+            ) : (
+              <span className="w-5 shrink-0" />
+            )}
+            <div className="min-w-0 flex-1">
+              <span className="block font-medium text-[#251605]">{chargeItemTitle(row)}</span>
+              <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                {source ? (
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {source}
+                  </span>
+                ) : null}
+                {hasChildren && !isExpanded && onToggleExpand ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleExpand();
+                    }}
+                    className="inline-flex items-center gap-1 rounded bg-[#FAF2DE] hover:bg-[#F4E6C2] px-1.5 py-0.5 text-[10px] font-medium text-[#765719] border border-[#E8DCB8] transition-colors cursor-pointer"
+                    title="Click to expand tax breakdown"
+                  >
+                    <Percent className="size-2.5 text-[#C89933]" />
+                    <span>
+                      {childrenCount} {childrenCount === 1 ? "Tax/Fee" : "Taxes/Fees"}
+                    </span>
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
         )}
       </td>
       <td className="whitespace-nowrap px-3 py-2 text-right text-xs tabular-nums">
@@ -586,10 +639,17 @@ function ChargeRow({
         {taxService === null || (!child && taxService === 0) ? (
           <span className="text-muted-foreground/60">{taxService === 0 ? "—" : ""}</span>
         ) : (
-          money(taxService)
+          <div className="flex flex-col items-end">
+            <span className="font-semibold text-[#251605]">{money(taxService)}</span>
+            {taxSummaryText && !isExpanded ? (
+              <span className="text-[10px] text-[#7A6B58] font-normal tracking-tight line-clamp-1 max-w-[140px]">
+                {taxSummaryText}
+              </span>
+            ) : null}
+          </div>
         )}
       </td>
-      <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">
+      <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums text-[#251605]">
         {total === null ? "" : money(total)}
       </td>
       <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
@@ -598,6 +658,91 @@ function ChargeRow({
       <td className="px-1 py-1 text-right" onClick={(event) => event.stopPropagation()}>
         {child ? null : <RowMenu row={row} workspace={workspace} actions={actions} />}
       </td>
+    </tr>
+  );
+}
+
+function ChildTaxRow({
+  child,
+  parentNet,
+  money,
+}: {
+  child: FolioTransactionRow;
+  parentNet: number;
+  money: Money;
+}) {
+  const isService = child.category === "service_charge";
+  const taxMode = child.taxSnapshot?.calculation;
+  const rate = child.taxSnapshot?.rate;
+
+  return (
+    <tr className="border-b border-[#E8E1D7]/50 bg-[#FAF8F5]/70 hover:bg-[#FAF8F5] transition-colors text-xs">
+      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground/50 text-[11px] font-mono select-none" />
+      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground/50 text-[11px]" />
+      <td className="px-3 py-1.5">
+        <div className="flex items-center gap-2 pl-3">
+          <span className="text-[#C89933]/60 font-mono text-xs select-none">└─</span>
+          <span
+            className={cn(
+              "grid size-5 shrink-0 place-items-center rounded-md text-[10px]",
+              isService
+                ? "border border-sky-200 bg-sky-50 text-sky-800"
+                : "border border-amber-200 bg-amber-50 text-amber-900",
+            )}
+          >
+            {isService ? <Coins className="size-2.5" /> : <Percent className="size-2.5" />}
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+            <span className="font-medium text-[#251605]">{child.description}</span>
+            <span
+              className={cn(
+                "rounded px-1.5 py-0.2 text-[9px] font-semibold",
+                isService
+                  ? "border border-sky-200 bg-sky-50 text-sky-800"
+                  : "border border-amber-200 bg-amber-50 text-amber-900",
+              )}
+            >
+              {isService ? "Service Fee" : "Statutory Tax"}
+            </span>
+            {rate != null ? (
+              <span className="rounded bg-[#FAF2DE] border border-[#E8DCB8] px-1.5 py-0.2 text-[9px] font-medium text-[#765719]">
+                {rate}%
+              </span>
+            ) : null}
+            {taxMode ? (
+              <span className="rounded bg-[#F4EFE6] px-1.5 py-0.2 text-[9px] text-[#7A6B58] capitalize">
+                {taxMode}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </td>
+      <td className="whitespace-nowrap px-3 py-1.5 text-right text-[11px] text-muted-foreground/50 tabular-nums">
+        —
+      </td>
+      <td className="whitespace-nowrap px-3 py-1.5 text-right text-[11px] tabular-nums">
+        <span className="text-[10px] text-[#7A6B58]">Base: {money(parentNet)}</span>
+      </td>
+      <td className="whitespace-nowrap px-3 py-1.5 text-right text-[11px] text-muted-foreground/50 tabular-nums">
+        —
+      </td>
+      <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums">
+        <span
+          className={cn(
+            "font-semibold",
+            isService ? "text-sky-900" : "text-amber-900",
+          )}
+        >
+          {money(child.amount)}
+        </span>
+      </td>
+      <td className="whitespace-nowrap px-3 py-1.5 text-right text-muted-foreground/40 tabular-nums">
+        —
+      </td>
+      <td className="whitespace-nowrap px-3 py-1.5 text-[11px] text-muted-foreground">
+        {child.postedBy ?? "—"}
+      </td>
+      <td className="px-1 py-1" />
     </tr>
   );
 }
@@ -636,6 +781,23 @@ export function ChargesTab({
     { net: 0, taxService: 0, total: 0 },
   );
   const hasMore = caps.canAdjust || (caps.canTransfer && groups.length > 0);
+  const hasAnyTaxes = groups.some((g) => g.children.length > 0);
+
+  const [expandAllTaxes, setExpandAllTaxes] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+
+  const isGroupExpanded = (id: string) =>
+    expandAllTaxes ? !expandedIds.has(id) : expandedIds.has(id);
+
+  const toggleGroup = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
     <div className="space-y-4">
       <SectionCard
@@ -644,6 +806,20 @@ export function ChargesTab({
         testId="folio-charges"
         action={
           <div className="flex items-center gap-2">
+            {hasAnyTaxes ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 border-[#E8E1D7] bg-white text-xs font-medium text-[#251605] hover:bg-[#FAF8F5] gap-1.5 shadow-2xs"
+                onClick={() => {
+                  setExpandAllTaxes((prev) => !prev);
+                  setExpandedIds(new Set());
+                }}
+              >
+                <Percent className="size-3.5 text-[#C89933]" />
+                {expandAllTaxes ? "Hide Tax Breakdown" : "Show All Taxes"}
+              </Button>
+            ) : null}
             {caps.canPostCharge ? (
               <Button
                 size="sm"
@@ -711,6 +887,8 @@ export function ChargesTab({
                   dateTime={dateTime}
                   actions={actions}
                   selectedChargeId={selectedChargeId}
+                  isExpanded={isGroupExpanded(group.parent.id)}
+                  onToggleExpand={() => toggleGroup(group.parent.id)}
                 />
               ))}
             </tbody>
@@ -787,6 +965,8 @@ function ChargeGroupRows({
   dateTime,
   actions,
   selectedChargeId,
+  isExpanded,
+  onToggleExpand,
 }: {
   group: FolioChargeGroup;
   workspace: FolioWorkspace;
@@ -794,8 +974,16 @@ function ChargeGroupRows({
   dateTime: DateTimeFormat;
   actions: RowActions;
   selectedChargeId: string | null;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
 }) {
   const taxOnly = isTaxOrServiceCategory(group.parent.category);
+  const hasChildren = group.children.length > 0;
+  const taxSummaryText = useMemo(() => {
+    if (!hasChildren) return null;
+    return group.children.map((c) => c.description).join(" · ");
+  }, [group.children, hasChildren]);
+
   return (
     <>
       <ChargeRow
@@ -808,21 +996,21 @@ function ChargeGroupRows({
         dateTime={dateTime}
         actions={actions}
         selected={group.parent.id === selectedChargeId}
+        hasChildren={hasChildren}
+        isExpanded={isExpanded}
+        onToggleExpand={onToggleExpand}
+        taxSummaryText={taxSummaryText}
+        childrenCount={group.children.length}
       />
-      {group.children.map((child) => (
-        <ChargeRow
-          key={child.id}
-          row={child}
-          child
-          net={null}
-          taxService={child.amount}
-          total={null}
-          workspace={workspace}
-          money={money}
-          dateTime={dateTime}
-          actions={actions}
-        />
-      ))}
+      {isExpanded &&
+        group.children.map((child) => (
+          <ChildTaxRow
+            key={child.id}
+            child={child}
+            parentNet={group.net}
+            money={money}
+          />
+        ))}
     </>
   );
 }

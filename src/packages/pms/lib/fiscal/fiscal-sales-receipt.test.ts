@@ -5,12 +5,17 @@ import { describe, it } from "node:test";
 import { p4HandlerEnabled } from "./fiscal-debit-note.ts";
 import { buildFiscalRegistrationExchange } from "./fiscal-exchange.ts";
 import { postFiscalReceiveRequest } from "./fiscal-client.server.ts";
-import { parseFiscalInvoiceSuccess, parseFiscalRuleValidation } from "./fiscal-guest-invoice.ts";
+import {
+  fiscalQrSrc,
+  parseFiscalInvoiceSuccess,
+  parseFiscalRuleValidation,
+} from "./fiscal-guest-invoice.ts";
 import { p2HandlerEnabled } from "./fiscal-guest-invoice.ts";
 import { p3HandlerEnabled } from "./fiscal-credit-note.ts";
 import {
   assessSalesReceiptFiscal,
   p5HandlerEnabled,
+  parseFiscalSalesReceiptSuccess,
   salesReceiptTrnxId,
   type SalesReceiptFiscalInput,
 } from "./fiscal-sales-receipt.ts";
@@ -93,7 +98,13 @@ describe("fiscal sales receipt eligibility and payload", () => {
     assert.equal(result.payload.invoice_document_no, "2821");
     assert.equal(result.payload.TransactionType, "B2C");
     assert.equal(result.payload.trnx_id, `gsr-${ALLOC_A}`);
-    assert.equal(result.payload.ReceiptDate, "2026-10-13");
+    assert.equal(result.payload.ReceiptNumber, "GSR-bbbbbbbbbbbb4bbb");
+    assert.equal(result.payload.ReceiptNumber.length <= 20, true);
+    assert.match(
+      result.payload.ReceiptDate,
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/,
+    );
+    assert.equal(result.payload.ReceiptDate, "2026-10-13T13:00:00+03:00");
     assert.equal(result.payload.source_date, "2026-10-13");
     assert.equal(result.payload.client, "ERP");
     assert.equal(result.payload.device_id, "001096");
@@ -106,6 +117,56 @@ describe("fiscal sales receipt eligibility and payload", () => {
     assert.equal("ValueDetails" in result.payload, false);
     assert.equal(JSON.stringify(result.payload).includes("payment_method"), false);
     assert.equal(JSON.stringify(result.payload).includes("INV-0012"), false);
+  });
+
+  it("keeps the receipt number and RFC3339 date stable on a second build", () => {
+    const first = assessSalesReceiptFiscal(ALLOC_A, input());
+    const second = assessSalesReceiptFiscal(ALLOC_A, input());
+    assert.equal(first.ok, true);
+    assert.equal(second.ok, true);
+    if (!first.ok || !second.ok) return;
+    assert.equal(second.payload.ReceiptNumber, first.payload.ReceiptNumber);
+    assert.equal(second.payload.ReceiptDate, first.payload.ReceiptDate);
+    assert.equal(second.payload.invoice_total_amount, 12);
+    assert.equal(second.payload.InvoicePaidAmount, 5);
+    assert.equal(second.payload.RemainingAmount, 7);
+    assert.notEqual(first.payload.ReceiptNumber, first.payload.trnx_id);
+    const named = assessSalesReceiptFiscal(ALLOC_A, input({ receiptNumber: "SR-000014" }));
+    assert.equal(named.ok, true);
+    if (!named.ok) return;
+    assert.equal(named.payload.ReceiptNumber, "SR-000014");
+    assert.equal(named.payload.ReceiptDate, first.payload.ReceiptDate);
+  });
+
+  it("uses a short TEST transaction id and omits ReceiptNumber", () => {
+    const allocationId = "59e15d53-77fa-4f2b-9620-34d40cb1d16a";
+    const first = assessSalesReceiptFiscal(allocationId, input({ fiscalEnvironment: "TEST" }));
+    const second = assessSalesReceiptFiscal(allocationId, input({ fiscalEnvironment: "TEST" }));
+    assert.equal(first.ok, true);
+    assert.equal(second.ok, true);
+    if (!first.ok || !second.ok) return;
+    assert.equal(first.payload.trnx_id, "GSR59E15D5377FA4F2B");
+    assert.equal(first.payload.trnx_id.length <= 20, true);
+    assert.equal(second.payload.trnx_id, first.payload.trnx_id);
+    assert.equal(second.payload.ReceiptDate, first.payload.ReceiptDate);
+    assert.equal("ReceiptNumber" in first.payload, false);
+    assert.match(first.payload.ReceiptDate, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
+    assert.equal(first.payload.invoice_total_amount, 12);
+    assert.equal(first.payload.InvoicePaidAmount, 5);
+    assert.equal(first.payload.RemainingAmount, 7);
+    assert.equal(first.payload.PaymentCoverage, "PARTIAL");
+    assert.deepEqual(first.payload.info, {});
+    const production = assessSalesReceiptFiscal(
+      allocationId,
+      input({ fiscalEnvironment: "PRODUCTION" }),
+    );
+    assert.equal(production.ok, true);
+    if (!production.ok) return;
+    assert.equal(production.payload.trnx_id, `gsr-${allocationId}`);
+    assert.equal(production.payload.ReceiptNumber, "GSR-59e15d5377fa4f2b");
+    assert.equal(production.payload.invoice_total_amount, first.payload.invoice_total_amount);
+    assert.equal(production.payload.InvoicePaidAmount, first.payload.InvoicePaidAmount);
+    assert.equal(production.payload.RemainingAmount, first.payload.RemainingAmount);
   });
 
   it("uses FULL only when the remaining amount is zero", () => {
@@ -193,7 +254,7 @@ describe("fiscal sales receipt eligibility and payload", () => {
     );
     assert.equal(nextDay.ok, true);
     if (!nextDay.ok) return;
-    assert.equal(nextDay.payload.ReceiptDate, "2026-10-14");
+    assert.equal(nextDay.payload.ReceiptDate, "2026-10-14T00:30:00+03:00");
     assert.equal(nextDay.payload.source_date, "2026-10-14");
     const cases: Array<[Partial<SalesReceiptFiscalInput>, RegExp]> = [
       [{ originalRegistration: null }, /not been fiscally registered/],
@@ -325,6 +386,150 @@ describe("fiscal sales receipt registration safety", () => {
     assert.equal(success.signedQr, "iVBORw0KGgo=");
   });
 
+  it("accepts the live sales receipt success body without an invoice IRN", () => {
+    const providerQr = "iVBORw0KGgo...";
+    const live = {
+      body: {
+        id: 70416,
+        qr: providerQr,
+        rrn: "26b1ea7d9a67e356090afb2e8a45784bf7223c1c9d3cf6425347aa3718af81",
+        status: "A",
+      },
+      message: "Success",
+      statusCode: 200,
+    };
+    assert.equal(parseFiscalInvoiceSuccess(live).ok, false);
+    const parsed = parseFiscalSalesReceiptSuccess(live);
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) return;
+    assert.equal(parsed.externalId, "70416");
+    assert.equal(
+      parsed.externalRrn,
+      "26b1ea7d9a67e356090afb2e8a45784bf7223c1c9d3cf6425347aa3718af81",
+    );
+    assert.equal(parsed.signedQr, providerQr);
+    assert.equal(fiscalQrSrc(parsed.signedQr), `data:image/png;base64,${providerQr}`);
+    assert.equal(
+      fiscalQrSrc("26b1ea7d9a67e356090afb2e8a45784bf7223c1c9d3cf6425347aa3718af81"),
+      null,
+    );
+    assert.equal(fiscalQrSrc("70416"), null);
+    const missingQr = parseFiscalSalesReceiptSuccess({
+      ...live,
+      body: { id: live.body.id, rrn: live.body.rrn, status: live.body.status },
+    });
+    assert.equal(missingQr.ok, true);
+    if (missingQr.ok) assert.equal(missingQr.signedQr, null);
+    assert.equal(parsed.irn, null);
+    assert.equal(parsed.documentNumber, null);
+    assert.equal(parsed.acknowledgedAt, null);
+    assert.equal(parsed.externalStatus, "A");
+    const lower = parseFiscalSalesReceiptSuccess({ ...live, message: "success" });
+    assert.equal(lower.ok, true);
+    assert.equal(
+      parseFiscalSalesReceiptSuccess({ ...live, body: { ...live.body, status: "F" } }).ok,
+      false,
+    );
+    assert.match(
+      parseFiscalRuleValidation({ statusCode: 406, message: "RULE VALIDATION ERROR" }) ?? "",
+      /RULE VALIDATION/,
+    );
+    const guestServer = readFileSync(
+      new URL("./fiscal-sales-receipt.server.ts", import.meta.url),
+      "utf8",
+    );
+    const companyServer = readFileSync(
+      new URL("./fiscal-company-sales-receipt.server.ts", import.meta.url),
+      "utf8",
+    );
+    assert.match(guestServer, /parseFiscalSalesReceiptSuccess/);
+    assert.match(companyServer, /parseFiscalSalesReceiptSuccess/);
+    const persistence = readFileSync(
+      new URL("./fiscal-guest-invoice.server.ts", import.meta.url),
+      "utf8",
+    );
+    assert.match(persistence, /outcome: "success"/);
+    assert.match(persistence, /status: "REGISTERED"/);
+    assert.match(persistence, /external_id: success\.externalId/);
+    assert.match(persistence, /external_rrn: success\.externalRrn/);
+    assert.match(persistence, /signed_qr: success\.signedQr/);
+    assert.match(persistence, /success\.irn \? \{ external_irn: success\.irn \}/);
+    const present = guestServer.slice(
+      guestServer.indexOf("function presentAllocation"),
+      guestServer.indexOf("function line("),
+    );
+    assert.ok(present.indexOf('status === "REGISTERED"') < present.indexOf('"failed"'));
+    assert.doesNotMatch(
+      guestServer,
+      /sendStoredFiscalRequest\(db, row, fetchImpl, "sales receipt", "sales_receipt"\)/,
+    );
+    const resultUi = readFileSync(
+      new URL("../../components/cashiering/sales-receipt-fiscal-result.tsx", import.meta.url),
+      "utf8",
+    );
+    const guestUi = readFileSync(
+      new URL("../../components/cashiering/guest-sales-receipt-section.tsx", import.meta.url),
+      "utf8",
+    );
+    const companyUi = readFileSync(
+      new URL("../../components/cashiering/company-sales-receipt-section.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(resultUi, /RRN:/);
+    assert.match(resultUi, /Provider Receipt ID:/);
+    assert.match(resultUi, /QR not supplied by provider/);
+    assert.match(resultUi, /Registered \/ Provider Status:/);
+    assert.match(resultUi, /src=\{qrSrc\}/);
+    assert.doesNotMatch(resultUi, /IRN/);
+    assert.doesNotMatch(resultUi, /qrcode/i);
+    assert.match(guestUi, /SalesReceiptFiscalResult/);
+    assert.match(companyUi, /SalesReceiptFiscalResult/);
+    assert.doesNotMatch(guestServer, /qrcode/i);
+    assert.doesNotMatch(companyServer, /qrcode/i);
+  });
+
+  it("keeps a registered receipt registered after an earlier failed attempt", async () => {
+    const providerQr = "iVBORw0KGgo...";
+    const rrn = "26b1ea7d9a67e356090afb2e8a45784bf7223c1c9d3cf6425347aa3718af81";
+    memoryDb();
+    sharedTables().fiscal_registrations.push({
+      id: "sr-live",
+      restaurant_id: PROPERTY,
+      source_type: "guest_allocation",
+      source_id: ALLOC_A,
+      fiscal_document_type: "SALES_RECEIPT",
+      status: "REGISTERED",
+      trnx_id: "GSR59E15D5377FA4F2B",
+      external_id: "70416",
+      external_rrn: rrn,
+      external_status: "A",
+      signed_qr: providerQr,
+      last_error_code: "FISCAL_PROVIDER_REJECTED",
+      last_error_message: "The fiscal service returned an unexpected registration response.",
+      request_snapshot: null,
+    });
+    sharedTables().fiscal_registration_attempts = [
+      {
+        registration_id: "sr-live",
+        outcome: "fatal_error",
+        error_code: "FISCAL_PROVIDER_REJECTED",
+      },
+      { registration_id: "sr-live", outcome: "success", error_code: null },
+    ];
+    const listed = await getGuestInvoiceSalesReceipts(memoryDb(sharedTables()), {
+      restaurantId: PROPERTY,
+      invoiceId: INVOICE_ID,
+    });
+    const line = listed.lines.find((row) => row.allocationId === ALLOC_A);
+    assert.equal(line?.status, "registered");
+    assert.equal(line?.registration?.rrn, rrn);
+    assert.equal(line?.registration?.providerId, "70416");
+    assert.equal(line?.registration?.providerStatus, "A");
+    assert.equal(line?.registration?.qrSrc, `data:image/png;base64,${providerQr}`);
+    assert.equal(line?.registration?.irn, null);
+    assert.equal(line?.registration?.documentNumber, null);
+  });
+
   it("shows the stored sales receipt in the fiscal exchange", () => {
     const built = assessSalesReceiptFiscal(ALLOC_A, input());
     assert.equal(built.ok, true);
@@ -370,7 +575,10 @@ describe("fiscal sales receipt registration safety", () => {
       new URL("./fiscal-sales-receipt.server.ts", import.meta.url),
       "utf8",
     );
-    assert.match(server, /sendStoredFiscalRequest\([\s\S]*"sales_receipt"\)/);
+    assert.match(
+      server,
+      /sendStoredFiscalRequest\([\s\S]*"sales_receipt",\s*parseFiscalSalesReceiptSuccess/,
+    );
     assert.equal(
       /from\("guest_payment_invoice_allocations"\)[\s\S]{0,240}\.update/.test(server),
       false,
@@ -404,6 +612,10 @@ describe("fiscal sales receipt registration safety", () => {
       restaurantId: PROPERTY,
       allocationId: ALLOC_A,
     });
+    const createdSnapshot = JSON.stringify(
+      sharedTables().fiscal_registrations.find((row) => row.source_id === ALLOC_A)
+        ?.request_snapshot,
+    );
     const second = await queueGuestAllocationSalesReceipt(memoryDb(sharedTables()), {
       restaurantId: PROPERTY,
       allocationId: ALLOC_A,
@@ -412,8 +624,9 @@ describe("fiscal sales receipt registration safety", () => {
     assert.equal(second.status, "queued");
     assert.equal(second.registration?.id, first.registration?.id);
     assert.equal(second.registration?.trnxId, salesReceiptTrnxId(ALLOC_A));
-    assert.equal(second.preview?.ReceiptDate ?? second.preview?.receiptDate, "2026-10-13");
+    assert.equal(second.preview?.receiptDate, "2026-10-13T13:00:00+03:00");
     const stored = sharedTables().fiscal_registrations.find((row) => row.source_id === ALLOC_A);
+    assert.equal(JSON.stringify(stored?.request_snapshot), createdSnapshot);
     const frozen = JSON.stringify(stored?.request_snapshot);
     assert.match(frozen, /"InvoicePaidAmount":5/);
     assert.match(frozen, /"RemainingAmount":7/);
@@ -510,6 +723,178 @@ describe("fiscal sales receipt registration safety", () => {
     assert.equal(called, false);
   });
 });
+
+describe("TEST sales receipt after a registered credit or debit note", () => {
+  it("keeps an unadjusted invoice on the original fiscal total", () => {
+    const result = assessSalesReceiptFiscal(ALLOC_A, input({ fiscalEnvironment: "TEST" }));
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.payload.invoice_total_amount, 12);
+    assert.equal(result.payload.InvoicePaidAmount, 5);
+    assert.equal(result.payload.RemainingAmount, 7);
+    assert.equal(result.payload.PaymentCoverage, "PARTIAL");
+  });
+
+  it("blocks production even when every related note is registered", () => {
+    const blocked = assessSalesReceiptFiscal(
+      ALLOC_A,
+      input({
+        hasAdjustingNotes: true,
+        fiscalEnvironment: "PRODUCTION",
+        noteAdjustments: [{ documentType: "CRE", status: "REGISTERED", total: 80 }],
+        originalRegistration: registeredInvoice(200),
+      }),
+    );
+    assert.equal(blocked.ok, false);
+    if (blocked.ok) return;
+    assert.match(blocked.reasons.join(" "), /not supported in the current fiscal phase/);
+  });
+
+  it("blocks TEST when a related note is pending, failed, or unregistered", () => {
+    for (const status of ["PENDING", "FAILED", "MISSING"]) {
+      const blocked = assessSalesReceiptFiscal(
+        ALLOC_A,
+        input({
+          hasAdjustingNotes: true,
+          fiscalEnvironment: "TEST",
+          noteAdjustments: [{ documentType: "CRE", status, total: 80 }],
+          originalRegistration: registeredInvoice(200),
+        }),
+      );
+      assert.equal(blocked.ok, false, status);
+    }
+  });
+
+  it("sends the adjusted TEST total for a partial allocation", () => {
+    const result = assessSalesReceiptFiscal(
+      ALLOC_A,
+      input({
+        amount: 100,
+        hasAdjustingNotes: true,
+        fiscalEnvironment: "TEST",
+        noteAdjustments: [
+          { documentType: "CRE", status: "REGISTERED", total: 80 },
+          { documentType: "DEB", status: "REGISTERED", total: 0 },
+        ],
+        originalRegistration: registeredInvoice(200),
+      }),
+    );
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.payload.invoice_total_amount, 200);
+    assert.equal(result.payload.InvoicePaidAmount, 100);
+    assert.equal(result.payload.RemainingAmount, 20);
+    assert.equal(result.payload.PaymentCoverage, "PARTIAL");
+    assert.equal(result.payload.InvoiceIRN, IRN);
+    assert.equal(result.payload.invoice_document_no, "2821");
+    assert.equal(result.payload.trnx_id, "GSRBBBBBBBBBBBB4BBB");
+    assert.equal(result.payload.trnx_id.length <= 20, true);
+    assert.equal("ReceiptNumber" in result.payload, false);
+    assert.equal(result.payload.ReceiptDate, "2026-10-13T13:00:00+03:00");
+    assert.equal(result.payload.source_date, "2026-10-13");
+    assert.equal(result.payload.TransactionType, "B2C");
+    assert.deepEqual(result.payload.info, {});
+  });
+
+  it("adds a registered debit and closes the adjusted balance", () => {
+    const partial = assessSalesReceiptFiscal(
+      ALLOC_A,
+      input({
+        amount: 100,
+        hasAdjustingNotes: true,
+        fiscalEnvironment: "TEST",
+        noteAdjustments: [{ documentType: "DEB", status: "REGISTERED", total: 30 }],
+        originalRegistration: registeredInvoice(200),
+      }),
+    );
+    assert.equal(partial.ok, true);
+    if (!partial.ok) return;
+    assert.equal(partial.payload.invoice_total_amount, 200);
+    assert.equal(partial.payload.RemainingAmount, 130);
+    const full = assessSalesReceiptFiscal(
+      ALLOC_B,
+      input({
+        amount: 20,
+        hasAdjustingNotes: true,
+        fiscalEnvironment: "TEST",
+        noteAdjustments: [{ documentType: "CRE", status: "REGISTERED", total: 80 }],
+        priors: [{ amount: 100, fiscalRegistered: true }],
+        originalRegistration: registeredInvoice(200),
+      }),
+    );
+    assert.equal(full.ok, true);
+    if (!full.ok) return;
+    assert.equal(full.payload.invoice_total_amount, 200);
+    assert.equal(full.payload.RemainingAmount, 0);
+    assert.equal(full.payload.PaymentCoverage, "FULL");
+  });
+
+  it("sends the original registered total and the adjusted remaining amount", () => {
+    const credit = assessSalesReceiptFiscal(
+      ALLOC_A,
+      input({
+        amount: 30,
+        hasAdjustingNotes: true,
+        fiscalEnvironment: "TEST",
+        noteAdjustments: [{ documentType: "CRE", status: "REGISTERED", total: 90 }],
+        originalRegistration: registeredInvoice(200),
+      }),
+    );
+    assert.equal(credit.ok, true);
+    if (!credit.ok) return;
+    assert.equal(credit.payload.invoice_total_amount, 200);
+    assert.equal(credit.payload.InvoicePaidAmount, 30);
+    assert.equal(credit.payload.RemainingAmount, 80);
+    assert.equal(credit.payload.PaymentCoverage, "PARTIAL");
+
+    const debit = assessSalesReceiptFiscal(
+      ALLOC_A,
+      input({
+        amount: 30,
+        hasAdjustingNotes: true,
+        fiscalEnvironment: "TEST",
+        noteAdjustments: [{ documentType: "DEB", status: "REGISTERED", total: 50 }],
+        originalRegistration: registeredInvoice(200),
+      }),
+    );
+    assert.equal(debit.ok, true);
+    if (!debit.ok) return;
+    assert.equal(debit.payload.invoice_total_amount, 200);
+    assert.equal(debit.payload.RemainingAmount, 220);
+    assert.equal(debit.payload.PaymentCoverage, "PARTIAL");
+
+    const both = assessSalesReceiptFiscal(
+      ALLOC_A,
+      input({
+        amount: 300,
+        hasAdjustingNotes: true,
+        fiscalEnvironment: "TEST",
+        noteAdjustments: [
+          { documentType: "CRE", status: "REGISTERED", total: 200 },
+          { documentType: "DEB", status: "REGISTERED", total: 50 },
+        ],
+        originalRegistration: registeredInvoice(1000),
+      }),
+    );
+    assert.equal(both.ok, true);
+    if (!both.ok) return;
+    assert.equal(both.payload.invoice_total_amount, 1000);
+    assert.equal(both.payload.InvoicePaidAmount, 300);
+    assert.equal(both.payload.RemainingAmount, 550);
+    assert.equal(both.payload.PaymentCoverage, "PARTIAL");
+  });
+});
+
+function registeredInvoice(total: number): SalesReceiptFiscalInput["originalRegistration"] {
+  return {
+    status: "REGISTERED",
+    irn: IRN,
+    documentNumber: "2821",
+    requestSnapshot: originalRequest({
+      info: { ValueDetails: { TotalValue: total, InvoiceCurrency: "ETB" } },
+    }),
+  };
+}
 
 function sharedTables() {
   return tables;

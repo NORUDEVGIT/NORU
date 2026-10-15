@@ -616,8 +616,17 @@ export function FinancialAccountCharges({
                         )}
                       </td>
                       <td className="px-3.5 py-2.5 font-medium text-[#251605]">{row.description}</td>
-                      <td className="px-3.5 py-2.5 text-right tabular-nums text-muted-foreground">
-                        {formatBalance(money, row.grossAmount)}
+                      <td className="px-3.5 py-2.5 text-right tabular-nums">
+                        <div className="flex flex-col items-end">
+                          <span className="font-semibold text-[#251605]">
+                            {formatBalance(money, row.grossAmount)}
+                          </span>
+                          {(row.taxAmount > 0 || row.serviceAmount > 0) && (
+                            <span className="text-[10px] text-[#7A6B58] font-normal tracking-tight">
+                              Net {money(row.parentAmount)} · Tax {money(row.taxAmount + row.serviceAmount)}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3.5 py-2.5 text-right tabular-nums font-medium text-[#251605]">
                         {formatBalance(money, row.remainingAmount)}
@@ -722,10 +731,32 @@ export function FinancialAccountCharges({
                   />
                 </Block>
                 <Block title="Financial breakdown">
-                  <Info label="Parent" value={money(selected.parentAmount)} />
-                  <Info label="Tax" value={money(selected.taxAmount)} />
-                  <Info label="Service" value={money(selected.serviceAmount)} />
-                  <Info label="Gross" value={money(selected.grossAmount)} />
+                  <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-4">
+                    <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2 text-center">
+                      <span className="text-[10px] font-medium text-[#7A6B58]">Net Base</span>
+                      <p className="mt-0.5 text-xs font-semibold tabular-nums text-[#251605]">
+                        {money(selected.parentAmount)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-amber-200/80 bg-amber-50/50 p-2 text-center">
+                      <span className="text-[10px] font-medium text-amber-900">Tax</span>
+                      <p className="mt-0.5 text-xs font-semibold tabular-nums text-amber-900">
+                        {money(selected.taxAmount)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-sky-200/80 bg-sky-50/50 p-2 text-center">
+                      <span className="text-[10px] font-medium text-sky-900">Service</span>
+                      <p className="mt-0.5 text-xs font-semibold tabular-nums text-sky-900">
+                        {money(selected.serviceAmount)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-[#E8E1D7] bg-white p-2 text-center shadow-2xs">
+                      <span className="text-[10px] font-bold text-[#251605]">Gross Total</span>
+                      <p className="mt-0.5 text-xs font-bold tabular-nums text-[#251605]">
+                        {money(selected.grossAmount)}
+                      </p>
+                    </div>
+                  </div>
                 </Block>
                 <Block title="Ownership">
                   <Info

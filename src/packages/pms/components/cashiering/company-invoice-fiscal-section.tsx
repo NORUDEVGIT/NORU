@@ -185,13 +185,11 @@ export function CompanyInvoiceFiscalSection({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-[11px] text-[#7A6B58]">
-                  <div>VAT: {preview.vatNumber || "—"}</div>
+                <div className="flex items-center justify-between text-[11px] text-[#7A6B58] pt-1">
                   <div>Invoice: {preview.invoiceNumber || "—"}</div>
-                  <div>Phone: {preview.phone || "—"}</div>
-                  <div>Email: {preview.email || "—"}</div>
-                  <div>Location: {[preview.city, preview.region].filter(Boolean).join(", ") || "—"}</div>
-                  <div>Type: B2B · ETB</div>
+                  <div className="rounded bg-[#F4EFE6] px-1.5 py-0.5 text-[10px] font-medium text-[#7A6B58]">
+                    B2B Electronic Invoice
+                  </div>
                 </div>
               </div>
 

@@ -6,10 +6,12 @@
  * is frozen when the registration row is created. Transaction type and, for
  * B2B, BuyerDetails are copied from the original INV snapshot.
  *
- * invoice_total_amount is the original INV ValueDetails.TotalValue.
- * InvoicePaidAmount is this allocation only. RemainingAmount is that fiscal
- * total minus active allocations up to and including this one, in created_at
- * then id order.
+ * invoice_total_amount is always the original registered INV
+ * info.ValueDetails.TotalValue. A TEST property may still fiscalize a receipt
+ * after registered credit and debit notes. RemainingAmount then uses that
+ * original total minus registered credit notes plus registered debit notes,
+ * minus active allocations up to and including this one, in created_at then
+ * id order. Production stays blocked when those notes exist.
  *
  * PARTIAL matches a captured provider request. FULL, with remaining 0, is the
  * zero-outstanding counterpart and still needs a live provider check.
@@ -20,6 +22,16 @@
 import { propertyCalendarDate } from "../cashiering-control.ts";
 import { fiscalMoney } from "./fiscal-guest-invoice.ts";
 import { copyOriginalBuyerDetails } from "./fiscal-original-invoice.ts";
+import {
+  adjustedReceiptDecision,
+  type FiscalNoteAdjustment,
+  type FiscalReceiptEnvironment,
+} from "./fiscal-sales-receipt-adjustment.ts";
+import {
+  fiscalReceiptDateTime,
+  fiscalReceiptNumber,
+  fiscalTestReceiptTrnxId,
+} from "./fiscal-sales-receipt-schema.ts";
 
 export const FISCAL_P5_SOURCE = "guest_allocation" as const;
 export const FISCAL_P5_DOCUMENT = "SALES_RECEIPT" as const;
@@ -53,6 +65,7 @@ export type FiscalSalesReceiptPayload = {
   trnx_id: string;
   device_id: string;
   InvoiceIRN: string;
+  ReceiptNumber?: string;
   ReceiptDate: string;
   source_date: string;
   tax_payer_tin: string;
@@ -78,8 +91,11 @@ export type SalesReceiptFiscalInput = {
   paymentKind: "payment" | "deposit" | "other";
   currency: string;
   invoiceNumber: string | null;
+  receiptNumber?: string | null;
   timezone: string;
   hasAdjustingNotes: boolean;
+  fiscalEnvironment?: FiscalReceiptEnvironment | null;
+  noteAdjustments?: FiscalNoteAdjustment[];
   priors: SalesReceiptPrior[];
   connection: {
     enabled: boolean;
@@ -121,11 +137,6 @@ export function assessSalesReceiptFiscal(
   }
   if (input.currency.trim().toUpperCase() !== "ETB") {
     reasons.push("Only ETB invoices are currently supported.");
-  }
-  if (input.hasAdjustingNotes) {
-    reasons.push(
-      "Sales Receipt for invoices adjusted by Credit/Debit Notes is not supported in the current fiscal phase.",
-    );
   }
   if (!input.connection.enabled) reasons.push("The fiscal integration is disabled.");
   if (!input.connection.credentialsConfigured) {
@@ -170,11 +181,26 @@ export function assessSalesReceiptFiscal(
     reasons.push("An earlier payment allocation must be fiscalized first.");
   }
 
+  const adjustment = adjustedReceiptDecision({
+    hasAdjustingNotes: input.hasAdjustingNotes,
+    fiscalEnvironment: input.fiscalEnvironment,
+    notes: input.noteAdjustments,
+    originalTotal: request?.total ?? null,
+  });
+  if (adjustment.blockReason) reasons.push(adjustment.blockReason);
   const paid = fiscalMoney(Math.abs(input.amount));
   const priorTotal = fiscalMoney(
     input.priors.reduce((sum, prior) => sum + fiscalMoney(prior.amount), 0),
   );
   const invoiceTotal = request ? request.total : null;
+  const amountDue = adjustment.effectiveTotal ?? invoiceTotal;
+  const sourceDate = receiptDay(input.createdAt, input.timezone);
+  const receiptDate = fiscalReceiptDateTime(input.createdAt, input.timezone);
+  const receiptNumber = fiscalReceiptNumber("guest", allocationId, input.receiptNumber);
+  const testExperiment = input.fiscalEnvironment === "TEST";
+  const trnxId = testExperiment
+    ? fiscalTestReceiptTrnxId("guest", allocationId)
+    : salesReceiptTrnxId(allocationId);
   let projection: SalesReceiptPreview | null = null;
   if (
     invoiceTotal != null &&
@@ -184,7 +210,7 @@ export function assessSalesReceiptFiscal(
       (request?.transactionType === "B2B" && inheritedBuyer)) &&
     paid > 0.009
   ) {
-    const outstandingBefore = fiscalMoney(invoiceTotal - priorTotal);
+    const outstandingBefore = fiscalMoney((amountDue ?? 0) - priorTotal);
     const remainingRaw = fiscalMoney(outstandingBefore - paid);
     if (outstandingBefore <= 0.01) {
       reasons.push("This invoice had no amount due before this allocation.");
@@ -194,9 +220,21 @@ export function assessSalesReceiptFiscal(
     if (remainingRaw < -0.01) {
       reasons.push("The sales receipt remaining amount is inconsistent.");
     }
-    const receiptDate = receiptDay(input.createdAt, input.timezone);
-    if (!receiptDate) reasons.push("The allocation time is missing.");
-    if (outstandingBefore > 0.01 && remainingRaw >= -0.01 && receiptDate) {
+    if (!sourceDate || !receiptDate) reasons.push("The allocation time is missing.");
+    if (!testExperiment && !receiptNumber) {
+      reasons.push("A fiscal receipt number could not be assigned.");
+    }
+    if (testExperiment && !trnxId) {
+      reasons.push("A TEST sales receipt transaction id could not be assigned.");
+    }
+    if (
+      outstandingBefore > 0.01 &&
+      remainingRaw >= -0.01 &&
+      sourceDate &&
+      receiptDate &&
+      trnxId &&
+      (testExperiment || receiptNumber)
+    ) {
       const remaining = remainingRaw <= 0.01 ? 0 : remainingRaw;
       projection = {
         invoiceNumber: input.invoiceNumber,
@@ -207,20 +245,30 @@ export function assessSalesReceiptFiscal(
         paid,
         remaining,
         coverage: remaining > 0.01 ? "PARTIAL" : "FULL",
-        receiptDate,
+        receiptDate: sourceDate,
       };
     }
   }
 
-  if (reasons.length > 0 || !projection || !request || !original?.irn || !original.documentNumber) {
+  if (
+    reasons.length > 0 ||
+    !projection ||
+    !trnxId ||
+    !receiptDate ||
+    (!testExperiment && !receiptNumber) ||
+    !request ||
+    !original?.irn ||
+    !original.documentNumber
+  ) {
     return { ok: false, reasons, projection };
   }
   const payload: FiscalSalesReceiptPayload = {
     client: input.connection.client.trim(),
-    trnx_id: salesReceiptTrnxId(allocationId),
+    trnx_id: trnxId,
     device_id: input.connection.deviceId.trim(),
     InvoiceIRN: original.irn.trim(),
-    ReceiptDate: projection.receiptDate,
+    ...(testExperiment || !receiptNumber ? {} : { ReceiptNumber: receiptNumber }),
+    ReceiptDate: receiptDate,
     source_date: projection.receiptDate,
     tax_payer_tin: input.connection.taxpayerTin.trim(),
     PaymentCoverage: projection.coverage,
@@ -235,6 +283,66 @@ export function assessSalesReceiptFiscal(
         : {},
   };
   return { ok: true, payload, preview: projection };
+}
+
+/**
+ * Sales-receipt success is not an invoice. Status A and a receipt reference
+ * are required. IRN, document number, and acknowledgement time are not.
+ */
+export function parseFiscalSalesReceiptSuccess(body: unknown):
+  | {
+      ok: true;
+      irn: null;
+      documentNumber: null;
+      externalId: string | null;
+      externalRrn: string;
+      acknowledgedAtRaw: null;
+      acknowledgedAt: null;
+      signedQr: string | null;
+      signedInvoice: null;
+      externalStatus: "A";
+    }
+  | { ok: false; fatal: boolean; message: string } {
+  const row = record(body);
+  if (!row || row.nonJson === true) {
+    return {
+      ok: false,
+      fatal: true,
+      message: "The fiscal service returned an unexpected registration response.",
+    };
+  }
+  const source = record(row.body) ?? record(row.data) ?? row;
+  const status = typeof source.status === "string" ? source.status.trim() : "";
+  const rrn = text(source.rrn);
+  if (status !== "A" || !rrn) {
+    return {
+      ok: false,
+      fatal: true,
+      message:
+        status === "F"
+          ? "The fiscal service rejected the sales receipt."
+          : "The fiscal service returned an unexpected registration response.",
+    };
+  }
+  const id = source.id;
+  const externalId =
+    typeof id === "number" && Number.isFinite(id)
+      ? String(Math.trunc(id))
+      : typeof id === "string" && id.trim().length > 0
+        ? id.trim()
+        : null;
+  return {
+    ok: true,
+    irn: null,
+    documentNumber: null,
+    externalId,
+    externalRrn: rrn,
+    acknowledgedAtRaw: null,
+    acknowledgedAt: null,
+    signedQr: providerQr(source.qr),
+    signedInvoice: null,
+    externalStatus: "A",
+  };
 }
 
 export function salesReceiptPreviewFromPayload(payload: unknown): SalesReceiptPreview | null {
@@ -290,6 +398,11 @@ function record(value: unknown): Record<string, unknown> | null {
 
 function text(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+/** Keep the provider image payload unchanged. Blank values are not a QR. */
+function providerQr(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 function numberValue(value: unknown): number {

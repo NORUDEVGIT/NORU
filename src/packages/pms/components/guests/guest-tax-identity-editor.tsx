@@ -129,25 +129,17 @@ export function GuestTaxIdentityDialog({
             This is a fiscal buyer identity for this guest. It does not create a company account.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3">
+        <div className="grid gap-3 py-1">
           <Field label="Legal name" value={legalName} onChange={setLegalName} required />
           <Field label="TIN" value={tin} onChange={setTin} required />
-          <Field
-            label="Registration number"
-            value={registrationNumber}
-            onChange={setRegistrationNumber}
-          />
-          <Field label="Phone" value={phone} onChange={setPhone} />
-          <Field label="Email" value={email} onChange={setEmail} />
-          <Field label="City" value={city} onChange={setCity} />
-          <Field label="Region" value={region} onChange={setRegion} />
-          <label className="flex items-center gap-2 text-sm text-[#251605]">
+          <label className="flex items-center gap-2 text-xs text-[#251605] pt-1">
             <input
               type="checkbox"
               checked={isDefault}
               onChange={(event) => setIsDefault(event.target.checked)}
+              className="accent-[#8A641A]"
             />
-            Default identity after B2B is chosen
+            Set as default B2B identity for this guest
           </label>
         </div>
         <DialogFooter>

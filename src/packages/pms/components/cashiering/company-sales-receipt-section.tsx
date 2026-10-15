@@ -5,6 +5,7 @@ import { Building2, ReceiptText, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { FiscalExchangeDrawer } from "@/packages/pms/components/cashiering/fiscal-exchange-drawer";
+import { SalesReceiptFiscalResult } from "@/packages/pms/components/cashiering/sales-receipt-fiscal-result";
 import {
   getCompanyInvoiceSalesReceiptFiscal,
   registerCompanyAllocationSalesReceipt,
@@ -75,6 +76,14 @@ export function CompanySalesReceiptSection({
         <ReceiptText className="size-4 text-[#8a6a1f]" />
         <h3 className="text-sm font-semibold text-[#251605]">Fiscal sales receipts</h3>
       </div>
+      {query.data?.testAdjustmentWarning ? (
+        <p
+          className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+          role="status"
+        >
+          {query.data.testAdjustmentWarning}
+        </p>
+      ) : null}
       {query.isLoading ? <p className="text-sm text-muted-foreground">Loading receipts…</p> : null}
       {!query.isLoading && lines.length === 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -106,9 +115,12 @@ export function CompanySalesReceiptSection({
                   <td className="px-2 py-2">
                     <p>{STATUS_LABEL[line.status]}</p>
                     {line.status === "registered" && line.registration ? (
-                      <p className="text-xs text-muted-foreground">
-                        {line.registration.documentNumber ?? "—"} · {line.registration.irn ?? "—"}
-                      </p>
+                      <SalesReceiptFiscalResult
+                        rrn={line.registration.rrn}
+                        providerId={line.registration.providerId}
+                        providerStatus={line.registration.providerStatus}
+                        qrSrc={line.registration.qrSrc}
+                      />
                     ) : null}
                     {line.reasons.map((reason) => (
                       <p key={reason} className="text-xs text-muted-foreground">
@@ -181,6 +193,14 @@ export function CompanySalesReceiptSection({
 
           {selected?.preview ? (
             <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#FAF8F5]">
+              {query.data?.testAdjustmentWarning ? (
+                <p
+                  className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+                  role="status"
+                >
+                  {query.data.testAdjustmentWarning}
+                </p>
+              ) : null}
               {/* Company & Document Reference Info */}
               <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-2.5">
                 <div className="flex items-center justify-between border-b border-[#E8E1D7]/70 pb-2">
@@ -200,7 +220,9 @@ export function CompanySalesReceiptSection({
                   <div>VAT: {selected.preview.vatNumber || "—"}</div>
                   <div>Invoice: {selected.preview.invoiceNumber ?? "—"}</div>
                   <div>Fiscal Doc: {selected.preview.fiscalDocumentNumber || "—"}</div>
-                  <div className="col-span-2 truncate">Invoice IRN: {selected.preview.invoiceIrn || "—"}</div>
+                  <div className="col-span-2 truncate">
+                    Invoice IRN: {selected.preview.invoiceIrn || "—"}
+                  </div>
                   <div>Type: B2B</div>
                 </div>
               </div>

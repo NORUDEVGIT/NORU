@@ -322,21 +322,46 @@ describe("guest fiscal follow-ups inherit the original buyer", () => {
   });
 
   it("sends an empty info object for a B2C receipt and the original buyer for B2B", () => {
-    const consumer = assessSalesReceiptFiscal("alloc-1", receiptInput("B2C"));
-    const business = assessSalesReceiptFiscal("alloc-1", receiptInput("B2B"));
+    const receiptId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+    const consumer = assessSalesReceiptFiscal(receiptId, receiptInput("B2C"));
+    const business = assessSalesReceiptFiscal(receiptId, receiptInput("B2B"));
     assert.equal(consumer.ok, true);
     assert.equal(business.ok, true);
     if (!consumer.ok || !business.ok || !buyer) return;
     assert.equal(consumer.payload.TransactionType, "B2C");
+    assert.equal(consumer.payload.ReceiptNumber, "GSR-bbbbbbbbbbbb4bbb");
+    assert.equal(consumer.payload.ReceiptNumber.length <= 20, true);
+    assert.equal(consumer.payload.ReceiptDate, "2026-10-13T13:00:00+03:00");
     assert.deepEqual(consumer.payload.info, {});
     assert.equal(consumer.payload.InvoicePaidAmount, 5);
     assert.equal(consumer.payload.RemainingAmount, 110);
     assert.equal(business.payload.TransactionType, "B2B");
+    assert.equal(business.payload.ReceiptNumber, consumer.payload.ReceiptNumber);
+    assert.equal(business.payload.ReceiptDate, consumer.payload.ReceiptDate);
     assert.deepEqual(business.payload.info, { BuyerDetails: buyer });
     assert.equal(business.payload.InvoicePaidAmount, 5);
     assert.equal(business.payload.RemainingAmount, 110);
     assert.equal(business.payload.invoice_total_amount, 115);
     assert.equal(business.payload.InvoiceIRN, IRN);
+    const tested = assessSalesReceiptFiscal(receiptId, {
+      ...receiptInput("B2B"),
+      fiscalEnvironment: "TEST",
+    });
+    const testedConsumer = assessSalesReceiptFiscal(receiptId, {
+      ...receiptInput("B2C"),
+      fiscalEnvironment: "TEST",
+    });
+    assert.equal(tested.ok && testedConsumer.ok, true);
+    if (!tested.ok || !testedConsumer.ok) return;
+    assert.equal(testedConsumer.payload.trnx_id, "GSRBBBBBBBBBBBB4BBB");
+    assert.equal(tested.payload.trnx_id, testedConsumer.payload.trnx_id);
+    assert.equal("ReceiptNumber" in tested.payload, false);
+    assert.equal("ReceiptNumber" in testedConsumer.payload, false);
+    assert.deepEqual(testedConsumer.payload.info, {});
+    assert.deepEqual(tested.payload.info, { BuyerDetails: buyer });
+    assert.equal(tested.payload.invoice_total_amount, 115);
+    assert.equal(tested.payload.InvoicePaidAmount, 5);
+    assert.equal(tested.payload.RemainingAmount, 110);
   });
 });
 

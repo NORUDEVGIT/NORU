@@ -129,7 +129,7 @@ export function GuestInvoiceModal({
       <DialogContent
         className={cn(
           "flex h-[min(92vh,940px)] w-[min(96vw,1260px)] max-w-none flex-col gap-0 overflow-hidden p-0",
-          "rounded-2xl border border-[#E8E1D7] bg-[#FAF8F5] shadow-2xl",
+          "rounded-2xl border border-[#E8E1D7] bg-[#FAF8F5] shadow-2xl [&>button]:hidden",
         )}
       >
         {/* Top Header Card */}
