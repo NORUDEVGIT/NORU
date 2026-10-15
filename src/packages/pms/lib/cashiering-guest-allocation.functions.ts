@@ -12,6 +12,7 @@ import {
   roundGuestMoney,
   type GuestSettlementState,
 } from "./cashiering-guest-allocation";
+import { fiscalSnapshotMode, registeredCashDebitCover } from "./cashiering-cash-debit-cover";
 import {
   assertIdempotencyKey,
   cashierError,
@@ -40,6 +41,7 @@ export type GuestInvoiceSettlementRow = {
   originalAmount: number | null;
   creditNoteTotal: number;
   debitNoteTotal: number;
+  cashDebitCovered: number;
   effectiveNet: number | null;
   allocated: number;
   outstanding: number | null;
@@ -406,7 +408,7 @@ async function loadGuestSettlements(
   if (invoices.error) throw cashierError(invoices.error.message);
   const notes = await supabaseAdmin
     .from("invoice_credit_notes")
-    .select("guest_invoice_id, note_type, total_delta")
+    .select("id, guest_invoice_id, note_type, total_delta")
     .eq("restaurant_id", restaurantId)
     .eq("folio_id", folio.id);
   if (notes.error && notes.error.code !== "42P01") throw cashierError(notes.error.message);
@@ -419,10 +421,38 @@ async function loadGuestSettlements(
     throw cashierError(allocations.error.message);
   }
   const noteRows = (notes.data ?? []) as Array<{
+    id: string;
     guest_invoice_id: string | null;
     note_type: string;
     total_delta: number | string;
   }>;
+  const debitIds = noteRows.filter((note) => note.note_type === "debit").map((note) => note.id);
+  const cashDebitRegistrations = new Map<
+    string,
+    { status: string; mode: "CASH" | "CREDIT" | null }
+  >();
+  if (debitIds.length > 0) {
+    const registrations = await supabaseAdmin
+      .from("fiscal_registrations")
+      .select("source_id, status, request_snapshot")
+      .eq("restaurant_id", restaurantId)
+      .eq("source_type", "debit_note")
+      .eq("fiscal_document_type", "DEB")
+      .in("source_id", debitIds);
+    if (registrations.error && registrations.error.code !== "42P01") {
+      throw cashierError(registrations.error.message);
+    }
+    for (const row of (registrations.data ?? []) as Array<{
+      source_id: string;
+      status: string;
+      request_snapshot: unknown;
+    }>) {
+      cashDebitRegistrations.set(row.source_id, {
+        status: row.status,
+        mode: fiscalSnapshotMode(row.request_snapshot),
+      });
+    }
+  }
   const allocRows = (allocations.data ?? []) as Array<{
     invoice_id: string;
     amount: number | string;
@@ -458,6 +488,18 @@ async function loadGuestSettlements(
           .filter((note) => note.note_type === "debit")
           .reduce((sum, note) => sum + Number(note.total_delta), 0),
       );
+      const cashDebitCovered = registeredCashDebitCover(
+        invoiceNotes.map((note) => ({
+          id: note.id,
+          noteType: note.note_type,
+          totalDelta: Number(note.total_delta),
+        })),
+        invoiceNotes.map((note) => ({
+          sourceId: note.id,
+          status: cashDebitRegistrations.get(note.id)?.status ?? "",
+          mode: cashDebitRegistrations.get(note.id)?.mode ?? null,
+        })),
+      );
       if (!eligible || original == null) {
         return {
           invoiceId: invoice.id,
@@ -468,6 +510,7 @@ async function loadGuestSettlements(
           originalAmount: original,
           creditNoteTotal,
           debitNoteTotal,
+          cashDebitCovered,
           effectiveNet: null,
           allocated: 0,
           outstanding: null,
@@ -476,6 +519,7 @@ async function loadGuestSettlements(
         } satisfies GuestInvoiceSettlementRow;
       }
       const effectiveNet = guestInvoiceEffectiveNet(original, deltas);
+      const settled = roundGuestMoney(allocated + cashDebitCovered);
       return {
         invoiceId: invoice.id,
         number: invoice.issued_number,
@@ -485,10 +529,11 @@ async function loadGuestSettlements(
         originalAmount: original,
         creditNoteTotal,
         debitNoteTotal,
+        cashDebitCovered,
         effectiveNet,
         allocated,
-        outstanding: guestInvoiceOutstanding(effectiveNet, allocated),
-        settlementState: guestSettlementState(effectiveNet, allocated),
+        outstanding: Math.max(0, guestInvoiceOutstanding(effectiveNet, settled)),
+        settlementState: guestSettlementState(effectiveNet, settled),
         currency: invoice.snapshot?.property?.currencyCode || folio.currency,
       } satisfies GuestInvoiceSettlementRow;
     })

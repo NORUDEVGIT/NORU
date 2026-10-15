@@ -342,6 +342,7 @@ export function AccountInvoiceModal({
               outstanding={outstanding}
               status={status}
               withholding={settlement?.withholding ?? 0}
+              cashDebitCovered={settlement?.cashDebitCovered ?? 0}
               availableUnallocated={availableUnallocated}
               expectedMode={isCompany ? fiscalMode : null}
               fiscalReason={isCompany ? fiscalReason : null}

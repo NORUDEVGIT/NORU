@@ -11,6 +11,7 @@ export function InvoiceSettlementStrip({
   outstanding,
   status,
   withholding = 0,
+  cashDebitCovered = 0,
   availableUnallocated = 0,
   expectedMode,
   fiscalReason,
@@ -27,6 +28,7 @@ export function InvoiceSettlementStrip({
   outstanding: number;
   status: InvoiceSettlementStatus;
   withholding?: number;
+  cashDebitCovered?: number;
   availableUnallocated?: number;
   expectedMode: "CASH" | "CREDIT" | null;
   fiscalReason: string | null;
@@ -50,6 +52,9 @@ export function InvoiceSettlementStrip({
           <Metric label="Outstanding" value={money(outstanding)} warning={outstanding > 0.01} />
           <Metric label="Settlement Status" value={status} />
           {withholding > 0.009 ? <Metric label="Withholding" value={money(withholding)} /> : null}
+          {cashDebitCovered > 0.009 ? (
+            <Metric label="Cash Debit Covered" value={money(cashDebitCovered)} positive />
+          ) : null}
         </dl>
         <div className="flex flex-wrap items-center gap-2">
           {canReceive && outstanding > 0.01 ? (

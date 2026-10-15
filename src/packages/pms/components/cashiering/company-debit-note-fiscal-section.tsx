@@ -49,6 +49,12 @@ export function CompanyDebitNoteFiscalSection({
       await queryClient.invalidateQueries({
         queryKey: ["company-debit-note-fiscal", restaurantId, debitNoteId],
       });
+      await queryClient.invalidateQueries({
+        queryKey: ["account-invoice-settlement", restaurantId],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["account-invoice-settlements", restaurantId],
+      });
       if (result.status === "registered") toast.success("Fiscal debit note registered.");
       else if (result.reasons[0]) toast.error(result.reasons[0]);
       else if (result.registration?.lastError) toast.error(result.registration.lastError);
@@ -149,7 +155,9 @@ export function CompanyDebitNoteFiscalSection({
                 <div className="flex items-center justify-between border-b border-[#E8E1D7]/70 pb-2">
                   <div className="flex items-center gap-2">
                     <Building2 className="size-4 text-[#8A641A]" />
-                    <span className="font-semibold text-xs text-[#251605]">{state.preview.companyName}</span>
+                    <span className="font-semibold text-xs text-[#251605]">
+                      {state.preview.companyName}
+                    </span>
                   </div>
                   <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900">
                     {state.preview.noteNumber}
@@ -160,14 +168,18 @@ export function CompanyDebitNoteFiscalSection({
                   <div>TIN: {state.preview.tin || "—"}</div>
                   <div>VAT: {state.preview.vatNumber || "—"}</div>
                   <div>Original Invoice: {state.preview.originalInvoiceNumber ?? "—"}</div>
-                  <div className="col-span-2 truncate">Related IRN: {state.preview.relatedIrn || "—"}</div>
+                  <div className="col-span-2 truncate">
+                    Related IRN: {state.preview.relatedIrn || "—"}
+                  </div>
                   <div>Type: {state.preview.transactionType}</div>
                 </div>
               </div>
 
               {/* Totals Summary */}
               <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-3">
-                <span className="font-semibold text-xs text-[#251605]">Debit Adjustment Totals</span>
+                <span className="font-semibold text-xs text-[#251605]">
+                  Debit Adjustment Totals
+                </span>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2.5">
                     <p className="text-[10px] font-medium text-[#7A6B58]">Pretax Debit</p>

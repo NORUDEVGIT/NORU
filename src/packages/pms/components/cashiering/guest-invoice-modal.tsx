@@ -306,6 +306,7 @@ export function GuestInvoiceModal({
             allocated={allocated}
             outstanding={outstanding}
             status={status}
+            cashDebitCovered={settlement?.cashDebitCovered ?? 0}
             availableUnallocated={availableUnallocated}
             expectedMode={fiscalMode}
             fiscalReason={fiscalReason}

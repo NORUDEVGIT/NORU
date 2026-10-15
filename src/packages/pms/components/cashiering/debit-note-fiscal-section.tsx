@@ -49,6 +49,7 @@ export function DebitNoteFiscalSection({
       await queryClient.invalidateQueries({
         queryKey: ["debit-note-fiscal", restaurantId, debitNoteId],
       });
+      await queryClient.invalidateQueries({ queryKey: ["guest-invoice-settlement", restaurantId] });
       if (result.status === "registered") toast.success("Fiscal debit note registered.");
       else if (result.reasons[0]) toast.error(result.reasons[0]);
       else if (result.registration?.lastError) toast.error(result.registration.lastError);
@@ -164,7 +165,9 @@ export function DebitNoteFiscalSection({
                 <div className="grid grid-cols-2 gap-2 text-[11px] text-[#7A6B58]">
                   <div>Original Invoice: {state.preview.originalInvoiceNumber ?? "—"}</div>
                   <div>Fiscal Doc: {state.preview.originalFiscalDocumentNumber ?? "—"}</div>
-                  <div className="col-span-2 truncate">Related IRN: {state.preview.relatedIrn || "—"}</div>
+                  <div className="col-span-2 truncate">
+                    Related IRN: {state.preview.relatedIrn || "—"}
+                  </div>
                   <div>Type: {state.preview.transactionType}</div>
                   <div>Currency: {state.preview.currency}</div>
                 </div>
@@ -173,7 +176,9 @@ export function DebitNoteFiscalSection({
               {/* Debit Lines */}
               {state.preview.lines.length > 0 ? (
                 <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-2">
-                  <span className="font-semibold text-xs text-[#251605]">Supplementary Charge Lines</span>
+                  <span className="font-semibold text-xs text-[#251605]">
+                    Supplementary Charge Lines
+                  </span>
                   <div className="divide-y divide-[#E8E1D7]/60 text-xs">
                     {state.preview.lines.map((line) => (
                       <div

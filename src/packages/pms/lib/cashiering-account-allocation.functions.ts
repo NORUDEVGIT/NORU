@@ -13,6 +13,7 @@ import {
   summarizeInvoiceSettlement,
   type SettlementState,
 } from "./cashiering-account-allocation";
+import { fiscalSnapshotMode, registeredCashDebitCover } from "./cashiering-cash-debit-cover";
 import {
   assertIdempotencyKey,
   cashierError,
@@ -43,7 +44,12 @@ type InvoiceRow = {
   financial_account_id: string;
 };
 
-type NoteRow = { account_invoice_id: string; note_type: string; total_delta: number | string };
+type NoteRow = {
+  id: string;
+  account_invoice_id: string;
+  note_type: string;
+  total_delta: number | string;
+};
 type AllocRow = { invoice_id: string; payment_transaction_id: string; amount: number | string };
 
 export type InvoiceSettlementRow = {
@@ -53,6 +59,7 @@ export type InvoiceSettlementRow = {
   originalAmount: number;
   creditNoteTotal: number;
   debitNoteTotal: number;
+  cashDebitCovered: number;
   effectiveNet: number;
   allocated: number;
   withholding: number;
@@ -392,7 +399,7 @@ async function loadSettlements(
   if (invoices.error) throw cashierError(invoices.error.message);
   const notes = await supabaseAdmin
     .from("invoice_credit_notes")
-    .select("account_invoice_id, note_type, total_delta")
+    .select("id, account_invoice_id, note_type, total_delta")
     .eq("restaurant_id", restaurantId)
     .eq("financial_account_id", account.id);
   if (notes.error && notes.error.code !== "42P01") throw cashierError(notes.error.message);
@@ -413,6 +420,33 @@ async function loadSettlements(
     throw cashierError(certificates.error.message);
   }
   const noteRows = (notes.data ?? []) as NoteRow[];
+  const debitIds = noteRows.filter((note) => note.note_type === "debit").map((note) => note.id);
+  const cashDebitRegistrations = new Map<
+    string,
+    { status: string; mode: "CASH" | "CREDIT" | null }
+  >();
+  if (debitIds.length > 0) {
+    const registrations = await supabaseAdmin
+      .from("fiscal_registrations")
+      .select("source_id, status, request_snapshot")
+      .eq("restaurant_id", restaurantId)
+      .eq("source_type", "debit_note")
+      .eq("fiscal_document_type", "DEB")
+      .in("source_id", debitIds);
+    if (registrations.error && registrations.error.code !== "42P01") {
+      throw cashierError(registrations.error.message);
+    }
+    for (const row of (registrations.data ?? []) as Array<{
+      source_id: string;
+      status: string;
+      request_snapshot: unknown;
+    }>) {
+      cashDebitRegistrations.set(row.source_id, {
+        status: row.status,
+        mode: fiscalSnapshotMode(row.request_snapshot),
+      });
+    }
+  }
   const allocRows = (allocations.data ?? []) as AllocRow[];
   const certificateRows = (certificates.data ?? []) as Array<{
     id: string;
@@ -444,10 +478,22 @@ async function loadSettlements(
             reversesCertificateId: row.reverses_certificate_id,
           })),
       );
+      const cashDebitCovered = registeredCashDebitCover(
+        invoiceNotes.map((note) => ({
+          id: note.id,
+          noteType: note.note_type,
+          totalDelta: Number(note.total_delta),
+        })),
+        invoiceNotes.map((note) => ({
+          sourceId: note.id,
+          status: cashDebitRegistrations.get(note.id)?.status ?? "",
+          mode: cashDebitRegistrations.get(note.id)?.mode ?? null,
+        })),
+      );
       const summary = summarizeInvoiceSettlement({
         invoiceTotal: invoiceOriginalAmount(invoice.snapshot),
         noteDeltas: invoiceNotes.map((note) => Number(note.total_delta)),
-        allocatedNet: allocated,
+        allocatedNet: roundAllocationMoney(allocated + cashDebitCovered),
         withholdingNet: withholding,
       });
       return {
@@ -457,10 +503,11 @@ async function loadSettlements(
         originalAmount: summary.originalAmount,
         creditNoteTotal: totals.creditNoteTotal,
         debitNoteTotal: totals.debitNoteTotal,
+        cashDebitCovered,
         effectiveNet: summary.effectiveNet,
-        allocated: summary.allocated,
+        allocated,
         withholding: summary.withholding,
-        outstanding: summary.outstanding,
+        outstanding: Math.max(0, summary.outstanding),
         settlementState: summary.settlementState,
         currency: invoice.snapshot?.account?.currency || account.currency,
       };
