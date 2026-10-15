@@ -89,6 +89,84 @@ export interface CashieringReportLine {
 export interface CashieringReport {
   totals: CashieringReportTotals;
   lines: CashieringReportLine[];
+  page: number;
+  limit: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export function escapeCashieringCsvCell(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  let str = String(val);
+  if (/^[=+\-@]/.test(str)) {
+    str = `'${str}`;
+  }
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+export function buildCashieringReportCsv(input: {
+  restaurantId: string;
+  fromDate: string;
+  toDate: string;
+  totals?: CashieringReportTotals;
+  lines: CashieringReportLine[];
+  currencyCode?: string;
+}): string {
+  const rows: string[][] = [];
+
+  rows.push(["CASHIERING TRANSACTIONS REPORT"]);
+  rows.push(["Property ID", input.restaurantId]);
+  rows.push(["Date Range", `${input.fromDate} to ${input.toDate}`]);
+  rows.push(["Generated At", new Date().toISOString()]);
+  if (input.currencyCode) {
+    rows.push(["Currency", input.currencyCode]);
+  }
+  rows.push([]);
+
+  if (input.totals) {
+    rows.push(["SUMMARY TOTALS"]);
+    rows.push(["Metric", "Amount"]);
+    rows.push(["Charges", String(input.totals.charges)]);
+    rows.push(["Payments", String(input.totals.payments)]);
+    rows.push(["Deposits", String(input.totals.deposits)]);
+    rows.push(["Refunds", String(input.totals.refunds)]);
+    rows.push(["Adjustments", String(input.totals.adjustments)]);
+    rows.push(["Discounts", String(input.totals.discounts)]);
+    rows.push(["Transfers Out", String(input.totals.transfersOut)]);
+    rows.push(["Transfers In", String(input.totals.transfersIn)]);
+    rows.push(["Net Movement", String(input.totals.netMovement)]);
+    rows.push(["Total Line Count", String(input.totals.lineCount)]);
+    rows.push([]);
+  }
+
+  rows.push(["TRANSACTION DETAILS"]);
+  rows.push([
+    "Posted At",
+    "Type",
+    "Guest Name",
+    "Folio Number",
+    "Description",
+    "Payment Method",
+    "Amount",
+  ]);
+
+  for (const line of input.lines) {
+    rows.push([
+      line.postedAt,
+      line.type,
+      line.guestName,
+      line.folioNumber,
+      line.description,
+      line.paymentMethod ?? "",
+      String(line.amount),
+    ]);
+  }
+
+  return rows.map((r) => r.map(escapeCashieringCsvCell).join(",")).join("\r\n");
 }
 
 export const listFolioWindows = createServerFn({ method: "GET" })
@@ -698,8 +776,25 @@ const reportDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const getCashieringReportTotals = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; fromDate: string; toDate: string }) =>
-    z.object({ restaurantId: idSchema, fromDate: reportDate, toDate: reportDate }).parse(d),
+  .inputValidator(
+    (d: {
+      restaurantId: string;
+      fromDate: string;
+      toDate: string;
+      page?: number;
+      limit?: number;
+      pageSize?: number;
+    }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          fromDate: reportDate,
+          toDate: reportDate,
+          page: z.coerce.number().int().min(1).optional().default(1),
+          limit: z.coerce.number().int().min(1).max(500).optional(),
+          pageSize: z.coerce.number().int().min(1).max(500).optional(),
+        })
+        .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashieringReport> => {
     await requireCashieringAccess(context as never, data.restaurantId);
@@ -727,7 +822,7 @@ export const getCashieringReportTotals = createServerFn({ method: "GET" })
       .gte("posted_at", boundsStart)
       .lt("posted_at", boundsEnd)
       .order("posted_at", { ascending: false })
-      .limit(500);
+      .limit(5000);
     if (error) throw cashierError(error.message);
 
     const ledger = (txns ?? []) as Array<{
@@ -759,7 +854,13 @@ export const getCashieringReportTotals = createServerFn({ method: "GET" })
         Math.round(ledger.reduce((total, row) => total + Number(row.amount), 0) * 100) / 100,
     };
 
-    const shown = ledger.slice(0, 80);
+    const limit = data.limit ?? data.pageSize ?? 25;
+    const total = ledger.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(Math.max(1, data.page ?? 1), totalPages);
+    const start = (safePage - 1) * limit;
+    const shown = ledger.slice(start, start + limit);
+
     const folioIds = [...new Set(shown.map((row) => row.folio_id))];
     const folioMeta = new Map<string, { number: string; guest: string }>();
     if (folioIds.length > 0) {
@@ -796,6 +897,11 @@ export const getCashieringReportTotals = createServerFn({ method: "GET" })
         paymentMethod: row.payment_method,
         postedAt: row.posted_at,
       })),
+      page: safePage,
+      limit,
+      pageSize: limit,
+      total,
+      totalPages,
     };
   });
 

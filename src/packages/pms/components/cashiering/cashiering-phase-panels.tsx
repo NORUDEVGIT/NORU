@@ -3,12 +3,18 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeftRight,
   Building2,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   Coins,
+  Download,
+  FileSpreadsheet,
+  FileText,
   FolderOpen,
   Lock,
   MoreHorizontal,
   Plus,
+  Printer,
   Receipt,
   Search,
   Users,
@@ -18,6 +24,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useRestaurantSettings } from "@/core/state/property-format";
+import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -54,6 +61,7 @@ import {
 } from "@/packages/pms/components/cashiering/cashiering-desk-shared";
 import {
   allocateFolioDeposit,
+  buildCashieringReportCsv,
   closeFinancialAccount,
   getCashieringReportTotals,
   listCashieringExceptions,
@@ -64,6 +72,7 @@ import {
   postFolioTransfer,
   postSettlementWriteOff,
   type CashieringExceptionRow,
+  type CashieringReportLine,
   type FinancialAccountRow,
 } from "@/packages/pms/lib/cashiering-phases.functions";
 import type { FolioDetail } from "@/packages/pms/lib/cashiering.functions";
@@ -1183,9 +1192,15 @@ export function ReportsPanel({
   money: (n: number) => string;
   timezone: string;
 }) {
+  const { currencyCode } = useRestaurantSettings();
   const businessDate = usePropertyBusinessDate(restaurantId, timezone);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [exporting, setExporting] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [printLines, setPrintLines] = useState<CashieringReportLine[] | null>(null);
 
   useEffect(() => {
     if (!businessDate) return;
@@ -1193,14 +1208,85 @@ export function ReportsPanel({
     setToDate((current) => current || businessDate);
   }, [businessDate]);
 
+  useEffect(() => {
+    if (!printing) return;
+    const handleAfterPrint = () => {
+      setPrinting(false);
+      setPrintLines(null);
+    };
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => window.removeEventListener("afterprint", handleAfterPrint);
+  }, [printing]);
+
   const fetchTotals = useServerFn(getCashieringReportTotals);
   const query = useQuery({
-    queryKey: ["cashiering-reports", restaurantId, fromDate, toDate],
-    queryFn: () => fetchTotals({ data: { restaurantId, fromDate, toDate } }),
+    queryKey: ["cashiering-reports", restaurantId, fromDate, toDate, page, limit],
+    queryFn: () => fetchTotals({ data: { restaurantId, fromDate, toDate, page, limit } }),
     enabled: Boolean(fromDate && toDate),
   });
   const report = query.data;
   const totals = report?.totals;
+
+  async function exportReport(scope: "all" | "page") {
+    if (!report) return;
+    setExporting(true);
+    try {
+      let linesToExport = report.lines;
+      if (scope === "all" && report.total > report.lines.length) {
+        const full = await fetchTotals({
+          data: { restaurantId, fromDate, toDate, page: 1, limit: 5000 },
+        });
+        linesToExport = full.lines;
+      }
+      const csv = buildCashieringReportCsv({
+        restaurantId,
+        fromDate,
+        toDate,
+        totals: report.totals,
+        lines: linesToExport,
+        currencyCode,
+      });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `cashiering-report-${fromDate}-to-${toDate}${scope === "page" ? `-page${report.page}` : ""}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success(
+        `Exported ${linesToExport.length} transaction${linesToExport.length === 1 ? "" : "s"} to CSV`,
+      );
+    } catch (err) {
+      toast.error(`Export failed: ${(err as Error).message}`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handlePrint() {
+    if (!report) return;
+    setExporting(true);
+    try {
+      let linesToPrint = report.lines;
+      if (report.total > report.lines.length) {
+        const full = await fetchTotals({
+          data: { restaurantId, fromDate, toDate, page: 1, limit: 5000 },
+        });
+        linesToPrint = full.lines;
+      }
+      setPrintLines(linesToPrint);
+      setPrinting(true);
+      window.setTimeout(() => {
+        window.print();
+      }, 100);
+    } catch (err) {
+      toast.error(`Print setup failed: ${(err as Error).message}`);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="space-y-4" data-testid="cashiering-reports-panel">
@@ -1211,7 +1297,10 @@ export function ReportsPanel({
             id="report-from"
             type="date"
             value={fromDate}
-            onChange={(event) => setFromDate(event.target.value)}
+            onChange={(event) => {
+              setFromDate(event.target.value);
+              setPage(1);
+            }}
           />
         </div>
         <div>
@@ -1220,7 +1309,10 @@ export function ReportsPanel({
             id="report-to"
             type="date"
             value={toDate}
-            onChange={(event) => setToDate(event.target.value)}
+            onChange={(event) => {
+              setToDate(event.target.value);
+              setPage(1);
+            }}
           />
         </div>
         <Button
@@ -1230,11 +1322,78 @@ export function ReportsPanel({
             if (!businessDate) return;
             setFromDate(businessDate);
             setToDate(businessDate);
+            setPage(1);
           }}
         >
           Today
         </Button>
+
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="report-limit-top" className="text-xs text-muted-foreground whitespace-nowrap">
+              Limit:
+            </Label>
+            <select
+              id="report-limit-top"
+              aria-label="Rows per page limit"
+              value={limit}
+              onChange={(event) => {
+                setLimit(Number(event.target.value));
+                setPage(1);
+              }}
+              className="h-9 rounded-md border border-[#DDD4C5] bg-background px-2.5 text-xs font-medium text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933]"
+            >
+              <option value={10}>10 per page</option>
+              <option value={25}>25 per page</option>
+              <option value={50}>50 per page</option>
+              <option value={100}>100 per page</option>
+            </select>
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 border-[#DDD4C5] text-xs hover:bg-[#FAF8F4]"
+                disabled={!report || report.lines.length === 0 || exporting}
+                data-testid="report-export-trigger"
+              >
+                <Download className="mr-1.5 size-3.5 text-[#C89933]" />
+                {exporting ? "Exporting…" : "Export"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="border-[#DDD4C5] text-xs">
+              <DropdownMenuItem
+                onClick={() => exportReport("all")}
+                className="cursor-pointer"
+                data-testid="export-csv-all"
+              >
+                <FileSpreadsheet className="mr-2 size-3.5 text-[#C89933]" />
+                Export Full Range (CSV)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => exportReport("page")}
+                className="cursor-pointer"
+                data-testid="export-csv-page"
+              >
+                <FileText className="mr-2 size-3.5 text-muted-foreground" />
+                Export Current Page (CSV)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handlePrint}
+                className="cursor-pointer"
+                data-testid="export-print"
+              >
+                <Printer className="mr-2 size-3.5 text-[#C89933]" />
+                Print / Save as PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+
       {query.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading ledger totals…</p>
       ) : null}
@@ -1254,7 +1413,7 @@ export function ReportsPanel({
           <Kpi label="Transfers Out" value={money(totals.transfersOut)} tone="teal" />
           <Kpi label="Transfers In" value={money(totals.transfersIn)} tone="teal" />
           <Kpi label="Net movement" value={money(totals.netMovement)} hint="Signed ledger sum" />
-          <Kpi label="Lines" value={String(totals.lineCount)} hint="Up to 500 in this range" />
+          <Kpi label="Lines" value={String(totals.lineCount)} hint="Total transactions in range" />
         </div>
       ) : null}
       {report && report.lines.length === 0 && !query.isLoading && !query.isError ? (
@@ -1263,49 +1422,219 @@ export function ReportsPanel({
         </p>
       ) : null}
       {report && report.lines.length > 0 ? (
-        <div className="overflow-x-auto rounded-xl border border-[#DDD4C5] bg-card">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-[#FAF8F4] text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">Posted</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Guest</th>
-                <th className="px-3 py-2">Folio</th>
-                <th className="px-3 py-2">Description</th>
-                <th className="px-3 py-2">Method</th>
-                <th className="px-3 py-2 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.lines.map((line) => (
-                <tr key={line.id} className="border-t border-[#E8E1D7]">
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {new Date(line.postedAt).toLocaleString()}
-                  </td>
-                  <td className="px-3 py-2">{methodLabel(line.type)}</td>
-                  <td className="px-3 py-2">{line.guestName}</td>
-                  <td className="px-3 py-2">
-                    <Link
-                      to="/restaurant/pms/cashiering/folios/$folioId"
-                      params={{ folioId: line.folioId }}
-                      className="font-medium underline-offset-4 hover:underline"
-                    >
-                      {line.folioNumber}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2">{line.description}</td>
-                  <td className="px-3 py-2">{methodLabel(line.paymentMethod)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{money(line.amount)}</td>
+        <div className="space-y-3">
+          <div className="overflow-x-auto rounded-xl border border-[#DDD4C5] bg-card">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead className="bg-[#FAF8F4] text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Posted</th>
+                  <th className="px-3 py-2">Type</th>
+                  <th className="px-3 py-2">Guest</th>
+                  <th className="px-3 py-2">Folio</th>
+                  <th className="px-3 py-2">Description</th>
+                  <th className="px-3 py-2">Method</th>
+                  <th className="px-3 py-2 text-right">Amount</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {report.lines.map((line) => (
+                  <tr key={line.id} className="border-t border-[#E8E1D7] hover:bg-[#FAF8F4]/60 transition-colors">
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {new Date(line.postedAt).toLocaleString()}
+                    </td>
+                    <td className="px-3 py-2">{methodLabel(line.type)}</td>
+                    <td className="px-3 py-2 font-medium">{line.guestName}</td>
+                    <td className="px-3 py-2">
+                      <Link
+                        to="/restaurant/pms/cashiering/folios/$folioId"
+                        params={{ folioId: line.folioId }}
+                        className="font-medium underline-offset-4 hover:underline hover:text-[#C89933] transition-colors"
+                      >
+                        {line.folioNumber}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2">{line.description}</td>
+                    <td className="px-3 py-2">{methodLabel(line.paymentMethod)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium">{money(line.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#DDD4C5] bg-card px-4 py-3 text-xs text-muted-foreground"
+            data-testid="cashiering-report-pagination"
+          >
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-foreground">
+                Showing {Math.min((report.page - 1) * report.limit + 1, report.total)}–
+                {Math.min(report.page * report.limit, report.total)}
+              </span>
+              <span>of</span>
+              <span className="font-medium text-foreground">{report.total}</span>
+              <span>transactions</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span>Rows:</span>
+                <select
+                  aria-label="Change rows per page"
+                  value={limit}
+                  onChange={(event) => {
+                    setLimit(Number(event.target.value));
+                    setPage(1);
+                  }}
+                  className="h-8 rounded-md border border-[#DDD4C5] bg-background px-2 text-xs font-medium text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933]"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 border-[#DDD4C5] px-2.5 text-xs hover:bg-[#FAF8F4]"
+                  disabled={report.page <= 1 || query.isFetching}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  data-testid="report-prev-page"
+                >
+                  <ChevronLeft className="mr-1 size-3.5" />
+                  Previous
+                </Button>
+                <span className="tabular-nums font-medium text-foreground">
+                  Page {report.page} of {report.totalPages}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 border-[#DDD4C5] px-2.5 text-xs hover:bg-[#FAF8F4]"
+                  disabled={report.page >= report.totalPages || query.isFetching}
+                  onClick={() => setPage((current) => Math.min(report.totalPages, current + 1))}
+                  data-testid="report-next-page"
+                >
+                  Next
+                  <ChevronRight className="ml-1 size-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       ) : null}
       <p className="text-xs text-muted-foreground">
         Totals use the property timezone, from local midnight on the start date through the end of
         the finish date. This is the guest folio ledger, not a general-ledger trial balance.
       </p>
+
+      {/* Print / Save as PDF layer */}
+      <CashieringPrintLayer active={printing && Boolean(totals)}>
+        {totals ? (
+          <article className="space-y-4 bg-white p-6 text-sm text-[#251605]" data-testid="cashiering-report-print">
+            <header className="border-b border-[#DDD4C5] pb-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">NORU PMS · Cashiering</p>
+              <h1 className="mt-1 text-xl font-bold text-[#251605]">Cashiering Ledger Report</h1>
+              <div className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                <p>
+                  <strong className="text-foreground">Period:</strong> {fromDate} to {toDate}
+                </p>
+                <p>
+                  <strong className="text-foreground">Property:</strong> {restaurantId.slice(0, 8)}
+                </p>
+                <p>
+                  <strong className="text-foreground">Timezone:</strong> {timezone}
+                </p>
+                <p>
+                  <strong className="text-foreground">Generated:</strong> {new Date().toLocaleString()}
+                </p>
+              </div>
+            </header>
+
+            <div>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Summary Totals</h2>
+              <div className="grid grid-cols-4 gap-2 text-xs">
+                <div className="rounded border border-[#E8E1D7] p-2">
+                  <span className="block text-muted-foreground">Charges</span>
+                  <span className="font-semibold text-blue-700">{money(totals.charges)}</span>
+                </div>
+                <div className="rounded border border-[#E8E1D7] p-2">
+                  <span className="block text-muted-foreground">Payments</span>
+                  <span className="font-semibold text-emerald-700">{money(totals.payments)}</span>
+                </div>
+                <div className="rounded border border-[#E8E1D7] p-2">
+                  <span className="block text-muted-foreground">Deposits</span>
+                  <span className="font-semibold text-amber-700">{money(totals.deposits)}</span>
+                </div>
+                <div className="rounded border border-[#E8E1D7] p-2">
+                  <span className="block text-muted-foreground">Refunds</span>
+                  <span className="font-semibold text-rose-700">{money(totals.refunds)}</span>
+                </div>
+                <div className="rounded border border-[#E8E1D7] p-2">
+                  <span className="block text-muted-foreground">Adjustments</span>
+                  <span className="font-semibold">{money(totals.adjustments)}</span>
+                </div>
+                <div className="rounded border border-[#E8E1D7] p-2">
+                  <span className="block text-muted-foreground">Discounts</span>
+                  <span className="font-semibold">{money(totals.discounts)}</span>
+                </div>
+                <div className="rounded border border-[#E8E1D7] p-2">
+                  <span className="block text-muted-foreground">Transfers Out</span>
+                  <span className="font-semibold">{money(totals.transfersOut)}</span>
+                </div>
+                <div className="rounded border border-[#E8E1D7] p-2">
+                  <span className="block text-muted-foreground">Transfers In</span>
+                  <span className="font-semibold">{money(totals.transfersIn)}</span>
+                </div>
+                <div className="rounded border border-[#E8E1D7] p-2 col-span-2">
+                  <span className="block text-muted-foreground">Net Movement</span>
+                  <span className="font-semibold text-base">{money(totals.netMovement)}</span>
+                </div>
+                <div className="rounded border border-[#E8E1D7] p-2 col-span-2">
+                  <span className="block text-muted-foreground">Total Transactions</span>
+                  <span className="font-semibold text-base">{totals.lineCount}</span>
+                </div>
+              </div>
+            </div>
+
+            <style>{`@media print { thead { display: table-header-group; } tr { break-inside: avoid; } }`}</style>
+            <div>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Transactions</h2>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-[#DDD4C5] bg-[#FAF8F4] text-left">
+                    <th className="p-1.5">Posted</th>
+                    <th className="p-1.5">Type</th>
+                    <th className="p-1.5">Guest</th>
+                    <th className="p-1.5">Folio</th>
+                    <th className="p-1.5">Description</th>
+                    <th className="p-1.5">Method</th>
+                    <th className="p-1.5 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(printLines ?? report?.lines ?? []).map((line) => (
+                    <tr key={line.id} className="border-b border-[#E8E1D7]">
+                      <td className="p-1.5 text-muted-foreground">{new Date(line.postedAt).toLocaleString()}</td>
+                      <td className="p-1.5">{methodLabel(line.type)}</td>
+                      <td className="p-1.5">{line.guestName}</td>
+                      <td className="p-1.5">{line.folioNumber}</td>
+                      <td className="p-1.5">{line.description}</td>
+                      <td className="p-1.5">{methodLabel(line.paymentMethod)}</td>
+                      <td className="p-1.5 text-right tabular-nums">{money(line.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </article>
+        ) : null}
+      </CashieringPrintLayer>
     </div>
   );
 }
