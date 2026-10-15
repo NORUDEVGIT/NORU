@@ -61,6 +61,8 @@ function refreshGuestAllocation(
   void queryClient.invalidateQueries({
     queryKey: ["guest-payment-allocation", restaurantId, folioId],
   });
+  void queryClient.invalidateQueries({ queryKey: ["guest-invoice-fiscal", restaurantId] });
+  void queryClient.invalidateQueries({ queryKey: ["guest-sales-receipts", restaurantId] });
   void queryClient.invalidateQueries({ queryKey: ["folio", restaurantId, folioId] });
 }
 
@@ -157,7 +159,8 @@ export function GuestInvoiceSettlementDetail({
   legacy,
   money,
   dateTime,
-  canManage = false,
+  canAllocate = false,
+  canFiscalRegister = false,
   onAllocate,
 }: {
   restaurantId: string;
@@ -166,7 +169,8 @@ export function GuestInvoiceSettlementDetail({
   legacy: boolean;
   money: Money;
   dateTime: DateTime;
-  canManage?: boolean | undefined;
+  canAllocate?: boolean | undefined;
+  canFiscalRegister?: boolean | undefined;
   onAllocate?: ((invoiceId: string) => void) | undefined;
 }) {
   const fetchSettlement = useServerFn(getGuestInvoiceSettlement);
@@ -214,7 +218,7 @@ export function GuestInvoiceSettlementDetail({
           <p className="text-xs text-muted-foreground mt-0.5">Document state: Issued</p>
         </div>
 
-        {canManage && (settlement.outstanding ?? 0) > 0.01 && onAllocate ? (
+        {canAllocate && (settlement.outstanding ?? 0) > 0.01 && onAllocate ? (
           <Button
             type="button"
             size="sm"
@@ -293,8 +297,8 @@ export function GuestInvoiceSettlementDetail({
       <GuestSalesReceiptSection
         restaurantId={restaurantId}
         invoiceId={invoiceId}
-        canRegister={canManage}
-        canInspect={canManage}
+        canRegister={canFiscalRegister}
+        canInspect={canFiscalRegister}
         money={money}
       />
     </div>
@@ -579,7 +583,8 @@ export function GuestPaymentAllocationDrawer({
                 Allocate Payment to Invoices
               </DialogTitle>
               <DialogDescription className="text-xs text-[#7A6B58] mt-0.5">
-                Classify posted payment funds against eligible issued invoices. Total folio balance remains unaffected.
+                Classify posted payment funds against eligible issued invoices. Total folio balance
+                remains unaffected.
               </DialogDescription>
             </div>
           </div>
@@ -619,7 +624,8 @@ export function GuestPaymentAllocationDrawer({
                   <CreditCard className="size-3.5 text-[#8a6a1f]" /> Payment Balance Details
                 </span>
                 <span className="rounded-md border border-[#E8E1D7] bg-[#F7F4EE] px-2 py-0.5 text-xs font-medium text-[#7A6B58]">
-                  {payment.data?.lines?.length ?? 0} previous {payment.data?.lines?.length === 1 ? "allocation" : "allocations"}
+                  {payment.data?.lines?.length ?? 0} previous{" "}
+                  {payment.data?.lines?.length === 1 ? "allocation" : "allocations"}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -671,7 +677,8 @@ export function GuestPaymentAllocationDrawer({
                   Outstanding Issued Invoices ({eligible.length})
                 </h4>
                 <p className="text-xs text-[#7A6B58]">
-                  Use the <span className="font-semibold text-[#8A641A]">Max</span> button to quickly allocate up to the remaining amount.
+                  Use the <span className="font-semibold text-[#8A641A]">Max</span> button to
+                  quickly allocate up to the remaining amount.
                 </p>
               </div>
 
@@ -679,7 +686,9 @@ export function GuestPaymentAllocationDrawer({
                 <div className="rounded-xl border border-[#E8E1D7] bg-white p-8 text-center text-sm text-[#7A6B58]">
                   <CheckCircle2 className="mx-auto size-8 text-emerald-600 mb-2 opacity-80" />
                   <p className="font-semibold text-[#251605]">All invoices are fully settled</p>
-                  <p className="mt-1 text-xs">There are no outstanding eligible invoices on this folio.</p>
+                  <p className="mt-1 text-xs">
+                    There are no outstanding eligible invoices on this folio.
+                  </p>
                 </div>
               ) : (
                 <div className="overflow-hidden rounded-xl border border-[#E8E1D7] bg-white shadow-xs">
@@ -722,9 +731,7 @@ export function GuestPaymentAllocationDrawer({
                                   ) : null}
                                 </div>
                               </td>
-                              <td className="px-3 py-3 text-[#7A6B58]">
-                                {dateTime(row.issuedAt)}
-                              </td>
+                              <td className="px-3 py-3 text-[#7A6B58]">{dateTime(row.issuedAt)}</td>
                               <td className="px-3 py-3 text-right font-medium tabular-nums text-[#251605]">
                                 {money(row.effectiveNet ?? 0)}
                               </td>
@@ -767,7 +774,9 @@ export function GuestPaymentAllocationDrawer({
                                     type="button"
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => handleSetFull(row.invoiceId, row.outstanding ?? 0)}
+                                    onClick={() =>
+                                      handleSetFull(row.invoiceId, row.outstanding ?? 0)
+                                    }
                                     className={cn(
                                       "h-8 px-2.5 text-[11px] font-semibold transition-all border-[#DDD4C5]",
                                       isFullyCovered
@@ -819,7 +828,9 @@ export function GuestPaymentAllocationDrawer({
                 <div className="flex items-center gap-4 text-xs tabular-nums">
                   <div>
                     <span className="text-[#8A7968] mr-1.5">Total Allocation:</span>
-                    <span className="font-bold text-sm text-[#251605]">{money(operationTotal)}</span>
+                    <span className="font-bold text-sm text-[#251605]">
+                      {money(operationTotal)}
+                    </span>
                   </div>
                   <div className="h-4 w-px bg-[#E8E1D7]" />
                   <div>
@@ -844,7 +855,8 @@ export function GuestPaymentAllocationDrawer({
                   Please review allocation changes before confirming
                 </p>
                 <p className="mt-1 text-[#7A6B58]">
-                  The allocated amounts will be bound to each selected invoice and update its settlement status.
+                  The allocated amounts will be bound to each selected invoice and update its
+                  settlement status.
                 </p>
               </div>
 
@@ -980,4 +992,3 @@ export function GuestPaymentAllocationDrawer({
     </Dialog>
   );
 }
-

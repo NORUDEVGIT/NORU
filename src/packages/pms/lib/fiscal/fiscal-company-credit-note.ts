@@ -20,7 +20,7 @@ import {
   uniqueInvoiceGroupIndex,
   type OriginalFiscalLine,
 } from "./fiscal-original-invoice.ts";
-import { FISCAL_DOCUMENT_MODE } from "./fiscal.types.ts";
+import { type FiscalDocumentMode } from "./fiscal-document-mode.ts";
 
 export const FISCAL_P7_CREDIT_SOURCE = "credit_note" as const;
 export const FISCAL_P7_CREDIT_DOCUMENT = "CRE" as const;
@@ -45,7 +45,7 @@ export type CompanyCreditPreview = {
 
 export type CompanyCreditPayload = {
   Date: string;
-  Mode: typeof FISCAL_DOCUMENT_MODE;
+  Mode: FiscalDocumentMode;
   Type: "CRE";
   info: {
     ItemList: Array<Record<string, unknown>>;
@@ -132,6 +132,10 @@ export function assessCompanyCreditFiscal(
     );
   }
   if (reasons.length > 0 || !request || !buyer || !credits || !original?.irn) {
+    return { ok: false, reasons, missingDevice };
+  }
+  if (!request.mode) {
+    reasons.push("Original fiscal invoice Mode is missing.");
     return { ok: false, reasons, missingDevice };
   }
   const storedLinks = readNoruFiscalLines(original.requestSnapshot);
@@ -235,7 +239,7 @@ export function assessCompanyCreditFiscal(
   }
   const payload: CompanyCreditPayload = {
     Date: issuedAt,
-    Mode: FISCAL_DOCUMENT_MODE,
+    Mode: request.mode,
     Type: "CRE",
     info: {
       ItemList: itemList,

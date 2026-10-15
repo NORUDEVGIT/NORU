@@ -33,7 +33,7 @@ import {
   uniqueInvoiceGroupIndex,
   type OriginalFiscalLine,
 } from "./fiscal-original-invoice.ts";
-import { FISCAL_DOCUMENT_MODE } from "./fiscal.types.ts";
+import { type FiscalDocumentMode } from "./fiscal-document-mode.ts";
 
 export const FISCAL_P3_SOURCE = "credit_note" as const;
 export const FISCAL_P3_DOCUMENT = "CRE" as const;
@@ -59,7 +59,7 @@ export type CreditNoteFiscalPreview = {
   relatedIrn: string;
   transactionType: "B2C" | "B2B";
   currency: "ETB";
-  mode: typeof FISCAL_DOCUMENT_MODE;
+  mode: FiscalDocumentMode;
   pretax: number;
   tax: number;
   total: number;
@@ -85,7 +85,7 @@ export type FiscalCreLine = {
 
 export type FiscalCrePayload = {
   Date: string;
-  Mode: typeof FISCAL_DOCUMENT_MODE;
+  Mode: FiscalDocumentMode;
   Type: "CRE";
   info: {
     ItemList: FiscalCreLine[];
@@ -206,6 +206,10 @@ export function assessCreditNoteFiscal(
   if (reasons.length > 0 || !request || !credits || !original?.irn) {
     return { ok: false, reasons, missingDevice };
   }
+  if (!request.mode) {
+    reasons.push("Original fiscal invoice Mode is missing.");
+    return { ok: false, reasons, missingDevice };
+  }
 
   const storedLinks = readNoruFiscalLines(original.requestSnapshot);
   const matches: Array<{ line: OriginalFiscalLine; pretax: number; tax: number }> = [];
@@ -313,7 +317,7 @@ export function assessCreditNoteFiscal(
   };
   const payload: FiscalCrePayload = {
     Date: issuedAt,
-    Mode: FISCAL_DOCUMENT_MODE,
+    Mode: request.mode,
     Type: "CRE",
     info: inheritedBuyer
       ? { ItemList: lines, ValueDetails: valueDetails, BuyerDetails: inheritedBuyer }
@@ -335,7 +339,7 @@ export function assessCreditNoteFiscal(
       relatedIrn: original.irn.trim(),
       transactionType,
       currency: "ETB",
-      mode: FISCAL_DOCUMENT_MODE,
+      mode: request.mode,
       pretax,
       tax,
       total,

@@ -150,6 +150,18 @@ export const getFinancialAccountInvoiceSettlement = createServerFn({ method: "GE
     };
   });
 
+export async function loadFinancialAccountInvoiceSettlementForWrite(
+  supabaseAdmin: ServiceClient,
+  restaurantId: string,
+  accountId: string,
+  invoiceId: string,
+): Promise<InvoiceSettlementRow | null> {
+  const account = await loadAccount(supabaseAdmin, restaurantId, accountId);
+  if (!account) return null;
+  const rows = await loadSettlements(supabaseAdmin, restaurantId, account);
+  return rows.find((row) => row.invoiceId === invoiceId) ?? null;
+}
+
 export const getFinancialAccountPaymentAllocationWorkspace = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>

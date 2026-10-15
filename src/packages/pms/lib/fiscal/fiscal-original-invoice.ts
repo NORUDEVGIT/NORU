@@ -4,6 +4,7 @@
  * Credit and debit registration copy item identity from this snapshot.
  * A root ItemList, or info set to null, is an unsupported legacy shape.
  */
+import { frozenFiscalMode, type FiscalDocumentMode } from "./fiscal-document-mode.ts";
 import { fiscalMoney } from "./fiscal-guest-invoice.ts";
 
 export type OriginalFiscalLine = {
@@ -22,6 +23,7 @@ export type OriginalFiscalLine = {
 
 export function parseOriginalFiscalInvoice(snapshot: unknown): {
   transactionType: string;
+  mode: FiscalDocumentMode | null;
   lines: OriginalFiscalLine[];
 } | null {
   const row = record(snapshot);
@@ -33,7 +35,11 @@ export function parseOriginalFiscalInvoice(snapshot: unknown): {
   const lines = items.map(parseOriginalLine);
   if (lines.some((line) => line == null)) return null;
   const transactionType = typeof row.TransactionType === "string" ? row.TransactionType : "";
-  return { transactionType, lines: lines as OriginalFiscalLine[] };
+  return {
+    transactionType,
+    mode: frozenFiscalMode(snapshot),
+    lines: lines as OriginalFiscalLine[],
+  };
 }
 
 /** Exact BuyerDetails object from a stored INV request, including null fields. */

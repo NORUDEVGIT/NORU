@@ -207,7 +207,7 @@ describe("guest fiscal customer type", () => {
     );
     const reset = server.slice(
       server.indexOf('existing?.status === "FAILED"'),
-      server.indexOf("let queued = assessment"),
+      server.indexOf("const allocated"),
     );
     assert.equal(reset.includes("request_snapshot"), false);
     assert.match(server, /guestTaxIdentitySelectable/);
@@ -283,6 +283,7 @@ describe("guest fiscal follow-ups inherit the original buyer", () => {
       },
     });
     const receiptStored = originalInvoice("B2B");
+    receiptStored.Mode = "CREDIT";
     receiptStored.info = {
       ...receiptStored.info,
       BuyerDetails: historical,
@@ -463,6 +464,7 @@ function debitInput(transactionType: "B2C" | "B2B"): DebitNoteFiscalInput {
 
 function receiptInput(transactionType: "B2C" | "B2B"): SalesReceiptFiscalInput {
   const invoice = originalInvoice(transactionType);
+  invoice.Mode = "CREDIT";
   invoice.info.ValueDetails.TotalValue = 115;
   return {
     amount: 5,

@@ -43,7 +43,7 @@ const IRN = "test-cee018e0a23aaef10422f4448380fad7ed4593eb21aac7c83cb807911ad043
 function originalRequest(overrides: Record<string, unknown> = {}) {
   return {
     Date: "13-10-2026T06:30:00",
-    Mode: "CASH",
+    Mode: "CREDIT",
     Type: "INV",
     info: {
       ItemList: [{ ProductDescription: "Room Accommodation" }],
@@ -117,6 +117,34 @@ describe("fiscal sales receipt eligibility and payload", () => {
     assert.equal("ValueDetails" in result.payload, false);
     assert.equal(JSON.stringify(result.payload).includes("payment_method"), false);
     assert.equal(JSON.stringify(result.payload).includes("INV-0012"), false);
+  });
+
+  it("blocks a receipt when the original invoice was registered as CASH", () => {
+    const blocked = (documentType: "CRE" | "DEB" | null) =>
+      assessSalesReceiptFiscal(
+        ALLOC_A,
+        input({
+          fiscalEnvironment: "TEST",
+          hasAdjustingNotes: documentType != null,
+          noteAdjustments: documentType ? [{ documentType, status: "REGISTERED", total: 10 }] : [],
+          originalRegistration: {
+            status: "REGISTERED",
+            irn: IRN,
+            documentNumber: "2821",
+            requestSnapshot: originalRequest({ Mode: "CASH" }),
+          },
+        }),
+      );
+    for (const result of [blocked(null), blocked("CRE"), blocked("DEB")]) {
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(
+        result.reasons.includes(
+          "Sales Receipt is not applicable because the original fiscal invoice was registered as CASH.",
+        ),
+        true,
+      );
+    }
   });
 
   it("keeps the receipt number and RFC3339 date stable on a second build", () => {

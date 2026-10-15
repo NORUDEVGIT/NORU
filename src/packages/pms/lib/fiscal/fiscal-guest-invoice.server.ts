@@ -40,6 +40,8 @@ import {
   type FiscalDb,
 } from "./fiscal.types.ts";
 import { getValidFiscalToken, invalidateFiscalToken } from "./fiscal-token.server.ts";
+import { frozenFiscalMode, type FiscalSettlementSummary } from "./fiscal-document-mode.ts";
+import { allocateUnmappedManualCodes, loadFiscalSettlement } from "./fiscal-settlement.server.ts";
 
 type Db = FiscalDb;
 
@@ -72,6 +74,7 @@ export type GuestInvoiceFiscalState = {
   guestId: string | null;
   guestPrefill: GuestTaxIdentityPrefill | null;
   taxIdentities: GuestTaxIdentityChoice[];
+  settlement: FiscalSettlementSummary | null;
 };
 
 export type GuestTaxIdentityPrefill = {
@@ -100,6 +103,15 @@ export async function getGuestInvoiceFiscalState(
 ): Promise<GuestInvoiceFiscalState> {
   const invoice = await loadInvoice(db, input.restaurantId, input.invoiceId);
   const context = await loadFiscalContext(db, input.restaurantId);
+  const registration = await findRegistration(db, input.restaurantId, invoice.id);
+  const settlement = registration
+    ? null
+    : await loadFiscalSettlement(db, {
+        restaurantId: input.restaurantId,
+        invoiceId: invoice.id,
+        snapshot: invoice.snapshot,
+        allocationTable: "guest_payment_invoice_allocations",
+      });
   const assessment = assessGuestInvoiceFiscal(invoice.id, {
     issued: true,
     coverageScope: invoice.coverageScope,
@@ -108,9 +120,10 @@ export async function getGuestInvoiceFiscalState(
     mode: context.mode,
     taxMappings: context.taxMappings,
     itemMappings: context.itemMappings,
+    documentMode: registration ? frozenFiscalMode(registration.request) : settlement?.mode,
+    allowPreviewManualCode: true,
   });
-  const registration = await findRegistration(db, input.restaurantId, invoice.id);
-  const state = presentState(assessment, registration);
+  const state = presentState(assessment, registration, settlement);
   if (registration) return { ...state, choiceLocked: true, taxIdentities: [] };
   const guestId = await invoiceGuestId(db, input.restaurantId, invoice.snapshot);
   return {
@@ -132,6 +145,16 @@ export async function queueGuestInvoiceFiscal(
 ): Promise<GuestInvoiceFiscalState> {
   const invoice = await loadInvoice(db, input.restaurantId, input.invoiceId);
   const context = await loadFiscalContext(db, input.restaurantId);
+  const existing = await findRegistration(db, input.restaurantId, invoice.id);
+  const settlement = existing
+    ? null
+    : await loadFiscalSettlement(db, {
+        restaurantId: input.restaurantId,
+        invoiceId: invoice.id,
+        snapshot: invoice.snapshot,
+        allocationTable: "guest_payment_invoice_allocations",
+      });
+  const frozenMode = existing ? frozenFiscalMode(existing.request) : null;
   const fiscalInput = {
     issued: true,
     coverageScope: invoice.coverageScope,
@@ -140,12 +163,13 @@ export async function queueGuestInvoiceFiscal(
     mode: context.mode,
     taxMappings: context.taxMappings,
     itemMappings: context.itemMappings,
+    documentMode: frozenMode ?? settlement?.mode,
+    allowPreviewManualCode: true,
   };
   const assessment = assessGuestInvoiceFiscal(invoice.id, fiscalInput);
-  if (!assessment.ok) return presentState(assessment, null);
-  const existing = await findRegistration(db, input.restaurantId, invoice.id);
+  if (!assessment.ok) return presentState(assessment, null, settlement);
   if (existing?.status === "REGISTERED" || existing?.status === "PENDING") {
-    return presentState(assessment, existing);
+    return presentState(assessment, existing, null);
   }
   if (existing?.status === "FAILED" || existing?.status === "BLOCKED") {
     // Keep the stored request. A failed send may already have reached the provider.
@@ -158,9 +182,36 @@ export async function queueGuestInvoiceFiscal(
       })
       .eq("id", existing.id);
     const refreshed = await findRegistration(db, input.restaurantId, invoice.id);
-    return presentState(assessment, refreshed);
+    return presentState(assessment, refreshed, null);
   }
-  let queued = assessment;
+  const allocated = await allocateUnmappedManualCodes(
+    db,
+    input.restaurantId,
+    invoice.snapshot,
+    context.itemMappings,
+    "guest",
+  );
+  if (!allocated.ok) {
+    return presentState(
+      {
+        ok: false,
+        reasons: [allocated.reason],
+        missingTaxes: [],
+        missingItems: [],
+        missingMode: false,
+        missingDevice: false,
+      },
+      null,
+      settlement,
+    );
+  }
+  const storedInput = {
+    ...fiscalInput,
+    manualItemCodes: allocated.codes,
+    allowPreviewManualCode: false,
+  };
+  let queued = assessGuestInvoiceFiscal(invoice.id, storedInput);
+  if (!queued.ok) return presentState(queued, null, settlement);
   if (input.fiscalType === "B2B") {
     const guestId = await invoiceGuestId(db, input.restaurantId, invoice.snapshot);
     const identity =
@@ -192,14 +243,15 @@ export async function queueGuestInvoiceFiscal(
           missingDevice: false,
         },
         null,
+        settlement,
       );
     }
     queued = assessGuestInvoiceFiscal(invoice.id, {
-      ...fiscalInput,
+      ...storedInput,
       fiscalCustomerType: "B2B",
       buyer,
     });
-    if (!queued.ok) return presentState(queued, null);
+    if (!queued.ok) return presentState(queued, null, settlement);
   }
   const inserted = await db
     .from("fiscal_registrations")
@@ -223,11 +275,11 @@ export async function queueGuestInvoiceFiscal(
     .maybeSingle();
   if (inserted.error) {
     const raced = await findRegistration(db, input.restaurantId, invoice.id);
-    if (raced) return presentState(assessment, raced);
+    if (raced) return presentState(assessment, raced, null);
     throw new FiscalError("FISCAL_NOT_ELIGIBLE", "The fiscal registration could not be queued.");
   }
   const created = await findRegistration(db, input.restaurantId, invoice.id);
-  return presentState(assessment, created);
+  return presentState(queued, created, null);
 }
 
 export async function sendClaimedGuestInvoice(
@@ -601,7 +653,7 @@ async function findRegistration(db: Db, restaurantId: string, invoiceId: string)
   const result = await db
     .from("fiscal_registrations")
     .select(
-      "id, status, trnx_id, external_irn, external_document_number, acknowledged_at, registered_at, signed_qr, last_error_message",
+      "id, status, trnx_id, external_irn, external_document_number, acknowledged_at, registered_at, signed_qr, last_error_message, request_snapshot",
     )
     .eq("restaurant_id", restaurantId)
     .eq("source_type", "guest_invoice")
@@ -621,12 +673,14 @@ async function findRegistration(db: Db, restaurantId: string, invoiceId: string)
     registeredAt: typeof row.registered_at === "string" ? row.registered_at : null,
     signedQr: typeof row.signed_qr === "string" ? row.signed_qr : null,
     lastError: typeof row.last_error_message === "string" ? row.last_error_message : null,
+    request: row.request_snapshot ?? null,
   };
 }
 
 function presentState(
   assessment: GuestInvoiceFiscalAssessment,
   registration: Awaited<ReturnType<typeof findRegistration>>,
+  settlement: FiscalSettlementSummary | null,
 ): GuestInvoiceFiscalState {
   const base = {
     reasons: assessment.ok ? [] : assessment.reasons,
@@ -635,6 +689,7 @@ function presentState(
     missingMode: assessment.ok ? false : assessment.missingMode,
     missingDevice: assessment.ok ? false : assessment.missingDevice,
     preview: assessment.ok ? assessment.preview : null,
+    settlement: registration ? null : settlement,
   };
   if (!registration) {
     return {

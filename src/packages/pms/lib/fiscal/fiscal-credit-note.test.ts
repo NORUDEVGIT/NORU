@@ -145,6 +145,21 @@ describe("fiscal credit note eligibility", () => {
     assert.equal(line.ProductDescription.includes("Partial Credit"), false);
   });
 
+  it("copies CREDIT from the original fiscal invoice", () => {
+    const result = assessCreditNoteFiscal(NOTE_ID, {
+      ...input(),
+      originalRegistration: {
+        status: "REGISTERED",
+        irn: IRN,
+        documentNumber: "2823",
+        requestSnapshot: { ...originalRequest(), Mode: "CREDIT" },
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.payload.Mode, "CREDIT");
+  });
+
   it("keeps the original item when later settings would use a different code", () => {
     const changed = originalRequest({
       ItemCode: 1001,

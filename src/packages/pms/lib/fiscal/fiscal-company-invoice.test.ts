@@ -10,7 +10,10 @@ import {
   p6HandlerEnabled,
   type CompanyInvoiceFiscalInput,
 } from "./fiscal-company-invoice.ts";
-import { queueCompanyInvoiceFiscal } from "./fiscal-company-invoice.server.ts";
+import {
+  queueCompanyInvoiceFiscal,
+  getCompanyInvoiceFiscalState,
+} from "./fiscal-company-invoice.server.ts";
 import {
   p2HandlerEnabled,
   parseFiscalInvoiceSuccess,
@@ -642,3 +645,187 @@ function query(tables: Record<string, Record<string, unknown>[]>, table: string)
   };
   return builder as FiscalDbQuery;
 }
+
+describe("company fiscal settlement at registration", () => {
+  it("stores CREDIT until eligible payments cover the invoice and never posts a payment", async () => {
+    const unpaid = memoryDb();
+    const open = await queueCompanyInvoiceFiscal(unpaid.db, {
+      restaurantId: "property-1",
+      invoiceId: INVOICE_ID,
+    });
+    assert.equal(open.status, "queued");
+    assert.equal(
+      (unpaid.tables.fiscal_registrations[0].request_snapshot as { Mode: string }).Mode,
+      "CREDIT",
+    );
+    assert.equal(unpaid.tables.folio_transactions, undefined);
+    assert.equal(unpaid.tables.financial_accounts[0].balance, 500);
+
+    const preview = await getCompanyInvoiceFiscalState(unpaid.db, {
+      restaurantId: "property-1",
+      invoiceId: INVOICE_ID,
+    });
+    assert.equal(preview.settlement, null);
+
+    const before = memoryDb();
+    const state = await getCompanyInvoiceFiscalState(before.db, {
+      restaurantId: "property-1",
+      invoiceId: INVOICE_ID,
+    });
+    assert.equal(state.settlement?.mode, "CREDIT");
+    assert.equal(state.settlement?.eligiblePayments, 0);
+    assert.equal(state.settlement?.invoiceTotal, 12);
+    assert.equal(state.settlement?.unpaid, 12);
+    assert.equal(
+      state.settlement?.reason,
+      "Invoice is not fully covered by eligible payment allocations.",
+    );
+
+    const paid = memoryDb();
+    paid.tables.financial_account_payment_allocations = [
+      {
+        id: "alloc-1",
+        restaurant_id: "property-1",
+        invoice_id: INVOICE_ID,
+        amount: 12,
+        reverses_allocation_id: null,
+        payment_transaction_id: "pay-1",
+      },
+    ];
+    paid.tables.folio_transactions = [
+      { id: "pay-1", restaurant_id: "property-1", transaction_type: "payment", amount: -12 },
+    ];
+    const settled = await getCompanyInvoiceFiscalState(paid.db, {
+      restaurantId: "property-1",
+      invoiceId: INVOICE_ID,
+    });
+    assert.equal(settled.settlement?.mode, "CASH");
+    assert.equal(settled.settlement?.eligiblePayments, 12);
+    assert.equal(
+      settled.settlement?.reason,
+      "Invoice was fully settled by eligible payment allocations before fiscal registration.",
+    );
+    const cash = await queueCompanyInvoiceFiscal(paid.db, {
+      restaurantId: "property-1",
+      invoiceId: INVOICE_ID,
+    });
+    assert.equal(cash.status, "queued");
+    assert.equal(
+      (paid.tables.fiscal_registrations[0].request_snapshot as { Mode: string }).Mode,
+      "CASH",
+    );
+
+    const partial = memoryDb();
+    partial.tables.financial_account_payment_allocations = [
+      {
+        id: "alloc-1",
+        restaurant_id: "property-1",
+        invoice_id: INVOICE_ID,
+        amount: 4,
+        reverses_allocation_id: null,
+        payment_transaction_id: "pay-1",
+      },
+    ];
+    partial.tables.folio_transactions = [
+      { id: "pay-1", restaurant_id: "property-1", transaction_type: "payment", amount: -4 },
+    ];
+    const credit = await getCompanyInvoiceFiscalState(partial.db, {
+      restaurantId: "property-1",
+      invoiceId: INVOICE_ID,
+    });
+    assert.equal(credit.settlement?.mode, "CREDIT");
+    assert.equal(credit.settlement?.eligiblePayments, 4);
+    assert.equal(credit.settlement?.unpaid, 8);
+
+    for (const transactionType of ["deposit", "adjustment", "transfer_in"]) {
+      const ignored = memoryDb();
+      ignored.tables.financial_account_payment_allocations = [
+        {
+          id: "alloc-1",
+          restaurant_id: "property-1",
+          invoice_id: INVOICE_ID,
+          amount: 12,
+          reverses_allocation_id: null,
+          payment_transaction_id: "pay-1",
+        },
+      ];
+      ignored.tables.folio_transactions = [
+        {
+          id: "pay-1",
+          restaurant_id: "property-1",
+          transaction_type: transactionType,
+          amount: -12,
+        },
+      ];
+      const result = await getCompanyInvoiceFiscalState(ignored.db, {
+        restaurantId: "property-1",
+        invoiceId: INVOICE_ID,
+      });
+      assert.equal(result.settlement?.mode, "CREDIT", transactionType);
+      assert.equal(result.settlement?.eligiblePayments, 0, transactionType);
+    }
+  });
+
+  it("allocates one stable item code for an unmapped manual charge and freezes it", async () => {
+    const { db, tables } = memoryDb();
+    let calls = 0;
+    const allocating = {
+      ...db,
+      rpc: async (name: string) => {
+        if (name !== "allocate_fiscal_item_code") return { data: null, error: null };
+        calls += 1;
+        return { data: 1006 + calls, error: null };
+      },
+    };
+    tables.financial_account_invoices[0].snapshot = snapshot({
+      groups: [
+        {
+          description: "Late additional accommodation amount",
+          chargeSource: "manual",
+          sourceGroupId: "manual-1",
+          quantity: null,
+          unitAmount: null,
+          subtotal: 200,
+          taxTotal: 0,
+          serviceChargeTotal: 0,
+          grossTotal: 200,
+          chargeSnapshot: null,
+          taxLines: [],
+        },
+      ],
+      totals: { subtotal: 200, tax: 0, serviceCharge: 0, invoiceTotal: 200 },
+    });
+    const first = await queueCompanyInvoiceFiscal(allocating, {
+      restaurantId: "property-1",
+      invoiceId: INVOICE_ID,
+    });
+    assert.equal(first.status, "queued");
+    const stored = tables.fiscal_registrations[0].request_snapshot as {
+      Mode: string;
+      info: { ItemList: Array<Record<string, unknown>> };
+    };
+    assert.equal(stored.Mode, "CREDIT");
+    assert.equal(stored.info.ItemList[0].ItemCode, 1007);
+    assert.equal(stored.info.ItemList[0].Unit, "PCS");
+    assert.equal(stored.info.ItemList[0].Quantity, 1);
+    assert.equal(
+      stored.info.ItemList[0].ProductDescription,
+      "Late additional accommodation amount",
+    );
+    assert.equal(calls, 1);
+    const second = await queueCompanyInvoiceFiscal(allocating, {
+      restaurantId: "property-1",
+      invoiceId: INVOICE_ID,
+    });
+    assert.equal(second.status, "queued");
+    assert.equal(calls, 1);
+    assert.equal(
+      (
+        tables.fiscal_registrations[0].request_snapshot as {
+          info: { ItemList: Array<{ ItemCode: number }> };
+        }
+      ).info.ItemList[0].ItemCode,
+      1007,
+    );
+  });
+});

@@ -7,8 +7,8 @@
  * frozen invoice lines and the existing item/tax mappings.
  *
  * This module does not post charges, change the account balance, or call the
- * fiscal API. Company credit notes, debit notes, and sales receipts are not
- * built here. FULL payment coverage is not involved.
+ * fiscal API. Mode is supplied by the server from eligible payment allocations.
+ * Company credit notes, debit notes, and sales receipts are not built here.
  *
  * BuyerDetails.IdType is the provider example KID. IdNumber stays null.
  * Registration number is sent as VatNumber. A missing registration number does
@@ -25,6 +25,13 @@ import {
   type FiscalLinkDraft,
   type NoruFiscalLineLink,
 } from "./fiscal-line-expansion.ts";
+import { isFiscalDocumentMode, type FiscalDocumentMode } from "./fiscal-document-mode.ts";
+import {
+  anchoredNatures,
+  MANUAL_NATURE_MIXED,
+  manualChargeNature,
+  manualFiscalMapping,
+} from "./fiscal-manual-item.ts";
 import {
   FISCAL_DOCUMENT_MODE,
   fiscalItemCodeNumber,
@@ -69,7 +76,7 @@ export type CompanyBuyerDetails = {
 
 export type CompanyInvoicePayload = {
   Date: string;
-  Mode: typeof FISCAL_DOCUMENT_MODE;
+  Mode: FiscalDocumentMode;
   Type: "INV";
   info: {
     ItemList: FiscalInvLine[];
@@ -94,6 +101,7 @@ export type CompanyInvoicePayload = {
 };
 
 export type CompanyInvoiceFiscalPreview = {
+  mode: FiscalDocumentMode;
   invoiceNumber: string;
   legalName: string;
   tin: string;
@@ -121,6 +129,9 @@ export type CompanyInvoiceFiscalInput = {
   };
   taxMappings: FiscalTaxMapping[];
   itemMappings: FiscalItemMapping[];
+  documentMode?: FiscalDocumentMode | null;
+  manualItemCodes?: Readonly<Record<string, string>>;
+  allowPreviewManualCode?: boolean;
 };
 
 export type CompanyInvoiceFiscalAssessment =
@@ -203,6 +214,9 @@ export function assessCompanyInvoiceFiscal(
   const drafts: FiscalLineDraft[] = [];
   const linkDrafts: FiscalLinkDraft[] = [];
   let expanded = 0;
+  const documentMode = isFiscalDocumentMode(input.documentMode)
+    ? input.documentMode
+    : FISCAL_DOCUMENT_MODE;
   const company =
     parsed != null &&
     parsed.accountKind === "company" &&
@@ -211,6 +225,19 @@ export function assessCompanyInvoiceFiscal(
     parsed.legalName != null &&
     parsed.tin != null;
   if (company && parsed) {
+    const anchored = anchoredNatures(
+      parsed.groups
+        .map((group) => resolveItem(group, input.itemMappings)?.natureOfSupplies)
+        .filter((nature): nature is string => Boolean(nature)),
+    );
+    const manualNature = manualChargeNature(anchored);
+    const needsManualIdentity = parsed.groups.some(
+      (group) => group.chargeSource === "manual" && !resolveItem(group, input.itemMappings),
+    );
+    if (needsManualIdentity && manualNature === "mixed") {
+      reasons.push(MANUAL_NATURE_MIXED);
+    }
+    let previewSerial = 1001;
     parsed.groups.forEach((group, index) => {
       if (!group.identityFrozen) {
         reasons.push(
@@ -227,7 +254,17 @@ export function assessCompanyInvoiceFiscal(
         );
         return;
       }
-      const item = resolveItem(group, input.itemMappings);
+      const mapped = resolveItem(group, input.itemMappings);
+      const manualCode =
+        input.manualItemCodes?.[group.groupKey] ??
+        (group.chargeSource === "manual" && input.allowPreviewManualCode
+          ? String(previewSerial++)
+          : null);
+      const item =
+        mapped ??
+        (group.chargeSource === "manual" && manualCode && manualNature !== "mixed"
+          ? manualFiscalMapping(manualCode, manualNature)
+          : null);
       if (!item) {
         missingItems.push(group.description);
         reasons.push(`Missing item mapping for "${group.description}".`);
@@ -321,7 +358,7 @@ export function assessCompanyInvoiceFiscal(
   };
   const payload: CompanyInvoicePayload = {
     Date: date,
-    Mode: FISCAL_DOCUMENT_MODE,
+    Mode: documentMode,
     Type: "INV",
     info: {
       ItemList: lines,
@@ -348,6 +385,7 @@ export function assessCompanyInvoiceFiscal(
     ok: true,
     payload,
     preview: {
+      mode: documentMode,
       invoiceNumber: parsed.invoiceNumber,
       legalName: buyer.LegalName,
       tin: buyer.Tin,
@@ -375,6 +413,7 @@ export function companyPreviewFromPayload(payload: unknown): CompanyInvoiceFisca
   const tin = optionalText(buyer.Tin);
   if (!legalName || !tin) return null;
   return {
+    mode: isFiscalDocumentMode(row.Mode) ? row.Mode : FISCAL_DOCUMENT_MODE,
     invoiceNumber: "",
     legalName,
     tin,

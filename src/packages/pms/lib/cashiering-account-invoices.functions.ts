@@ -12,7 +12,9 @@ import {
 } from "./cashiering-account-invoices";
 import {
   assertIdempotencyKey,
+  canAllocateAccountPayments,
   canManageCashiering,
+  CASHIER_OPERATE_ROLES,
   cashierError,
   requireCashierManager,
   requireCashieringAccess,
@@ -56,7 +58,12 @@ export const getFinancialAccountInvoiceBoard = createServerFn({ method: "GET" })
       data,
       context,
     }): Promise<
-      AccountInvoiceBoard & { canManage: boolean; invoiceSettingsAvailable: boolean }
+      AccountInvoiceBoard & {
+        canManage: boolean;
+        canOperate: boolean;
+        canAllocate: boolean;
+        invoiceSettingsAvailable: boolean;
+      }
     > => {
       const me = await requireCashieringAccess(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -102,6 +109,8 @@ export const getFinancialAccountInvoiceBoard = createServerFn({ method: "GET" })
             }
           : null,
         canManage: canManageCashiering(me.role),
+        canOperate: (CASHIER_OPERATE_ROLES as readonly string[]).includes(me.role),
+        canAllocate: canAllocateAccountPayments(me.role),
         invoiceSettingsAvailable: Boolean(settings),
       };
     },

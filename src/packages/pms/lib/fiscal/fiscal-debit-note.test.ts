@@ -168,6 +168,24 @@ describe("fiscal debit note eligibility and payload", () => {
     assert.equal(serialized.includes(`gi-${INVOICE_ID}`), false);
   });
 
+  it("copies CREDIT from the original fiscal invoice", () => {
+    const result = assessDebitNoteFiscal(NOTE_ID, {
+      ...input(),
+      originalRegistration: {
+        status: "REGISTERED",
+        irn: IRN,
+        documentNumber: "2823",
+        requestSnapshot: { ...originalRequest(), Mode: "CREDIT" },
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.payload.Mode, "CREDIT");
+    assert.equal(result.payload.info.ItemList[0].ItemCode, 1001);
+    assert.equal(result.payload.info.ItemList[0].Unit, "PCS");
+    assert.equal(result.payload.info.ItemList[0].Quantity, 1);
+  });
+
   it("copies a changed original identity and ignores later settings", () => {
     const result = assessDebitNoteFiscal(
       NOTE_ID,

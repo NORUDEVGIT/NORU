@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Building2, ShieldCheck, User } from "lucide-react";
 
 import { FiscalExchangeDrawer } from "@/packages/pms/components/cashiering/fiscal-exchange-drawer";
+import { FiscalSettlementSummaryCard } from "@/packages/pms/components/cashiering/fiscal-settlement-summary";
 import { GuestTaxIdentityDialog } from "@/packages/pms/components/guests/guest-tax-identity-editor";
 import {
   getGuestInvoiceFiscal,
@@ -58,6 +59,12 @@ export function GuestInvoiceFiscalSection({
       await queryClient.invalidateQueries({
         queryKey: ["guest-invoice-fiscal", restaurantId, invoiceId],
       });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["guest-invoice-settlement", restaurantId] }),
+        queryClient.invalidateQueries({
+          queryKey: ["guest-sales-receipts", restaurantId, invoiceId],
+        }),
+      ]);
       if (result.status === "registered") toast.success("Fiscal invoice registered.");
       else if (result.reasons[0]) toast.error(result.reasons[0]);
       else if (result.registration?.lastError) toast.error(result.registration.lastError);
@@ -129,6 +136,12 @@ export function GuestInvoiceFiscalSection({
       ) : null}
       {state?.status === "failed" && state.registration?.lastError ? (
         <p className="mt-2 text-sm text-destructive">{state.registration.lastError}</p>
+      ) : null}
+      {state?.settlement ? <FiscalSettlementSummaryCard settlement={state.settlement} /> : null}
+      {!canRegister && !state?.registration ? (
+        <p className="mt-3 text-sm font-medium text-muted-foreground">
+          A manager registers this invoice.
+        </p>
       ) : null}
       <div
         className={
@@ -213,7 +226,9 @@ export function GuestInvoiceFiscalSection({
                     <div
                       className={cn(
                         "grid size-7 place-items-center rounded-lg",
-                        fiscalType === "B2C" ? "bg-[#FAF5EB] text-[#8A641A]" : "bg-neutral-100 text-neutral-500",
+                        fiscalType === "B2C"
+                          ? "bg-[#FAF5EB] text-[#8A641A]"
+                          : "bg-neutral-100 text-neutral-500",
                       )}
                     >
                       <User className="size-3.5" />
@@ -239,7 +254,9 @@ export function GuestInvoiceFiscalSection({
                     <div
                       className={cn(
                         "grid size-7 place-items-center rounded-lg",
-                        fiscalType === "B2B" ? "bg-[#FAF5EB] text-[#8A641A]" : "bg-neutral-100 text-neutral-500",
+                        fiscalType === "B2B"
+                          ? "bg-[#FAF5EB] text-[#8A641A]"
+                          : "bg-neutral-100 text-neutral-500",
                       )}
                     >
                       <Building2 className="size-3.5" />

@@ -18,7 +18,7 @@ import {
   uniqueInvoiceGroupIndex,
   type OriginalFiscalLine,
 } from "./fiscal-original-invoice.ts";
-import { FISCAL_DOCUMENT_MODE } from "./fiscal.types.ts";
+import { type FiscalDocumentMode } from "./fiscal-document-mode.ts";
 
 export function companyDebitTrnxId(debitNoteId: string): string {
   return `cdn-${debitNoteId}`;
@@ -40,7 +40,7 @@ export type CompanyDebitPreview = {
 
 export type CompanyDebitPayload = {
   Date: string;
-  Mode: typeof FISCAL_DOCUMENT_MODE;
+  Mode: FiscalDocumentMode;
   Type: "DEB";
   info: {
     ItemList: Array<Record<string, unknown>>;
@@ -155,6 +155,10 @@ export function assessCompanyDebitFiscal(
   if (reasons.length > 0 || !request || !buyer || !debits || !original?.irn) {
     return { ok: false, reasons, missingDevice };
   }
+  if (!request.mode) {
+    reasons.push("Original fiscal invoice Mode is missing.");
+    return { ok: false, reasons, missingDevice };
+  }
   const storedLinks = readNoruFiscalLines(original.requestSnapshot);
   const matches: Array<{
     debit: DebitGroup;
@@ -267,7 +271,7 @@ export function assessCompanyDebitFiscal(
     ok: true,
     payload: {
       Date: issuedAt,
-      Mode: FISCAL_DOCUMENT_MODE,
+      Mode: request.mode,
       Type: "DEB",
       info: {
         ItemList: itemList,

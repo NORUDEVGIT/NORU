@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Building2, ShieldCheck } from "lucide-react";
 
 import { FiscalExchangeDrawer } from "@/packages/pms/components/cashiering/fiscal-exchange-drawer";
+import { FiscalSettlementSummaryCard } from "@/packages/pms/components/cashiering/fiscal-settlement-summary";
 import {
   getCompanyInvoiceFiscal,
   registerCompanyInvoiceFiscal,
@@ -51,6 +52,12 @@ export function CompanyInvoiceFiscalSection({
       await queryClient.invalidateQueries({
         queryKey: ["company-invoice-fiscal", restaurantId, invoiceId],
       });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["account-invoice-settlement", restaurantId] }),
+        queryClient.invalidateQueries({
+          queryKey: ["company-sales-receipts", restaurantId, invoiceId],
+        }),
+      ]);
       if (result.status === "registered") toast.success("Fiscal company invoice registered.");
       else if (result.reasons[0]) toast.error(result.reasons[0]);
       else if (result.registration?.lastError) toast.error(result.registration.lastError);
@@ -129,6 +136,12 @@ export function CompanyInvoiceFiscalSection({
       {state?.status === "failed" && state.registration?.lastError ? (
         <p className="mt-2 text-sm text-destructive">{state.registration.lastError}</p>
       ) : null}
+      {state?.settlement ? <FiscalSettlementSummaryCard settlement={state.settlement} /> : null}
+      {!canRegister && !state?.registration ? (
+        <p className="mt-3 text-sm font-medium text-muted-foreground">
+          A manager registers this invoice.
+        </p>
+      ) : null}
       <div
         className={
           (canRegister && (state?.canRegister || state?.canRetry)) ||
@@ -178,7 +191,9 @@ export function CompanyInvoiceFiscalSection({
                 <div className="flex items-center justify-between border-b border-[#E8E1D7]/70 pb-2">
                   <div className="flex items-center gap-2">
                     <Building2 className="size-4 text-[#8A641A]" />
-                    <span className="font-semibold text-xs text-[#251605]">{preview.legalName}</span>
+                    <span className="font-semibold text-xs text-[#251605]">
+                      {preview.legalName}
+                    </span>
                   </div>
                   <span className="rounded bg-[#C89933]/15 px-2 py-0.5 text-[10px] font-bold text-[#8A641A]">
                     TIN {preview.tin}
@@ -195,7 +210,9 @@ export function CompanyInvoiceFiscalSection({
 
               {/* Totals Summary */}
               <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs space-y-3">
-                <span className="font-semibold text-xs text-[#251605]">Fiscal Verification Totals</span>
+                <span className="font-semibold text-xs text-[#251605]">
+                  Fiscal Verification Totals
+                </span>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-2.5">
                     <p className="text-[10px] font-medium text-[#7A6B58]">Pretax Base</p>

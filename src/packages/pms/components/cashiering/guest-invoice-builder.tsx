@@ -66,7 +66,7 @@ export function GuestInvoiceWorkspace({
   onPostCharge?: (() => void) | undefined;
   onReprint: (invoice: IssuedFolioInvoiceRow) => void;
   reprinting: boolean;
-  onAllocate?: ((invoiceId: string) => void) | undefined;
+  onAllocate?: ((invoiceId: string, paymentId?: string) => void) | undefined;
 }) {
   const folio = workspace.folio;
   const canManage = workspace.canManage && workspace.capabilities.canIssueInvoice;
@@ -214,7 +214,10 @@ export function GuestInvoiceWorkspace({
         },
       })) as { ok: boolean; message?: string; invoice?: IssuedFolioInvoiceRow };
       if (!issueResult.ok || !issueResult.invoice) {
-        return { ok: false as const, message: issueResult.message ?? "The draft could not be issued." };
+        return {
+          ok: false as const,
+          message: issueResult.message ?? "The draft could not be issued.",
+        };
       }
       return { ok: true as const, invoice: issueResult.invoice };
     },
@@ -241,7 +244,9 @@ export function GuestInvoiceWorkspace({
 
   const currentViewingInvoice = useMemo(() => {
     if (!viewingInvoice) return null;
-    return folio.issuedInvoices.find((invoice) => invoice.id === viewingInvoice.id) ?? viewingInvoice;
+    return (
+      folio.issuedInvoices.find((invoice) => invoice.id === viewingInvoice.id) ?? viewingInvoice
+    );
   }, [folio.issuedInvoices, viewingInvoice]);
 
   return (

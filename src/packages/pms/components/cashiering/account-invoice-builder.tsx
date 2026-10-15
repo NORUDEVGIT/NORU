@@ -4,9 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { FileText, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  listFinancialAccountOutstandingInvoices,
-} from "@/packages/pms/lib/cashiering-account-allocation.functions";
+import { listFinancialAccountOutstandingInvoices } from "@/packages/pms/lib/cashiering-account-allocation.functions";
 import { settlementStateLabel } from "@/packages/pms/lib/cashiering-account-allocation";
 import { AccountInvoiceModal } from "@/packages/pms/components/cashiering/account-invoice-modal";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
@@ -93,7 +91,7 @@ export function AccountInvoiceWorkspace({
     queryFn: () => fetchSettlements({ data: { restaurantId, accountId } }),
   });
   const board = boardQuery.data;
-  const invoices = invoicesQuery.data ?? [];
+  const invoices = useMemo(() => invoicesQuery.data ?? [], [invoicesQuery.data]);
   const [editing, setEditing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
@@ -148,7 +146,6 @@ export function AccountInvoiceWorkspace({
     void boardQuery.refetch();
     void invoicesQuery.refetch();
     void settlementsQuery.refetch();
-    void settlementDetailQuery.refetch();
   }
 
   const createMut = useMutation({
@@ -229,7 +226,8 @@ export function AccountInvoiceWorkspace({
     onError: (error: Error) => toast.error(error.message),
   });
   const reprintMut = useMutation({
-    mutationFn: (invoiceId: string) => reprintInvoice({ data: { restaurantId, accountId, invoiceId } }),
+    mutationFn: (invoiceId: string) =>
+      reprintInvoice({ data: { restaurantId, accountId, invoiceId } }),
     onSuccess: (result) => {
       if (!result.ok) {
         toast.error(result.message);
@@ -650,6 +648,8 @@ export function AccountInvoiceWorkspace({
         accountId={accountId}
         accountOpen={board?.account.status === "open"}
         canManage={canManage}
+        canOperate={Boolean(board?.canOperate)}
+        canAllocate={Boolean(board?.canAllocate)}
         money={money}
         dateTime={dateTime}
         documentProperty={documentProperty}

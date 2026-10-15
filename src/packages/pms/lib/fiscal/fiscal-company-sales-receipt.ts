@@ -10,6 +10,7 @@
  * shown in the provider B2B example. Cancellation is not built here.
  */
 import { propertyCalendarDate } from "../cashiering-control.ts";
+import { frozenFiscalMode, SALES_RECEIPT_CASH_BLOCK } from "./fiscal-document-mode.ts";
 import { fiscalMoney } from "./fiscal-guest-invoice.ts";
 import {
   copyOriginalBuyerDetails,
@@ -174,6 +175,11 @@ export function assessCompanyReceiptFiscal(
       reasons.push("Only a B2B sales receipt can be registered in the current fiscal phase.");
     }
     if (request && !buyer) reasons.push("Original fiscal BuyerDetails are missing.");
+  }
+  if (request && frozenFiscalMode(original?.requestSnapshot) === "CASH") {
+    reasons.push(SALES_RECEIPT_CASH_BLOCK);
+  } else if (request && frozenFiscalMode(original?.requestSnapshot) == null) {
+    reasons.push("Original fiscal invoice Mode is missing.");
   }
   if (input.priors.some((prior) => !prior.fiscalRegistered)) {
     reasons.push("An earlier payment allocation must be fiscalized first.");

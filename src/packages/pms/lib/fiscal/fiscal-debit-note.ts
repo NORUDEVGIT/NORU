@@ -35,7 +35,7 @@ import {
   uniqueInvoiceGroupIndex,
   type OriginalFiscalLine,
 } from "./fiscal-original-invoice.ts";
-import { FISCAL_DOCUMENT_MODE } from "./fiscal.types.ts";
+import { type FiscalDocumentMode } from "./fiscal-document-mode.ts";
 
 export const FISCAL_P4_SOURCE = "debit_note" as const;
 export const FISCAL_P4_DOCUMENT = "DEB" as const;
@@ -61,7 +61,7 @@ export type DebitNoteFiscalPreview = {
   relatedIrn: string;
   transactionType: "B2C" | "B2B";
   currency: "ETB";
-  mode: typeof FISCAL_DOCUMENT_MODE;
+  mode: FiscalDocumentMode;
   pretax: number;
   tax: number;
   total: number;
@@ -87,7 +87,7 @@ export type FiscalDebLine = {
 
 export type FiscalDebPayload = {
   Date: string;
-  Mode: typeof FISCAL_DOCUMENT_MODE;
+  Mode: FiscalDocumentMode;
   Type: "DEB";
   info: {
     ItemList: FiscalDebLine[];
@@ -207,6 +207,10 @@ export function assessDebitNoteFiscal(
     );
   }
   if (reasons.length > 0 || !request || !debits || !original?.irn) {
+    return { ok: false, reasons, missingDevice };
+  }
+  if (!request.mode) {
+    reasons.push("Original fiscal invoice Mode is missing.");
     return { ok: false, reasons, missingDevice };
   }
 
@@ -332,7 +336,7 @@ export function assessDebitNoteFiscal(
   };
   const payload: FiscalDebPayload = {
     Date: issuedAt,
-    Mode: FISCAL_DOCUMENT_MODE,
+    Mode: request.mode,
     Type: "DEB",
     info: inheritedBuyer
       ? { ItemList: lines, ValueDetails: valueDetails, BuyerDetails: inheritedBuyer }
@@ -354,7 +358,7 @@ export function assessDebitNoteFiscal(
       relatedIrn: original.irn.trim(),
       transactionType,
       currency: "ETB",
-      mode: FISCAL_DOCUMENT_MODE,
+      mode: request.mode,
       pretax,
       tax,
       total,

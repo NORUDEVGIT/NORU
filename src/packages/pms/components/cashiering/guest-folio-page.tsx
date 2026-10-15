@@ -812,9 +812,9 @@ function FolioWorkspaceBody({
                 onPostCharge={() => openEntry("charge")}
                 onReprint={(invoice) => reprintMut.mutate(invoice)}
                 reprinting={reprintMut.isPending}
-                onAllocate={(invoiceId) => {
+                onAllocate={(invoiceId, paymentId) => {
                   setAllocateInvoiceId(invoiceId);
-                  setAllocatePaymentId(null);
+                  setAllocatePaymentId(paymentId ?? null);
                   setAllocateOpen(true);
                 }}
               />

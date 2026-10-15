@@ -149,6 +149,18 @@ export const getGuestInvoiceSettlement = createServerFn({ method: "GET" })
     };
   });
 
+export async function loadGuestInvoiceSettlementForWrite(
+  supabaseAdmin: ServiceClient,
+  restaurantId: string,
+  folioId: string,
+  invoiceId: string,
+): Promise<GuestInvoiceSettlementRow | null> {
+  const folio = await loadFolio(supabaseAdmin, restaurantId, folioId);
+  if (!folio) return null;
+  const rows = await loadGuestSettlements(supabaseAdmin, restaurantId, folio);
+  return rows.find((row) => row.invoiceId === invoiceId) ?? null;
+}
+
 export const getGuestPaymentAllocationDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>

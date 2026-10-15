@@ -8,8 +8,8 @@
  * Tax codes and item identity come from property mappings. This module does
  * not post ledger rows and does not call the fiscal API.
  *
- * ItemList and ValueDetails are nested under info. Mode is FISCAL_DOCUMENT_MODE
- * and Unit is FISCAL_ITEM_UNIT. Neither is chosen from a payment or a mapping.
+ * ItemList and ValueDetails are nested under info. Mode is derived by the
+ * server from eligible payment allocations and then frozen. Unit is PCS.
  *
  * Room accommodation is one fiscal item for every rate plan. The rate plan is
  * not read. ProductDescription stays the frozen invoice description.
@@ -39,6 +39,13 @@ import {
   type FiscalLinkDraft,
   type NoruFiscalLineLink,
 } from "./fiscal-line-expansion.ts";
+import { isFiscalDocumentMode, type FiscalDocumentMode } from "./fiscal-document-mode.ts";
+import {
+  anchoredNatures,
+  manualChargeNature,
+  manualFiscalMapping,
+  MANUAL_NATURE_MIXED,
+} from "./fiscal-manual-item.ts";
 import {
   FISCAL_DOCUMENT_MODE,
   FISCAL_ITEM_UNIT,
@@ -91,6 +98,12 @@ export type GuestInvoiceFiscalInput = {
   itemMappings: FiscalItemMapping[];
   fiscalCustomerType?: GuestFiscalCustomerType;
   buyer?: GuestTaxBuyerDetails | null;
+  /** Set by the server from payment allocations. Omitted callers keep the legacy constant. */
+  documentMode?: FiscalDocumentMode | null;
+  /** Real codes assigned at registration. Preview may omit them. */
+  manualItemCodes?: Readonly<Record<string, string>>;
+  /** Lets the registration screen succeed before a code is stored. */
+  allowPreviewManualCode?: boolean;
 };
 
 export type FiscalInvLine = {
@@ -112,7 +125,7 @@ export type FiscalInvLine = {
 
 export type FiscalInvPayload = {
   Date: string;
-  Mode: typeof FISCAL_DOCUMENT_MODE;
+  Mode: FiscalDocumentMode;
   Type: "INV";
   info: {
     ItemList: FiscalInvLine[];
@@ -252,8 +265,35 @@ export function assessGuestInvoiceFiscal(
   if (!parsed || parsed.currency !== "ETB" || parsed.hasServiceCharge) {
     return { ok: false, reasons, missingTaxes, missingItems, missingMode, missingDevice };
   }
+  const anchored = anchoredNatures(
+    parsed.groups
+      .map((group) => resolveItem(group, input.itemMappings)?.natureOfSupplies)
+      .filter((nature): nature is string => Boolean(nature)),
+  );
+  const manualNature = manualChargeNature(anchored);
+  const needsManualIdentity = parsed.groups.some(
+    (group) => group.chargeSource === "manual" && !resolveItem(group, input.itemMappings),
+  );
+  if (needsManualIdentity && manualNature === "mixed") {
+    reasons.push(MANUAL_NATURE_MIXED);
+    return { ok: false, reasons, missingTaxes, missingItems, missingMode, missingDevice };
+  }
+  const documentMode = isFiscalDocumentMode(input.documentMode)
+    ? input.documentMode
+    : FISCAL_DOCUMENT_MODE;
+  let previewSerial = 1001;
   parsed.groups.forEach((group, index) => {
-    const item = resolveItem(group, input.itemMappings);
+    const mapped = resolveItem(group, input.itemMappings);
+    const manualCode =
+      input.manualItemCodes?.[group.groupKey] ??
+      (group.chargeSource === "manual" && input.allowPreviewManualCode
+        ? String(previewSerial++)
+        : null);
+    const item =
+      mapped ??
+      (group.chargeSource === "manual" && manualCode && manualNature !== "mixed"
+        ? manualFiscalMapping(manualCode, manualNature)
+        : null);
     if (!item) {
       missingItems.push(group.description);
       reasons.push(`Missing item mapping for "${group.description}".`);
@@ -343,7 +383,7 @@ export function assessGuestInvoiceFiscal(
   };
   const payload: FiscalInvPayload = {
     Date: formatFiscalDocumentDate(parsed.issuedAt),
-    Mode: FISCAL_DOCUMENT_MODE,
+    Mode: documentMode,
     Type: "INV",
     info: buyer
       ? { ItemList: lines, ValueDetails: valueDetails, BuyerDetails: buyer }
@@ -364,7 +404,7 @@ export function assessGuestInvoiceFiscal(
       guestName: parsed.guestName,
       transactionType: fiscalCustomerType,
       currency: "ETB",
-      mode: FISCAL_DOCUMENT_MODE,
+      mode: documentMode,
       pretax: reconciled.sourcePretax,
       tax: reconciled.taxValue,
       total: reconciled.totalValue,

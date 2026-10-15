@@ -170,6 +170,7 @@ function debitInput(overrides: Partial<CompanyDebitInput> = {}): CompanyDebitInp
 
 function receiptRequest(total = 12) {
   return originalRequest({
+    Mode: "CREDIT",
     info: {
       ItemList: [
         {
@@ -387,6 +388,38 @@ describe("historical company buyer details", () => {
   });
 });
 
+describe("company note mode inheritance", () => {
+  it("copies CREDIT from the original company invoice onto CRE and DEB", () => {
+    const creditRequest = originalRequest({ Mode: "CREDIT" });
+    const credit = assessCompanyCreditFiscal(
+      CREDIT_ID,
+      creditInput({
+        originalRegistration: {
+          status: "REGISTERED",
+          irn: IRN,
+          documentNumber: "5001",
+          requestSnapshot: creditRequest,
+        },
+      }),
+    );
+    const debit = assessCompanyDebitFiscal(
+      DEBIT_ID,
+      debitInput({
+        originalRegistration: {
+          status: "REGISTERED",
+          irn: IRN,
+          documentNumber: "5001",
+          requestSnapshot: originalRequest({ Mode: "CREDIT" }),
+        },
+      }),
+    );
+    assert.equal(credit.ok && debit.ok, true);
+    if (!credit.ok || !debit.ok) return;
+    assert.equal(credit.payload.Mode, "CREDIT");
+    assert.equal(debit.payload.Mode, "CREDIT");
+  });
+});
+
 describe("company B2B debit note", () => {
   it("copies buyer and item identity and uses the issued debit amount", () => {
     const result = assessCompanyDebitFiscal(DEBIT_ID, debitInput());
@@ -444,6 +477,34 @@ describe("company B2B debit note", () => {
 });
 
 describe("company B2B sales receipt", () => {
+  it("blocks a receipt when the original invoice was registered as CASH", () => {
+    const blocked = (documentType: "CRE" | "DEB" | null) =>
+      assessCompanyReceiptFiscal(
+        ALLOC_A,
+        receiptInput({
+          fiscalEnvironment: "TEST",
+          hasAdjustingNotes: documentType != null,
+          noteAdjustments: documentType ? [{ documentType, status: "REGISTERED", total: 10 }] : [],
+          originalRegistration: {
+            status: "REGISTERED",
+            irn: IRN,
+            documentNumber: "5001",
+            requestSnapshot: originalRequest(),
+          },
+        }),
+      );
+    for (const result of [blocked(null), blocked("CRE"), blocked("DEB")]) {
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(
+        result.reasons.includes(
+          "Sales Receipt is not applicable because the original fiscal invoice was registered as CASH.",
+        ),
+        true,
+      );
+    }
+  });
+
   it("builds one B2B receipt from this allocation and the original invoice", () => {
     const partial = assessCompanyReceiptFiscal(ALLOC_A, receiptInput());
     assert.equal(partial.ok, true);

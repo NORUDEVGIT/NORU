@@ -56,6 +56,8 @@ function refreshAllocation(
   void queryClient.invalidateQueries({
     queryKey: ["financial-account-allocation", restaurantId, accountId],
   });
+  void queryClient.invalidateQueries({ queryKey: ["company-invoice-fiscal", restaurantId] });
+  void queryClient.invalidateQueries({ queryKey: ["company-sales-receipts", restaurantId] });
 }
 
 export function AllocatePaymentDialog({
@@ -377,6 +379,8 @@ export function ReverseAllocationDialog({
       void queryClient.invalidateQueries({
         queryKey: ["financial-account-allocation", restaurantId],
       });
+      void queryClient.invalidateQueries({ queryKey: ["company-invoice-fiscal", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["company-sales-receipts", restaurantId] });
       onOpenChange(false);
     },
     onError: (error: Error) => toast.error(error.message),

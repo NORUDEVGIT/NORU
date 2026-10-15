@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  CreditCard,
   FileText,
   Printer,
   ReceiptText,
@@ -13,6 +14,11 @@ import {
 import { FolioInvoicePreview } from "@/packages/pms/components/cashiering/folio-invoice-panel";
 import { GuestInvoiceFiscalSection } from "@/packages/pms/components/cashiering/guest-invoice-fiscal-section";
 import { GuestInvoiceSettlementDetail } from "@/packages/pms/components/cashiering/guest-payment-allocation-drawer";
+import { InvoiceReceivePaymentDialog } from "@/packages/pms/components/cashiering/invoice-receive-payment-dialog";
+import {
+  InvoiceSettlementStrip,
+  type InvoiceSettlementStatus,
+} from "@/packages/pms/components/cashiering/invoice-settlement-strip";
 import { CreditNoteSection } from "@/packages/pms/components/cashiering/credit-note-panel";
 import { DebitNoteSection } from "@/packages/pms/components/cashiering/debit-note-panel";
 import type { IssuedFolioInvoiceRow } from "@/packages/pms/lib/cashiering-invoices.server";
@@ -23,6 +29,8 @@ import {
   guestSettlementLabel,
   type GuestSettlementState,
 } from "@/packages/pms/lib/cashiering-guest-allocation";
+import { getGuestInvoiceSettlement } from "@/packages/pms/lib/cashiering-guest-allocation.functions";
+import { getGuestInvoiceFiscal } from "@/packages/pms/lib/fiscal/fiscal.functions";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -37,11 +45,7 @@ type Money = (value: number) => string;
 type DateTimeFormat = (iso: string | null | undefined) => string;
 
 export type InvoiceModalTabId =
-  | "preview"
-  | "fiscal"
-  | "settlement"
-  | "credit-notes"
-  | "debit-notes";
+  "preview" | "fiscal" | "settlement" | "credit-notes" | "debit-notes";
 
 function getSettlementBadgeText(state: string | null | undefined): string | null {
   if (!state) return null;
@@ -82,13 +86,87 @@ export function GuestInvoiceModal({
   onReprint?: ((invoice: IssuedFolioInvoiceRow) => void) | undefined;
   reprinting?: boolean | undefined;
   onPostCharge?: (() => void) | undefined;
-  onAllocate?: ((invoiceId: string) => void) | undefined;
+  onAllocate?: ((invoiceId: string, paymentId?: string) => void) | undefined;
 }) {
   const [activeTab, setActiveTab] = useState<InvoiceModalTabId>("preview");
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const loadSettlement = useServerFn(getGuestInvoiceSettlement);
+  const loadFiscal = useServerFn(getGuestInvoiceFiscal);
+  const settlementQuery = useQuery({
+    queryKey: ["guest-invoice-settlement", restaurantId, folio.id, invoice?.id],
+    queryFn: () =>
+      loadSettlement({ data: { restaurantId, folioId: folio.id, invoiceId: invoice!.id } }),
+    enabled: open && Boolean(invoice),
+  });
+  const fiscalQuery = useQuery({
+    queryKey: ["guest-invoice-fiscal", restaurantId, invoice?.id],
+    queryFn: () => loadFiscal({ data: { restaurantId, invoiceId: invoice!.id } }),
+    enabled: open && Boolean(invoice),
+  });
+  const availableUnallocated = useMemo(
+    () =>
+      workspace.folio.transactions
+        .filter((row) => row.type === "payment")
+        .reduce((sum, payment) => {
+          const refunded = workspace.folio.transactions
+            .filter((row) => row.type === "refund" && row.originalTransactionId === payment.id)
+            .reduce((refundSum, row) => refundSum + row.amount, 0);
+          const available =
+            Math.round(
+              (-payment.amount - refunded - (workspace.paymentAllocationNets[payment.id] ?? 0)) *
+                100,
+            ) / 100;
+          return sum + Math.max(0, available);
+        }, 0),
+    [workspace.folio.transactions, workspace.paymentAllocationNets],
+  );
 
   if (!invoice) return null;
 
   const isLegacy = invoice.coverageScope === "legacy_folio";
+  const settlement = settlementQuery.data?.settlement;
+  const total = settlement?.effectiveNet ?? invoice.snapshot.totals.invoiceTotal ?? 0;
+  const allocated = settlement?.allocated ?? 0;
+  const outstanding = settlement?.outstanding ?? Math.max(0, total - allocated);
+  const status: InvoiceSettlementStatus =
+    total <= 0.009
+      ? "No Amount Due"
+      : outstanding <= 0.009
+        ? "Paid"
+        : allocated > 0.009
+          ? "Partially Paid"
+          : "Unpaid";
+  const fiscalState = fiscalQuery.data;
+  const fiscalRegistered = Boolean(fiscalState?.registration);
+  const previewMode = fiscalState?.preview?.mode;
+  const fiscalMode =
+    previewMode === "CASH" || previewMode === "CREDIT"
+      ? previewMode
+      : (fiscalState?.settlement?.mode ?? null);
+  const fiscalReason = fiscalRegistered
+    ? fiscalMode
+      ? "Fiscal Mode was frozen when this invoice was first registered."
+      : null
+    : fiscalMode === "CASH"
+      ? "Invoice is fully covered by eligible payment allocations."
+      : (fiscalState?.settlement?.eligiblePayments ?? allocated) <= 0.009
+        ? "No eligible payment has been allocated."
+        : `${money(fiscalState?.settlement?.unpaid ?? outstanding)} remains unpaid by eligible payments.`;
+  const refreshSettlement = async () => {
+    await Promise.all([
+      settlementQuery.refetch(),
+      fiscalQuery.refetch(),
+      queryClient.invalidateQueries({ queryKey: ["folio", restaurantId, folio.id] }),
+      queryClient.invalidateQueries({
+        queryKey: ["guest-payment-allocation", restaurantId, folio.id],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["guest-sales-receipts", restaurantId, invoice.id],
+      }),
+    ]);
+    onChanged();
+  };
 
   const tabs: Array<{
     id: InvoiceModalTabId;
@@ -176,7 +254,8 @@ export function GuestInvoiceModal({
                     <>
                       <span>·</span>
                       <span className="font-medium text-amber-700">
-                        Reprinted {invoice.reprintCount} {invoice.reprintCount === 1 ? "time" : "times"}
+                        Reprinted {invoice.reprintCount}{" "}
+                        {invoice.reprintCount === 1 ? "time" : "times"}
                       </span>
                     </>
                   ) : null}
@@ -191,7 +270,9 @@ export function GuestInvoiceModal({
                   Invoice Total
                 </p>
                 <p className="font-display text-base font-bold tabular-nums text-[#251605]">
-                  {money(invoice.snapshot.totals.invoiceTotal ?? invoice.snapshot.totals.balance ?? 0)}
+                  {money(
+                    invoice.snapshot.totals.invoiceTotal ?? invoice.snapshot.totals.balance ?? 0,
+                  )}
                 </p>
               </div>
 
@@ -220,6 +301,23 @@ export function GuestInvoiceModal({
             </div>
           </div>
 
+          <InvoiceSettlementStrip
+            total={total}
+            allocated={allocated}
+            outstanding={outstanding}
+            status={status}
+            availableUnallocated={availableUnallocated}
+            expectedMode={fiscalMode}
+            fiscalReason={fiscalReason}
+            registered={fiscalRegistered}
+            canReceive={workspace.canOperate}
+            canAllocate={workspace.canAllocateInvoices}
+            canFiscalRegister={workspace.canManage}
+            money={money}
+            onReceive={() => setReceiveOpen(true)}
+            onAllocate={() => onAllocate?.(invoice.id)}
+          />
+
           {/* Clean Segmented Tab Navigation */}
           <nav
             aria-label="Invoice inspection tabs"
@@ -240,15 +338,15 @@ export function GuestInvoiceModal({
                       : "border-transparent text-[#756A5B] hover:border-[#DDD4C5] hover:text-[#251605] hover:bg-[#F7F4EE]/60 rounded-t-lg",
                   )}
                 >
-                  <Icon className={cn("size-3.5", isActive ? "text-[#8A641A]" : "text-[#8A7968]")} />
+                  <Icon
+                    className={cn("size-3.5", isActive ? "text-[#8A641A]" : "text-[#8A7968]")}
+                  />
                   <span>{tab.label}</span>
                   {tab.badge ? (
                     <span
                       className={cn(
                         "ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-semibold",
-                        isActive
-                          ? "bg-[#C89933]/20 text-[#765719]"
-                          : "bg-[#EFE9DF] text-[#7A6B58]",
+                        isActive ? "bg-[#C89933]/20 text-[#765719]" : "bg-[#EFE9DF] text-[#7A6B58]",
                       )}
                     >
                       {tab.badge}
@@ -302,7 +400,8 @@ export function GuestInvoiceModal({
                   </span>
                 </div>
                 <p className="text-xs text-[#7A6B58]">
-                  Manage electronic fiscal registration, tax mapping, B2B/B2C customer types, and legal fiscal device exchanges for this invoice.
+                  Manage electronic fiscal registration, tax mapping, B2B/B2C customer types, and
+                  legal fiscal device exchanges for this invoice.
                 </p>
               </div>
 
@@ -325,7 +424,8 @@ export function GuestInvoiceModal({
                 legacy={isLegacy}
                 money={money}
                 dateTime={dateTime}
-                canManage={workspace.canManage}
+                canAllocate={workspace.canAllocateInvoices && availableUnallocated > 0.009}
+                canFiscalRegister={workspace.canManage}
                 onAllocate={onAllocate}
               />
             </div>
@@ -339,7 +439,8 @@ export function GuestInvoiceModal({
                   <span>Credit Notes for Invoice {invoice.issuedNumber}</span>
                 </div>
                 <p className="mt-1 text-blue-800">
-                  Credit notes reduce the amount receivable on this invoice (e.g. for cancellations, refunds, or overbilling).
+                  Credit notes reduce the amount receivable on this invoice (e.g. for cancellations,
+                  refunds, or overbilling).
                 </p>
               </div>
               <CreditNoteSection
@@ -376,6 +477,22 @@ export function GuestInvoiceModal({
             </div>
           ) : null}
         </div>
+        <InvoiceReceivePaymentDialog
+          open={receiveOpen}
+          onOpenChange={setReceiveOpen}
+          target={{
+            lane: "guest",
+            restaurantId,
+            folioId: folio.id,
+            invoiceId: invoice.id,
+          }}
+          outstanding={outstanding}
+          currency={settlement?.currency ?? folio.currency}
+          receivedFrom={folio.guestName}
+          canAllocateExisting={workspace.canAllocateInvoices}
+          onSettled={refreshSettlement}
+          onAllocateExisting={(paymentId) => onAllocate?.(invoice.id, paymentId)}
+        />
       </DialogContent>
     </Dialog>
   );

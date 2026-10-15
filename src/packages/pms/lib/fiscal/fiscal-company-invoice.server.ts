@@ -21,6 +21,8 @@ import {
   type FiscalTaxMapping,
 } from "./fiscal-guest-invoice.ts";
 import { FiscalError, fiscalRecord, fiscalRecords, type FiscalDb } from "./fiscal.types.ts";
+import { frozenFiscalMode, type FiscalSettlementSummary } from "./fiscal-document-mode.ts";
+import { allocateUnmappedManualCodes, loadFiscalSettlement } from "./fiscal-settlement.server.ts";
 
 type Db = FiscalDb;
 
@@ -44,6 +46,7 @@ export type CompanyInvoiceFiscalState = {
     qrSrc: string | null;
     qrStored: boolean;
   } | null;
+  settlement: FiscalSettlementSummary | null;
 };
 
 export async function getCompanyInvoiceFiscalState(
@@ -52,15 +55,25 @@ export async function getCompanyInvoiceFiscalState(
 ): Promise<CompanyInvoiceFiscalState> {
   const invoice = await loadInvoice(db, input.restaurantId, input.invoiceId);
   const context = await loadFiscalContext(db, input.restaurantId);
+  const registration = await findRegistration(db, input.restaurantId, invoice.id);
+  const settlement = registration
+    ? null
+    : await loadFiscalSettlement(db, {
+        restaurantId: input.restaurantId,
+        invoiceId: invoice.id,
+        snapshot: invoice.snapshot,
+        allocationTable: "financial_account_payment_allocations",
+      });
   const assessment = assessCompanyInvoiceFiscal(invoice.id, {
     issued: true,
     snapshot: invoice.snapshot,
     connection: context.connection,
     taxMappings: context.taxMappings,
     itemMappings: context.itemMappings,
+    documentMode: registration ? frozenFiscalMode(registration.request) : settlement?.mode,
+    allowPreviewManualCode: true,
   });
-  const registration = await findRegistration(db, input.restaurantId, invoice.id);
-  return presentState(assessment, registration, invoice.invoiceNumber);
+  return presentState(assessment, registration, invoice.invoiceNumber, settlement);
 }
 
 export async function queueCompanyInvoiceFiscal(
@@ -69,18 +82,28 @@ export async function queueCompanyInvoiceFiscal(
 ): Promise<CompanyInvoiceFiscalState> {
   const invoice = await loadInvoice(db, input.restaurantId, input.invoiceId);
   const context = await loadFiscalContext(db, input.restaurantId);
-  const assessment = assessCompanyInvoiceFiscal(invoice.id, {
+  const existing = await findRegistration(db, input.restaurantId, invoice.id);
+  const settlement = existing
+    ? null
+    : await loadFiscalSettlement(db, {
+        restaurantId: input.restaurantId,
+        invoiceId: invoice.id,
+        snapshot: invoice.snapshot,
+        allocationTable: "financial_account_payment_allocations",
+      });
+  const preview = assessCompanyInvoiceFiscal(invoice.id, {
     issued: true,
     snapshot: invoice.snapshot,
     connection: context.connection,
     taxMappings: context.taxMappings,
     itemMappings: context.itemMappings,
+    documentMode: existing ? frozenFiscalMode(existing.request) : settlement?.mode,
+    allowPreviewManualCode: true,
   });
-  const existing = await findRegistration(db, input.restaurantId, invoice.id);
   if (existing?.status === "REGISTERED" || existing?.status === "PENDING") {
-    return presentState(assessment, existing, invoice.invoiceNumber);
+    return presentState(preview, existing, invoice.invoiceNumber, null);
   }
-  if (!assessment.ok) return presentState(assessment, existing, invoice.invoiceNumber);
+  if (!preview.ok) return presentState(preview, existing, invoice.invoiceNumber, settlement);
   if (existing?.status === "FAILED" || existing?.status === "BLOCKED") {
     await db
       .from("fiscal_registrations")
@@ -91,8 +114,39 @@ export async function queueCompanyInvoiceFiscal(
       })
       .eq("id", existing.id);
     const refreshed = await findRegistration(db, input.restaurantId, invoice.id);
-    return presentState(assessment, refreshed, invoice.invoiceNumber);
+    return presentState(preview, refreshed, invoice.invoiceNumber, null);
   }
+  const allocated = await allocateUnmappedManualCodes(
+    db,
+    input.restaurantId,
+    invoice.snapshot,
+    context.itemMappings,
+    "company",
+  );
+  if (!allocated.ok) {
+    return presentState(
+      {
+        ok: false,
+        reasons: [allocated.reason],
+        missingTaxes: [],
+        missingItems: [],
+        missingDevice: false,
+      },
+      null,
+      invoice.invoiceNumber,
+      settlement,
+    );
+  }
+  const assessment = assessCompanyInvoiceFiscal(invoice.id, {
+    issued: true,
+    snapshot: invoice.snapshot,
+    connection: context.connection,
+    taxMappings: context.taxMappings,
+    itemMappings: context.itemMappings,
+    documentMode: settlement?.mode,
+    manualItemCodes: allocated.codes,
+  });
+  if (!assessment.ok) return presentState(assessment, null, invoice.invoiceNumber, settlement);
   const inserted = await db
     .from("fiscal_registrations")
     .insert({
@@ -116,11 +170,11 @@ export async function queueCompanyInvoiceFiscal(
     .maybeSingle();
   if (inserted.error) {
     const raced = await findRegistration(db, input.restaurantId, invoice.id);
-    if (raced) return presentState(assessment, raced, invoice.invoiceNumber);
+    if (raced) return presentState(assessment, raced, invoice.invoiceNumber, null);
     throw new FiscalError("FISCAL_NOT_ELIGIBLE", "The fiscal registration could not be queued.");
   }
   const created = await findRegistration(db, input.restaurantId, invoice.id);
-  return presentState(assessment, created, invoice.invoiceNumber);
+  return presentState(assessment, created, invoice.invoiceNumber, null);
 }
 
 export async function sendClaimedCompanyInvoice(
@@ -230,6 +284,7 @@ function presentState(
   assessment: CompanyInvoiceFiscalAssessment,
   registration: Awaited<ReturnType<typeof findRegistration>>,
   invoiceNumber: string,
+  settlement: FiscalSettlementSummary | null,
 ): CompanyInvoiceFiscalState {
   const stored = registration ? companyPreviewFromPayload(registration.request) : null;
   const fresh = assessment.ok ? assessment.preview : null;
@@ -242,6 +297,7 @@ function presentState(
     missingItems: assessment.ok ? [] : assessment.missingItems,
     missingDevice: assessment.ok ? false : assessment.missingDevice,
     preview,
+    settlement: registration ? null : settlement,
   };
   if (!registration) {
     return {
