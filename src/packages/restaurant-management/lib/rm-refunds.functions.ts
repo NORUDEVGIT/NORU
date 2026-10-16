@@ -317,7 +317,7 @@ const lineInputSchema = z.object({
 
 export const getRefundSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, orderId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, orderId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RefundSaleView> => {
     const { membership, canRefund } = await resolveRmRefundPermission(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -335,7 +335,7 @@ export const getRefundSale = createServerFn({ method: "POST" })
 
 export const listRecentPaidSales = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -422,7 +422,7 @@ export const listRecentPaidSales = createServerFn({ method: "POST" })
 
 export const refundRestaurantSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -538,7 +538,7 @@ export const refundRestaurantSale = createServerFn({ method: "POST" })
 
 export const refundRestaurantRoomSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -591,7 +591,7 @@ export const refundRestaurantRoomSale = createServerFn({ method: "POST" })
 
 export const getStaffRmRefundGrant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, membershipId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ enabled: boolean; role: string }> => {
@@ -604,7 +604,7 @@ export const getStaffRmRefundGrant = createServerFn({ method: "POST" })
 
 export const setStaffRmRefundGrant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

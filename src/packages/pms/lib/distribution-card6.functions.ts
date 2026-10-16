@@ -491,7 +491,7 @@ async function writeAudit(
 
 export const getPmsCard6Distribution = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireDistributionManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -500,7 +500,7 @@ export const getPmsCard6Distribution = createServerFn({ method: "POST" })
 
 export const savePmsCard6Distribution = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => {
+  .validator((input: unknown) => {
     rejectSecrets(input);
     return saveSchema.parse(input);
   })
@@ -614,7 +614,7 @@ export const savePmsCard6Distribution = createServerFn({ method: "POST" })
 
 export const setPmsCard6DistributionEnabled = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, enabled: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -646,7 +646,7 @@ export const setPmsCard6DistributionEnabled = createServerFn({ method: "POST" })
 
 export const setPmsCard6DistributionActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -728,7 +728,7 @@ export const setPmsCard6DistributionActive = createServerFn({ method: "POST" })
 
 export const deletePmsCard6Distribution = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -751,7 +751,7 @@ export const deletePmsCard6Distribution = createServerFn({ method: "POST" })
 
 export const validatePmsCard6Distribution = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => {
+  .validator((input: unknown) => {
     rejectSecrets(input);
     return saveSchema.parse(input);
   })

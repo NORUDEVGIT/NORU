@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useNoruSite } from "../site-context";
 
 /* Timeline (seconds) */
 const END = 9;
@@ -113,8 +114,14 @@ function renderFigure(f: FigureParts, t: number): void {
   const lb = Math.max(0, -Math.cos(ph)) * lift;
 
   f.torso.setAttribute("d", `M${p0x.toFixed(1)} ${p0y.toFixed(1)} L${x.toFixed(1)} ${HIP_Y}`);
-  f.legA.setAttribute("d", `M${(x - off).toFixed(1)} ${HIP_Y} L${(x - off + sw).toFixed(1)} ${(fy - la).toFixed(1)}`);
-  f.legB.setAttribute("d", `M${(x + off).toFixed(1)} ${HIP_Y} L${(x + off - sw).toFixed(1)} ${(fy - lb).toFixed(1)}`);
+  f.legA.setAttribute(
+    "d",
+    `M${(x - off).toFixed(1)} ${HIP_Y} L${(x - off + sw).toFixed(1)} ${(fy - la).toFixed(1)}`,
+  );
+  f.legB.setAttribute(
+    "d",
+    `M${(x + off).toFixed(1)} ${HIP_Y} L${(x + off - sw).toFixed(1)} ${(fy - lb).toFixed(1)}`,
+  );
   f.legA.setAttribute("stroke-width", lw.toFixed(1));
   f.legB.setAttribute("stroke-width", lw.toFixed(1));
   f.head.setAttribute("cx", (p0x + hl * Math.cos(hth)).toFixed(1));
@@ -130,7 +137,10 @@ function renderFigure(f: FigureParts, t: number): void {
 
   const bob = w < 1 ? Math.abs(Math.sin(w * 5 * Math.PI)) * 5 * Math.min(1, (1 - w) * 4) : 0;
   const lean = (1 - w) * 5;
-  f.body.setAttribute("transform", `translate(0 ${(-bob).toFixed(1)}) rotate(${lean.toFixed(2)} ${x.toFixed(1)} ${FEET_Y})`);
+  f.body.setAttribute(
+    "transform",
+    `translate(0 ${(-bob).toFixed(1)}) rotate(${lean.toFixed(2)} ${x.toFixed(1)} ${FEET_Y})`,
+  );
   f.shadow.setAttribute("cx", x.toFixed(1));
   f.shadow.setAttribute("rx", (56 * (1 - bob / 40)).toFixed(1));
   f.shadow.setAttribute("opacity", (0.3 * (1 - clamp((t - 4.7) / 0.6))).toFixed(3));
@@ -165,12 +175,16 @@ function FigureShapes() {
  */
 export function HeroAnimation() {
   const rootRef = useRef<HTMLElement>(null);
+  const { hero } = useNoruSite();
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
 
-    const figures = [figureParts(pick<SVGGElement>(root, ".nh-fig-l")), figureParts(pick<SVGGElement>(root, ".nh-fig-r"))];
+    const figures = [
+      figureParts(pick<SVGGElement>(root, ".nh-fig-l")),
+      figureParts(pick<SVGGElement>(root, ".nh-fig-r")),
+    ];
     const letters = Array.from(root.querySelectorAll<SVGPathElement>(".nh-word path"));
     const sub = pick<SVGTextElement>(root, ".nh-sub");
     const tag = pick<HTMLElement>(root, ".nh-tag");
@@ -212,7 +226,11 @@ export function HeroAnimation() {
     <section className="hh" id="nh-hero" ref={rootRef}>
       <div className="nh-band pbn">
         <div className="nh-stage">
-          <svg viewBox="130 150 1020 870" role="img" aria-label="Two people walk toward each other, bow, and form the Noru logo.">
+          <svg
+            viewBox="130 150 1020 870"
+            role="img"
+            aria-label="Two people walk toward each other, bow, and form the Noru logo."
+          >
             <g className="nh-fig-l">
               <FigureShapes />
             </g>
@@ -222,16 +240,38 @@ export function HeroAnimation() {
               </g>
             </g>
             <g className="nh-word" strokeWidth={30}>
-              <path className="nh-line" pathLength={1} d="M360 865 V705 Q360 665 400 665 H410 Q450 665 450 705 V865" />
-              <path className="nh-line" pathLength={1} d="M525 710 Q525 665 570 665 Q615 665 615 710 V820 Q615 865 570 865 Q525 865 525 820 Z" />
-              <path className="nh-line" pathLength={1} d="M690 865 V705 Q690 665 730 665 H735 Q765 665 765 705 V735 Q765 775 735 775 H690 M735 775 L770 865" />
-              <path className="nh-line" pathLength={1} d="M840 665 V825 Q840 865 880 865 H890 Q930 865 930 825 V665" />
+              <path
+                className="nh-line"
+                pathLength={1}
+                d="M360 865 V705 Q360 665 400 665 H410 Q450 665 450 705 V865"
+              />
+              <path
+                className="nh-line"
+                pathLength={1}
+                d="M525 710 Q525 665 570 665 Q615 665 615 710 V820 Q615 865 570 865 Q525 865 525 820 Z"
+              />
+              <path
+                className="nh-line"
+                pathLength={1}
+                d="M690 865 V705 Q690 665 730 665 H735 Q765 665 765 705 V735 Q765 775 735 775 H690 M735 775 L770 865"
+              />
+              <path
+                className="nh-line"
+                pathLength={1}
+                d="M840 665 V825 Q840 865 880 865 H890 Q930 865 930 825 V665"
+              />
             </g>
-            <text className="nh-ink nh-subtxt nh-sub" x={645} y={975} textLength={415} lengthAdjust="spacing">
-              ኖሩ - በእግዜር
+            <text
+              className="nh-ink nh-subtxt nh-sub"
+              x={645}
+              y={975}
+              textLength={415}
+              lengthAdjust="spacing"
+            >
+              {hero.amharic}
             </text>
           </svg>
-          <p className="nh-tag">Hospitality Digital Solutions</p>
+          <p className="nh-tag">{hero.tagline}</p>
         </div>
       </div>
     </section>

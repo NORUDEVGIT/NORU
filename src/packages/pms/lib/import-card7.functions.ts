@@ -328,7 +328,7 @@ function assertSupportedTypes(snapshot: Card7ImportSnapshot, importTypeIds: stri
 
 export const getCard7Import = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -346,7 +346,7 @@ export const getCard7Import = createServerFn({ method: "POST" })
 
 export const saveCard7ImportPolicy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -387,7 +387,7 @@ export const saveCard7ImportPolicy = createServerFn({ method: "POST" })
 
 export const saveCard7ImportTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -430,7 +430,7 @@ export const saveCard7ImportTypes = createServerFn({ method: "POST" })
 
 export const saveCard7ImportTemplates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -511,7 +511,7 @@ export const saveCard7ImportTemplates = createServerFn({ method: "POST" })
 
 export const saveCard7ImportValidation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -569,7 +569,7 @@ export const saveCard7ImportValidation = createServerFn({ method: "POST" })
 
 export const saveCard7ImportDuplicates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

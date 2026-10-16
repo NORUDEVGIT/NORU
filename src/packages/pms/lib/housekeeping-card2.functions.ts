@@ -317,7 +317,7 @@ async function syncSet4Compatibility(db: DbClient, restaurantId: string, snapsho
 
 export const getPmsCard2Housekeeping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await withPmsPackage(
       data.restaurantId,
@@ -330,7 +330,7 @@ export const getPmsCard2Housekeeping = createServerFn({ method: "POST" })
 
 export const savePmsCard2Housekeeping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveSchema.parse(input))
+  .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -399,7 +399,7 @@ export const savePmsCard2Housekeeping = createServerFn({ method: "POST" })
 
 export const evaluatePmsCard2HousekeepingReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -422,7 +422,7 @@ const customStatusSchema = z.object({
 
 export const savePmsCard2CustomStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => customStatusSchema.parse(input))
+  .validator((input: unknown) => customStatusSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     if (CORE_HOUSEKEEPING_STATUSES.some((status) => status.code === data.code)) {
@@ -464,7 +464,7 @@ export const savePmsCard2CustomStatus = createServerFn({ method: "POST" })
 
 export const deletePmsCard2HousekeepingStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, statusId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -568,7 +568,7 @@ const singleTransitionSchema = z.object({
 
 export const savePmsCard2Transition = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => singleTransitionSchema.parse(input))
+  .validator((input: unknown) => singleTransitionSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     if (data.fromStatus === data.toStatus) {
@@ -660,7 +660,7 @@ export const savePmsCard2Transition = createServerFn({ method: "POST" })
 
 export const deletePmsCard2Transition = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {

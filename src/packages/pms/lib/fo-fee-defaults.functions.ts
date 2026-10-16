@@ -81,7 +81,7 @@ async function loadFeeRow(
 
 export const getFoFeeDefaults = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(
     async ({
       data,
@@ -96,7 +96,7 @@ export const getFoFeeDefaults = createServerFn({ method: "POST" })
 
 export const saveFoFeeDefaults = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => defaultsSchema.parse(input))
+  .validator((input: unknown) => defaultsSchema.parse(input))
   .handler(
     async ({
       data,

@@ -23,7 +23,7 @@ const workspaceSchema = z.object({
 
 export const getPackagesWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => workspaceSchema.parse(input))
+  .validator((input: unknown) => workspaceSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -36,7 +36,7 @@ export const getPackagesWorkspace = createServerFn({ method: "POST" })
 
 export const getPackagePerformanceSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     workspaceSchema
       .extend({
         packageId: idSchema.optional(),

@@ -77,7 +77,7 @@ async function assertRole(
 
 export const listRestaurantTables = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<{ role: string; tables: ManagedTable[] }> => {
     const role = await assertRole(context.supabase, context.userId, data.restaurantId, READ_ROLES);
     const { data: rows, error } = await context.supabase
@@ -106,7 +106,7 @@ export const listRestaurantTables = createServerFn({ method: "POST" })
 
 export const saveRestaurantTable = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -158,7 +158,7 @@ export const saveRestaurantTable = createServerFn({ method: "POST" })
 
 export const setTableActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -178,7 +178,7 @@ export const setTableActive = createServerFn({ method: "POST" })
  */
 export const regenerateTableToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, id: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, id: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await assertRole(context.supabase, context.userId, data.restaurantId, MANAGE_ROLES);
     const { error } = await context.supabase
@@ -196,7 +196,7 @@ export const regenerateTableToken = createServerFn({ method: "POST" })
  */
 export const deleteRestaurantTable = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, id: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, id: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await assertRole(context.supabase, context.userId, data.restaurantId, MANAGE_ROLES);
     const { count } = await context.supabase
@@ -229,7 +229,7 @@ export const deleteRestaurantTable = createServerFn({ method: "POST" })
  * applies, and nothing beyond the table's display fields is returned.
  */
 export const resolveRestaurantTable = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantSlug: slugSchema, qrToken: tokenSchema }).parse(input),
   )
   .handler(async ({ data }): Promise<{ ok: true; table: ResolvedTable } | { ok: false }> => {
@@ -278,7 +278,7 @@ export const resolveRestaurantTable = createServerFn({ method: "POST" })
  * tables, an unknown number is rejected rather than accepted as free text.
  */
 export const resolveManualTable = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantSlug: slugSchema, tableNumber: tableNumberSchema }).parse(input),
   )
   .handler(

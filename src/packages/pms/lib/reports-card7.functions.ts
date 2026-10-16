@@ -433,7 +433,7 @@ async function requireEditor(restaurantId: string, context: unknown) {
 
 export const getCard7Reports = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -451,7 +451,7 @@ export const getCard7Reports = createServerFn({ method: "POST" })
 
 export const saveCard7ReportDefinitions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => definitionsSchema.parse(input))
+  .validator((input: unknown) => definitionsSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireEditor(data.restaurantId, context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -488,7 +488,7 @@ export const saveCard7ReportDefinitions = createServerFn({ method: "POST" })
 
 export const saveCard7ReportMetrics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => metricsSchema.parse(input))
+  .validator((input: unknown) => metricsSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireEditor(data.restaurantId, context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -525,7 +525,7 @@ export const saveCard7ReportMetrics = createServerFn({ method: "POST" })
 
 export const saveCard7ReportPermissions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => permissionsSchema.parse(input))
+  .validator((input: unknown) => permissionsSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireEditor(data.restaurantId, context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -567,7 +567,7 @@ export const saveCard7ReportPermissions = createServerFn({ method: "POST" })
 
 export const saveCard7ReportPolicy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => policySchema.parse(input))
+  .validator((input: unknown) => policySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireEditor(data.restaurantId, context);
     if (data.exportAllowed && !data.exportCsv && !data.exportPdf) {

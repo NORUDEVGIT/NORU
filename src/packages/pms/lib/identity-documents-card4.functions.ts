@@ -263,7 +263,7 @@ export { loadSnapshot as loadIdentityDocumentsCard4Snapshot };
 
 export const setPmsCard4IdentityGlobalSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -321,7 +321,7 @@ export const setPmsCard4IdentityDocumentRequirement = setPmsCard4IdentityGlobalS
 
 export const getPmsCard4IdentityDocumentTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -330,7 +330,7 @@ export const getPmsCard4IdentityDocumentTypes = createServerFn({ method: "POST" 
 
 export const savePmsCard4IdentityDocumentType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveSchema.parse(input))
+  .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -423,7 +423,7 @@ export const savePmsCard4IdentityDocumentType = createServerFn({ method: "POST" 
 
 export const setPmsCard4IdentityDocumentTypeActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -461,7 +461,7 @@ export const setPmsCard4IdentityDocumentTypeActive = createServerFn({ method: "P
 
 export const reorderPmsCard4IdentityDocumentTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, ids: z.array(idSchema).min(1).max(80) })
       .strict()
@@ -493,7 +493,7 @@ const OPERATIONAL_CODE_BY_CONFIG_CODE: Record<string, string> = {
 
 export const deletePmsCard4IdentityDocumentType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {

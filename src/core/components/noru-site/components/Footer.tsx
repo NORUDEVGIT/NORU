@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import logo from "../assets/logo.png";
-import { PRODUCTS, SOLUTIONS } from "../data/content";
 import { hrefFor, useRequestDemo } from "../lib/router";
+import { useNoruSite } from "../site-context";
 
 export function CtaBand() {
   const requestDemo = useRequestDemo();
@@ -36,6 +36,7 @@ function Social({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export function Footer() {
+  const { products, solutions, footerContact } = useNoruSite();
   return (
     <footer>
       <div className="w">
@@ -51,7 +52,16 @@ export function Footer() {
                 <path d="M13.5 21v-7.5h2.6l.4-3h-3V8.6c0-.9.3-1.5 1.5-1.5h1.6V4.4c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.2H7.8v3h2.6V21h3.1z" />
               </Social>
               <Social label="Instagram">
-                <rect x={3.5} y={3.5} width={17} height={17} rx={5} fill="none" stroke="currentColor" strokeWidth={2} />
+                <rect
+                  x={3.5}
+                  y={3.5}
+                  width={17}
+                  height={17}
+                  rx={5}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                />
                 <circle cx={12} cy={12} r={4} fill="none" stroke="currentColor" strokeWidth={2} />
                 <circle cx={17.2} cy={6.8} r={1.2} />
               </Social>
@@ -67,7 +77,7 @@ export function Footer() {
           </div>
           <div>
             <h4>Products</h4>
-            {PRODUCTS.map((p) => (
+            {products.map((p) => (
               <a key={p.id} href={hrefFor("product", p.id)}>
                 {p.title}
               </a>
@@ -75,7 +85,7 @@ export function Footer() {
           </div>
           <div>
             <h4>Solutions</h4>
-            {SOLUTIONS.map((s) => (
+            {solutions.map((s) => (
               <a key={s.id} href={hrefFor("solutions", s.id)}>
                 {s.title}
               </a>
@@ -90,11 +100,11 @@ export function Footer() {
           </div>
           <div>
             <h4>Contact Info</h4>
-            <span>Company email</span>
+            <span>{footerContact.email}</span>
             <br />
-            <span>Phone number</span>
+            <span>{footerContact.phone}</span>
             <br />
-            <span>Office address</span>
+            <span>{footerContact.address}</span>
           </div>
         </div>
         <div className="bb">

@@ -411,7 +411,7 @@ async function loadCompanyReservations(
 
 export const getCompanyDetailWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, companyId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -548,7 +548,7 @@ export const getCompanyDetailWorkspace = createServerFn({ method: "POST" })
 
 export const listCompanyContacts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -713,7 +713,7 @@ export const listCompanyContacts = createServerFn({ method: "POST" })
 
 export const getCompanyContactCatalogues = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -757,7 +757,7 @@ const contactSaveSchema = z.object({
 
 export const saveCompanyContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => contactSaveSchema.parse(input))
+  .validator((input: unknown) => contactSaveSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -947,7 +947,7 @@ export const saveCompanyContact = createServerFn({ method: "POST" })
 
 export const setCompanyContactPrimary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, companyId: idSchema, contactId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -987,7 +987,7 @@ export const setCompanyContactPrimary = createServerFn({ method: "POST" })
 
 export const createCompanyContactPhotoUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1010,7 +1010,7 @@ export const createCompanyContactPhotoUpload = createServerFn({ method: "POST" }
 
 export const addCompanyNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1056,7 +1056,7 @@ export const addCompanyNote = createServerFn({ method: "POST" })
 
 export const listCompanyReservations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1125,7 +1125,7 @@ export const listCompanyReservations = createServerFn({ method: "POST" })
 
 export const listCompanyTravelers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1294,7 +1294,7 @@ export const COMPANY_CONTACT_PAGE_SIZE_OPTIONS = COMPANY_CONTACT_PAGE_SIZES;
 
 export const listCompanyNotes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1367,7 +1367,7 @@ export const listCompanyNotes = createServerFn({ method: "POST" })
 
 export const updateCompanyNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1400,7 +1400,7 @@ export const updateCompanyNote = createServerFn({ method: "POST" })
 
 export const archiveCompanyNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, companyId: idSchema, noteId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1417,7 +1417,7 @@ export const archiveCompanyNote = createServerFn({ method: "POST" })
 
 export const listCompanyHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1480,7 +1480,7 @@ export const listCompanyHistory = createServerFn({ method: "POST" })
 
 export const listCompanyBilling = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1683,7 +1683,7 @@ async function ensureCompanyDocumentTypes(db: { from: (table: string) => any }, 
 
 export const listCompanyDocuments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, companyId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, companyId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1743,7 +1743,7 @@ export const listCompanyDocuments = createServerFn({ method: "POST" })
 
 export const createCompanyDocumentUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1766,7 +1766,7 @@ export const createCompanyDocumentUpload = createServerFn({ method: "POST" })
 
 export const saveCompanyDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1835,7 +1835,7 @@ export const saveCompanyDocument = createServerFn({ method: "POST" })
 
 export const reviewCompanyDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1875,7 +1875,7 @@ export const reviewCompanyDocument = createServerFn({ method: "POST" })
 
 export const deleteCompanyDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, companyId: idSchema, documentId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1893,7 +1893,7 @@ export const deleteCompanyDocument = createServerFn({ method: "POST" })
 
 export const listCompanyContracts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

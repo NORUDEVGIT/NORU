@@ -361,7 +361,7 @@ async function buildContext(
 
 export const getCancelNoShowContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -385,7 +385,7 @@ export const getCancelNoShowContext = createServerFn({ method: "POST" })
 
 export const ensureCancelNoShowFolio = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CancelNoShowFolioState> => {
@@ -410,7 +410,7 @@ export const ensureCancelNoShowFolio = createServerFn({ method: "POST" })
  */
 export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -477,7 +477,7 @@ export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
 
 export const waiveCancelOrNoShowFee = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -507,7 +507,7 @@ export const waiveCancelOrNoShowFee = createServerFn({ method: "POST" })
 
 export const completeFoCancel = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -623,7 +623,7 @@ export const completeFoCancel = createServerFn({ method: "POST" })
 
 export const completeFoNoShow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -703,7 +703,7 @@ export const completeFoNoShow = createServerFn({ method: "POST" })
 
 export const listWalkInsHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

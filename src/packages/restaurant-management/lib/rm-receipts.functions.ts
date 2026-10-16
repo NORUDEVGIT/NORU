@@ -103,7 +103,7 @@ async function receiptView(
 
 export const getOrderReceipt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -122,7 +122,7 @@ export const getOrderReceipt = createServerFn({ method: "POST" })
 
 export const recordReceiptReprint = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, orderId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, orderId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<OrderReceiptView> => {
     await requireRmReceiptViewer(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -137,7 +137,7 @@ export const recordReceiptReprint = createServerFn({ method: "POST" })
 
 export const sendOrderReceiptEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

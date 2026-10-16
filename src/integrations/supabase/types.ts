@@ -4196,6 +4196,48 @@ export type Database = {
         }
         Relationships: []
       }
+      leads: {
+        Row: {
+          company: string
+          created_at: string
+          email: string
+          id: string
+          message: string | null
+          name: string
+          notes: string | null
+          phone: string | null
+          property_type: string
+          source: string
+          status: string
+        }
+        Insert: {
+          company: string
+          created_at?: string
+          email: string
+          id?: string
+          message?: string | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          property_type: string
+          source: string
+          status?: string
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          email?: string
+          id?: string
+          message?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          property_type?: string
+          source?: string
+          status?: string
+        }
+        Relationships: []
+      }
       marketing_content_revisions: {
         Row: {
           content: Json

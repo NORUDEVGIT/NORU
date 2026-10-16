@@ -214,7 +214,7 @@ async function requireOwnedRecord(
 
 export const getPaymentsCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -228,7 +228,7 @@ export const getPaymentsCard3 = createServerFn({ method: "POST" })
 
 export const savePaymentMethodCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => paymentMethodSchema.parse(input))
+  .validator((input: unknown) => paymentMethodSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -269,7 +269,7 @@ export const savePaymentMethodCard3 = createServerFn({ method: "POST" })
 
 export const saveDepositPolicyCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => depositPolicySchema.parse(input))
+  .validator((input: unknown) => depositPolicySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);

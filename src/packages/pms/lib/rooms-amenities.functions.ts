@@ -170,7 +170,7 @@ export async function persistCard2AmenitiesReadiness(
 
 export const listAmenities = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<Card2Amenity[]> => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     try {
@@ -201,7 +201,7 @@ export const listAmenities = createServerFn({ method: "POST" })
 
 export const listAmenityCategories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -235,7 +235,7 @@ export const listAmenityCategories = createServerFn({ method: "POST" })
 
 export const createAmenityIconUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -263,7 +263,7 @@ export const createAmenityIconUpload = createServerFn({ method: "POST" })
 
 export const saveCustomAmenityCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -372,7 +372,7 @@ const saveAmenityInput = z.object({
 
 export const saveAmenity = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveAmenityInput.parse(input))
+  .validator((input: unknown) => saveAmenityInput.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
 
@@ -449,7 +449,7 @@ export const saveAmenity = createServerFn({ method: "POST" })
 
 export const listRoomTypeAmenities = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, roomTypeId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -477,7 +477,7 @@ export const listRoomTypeAmenities = createServerFn({ method: "POST" })
 
 export const saveRoomTypeAmenities = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -531,7 +531,7 @@ export const saveRoomTypeAmenities = createServerFn({ method: "POST" })
 
 export const getRoomAmenityOverrides = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, roomId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -566,7 +566,7 @@ const overrideDraftSchema = z.object({
 
 export const saveRoomAmenityOverrides = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .union([
         z.object({
@@ -645,7 +645,7 @@ export const saveRoomAmenityOverrides = createServerFn({ method: "POST" })
 
 export const getRoomEffectiveAmenities = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, roomId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -700,7 +700,7 @@ export const getRoomEffectiveAmenities = createServerFn({ method: "POST" })
 
 export const evaluateCard2AmenitiesReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const loaded = await loadAmenitiesReadinessInput(pmsDb(context.supabase), data.restaurantId);

@@ -34,7 +34,7 @@ const scope = z.object({
 
 export const getAiosellWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => scope.parse(input))
+  .validator((input: unknown) => scope.parse(input))
   .handler(async ({ data, context }) => {
     await requireDistributionManager(context as never, data.restaurantId);
     return loadAiosellWorkspace(data);
@@ -42,7 +42,7 @@ export const getAiosellWorkspace = createServerFn({ method: "POST" })
 
 export const saveAiosellConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     scope
       .extend({
         partnerSlug: z.string().trim().min(1),
@@ -64,7 +64,7 @@ export const saveAiosellConnection = createServerFn({ method: "POST" })
 
 export const validateAiosellConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => scope.parse(input))
+  .validator((input: unknown) => scope.parse(input))
   .handler(async ({ data, context }) => {
     await requireDistributionManager(context as never, data.restaurantId);
     const result = await syncAiosellPropertyMetadata(data);
@@ -89,7 +89,7 @@ export const validateAiosellConnection = createServerFn({ method: "POST" })
 
 export const saveAiosellRoomMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     scope
       .extend({
         roomTypeId: idSchema,
@@ -105,7 +105,7 @@ export const saveAiosellRoomMapping = createServerFn({ method: "POST" })
 
 export const setAiosellRoomMappingState = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     scope.extend({ roomTypeId: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -116,7 +116,7 @@ export const setAiosellRoomMappingState = createServerFn({ method: "POST" })
 
 export const saveAiosellRateMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     scope
       .extend({
         ratePlanId: idSchema,
@@ -133,7 +133,7 @@ export const saveAiosellRateMapping = createServerFn({ method: "POST" })
 
 export const setAiosellRateMappingState = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     scope.extend({ ratePlanId: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -144,7 +144,7 @@ export const setAiosellRateMappingState = createServerFn({ method: "POST" })
 
 export const runAiosellReconciliation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     scope
       .extend({
         startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -160,7 +160,7 @@ export const runAiosellReconciliation = createServerFn({ method: "POST" })
 
 export const activateAiosellBookingComChannel = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => scope.parse(input))
+  .validator((input: unknown) => scope.parse(input))
   .handler(async ({ data, context }) => {
     await requireDistributionManager(context as never, data.restaurantId);
     await activateAiosellBookingChannel(data);

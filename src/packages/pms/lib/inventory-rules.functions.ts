@@ -241,7 +241,7 @@ export async function persistCard2InventoryReadiness(
 
 export const getInventoryRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const loaded = await loadRules(pmsDb(context.supabase), data.restaurantId);
@@ -263,7 +263,7 @@ export const getInventoryRules = createServerFn({ method: "POST" })
 
 export const saveInventoryRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveInventoryRulesInput.parse(input))
+  .validator((input: unknown) => saveInventoryRulesInput.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const mappedBlocks: InventoryBlockTypeRule[] = [];
@@ -319,7 +319,7 @@ export const saveInventoryRules = createServerFn({ method: "POST" })
 
 export const getInventorySummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const db = pmsDb(context.supabase);
@@ -376,7 +376,7 @@ export async function loadCard2InventoryValidation(db: DbClient, restaurantId: s
 
 export const evaluateCard2InventoryReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb(context.supabase);

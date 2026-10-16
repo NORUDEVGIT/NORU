@@ -12,7 +12,7 @@ import { DEMAND_CALENDAR_LOAD_ERROR, toRevenueReadError } from "./revenue-read-e
 
 export const getRevenueDemandCalendar = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => demandCalendarQuerySchema.parse(input))
+  .validator((input: unknown) => demandCalendarQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

@@ -11,6 +11,7 @@ import {
 } from "./allowlist.ts";
 import { findForbiddenAvailableNowClaims, type ForbiddenClaimHit } from "./claims.ts";
 import { validateMarketingContent } from "./resolve.ts";
+import { siteContentIssues } from "./site-content.ts";
 import {
   MARKETING_ITEM_STATUSES,
   PROTECTED_NAV_ROLES,
@@ -78,7 +79,9 @@ export function isProtectedNavItem(item: Pick<MarketingNavItem, "protectedRole">
   return item.protectedRole != null;
 }
 
-export function canRemoveNavItem(item: Pick<MarketingNavItem, "protectedRole" | "label">): MarketingEditorIssue | null {
+export function canRemoveNavItem(
+  item: Pick<MarketingNavItem, "protectedRole" | "label">,
+): MarketingEditorIssue | null {
   if (!isProtectedNavItem(item)) return null;
   return {
     code: "protected_nav_remove",
@@ -164,6 +167,7 @@ export function validateMarketingEditorContent(content: MarketingContent): Marke
   }
 
   errors.push(...findDuplicateContentSlugs(content));
+  if (content.site) errors.push(...siteContentIssues(content.site));
 
   return { ok: errors.length === 0, errors, forbiddenClaims };
 }
@@ -233,7 +237,11 @@ export function removeNavItem(nav: MarketingNavItem[], id: string): MarketingNav
   return nav.filter((entry) => entry.id !== id);
 }
 
-export function setNavItemVisible(nav: MarketingNavItem[], id: string, visible: boolean): MarketingNavItem[] {
+export function setNavItemVisible(
+  nav: MarketingNavItem[],
+  id: string,
+  visible: boolean,
+): MarketingNavItem[] {
   return nav.map((item) => {
     if (item.id !== id) return item;
     if (!visible) {
@@ -244,7 +252,11 @@ export function setNavItemVisible(nav: MarketingNavItem[], id: string, visible: 
   });
 }
 
-export function setNavItemHref(nav: MarketingNavItem[], id: string, href: string): MarketingNavItem[] {
+export function setNavItemHref(
+  nav: MarketingNavItem[],
+  id: string,
+  href: string,
+): MarketingNavItem[] {
   const parsed = requireMarketingHref(href);
   return nav.map((item) => (item.id === id ? { ...item, href: parsed } : item));
 }

@@ -19,7 +19,7 @@ const idSchema = z.string().uuid();
 
 export const getTravelAgencyStep4Config = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -39,7 +39,7 @@ export const getTravelAgencyStep4Config = createServerFn({ method: "POST" })
 
 export const saveTravelAgencyStep4 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -150,7 +150,7 @@ export const saveTravelAgencyStep4 = createServerFn({ method: "POST" })
 
 export const createTravelAgencyDraftDocumentUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

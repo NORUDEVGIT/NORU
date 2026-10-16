@@ -357,7 +357,7 @@ async function requireSupportedCurrency(
 
 export const getCorporateCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -371,7 +371,7 @@ export const getCorporateCard3 = createServerFn({ method: "POST" })
 
 export const saveCorporateAgreementCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => agreementSchema.parse(input))
+  .validator((input: unknown) => agreementSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -423,7 +423,7 @@ export const saveCorporateAgreementCard3 = createServerFn({ method: "POST" })
 
 export const saveContractRateCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => contractRateSchema.parse(input))
+  .validator((input: unknown) => contractRateSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);

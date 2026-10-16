@@ -48,7 +48,7 @@ export interface BackOfficeFinanceOverview {
 
 export const getBackOfficeFinanceOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; today: string }) =>
+  .validator((d: { restaurantId: string; today: string }) =>
     z
       .object({ restaurantId: idSchema, today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
       .parse(d),

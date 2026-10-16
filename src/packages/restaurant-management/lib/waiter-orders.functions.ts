@@ -59,7 +59,7 @@ export interface WaiterContext {
  */
 export const getWaiterOrderContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<WaiterContext> => {
     const me = await callerMembership(context, data.restaurantId);
     const isManager = (MANAGE_ROLES as readonly string[]).includes(me.role);
@@ -186,7 +186,7 @@ export const getWaiterOrderContext = createServerFn({ method: "POST" })
 
 export const placeWaiterAssistedOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

@@ -138,7 +138,7 @@ async function loadQuickViewFinancial(
 
 export const getReservationQuickView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<ReservationQuickView> => {

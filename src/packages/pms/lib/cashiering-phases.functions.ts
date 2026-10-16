@@ -74,7 +74,7 @@ export interface CashieringReportTotals {
 
 export const listFolioWindows = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; folioId: string }) =>
+  .validator((d: { restaurantId: string; folioId: string }) =>
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioWindowRow[]> => {
@@ -98,7 +98,7 @@ export const listFolioWindows = createServerFn({ method: "GET" })
 
 export const postFolioTransfer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: {
       restaurantId: string;
       sourceFolioId: string;
@@ -143,7 +143,7 @@ export const postFolioTransfer = createServerFn({ method: "POST" })
 
 export const postCrossLedgerTransfer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: {
       restaurantId: string;
       sourceType: "guest_folio" | "financial_account";
@@ -195,7 +195,7 @@ export const postCrossLedgerTransfer = createServerFn({ method: "POST" })
 
 export const listFinancialAccounts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string }) =>
+  .validator((d: { restaurantId: string }) =>
     z.object({ restaurantId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<FinancialAccountRow[]> => {
@@ -281,7 +281,7 @@ export interface FinancialAccountChargeRow {
 
 export const listFinancialAccountCharges = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; accountId: string }) =>
+  .validator((d: { restaurantId: string; accountId: string }) =>
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<FinancialAccountChargeRow[]> => {
@@ -364,7 +364,7 @@ export const listFinancialAccountCharges = createServerFn({ method: "GET" })
 
 export const openFinancialAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: {
       restaurantId: string;
       masterId: string;
@@ -396,7 +396,7 @@ export const openFinancialAccount = createServerFn({ method: "POST" })
 
 export const postFinancialAccountEntry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: {
       restaurantId: string;
       accountId: string;
@@ -441,7 +441,7 @@ export const postFinancialAccountEntry = createServerFn({ method: "POST" })
 
 export const closeFinancialAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; accountId: string }) =>
+  .validator((d: { restaurantId: string; accountId: string }) =>
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
@@ -458,7 +458,7 @@ export const closeFinancialAccount = createServerFn({ method: "POST" })
 
 export const getDepositUnallocated = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; depositTransactionId: string }) =>
+  .validator((d: { restaurantId: string; depositTransactionId: string }) =>
     z.object({ restaurantId: idSchema, depositTransactionId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<{ unallocated: number | null }> => {
@@ -474,7 +474,7 @@ export const getDepositUnallocated = createServerFn({ method: "GET" })
 
 export const allocateFolioDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: {
       restaurantId: string;
       depositTransactionId: string;
@@ -509,7 +509,7 @@ export const allocateFolioDeposit = createServerFn({ method: "POST" })
 
 export const postSettlementWriteOff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: {
       restaurantId: string;
       folioId?: string;
@@ -547,7 +547,7 @@ export const postSettlementWriteOff = createServerFn({ method: "POST" })
 
 export const listCashieringExceptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string }) =>
+  .validator((d: { restaurantId: string }) =>
     z.object({ restaurantId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<CashieringExceptionRow[]> => {
@@ -585,7 +585,7 @@ export const listCashieringExceptions = createServerFn({ method: "GET" })
 
 export const getCashieringReportTotals = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; from: string; to: string }) =>
+  .validator((d: { restaurantId: string; from: string; to: string }) =>
     z
       .object({
         restaurantId: idSchema,

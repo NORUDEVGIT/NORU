@@ -279,7 +279,7 @@ const assignmentSchema = z.object({
 
 export const getCard7SecurityRoles = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -297,7 +297,7 @@ export const getCard7SecurityRoles = createServerFn({ method: "POST" })
 
 export const saveCard7HotelRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => roleSchema.parse(input))
+  .validator((input: unknown) => roleSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -355,7 +355,7 @@ export const saveCard7HotelRole = createServerFn({ method: "POST" })
 
 export const saveCard7RolePermissions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => mappingsSchema.parse(input))
+  .validator((input: unknown) => mappingsSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -410,7 +410,7 @@ export const saveCard7RolePermissions = createServerFn({ method: "POST" })
 
 export const saveCard7ApprovalRule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => approvalSchema.parse(input))
+  .validator((input: unknown) => approvalSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -467,7 +467,7 @@ export const saveCard7ApprovalRule = createServerFn({ method: "POST" })
 
 export const saveCard7MembershipHotelRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => assignmentSchema.parse(input))
+  .validator((input: unknown) => assignmentSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,

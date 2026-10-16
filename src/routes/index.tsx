@@ -5,6 +5,7 @@ import { useAuth } from "@/core/state/auth-store";
 import { getMyRestaurants } from "@/core/lib/restaurant.functions";
 import { getMarketingContent } from "@/core/lib/marketing";
 import { getPublishedMarketingContent } from "@/core/lib/marketing.functions";
+import { publicNoruSite } from "@/core/components/noru-site/data/site-defaults";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
@@ -38,6 +39,8 @@ export const Route = createFileRoute("/")({
 });
 
 function PlatformHome() {
+  const { marketing } = Route.useLoaderData();
+  const site = publicNoruSite(marketing);
   const { session, user, signOut } = useAuth();
   const signedIn = Boolean(session);
 
@@ -54,6 +57,7 @@ function PlatformHome() {
 
   return (
     <NoruSite
+      site={site}
       account={{
         signedIn,
         dashboardHref: hasRestaurant ? "/restaurant/restaurant-management/dashboard" : undefined,

@@ -1,9 +1,9 @@
 /**
  * Marketing CMS document rules (Milestone C).
  *
- * Draft/published pair matches MarketingContent JSONB. Concurrent edits are
- * last-write-wins (no optimistic locking). Media uploads are deferred —
- * logoUrl / imageUrl remain URL strings in JSONB.
+ * Draft/published pair matches MarketingContent JSONB. Saves and publishes
+ * refuse when expectedDraftUpdatedAt is older than the stored draft.
+ * Marketing image URLs are stored in the site block.
  *
  * This module never imports package entitlements or tenant approval APIs.
  */
@@ -11,9 +11,35 @@
 import { isRejectedAdminHref } from "./allowlist.ts";
 import { validateMarketingEditorContent, type MarketingEditorReport } from "./editor.ts";
 import { MARKETING_SEED } from "./seed.ts";
+import { isNoruSiteContent } from "./site-content.ts";
 import type { MarketingContent } from "./types.ts";
 
-export const MARKETING_CMS_CONCURRENCY = "last-write-wins" as const;
+export const MARKETING_CMS_CONCURRENCY = "optimistic-draft" as const;
+
+export function isMarketingDraftCurrent(
+  expectedDraftUpdatedAt: string,
+  currentDraftUpdatedAt: string,
+): boolean {
+  return expectedDraftUpdatedAt === currentDraftUpdatedAt;
+}
+
+export function marketingDraftConflict(current: MarketingCmsSnapshot): MarketingCmsPublishResult {
+  return {
+    ok: false,
+    conflict: true,
+    report: {
+      ok: false,
+      errors: [
+        {
+          code: "draft_conflict",
+          message: "Another save is newer. The draft was reloaded.",
+        },
+      ],
+      forbiddenClaims: [],
+    },
+    snapshot: structuredClone(current),
+  };
+}
 
 export const MARKETING_REVISION_STATUSES = ["draft", "published"] as const;
 export type MarketingRevisionStatus = (typeof MARKETING_REVISION_STATUSES)[number];
@@ -27,6 +53,7 @@ export interface MarketingCmsSnapshot {
 
 export interface MarketingCmsPublishResult {
   ok: boolean;
+  conflict?: boolean;
   report: MarketingEditorReport;
   snapshot: MarketingCmsSnapshot;
 }
@@ -50,7 +77,8 @@ export function isMarketingContent(value: unknown): value is MarketingContent {
     Array.isArray(record.partners) &&
     Array.isArray(record.testimonials) &&
     Array.isArray(record.caseStudies) &&
-    Array.isArray(record.blogPosts)
+    Array.isArray(record.blogPosts) &&
+    (record.site === undefined || isNoruSiteContent(record.site))
   );
 }
 
@@ -71,10 +99,7 @@ export function assertMarketingAdmin(isAdmin: boolean): void {
 }
 
 export function collectAdminHrefs(content: MarketingContent): string[] {
-  const hrefs: string[] = [
-    content.hero.primaryCta.target,
-    content.contact.primaryCta.target,
-  ];
+  const hrefs: string[] = [content.hero.primaryCta.target, content.contact.primaryCta.target];
   if (content.hero.secondaryCta) hrefs.push(content.hero.secondaryCta.target);
   if (content.contact.secondaryCta) hrefs.push(content.contact.secondaryCta.target);
   for (const item of content.nav) hrefs.push(item.href);

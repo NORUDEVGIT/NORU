@@ -211,7 +211,7 @@ function mapStay(row: {
 
 export const listFrontOfficeWalkInsDesk = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, date: dateSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ date: string; rows: FoWalkInDeskRow[] }> => {
@@ -411,7 +411,7 @@ export const listFrontOfficeWalkInsDesk = createServerFn({ method: "POST" })
 
 export const getFrontOfficeWalkInQuickView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<FoWalkInQuickView> => {

@@ -845,7 +845,7 @@ async function recordRestrictionChange(entry: {
 /** Guest Management is owner/manager only; the flag drives nav + UI affordances. */
 export const getGuestsAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await callerMembership(context as never, data.restaurantId);
     return {
@@ -988,7 +988,7 @@ async function loadLastStayMap(
 
 export const listGuests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1189,7 +1189,7 @@ export const listGuests = createServerFn({ method: "POST" })
 
 export const getGuestDirectoryStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GuestDirectoryStats> => {
     await requireGuestManager(context as never, data.restaurantId);
 
@@ -1290,7 +1290,7 @@ async function countRows(
 
 export const getGuestWorkspaceStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GuestWorkspaceStats> => {
     await requireGuestManager(context as never, data.restaurantId);
     const individuals = await countRows(
@@ -1372,7 +1372,7 @@ const WORKSPACE_ACTIVITY_LABELS: Record<string, string> = {
 
 export const listGuestWorkspaceActivity = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, limit: z.number().int().min(1).max(30).optional() })
       .parse(input),
@@ -1528,7 +1528,7 @@ export const listGuestWorkspaceActivity = createServerFn({ method: "POST" })
 
 export const findGuestDuplicates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1593,7 +1593,7 @@ export const findGuestDuplicates = createServerFn({ method: "POST" })
 
 export const getGuest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(
@@ -1743,7 +1743,7 @@ export const getGuest = createServerFn({ method: "POST" })
 
 export const createGuest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guest: guestInputSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
@@ -1879,7 +1879,7 @@ export const createGuest = createServerFn({ method: "POST" })
 
 export const updateGuest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema, guest: guestInputSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1994,7 +1994,7 @@ export const updateGuest = createServerFn({ method: "POST" })
 
 export const setGuestVip = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema, vip: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -2022,7 +2022,7 @@ export const setGuestVip = createServerFn({ method: "POST" })
 
 export const setGuestStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, guestId: idSchema, status: z.enum(GUEST_STATUSES) })
       .parse(input),
@@ -2060,7 +2060,7 @@ export const setGuestStatus = createServerFn({ method: "POST" })
 
 export const setGuestRestriction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -2128,7 +2128,7 @@ export const setGuestRestriction = createServerFn({ method: "POST" })
 
 export const liftGuestRestriction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -2202,7 +2202,7 @@ const preferenceSchema = z.object({
 
 export const saveGuestPreferences = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, guestId: idSchema, preferences: preferenceSchema })
       .parse(input),
@@ -2439,7 +2439,7 @@ function hydrateFromWave2(type: PreferenceTypeRecord, wave2: GuestPreferences): 
 
 export const listGuestPreferenceWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestPreferenceWorkspace> => {
@@ -2552,7 +2552,7 @@ export const listGuestPreferenceRegistrationCatalogue = createServerFn({ method:
 
 export const saveGuestPreferenceWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -2705,7 +2705,7 @@ export const saveGuestPreferenceWorkspace = createServerFn({ method: "POST" })
 
 export const saveGuestPreferenceAnswers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -2775,7 +2775,7 @@ export const saveGuestPreferenceAnswers = createServerFn({ method: "POST" })
 
 export const getGuestReservationPreferenceDefaults = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(
@@ -2823,7 +2823,7 @@ export const getGuestReservationPreferenceDefaults = createServerFn({ method: "P
 
 export const addGuestNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -2860,7 +2860,7 @@ export type GuestPreferenceSummary = {
 
 export const listGuestPreferenceSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestPreferenceSummary> => {
@@ -2997,7 +2997,7 @@ export type GuestServiceNote = {
 
 export const listGuestServiceHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -3023,7 +3023,7 @@ export const listGuestServiceHistory = createServerFn({ method: "POST" })
 
 export const listGuestServiceWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -3257,7 +3257,7 @@ async function loadGuestServiceWorkspace(
 
 export const createGuestServiceRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -3399,7 +3399,7 @@ export const createGuestServiceRequest = createServerFn({ method: "POST" })
 
 export const updateGuestServiceRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -3429,7 +3429,7 @@ export const updateGuestServiceRequest = createServerFn({ method: "POST" })
 
 export const createGuestPhotoUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -3474,7 +3474,7 @@ export const createGuestPhotoUpload = createServerFn({ method: "POST" })
 
 export const saveGuestPhoto = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema, path: z.string().min(1) }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -3536,7 +3536,7 @@ const EMPTY_OPTION_MAP: GuestPreferenceCatalogues["options"] = {
 
 export const getGuestPreferenceCatalogues = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GuestPreferenceCatalogues> => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -3798,7 +3798,7 @@ export function validateDocumentFields(
 
 export const createGuestDocumentUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -3840,7 +3840,7 @@ export const createGuestDocumentUpload = createServerFn({ method: "POST" })
 
 export const registerGuestDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -3890,7 +3890,7 @@ export const registerGuestDocument = createServerFn({ method: "POST" })
 
 export const listGuestDocuments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(
@@ -3945,7 +3945,7 @@ export const listGuestDocuments = createServerFn({ method: "POST" })
 
 export const reviewGuestDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -3995,7 +3995,7 @@ export const reviewGuestDocument = createServerFn({ method: "POST" })
 
 export const listGuestIdentityDocumentTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<{ types: GuestIdentityDocumentTypeOption[] }> => {
     await requireGuestManager(context as never, data.restaurantId);
     return { types: await loadIdentityDocumentTypes(data.restaurantId) };
@@ -4003,7 +4003,7 @@ export const listGuestIdentityDocumentTypes = createServerFn({ method: "POST" })
 
 export const getGuestDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema, documentId: idSchema }).parse(input),
   )
   .handler(
@@ -4042,7 +4042,7 @@ export const getGuestDocument = createServerFn({ method: "POST" })
 
 export const saveGuestDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -4187,7 +4187,7 @@ export const saveGuestDocument = createServerFn({ method: "POST" })
 
 export const saveGuestDocumentImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -4261,7 +4261,7 @@ export const saveGuestDocumentImage = createServerFn({ method: "POST" })
 
 export const clearGuestDocumentImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -4314,7 +4314,7 @@ export const clearGuestDocumentImage = createServerFn({ method: "POST" })
 
 export const deleteGuestDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema, documentId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -4361,7 +4361,7 @@ export const deleteGuestDocument = createServerFn({ method: "POST" })
 
 export const saveGuestConsent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -4462,7 +4462,7 @@ const MERGE_PREF_KEYS = [
 
 export const mergeGuests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -5054,7 +5054,7 @@ export async function loadGuestStaysForProfile(
 
 export const listGuestStays = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ stays: GuestStay[]; access: GuestStayAccess }> => {
@@ -5071,7 +5071,7 @@ export const listGuestStays = createServerFn({ method: "POST" })
 
 export const getGuestBookingDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ timeline: GuestBookingHistoryEvent[] }> => {
@@ -5129,7 +5129,7 @@ export const getGuestBookingDetail = createServerFn({ method: "POST" })
 
 export const getGuestStayOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestStayOverview> => {

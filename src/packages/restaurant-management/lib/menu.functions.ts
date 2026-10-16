@@ -56,7 +56,7 @@ const descSchema = z.string().trim().max(500).optional().nullable();
  * browser.
  */
 export const getPublicMenu = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => slugSchema.parse(input))
+  .validator((input: unknown) => slugSchema.parse(input))
   .handler(async ({ data }): Promise<PublicMenuCategory[]> => {
     const { publicServerClient } = await import("./order-pricing.server");
     const { resolveImageUrls } = await import("./menu-images.server");
@@ -140,7 +140,7 @@ async function assertManager(
 
 export const getManagedMenu = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<{ categories: ManagedCategory[]; items: ManagedItem[] }> => {
     await assertManager(context.supabase, context.userId, data.restaurantId);
     const { resolveImageUrls } = await import("./menu-images.server");
@@ -192,7 +192,7 @@ const categoryInput = z.object({
 
 export const saveCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => categoryInput.parse(input))
+  .validator((input: unknown) => categoryInput.parse(input))
   .handler(async ({ data, context }) => {
     await assertManager(context.supabase, context.userId, data.restaurantId);
     const payload = {
@@ -224,7 +224,7 @@ export const saveCategory = createServerFn({ method: "POST" })
 
 export const setCategoryActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -240,7 +240,7 @@ export const setCategoryActive = createServerFn({ method: "POST" })
 
 export const moveCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, direction: z.enum(["up", "down"]) }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -274,7 +274,7 @@ export const moveCategory = createServerFn({ method: "POST" })
 
 export const deleteCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, id: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, id: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await assertManager(context.supabase, context.userId, data.restaurantId);
     const { count } = await context.supabase
@@ -310,7 +310,7 @@ const itemInput = z.object({
 
 export const saveMenuItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => itemInput.parse(input))
+  .validator((input: unknown) => itemInput.parse(input))
   .handler(async ({ data, context }) => {
     await assertManager(context.supabase, context.userId, data.restaurantId);
 
@@ -357,7 +357,7 @@ export const saveMenuItem = createServerFn({ method: "POST" })
 
 export const setItemAvailability = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, available: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -377,7 +377,7 @@ export const setItemAvailability = createServerFn({ method: "POST" })
  */
 export const deleteMenuItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, id: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, id: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await assertManager(context.supabase, context.userId, data.restaurantId);
     const { error } = await context.supabase
@@ -411,7 +411,7 @@ const EXT_BY_TYPE: Record<string, string> = {
  */
 export const createMenuImageUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

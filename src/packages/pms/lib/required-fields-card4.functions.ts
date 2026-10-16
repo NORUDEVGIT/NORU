@@ -284,7 +284,7 @@ export { loadSnapshot as loadRequiredFieldsCard4Snapshot };
 
 export const getPmsCard4RequiredFields = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -293,7 +293,7 @@ export const getPmsCard4RequiredFields = createServerFn({ method: "POST" })
 
 export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveSchema.parse(input))
+  .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -433,7 +433,7 @@ export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
 
 export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -731,7 +731,7 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
 
 export const reorderPmsCard4RequiredFields = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, ids: z.array(idSchema).min(1).max(80) })
       .strict()
@@ -764,7 +764,7 @@ export const reorderPmsCard4RequiredFields = createServerFn({ method: "POST" })
 
 export const deletePmsCard4RequiredField = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {

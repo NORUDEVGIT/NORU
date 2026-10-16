@@ -467,7 +467,7 @@ async function requireOwnedRecord(
 
 export const getMealsCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -481,7 +481,7 @@ export const getMealsCard3 = createServerFn({ method: "POST" })
 
 export const saveMealPlanCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => mealPlanSchema.parse(input))
+  .validator((input: unknown) => mealPlanSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -523,7 +523,7 @@ export const saveMealPlanCard3 = createServerFn({ method: "POST" })
 
 export const savePackageCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => packageSchema.parse(input))
+  .validator((input: unknown) => packageSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -641,7 +641,7 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
 
 export const savePackageComponentCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => componentSchema.parse(input))
+  .validator((input: unknown) => componentSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -704,7 +704,7 @@ export const savePackageComponentCard3 = createServerFn({ method: "POST" })
 
 export const deletePackageComponentCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -768,7 +768,7 @@ async function removeStoredCover(storagePath: string | null) {
 /** Signed upload ticket only. Does not write cover_image_path. */
 export const createPackageCoverUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => packageCoverUploadSchema.parse(input))
+  .validator((input: unknown) => packageCoverUploadSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -793,7 +793,7 @@ export const createPackageCoverUpload = createServerFn({ method: "POST" })
 /** Registers an uploaded object as the package cover. Media only — not a package-field writer. */
 export const setPackageCoverImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => packageCoverPathSchema.parse(input))
+  .validator((input: unknown) => packageCoverPathSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     if (!isOwnedPackageCoverPath(data.restaurantId, data.packageId, data.storagePath)) {
@@ -815,7 +815,7 @@ export const setPackageCoverImage = createServerFn({ method: "POST" })
 /** Clears the package cover path and deletes the stored object when one exists. */
 export const removePackageCoverImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, packageId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {

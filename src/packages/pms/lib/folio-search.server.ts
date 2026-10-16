@@ -249,7 +249,7 @@ export async function searchGuestFoliosQuery(
 
 export const searchGuestFolios = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: GuestFolioSearchInput) => guestFolioSearchInputSchema.parse(data))
+  .validator((data: GuestFolioSearchInput) => guestFolioSearchInputSchema.parse(data))
   .handler(async ({ data, context }): Promise<GuestFolioSearchPage> => {
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -364,7 +364,7 @@ export async function searchAllAccountsQuery(
 
 export const searchAllAccounts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: GuestFolioSearchInput) => guestFolioSearchInputSchema.parse(data))
+  .validator((data: GuestFolioSearchInput) => guestFolioSearchInputSchema.parse(data))
   .handler(async ({ data, context }): Promise<AllAccountSearchPage> => {
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

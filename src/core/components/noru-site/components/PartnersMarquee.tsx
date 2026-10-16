@@ -1,6 +1,7 @@
-import { PARTNERS, type Partner } from "../data/content";
+import { useNoruSite } from "../site-context";
 
-export function PartnersMarquee({ partners = PARTNERS }: { partners?: Partner[] }) {
+export function PartnersMarquee() {
+  const { partners } = useNoruSite();
   /* The list is rendered twice so the CSS marquee loops without a gap. */
   const loop = [...partners, ...partners];
   return (
@@ -11,7 +12,11 @@ export function PartnersMarquee({ partners = PARTNERS }: { partners?: Partner[] 
           <div className="mt">
             {loop.map((p, i) => (
               <div className="lg" key={`${p.id}-${i}`}>
-                {p.logoUrl ? <img src={p.logoUrl} alt={p.name} loading="lazy" /> : p.name}
+                {p.logoUrl ? (
+                  <img src={p.logoUrl} alt={p.logoAlt || p.name} loading="lazy" />
+                ) : (
+                  p.name
+                )}
               </div>
             ))}
           </div>

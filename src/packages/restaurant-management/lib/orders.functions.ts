@@ -32,7 +32,7 @@ const placeOrderSchema = z.object({
  * restaurant has no usable waiter staffing data.
  */
 export const placeOrder = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => placeOrderSchema.parse(input))
+  .validator((input: unknown) => placeOrderSchema.parse(input))
   .handler(async ({ data }) => {
     // Guests are allowed to INSERT orders, but have no SELECT policy on the
     // table, so PostgREST rejects an insert that returns the created row.

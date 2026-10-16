@@ -45,6 +45,7 @@ export {
   evaluatePublish,
   evaluateSaveDraft,
   isMarketingContent,
+  isMarketingDraftCurrent,
   type MarketingCmsPublishResult,
   type MarketingCmsSnapshot,
   type MarketingRevisionStatus,

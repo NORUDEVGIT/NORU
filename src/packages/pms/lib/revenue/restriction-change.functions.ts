@@ -21,7 +21,7 @@ import { RESTRICTION_HISTORY_LOAD_ERROR, toRevenueReadError } from "./revenue-re
 
 export const previewRestrictionChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restrictionChangeRequestSchema.parse(input))
+  .validator((input: unknown) => restrictionChangeRequestSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     return previewRestrictionChangesOnServer(context.supabase, data);
@@ -29,7 +29,7 @@ export const previewRestrictionChanges = createServerFn({ method: "POST" })
 
 export const applyRestrictionChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restrictionChangeRequestSchema.parse(input))
+  .validator((input: unknown) => restrictionChangeRequestSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -41,7 +41,7 @@ export const applyRestrictionChanges = createServerFn({ method: "POST" })
 
 export const listRestrictionChangeHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restrictionChangeHistoryQuerySchema.parse(input))
+  .validator((input: unknown) => restrictionChangeHistoryQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -54,7 +54,7 @@ export const listRestrictionChangeHistory = createServerFn({ method: "POST" })
 
 export const getRestrictionOperationDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restrictionChangeOperationQuerySchema.parse(input))
+  .validator((input: unknown) => restrictionChangeOperationQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

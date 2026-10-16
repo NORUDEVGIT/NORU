@@ -441,7 +441,7 @@ async function replaceRoomTypeMappings(
 
 export const getCommercialCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -455,7 +455,7 @@ export const getCommercialCard3 = createServerFn({ method: "POST" })
 
 export const saveCommercialRestrictionCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restrictionSchema.parse(input))
+  .validator((input: unknown) => restrictionSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -527,7 +527,7 @@ export const saveCommercialRestrictionCard3 = createServerFn({ method: "POST" })
 
 export const saveCommercialPromotionCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => promotionSchema.parse(input))
+  .validator((input: unknown) => promotionSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -596,7 +596,7 @@ export const saveCommercialPromotionCard3 = createServerFn({ method: "POST" })
 
 export const saveCommercialSeasonCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => seasonSchema.parse(input))
+  .validator((input: unknown) => seasonSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);

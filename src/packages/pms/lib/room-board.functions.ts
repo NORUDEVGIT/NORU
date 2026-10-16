@@ -46,7 +46,7 @@ export const listRoomBoardOccupancy = createServerFn({
   method: "POST",
 })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -191,7 +191,7 @@ export const listRoomBoardOccupancy = createServerFn({
 
 export const listRoomBoardBlocks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(
     async ({ data, context }): Promise<{ businessDate: string; rows: RoomBoardBlockRow[] }> => {
       await requireFrontOfficeAccess(context as never, data.restaurantId);

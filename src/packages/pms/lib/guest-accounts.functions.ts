@@ -483,7 +483,7 @@ async function assertDefaultTravelAgent(
 
 export const listGuestAccounts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -582,7 +582,7 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
 
 export const getGuestAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -626,7 +626,7 @@ export type GuestAccountHistoryEntry = {
 
 export const listGuestAccountHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestAccountHistoryEntry[]> => {
@@ -655,7 +655,7 @@ export const listGuestAccountHistory = createServerFn({ method: "POST" })
 
 export const createGuestAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -769,7 +769,7 @@ export const createGuestAccount = createServerFn({ method: "POST" })
 
 export const updateGuestAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -940,7 +940,7 @@ function toLink(row: LinkRow): GuestAccountLink {
 
 export const listGuestAccountLinks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -984,7 +984,7 @@ export const listGuestAccountLinks = createServerFn({ method: "POST" })
 
 export const linkGuestAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1058,7 +1058,7 @@ export const linkGuestAccount = createServerFn({ method: "POST" })
 
 export const linkGuestAccountsBulk = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1147,7 +1147,7 @@ export const linkGuestAccountsBulk = createServerFn({ method: "POST" })
 
 export const unlinkGuestAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1218,7 +1218,7 @@ export const unlinkGuestAccount = createServerFn({ method: "POST" })
 
 export const getAccountLoyaltyValue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestLoyaltyValue> => {
@@ -1281,7 +1281,7 @@ async function resolveMasterName(
 
 export const getReservationGuestMasters = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<ReservationGuestMasters> => {
@@ -1327,7 +1327,7 @@ export const getReservationGuestMasters = createServerFn({ method: "POST" })
 
 export const setReservationGuestMasters = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1382,7 +1382,7 @@ export const setReservationGuestMasters = createServerFn({ method: "POST" })
 
 export const listReservationsForGuestAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

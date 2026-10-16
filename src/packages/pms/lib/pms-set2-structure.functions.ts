@@ -334,7 +334,7 @@ export async function loadSet2Snapshot(
 
 export const getPmsSet2Snapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -390,7 +390,7 @@ const wingSchema = z.object({
 
 export const saveHotelBuilding = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => buildingSchema.parse(input))
+  .validator((input: unknown) => buildingSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -459,7 +459,7 @@ export const saveHotelBuilding = createServerFn({ method: "POST" })
 
 export const saveHotelFloor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => floorSchema.parse(input))
+  .validator((input: unknown) => floorSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -530,7 +530,7 @@ export const saveHotelFloor = createServerFn({ method: "POST" })
 
 export const saveHotelWing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => wingSchema.parse(input))
+  .validator((input: unknown) => wingSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -623,7 +623,7 @@ async function assignedCount(
 
 export const deleteStructureNode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -747,7 +747,7 @@ export const deleteStructureNode = createServerFn({ method: "POST" })
 
 export const ensureSingleBuildingAssist = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, enabled: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -832,7 +832,7 @@ export const ensureSingleBuildingAssist = createServerFn({ method: "POST" })
 
 export const bulkAssignUnassignedRooms = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -895,7 +895,7 @@ const amenitySchema = z.object({
 
 export const saveRoomAmenityCatalogue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => amenitySchema.parse(input))
+  .validator((input: unknown) => amenitySchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -956,7 +956,7 @@ const outletSchema = z.object({
 
 export const savePmsOutlet = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => outletSchema.parse(input))
+  .validator((input: unknown) => outletSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,

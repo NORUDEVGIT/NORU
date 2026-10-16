@@ -168,7 +168,7 @@ export async function loadBusinessSnapshot(restaurantId: string): Promise<Busine
 
 export const getCompanyBusinessWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const snapshot = await loadBusinessSnapshot(data.restaurantId);
@@ -231,7 +231,7 @@ function applyCompanyFilters(query: any, data: z.infer<typeof listInput>, term: 
 
 export const listCompanyWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => listInput.parse(input))
+  .validator((input: unknown) => listInput.parse(input))
   .handler(async ({ data, context }): Promise<CompanyWorkspacePage> => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -383,7 +383,7 @@ export async function findCompanyDuplicateRows(
 
 export const findCompanyDuplicates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -403,7 +403,7 @@ export const findCompanyDuplicates = createServerFn({ method: "POST" })
 
 export const setCompanyStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -436,7 +436,7 @@ export const setCompanyStatus = createServerFn({ method: "POST" })
 
 export const createCompanyLogoUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -466,7 +466,7 @@ export const createCompanyLogoUpload = createServerFn({ method: "POST" })
 
 export const saveCompanyLogo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, companyId: idSchema, path: z.string().min(1) }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -503,7 +503,7 @@ export const saveCompanyLogo = createServerFn({ method: "POST" })
 
 export const exportCompaniesCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => listInput.parse(input))
+  .validator((input: unknown) => listInput.parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const page = await listCompanyWorkspace({ data: { ...data, limit: 200, offset: 0 } });
@@ -532,7 +532,7 @@ export const exportCompaniesCsv = createServerFn({ method: "POST" })
 
 export const previewCompanyImport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, filename: z.string().max(200), csv: z.string().max(1_000_000) }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -603,7 +603,7 @@ export const previewCompanyImport = createServerFn({ method: "POST" })
 
 export const confirmCompanyImport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, filename: z.string().max(200), csv: z.string().max(1_000_000) }).parse(input),
   )
   .handler(async ({ data, context }) => {

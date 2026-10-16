@@ -199,7 +199,7 @@ async function requireOwnIntegration(db: DbClient, restaurantId: string, id: str
 
 export const getPmsCard6Integrations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -208,7 +208,7 @@ export const getPmsCard6Integrations = createServerFn({ method: "POST" })
 
 export const savePmsCard6Integration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveSchema.parse(input))
+  .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const providerDef = integrationProvider(data.category, data.provider);
@@ -291,7 +291,7 @@ export const savePmsCard6Integration = createServerFn({ method: "POST" })
 
 export const setPmsCard6IntegrationEnabled = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, enabled: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -320,7 +320,7 @@ export const setPmsCard6IntegrationEnabled = createServerFn({ method: "POST" })
 
 export const deletePmsCard6Integration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -355,7 +355,7 @@ export const deletePmsCard6Integration = createServerFn({ method: "POST" })
  */
 export const recordPmsCard6IntegrationTest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

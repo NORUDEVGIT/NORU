@@ -22,7 +22,7 @@ const idSchema = z.string().uuid();
 
 export const getTravelAgencyCommissionRatesConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -42,7 +42,7 @@ export const getTravelAgencyCommissionRatesConfig = createServerFn({ method: "PO
 
 export const saveTravelAgencyCommissionRates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

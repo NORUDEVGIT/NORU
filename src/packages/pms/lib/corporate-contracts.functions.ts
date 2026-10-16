@@ -21,7 +21,7 @@ const idSchema = z.string().uuid();
 
 export const listPmsContractTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -67,7 +67,7 @@ export const listPmsContractTypes = createServerFn({ method: "POST" })
 
 export const savePmsContractType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -143,7 +143,7 @@ export const savePmsContractType = createServerFn({ method: "POST" })
 
 export const setPmsContractTypeActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -174,7 +174,7 @@ export const setPmsContractTypeActive = createServerFn({ method: "POST" })
 
 export const listPmsNoShowPolicies = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -223,7 +223,7 @@ export const listPmsNoShowPolicies = createServerFn({ method: "POST" })
 
 export const savePmsNoShowPolicy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -316,7 +316,7 @@ export const savePmsNoShowPolicy = createServerFn({ method: "POST" })
 
 export const setPmsNoShowPolicyActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -363,7 +363,7 @@ export interface CompanyDocumentTypeRecord {
 
 export const listPmsCompanyDocumentTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -421,7 +421,7 @@ export const listPmsCompanyDocumentTypes = createServerFn({ method: "POST" })
 
 export const savePmsCompanyDocumentType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -503,7 +503,7 @@ export const savePmsCompanyDocumentType = createServerFn({ method: "POST" })
 
 export const setPmsCompanyDocumentTypeActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -530,7 +530,7 @@ export const setPmsCompanyDocumentTypeActive = createServerFn({ method: "POST" }
 
 export const setPmsCompanyDocumentTypeRequired = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -557,7 +557,7 @@ export const setPmsCompanyDocumentTypeRequired = createServerFn({ method: "POST"
 
 export const deletePmsCompanyDocumentType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -665,7 +665,7 @@ export interface CompanyContractCreateConfig {
 
 export const getCompanyContractCreateConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

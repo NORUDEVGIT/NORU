@@ -427,7 +427,7 @@ export async function searchOperationalReservations(params: {
 
 export const listOperationalReservations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => operationalReservationSearchInputSchema.parse(input))
+  .validator((input: unknown) => operationalReservationSearchInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<OperationalReservationPage> => {
     await requireReservationManager(context as never, data.restaurantId);
 

@@ -96,7 +96,7 @@ async function loadRoomInventory(
 
 export const getReservationArrivalsDepartures = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

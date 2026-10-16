@@ -151,7 +151,7 @@ export async function loadSet4CreateCatalogues(
 
 export const getPmsSet4Snapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -177,7 +177,7 @@ const statusRulesSchema = z.object({
 
 export const savePmsHkStatusRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => statusRulesSchema.parse(input))
+  .validator((input: unknown) => statusRulesSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
@@ -237,7 +237,7 @@ const cleaningSchema = z.object({
 
 export const savePmsHkCleaningPosture = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => cleaningSchema.parse(input))
+  .validator((input: unknown) => cleaningSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
@@ -281,7 +281,7 @@ const oooSchema = z.object({
 
 export const savePmsOooOosPosture = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => oooSchema.parse(input))
+  .validator((input: unknown) => oooSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
@@ -326,7 +326,7 @@ const slaSchema = z.object({
 
 export const savePmsMaintenanceSla = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => slaSchema.parse(input))
+  .validator((input: unknown) => slaSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
@@ -416,7 +416,7 @@ async function saveCatalogueRow(params: {
 
 export const savePmsRestrictionReason = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => catalogueItemSchema.parse(input))
+  .validator((input: unknown) => catalogueItemSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
@@ -436,7 +436,7 @@ export const savePmsRestrictionReason = createServerFn({ method: "POST" })
 
 export const savePmsMaintenanceCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => catalogueItemSchema.parse(input))
+  .validator((input: unknown) => catalogueItemSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
@@ -456,7 +456,7 @@ export const savePmsMaintenanceCategory = createServerFn({ method: "POST" })
 
 export const savePmsMaintenancePriority = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => catalogueItemSchema.parse(input))
+  .validator((input: unknown) => catalogueItemSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
@@ -476,7 +476,7 @@ export const savePmsMaintenancePriority = createServerFn({ method: "POST" })
 
 export const savePmsMaintenanceTypeTag = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => catalogueItemSchema.parse(input))
+  .validator((input: unknown) => catalogueItemSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);

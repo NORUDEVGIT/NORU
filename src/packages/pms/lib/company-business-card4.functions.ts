@@ -372,7 +372,7 @@ export { loadSnapshot as loadCompanyBusinessCard4Snapshot };
 
 export const getPmsCard4CompanyBusiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -381,7 +381,7 @@ export const getPmsCard4CompanyBusiness = createServerFn({ method: "POST" })
 
 export const savePmsCard4BusinessType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => typeSaveSchema.parse(input))
+  .validator((input: unknown) => typeSaveSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -447,7 +447,7 @@ export const savePmsCard4BusinessType = createServerFn({ method: "POST" })
 
 export const setPmsCard4BusinessTypeActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -475,7 +475,7 @@ export const setPmsCard4BusinessTypeActive = createServerFn({ method: "POST" })
 
 export const deletePmsCard4BusinessType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -502,7 +502,7 @@ export const deletePmsCard4BusinessType = createServerFn({ method: "POST" })
 
 export const savePmsCard4BusinessSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => settingsSaveSchema.parse(input))
+  .validator((input: unknown) => settingsSaveSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -542,7 +542,7 @@ const roleSaveSchema = z
 
 export const savePmsCard4ContactRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => roleSaveSchema.parse(input))
+  .validator((input: unknown) => roleSaveSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -575,7 +575,7 @@ export const savePmsCard4ContactRole = createServerFn({ method: "POST" })
 
 export const setPmsCard4ContactRoleActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {

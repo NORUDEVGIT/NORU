@@ -203,7 +203,7 @@ const requestWriteSchema = z.object({
 
 export const listWaitlist = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -274,7 +274,7 @@ data.status === "expired"
 
 export const getWaitlist = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, requestId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, requestId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireReservationManager(context as never, data.restaurantId);
     const loaded = await db(context.supabase)
@@ -345,7 +345,7 @@ export const getWaitlist = createServerFn({ method: "POST" })
 
 export const createWaitlistRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => requestWriteSchema.parse(input))
+  .validator((input: unknown) => requestWriteSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireWaitlistWriter(context as never, data.restaurantId);
     assertStayDates(data.arrivalDate, data.departureDate);
@@ -389,7 +389,7 @@ export const createWaitlistRequest = createServerFn({ method: "POST" })
 
 export const amendWaitlistRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => requestWriteSchema.extend({ requestId: idSchema }).parse(input))
+  .validator((input: unknown) => requestWriteSchema.extend({ requestId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireWaitlistWriter(context as never, data.restaurantId);
     assertStayDates(data.arrivalDate, data.departureDate);
@@ -445,7 +445,7 @@ export const amendWaitlistRequest = createServerFn({ method: "POST" })
 
 export const matchWaitlist = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -529,7 +529,7 @@ export const matchWaitlist = createServerFn({ method: "POST" })
 
 export const createWaitlistOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -634,7 +634,7 @@ export const createWaitlistOffer = createServerFn({ method: "POST" })
 
 export const respondWaitlistOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -689,7 +689,7 @@ export const respondWaitlistOffer = createServerFn({ method: "POST" })
 
 export const convertWaitlist = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, requestId: idSchema, offerId: idSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -745,7 +745,7 @@ export const convertWaitlist = createServerFn({ method: "POST" })
 
 export const cancelWaitlistRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -790,7 +790,7 @@ export const cancelWaitlistRequest = createServerFn({ method: "POST" })
 
 export const expireWaitlistOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, requestId: idSchema, offerId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {

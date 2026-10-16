@@ -24,12 +24,7 @@ export type ProtectedNavRole = (typeof PROTECTED_NAV_ROLES)[number];
 export const MARKETING_NAV_PLACEMENTS = ["page", "auth", "utility"] as const;
 export type MarketingNavPlacement = (typeof MARKETING_NAV_PLACEMENTS)[number];
 
-export const MARKETING_PACKAGE_ICON_KEYS = [
-  "restaurant",
-  "pms",
-  "pos",
-  "back_office",
-] as const;
+export const MARKETING_PACKAGE_ICON_KEYS = ["restaurant", "pms", "pos", "back_office"] as const;
 export type MarketingPackageIconKey = (typeof MARKETING_PACKAGE_ICON_KEYS)[number];
 
 export interface BrandContent {
@@ -192,6 +187,130 @@ export interface ContactContent {
   secondaryCta?: MarketingCta;
 }
 
+export const NORU_SITE_ICONS = [
+  "pms",
+  "rms",
+  "pos",
+  "back",
+  "guest",
+  "resorts",
+  "about",
+  "blogs",
+  "testimonials",
+  "contact",
+] as const;
+
+export type NoruSiteIcon = (typeof NORU_SITE_ICONS)[number];
+
+export interface SitePoint {
+  strong?: string;
+  text: string;
+}
+
+export interface SiteOffering {
+  id: string;
+  icon: NoruSiteIcon;
+  title: string;
+  blurb: string;
+  lead: string;
+  points: SitePoint[];
+  order: number;
+  visible: boolean;
+  imageUrl?: string;
+  imageAlt?: string;
+}
+
+export interface SitePlan {
+  id: string;
+  name: string;
+  modules: string;
+  priceEtb: number | null;
+  featured: boolean;
+  order: number;
+}
+
+export interface SiteFaqItem {
+  id: string;
+  question: string;
+  answer: string;
+  order: number;
+  active: boolean;
+}
+
+export interface SitePartner {
+  id: string;
+  name: string;
+  logoUrl?: string;
+  logoAlt?: string;
+  href?: string;
+  order: number;
+  published: boolean;
+}
+
+export interface SiteEvent {
+  id: string;
+  date: string;
+  title: string;
+  place: string;
+  note: string;
+  order: number;
+  published: boolean;
+}
+
+export interface SiteAbout {
+  title: string;
+  intro: string;
+  body: string;
+}
+
+export interface SitePost {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  body: string;
+  published: boolean;
+  publishedAt?: string;
+  order: number;
+}
+
+export interface SiteQuote {
+  id: string;
+  quote: string;
+  authorName: string;
+  authorRole?: string;
+  propertyName?: string;
+  order: number;
+  published: boolean;
+}
+
+export interface SiteFooterContact {
+  email: string;
+  phone: string;
+  address: string;
+}
+
+export interface SiteHeroCopy {
+  tagline: string;
+  amharic: string;
+}
+
+/** Beti public-site contract. Absent on older documents, which fall back to content.ts. */
+export interface NoruSiteContent {
+  products: SiteOffering[];
+  solutions: SiteOffering[];
+  hotelPlans: SitePlan[];
+  restaurantPlans: SitePlan[];
+  faq: SiteFaqItem[];
+  partners: SitePartner[];
+  events: SiteEvent[];
+  about: SiteAbout;
+  posts: SitePost[];
+  quotes: SiteQuote[];
+  footerContact: SiteFooterContact;
+  hero: SiteHeroCopy;
+}
+
 export interface MarketingContent {
   brand: BrandContent;
   hero: HeroContent;
@@ -208,4 +327,6 @@ export interface MarketingContent {
   faq: FaqItem[];
   promoBanners: PromoBanner[];
   contact: ContactContent;
+  /** Present after the Beti site contract is saved. Older rows omit it. */
+  site?: NoruSiteContent;
 }
