@@ -388,7 +388,18 @@ describe("fiscal sales receipt eligibility and payload", () => {
       [{ amount: 0 }, /greater than zero/],
       [{ reversed: true }, /reversed/],
       [{ reversalRow: true, amount: -5 }, /reversal row/],
-      [{ paymentKind: "deposit" }, /Deposits are not fiscal sales receipts/],
+      [
+        {
+          paymentKind: "deposit",
+          originalRegistration: {
+            status: "REGISTERED",
+            irn: IRN,
+            documentNumber: "2821",
+            requestSnapshot: originalRequest({ Mode: "CASH" }),
+          },
+        },
+        /Deposits are not fiscal sales receipts/,
+      ],
       [{ hasAdjustingNotes: true }, /Credit\/Debit Notes/],
       [
         {
@@ -408,6 +419,8 @@ describe("fiscal sales receipt eligibility and payload", () => {
       if (blocked.ok) continue;
       assert.match(blocked.reasons.join(" "), pattern);
     }
+    const creditDeposit = assessSalesReceiptFiscal(ALLOC_A, input({ paymentKind: "deposit" }));
+    assert.equal(creditDeposit.ok, true);
     const legacy = originalRequest() as Record<string, unknown>;
     legacy.ValueDetails = (legacy.info as { ValueDetails: unknown }).ValueDetails;
     legacy.info = null;

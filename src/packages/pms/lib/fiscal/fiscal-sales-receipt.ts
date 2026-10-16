@@ -189,7 +189,9 @@ export function assessSalesReceiptFiscal(
     reasons.push("This allocation was reversed and is not eligible for a fiscal sales receipt.");
   }
   if (input.paymentKind === "deposit") {
-    reasons.push("Deposits are not fiscal sales receipts.");
+    if (frozenFiscalMode(input.originalRegistration?.requestSnapshot) !== "CREDIT") {
+      reasons.push("Deposits are not fiscal sales receipts.");
+    }
   } else if (input.paymentKind !== "payment") {
     reasons.push("Only a posted guest payment allocation can be registered.");
   }

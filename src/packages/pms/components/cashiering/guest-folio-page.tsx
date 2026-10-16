@@ -60,7 +60,6 @@ import { ReservationWorkspaceOverlay } from "@/packages/pms/components/reservati
 import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import {
   AdjustmentsTab,
-  ApplyDepositDialog,
   CARD,
   ChargesTab,
   FolioKpiRow,
@@ -177,7 +176,9 @@ export function GuestFolioPage({
     void queryClient.invalidateQueries({ queryKey: ["cashiering-folios", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["cashiering-ledger", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["cashiering-dashboard", restaurantId] });
-    void queryClient.invalidateQueries({ queryKey: ["guest-invoice-settlement", restaurantId, folioId] });
+    void queryClient.invalidateQueries({
+      queryKey: ["guest-invoice-settlement", restaurantId, folioId],
+    });
   }
 
   function go(tab: CashieringTabId) {
@@ -361,8 +362,6 @@ function FolioWorkspaceBody({
   const [closeOpen, setCloseOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferSourceId, setTransferSourceId] = useState<string | null>(null);
-  const [applyOpen, setApplyOpen] = useState(false);
-  const [applyDepositId, setApplyDepositId] = useState<string | null>(null);
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [allocateOpen, setAllocateOpen] = useState(false);
   const [allocatePaymentId, setAllocatePaymentId] = useState<string | null>(null);
@@ -381,9 +380,7 @@ function FolioWorkspaceBody({
   });
   const issuedOutstanding =
     issuedSettlement.data?.settlement?.outstanding ??
-    (issuedNext && !issuedSettlement.isLoading
-      ? issuedNext.snapshot.totals.invoiceTotal
-      : null);
+    (issuedNext && !issuedSettlement.isLoading ? issuedNext.snapshot.totals.invoiceTotal : null);
   const [detailRow, setDetailRow] = useState<FolioTransactionRow | null>(null);
   const [chargeId, setChargeId] = useState<string | null>(null);
   const [correctSourceId, setCorrectSourceId] = useState<string | null>(null);
@@ -450,11 +447,6 @@ function FolioWorkspaceBody({
   function openTransfer(sourceId: string | null) {
     setTransferSourceId(sourceId);
     setTransferOpen(true);
-  }
-
-  function openApply(depositId: string | null) {
-    setApplyDepositId(depositId);
-    setApplyOpen(true);
   }
 
   const reprintInvoice = useServerFn(reprintGuestFolioInvoice);
@@ -810,7 +802,6 @@ function FolioWorkspaceBody({
                 actions={rowActions}
                 onReceivePayment={() => openEntry("payment")}
                 onAddDeposit={() => openEntry("deposit")}
-                onAllocate={(line) => openApply(line.transaction.id)}
               />
             ) : null}
             {tab === "adjustments" ? (
@@ -928,7 +919,6 @@ function FolioWorkspaceBody({
                   onCorrect={(chargeId) => setCorrectSourceId(chargeId)}
                   onTransfer={(chargeId) => openTransfer(chargeId)}
                   onRefund={(sourceId) => openEntry("refund", sourceId)}
-                  onApplyDeposit={(depositId) => openApply(depositId)}
                   onViewDocuments={() => selectTab("invoices")}
                   onOpenFolio={(nextId) =>
                     void navigate({
@@ -951,7 +941,6 @@ function FolioWorkspaceBody({
                 workspace={workspace}
                 money={money}
                 dateTime={dateTime}
-                onAllocate={() => openApply(null)}
                 onWriteOff={() => setWriteOffOpen(true)}
                 onClose={() => setCloseOpen(true)}
                 onPosted={onChanged}
@@ -1066,16 +1055,6 @@ function FolioWorkspaceBody({
           initialSourceId={transferSourceId}
           open={transferOpen}
           onClose={() => setTransferOpen(false)}
-          onDone={onChanged}
-        />
-      ) : null}
-      {workspace.canManage ? (
-        <ApplyDepositDialog
-          restaurantId={restaurantId}
-          workspace={workspace}
-          initialDepositId={applyDepositId}
-          open={applyOpen}
-          onClose={() => setApplyOpen(false)}
           onDone={onChanged}
         />
       ) : null}

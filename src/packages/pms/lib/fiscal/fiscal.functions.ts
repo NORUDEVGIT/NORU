@@ -1210,10 +1210,18 @@ async function allocationInvoiceId(db: Db, restaurantId: string, allocationId: s
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
   const invoiceId = fiscalRecord(result.data)?.invoice_id;
-  if (typeof invoiceId !== "string") {
+  if (typeof invoiceId === "string") return invoiceId;
+  const deposit = await db
+    .from("guest_deposit_invoice_allocations")
+    .select("invoice_id")
+    .eq("id", allocationId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const depositInvoiceId = fiscalRecord(deposit.data)?.invoice_id;
+  if (typeof depositInvoiceId !== "string") {
     throw new FiscalError("FISCAL_NOT_ELIGIBLE", "That payment allocation was not found.");
   }
-  return invoiceId;
+  return depositInvoiceId;
 }
 
 export const getCompanyInvoiceFiscal = createServerFn({ method: "POST" })

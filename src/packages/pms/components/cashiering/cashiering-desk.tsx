@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   Banknote,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   CircleAlert,
   Clock3,
@@ -33,7 +34,6 @@ import { toast } from "sonner";
 import { FolioSearchPanel } from "@/packages/pms/components/cashiering/folio-search-panel";
 import {
   AccountsPanel,
-  DepositAllocationForm,
   ExceptionsPanel,
   ReportsPanel,
   TransfersPanel,
@@ -382,13 +382,63 @@ export function CashieringDesk({
     searchParams.activity === "transfer"
       ? searchParams.activity
       : "all";
-  const financialActivity = ledger.filter((row) => {
-    const isTransfer = row.type === "transfer_in" || row.type === "transfer_out";
-    const isTender = row.type === "payment" || row.type === "deposit" || row.type === "refund";
-    if (activity === "all") return isTender || isTransfer;
-    if (activity === "transfer") return isTransfer;
-    return row.type === activity;
-  });
+  const foliosById = useMemo(() => {
+    const map = new Map<string, FolioRow>();
+    for (const f of folios) {
+      map.set(f.id, f);
+    }
+    return map;
+  }, [folios]);
+
+  const financialActivity = useMemo(() => {
+    const filtered = ledger.filter((row) => {
+      const isTransfer = row.type === "transfer_in" || row.type === "transfer_out";
+      const isTender = row.type === "payment" || row.type === "deposit" || row.type === "refund";
+      if (activity === "all") return isTender || isTransfer;
+      if (activity === "transfer") return isTransfer;
+      return row.type === activity;
+    });
+
+    return filtered.map((row) => {
+      const f = foliosById.get(row.folioId);
+      const name =
+        (row.guestName && row.guestName !== "Guest" ? row.guestName : null) ??
+        (f?.guestName && f.guestName !== "Guest" ? f.guestName : null) ??
+        row.guestName ??
+        "Guest";
+      const room = row.roomNumber ?? f?.roomNumber ?? null;
+      const folioNo =
+        row.folioNumber && row.folioNumber !== "—" ? row.folioNumber : (f?.folioNumber ?? "—");
+
+      return {
+        ...row,
+        guestName: name,
+        roomNumber: room,
+        folioNumber: folioNo,
+      };
+    });
+  }, [activity, foliosById, ledger]);
+
+  const recentTransactions = useMemo(() => {
+    return ledger.slice(0, 6).map((row) => {
+      const f = foliosById.get(row.folioId);
+      const name =
+        (row.guestName && row.guestName !== "Guest" ? row.guestName : null) ??
+        (f?.guestName && f.guestName !== "Guest" ? f.guestName : null) ??
+        row.guestName ??
+        "Guest";
+      const room = row.roomNumber ?? f?.roomNumber ?? null;
+      const folioNo =
+        row.folioNumber && row.folioNumber !== "—" ? row.folioNumber : (f?.folioNumber ?? "—");
+
+      return {
+        ...row,
+        guestName: name,
+        roomNumber: room,
+        folioNumber: folioNo,
+      };
+    });
+  }, [foliosById, ledger]);
 
   return (
     <div className="space-y-4" data-testid={`cashiering-panel-${tab}`}>
@@ -414,7 +464,7 @@ export function CashieringDesk({
             setFilter(value);
             setPage(1);
           }}
-          recent={ledger.slice(0, 6)}
+          recent={recentTransactions}
           financialActivity={financialActivity}
           activity={activity}
           activityLoading={ledgerQuery.isLoading}
@@ -1495,7 +1545,7 @@ function FinancialActivityPanel({
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
         <LedgerTable
-          title={`${title} (${rows.length})`}
+          title={title}
           rows={rows}
           loading={loading}
           error={error}
@@ -1538,15 +1588,6 @@ function FinancialActivityPanel({
               documentProperty={documentProperty}
               onReceipt={(r) => setReceipt(r)}
             />
-            {activity === "deposit" ? (
-              <DepositAllocationForm
-                restaurantId={restaurantId}
-                selected={selected}
-                canManage={canManage}
-                money={money}
-                onRefresh={onRefresh}
-              />
-            ) : null}
           </div>
         )}
       </div>
@@ -1606,7 +1647,9 @@ function TransferActivityHelp({
       {selected ? (
         <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] p-3 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-[#7A7167]">Selected Folio</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[#7A7167]">
+              Selected Folio
+            </span>
             <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800 border border-emerald-200">
               Active
             </span>
@@ -1765,9 +1808,7 @@ function FinancialActivityHelp({
       <div
         className={cn(
           "rounded-lg border p-3",
-          hasBalance
-            ? "border-amber-200 bg-amber-50/60"
-            : "border-[#E8E1D7] bg-[#FAF8F4]",
+          hasBalance ? "border-amber-200 bg-amber-50/60" : "border-[#E8E1D7] bg-[#FAF8F4]",
         )}
       >
         <span className="text-[10px] font-semibold uppercase tracking-wider text-[#7A7167]">
@@ -1860,8 +1901,14 @@ function ActivityRowActions({
           <MoreHorizontal className="size-3 text-[#7A7167]" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 rounded-xl border border-[#DDD4C5] bg-white p-1.5 shadow-lg">
-        <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]">
+      <DropdownMenuContent
+        align="end"
+        className="w-56 rounded-xl border border-[#DDD4C5] bg-white p-1.5 shadow-lg"
+      >
+        <DropdownMenuItem
+          asChild
+          className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
+        >
           <Link
             to="/restaurant/pms/cashiering/folios/$folioId"
             params={{ folioId: row.folioId }}
@@ -1874,7 +1921,10 @@ function ActivityRowActions({
         </DropdownMenuItem>
 
         {row.type === "payment" && canAllocate ? (
-          <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]">
+          <DropdownMenuItem
+            asChild
+            className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
+          >
             <Link
               to="/restaurant/pms/cashiering/folios/$folioId"
               params={{ folioId: row.folioId }}
@@ -1888,7 +1938,10 @@ function ActivityRowActions({
         ) : null}
 
         {row.type === "deposit" && canManage ? (
-          <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]">
+          <DropdownMenuItem
+            asChild
+            className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
+          >
             <Link
               to="/restaurant/pms/cashiering/folios/$folioId"
               params={{ folioId: row.folioId }}
@@ -1896,13 +1949,16 @@ function ActivityRowActions({
               className="flex items-center gap-2 text-[#146C43]"
             >
               <Receipt className="size-3.5 text-[#146C43]" />
-              <span>View receipt or apply deposit</span>
+              <span>View deposit details</span>
             </Link>
           </DropdownMenuItem>
         ) : null}
 
         {(row.type === "payment" || row.type === "deposit") && canManage ? (
-          <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]">
+          <DropdownMenuItem
+            asChild
+            className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
+          >
             <Link
               to="/restaurant/pms/cashiering/folios/$folioId"
               params={{ folioId: row.folioId }}
@@ -1916,7 +1972,10 @@ function ActivityRowActions({
         ) : null}
 
         {row.type === "transfer_in" || row.type === "transfer_out" ? (
-          <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]">
+          <DropdownMenuItem
+            asChild
+            className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
+          >
             <Link
               to="/restaurant/pms/cashiering/folios/$folioId"
               params={{ folioId: row.folioId }}
@@ -1930,7 +1989,10 @@ function ActivityRowActions({
         ) : null}
 
         {row.type === "refund" ? (
-          <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]">
+          <DropdownMenuItem
+            asChild
+            className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
+          >
             <Link
               to="/restaurant/pms/cashiering/folios/$folioId"
               params={{ folioId: row.folioId }}
@@ -1945,7 +2007,10 @@ function ActivityRowActions({
 
         <DropdownMenuSeparator className="my-1 bg-[#E8E1D7]" />
 
-        <DropdownMenuItem asChild className="cursor-pointer rounded-lg text-xs font-medium text-[#7A7167] hover:bg-[#FAF8F4]">
+        <DropdownMenuItem
+          asChild
+          className="cursor-pointer rounded-lg text-xs font-medium text-[#7A7167] hover:bg-[#FAF8F4]"
+        >
           <Link
             to="/restaurant/pms/cashiering/folios/$folioId"
             params={{ folioId: row.folioId }}
@@ -1983,83 +2048,160 @@ function LedgerTable({
   onSelect: (row: LedgerEntryRow) => void;
   actions?: (row: LedgerEntryRow) => ReactNode;
 }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setPage(1);
+  }, [rows.length, title]);
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const pageRows = rows.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-      <div className="border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
+    <section className="overflow-hidden rounded-xl border border-[#DDD4C5] bg-card shadow-xs">
+      <div className="flex items-center justify-between border-b border-[#DDD4C5] bg-[#FAF8F4]/80 px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <h2 className="font-display text-sm font-bold text-[#251605]">{title}</h2>
+          <span className="rounded-full border border-[#DDD4C5] bg-white px-2 py-0.5 text-xs font-semibold tabular-nums text-[#765719]">
+            {rows.length}
+          </span>
+        </div>
+        <span className="text-xs text-[#7A7167]">Click row to select folio</span>
       </div>
-      {loading ? <p className="p-4 text-sm text-muted-foreground">Loading ledger…</p> : null}
+      {loading ? <p className="p-4 text-sm text-[#7A7167]">Loading ledger…</p> : null}
       {error ? <p className="p-4 text-sm text-destructive">{error}</p> : null}
       {!loading && !error && rows.length === 0 ? (
-        <p className="p-8 text-center text-sm text-muted-foreground">{empty}</p>
+        <p className="p-8 text-center text-sm text-[#7A7167]">{empty}</p>
       ) : null}
       {rows.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 font-medium">Reference</th>
-                <th className="px-3 py-2 font-medium">Guest</th>
-                <th className="px-3 py-2 font-medium">Folio No</th>
-                <th className="px-3 py-2 font-medium">Room</th>
-                <th className="px-3 py-2 font-medium">Method</th>
-                <th className="px-3 py-2 text-right font-medium">Amount</th>
-                <th className="px-3 py-2 font-medium">Posted At</th>
-                <th className="px-3 py-2 font-medium">Posted By</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-3 py-2 font-medium">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.slice(0, 50).map((row) => (
-                <tr
-                  key={row.id}
-                  className={cn(
-                    "cursor-pointer border-t border-border hover:bg-[#FAF8F4]",
-                    selectedFolioId === row.folioId && "bg-[#C89933]/10",
-                  )}
-                  onClick={() => onSelect(row)}
-                >
-                  <td className="px-3 py-2 font-medium">{shortRef(row.id)}</td>
-                  <td className="px-3 py-2">{row.guestName}</td>
-                  <td className="px-3 py-2">{row.folioNumber}</td>
-                  <td className="px-3 py-2">{row.roomNumber ?? "—"}</td>
-                  <td className="px-3 py-2">
-                    {row.paymentMethod ? methodLabel(row.paymentMethod) : methodLabel(row.type)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{money(row.amount)}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{dateTime(row.postedAt)}</td>
-                  <td className="px-3 py-2">{row.postedBy ?? "—"}</td>
-                  <td className="px-3 py-2">
-                    <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
-                      Recorded
-                    </span>
-                    {row.referenceType ? (
-                      <div className="mt-1 text-[11px] text-muted-foreground">
-                        {row.referenceType}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-2" onClick={(event) => event.stopPropagation()}>
-                    {actions ? (
-                      actions(row)
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="min-h-11 sm:min-h-8"
-                        onClick={() => onSelect(row)}
-                      >
-                        View
-                      </Button>
-                    )}
-                  </td>
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead className="border-b border-[#DDD4C5] bg-[#F8F5F0] text-left text-[11px] font-semibold uppercase tracking-wider text-[#765719]">
+                <tr>
+                  <th className="px-3.5 py-2.5 font-semibold">Reference</th>
+                  <th className="px-3.5 py-2.5 font-semibold">Guest</th>
+                  <th className="px-3.5 py-2.5 font-semibold">Folio No</th>
+                  <th className="px-3.5 py-2.5 font-semibold">Room</th>
+                  <th className="px-3.5 py-2.5 font-semibold">Method</th>
+                  <th className="px-3.5 py-2.5 text-right font-semibold">Amount</th>
+                  <th className="px-3.5 py-2.5 font-semibold">Posted At</th>
+                  <th className="px-3.5 py-2.5 font-semibold">Posted By</th>
+                  <th className="px-3.5 py-2.5 font-semibold">Status</th>
+                  <th className="px-3.5 py-2.5 text-center font-semibold">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-[#E8E1D7]/70">
+                {pageRows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className={cn(
+                      "cursor-pointer transition-colors",
+                      selectedFolioId === row.folioId
+                        ? "bg-[#C89933]/12 border-l-[3px] border-l-[#C89933]"
+                        : "hover:bg-[#FDFBF7]",
+                    )}
+                    onClick={() => onSelect(row)}
+                  >
+                    <td className="px-3.5 py-3 font-semibold text-[#251605]">{shortRef(row.id)}</td>
+                    <td className="px-3.5 py-3 font-medium text-[#251605]">{row.guestName}</td>
+                    <td className="px-3.5 py-3 font-mono text-xs text-[#5F554B]">
+                      {row.folioNumber}
+                    </td>
+                    <td className="px-3.5 py-3 text-xs text-[#251605]">{row.roomNumber ?? "—"}</td>
+                    <td className="px-3.5 py-3">
+                      <span className="rounded bg-muted/60 px-1.5 py-0.5 text-[11px] font-medium text-[#5F554B]">
+                        {row.paymentMethod ? methodLabel(row.paymentMethod) : methodLabel(row.type)}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-3 text-right font-semibold tabular-nums text-[#251605]">
+                      {money(row.amount)}
+                    </td>
+                    <td className="px-3.5 py-3 text-xs text-[#7A7167]">{dateTime(row.postedAt)}</td>
+                    <td className="px-3.5 py-3 text-xs text-[#5F554B]">{row.postedBy ?? "—"}</td>
+                    <td className="px-3.5 py-3">
+                      <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                        Recorded
+                      </span>
+                      {row.referenceType ? (
+                        <div className="mt-1 text-[11px] text-[#7A7167]">{row.referenceType}</div>
+                      ) : null}
+                    </td>
+                    <td
+                      className="px-3.5 py-3 text-center"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {actions ? (
+                        actions(row)
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 border-[#DDD4C5] bg-white text-xs hover:border-[#C89933]/60 hover:text-[#251605]"
+                          onClick={() => onSelect(row)}
+                        >
+                          View
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#DDD4C5] bg-[#FAF8F4]/60 px-4 py-2.5 text-xs text-[#7A7167]">
+            <span>
+              Showing {rows.length === 0 ? 0 : (safePage - 1) * pageSize + 1}–
+              {Math.min(safePage * pageSize, rows.length)} of {rows.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 border-[#DDD4C5] bg-white px-2.5 text-xs font-medium text-[#251605] hover:border-[#C89933]/60 hover:text-[#251605] disabled:opacity-50"
+                disabled={safePage <= 1}
+                onClick={() => setPage(safePage - 1)}
+              >
+                <ChevronLeft className="mr-1 size-3.5" />
+                Previous
+              </Button>
+              <span className="grid size-8 place-items-center rounded-md bg-[#C89933] text-xs font-semibold text-[#251605]">
+                {safePage}
+              </span>
+              <span className="px-1 text-xs text-[#7A7167]">of {pageCount}</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 border-[#DDD4C5] bg-white px-2.5 text-xs font-medium text-[#251605] hover:border-[#C89933]/60 hover:text-[#251605] disabled:opacity-50"
+                disabled={safePage >= pageCount}
+                onClick={() => setPage(safePage + 1)}
+              >
+                Next
+                <ChevronRight className="ml-1 size-3.5" />
+              </Button>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="ml-2 h-8 rounded-md border border-[#DDD4C5] bg-white px-2 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+                aria-label="Rows per page"
+              >
+                {[10, 25, 50].map((size) => (
+                  <option key={size} value={size}>
+                    {size} / page
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </>
       ) : null}
     </section>
   );
@@ -2164,15 +2306,15 @@ function ReceivePanel({
         }
       : kind === "deposit"
         ? {
-          title: "Record Deposit Credit",
-          cta: "Record Deposit",
-          note: "Posts advance payment or security deposit credit to folio.",
-        }
-      : {
-          title: "Record Correction Refund",
-          cta: "Post Refund",
-          note: "Reverses posted payment tender. Requires manager authorization.",
-        };
+            title: "Record Deposit Credit",
+            cta: "Record Deposit",
+            note: "Posts advance payment or security deposit credit to folio.",
+          }
+        : {
+            title: "Record Correction Refund",
+            cta: "Post Refund",
+            note: "Reverses posted payment tender. Requires manager authorization.",
+          };
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -2218,8 +2360,7 @@ function ReceivePanel({
         const selectedRow = folios.find((r) => r.id === folio.id) ?? null;
         const arrivalDate = folio.arrivalDate ?? selectedRow?.arrivalDate ?? null;
         const departureDate = folio.departureDate ?? selectedRow?.departureDate ?? null;
-        const nights =
-          arrivalDate && departureDate ? stayNights(arrivalDate, departureDate) : null;
+        const nights = arrivalDate && departureDate ? stayNights(arrivalDate, departureDate) : null;
         const confirmationNumber =
           folio.confirmationNumber ?? selectedRow?.confirmationNumber ?? null;
         const guestPhone = folio.guestPhone ?? null;
@@ -2352,7 +2493,8 @@ function ReceivePanel({
               .filter((row) => row.status === "open" || row.id === (folio?.id ?? pendingFolioId))
               .map((row) => (
                 <option key={row.id} value={row.id}>
-                  {row.folioNumber} · {row.guestName} {row.roomNumber ? `(Room ${row.roomNumber})` : ""}
+                  {row.folioNumber} · {row.guestName}{" "}
+                  {row.roomNumber ? `(Room ${row.roomNumber})` : ""}
                 </option>
               ))}
           </select>
@@ -2397,7 +2539,9 @@ function ReceivePanel({
 
             <div className="flex items-center justify-between rounded-md border border-[#E8E1D7] bg-white px-3 py-2">
               <div>
-                <p className="text-[10px] uppercase font-semibold text-[#7A7167]">Outstanding Balance</p>
+                <p className="text-[10px] uppercase font-semibold text-[#7A7167]">
+                  Outstanding Balance
+                </p>
                 <p
                   className={cn(
                     "font-display text-base font-bold tabular-nums",
@@ -2434,12 +2578,13 @@ function ReceivePanel({
                   Payment Method
                 </Label>
                 {tenders.length === 0 ? (
-                  <p className="text-xs text-[#C89933]">
-                    No active payment methods configured.
-                  </p>
+                  <p className="text-xs text-[#C89933]">No active payment methods configured.</p>
                 ) : (
                   <Select value={method} onValueChange={setMethod}>
-                    <SelectTrigger id={`${kind}-method`} className="h-10 border-[#DDD4C5] bg-white text-xs font-medium">
+                    <SelectTrigger
+                      id={`${kind}-method`}
+                      className="h-10 border-[#DDD4C5] bg-white text-xs font-medium"
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -2459,20 +2604,27 @@ function ReceivePanel({
                     Source Line to Correct
                   </Label>
                   <Select value={sourceId} onValueChange={setSourceId}>
-                    <SelectTrigger id="refund-source" className="h-10 border-[#DDD4C5] bg-white text-xs font-medium">
+                    <SelectTrigger
+                      id="refund-source"
+                      className="h-10 border-[#DDD4C5] bg-white text-xs font-medium"
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {refundSources.map((line) => (
                         <SelectItem key={line.id} value={line.id}>
-                          {labelTransactionType(line.type)} · {line.description} · {money(line.amount)}
+                          {labelTransactionType(line.type)} · {line.description} ·{" "}
+                          {money(line.amount)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   {refundSource ? (
                     <div className="rounded-md border border-[#E8E1D7] bg-white p-2 text-[11px] text-[#5F554B]">
-                      <span>Original Line: <strong>{labelTransactionType(refundSource.type)}</strong> · {refundSource.description} · {money(refundSource.amount)}</span>
+                      <span>
+                        Original Line: <strong>{labelTransactionType(refundSource.type)}</strong> ·{" "}
+                        {refundSource.description} · {money(refundSource.amount)}
+                      </span>
                       {refundRemaining != null ? (
                         <span className="block mt-0.5 text-[#146C43] font-medium">
                           Remaining refundable: {money(refundRemaining)}
@@ -2508,7 +2660,10 @@ function ReceivePanel({
 
               {kind === "payment" || kind === "deposit" ? (
                 <div className="space-y-1">
-                  <Label htmlFor={`${kind}-received-from`} className="text-xs font-semibold text-[#251605]">
+                  <Label
+                    htmlFor={`${kind}-received-from`}
+                    className="text-xs font-semibold text-[#251605]"
+                  >
                     Received from
                   </Label>
                   <Input
@@ -2522,7 +2677,10 @@ function ReceivePanel({
               ) : null}
 
               <div className="space-y-1">
-                <Label htmlFor={`${kind}-reference`} className="text-xs font-semibold text-[#251605]">
+                <Label
+                  htmlFor={`${kind}-reference`}
+                  className="text-xs font-semibold text-[#251605]"
+                >
                   Reference (optional)
                 </Label>
                 <Input
@@ -2540,7 +2698,9 @@ function ReceivePanel({
                 </Label>
                 <Textarea
                   id={`${kind}-notes`}
-                  placeholder={kind === "refund" ? "State reason for refund..." : "Additional notes..."}
+                  placeholder={
+                    kind === "refund" ? "State reason for refund..." : "Additional notes..."
+                  }
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
                   className="min-h-16 border-[#DDD4C5] bg-white text-xs"

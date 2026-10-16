@@ -6,6 +6,7 @@
  * an allocation, or change the original invoice registration.
  */
 import type { FiscalFetch } from "./fiscal-client.server.ts";
+import { frozenFiscalMode } from "./fiscal-document-mode.ts";
 import { fiscalPayloadHash, fiscalQrSrc } from "./fiscal-guest-invoice.ts";
 import { sendStoredFiscalRequest } from "./fiscal-guest-invoice.server.ts";
 import { originalInvoiceTotal } from "./fiscal-original-invoice.ts";
@@ -91,7 +92,7 @@ export async function getGuestInvoiceSalesReceipts(
 ): Promise<{ lines: GuestSalesReceiptLine[]; testAdjustmentWarning: string | null }> {
   const loaded = await loadInvoiceFiscalContext(db, input.restaurantId, input.invoiceId);
   const positives = loaded.allocations
-    .filter((row) => row.amount > 0 && !row.reversesId)
+    .filter((row) => row.amount > 0 && !row.reversesId && showsSalesReceipt(loaded, row))
     .sort(byAllocationEvent);
   return {
     lines: positives.map((row) =>
@@ -189,13 +190,7 @@ export async function sendClaimedSalesReceipt(
 }
 
 async function allocationStillActive(db: Db, restaurantId: string, allocationId: string) {
-  const result = await db
-    .from("guest_payment_invoice_allocations")
-    .select("id, invoice_id, amount, reverses_allocation_id")
-    .eq("id", allocationId)
-    .eq("restaurant_id", restaurantId)
-    .maybeSingle();
-  const row = mapAllocation(fiscalRecord(result.data));
+  const row = await findAllocation(db, restaurantId, allocationId);
   if (!row || row.amount <= 0 || row.reversesId) return false;
   const siblings = await allocationRows(db, restaurantId, row.invoiceId);
   return !isReversed(row, siblings);
@@ -275,14 +270,8 @@ async function loadAllocationFiscalContext(
   restaurantId: string,
   allocationId: string,
 ): Promise<AllocationFiscalContext> {
-  const result = await db
-    .from("guest_payment_invoice_allocations")
-    .select("id, invoice_id, payment_transaction_id, amount, created_at, reverses_allocation_id")
-    .eq("id", allocationId)
-    .eq("restaurant_id", restaurantId)
-    .maybeSingle();
-  const allocation = mapAllocation(fiscalRecord(result.data));
-  if (result.error || !allocation) {
+  const allocation = await findAllocation(db, restaurantId, allocationId);
+  if (!allocation) {
     throw new FiscalError("FISCAL_NOT_ELIGIBLE", "That payment allocation was not found.");
   }
   const invoice = await loadInvoiceFiscalContext(db, restaurantId, allocation.invoiceId);
@@ -415,7 +404,7 @@ function presentAllocation(
   const assessment = assessAllocation(allocation, context);
   const reversed = isReversed(allocation, context.allocations);
   const correction =
-    registration && !reversed
+    registration && !reversed && context.paymentKinds.get(allocation.paymentId) !== "deposit"
       ? salesReceiptCorrectionDecision({
           status: registration.status,
           nextAttemptAt: registration.nextAttemptAt,
@@ -532,13 +521,41 @@ function line(
   };
 }
 
+function showsSalesReceipt(context: InvoiceFiscalContext, allocation: AllocationRow) {
+  if (context.paymentKinds.get(allocation.paymentId) !== "deposit") return true;
+  return frozenFiscalMode(context.original?.requestSnapshot) === "CREDIT";
+}
+
+async function findAllocation(db: Db, restaurantId: string, allocationId: string) {
+  const payment = await db
+    .from("guest_payment_invoice_allocations")
+    .select("id, invoice_id, payment_transaction_id, amount, created_at, reverses_allocation_id")
+    .eq("id", allocationId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const paymentRow = mapAllocation(fiscalRecord(payment.data));
+  if (paymentRow) return paymentRow;
+  const deposit = await db
+    .from("guest_deposit_invoice_allocations")
+    .select("id, invoice_id, deposit_transaction_id, amount, created_at, reverses_allocation_id")
+    .eq("id", allocationId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  return mapAllocation(fiscalRecord(deposit.data));
+}
+
 async function allocationRows(db: Db, restaurantId: string, invoiceId: string) {
-  const result = await db
+  const payments = await db
     .from("guest_payment_invoice_allocations")
     .select("id, invoice_id, payment_transaction_id, amount, created_at, reverses_allocation_id")
     .eq("restaurant_id", restaurantId)
     .eq("invoice_id", invoiceId);
-  return fiscalRecords((await result).data)
+  const deposits = await db
+    .from("guest_deposit_invoice_allocations")
+    .select("id, invoice_id, deposit_transaction_id, amount, created_at, reverses_allocation_id")
+    .eq("restaurant_id", restaurantId)
+    .eq("invoice_id", invoiceId);
+  return [...fiscalRecords((await payments).data), ...fiscalRecords((await deposits).data)]
     .map((row) => mapAllocation(row))
     .filter((row): row is AllocationRow => row != null);
 }
@@ -654,7 +671,12 @@ function mapAllocation(row: Record<string, unknown> | null): AllocationRow | nul
   return {
     id: row.id,
     invoiceId: row.invoice_id,
-    paymentId: typeof row.payment_transaction_id === "string" ? row.payment_transaction_id : "",
+    paymentId:
+      typeof row.payment_transaction_id === "string"
+        ? row.payment_transaction_id
+        : typeof row.deposit_transaction_id === "string"
+          ? row.deposit_transaction_id
+          : "",
     amount: numberValue(row.amount),
     createdAt: typeof row.created_at === "string" ? row.created_at : "",
     reversesId: text(row.reverses_allocation_id),

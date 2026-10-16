@@ -128,7 +128,17 @@ async function allocationInvoiceNumber(
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
   const invoiceId = fiscalRecord(allocation.data)?.invoice_id;
-  return typeof invoiceId === "string" ? guestInvoiceNumber(db, restaurantId, invoiceId) : null;
+  if (typeof invoiceId === "string") return guestInvoiceNumber(db, restaurantId, invoiceId);
+  const deposit = await db
+    .from("guest_deposit_invoice_allocations")
+    .select("invoice_id")
+    .eq("id", allocationId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const depositInvoiceId = fiscalRecord(deposit.data)?.invoice_id;
+  return typeof depositInvoiceId === "string"
+    ? guestInvoiceNumber(db, restaurantId, depositInvoiceId)
+    : null;
 }
 
 async function debitNoteNumber(

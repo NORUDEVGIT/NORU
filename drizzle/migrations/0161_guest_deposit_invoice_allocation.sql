@@ -234,7 +234,8 @@ BEGIN
     WHERE restaurant_id = _restaurant_id AND guest_invoice_id = inv.id;
     SELECT COALESCE(round(sum(amount), 2), 0) INTO payment_allocated
     FROM public.guest_payment_invoice_allocations
-    WHERE restaurant_id = _restaurant_id AND invoice_id = inv.id;
+    WHERE restaurant_id = _restaurant_id
+      AND guest_payment_invoice_allocations.invoice_id = inv.id;
     effective_net := round(invoice_total + note_delta, 2);
     outstanding := round(
       effective_net - payment_allocated - public.guest_invoice_deposit_cover(_restaurant_id, inv.id),
@@ -408,7 +409,8 @@ BEGIN
     WHERE restaurant_id = _restaurant_id AND guest_invoice_id = inv.id;
     SELECT COALESCE(round(sum(amount), 2), 0) INTO payment_allocated
     FROM public.guest_payment_invoice_allocations
-    WHERE restaurant_id = _restaurant_id AND invoice_id = inv.id;
+    WHERE restaurant_id = _restaurant_id
+      AND guest_payment_invoice_allocations.invoice_id = inv.id;
     effective_net := round(invoice_total + note_delta, 2);
     outstanding := round(
       effective_net - payment_allocated - public.guest_invoice_deposit_cover(_restaurant_id, inv.id),

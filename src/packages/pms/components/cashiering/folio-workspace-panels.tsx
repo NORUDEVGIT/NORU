@@ -425,22 +425,13 @@ function RowMenu({
   row,
   workspace,
   actions,
-  onApply,
 }: {
   row: FolioTransactionRow;
   workspace: FolioWorkspace;
   actions: RowActions;
-  onApply?: (row: FolioTransactionRow) => void;
 }) {
   const rows = workspace.folio.transactions;
   const corrections = legalCorrections(row, rows, workspace);
-  const depositLine = workspace.depositLines.find((line) => line.transaction.id === row.id);
-  const canApply =
-    Boolean(onApply) &&
-    row.type === "deposit" &&
-    workspace.canManage &&
-    workspace.folio.status === "open" &&
-    (depositLine?.available ?? 0) > 0.009;
   const refundLabel = row.type === "deposit" ? "Refund Deposit" : "Refund Payment";
   const canTransfer =
     workspace.capabilities.canTransfer &&
@@ -477,11 +468,6 @@ function RowMenu({
         correctableGroupRemainder(row.id, rows).grossRemaining > 0.009 ? (
           <DropdownMenuItem onSelect={() => actions.onCorrectCharge(row)}>
             <SlidersHorizontal className="size-4 text-amber-700" /> Correct Charge
-          </DropdownMenuItem>
-        ) : null}
-        {canApply ? (
-          <DropdownMenuItem onSelect={() => onApply?.(row)}>
-            <WalletCards className="size-4" /> Apply deposit
           </DropdownMenuItem>
         ) : null}
         {corrections.length === 1 && corrections[0] === "refund" ? (
@@ -1087,7 +1073,6 @@ export function PaymentsDepositsTab({
   actions,
   onReceivePayment,
   onAddDeposit,
-  onAllocate,
 }: {
   workspace: FolioWorkspace;
   money: Money;
@@ -1095,7 +1080,6 @@ export function PaymentsDepositsTab({
   actions: RowActions;
   onReceivePayment: () => void;
   onAddDeposit: () => void;
-  onAllocate: (line: FolioDepositLine) => void;
 }) {
   const caps = workspace.capabilities;
   const [search, setSearch] = useState("");
@@ -1115,10 +1099,6 @@ export function PaymentsDepositsTab({
     [workspace.folio.transactions, search, type, from, to],
   );
   const unapplied = workspace.depositLines.filter((line) => line.available > 0.009);
-  const applyRow = (row: FolioTransactionRow) => {
-    const line = depositById.get(row.id);
-    if (line) onAllocate(line);
-  };
 
   return (
     <div className="space-y-4" data-testid="payments-deposits">
@@ -1248,12 +1228,7 @@ export function PaymentsDepositsTab({
                       {row.postedBy ?? "—"}
                     </td>
                     <td className="px-1 py-1 text-right">
-                      <RowMenu
-                        row={row}
-                        workspace={workspace}
-                        actions={actions}
-                        onApply={applyRow}
-                      />
+                      <RowMenu row={row} workspace={workspace} actions={actions} />
                     </td>
                   </tr>
                 );
@@ -1267,7 +1242,8 @@ export function PaymentsDepositsTab({
         <div className="border-b border-[#E8E1D7] px-4 py-3">
           <h3 className="text-sm font-semibold">Unapplied deposits</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Cash already on this folio. Applying a deposit to a charge does not change the balance.
+            Cash already on this folio. Allocate it directly to an issued invoice from Invoices or
+            Settlement.
           </p>
         </div>
         <DepositTotals summary={workspace.depositSummary} money={money} />
@@ -1286,7 +1262,6 @@ export function PaymentsDepositsTab({
                   <Th right>Applied</Th>
                   <Th right>Remaining</Th>
                   <Th>Status</Th>
-                  <th className="w-10" aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
@@ -1308,14 +1283,6 @@ export function PaymentsDepositsTab({
                           workspace.folio.transactions,
                           line,
                         )}
-                      />
-                    </td>
-                    <td className="px-1 py-1 text-right">
-                      <RowMenu
-                        row={line.transaction}
-                        workspace={workspace}
-                        actions={actions}
-                        onApply={applyRow}
                       />
                     </td>
                   </tr>
@@ -1535,7 +1502,6 @@ export function SettlementTab({
   workspace,
   money,
   dateTime,
-  onAllocate,
   onWriteOff,
   onClose,
   onPosted,
@@ -1549,7 +1515,6 @@ export function SettlementTab({
   workspace: FolioWorkspace;
   money: Money;
   dateTime: DateTimeFormat;
-  onAllocate: () => void;
   onWriteOff: () => void;
   onClose: () => void;
   onPosted: () => void;
@@ -1568,7 +1533,7 @@ export function SettlementTab({
   const outstanding = settlementPaymentDefault(balance);
   const closeBlock = settlementCloseBlock(balance);
   const currency = folio.currency?.trim() || "ETB";
-  const canAllocate = workspace.canManage && open && workspace.depositSummary.available > 0.009;
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const fetchShifts = useServerFn(listCashierShifts);
   const shifts = useQuery({
     queryKey: ["settlement-cashier-shifts", restaurantId],
@@ -1652,23 +1617,6 @@ export function SettlementTab({
               <Button type="button" size="sm" onClick={onIssueInvoice}>
                 <FileText className="size-4" /> Issue final invoice
               </Button>
-              {payableInvoices.length === 1 && workspace.canOperate ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    const row = payableInvoices[0];
-                    if (!row) return;
-                    setReceiveInvoice({
-                      invoiceId: row.invoiceId,
-                      outstanding: row.outstanding ?? 0,
-                      currency: row.currency || currency,
-                    });
-                  }}
-                >
-                  <CreditCard className="size-4" /> Receive remaining payment
-                </Button>
-              ) : null}
               {workspace.canAllocateInvoices ? (
                 <Button
                   type="button"
@@ -1683,6 +1631,22 @@ export function SettlementTab({
                   An accountant allocates an existing payment or deposit.
                 </p>
               )}
+              {outstanding > 0 && caps.canPostPayment ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={paymentOpen ? "secondary" : "outline"}
+                  onClick={() => setPaymentOpen((current) => !current)}
+                >
+                  <CreditCard className="size-4" />
+                  {paymentOpen ? "Hide payment form" : "Post payment"}
+                </Button>
+              ) : null}
+              {workspace.canManage && balance > 0.009 ? (
+                <Button type="button" size="sm" variant="outline" onClick={onTransfer}>
+                  <ArrowLeftRight className="size-4" /> Transfer charges
+                </Button>
+              ) : null}
             </div>
             {payableInvoices.length > 1 ? (
               <p className="text-xs text-muted-foreground">
@@ -1731,16 +1695,10 @@ export function SettlementTab({
           </div>
           {summary.deposits > 0.009 ? (
             <p className="border-t border-[#E8E1D7] px-4 py-3 text-xs text-muted-foreground">
-              Deposits are already included in the folio balance. Applying a deposit only tracks
-              allocation and does not reduce the balance again.
+              Deposits are already included in the folio balance. Allocate available deposit credit
+              directly to an issued invoice above; allocation does not reduce the folio balance
+              again.
             </p>
-          ) : null}
-          {canAllocate ? (
-            <div className="border-t border-[#E8E1D7] px-4 py-3">
-              <Button type="button" size="sm" variant="outline" onClick={onAllocate}>
-                <WalletCards className="size-4" /> Allocate deposit
-              </Button>
-            </div>
           ) : null}
           {payments.length > 0 ? (
             <div className="border-t border-[#E8E1D7] px-4 py-3">
@@ -1777,7 +1735,7 @@ export function SettlementTab({
         </SectionCard>
 
         <div className="space-y-4">
-          {open && outstanding > 0 && caps.canPostPayment ? (
+          {open && paymentOpen && outstanding > 0 && caps.canPostPayment ? (
             <div className="space-y-2">
               {payableInvoices.length > 0 ? (
                 <p className="text-xs text-muted-foreground">
@@ -1792,7 +1750,10 @@ export function SettlementTab({
                 currency={currency}
                 guestName={folio.guestName}
                 money={money}
-                onPosted={onPosted}
+                onPosted={() => {
+                  setPaymentOpen(false);
+                  onPosted();
+                }}
               />
             </div>
           ) : null}
@@ -1822,28 +1783,6 @@ export function SettlementTab({
                     An owner or manager posts the refund here.
                   </p>
                 )}
-              </div>
-            </SectionCard>
-          ) : null}
-          {open && workspace.canManage ? (
-            <SectionCard
-              title="Routing"
-              description="Move charges to a company or group from this folio."
-            >
-              <div className="px-4 py-4">
-                <p className="text-sm text-muted-foreground">
-                  Need to bill a company or group? Transfer the charges here. City ledger is not a
-                  payment method.
-                </p>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="mt-3"
-                  onClick={onTransfer}
-                >
-                  <ArrowLeftRight className="size-4" /> Transfer charges
-                </Button>
               </div>
             </SectionCard>
           ) : null}

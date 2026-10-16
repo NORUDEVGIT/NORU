@@ -354,9 +354,18 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function guestName(g: { first_name?: string | null; last_name?: string | null } | null): string {
+function guestName(
+  g:
+    | { first_name?: string | null; last_name?: string | null; name?: string | null }
+    | Array<{ first_name?: string | null; last_name?: string | null; name?: string | null }>
+    | null
+    | undefined,
+): string {
   if (!g) return "Guest";
-  return [g.first_name, g.last_name].filter(Boolean).join(" ").trim() || "Guest";
+  const item = Array.isArray(g) ? g[0] : g;
+  if (!item) return "Guest";
+  const combined = [item.first_name, item.last_name].filter(Boolean).join(" ").trim();
+  return combined || (item as { name?: string }).name || "Guest";
 }
 
 type SupabaseAdmin = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
@@ -946,12 +955,11 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
     const paymentIds = folio.transactions
       .filter((row) => row.type === "payment" || row.type === "deposit")
       .map((row) => row.id);
+    const depositIds = folio.transactions
+      .filter((row) => row.type === "deposit")
+      .map((row) => row.id);
     const [allocations, settings, counterparts, paymentAllocationNets] = await Promise.all([
-      loadDepositAllocations(
-        supabaseAdmin,
-        data.restaurantId,
-        folio.transactions.filter((row) => row.type === "deposit").map((row) => row.id),
-      ),
+      loadDepositAllocations(supabaseAdmin, data.restaurantId, depositIds),
       supabaseAdmin
         .from("pms_invoice_settings")
         .select("restaurant_id")
@@ -961,11 +969,18 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
       loadPaymentAllocationNets(supabaseAdmin, data.restaurantId, paymentIds),
     ]);
     const invoiceSettingsAvailable = !settings.error && Boolean(settings.data);
-    const depositLines = buildDepositLines(folio.transactions, allocations);
+    const invoiceDepositAllocations: FolioAllocationInput[] = depositIds.flatMap((depositId) => {
+      const amount = paymentAllocationNets[depositId] ?? 0;
+      return Math.abs(amount) > 0.001
+        ? [{ depositTransactionId: depositId, chargeTransactionId: null, amount }]
+        : [];
+    });
+    const depositLines = buildDepositLines(folio.transactions, [
+      ...allocations,
+      ...invoiceDepositAllocations,
+    ]);
     for (const line of depositLines) {
-      const current = paymentAllocationNets[line.transaction.id] ?? 0;
-      paymentAllocationNets[line.transaction.id] =
-        Math.round((current + line.applied) * 100) / 100;
+      paymentAllocationNets[line.transaction.id] = line.applied;
     }
     const canManage = canManageCashiering(me.role);
     const canOperate = (CASHIER_OPERATE_ROLES as readonly string[]).includes(me.role);
@@ -2044,26 +2059,86 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
       const { data: folios } = await supabaseAdmin
         .from("guest_folios")
         .select(
-          "id, folio_number, guest_profiles!guest_folios_guest_same_property(first_name, last_name), " +
-            "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, hotel_rooms!hotel_reservations_room_same_type(room_number))",
+          "id, folio_number, guest_id, " +
+            "guest_profiles!guest_folios_guest_same_property(first_name, last_name), " +
+            "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, hotel_rooms!hotel_reservations_room_same_type(room_number), guest_profiles!hotel_reservations_guest_same_property(first_name, last_name))",
         )
         .eq("restaurant_id", data.restaurantId)
         .in("id", folioIds);
 
-      for (const f of (folios ?? []) as unknown as {
+      type FolioRowRaw = {
         id: string;
         folio_number: string;
-        guest_profiles: { first_name: string | null; last_name: string | null } | null;
-        hotel_reservations: {
-          confirmation_number: string;
-          hotel_rooms: { room_number: string } | null;
-        } | null;
-      }[]) {
+        guest_id?: string | null;
+        guest_profiles: unknown;
+        hotel_reservations:
+          | {
+              confirmation_number?: string | null;
+              hotel_rooms?: { room_number: string } | Array<{ room_number: string }> | null;
+              guest_profiles?: unknown;
+            }
+          | Array<{
+              confirmation_number?: string | null;
+              hotel_rooms?: { room_number: string } | Array<{ room_number: string }> | null;
+              guest_profiles?: unknown;
+            }>
+          | null;
+      };
+
+      const folioList = (folios ?? []) as unknown as FolioRowRaw[];
+
+      const missingGuestIds: string[] = [];
+      for (const f of folioList) {
+        const res = Array.isArray(f.hotel_reservations)
+          ? f.hotel_reservations[0]
+          : f.hotel_reservations;
+        const name =
+          guestName(f.guest_profiles as never) !== "Guest"
+            ? guestName(f.guest_profiles as never)
+            : guestName(res?.guest_profiles as never);
+        if (name === "Guest" && f.guest_id) {
+          missingGuestIds.push(f.guest_id);
+        }
+      }
+
+      const directGuestNames = new Map<string, string>();
+      if (missingGuestIds.length > 0) {
+        const { data: directGuests } = await supabaseAdmin
+          .from("guest_profiles")
+          .select("id, first_name, last_name")
+          .eq("restaurant_id", data.restaurantId)
+          .in("id", [...new Set(missingGuestIds)]);
+        for (const g of (directGuests ?? []) as Array<{
+          id: string;
+          first_name: string | null;
+          last_name: string | null;
+        }>) {
+          const gn = guestName(g);
+          if (gn !== "Guest") directGuestNames.set(g.id, gn);
+        }
+      }
+
+      for (const f of folioList) {
+        const res = Array.isArray(f.hotel_reservations)
+          ? f.hotel_reservations[0]
+          : f.hotel_reservations;
+        const rooms = res?.hotel_rooms;
+        const room = Array.isArray(rooms) ? rooms[0] : rooms;
+        const resolvedName =
+          (guestName(f.guest_profiles as never) !== "Guest"
+            ? guestName(f.guest_profiles as never)
+            : null) ??
+          (guestName(res?.guest_profiles as never) !== "Guest"
+            ? guestName(res?.guest_profiles as never)
+            : null) ??
+          (f.guest_id ? directGuestNames.get(f.guest_id) : null) ??
+          "Guest";
+
         folioMeta.set(f.id, {
           folioNumber: f.folio_number,
-          guestName: guestName(f.guest_profiles),
-          confirmationNumber: f.hotel_reservations?.confirmation_number ?? null,
-          roomNumber: f.hotel_reservations?.hotel_rooms?.room_number ?? null,
+          guestName: resolvedName,
+          confirmationNumber: res?.confirmation_number ?? null,
+          roomNumber: room?.room_number ?? null,
         });
       }
     }

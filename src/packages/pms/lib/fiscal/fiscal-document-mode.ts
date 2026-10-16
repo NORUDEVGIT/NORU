@@ -4,8 +4,9 @@
  * CASH means eligible settlement already covers the original fiscal invoice
  * total. CREDIT means it does not. Eligible settlement is payment allocations
  * plus deposit amounts applied to that invoice. Write-offs, transfers,
- * withholding, and credit or debit notes do not count. A deposit is not a
- * separate sales receipt.
+ * withholding, and credit or debit notes do not count. A deposit on a CASH
+ * invoice stays inside that invoice. A deposit applied after a CREDIT invoice
+ * is a sales receipt.
  */
 export const FISCAL_DOCUMENT_MODES = ["CASH", "CREDIT"] as const;
 export type FiscalDocumentMode = (typeof FISCAL_DOCUMENT_MODES)[number];
