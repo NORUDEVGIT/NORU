@@ -947,6 +947,7 @@ function FolioWorkspaceBody({
                 onPrintStatement={() => printWith("statement")}
                 onRefund={() => openEntry("refund")}
                 onTransfer={() => openTransfer(null)}
+                onPostPayment={() => openEntry("payment")}
                 onAllocateInvoice={(invoiceId, paymentId) => {
                   setAllocateInvoiceId(invoiceId || null);
                   setAllocatePaymentId(paymentId ?? null);

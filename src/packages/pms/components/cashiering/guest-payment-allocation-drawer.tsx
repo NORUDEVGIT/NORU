@@ -19,6 +19,7 @@ import {
   FOLIO_INVOICE_ALLOCATION_WARNING,
   folioSettledWithUnallocatedInvoices,
   guestSettlementLabel,
+  type GuestSettlementState,
 } from "@/packages/pms/lib/cashiering-guest-allocation";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -37,6 +38,8 @@ import {
   ArrowRight,
   ArrowRightLeft,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Coins,
   CreditCard,
   FileText,
@@ -68,6 +71,45 @@ function refreshGuestAllocation(
   void queryClient.invalidateQueries({ queryKey: ["folio", restaurantId, folioId] });
 }
 
+function SettlementStatusBadge({
+  state,
+}: {
+  state: GuestSettlementState | string | null | undefined;
+}) {
+  if (!state) return <span className="text-muted-foreground">—</span>;
+  const label = guestSettlementLabel(state as GuestSettlementState);
+  if (state === "PAID") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+        <span className="size-1.5 rounded-full bg-emerald-500" />
+        {label}
+      </span>
+    );
+  }
+  if (state === "PARTIALLY_PAID") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+        <span className="size-1.5 rounded-full bg-amber-500" />
+        {label}
+      </span>
+    );
+  }
+  if (state === "NO_AMOUNT_DUE") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-[#E8E1D7] bg-[#F5EFE6] px-2 py-0.5 text-[11px] font-medium text-[#765719]">
+        <span className="size-1.5 rounded-full bg-[#8a6a1f]" />
+        {label}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700">
+      <span className="size-1.5 rounded-full bg-rose-500" />
+      {label}
+    </span>
+  );
+}
+
 export function GuestInvoiceSettlementPanel({
   restaurantId,
   folioId,
@@ -78,6 +120,8 @@ export function GuestInvoiceSettlementPanel({
   canReceive = false,
   onAllocate,
   onReceive,
+  filter,
+  onFilterChange,
 }: {
   restaurantId: string;
   folioId: string;
@@ -88,6 +132,8 @@ export function GuestInvoiceSettlementPanel({
   canReceive?: boolean;
   onAllocate: (invoiceId: string) => void;
   onReceive?: (invoice: { invoiceId: string; outstanding: number; currency: string }) => void;
+  filter?: "all" | "unsettled";
+  onFilterChange?: (filter: "all" | "unsettled") => void;
 }) {
   const fetchRows = useServerFn(listGuestInvoiceSettlementForFolio);
   const query = useQuery({
@@ -99,6 +145,31 @@ export function GuestInvoiceSettlementPanel({
     balance,
     rows.map((row) => row.outstanding ?? 0),
   );
+
+  const [internalFilter, setInternalFilter] = useState<"all" | "unsettled">(filter ?? "all");
+  const activeFilter = filter !== undefined ? filter : internalFilter;
+
+  const handleFilter = (next: "all" | "unsettled") => {
+    setInternalFilter(next);
+    onFilterChange?.(next);
+    setPage(1);
+  };
+
+  const unsettledCount = rows.filter((r) => (r.outstanding ?? 0) > 0.01).length;
+  const displayRows =
+    activeFilter === "unsettled"
+      ? rows.filter((r) => (r.outstanding ?? 0) > 0.01)
+      : rows;
+
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+
+  const totalPages = Math.max(1, Math.ceil(displayRows.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, displayRows.length);
+  const pageRows = displayRows.slice(startIndex, endIndex);
+
   if (query.isLoading) {
     return <p className="px-4 py-3 text-sm text-muted-foreground">Loading invoice settlement…</p>;
   }
@@ -113,84 +184,216 @@ export function GuestInvoiceSettlementPanel({
   }
   if (rows.length === 0) {
     return (
-      <p className="px-4 py-3 text-sm text-muted-foreground">
-        No issued invoice is on this folio yet.
-      </p>
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-[#E8E1D7] p-8 text-center">
+        <FileText className="mb-2 size-8 text-muted-foreground/50" />
+        <p className="text-sm font-medium text-foreground">No issued invoice is on this folio yet.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Issue a final invoice to begin invoice-level settlement and payment allocation.
+        </p>
+      </div>
     );
   }
   return (
     <div className="space-y-3" data-testid="guest-invoice-settlement">
       {warn ? (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          {FOLIO_INVOICE_ALLOCATION_WARNING}
-        </p>
+        <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-700" />
+          <p className="leading-relaxed">{FOLIO_INVOICE_ALLOCATION_WARNING}</p>
+        </div>
       ) : null}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2">Invoice</th>
-              <th className="px-3 py-2 text-right">Effective net</th>
-              <th className="px-3 py-2 text-right">Allocated</th>
-              <th className="px-3 py-2 text-right">Outstanding</th>
-              <th className="px-3 py-2">Settlement</th>
-              <th className="px-3 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.invoiceId} className="border-t border-[#E8E1D7]">
-                <td className="px-3 py-2">
-                  <div className="font-medium">{row.number}</div>
-                  <div className="text-xs text-muted-foreground">{dateTime(row.issuedAt)}</div>
-                  {row.depositApplied > 0.009 ? (
-                    <div className="text-xs text-[#8a6a1f]">
-                      Deposit applied {money(row.depositApplied)}
-                    </div>
-                  ) : null}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  {money(row.effectiveNet ?? 0)}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">{money(row.allocated)}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{money(row.outstanding ?? 0)}</td>
-                <td className="px-3 py-2">
-                  {row.settlementState ? guestSettlementLabel(row.settlementState) : "—"}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <div className="flex justify-end gap-2">
-                    {canReceive && onReceive && (row.outstanding ?? 0) > 0.01 ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() =>
-                          onReceive({
-                            invoiceId: row.invoiceId,
-                            outstanding: row.outstanding ?? 0,
-                            currency: row.currency,
-                          })
-                        }
-                      >
-                        Receive
-                      </Button>
-                    ) : null}
-                    {canAllocate && (row.outstanding ?? 0) > 0.01 ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onAllocate(row.invoiceId)}
-                      >
-                        Allocate
-                      </Button>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex items-center rounded-lg border border-[#E8E1D7] bg-[#F8F5F0] p-1 text-xs">
+          <button
+            type="button"
+            onClick={() => handleFilter("all")}
+            className={cn(
+              "rounded-md px-2.5 py-1 font-medium transition",
+              activeFilter === "all"
+                ? "bg-white text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            All invoices ({rows.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => handleFilter("unsettled")}
+            className={cn(
+              "rounded-md px-2.5 py-1 font-medium transition",
+              activeFilter === "unsettled"
+                ? "bg-white text-[#765719] shadow-sm font-semibold"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Awaiting settlement ({unsettledCount})
+          </button>
+        </div>
+        {activeFilter === "unsettled" ? (
+          <span className="text-xs text-[#765719] font-medium">
+            Showing {unsettledCount} unsettled {unsettledCount === 1 ? "invoice" : "invoices"}
+          </span>
+        ) : null}
       </div>
+
+      {displayRows.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-[#E8E1D7] bg-[#FDFBF7] p-8 text-center">
+          <CheckCircle2 className="mb-2 size-8 text-emerald-600" />
+          <p className="text-sm font-medium text-foreground">No invoices awaiting settlement</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            All issued invoices on this folio have been settled or allocated.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => handleFilter("all")}
+          >
+            Show all invoices ({rows.length})
+          </Button>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-[#E8E1D7] bg-white">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead className="border-b border-[#E8E1D7] bg-[#F8F5F0] text-left text-[11px] font-semibold uppercase tracking-wider text-[#765719]">
+                <tr>
+                  <th className="px-3.5 py-2.5">Invoice</th>
+                  <th className="px-3.5 py-2.5 text-right">Effective net</th>
+                  <th className="px-3.5 py-2.5 text-right">Allocated</th>
+                  <th className="px-3.5 py-2.5 text-right">Outstanding</th>
+                  <th className="px-3.5 py-2.5">Settlement</th>
+                  <th className="px-3.5 py-2.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E8E1D7]">
+                {pageRows.map((row) => {
+                  const outstanding = row.outstanding ?? 0;
+                  return (
+                    <tr key={row.invoiceId} className="transition-colors hover:bg-[#FAF8F4]/80">
+                      <td className="px-3.5 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <FileText className="size-3.5 text-muted-foreground" />
+                          <span className="font-semibold text-foreground">{row.number}</span>
+                        </div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {dateTime(row.issuedAt)}
+                        </div>
+                        {row.depositApplied > 0.009 ? (
+                          <div className="mt-1 inline-flex items-center gap-1 rounded border border-[#E2D7C3] bg-[#F5EFE6] px-1.5 py-0.5 text-[10px] font-medium text-[#765719]">
+                            <Coins className="size-3" />
+                            Deposit applied {money(row.depositApplied)}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right tabular-nums text-foreground">
+                        {money(row.effectiveNet ?? 0)}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right tabular-nums text-muted-foreground">
+                        {money(row.allocated)}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right tabular-nums font-semibold">
+                        <span className={outstanding > 0.01 ? "text-amber-800" : "text-emerald-700"}>
+                          {money(outstanding)}
+                        </span>
+                      </td>
+                      <td className="px-3.5 py-2.5">
+                        <SettlementStatusBadge state={row.settlementState} />
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right">
+                        <div className="flex justify-end gap-1.5">
+                          {canReceive && onReceive && outstanding > 0.01 ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-7 px-2.5 text-xs font-medium"
+                              onClick={() =>
+                                onReceive({
+                                  invoiceId: row.invoiceId,
+                                  outstanding,
+                                  currency: row.currency,
+                                })
+                              }
+                            >
+                              Receive
+                            </Button>
+                          ) : null}
+                          {canAllocate && outstanding > 0.01 ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2.5 text-xs font-medium"
+                              onClick={() => onAllocate(row.invoiceId)}
+                            >
+                              Allocate
+                            </Button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {displayRows.length > 5 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E1D7] bg-[#FDFBF7] px-3.5 py-2.5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-3">
+                <span>
+                  Showing <span className="font-medium text-foreground">{startIndex + 1}</span>–
+                  <span className="font-medium text-foreground">{endIndex}</span> of{" "}
+                  <span className="font-medium text-foreground">{displayRows.length}</span>
+                </span>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span>Rows:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="rounded border border-[#E8E1D7] bg-white px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#8a6a1f]"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="h-7 px-2 text-xs"
+                >
+                  <ChevronLeft className="mr-0.5 size-3.5" />
+                  Previous
+                </Button>
+                <span className="px-2 font-medium text-foreground">
+                  {currentPage} / {totalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="h-7 px-2 text-xs"
+                >
+                  Next
+                  <ChevronRight className="ml-0.5 size-3.5" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

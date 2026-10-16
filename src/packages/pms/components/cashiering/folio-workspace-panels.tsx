@@ -1508,6 +1508,7 @@ export function SettlementTab({
   onPrintStatement,
   onRefund,
   onTransfer,
+  onPostPayment,
   onAllocateInvoice,
   onIssueInvoice,
 }: {
@@ -1521,6 +1522,7 @@ export function SettlementTab({
   onPrintStatement: () => void;
   onRefund: () => void;
   onTransfer: () => void;
+  onPostPayment?: () => void;
   onAllocateInvoice: (invoiceId: string, paymentId?: string) => void;
   onIssueInvoice: () => void;
 }) {
@@ -1534,6 +1536,7 @@ export function SettlementTab({
   const closeBlock = settlementCloseBlock(balance);
   const currency = folio.currency?.trim() || "ETB";
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [invoiceFilter, setInvoiceFilter] = useState<"all" | "unsettled">("all");
   const fetchShifts = useServerFn(listCashierShifts);
   const shifts = useQuery({
     queryKey: ["settlement-cashier-shifts", restaurantId],
@@ -1594,80 +1597,6 @@ export function SettlementTab({
           tint={open ? KPI_TINT.tax : KPI_TINT.neutral}
         />
       </div>
-
-      {open ? (
-        <SectionCard
-          title="Final settlement"
-          description="Issue the invoice here, apply any open deposit, then receive the remaining balance."
-          testId="final-settlement"
-        >
-          <div className="space-y-3 px-4 py-4 text-sm">
-            <ol className="list-decimal space-y-1 pl-4 text-muted-foreground">
-              <li>All uninvoiced charges start selected on the invoice.</li>
-              <li>
-                Apply an open deposit to that invoice. It settles the invoice and counts toward
-                fiscal CASH.
-              </li>
-              <li>
-                Receive the remaining amount on the invoice so it is allocated, then a manager
-                registers it.
-              </li>
-            </ol>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" onClick={onIssueInvoice}>
-                <FileText className="size-4" /> Issue final invoice
-              </Button>
-              {workspace.canAllocateInvoices ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onAllocateInvoice("")}
-                >
-                  <ArrowLeftRight className="size-4" /> Allocate payment or deposit
-                </Button>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  An accountant allocates an existing payment or deposit.
-                </p>
-              )}
-              {outstanding > 0 && caps.canPostPayment ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={paymentOpen ? "secondary" : "outline"}
-                  onClick={() => setPaymentOpen((current) => !current)}
-                >
-                  <CreditCard className="size-4" />
-                  {paymentOpen ? "Hide payment form" : "Post payment"}
-                </Button>
-              ) : null}
-              {workspace.canManage && balance > 0.009 ? (
-                <Button type="button" size="sm" variant="outline" onClick={onTransfer}>
-                  <ArrowLeftRight className="size-4" /> Transfer charges
-                </Button>
-              ) : null}
-            </div>
-            {payableInvoices.length > 1 ? (
-              <p className="text-xs text-muted-foreground">
-                More than one invoice is still open. Receive the remaining amount on each invoice
-                below.
-              </p>
-            ) : null}
-            {payableInvoices.length > 0 && !workspace.canOperate ? (
-              <p className="text-xs text-muted-foreground">
-                A cashier receives the remaining payment on the invoice.
-              </p>
-            ) : null}
-            {balance < -0.009 ? (
-              <p>
-                This folio has a credit balance. Refund the original payment or deposit after
-                releasing any amount applied to an invoice.
-              </p>
-            ) : null}
-          </div>
-        </SectionCard>
-      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <SectionCard
@@ -1735,6 +1664,152 @@ export function SettlementTab({
         </SectionCard>
 
         <div className="space-y-4">
+          {open ? (
+            <SectionCard
+              title="Final settlement"
+              description="Actions and settlement controls for this folio."
+              testId="final-settlement"
+            >
+              <div className="space-y-3.5 p-4">
+                <div
+                  className={cn(
+                    "flex items-start gap-2.5 rounded-lg border p-3 text-xs",
+                    balance > 0.009
+                      ? "border-amber-200 bg-amber-50/70 text-amber-950"
+                      : balance < -0.009
+                        ? "border-blue-200 bg-blue-50/70 text-blue-950"
+                        : "border-emerald-200 bg-emerald-50/70 text-emerald-950",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "mt-0.5 inline-block size-2 shrink-0 rounded-full",
+                      Math.abs(balance) < 0.01
+                        ? "bg-emerald-500"
+                        : balance > 0
+                          ? "bg-amber-500"
+                          : "bg-blue-500",
+                    )}
+                  />
+                  <div>
+                    <span className="font-semibold">
+                      {balance > 0.009
+                        ? `Outstanding balance: ${money(balance)}`
+                        : balance < -0.009
+                          ? `Credit balance: ${money(Math.abs(balance))}`
+                          : "Folio is balanced"}
+                    </span>
+                    <p className="mt-0.5 text-muted-foreground">
+                      {balance > 0.009
+                        ? "Settle issued invoices or record a payment before financially closing."
+                        : balance < -0.009
+                          ? "Refund the original deposit/payment or post an adjustment."
+                          : `Settled ${money(0)}. Ready for final folio closing.`}
+                    </p>
+                  </div>
+                </div>
+
+                {payableInvoices.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvoiceFilter("unsettled");
+                      const el = document.getElementById("invoice-settlement-card");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }}
+                    className="group flex w-full items-center justify-between rounded-lg border border-[#E2D7C3] bg-[#FAF8F4] p-3 text-left transition hover:border-[#8a6a1f] hover:bg-[#F5EFE6]"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[#EBE3D5] text-[#765719] transition-colors group-hover:bg-[#8a6a1f] group-hover:text-white">
+                        <FileText className="size-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">
+                          {payableInvoices.length} {payableInvoices.length === 1 ? "invoice" : "invoices"} awaiting settlement
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Click to filter and view unsettled invoices below
+                        </p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center gap-1 rounded border border-[#D0C2AE] bg-white px-2 py-0.5 text-[11px] font-medium text-[#765719] transition-colors group-hover:border-[#8a6a1f]">
+                      View unsettled <ArrowRight className="size-3" />
+                    </span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 rounded-lg border border-[#E8E1D7] bg-[#FDFBF7] px-3 py-2 text-xs text-muted-foreground">
+                    <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                    <span>All issued invoices on this folio are settled.</span>
+                  </div>
+                )}
+
+                <div className="border-t border-[#E8E1D7] pt-3">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#765719]">
+                    Settlement actions
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" onClick={onIssueInvoice}>
+                      <FileText className="size-4" /> Issue final invoice
+                    </Button>
+                    {workspace.canAllocateInvoices ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onAllocateInvoice("")}
+                      >
+                        <ArrowLeftRight className="size-4" /> Allocate payment or deposit
+                      </Button>
+                    ) : null}
+                    {outstanding > 0 && caps.canPostPayment ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (onPostPayment) {
+                            onPostPayment();
+                          } else {
+                            setPaymentOpen((current) => !current);
+                          }
+                        }}
+                      >
+                        <CreditCard className="size-4" /> Post payment
+                      </Button>
+                    ) : null}
+                    {workspace.canManage && balance > 0.009 ? (
+                      <Button type="button" size="sm" variant="outline" onClick={onTransfer}>
+                        <ArrowLeftRight className="size-4" /> Transfer charges
+                      </Button>
+                    ) : null}
+                  </div>
+                  {!workspace.canAllocateInvoices ? (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      An accountant allocates an existing payment or deposit.
+                    </p>
+                  ) : null}
+                </div>
+
+                {balance < -0.009 ? (
+                  <div className="border-t border-[#E8E1D7] pt-3 text-xs">
+                    <p className="mb-2 font-medium text-amber-900">
+                      Credit balance {formatBalance(money, balance)}. A refund must name the original payment or deposit.
+                    </p>
+                    {caps.canRefund ? (
+                      <Button type="button" size="sm" variant="outline" onClick={onRefund}>
+                        <Undo2 className="size-4" /> Refund payment
+                      </Button>
+                    ) : (
+                      <p className="text-muted-foreground">
+                        An owner or manager posts the refund here.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </SectionCard>
+          ) : null}
+
           {open && paymentOpen && outstanding > 0 && caps.canPostPayment ? (
             <div className="space-y-2">
               {payableInvoices.length > 0 ? (
@@ -1757,35 +1832,6 @@ export function SettlementTab({
               />
             </div>
           ) : null}
-          {open && Math.abs(balance) < 0.01 ? (
-            <SectionCard title="Final payment" description="This folio is financially settled.">
-              <p className="px-4 py-4 text-sm text-emerald-800">
-                Settled {money(0)}. Post another payment only if a new charge is added first.
-              </p>
-            </SectionCard>
-          ) : null}
-          {open && balance < -0.009 ? (
-            <SectionCard
-              title="Final payment"
-              description="Resolve the credit balance before closing."
-            >
-              <div className="space-y-3 px-4 py-4 text-sm">
-                <p>
-                  Credit balance {formatBalance(money, balance)}. A refund must name the original
-                  payment or deposit.
-                </p>
-                {caps.canRefund ? (
-                  <Button type="button" size="sm" onClick={onRefund}>
-                    <Undo2 className="size-4" /> Refund payment
-                  </Button>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    An owner or manager posts the refund here.
-                  </p>
-                )}
-              </div>
-            </SectionCard>
-          ) : null}
           {!open ? (
             <SectionCard title="Closed folio">
               <p className="px-4 py-4 text-sm text-muted-foreground">
@@ -1800,23 +1846,27 @@ export function SettlementTab({
         </div>
       </div>
 
-      <SectionCard
-        title="Invoice settlement"
-        description="Issued charge-group invoices. Payments and applied deposits both settle the invoice."
-        testId="invoice-settlement-summary"
-      >
-        <GuestInvoiceSettlementPanel
-          restaurantId={restaurantId}
-          folioId={folio.id}
-          balance={balance}
-          money={money}
-          dateTime={dateTime}
-          canAllocate={workspace.canAllocateInvoices}
-          canReceive={workspace.canOperate}
-          onAllocate={onAllocateInvoice}
-          onReceive={setReceiveInvoice}
-        />
-      </SectionCard>
+      <div id="invoice-settlement-card">
+        <SectionCard
+          title="Invoice settlement"
+          description="Issued charge-group invoices. Payments and applied deposits both settle the invoice."
+          testId="invoice-settlement-summary"
+        >
+          <GuestInvoiceSettlementPanel
+            restaurantId={restaurantId}
+            folioId={folio.id}
+            balance={balance}
+            money={money}
+            dateTime={dateTime}
+            canAllocate={workspace.canAllocateInvoices}
+            canReceive={workspace.canOperate}
+            onAllocate={onAllocateInvoice}
+            onReceive={setReceiveInvoice}
+            filter={invoiceFilter}
+            onFilterChange={setInvoiceFilter}
+          />
+        </SectionCard>
+      </div>
       {receiveInvoice ? (
         <InvoiceReceivePaymentDialog
           open
