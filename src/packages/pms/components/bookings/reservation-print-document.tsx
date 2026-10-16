@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import type { ReservationPrintDocumentData } from "@/packages/pms/lib/reservation-print-document";
 
@@ -7,15 +8,18 @@ const PRINT_CSS = `
   body * { visibility: hidden; }
   .reservation-print-document,
   .reservation-print-document * { visibility: visible; }
+  body > *:not(.reservation-print-document) { display: none !important; }
   .reservation-print-document {
     display: block !important;
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: static !important;
+    left: auto;
+    top: auto;
     width: 100%;
     margin: 0;
     background: #ffffff !important;
     color: #1c1917 !important;
+    break-inside: auto;
+    page-break-inside: auto;
   }
   .reservation-print-document header,
   .reservation-print-document section,
@@ -33,6 +37,16 @@ const PRINT_CSS = `
 `;
 
 export function ReservationPrintDocument({ data }: { data: ReservationPrintDocumentData }) {
+  const article = <ReservationPrintArticle data={data} />;
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setHost(document.body);
+  }, []);
+  if (host) return createPortal(article, host);
+  return article;
+}
+
+function ReservationPrintArticle({ data }: { data: ReservationPrintDocumentData }) {
   const contact = [
     data.propertyAddress,
     data.propertyPhone,
@@ -108,27 +122,62 @@ export function ReservationPrintDocument({ data }: { data: ReservationPrintDocum
         <PrintLines rows={data.stay} columns />
       </PrintSection>
 
-      <PrintSection title="Room & Rate">
-        <div className="flex gap-4">
-          {data.room.imageUrl ? (
-            <img src={data.room.imageUrl} alt="" className="h-16 w-24 shrink-0 object-cover" />
-          ) : null}
-          <PrintLines
-            rows={[
-              data.room.typeName ? { label: "Room Type", value: data.room.typeName } : null,
-              data.room.code ? { label: "Room Code", value: data.room.code } : null,
-              data.room.ratePlan ? { label: "Rate Plan", value: data.room.ratePlan } : null,
-              data.room.inclusions ? { label: "Inclusions", value: data.room.inclusions } : null,
-              data.room.ratePerNight
-                ? { label: "Rate per Night", value: data.room.ratePerNight }
-                : null,
-              data.room.nights ? { label: "Nights", value: data.room.nights } : null,
-              data.room.roomTotal ? { label: "Room Total", value: data.room.roomTotal } : null,
-            ].filter((row): row is { label: string; value: string } => row != null)}
-            columns
-          />
-        </div>
-      </PrintSection>
+      {data.roomRows.length > 0 ? (
+        <PrintSection title="Rooms & Occupants">
+          <table className="w-full border-collapse text-xs" data-testid="print-room-rows">
+            <thead>
+              <tr className="border-b border-[#d6d3d1] text-left text-[10px] uppercase tracking-wide text-[#44403c]">
+                <th className="py-1 pr-2 font-semibold">#</th>
+                <th className="py-1 pr-2 font-semibold">Primary Occupant</th>
+                <th className="py-1 pr-2 font-semibold">Room Type</th>
+                <th className="py-1 pr-2 font-semibold">Occupancy</th>
+                <th className="py-1 pr-2 font-semibold">Rate Plan</th>
+                <th className="py-1 pr-2 font-semibold">Rate / Night</th>
+                <th className="py-1 font-semibold">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.roomRows.map((row) => (
+                <tr key={row.sequence} className="border-b border-[#e7e5e4]">
+                  <td className="py-1 pr-2">{row.sequence}</td>
+                  <td className="py-1 pr-2">{row.occupant}</td>
+                  <td className="py-1 pr-2">{row.roomType}</td>
+                  <td className="py-1 pr-2">{row.occupancy}</td>
+                  <td className="py-1 pr-2">{row.ratePlan}</td>
+                  <td className="py-1 pr-2">{row.ratePerNight}</td>
+                  <td className="py-1">{row.subtotal}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-xs">
+            Room Total {data.room.roomTotal ?? "—"}
+            {data.roomTotalNote ? ` · ${data.roomTotalNote}` : ""}
+          </p>
+        </PrintSection>
+      ) : (
+        <PrintSection title="Room & Rate">
+          <div className="flex gap-4">
+            {data.room.imageUrl ? (
+              <img src={data.room.imageUrl} alt="" className="h-16 w-24 shrink-0 object-cover" />
+            ) : null}
+            <PrintLines
+              rows={[
+                data.room.typeName ? { label: "Room Type", value: data.room.typeName } : null,
+                data.room.code ? { label: "Room Code", value: data.room.code } : null,
+                data.room.ratePlan ? { label: "Rate Plan", value: data.room.ratePlan } : null,
+                data.room.inclusions ? { label: "Inclusions", value: data.room.inclusions } : null,
+                data.room.ratePerNight
+                  ? { label: "Rate per Night", value: data.room.ratePerNight }
+                  : null,
+                data.room.nights ? { label: "Nights", value: data.room.nights } : null,
+                data.room.roomTotal ? { label: "Room Total", value: data.room.roomTotal } : null,
+              ].filter((row): row is { label: string; value: string } => row != null)}
+              columns
+            />
+          </div>
+        </PrintSection>
+      )}
 
       {showPackages ? (
         <PrintSection title="Packages & Add-ons">
@@ -189,8 +238,23 @@ export function ReservationPrintDocument({ data }: { data: ReservationPrintDocum
         </PrintSection>
       ) : null}
 
-      {data.policies.length > 0 ? (
+      {data.policyRooms.length > 0 ? (
         <PrintSection title="Stay Policies">
+          <p className="mb-2 text-xs">Policies vary by room</p>
+          {data.policyRooms.map((room) => (
+            <div key={room.title} className="mb-2 text-xs">
+              <p className="font-semibold">{room.title}</p>
+              <p>{room.detail}</p>
+              <p>Cancellation: {room.cancellation}</p>
+              <p>No-show: {room.noShow}</p>
+              <p>Early Departure: {room.earlyDeparture}</p>
+              <p>Refundability: {room.refundability}</p>
+            </div>
+          ))}
+        </PrintSection>
+      ) : data.policies.length > 0 ? (
+        <PrintSection title="Stay Policies">
+          {data.policyNote ? <p className="mb-2 text-xs">{data.policyNote}</p> : null}
           <PrintLines rows={data.policies} />
         </PrintSection>
       ) : null}
@@ -200,7 +264,7 @@ export function ReservationPrintDocument({ data }: { data: ReservationPrintDocum
           {data.preferences.length > 0 ? (
             <div className="mb-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[#44403c]">
-                Saved Preferences
+                {data.preferenceHeading ?? "Saved Preferences"}
               </p>
               <ul className="mt-1 list-disc pl-4 text-xs">
                 {data.preferences.map((row) => (

@@ -7,9 +7,11 @@
  */
 
 import { rateError } from "../rates.server.ts";
+import { isMissingSchemaError } from "../pms-set2-structure";
 import {
   computeCommercialPerformance,
   computeRevenuePerformanceOverview,
+  expandRevenueRoomStays,
   validateAnalyticsRange,
   type CommercialPerformance,
   type RawReservationInput,
@@ -67,8 +69,6 @@ export async function loadRevenuePerformanceOverview(
     .lte("arrival_date", toDate)
     .gt("departure_date", fromDate);
 
-  if (query.roomTypeId) resQuery = resQuery.eq("room_type_id", query.roomTypeId);
-  if (query.ratePlanId) resQuery = resQuery.eq("rate_plan_id", query.ratePlanId);
   if (query.marketSegmentId) resQuery = resQuery.eq("market_segment", query.marketSegmentId);
   if (query.commercialSourceId)
     resQuery = resQuery.eq("commercial_booking_source", query.commercialSourceId);
@@ -77,11 +77,42 @@ export async function loadRevenuePerformanceOverview(
   const { data: resData, error: resError } = await resQuery;
   if (resError) throw rateError(resError.message);
 
-  const rawReservations = (resData ?? []) as RawReservationInput[];
+  const reservations = (resData ?? []) as RawReservationInput[];
+  const reservationIds = reservations.map((row) => row.id);
+  let units: Array<{
+    reservation_id: string;
+    room_type_id: string;
+    rate_plan_id: string | null;
+    arrival_date: string;
+    departure_date: string;
+    nightly_rate_snapshot: unknown;
+    currency: string | null;
+    status: string | null;
+  }> | null = null;
+  if (reservationIds.length > 0) {
+    const unitResult = await db
+      .from("hotel_reservation_rooms")
+      .select(
+        "reservation_id, room_type_id, rate_plan_id, arrival_date, departure_date, nightly_rate_snapshot, currency, status",
+      )
+      .eq("restaurant_id", query.restaurantId)
+      .in("reservation_id", reservationIds);
+    if (unitResult.error && !isMissingSchemaError(unitResult.error)) {
+      throw rateError(unitResult.error.message);
+    }
+    if (!unitResult.error) {
+      units = (unitResult.data ?? []) as NonNullable<typeof units>;
+    }
+  }
+  const expanded = expandRevenueRoomStays(reservations, units).filter((row) => {
+    if (query.roomTypeId && row.room_type_id !== query.roomTypeId) return false;
+    if (query.ratePlanId && row.rate_plan_id !== query.ratePlanId) return false;
+    return true;
+  });
 
   return computeRevenuePerformanceOverview({
     query,
-    reservations: rawReservations,
+    reservations: expanded,
     activeRooms,
     roomTypes,
     ratePlans,

@@ -56,6 +56,25 @@ export type ReservationPrintRoom = {
   roomTotal: string | null;
 };
 
+export type ReservationPrintRoomRow = {
+  sequence: string;
+  occupant: string;
+  roomType: string;
+  occupancy: string;
+  ratePlan: string;
+  ratePerNight: string;
+  subtotal: string;
+};
+
+export type ReservationPrintPolicyRoom = {
+  title: string;
+  detail: string;
+  cancellation: string;
+  noShow: string;
+  earlyDeparture: string;
+  refundability: string;
+};
+
 export type ReservationPrintDocumentData = {
   mode: ReservationPrintMode;
   title: string;
@@ -74,6 +93,8 @@ export type ReservationPrintDocumentData = {
   booking: ReservationPrintLine[];
   stay: ReservationPrintLine[];
   room: ReservationPrintRoom;
+  roomRows: ReservationPrintRoomRow[];
+  roomTotalNote: string | null;
   packages: ReservationPrintPackageRow[];
   packagesKnown: boolean;
   roomTotal: string | null;
@@ -81,6 +102,10 @@ export type ReservationPrintDocumentData = {
   reservationTotal: string | null;
   payment: ReservationPrintLine[];
   policies: ReservationPrintLine[];
+  policyNote: string | null;
+  policyRooms: ReservationPrintPolicyRoom[];
+  preferenceHeading: string | null;
+  guestRole: string | null;
   preferences: string[];
   serviceRequests: string[];
   specialRequests: string | null;
@@ -148,6 +173,15 @@ export type DraftReservationPrintInput = {
   serviceRequests: string[];
   specialRequests: string | null;
   roomAssignment: string | null;
+  roomRows?: ReservationPrintRoomRow[];
+  roomTotalNote?: string | null;
+  policyNote?: string | null;
+  policyRooms?: ReservationPrintPolicyRoom[];
+  preferenceHeading?: string | null;
+  guestRole?: string | null;
+  linkedGroupName?: string | null;
+  linkedGroupCode?: string | null;
+  linkedBlock?: string | null;
 };
 
 export type PersistedReservationPrintInput = {
@@ -204,6 +238,10 @@ export type PersistedReservationPrintInput = {
   serviceRequests: string[];
   specialRequests: string | null;
   roomAssignment: string | null;
+  reservationKind?: "single" | "group";
+  roomRows?: ReservationPrintRoomRow[];
+  roomTotalNote?: string | null;
+  guestRole?: string | null;
 };
 
 export function reservationPrintTitle(mode: ReservationPrintMode, status?: string | null): string {
@@ -340,6 +378,15 @@ export function buildDraftReservationPrintData(
     serviceRequests: input.serviceRequests,
     specialRequests: input.specialRequests,
     roomAssignment: input.roomAssignment,
+    roomRows: input.roomRows,
+    roomTotalNote: input.roomTotalNote,
+    policyNote: input.policyNote,
+    policyRooms: input.policyRooms,
+    preferenceHeading: input.preferenceHeading,
+    guestRole: input.guestRole,
+    linkedGroupName: input.linkedGroupName,
+    linkedGroupCode: input.linkedGroupCode,
+    linkedBlock: input.linkedBlock,
   });
 }
 
@@ -401,6 +448,10 @@ export function buildPersistedReservationPrintData(
     serviceRequests: input.serviceRequests,
     specialRequests: input.specialRequests,
     roomAssignment: input.roomAssignment,
+    reservationKind: input.reservationKind,
+    roomRows: input.roomRows,
+    roomTotalNote: input.roomTotalNote,
+    guestRole: input.guestRole,
   });
 }
 
@@ -459,6 +510,16 @@ function assemblePrintDocument(input: {
   serviceRequests: string[];
   specialRequests: string | null;
   roomAssignment: string | null;
+  roomRows?: ReservationPrintRoomRow[];
+  roomTotalNote?: string | null;
+  policyNote?: string | null;
+  policyRooms?: ReservationPrintPolicyRoom[];
+  preferenceHeading?: string | null;
+  guestRole?: string | null;
+  linkedGroupName?: string | null;
+  linkedGroupCode?: string | null;
+  linkedBlock?: string | null;
+  reservationKind?: "single" | "group";
 }): ReservationPrintDocumentData {
   const roomTotal = printableText(input.roomTotal);
   const packages = input.packages.flatMap((row) => {
@@ -497,6 +558,7 @@ function assemblePrintDocument(input: {
     createdAt: input.mode === "draft" ? null : printableText(input.createdAt),
     confirmedAt: input.mode === "draft" ? null : printableText(input.confirmedAt),
     guest: lines(
+      line("Role", input.guestRole),
       line("Name", input.guestName),
       line("Phone", input.phone),
       line("Email", input.email),
@@ -504,6 +566,7 @@ function assemblePrintDocument(input: {
       line("ID / Passport", maskIdNumber(input.idDocumentNumber)),
     ),
     booking: lines(
+      line("Reservation Type", input.reservationKind === "group" ? "Group Reservation" : null),
       line("Booked by", input.bookedBy),
       line("Booking Source", input.bookingSource),
       line("Channel", input.salesChannel),
@@ -511,6 +574,9 @@ function assemblePrintDocument(input: {
       line("Company", input.companyName),
       line("Travel Agency", input.travelAgentName),
       line("Group", input.groupName),
+      line("Group / Block", input.linkedGroupName),
+      line("Group code", input.linkedGroupCode),
+      line("Block", input.linkedBlock),
     ),
     stay: lines(
       line("Check-in", input.checkIn),
@@ -531,6 +597,8 @@ function assemblePrintDocument(input: {
       nights: countText(input.nights),
       roomTotal,
     },
+    roomRows: input.roomRows ?? [],
+    roomTotalNote: printableText(input.roomTotalNote),
     packages,
     packagesKnown: input.packagesKnown,
     roomTotal,
@@ -543,6 +611,10 @@ function assemblePrintDocument(input: {
       line("Early Departure", input.earlyDeparture),
       line("Refundability", input.refundability),
     ),
+    policyNote: printableText(input.policyNote),
+    policyRooms: input.policyRooms ?? [],
+    preferenceHeading: printableText(input.preferenceHeading),
+    guestRole: printableText(input.guestRole),
     preferences: input.preferences
       .map((row) => printableText(row))
       .filter((row): row is string => Boolean(row)),

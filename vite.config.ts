@@ -22,4 +22,12 @@ export default defineConfig({
   // Pin Nitro to Vercel Build Output API (not the Cloudflare default).
   // Lovable sandbox still overrides this with LOVABLE_NITRO_PRESET.
   nitro: { preset: "vercel" },
+
+  vite: {
+    server: {
+      allowedHosts: [
+        "bubbling-unexposed-willfully.ngrok-free.dev",
+      ],
+    },
+  },
 });

@@ -102,6 +102,7 @@ type GuestPicker = {
   changeGuest: () => void;
   openCreate: () => void;
   openPeek: () => void;
+  selectedPanelTitle: string;
 };
 
 const GuestPickerContext = createContext<GuestPicker | null>(null);
@@ -120,12 +121,14 @@ function useGuestPicker({
   guest,
   onGuestChange,
   listEnabled,
+  selectedPanelTitle,
 }: {
   restaurantId: string;
   canCreateGuest: boolean;
   guest: PickedReservationGuest | null;
   onGuestChange: (guest: PickedReservationGuest | null) => void;
   listEnabled: boolean;
+  selectedPanelTitle: string;
 }) {
   const fetchGuests = useServerFn(listGuests);
   const fetchGuest = useServerFn(getGuest);
@@ -217,6 +220,7 @@ function useGuestPicker({
     changeGuest,
     openCreate: () => setFormOpen(true),
     openPeek: () => setPeekOpen(true),
+    selectedPanelTitle,
   };
 
   return { picker, formOpen, setFormOpen, peekOpen, setPeekOpen, peekQuery, selectById };
@@ -228,6 +232,7 @@ export function CreateReservationGuest({
   guest,
   onGuestChange,
   listEnabled = true,
+  selectedPanelTitle = "Selected Guest",
   children,
 }: {
   restaurantId: string;
@@ -236,6 +241,7 @@ export function CreateReservationGuest({
   onGuestChange: (guest: PickedReservationGuest | null) => void;
   /** When false, skip listGuests (for example off step 0). */
   listEnabled?: boolean;
+  selectedPanelTitle?: string;
   children?: ReactNode;
 }) {
   const { picker, formOpen, setFormOpen, peekOpen, setPeekOpen, peekQuery, selectById } =
@@ -245,6 +251,7 @@ export function CreateReservationGuest({
       guest,
       onGuestChange,
       listEnabled,
+      selectedPanelTitle,
     });
 
   return (
@@ -394,7 +401,7 @@ export function CreateReservationGuestSelected() {
     <section className={CARD} data-testid="selected-guest-panel">
       <PanelHeading
         icon={<User className="size-3.5" aria-hidden />}
-        title="Selected Guest"
+        title={picker.selectedPanelTitle || "Selected Guest"}
         helper={guest ? "Guest attached to this reservation." : "Select a guest to continue."}
       />
       {guest ? (

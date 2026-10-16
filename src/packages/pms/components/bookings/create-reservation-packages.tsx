@@ -33,6 +33,7 @@ export function CreateReservationPackages({
   merchandiseContextReady = false,
   selectedActivationIds = [],
   onToggleActivation,
+  bookingScopeNote = null,
 }: {
   loading: boolean;
   error: boolean;
@@ -46,6 +47,7 @@ export function CreateReservationPackages({
   merchandiseContextReady?: boolean;
   selectedActivationIds?: string[];
   onToggleActivation?: (activationId: string) => void;
+  bookingScopeNote?: string | null;
 }) {
   const view = resolveCreatePackagesGateView({
     loading,
@@ -85,6 +87,11 @@ export function CreateReservationPackages({
           ? "Select optional packages for this reservation."
           : packagesGateCopy(view)}
       </p>
+      {bookingScopeNote ? (
+        <p className="text-xs text-[#6B5E4E]" data-testid="package-booking-scope">
+          {bookingScopeNote}
+        </p>
+      ) : null}
       {showSettings ? (
         <div className="mt-3">
           <Button asChild variant="outline" size="sm">

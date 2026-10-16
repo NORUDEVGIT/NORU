@@ -18,15 +18,18 @@ function formatHistoryScalar(value: unknown): string {
 export function reservationHistoryChanges(
   previousValues: Record<string, unknown> | null,
   newValues: Record<string, unknown> | null,
+  resolve?: (key: string, value: unknown) => string | null,
 ): ReservationHistoryChange[] {
   const prev = previousValues ?? {};
   const next = newValues ?? {};
   const keys = [...new Set([...Object.keys(prev), ...Object.keys(next)])].sort();
+  const display = (key: string, value: unknown) =>
+    resolve?.(key, value) ?? formatHistoryScalar(value);
   return keys
     .filter((key) => JSON.stringify(prev[key] ?? null) !== JSON.stringify(next[key] ?? null))
     .map((key) => ({
       key,
-      from: formatHistoryScalar(prev[key]),
-      to: formatHistoryScalar(next[key]),
+      from: display(key, prev[key]),
+      to: display(key, next[key]),
     }));
 }

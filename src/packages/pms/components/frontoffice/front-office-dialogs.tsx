@@ -24,7 +24,10 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { addDays } from "@/packages/pms/components/bookings/reservation-bits";
-import { GuestRestrictionBadges, GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
+import {
+  GuestRestrictionBadges,
+  GuestRestrictionWarn,
+} from "@/packages/pms/components/guests/guest-bits";
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import { guestListItems, listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import {
@@ -37,6 +40,10 @@ import {
   moveReservationRoom,
   type FrontOfficeStay,
 } from "@/packages/pms/lib/frontoffice.functions";
+import {
+  RoomUnitOccupantContext,
+  RoomUnitTargetSelect,
+} from "@/packages/pms/components/frontoffice/room-unit-target-select";
 import { assignReservationRoom } from "@/packages/pms/lib/reservations.functions";
 import { FoCheckInStepper } from "@/packages/pms/components/frontoffice/fo-check-in-stepper";
 import { FoCheckOutStepper } from "@/packages/pms/components/frontoffice/fo-check-out-stepper";
@@ -47,10 +54,7 @@ import { startWalkInCheckIn } from "@/packages/pms/lib/fo-check-in.functions";
 import { isRoomReady } from "@/packages/pms/lib/fo-check-in";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import type { CheckInStepId } from "@/packages/pms/lib/fo-check-in";
-import {
-  assignableListUi,
-  formatRoomTypeLabel,
-} from "@/packages/pms/lib/fo-room-assignment";
+import { assignableListUi, formatRoomTypeLabel } from "@/packages/pms/lib/fo-room-assignment";
 import { AssignableRoomsHint } from "@/packages/pms/components/frontoffice/assignable-rooms-hint";
 import { useMoney } from "@/core/state/property-format";
 
@@ -85,7 +89,15 @@ function RoomSelect({
 }) {
   const fetchRooms = useServerFn(listAssignableRooms);
   const roomsQuery = useQuery({
-    queryKey: ["front-office", "assignable", restaurantId, stay.id, stay.roomTypeId, stay.arrivalDate, stay.departureDate],
+    queryKey: [
+      "front-office",
+      "assignable",
+      restaurantId,
+      stay.id,
+      stay.roomTypeId,
+      stay.arrivalDate,
+      stay.departureDate,
+    ],
     queryFn: () =>
       fetchRooms({
         data: {
@@ -109,9 +121,15 @@ function RoomSelect({
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <Select value={value} onValueChange={onChange} disabled={listState.status === "loading" || listState.status === "error"}>
+      <Select
+        value={value}
+        onValueChange={onChange}
+        disabled={listState.status === "loading" || listState.status === "error"}
+      >
         <SelectTrigger>
-          <SelectValue placeholder={listState.status === "loading" ? "Loading rooms…" : "Select a room"} />
+          <SelectValue
+            placeholder={listState.status === "loading" ? "Loading rooms…" : "Select a room"}
+          />
         </SelectTrigger>
         <SelectContent>
           {rooms.map((room) => (
@@ -133,6 +151,21 @@ function RoomSelect({
   );
 }
 
+function stayForRoomTarget(stay: FrontOfficeStay, unitId: string): FrontOfficeStay {
+  const units = stay.roomUnits ?? [];
+  if (units.length < 2) return stay;
+  const unit = units.find((row) => row.id === unitId);
+  if (!unit) return stay;
+  return {
+    ...stay,
+    roomTypeId: unit.roomTypeId,
+    roomId: unit.roomId,
+    arrivalDate: unit.arrivalDate,
+    departureDate: unit.departureDate,
+    adults: unit.adults,
+  };
+}
+
 /* --------------------------------------------------------- assign / check-in */
 
 export function AssignRoomDialog({
@@ -140,22 +173,44 @@ export function AssignRoomDialog({
   stay,
   open,
   onOpenChange,
+  initialReservationRoomId,
 }: {
   restaurantId: string;
   stay: FrontOfficeStay;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  initialReservationRoomId?: string;
 }) {
   const [roomId, setRoomId] = useState(stay.roomId ?? "");
+  const [reservationRoomId, setReservationRoomId] = useState(initialReservationRoomId ?? "");
   const refresh = useRefresh();
   const assign = useServerFn(assignReservationRoom);
+  const multiRoom = (stay.roomUnits?.length ?? 0) > 1;
+  const targetStay = stayForRoomTarget(stay, reservationRoomId);
 
   useEffect(() => {
-    if (open) setRoomId(stay.roomId ?? "");
-  }, [open, stay.roomId]);
+    if (!open) return;
+    setReservationRoomId(initialReservationRoomId ?? "");
+    setRoomId(stay.roomId ?? "");
+  }, [open, stay.roomId, initialReservationRoomId]);
+
+  const selectedUnitRoomId =
+    stay.roomUnits?.find((row) => row.id === reservationRoomId)?.roomId ?? "";
+  useEffect(() => {
+    if (!multiRoom || !reservationRoomId) return;
+    setRoomId(selectedUnitRoomId);
+  }, [multiRoom, reservationRoomId, selectedUnitRoomId]);
 
   const mutation = useMutation({
-    mutationFn: () => assign({ data: { restaurantId, reservationId: stay.id, roomId } }),
+    mutationFn: () =>
+      assign({
+        data: {
+          restaurantId,
+          reservationId: stay.id,
+          roomId,
+          ...(multiRoom ? { reservationRoomId } : {}),
+        },
+      }),
     onSuccess: () => {
       toast.success("Room assigned.");
       refresh();
@@ -170,15 +225,34 @@ export function AssignRoomDialog({
         <DialogHeader>
           <DialogTitle>Assign room</DialogTitle>
           <DialogDescription>
-            {stay.confirmationNumber} · {stay.guestName} · {formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode)}
+            {stay.confirmationNumber} · {stay.guestName} ·{" "}
+            {formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode)}
           </DialogDescription>
         </DialogHeader>
-        <RoomSelect restaurantId={restaurantId} stay={stay} value={roomId} onChange={setRoomId} />
+        <RoomUnitTargetSelect
+          units={stay.roomUnits}
+          value={reservationRoomId}
+          onChange={setReservationRoomId}
+        />
+        <RoomUnitOccupantContext
+          stayGuestId={stay.guestId}
+          units={stay.roomUnits}
+          selectedId={reservationRoomId}
+        />
+        <RoomSelect
+          restaurantId={restaurantId}
+          stay={targetStay}
+          value={roomId}
+          onChange={setRoomId}
+        />
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button disabled={!roomId || mutation.isPending} onClick={() => mutation.mutate()}>
+          <Button
+            disabled={!roomId || mutation.isPending || (multiRoom && !reservationRoomId)}
+            onClick={() => mutation.mutate()}
+          >
             {mutation.isPending ? "Assigning…" : "Assign room"}
           </Button>
         </DialogFooter>
@@ -193,12 +267,14 @@ export function CheckInDialog({
   open,
   onOpenChange,
   initialStep,
+  initialReservationRoomId,
 }: {
   restaurantId: string;
   stay: FrontOfficeStay;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initialStep?: CheckInStepId;
+  initialReservationRoomId?: string;
 }) {
   return (
     <FoCheckInStepper
@@ -207,6 +283,7 @@ export function CheckInDialog({
       open={open}
       onOpenChange={onOpenChange}
       {...(initialStep ? { initialStep } : {})}
+      {...(initialReservationRoomId ? { initialReservationRoomId } : {})}
     />
   );
 }
@@ -218,23 +295,30 @@ export function RoomMoveDialog({
   stay,
   open,
   onOpenChange,
+  initialReservationRoomId,
 }: {
   restaurantId: string;
   stay: FrontOfficeStay;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  initialReservationRoomId?: string;
 }) {
   const [roomId, setRoomId] = useState("");
   const [reason, setReason] = useState("");
+  const [reservationRoomId, setReservationRoomId] = useState(initialReservationRoomId ?? "");
   const refresh = useRefresh();
   const move = useServerFn(moveReservationRoom);
+  const multiRoom = (stay.roomUnits?.length ?? 0) > 1;
+  const targetStay = stayForRoomTarget(stay, reservationRoomId);
+  const selectedUnit = stay.roomUnits?.find((unit) => unit.id === reservationRoomId);
 
   useEffect(() => {
     if (open) {
       setRoomId("");
       setReason("");
+      setReservationRoomId(initialReservationRoomId ?? "");
     }
-  }, [open]);
+  }, [open, initialReservationRoomId]);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -244,9 +328,13 @@ export function RoomMoveDialog({
           reservationId: stay.id,
           roomId,
           reason: reason.trim(),
-          expectedRoomId: stay.roomId,
-          expectedArrival: stay.arrivalDate,
-          expectedDeparture: stay.departureDate,
+          ...(multiRoom ? { reservationRoomId } : {}),
+          expectedRoomId:
+            multiRoom && selectedUnit && selectedUnit.unitSequence !== 1
+              ? undefined
+              : targetStay.roomId,
+          expectedArrival: targetStay.arrivalDate,
+          expectedDeparture: targetStay.departureDate,
           expectedUpdatedAt: stay.updatedAt ?? null,
         },
       }),
@@ -264,11 +352,28 @@ export function RoomMoveDialog({
         <DialogHeader>
           <DialogTitle>Room move</DialogTitle>
           <DialogDescription>
-            {stay.guestName} is in room {stay.roomNumber ?? "—"}. Same-type moves use the canonical room-move writer.
-            A different room type is a commercial amendment — use Amend Stay → Room type change.
+            {stay.guestName} is in room {stay.roomNumber ?? "—"}. Same-type moves use the canonical
+            room-move writer. A different room type is a commercial amendment — use Amend Stay →
+            Room type change.
           </DialogDescription>
         </DialogHeader>
-        <RoomSelect restaurantId={restaurantId} stay={stay} value={roomId} onChange={setRoomId} label="New room" />
+        <RoomUnitTargetSelect
+          units={stay.roomUnits}
+          value={reservationRoomId}
+          onChange={setReservationRoomId}
+        />
+        <RoomUnitOccupantContext
+          stayGuestId={stay.guestId}
+          units={stay.roomUnits}
+          selectedId={reservationRoomId}
+        />
+        <RoomSelect
+          restaurantId={restaurantId}
+          stay={targetStay}
+          value={roomId}
+          onChange={setRoomId}
+          label="New room"
+        />
         <div className="space-y-2">
           <Label htmlFor="move-reason">Reason</Label>
           <Textarea
@@ -282,7 +387,12 @@ export function RoomMoveDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button disabled={!roomId || !reason.trim() || mutation.isPending} onClick={() => mutation.mutate()}>
+          <Button
+            disabled={
+              !roomId || !reason.trim() || mutation.isPending || (multiRoom && !reservationRoomId)
+            }
+            onClick={() => mutation.mutate()}
+          >
             {mutation.isPending ? "Moving…" : "Move guest"}
           </Button>
         </DialogFooter>
@@ -337,14 +447,22 @@ export function CheckOutDialog({
   stay,
   open,
   onOpenChange,
+  initialReservationRoomId,
 }: {
   restaurantId: string;
   stay: FrontOfficeStay;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  initialReservationRoomId?: string;
 }) {
   return (
-    <FoCheckOutStepper restaurantId={restaurantId} stay={stay} open={open} onOpenChange={onOpenChange} />
+    <FoCheckOutStepper
+      restaurantId={restaurantId}
+      stay={stay}
+      open={open}
+      onOpenChange={onOpenChange}
+      {...(initialReservationRoomId ? { initialReservationRoomId } : {})}
+    />
   );
 }
 
@@ -530,216 +648,240 @@ export function WalkInDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Walk-in</DialogTitle>
-          <DialogDescription>Create a confirmed stay for today, then continue registration, deposit and key.</DialogDescription>
-        </DialogHeader>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Walk-in</DialogTitle>
+            <DialogDescription>
+              Create a confirmed stay for today, then continue registration, deposit and key.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-2">
-          <Label htmlFor="walkin-guest">Guest</Label>
-          <Input
-            id="walkin-guest"
-            placeholder="Search name, phone or email"
-            value={guest ? guest.fullName : guestSearch}
-            onChange={(e) => {
-              setGuest(null);
-              setGuestSearch(e.target.value);
-            }}
-          />
-          {!guest ? (
-            <ul className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-border p-1">
-              {guestListItems(guestsQuery.data).map((g) => (
-                <li key={g.id}>
-                  <button
-                    type="button"
-                    className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
-                    onClick={() => setGuest(g)}
-                  >
-                    <span className="flex flex-wrap items-center gap-2">
-                      {g.fullName}
-                      <GuestRestrictionBadges guest={g} />
-                    </span>
-                    <span className="ml-2 text-xs text-muted-foreground">{g.phone ?? g.email ?? ""}</span>
-                  </button>
-                </li>
-              ))}
-              {guestListItems(guestsQuery.data).length === 0 ? (
-                <li className="px-3 py-2 text-xs text-muted-foreground">
-                  No matching guest. Create a guest with Guest Profile, or search again.
-                </li>
-              ) : null}
-            </ul>
-          ) : null}
-          <Button type="button" variant="outline" size="sm" onClick={() => setCreateGuestOpen(true)}>
-            Create guest
-          </Button>
-          {guest ? <GuestRestrictionWarn guest={guest} /> : null}
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="walkin-departure">Departure</Label>
+            <Label htmlFor="walkin-guest">Guest</Label>
             <Input
-              id="walkin-departure"
-              type="date"
-              min={addDays(today, 1)}
-              value={departure}
+              id="walkin-guest"
+              placeholder="Search name, phone or email"
+              value={guest ? guest.fullName : guestSearch}
               onChange={(e) => {
-                setDeparture(e.target.value);
-                setRoomTypeId("");
+                setGuest(null);
+                setGuestSearch(e.target.value);
+              }}
+            />
+            {!guest ? (
+              <ul className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-border p-1">
+                {guestListItems(guestsQuery.data).map((g) => (
+                  <li key={g.id}>
+                    <button
+                      type="button"
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
+                      onClick={() => setGuest(g)}
+                    >
+                      <span className="flex flex-wrap items-center gap-2">
+                        {g.fullName}
+                        <GuestRestrictionBadges guest={g} />
+                      </span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {g.phone ?? g.email ?? ""}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+                {guestListItems(guestsQuery.data).length === 0 ? (
+                  <li className="px-3 py-2 text-xs text-muted-foreground">
+                    No matching guest. Create a guest with Guest Profile, or search again.
+                  </li>
+                ) : null}
+              </ul>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCreateGuestOpen(true)}
+            >
+              Create guest
+            </Button>
+            {guest ? <GuestRestrictionWarn guest={guest} /> : null}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="walkin-departure">Departure</Label>
+              <Input
+                id="walkin-departure"
+                type="date"
+                min={addDays(today, 1)}
+                value={departure}
+                onChange={(e) => {
+                  setDeparture(e.target.value);
+                  setRoomTypeId("");
+                  setRoomId("");
+                  setRatePlanId("");
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="walkin-adults">Adults</Label>
+              <Input
+                id="walkin-adults"
+                type="number"
+                min={1}
+                max={20}
+                value={adults}
+                onChange={(e) => setAdults(Math.max(1, Number(e.target.value) || 1))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="walkin-children">Children</Label>
+              <Input
+                id="walkin-children"
+                type="number"
+                min={0}
+                max={20}
+                value={children}
+                onChange={(e) => setChildren(Math.max(0, Number(e.target.value) || 0))}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Room type</Label>
+            <Select
+              value={roomTypeId}
+              onValueChange={(v) => {
+                setRoomTypeId(v);
                 setRoomId("");
                 setRatePlanId("");
               }}
-            />
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    availabilityQuery.isLoading ? "Checking availability…" : "Select room type"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {types.map((t) => (
+                  <SelectItem key={t.roomTypeId} value={t.roomTypeId}>
+                    {formatRoomTypeLabel(t.name, t.code)} · {t.available} available
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="walkin-adults">Adults</Label>
-            <Input
-              id="walkin-adults"
-              type="number"
-              min={1}
-              max={20}
-              value={adults}
-              onChange={(e) => setAdults(Math.max(1, Number(e.target.value) || 1))}
-            />
+            <Label>Rate plan</Label>
+            <Select value={ratePlanId} onValueChange={setRatePlanId} disabled={!roomTypeId}>
+              <SelectTrigger data-testid="walkin-rate-plan">
+                <SelectValue
+                  placeholder={
+                    quotesQuery.isLoading
+                      ? "Pricing the stay…"
+                      : pricedQuotes.length === 0
+                        ? "No quoted rate for this stay"
+                        : "Select a rate plan"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {pricedQuotes.map((row) => (
+                  <SelectItem key={row.plan.id} value={row.plan.id}>
+                    {row.plan.code} · {row.plan.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedQuote?.quote ? (
+              <p className="text-xs text-muted-foreground">
+                {selectedQuote.quote.nights} night{selectedQuote.quote.nights === 1 ? "" : "s"} ·
+                nightly {money(selectedQuote.quote.nightly[0]?.rate ?? 0)} · total{" "}
+                {money(selectedQuote.quote.subtotal)}
+              </p>
+            ) : quotesQuery.isError ? (
+              <p className="text-xs text-destructive">Pricing unavailable for this stay.</p>
+            ) : null}
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="walkin-children">Children</Label>
-            <Input
-              id="walkin-children"
-              type="number"
-              min={0}
-              max={20}
-              value={children}
-              onChange={(e) => setChildren(Math.max(0, Number(e.target.value) || 0))}
-            />
+            <Label>Room</Label>
+            <Select
+              value={roomId}
+              onValueChange={setRoomId}
+              disabled={!roomTypeId || walkInRoomsState.status === "error"}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    walkInRoomsState.status === "loading" ? "Loading rooms…" : "Select a room"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {rooms.map((room) => (
+                  <SelectItem key={room.id} value={room.id}>
+                    Room {room.roomNumber}
+                    {room.housekeepingStatus ? ` · ${room.housekeepingStatus}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {roomTypeId ? (
+              <AssignableRoomsHint
+                status={walkInRoomsState.status}
+                roomTypeLabel={formatRoomTypeLabel(
+                  selectedWalkInType?.name ?? "room type",
+                  selectedWalkInType?.code,
+                )}
+                onRetry={() => void roomsQuery.refetch()}
+                detail={roomsQuery.error instanceof Error ? roomsQuery.error.message : null}
+              />
+            ) : null}
+            {selectedWalkInReady === false ? (
+              <p className="text-xs text-muted-foreground">
+                Assignable, but not check-in ready yet (housekeeping).
+              </p>
+            ) : selectedWalkInReady === true ? (
+              <p className="text-xs text-muted-foreground">
+                Room is check-in ready under current HK rules.
+              </p>
+            ) : null}
           </div>
-        </div>
 
-        <div className="space-y-2">
-          <Label>Room type</Label>
-          <Select
-            value={roomTypeId}
-            onValueChange={(v) => {
-              setRoomTypeId(v);
-              setRoomId("");
-              setRatePlanId("");
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={availabilityQuery.isLoading ? "Checking availability…" : "Select room type"} />
-            </SelectTrigger>
-            <SelectContent>
-              {types.map((t) => (
-                <SelectItem key={t.roomTypeId} value={t.roomTypeId}>
-                  {formatRoomTypeLabel(t.name, t.code)} · {t.available} available
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Rate plan</Label>
-          <Select value={ratePlanId} onValueChange={setRatePlanId} disabled={!roomTypeId}>
-            <SelectTrigger data-testid="walkin-rate-plan">
-              <SelectValue
-                placeholder={
-                  quotesQuery.isLoading
-                    ? "Pricing the stay…"
-                    : pricedQuotes.length === 0
-                      ? "No quoted rate for this stay"
-                      : "Select a rate plan"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {pricedQuotes.map((row) => (
-                <SelectItem key={row.plan.id} value={row.plan.id}>
-                  {row.plan.code} · {row.plan.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {selectedQuote?.quote ? (
-            <p className="text-xs text-muted-foreground">
-              {selectedQuote.quote.nights} night{selectedQuote.quote.nights === 1 ? "" : "s"} · nightly{" "}
-              {money(selectedQuote.quote.nightly[0]?.rate ?? 0)} · total {money(selectedQuote.quote.subtotal)}
-            </p>
-          ) : quotesQuery.isError ? (
-            <p className="text-xs text-destructive">Pricing unavailable for this stay.</p>
-          ) : null}
-        </div>
-
-        <div className="space-y-2">
-          <Label>Room</Label>
-          <Select value={roomId} onValueChange={setRoomId} disabled={!roomTypeId || walkInRoomsState.status === "error"}>
-            <SelectTrigger>
-              <SelectValue
-                placeholder={walkInRoomsState.status === "loading" ? "Loading rooms…" : "Select a room"}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {rooms.map((room) => (
-                <SelectItem key={room.id} value={room.id}>
-                  Room {room.roomNumber}
-                  {room.housekeepingStatus ? ` · ${room.housekeepingStatus}` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {roomTypeId ? (
-            <AssignableRoomsHint
-              status={walkInRoomsState.status}
-              roomTypeLabel={formatRoomTypeLabel(
-                selectedWalkInType?.name ?? "room type",
-                selectedWalkInType?.code,
-              )}
-              onRetry={() => void roomsQuery.refetch()}
-              detail={roomsQuery.error instanceof Error ? roomsQuery.error.message : null}
-            />
-          ) : null}
-          {selectedWalkInReady === false ? (
-            <p className="text-xs text-muted-foreground">Assignable, but not check-in ready yet (housekeeping).</p>
-          ) : selectedWalkInReady === true ? (
-            <p className="text-xs text-muted-foreground">Room is check-in ready under current HK rules.</p>
-          ) : null}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!guest || !roomTypeId || !roomId || !ratePlanId || mutation.isPending}
-            onClick={() => mutation.mutate()}
-          >
-            {mutation.isPending ? "Creating…" : "Create stay"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-    <GuestFormDialog
-      restaurantId={restaurantId}
-      open={createGuestOpen}
-      onOpenChange={setCreateGuestOpen}
-      onSaved={(guestId) => {
-        setCreateGuestOpen(false);
-        void guestsQuery.refetch().then((result) => {
-          const found = guestListItems(result.data).find((item) => item.id === guestId);
-          if (found) setGuest(found);
-        });
-      }}
-      onOpenExisting={(guestId) => {
-        setCreateGuestOpen(false);
-        void guestsQuery.refetch().then((result) => {
-          const found = guestListItems(result.data).find((item) => item.id === guestId);
-          if (found) setGuest(found);
-        });
-      }}
-    />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!guest || !roomTypeId || !roomId || !ratePlanId || mutation.isPending}
+              onClick={() => mutation.mutate()}
+            >
+              {mutation.isPending ? "Creating…" : "Create stay"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <GuestFormDialog
+        restaurantId={restaurantId}
+        open={createGuestOpen}
+        onOpenChange={setCreateGuestOpen}
+        onSaved={(guestId) => {
+          setCreateGuestOpen(false);
+          void guestsQuery.refetch().then((result) => {
+            const found = guestListItems(result.data).find((item) => item.id === guestId);
+            if (found) setGuest(found);
+          });
+        }}
+        onOpenExisting={(guestId) => {
+          setCreateGuestOpen(false);
+          void guestsQuery.refetch().then((result) => {
+            const found = guestListItems(result.data).find((item) => item.id === guestId);
+            if (found) setGuest(found);
+          });
+        }}
+      />
     </>
   );
 }

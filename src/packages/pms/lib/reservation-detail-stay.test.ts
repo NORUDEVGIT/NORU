@@ -2,13 +2,12 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { NOTE_MAX } from "@/packages/pms/lib/reservation-detail-notes";
 import {
   buildStayDraft,
   clockFromInstant,
-  nextStayExtension,
-  requestStatusLabel,
+  STAY_NOTES_MAX,
   stayNights,
-  stayRangeOk,
 } from "@/packages/pms/lib/reservation-detail-stay";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 
@@ -18,6 +17,10 @@ const stayUi = readFileSync(
 );
 const workspace = readFileSync(
   resolve(process.cwd(), "src/packages/pms/components/workspaces/reservation-detail-workspace.tsx"),
+  "utf8",
+);
+const amend = readFileSync(
+  resolve(process.cwd(), "src/packages/pms/lib/reservations.functions.ts"),
   "utf8",
 );
 
@@ -63,7 +66,7 @@ const base = {
   groupName: null,
   roomOperationalStatus: null,
   housekeepingStatus: null,
-  infants: 0,
+  infants: 1,
   roomsRequested: 1,
   purposeOfStay: "holiday",
   salesChannel: null,
@@ -79,41 +82,36 @@ const base = {
 } as ReservationDetail;
 
 describe("Reservation Detail Stay tab", () => {
-  it("wires the Stay tab into the existing overlay workspace", () => {
+  it("follows the shared editable result and saves only safe stay fields", () => {
     expect(workspace).toContain("<ReservationDetailStayTab");
-    expect(workspace).toContain('detailTab === "stay"');
-    expect(workspace).toContain('onBackToOverview={() => setDetailTab("overview")}');
-    expect(stayUi).toContain("Stay Information");
-    expect(stayUi).toContain("Stay Extensions");
-    expect(stayUi).toContain("Early Arrival / Late Departure");
-    expect(stayUi).toContain("Stay Notes");
-    expect(stayUi).toContain("Back to Overview");
+    expect(workspace).toContain("editable={detailActions?.editable ?? false}");
+    expect(stayUi).toContain("Internal Notes");
     expect(stayUi).toContain("Save Changes");
     expect(stayUi).toContain("amendReservation");
+    expect(stayUi).toContain("stayPayload(reservation.arrivalDate, reservation.departureDate)");
+    expect(stayUi).toContain("purposeOfStay: draft.purposeOfStay || null");
+    expect(stayUi).toContain("infants: draft.infants");
+    expect(stayUi).not.toContain("marketSegment:");
+    expect(stayUi).not.toContain("Stay Extensions");
+    expect(stayUi).not.toContain("Special Occasion");
+    expect(stayUi).not.toContain("Flexible Dates");
+    expect(stayUi).toContain("disabled={!editable}");
+    const amendFn = amend.slice(amend.indexOf("export const amendReservation"));
+    expect(amendFn).toContain("purposeOfStay");
+    expect(amendFn).toContain("purpose_of_stay");
+    expect(amendFn).toContain("infants");
+    expect(amendFn).toContain("assertRoomTypeOccupancy");
   });
 
-  it("seeds live stay fields and falls back cleanly", () => {
+  it("seeds persisted stay fields and shares the internal-notes limit", () => {
     const draft = buildStayDraft(base);
-    expect(draft.arrival).toBe("2026-09-22");
-    expect(draft.departure).toBe("2026-09-24");
     expect(draft.adults).toBe(2);
-    expect(draft.marketSegment).toBe("leisure");
+    expect(draft.infants).toBe(1);
     expect(draft.purposeOfStay).toBe("holiday");
     expect(draft.stayNotes).toBe("Staff note");
-    expect(draft.expectedArrivalTime).toBe("14:00");
-    expect(draft.allowEarlyCheckIn).toBe(true);
+    expect(clockFromInstant(base.expectedArrivalAt)).toBe("14:00");
     expect(clockFromInstant(null)).toBe("");
     expect(stayNights("2026-09-22", "2026-09-24")).toBe(2);
-    expect(stayRangeOk("2026-09-24", "2026-09-22")).toBe(false);
-    expect(requestStatusLabel(false)).toBe("Not Requested");
-  });
-
-  it("keeps extensions and occasion/pickup local-only", () => {
-    expect(nextStayExtension("2026-09-24").status).toBe("unsaved");
-    expect(stayUi).toContain("STAY_OCCASION_OPTIONS");
-    expect(stayUi).not.toContain("purposeOfStay: draft.purposeOfStay");
-    expect(stayUi).toContain("marketSegment: draft.marketSegment");
-    expect(stayUi).toContain("notes: draft.stayNotes");
-    expect(stayUi).toContain("stay-extensions-empty");
+    expect(STAY_NOTES_MAX).toBe(NOTE_MAX);
   });
 });

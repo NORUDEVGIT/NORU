@@ -249,6 +249,56 @@ export type RawReservationInput = {
   status: string;
 };
 
+/**
+ * One analytics row per active room unit. Reservation id stays on every row so
+ * reservation counts remain distinct from room-night counts. A booking with no
+ * unit rows stays one row. `units === null` keeps the master rows.
+ */
+export function expandRevenueRoomStays(
+  reservations: RawReservationInput[],
+  units: ReadonlyArray<{
+    reservation_id: string;
+    room_type_id: string;
+    rate_plan_id: string | null;
+    arrival_date: string;
+    departure_date: string;
+    nightly_rate_snapshot: unknown;
+    currency: string | null;
+    status: string | null;
+  }> | null,
+): RawReservationInput[] {
+  if (units == null) return reservations;
+  const byReservation = new Map<string, Array<(typeof units)[number]>>();
+  for (const unit of units) {
+    const owned = byReservation.get(unit.reservation_id) ?? [];
+    owned.push(unit);
+    byReservation.set(unit.reservation_id, owned);
+  }
+  const rows: RawReservationInput[] = [];
+  for (const reservation of reservations) {
+    const owned = (byReservation.get(reservation.id) ?? []).filter(
+      (unit) => unit.status !== "cancelled" && unit.status !== "no_show",
+    );
+    if (owned.length === 0) {
+      rows.push(reservation);
+      continue;
+    }
+    for (const unit of owned) {
+      rows.push({
+        ...reservation,
+        room_type_id: unit.room_type_id,
+        rate_plan_id: unit.rate_plan_id,
+        arrival_date: unit.arrival_date,
+        departure_date: unit.departure_date,
+        nightly_rate_snapshot: unit.nightly_rate_snapshot,
+        currency: unit.currency ?? reservation.currency,
+        status: unit.status ?? reservation.status,
+      });
+    }
+  }
+  return rows;
+}
+
 export function computeRevenuePerformanceOverview(options: {
   query: RevenuePerformanceQuery;
   reservations: RawReservationInput[];

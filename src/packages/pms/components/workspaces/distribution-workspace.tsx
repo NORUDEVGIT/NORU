@@ -12,13 +12,20 @@ import {
   RoomMappingTab,
   useDistribution,
 } from "@/packages/pms/components/distribution/distribution-tabs";
+import { AiosellWorkspacePanel } from "@/packages/pms/components/workspaces/aiosell-workspace-panel";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 
-const TABS = ["overview", "channels", "rooms", "rates", "logs"] as const;
+const TABS = ["overview", "channels", "rooms", "rates", "logs", "aiosell"] as const;
 type TabKey = (typeof TABS)[number];
 
-export function DistributionWorkspace({ membership, initialTab }: { membership: RestaurantMembership; initialTab?: string | undefined }) {
+export function DistributionWorkspace({
+  membership,
+  initialTab,
+}: {
+  membership: RestaurantMembership;
+  initialTab?: string | undefined;
+}) {
   const restaurantId = membership.restaurant.id;
   const searchTab = initialTab;
   const [tab, setTab] = useState<TabKey>("overview");
@@ -35,11 +42,14 @@ export function DistributionWorkspace({ membership, initialTab }: { membership: 
   });
   const overview = useDistribution(restaurantId);
 
-  if (accessQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading distribution…</p>;
+  if (accessQuery.isLoading)
+    return <p className="text-sm text-muted-foreground">Loading distribution…</p>;
   if (!accessQuery.data?.canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl"><PageHeading fallback="Distribution" /></h1>
+        <h1 className="font-display text-2xl">
+          <PageHeading fallback="Distribution" />
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Only owners and managers can manage distribution for this property.
         </p>
@@ -53,7 +63,9 @@ export function DistributionWorkspace({ membership, initialTab }: { membership: 
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Configuration · Distribution
         </p>
-        <h1 className="font-display text-2xl"><PageHeading fallback="Distribution" /></h1>
+        <h1 className="font-display text-2xl">
+          <PageHeading fallback="Distribution" />
+        </h1>
         <p className="text-sm text-muted-foreground">
           Your NORU direct booking page and the channel foundation behind it.
         </p>
@@ -66,6 +78,7 @@ export function DistributionWorkspace({ membership, initialTab }: { membership: 
           <TabsTrigger value="rooms">Room Mapping</TabsTrigger>
           <TabsTrigger value="rates">Rate Mapping</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
+          <TabsTrigger value="aiosell">Aiosell</TabsTrigger>
         </TabsList>
 
         {overview.isLoading || !overview.data ? (
@@ -89,6 +102,9 @@ export function DistributionWorkspace({ membership, initialTab }: { membership: 
             </TabsContent>
           </>
         )}
+        <TabsContent value="aiosell" className="mt-4">
+          <AiosellWorkspacePanel restaurantId={restaurantId} />
+        </TabsContent>
       </Tabs>
     </div>
   );

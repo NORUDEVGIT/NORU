@@ -151,11 +151,23 @@ export function roomHousekeepingTasks(
   return tasks.filter((task) => task.roomId === roomId);
 }
 
-export function filterHousekeepingTasks(
+export function labeledHousekeepingTasks(
   tasks: HousekeepingTask[],
+  targets: Array<{ roomId: string; label: string }>,
+): Array<HousekeepingTask & { roomContext: string }> {
+  return targets.flatMap((target) =>
+    roomHousekeepingTasks(tasks, target.roomId).map((task) => ({
+      ...task,
+      roomContext: target.label,
+    })),
+  );
+}
+
+export function filterHousekeepingTasks<T extends HousekeepingTask>(
+  tasks: T[],
   tab: TraceTabId,
   search: string,
-): HousekeepingTask[] {
+): T[] {
   const term = search.trim().toLowerCase();
   return tasks.filter((task) => {
     if (tab === "pending" && task.status !== "pending" && task.status !== "assigned") return false;

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -42,6 +43,12 @@ import {
 } from "@/packages/pms/components/bookings/reservation-bits";
 import { GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
 import { guestInitials, reviewDash } from "@/packages/pms/lib/create-reservation-review";
+import {
+  additionalOccupants,
+  GROUP_PROFILE_PREFERENCE_NOTE,
+  isGroupReservation,
+  primaryOccupantName,
+} from "@/packages/pms/lib/reservation-detail-group";
 import { maskIdNumber } from "@/packages/pms/lib/guest-profile-wave2";
 import {
   WAVE4_NO_POINTS_COPY,
@@ -148,6 +155,7 @@ export function ReservationDetailGuestTab({
   const editable = canManage && !cancelled;
   const chips = mergedPreferenceChips(preferences, reservation.specialRequests);
   const nights = nightsBetween(reservation.arrivalDate, reservation.departureDate);
+  const groupGuest = isGroupReservation(reservation);
 
   function openCompanion(row?: AccompanyingGuestDraft) {
     setCompanionDraft(row ? { ...row } : emptyAccompanyingGuest());
@@ -180,24 +188,34 @@ export function ReservationDetailGuestTab({
             draft={draft}
             patch={patch}
             editable={editable}
+            groupGuest={groupGuest}
           />
-          <AccompanyingGuestsCard
-            rows={draft.accompanying}
-            editable={editable}
-            onAdd={() => openCompanion()}
-            onEdit={openCompanion}
-            onRemove={(id) =>
-              patch({ accompanying: draft.accompanying.filter((row) => row.id !== id) })
-            }
-          />
+          {groupGuest ? (
+            <RoomOccupantsCard reservation={reservation} />
+          ) : (
+            <AccompanyingGuestsCard
+              rows={draft.accompanying}
+              editable={editable}
+              onAdd={() => openCompanion()}
+              onEdit={openCompanion}
+              onRemove={(id) =>
+                patch({ accompanying: draft.accompanying.filter((row) => row.id !== id) })
+              }
+            />
+          )}
           <div className="grid gap-4 lg:grid-cols-2">
-            <GuestPreferencesCard chips={chips} guestId={reservation.guestId} />
+            <GuestPreferencesCard
+              chips={chips}
+              guestId={reservation.guestId}
+              groupGuest={groupGuest}
+            />
             <SpecialRequestsCard
               draft={draft}
               patch={patch}
               editable={editable}
               editing={editingRequests}
               onToggleEdit={() => setEditingRequests((value) => !value)}
+              groupGuest={groupGuest}
             />
           </div>
           <GuestNotesCard draft={draft} patch={patch} editable={editable} />
@@ -328,18 +346,48 @@ export function ReservationDetailGuestTab({
   );
 }
 
+function RoomOccupantsCard({ reservation }: { reservation: ReservationDetail }) {
+  const units = reservation.rooms ?? [];
+  return (
+    <section
+      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+      data-testid="guest-room-occupants"
+    >
+      <h2 className="font-display text-base text-[#251605]">Room Guests / Occupants</h2>
+      <div className="mt-3 space-y-3">
+        {units.map((unit) => (
+          <div key={unit.id} className="text-sm">
+            <p className="font-medium text-[#251605]">Room {unit.unitSequence}</p>
+            <p className="text-[#251605]">
+              {primaryOccupantName(unit)}{" "}
+              <span className="text-[11px] text-muted-foreground">Primary Occupant</span>
+            </p>
+            {additionalOccupants(unit).map((occupant) => (
+              <p key={occupant.guestId} className="text-muted-foreground">
+                {occupant.name}
+              </p>
+            ))}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function PrimaryGuestCard({
   reservation,
   guest,
   draft,
   patch,
   editable,
+  groupGuest,
 }: {
   reservation: ReservationDetail;
   guest: GuestProfile | null;
   draft: ReservationGuestDraft;
   patch: (next: Partial<ReservationGuestDraft>) => void;
   editable: boolean;
+  groupGuest: boolean;
 }) {
   const name = guest?.fullName || reservation.guestName;
   const vip = Boolean(reservation.guestVip || guest?.vipStatus);
@@ -353,7 +401,9 @@ function PrimaryGuestCard({
     >
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="font-display text-base text-[#251605]">Primary Guest Information</h2>
+          <h2 className="font-display text-base text-[#251605]">
+            {groupGuest ? "Primary Guest / Booker" : "Primary Guest Information"}
+          </h2>
           <p className="text-xs text-muted-foreground">
             Guest profile and contact details for this reservation.
           </p>
@@ -615,9 +665,11 @@ function AccompanyingGuestsCard({
 function GuestPreferencesCard({
   chips,
   guestId,
+  groupGuest,
 }: {
   chips: Array<{ id: string; label: string }>;
   guestId: string;
+  groupGuest: boolean;
 }) {
   return (
     <section
@@ -628,10 +680,12 @@ function GuestPreferencesCard({
         <div>
           <h2 className="flex items-center gap-1.5 font-display text-base text-[#251605]">
             <Heart className="size-4 text-[#B8954F]" />
-            Guest Preferences
+            {groupGuest ? "Primary Guest / Booker Preferences" : "Guest Preferences"}
           </h2>
           <p className="text-xs text-muted-foreground">
-            Guest preferences for this stay (from profile or entered for this reservation).
+            {groupGuest
+              ? GROUP_PROFILE_PREFERENCE_NOTE
+              : "Guest preferences for this stay (from profile or entered for this reservation)."}
           </p>
         </div>
         <Button asChild variant="ghost" size="sm">
@@ -668,12 +722,14 @@ function SpecialRequestsCard({
   editable,
   editing,
   onToggleEdit,
+  groupGuest,
 }: {
   draft: ReservationGuestDraft;
   patch: (next: Partial<ReservationGuestDraft>) => void;
   editable: boolean;
   editing: boolean;
   onToggleEdit: () => void;
+  groupGuest: boolean;
 }) {
   const lines = draft.specialRequests
     .split(/\n+/)
@@ -687,7 +743,9 @@ function SpecialRequestsCard({
     >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <h2 className="font-display text-base text-[#251605]">Special Requests</h2>
+          <h2 className="font-display text-base text-[#251605]">
+            {groupGuest ? "Reservation Special Requests" : "Special Requests"}
+          </h2>
           <p className="text-xs text-muted-foreground">Special requests for this reservation.</p>
         </div>
         <Button type="button" variant="ghost" size="sm" disabled={!editable} onClick={onToggleEdit}>
@@ -760,135 +818,16 @@ function GuestSummaryRail({
   coverUrl: string | null;
   nights: number;
 }) {
-  const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
-  const assigned = Boolean(reservation.roomId && reservation.roomNumber);
-  const cancellation = snapshotDisplayName(reservation.cancellationPolicySnapshot);
-  const noShow = snapshotField(reservation.refundabilitySnapshot, ["no_show", "no_show_policy"]);
-  const earlyDeparture = earlyDepartureReservationLabel({
-    snapshot: reservation.earlyDeparturePolicySnapshot,
-    legacyRefundabilitySnapshot: reservation.refundabilitySnapshot,
-  });
-  const stayNightsLabel =
-    nights || nightsBetween(reservation.arrivalDate, reservation.departureDate);
-
   return (
-    <aside
-      className="h-fit space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="reservation-guest-summary"
-    >
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          Reservation Summary
-        </p>
-        <div className="mt-1 flex items-center gap-2">
-          <p className="font-display text-lg text-[#251605]">{reservation.confirmationNumber}</p>
-          <ReservationStatusBadge status={reservation.status} />
-        </div>
-      </div>
-      <div className="flex items-start gap-3 border-t border-[#EEE6D8] pt-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F4E9D0] text-xs font-semibold text-[#765719]">
-          {guestInitials(reservation.guestName)}
-        </div>
-        <div className="min-w-0">
-          <p className="flex items-center gap-1 font-medium text-[#251605]">
-            <UserRound className="size-3.5 text-[#B8954F]" />
-            {reservation.guestName}
-            {reservation.guestVip ? (
-              <span className="rounded-full bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-semibold text-[#765719]">
-                VIP
-              </span>
-            ) : null}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {reviewDash(reservation.guestPhone)}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {reviewDash(reservation.guestEmail)}
-          </p>
-        </div>
-      </div>
-      <SummaryBlock
-        icon={<CalendarDays className="size-3.5 text-[#B8954F]" />}
-        title="Stay Information"
-      >
-        <p>
-          {formatStayDate(reservation.arrivalDate)} → {formatStayDate(reservation.departureDate)} (
-          {stayNightsLabel} night{stayNightsLabel === 1 ? "" : "s"})
-        </p>
-        <p>
-          {reservation.adults} Adults · {reservation.children} Children ·{" "}
-          {reservation.infants == null ? DETAIL_DASH : reservation.infants} Infants
-        </p>
-        <p>Purpose: {reviewDash(reservation.purposeOfStay)}</p>
-      </SummaryBlock>
-      <SummaryBlock
-        icon={<BedDouble className="size-3.5 text-[#B8954F]" />}
-        title="Room Information"
-      >
-        <div className="flex gap-2">
-          {coverUrl ? (
-            <img src={coverUrl} alt="" className="h-12 w-16 rounded-md object-cover" />
-          ) : (
-            <div className="flex h-12 w-16 items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68]">
-              <BedDouble className="size-5" />
-            </div>
-          )}
-          <div>
-            <p className="font-medium">{reviewDash(reservation.roomTypeName)}</p>
-            <p>{assigned ? `Room ${reservation.roomNumber}` : "Not Assigned"}</p>
-            <p>{reviewDash(reservation.ratePlanName)}</p>
-          </div>
-        </div>
-      </SummaryBlock>
-      <SummaryBlock icon={<FileText className="size-3.5 text-[#B8954F]" />} title="Rate & Total">
-        <p>
-          Room Rate{" "}
-          {reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
-        </p>
-        <p className="font-medium text-[#251605]">
-          Total Amount{" "}
-          {reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
-        </p>
-      </SummaryBlock>
-      <SummaryBlock
-        icon={<CreditCard className="size-3.5 text-[#B8954F]" />}
-        title="Guarantee & Deposit"
-      >
-        <p>{reviewDash(reservation.guaranteeMethod)}</p>
-        <p>
-          Deposit {deposit?.amount == null ? DETAIL_DASH : money(deposit.amount)} ·{" "}
-          {depositStatusLabel(deposit)}
-        </p>
-      </SummaryBlock>
-      <SummaryBlock icon={<Shield className="size-3.5 text-[#B8954F]" />} title="Policies">
-        <p>Cancellation: {reviewDash(cancellation)}</p>
-        <p>No-show: {reviewDash(noShow)}</p>
-        <p>Early departure: {reviewDash(earlyDeparture)}</p>
-      </SummaryBlock>
-    </aside>
+    <ReservationDetailSummary
+      testId="reservation-guest-summary"
+      reservation={reservation}
+      money={money}
+      coverUrl={coverUrl}
+      nights={nights}
+    />
   );
 }
-
-function SummaryBlock({
-  icon,
-  title,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="border-t border-[#EEE6D8] pt-3 text-xs text-muted-foreground">
-      <p className="mb-1 flex items-center gap-1 font-medium text-[#251605]">
-        {icon}
-        {title}
-      </p>
-      <div className="space-y-0.5">{children}</div>
-    </div>
-  );
-}
-
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[118px_minmax(0,1fr)] gap-2">

@@ -103,9 +103,15 @@ export function CreateReservationBookingDetails({
   onRelationTabChange,
   holdCommercialDefaults = false,
   onCommercialDefaultsHeld,
+  showAdHocGroupNote = false,
+  showLinkedGroupCaption = false,
+  leadGuestPreferences = false,
   salesChannel,
   onSalesChannelChange,
   salesChannelOptions,
+  channelEnabled = true,
+  channelRequired = true,
+  channelEmptyMessage = null,
   purposeOfStay: _purposeOfStay,
   onPurposeOfStayChange: _onPurposeOfStayChange,
   billingRuleId,
@@ -143,6 +149,9 @@ export function CreateReservationBookingDetails({
   salesChannel: string;
   onSalesChannelChange: (value: string) => void;
   salesChannelOptions: ContextPickOption[];
+  channelEnabled?: boolean;
+  channelRequired?: boolean;
+  channelEmptyMessage?: string | null;
   purposeOfStay: string;
   onPurposeOfStayChange: (value: string) => void;
   billingRuleId: string;
@@ -173,6 +182,9 @@ export function CreateReservationBookingDetails({
   onRelationTabChange?: (tab: "company" | "travel_agent" | "group") => void;
   holdCommercialDefaults?: boolean;
   onCommercialDefaultsHeld?: () => void;
+  showAdHocGroupNote?: boolean;
+  showLinkedGroupCaption?: boolean;
+  leadGuestPreferences?: boolean;
 }) {
   const loadBilling = useServerFn(getBillingCard3);
   const loadCompanyContacts = useServerFn(listCompanyContacts);
@@ -488,10 +500,18 @@ export function CreateReservationBookingDetails({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Channel" required>
-              <Select value={salesChannel || undefined} onValueChange={onSalesChannelChange}>
-                <SelectTrigger className={SELECT_CONTROL} aria-label="Channel">
-                  <SelectValue placeholder="—" />
+            <Field label="Channel" required={channelRequired}>
+              <Select
+                value={salesChannel || undefined}
+                onValueChange={onSalesChannelChange}
+                disabled={!channelEnabled}
+              >
+                <SelectTrigger
+                  className={SELECT_CONTROL}
+                  aria-label="Channel"
+                  data-testid="booking-details-channel"
+                >
+                  <SelectValue placeholder={channelEnabled ? "Select channel" : "—"} />
                 </SelectTrigger>
                 <SelectContent className={NORU_MENU}>
                   {salesChannelOptions.map((option) => (
@@ -502,6 +522,11 @@ export function CreateReservationBookingDetails({
                 </SelectContent>
               </Select>
             </Field>
+            {channelEmptyMessage ? (
+              <p className="text-xs text-[#9B3A3A] sm:col-span-2" data-testid="ota-channel-empty">
+                {channelEmptyMessage}
+              </p>
+            ) : null}
             <Field label="Market Segment">
               <Select value={marketSegment || undefined} onValueChange={onMarketSegmentChange}>
                 <SelectTrigger className={SELECT_CONTROL} data-testid="booking-details-segment">
@@ -736,6 +761,14 @@ export function CreateReservationBookingDetails({
             <div className="space-y-2" data-testid="booking-details-group-tab">
               {linkedGroupId ? (
                 <div data-testid="booking-details-group-details">
+                  {showLinkedGroupCaption ? (
+                    <p
+                      className="mb-2 text-xs text-[#6B5E4E]"
+                      data-testid="linked-group-block-caption"
+                    >
+                      Linked Group / Block. This stays separate from the Group Reservation.
+                    </p>
+                  ) : null}
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
                       <Users className="size-4" aria-hidden />
@@ -798,39 +831,47 @@ export function CreateReservationBookingDetails({
                   </div>
                 </div>
               ) : (
-                <Field label="Group">
-                  <Input
-                    ref={groupSearchRef}
-                    className={CONTROL}
-                    data-testid="group-search"
-                    value={groupQuery}
-                    onChange={(event) => setGroupQuery(event.target.value)}
-                    placeholder="Search group"
-                    aria-label="Group"
-                  />
-                  {groupQuery.trim().length >= 2 ? (
-                    <div className="mt-1 max-h-24 overflow-auto rounded border border-[#E7E0D4] bg-white">
-                      {(groupsQuery.data?.groups ?? []).map((row) => (
-                        <button
-                          key={row.id}
-                          type="button"
-                          className="block w-full px-2 py-1 text-left text-[11px] hover:bg-[#F6F3EC]"
-                          onClick={() => {
-                            onLinkedGroupChange(row.id, null);
-                            setGroupQuery("");
-                          }}
-                        >
-                          {row.name}
-                        </button>
-                      ))}
-                      {groupsQuery.data && groupsQuery.data.groups.length === 0 ? (
-                        <p className="px-2 py-1 text-[11px] text-muted-foreground">
-                          No matching groups.
-                        </p>
-                      ) : null}
-                    </div>
+                <>
+                  {showAdHocGroupNote ? (
+                    <p className="text-xs text-[#6B5E4E]" data-testid="group-block-optional-note">
+                      Optional. A Group Reservation can stay ad hoc, or link to an existing Group /
+                      Block.
+                    </p>
                   ) : null}
-                </Field>
+                  <Field label="Group">
+                    <Input
+                      ref={groupSearchRef}
+                      className={CONTROL}
+                      data-testid="group-search"
+                      value={groupQuery}
+                      onChange={(event) => setGroupQuery(event.target.value)}
+                      placeholder="Search group"
+                      aria-label="Group"
+                    />
+                    {groupQuery.trim().length >= 2 ? (
+                      <div className="mt-1 max-h-24 overflow-auto rounded border border-[#E7E0D4] bg-white">
+                        {(groupsQuery.data?.groups ?? []).map((row) => (
+                          <button
+                            key={row.id}
+                            type="button"
+                            className="block w-full px-2 py-1 text-left text-[11px] hover:bg-[#F6F3EC]"
+                            onClick={() => {
+                              onLinkedGroupChange(row.id, null);
+                              setGroupQuery("");
+                            }}
+                          >
+                            {row.name}
+                          </button>
+                        ))}
+                        {groupsQuery.data && groupsQuery.data.groups.length === 0 ? (
+                          <p className="px-2 py-1 text-[11px] text-muted-foreground">
+                            No matching groups.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </Field>
+                </>
               )}
             </div>
           ) : null}
@@ -869,6 +910,11 @@ export function CreateReservationBookingDetails({
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
               Saved Preferences
             </p>
+            {leadGuestPreferences ? (
+              <p className="text-xs text-[#6B5E4E]" data-testid="lead-guest-preferences">
+                Primary Guest / Booker. Room guest preferences are managed per guest profile.
+              </p>
+            ) : null}
             {!guest ? (
               <p className="text-xs text-muted-foreground">
                 Select a guest to load saved preferences.

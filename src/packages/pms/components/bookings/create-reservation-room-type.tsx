@@ -143,6 +143,8 @@ export function CreateReservationRoomType({
   renderRates,
   headerSummary,
   onModifySearch,
+  modifySearchLabel,
+  activeRoomLabel,
   statusMessage,
   ratePlanOptions = [],
   selectedPlanId = "",
@@ -164,6 +166,8 @@ export function CreateReservationRoomType({
   renderRates?: (type: RoomTypeAvailability) => ReactNode;
   headerSummary?: ReactNode;
   onModifySearch?: () => void;
+  modifySearchLabel?: string;
+  activeRoomLabel?: string | null;
   statusMessage?: string | null;
   ratePlanOptions?: Array<{ id: string; name: string }>;
   selectedPlanId?: string;
@@ -222,7 +226,15 @@ export function CreateReservationRoomType({
             <BedDouble className="size-3.5" aria-hidden />
           </span>
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-[#251605]">Availability & Room Selection</h2>
+            <h2 className="text-sm font-semibold text-[#251605]">
+              Availability & Room Selection
+              {activeRoomLabel ? (
+                <>
+                  {" — "}
+                  <span className="text-[#C89933]">{activeRoomLabel}</span>
+                </>
+              ) : null}
+            </h2>
             {headerSummary ?? (
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Select a room type and rate plan that best fits your guest&apos;s needs.
@@ -240,7 +252,7 @@ export function CreateReservationRoomType({
               data-testid="modify-stay-search"
               onClick={onModifySearch}
             >
-              Modify Search
+              {modifySearchLabel ?? "Modify Search"}
             </Button>
           ) : null}
           <label className="flex items-center gap-2 text-xs text-[#6B5E4E]">

@@ -16,6 +16,8 @@ import {
   type PackageMasterRecord,
 } from "./commercial-package.ts";
 import type { ReservationPromotionAttributionRow } from "./commercial-promotion.server.ts";
+import { isMissingSchemaError } from "../pms-set2-structure";
+import { roomUnitAttributionLabel } from "../reservation-room-units";
 
 // Operational tables added in 0104 are not in generated types yet.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,6 +64,8 @@ export type ReservationPackageAttributionRow = {
   appliedAmount: number;
   components: PackageComponentSnapshot[];
   appliedAt: string;
+  reservationRoomId: string | null;
+  roomUnitLabel: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   snapshot: Record<string, any>;
 };
@@ -194,10 +198,18 @@ export async function loadPackageEligibilityContexts(
   const ids = rows.map((row) => row.id);
   const [scopes, masters] = await Promise.all([
     loadScopeMaps(db, restaurantId, ids),
-    loadMasters(db, restaurantId, rows.map((row) => row.package_id)),
+    loadMasters(
+      db,
+      restaurantId,
+      rows.map((row) => row.package_id),
+    ),
   ]);
   return rows.map((row) => ({
-    activation: toActivation(row, scopes.roomTypeIds.get(row.id) ?? [], scopes.ratePlanIds.get(row.id) ?? []),
+    activation: toActivation(
+      row,
+      scopes.roomTypeIds.get(row.id) ?? [],
+      scopes.ratePlanIds.get(row.id) ?? [],
+    ),
     master: masters.get(row.package_id) ?? null,
   }));
 }
@@ -206,7 +218,9 @@ export async function evaluateStoredPackage(
   db: DbClient,
   input: PackageEligibilityInput,
 ): Promise<PackageEligibilityResult> {
-  const contexts = await loadPackageEligibilityContexts(db, input.restaurantId, [input.packageActivationId]);
+  const contexts = await loadPackageEligibilityContexts(db, input.restaurantId, [
+    input.packageActivationId,
+  ]);
   return evaluatePackageEligibility(input, contexts[0] ?? { activation: null, master: null });
 }
 
@@ -235,36 +249,76 @@ export async function evaluateStoredSelectedPackages(
   return { applied: evaluated.applied, warnings: [], failedReason: null };
 }
 
+const PACKAGE_ATTRIBUTION_SELECT =
+  "id, restaurant_id, reservation_id, package_activation_id, package_id, package_code, package_name, charge_basis, quantity, unit_amount, applied_amount, components_snapshot, applied_at, snapshot";
+
 export async function getReservationPackageAttributions(
   db: DbClient,
   input: { restaurantId: string; reservationId: string },
 ): Promise<ReservationPackageAttributionRow[]> {
-  const result = await db
+  let result = await db
     .from("hotel_reservation_packages")
-    .select(
-      "id, restaurant_id, reservation_id, package_activation_id, package_id, package_code, package_name, charge_basis, quantity, unit_amount, applied_amount, components_snapshot, applied_at, snapshot",
-    )
+    .select(`${PACKAGE_ATTRIBUTION_SELECT}, reservation_room_id`)
     .eq("restaurant_id", input.restaurantId)
     .eq("reservation_id", input.reservationId)
     .order("created_at");
+  if (result.error && isMissingSchemaError(result.error)) {
+    result = await db
+      .from("hotel_reservation_packages")
+      .select(PACKAGE_ATTRIBUTION_SELECT)
+      .eq("restaurant_id", input.restaurantId)
+      .eq("reservation_id", input.reservationId)
+      .order("created_at");
+  }
   if (result.error) throw new Error(result.error.message);
-  return ((result.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-    id: String(row["id"]),
-    restaurantId: String(row["restaurant_id"]),
-    reservationId: String(row["reservation_id"]),
-    packageActivationId: String(row["package_activation_id"]),
-    packageId: String(row["package_id"]),
-    packageCode: String(row["package_code"]),
-    packageName: String(row["package_name"]),
-    chargeBasis: String(row["charge_basis"]),
-    quantity: Number(row["quantity"]),
-    unitAmount: Number(row["unit_amount"]),
-    appliedAmount: Number(row["applied_amount"]),
-    components: asComponents(row["components_snapshot"]),
-    appliedAt: String(row["applied_at"]),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    snapshot: (row["snapshot"] ?? {}) as Record<string, any>,
-  }));
+  const rows = (result.data ?? []) as Array<Record<string, unknown>>;
+  const roomIds = [
+    ...new Set(
+      rows
+        .map((row) => row["reservation_room_id"])
+        .filter((id): id is string => typeof id === "string" && id !== ""),
+    ),
+  ];
+  const sequences = new Map<string, number>();
+  if (roomIds.length > 0) {
+    const units = await db
+      .from("hotel_reservation_rooms")
+      .select("id, unit_sequence")
+      .eq("restaurant_id", input.restaurantId)
+      .in("id", roomIds);
+    if (units.error && !isMissingSchemaError(units.error)) throw new Error(units.error.message);
+    for (const unit of (units.data ?? []) as Array<{
+      id: string;
+      unit_sequence: number | string;
+    }>) {
+      sequences.set(unit.id, Number(unit.unit_sequence));
+    }
+  }
+  return rows.map((row) => {
+    const reservationRoomId =
+      typeof row["reservation_room_id"] === "string" ? row["reservation_room_id"] : null;
+    return {
+      id: String(row["id"]),
+      restaurantId: String(row["restaurant_id"]),
+      reservationId: String(row["reservation_id"]),
+      packageActivationId: String(row["package_activation_id"]),
+      packageId: String(row["package_id"]),
+      packageCode: String(row["package_code"]),
+      packageName: String(row["package_name"]),
+      chargeBasis: String(row["charge_basis"]),
+      quantity: Number(row["quantity"]),
+      unitAmount: Number(row["unit_amount"]),
+      appliedAmount: Number(row["applied_amount"]),
+      components: asComponents(row["components_snapshot"]),
+      appliedAt: String(row["applied_at"]),
+      reservationRoomId,
+      roomUnitLabel: reservationRoomId
+        ? roomUnitAttributionLabel(sequences.get(reservationRoomId))
+        : null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      snapshot: (row["snapshot"] ?? {}) as Record<string, any>,
+    };
+  });
 }
 
 export async function getReservationCommercialAttribution(
@@ -278,7 +332,8 @@ export async function getReservationCommercialAttribution(
   ]);
   const promotionDiscount = promotion?.discountAmount ?? 0;
   const roomSubtotalAfterPromotion =
-    promotion?.roomSubtotalAfterPromotion ?? (input.roomSubtotal == null ? null : Number(input.roomSubtotal));
+    promotion?.roomSubtotalAfterPromotion ??
+    (input.roomSubtotal == null ? null : Number(input.roomSubtotal));
   const packagesSubtotal = packages.reduce((sum, row) => sum + row.appliedAmount, 0);
   return {
     promotion,

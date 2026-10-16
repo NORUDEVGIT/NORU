@@ -129,6 +129,8 @@ export function CreateReservationSelectedRoom({
   money,
   onChange,
   statusMessage,
+  roomSequenceLabel = null,
+  occupancyLabel = null,
 }: {
   selectedRoomType: SelectedRoomTypeMeta | null;
   available: number | null;
@@ -139,6 +141,8 @@ export function CreateReservationSelectedRoom({
   money: (value: number) => string;
   onChange: () => void;
   statusMessage?: string | null;
+  roomSequenceLabel?: string | null;
+  occupancyLabel?: string | null;
 }) {
   const rateCopy = rateCopyFromQuote(selectedQuote, money);
   const searchIsCurrent = !statusMessage;
@@ -195,17 +199,36 @@ export function CreateReservationSelectedRoom({
             </div>
           )}
           <div className="min-w-0">
+            {roomSequenceLabel ? (
+              <p
+                className="text-[10px] font-semibold uppercase tracking-wide text-[#C89933]"
+                data-testid="selected-room-sequence"
+              >
+                {roomSequenceLabel}
+              </p>
+            ) : null}
             <p className="truncate text-sm font-semibold text-[#251605]">
               {selectedRoomType?.name ?? "Room"}
             </p>
+            {occupancyLabel ? (
+              <p className="text-xs text-[#6B5E4E]" data-testid="selected-room-occupancy">
+                {occupancyLabel}
+              </p>
+            ) : null}
             {selectedRoomType?.code ? (
               <p className="truncate text-xs text-[#6B5E4E]">{selectedRoomType.code}</p>
             ) : null}
             <AmenityStrip labels={roomDisplayLabels(catalog)} />
           </div>
           <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
-            <SummaryLine label="Rate plan" value={rateCopy.ratePlanLabel} />
-            <SummaryLine label="Rate / night" value={rateCopy.ratePerNight} />
+            <SummaryLine
+              label={roomSequenceLabel ? "Rate Plan" : "Rate plan"}
+              value={rateCopy.ratePlanLabel}
+            />
+            <SummaryLine
+              label={roomSequenceLabel ? "Rate / Night" : "Rate / night"}
+              value={rateCopy.ratePerNight}
+            />
             <SummaryLine label="Nights" value={String(nights)} />
             <div className="min-w-0">
               <dt className="text-[10px] uppercase tracking-wide text-[#6B5E4E]">Stay total</dt>
