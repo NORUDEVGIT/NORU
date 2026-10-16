@@ -10,7 +10,11 @@ import {
 import { commercialGoldButton, commercialOutlineButton } from "../commercial/commercial-ui";
 
 export type ApprovalDialogKind =
-  "approve" | "reject" | "cancel" | "policy-enable" | "policy-disable";
+  | "approve"
+  | "reject"
+  | "cancel"
+  | "policy-enable"
+  | "policy-disable";
 
 export function ApprovalActionDialog({
   open,
@@ -53,23 +57,23 @@ export function ApprovalActionDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#251605]/30 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#251605]/40 backdrop-blur-xs p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="approval-action-title"
     >
-      <div className="w-full max-w-md rounded-xl border border-[#E8E1D7] bg-[#F7F4EE] p-4 shadow-xl">
+      <div className="w-full max-w-md rounded-2xl border border-[#E8E1D7] bg-[#F7F4EE] p-5 shadow-2xl">
         <h3
           id="approval-action-title"
           className="font-display text-lg font-semibold text-[#251605]"
         >
           {title}
         </h3>
-        <p className="mt-2 text-[12px] text-[#251605]">{confirmCopy}</p>
-        {help ? <p className="mt-1 text-[11px] text-muted-foreground">{help}</p> : null}
+        <p className="mt-2 text-sm text-[#251605]">{confirmCopy}</p>
+        {help ? <p className="mt-1 text-xs text-muted-foreground">{help}</p> : null}
         {needsReason ? (
-          <label className="mt-3 block space-y-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <label className="mt-4 block space-y-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Review reason
             </span>
             <textarea
@@ -80,16 +84,16 @@ export function ApprovalActionDialog({
                 setReasonError(null);
               }}
               rows={3}
-              className="w-full rounded-md border border-[#DED7CD] bg-white px-2 py-1.5 text-[12px] text-[#251605]"
+              className="w-full rounded-lg border border-[#DED7CD] bg-white p-2.5 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
               required
             />
             {reasonError ? (
-              <span className="text-[11px] text-destructive">{reasonError}</span>
+              <span className="text-xs font-medium text-destructive">{reasonError}</span>
             ) : null}
           </label>
         ) : null}
-        {error ? <p className="mt-2 text-[11px] text-destructive">{error}</p> : null}
-        <div className="mt-4 flex justify-end gap-2">
+        {error ? <p className="mt-2 text-xs font-medium text-destructive">{error}</p> : null}
+        <div className="mt-5 flex justify-end gap-2.5">
           <button
             type="button"
             className={commercialOutlineButton()}

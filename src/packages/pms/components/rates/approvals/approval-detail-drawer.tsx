@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
 import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
@@ -31,9 +30,9 @@ function formatWhen(value: string | null | undefined) {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-3 text-[11px]">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right text-[#251605]">{value}</span>
+    <div className="flex items-baseline justify-between gap-3 text-xs">
+      <span className="font-medium text-muted-foreground">{label}</span>
+      <span className="text-right font-medium text-[#251605]">{value}</span>
     </div>
   );
 }
@@ -108,9 +107,9 @@ function DrawerBody({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#F7F4EE]">
-      <div className="flex items-start justify-between gap-3 border-b border-[#E8E1D7] px-4 py-3">
+      <div className="flex items-start justify-between gap-3 border-b border-[#E8E1D7] px-5 py-4">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Approval request
           </p>
           <h3 className="mt-1 font-display text-lg font-semibold text-[#251605]">
@@ -120,17 +119,17 @@ function DrawerBody({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md p-1 text-muted-foreground hover:bg-[#E8E1D7]"
+          className="rounded-lg p-1.5 text-muted-foreground hover:bg-[#E8E1D7] hover:text-[#251605] transition-colors"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
-        {loading ? <p className="text-[11px] text-muted-foreground">Loading request…</p> : null}
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+        {loading ? <p className="text-xs text-muted-foreground">Loading request…</p> : null}
         {error ? (
           <div className="space-y-2">
-            <p className="text-[11px] text-[#6B4A0A]">{error}</p>
+            <p className="text-xs font-medium text-[#6B4A0A]">{error}</p>
             <button type="button" className={commercialOutlineButton()} onClick={onRetry}>
               Retry
             </button>
@@ -138,12 +137,12 @@ function DrawerBody({
         ) : null}
         {detail ? (
           <>
-            <section className="space-y-1.5 rounded-md border border-[#E8E1D7] bg-white p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <section className="space-y-2 rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
                 Request
               </p>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] text-muted-foreground">Status</span>
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="font-medium text-muted-foreground">Status</span>
                 <ApprovalStatusChip status={detail.status} />
               </div>
               <Row label="Domain" value={revenueApprovalDomainLabel(detail.domain)} />
@@ -172,46 +171,49 @@ function DrawerBody({
               ) : null}
             </section>
 
-            <section className="space-y-1.5 rounded-md border border-[#E8E1D7] bg-white p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <section className="space-y-2 rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
                 Proposed Change
               </p>
               <ProposalBody detail={detail} />
             </section>
 
-            <section className="space-y-1.5 rounded-md border border-[#E8E1D7] bg-white p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <section className="space-y-2 rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
                 Current State / Warnings
               </p>
               {detail.currentStateHint?.changed ? (
-                <p className="text-[11px] text-[#6B4A0A]">{APPROVAL_CURRENT_STATE_CHANGED}</p>
+                <p className="text-xs text-[#6B4A0A]">{APPROVAL_CURRENT_STATE_CHANGED}</p>
               ) : (
-                <p className="text-[11px] text-muted-foreground">No current-state warning.</p>
+                <p className="text-xs text-muted-foreground">No current-state warning.</p>
               )}
               {staleCopy || detail.status === "stale" ? (
                 <>
-                  <p className="text-[11px] text-[#6B4A0A]">{APPROVAL_STALE_COPY}</p>
-                  <p className="text-[11px] text-muted-foreground">{APPROVAL_STALE_HELP}</p>
+                  <p className="text-xs font-medium text-[#6B4A0A]">{APPROVAL_STALE_COPY}</p>
+                  <p className="text-xs text-muted-foreground">{APPROVAL_STALE_HELP}</p>
                 </>
               ) : null}
             </section>
 
-            <section className="space-y-1.5 rounded-md border border-[#E8E1D7] bg-white p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <section className="space-y-2.5 rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
                 Events
               </p>
-              <ul className="space-y-1.5">
+              <ul className="space-y-2">
                 {detail.events.map((event) => (
-                  <li key={event.id} className="rounded border border-[#EAE4DB] px-2 py-1.5">
-                    <p className="text-[10px] font-medium text-[#251605]">
+                  <li
+                    key={event.id}
+                    className="rounded-lg border border-[#EAE4DB] bg-[#FAF8F4]/80 p-3 space-y-1"
+                  >
+                    <p className="text-xs font-medium text-[#251605]">
                       {revenueApprovalStatusLabel(event.eventType)}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {revenueApprovalRequesterLabel(event.actorLabel)} ·{" "}
                       {formatWhen(event.createdAt)}
                     </p>
                     {event.reason ? (
-                      <p className="text-[10px] text-[#251605]">
+                      <p className="text-xs text-[#251605]">
                         {revenueApprovalReasonLabel(event.reason)}
                       </p>
                     ) : null}
@@ -220,17 +222,19 @@ function DrawerBody({
               </ul>
             </section>
 
-            {applyError ? <p className="text-[11px] text-destructive">{applyError}</p> : null}
+            {applyError ? (
+              <p className="text-xs font-medium text-destructive">{applyError}</p>
+            ) : null}
 
             {pending ? (
-              <section className="space-y-2 rounded-md border border-[#E8E1D7] bg-white p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <section className="space-y-2.5 rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
                   Actions
                 </p>
                 {detail.selfApprovalBlocked ? (
-                  <p className="text-[11px] text-[#6B4A0A]">{SELF_APPROVAL_BLOCKED_COPY}</p>
+                  <p className="text-xs text-[#6B4A0A]">{SELF_APPROVAL_BLOCKED_COPY}</p>
                 ) : null}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 pt-1">
                   {canApprove ? (
                     <button
                       type="button"
@@ -264,8 +268,8 @@ function DrawerBody({
                 </div>
               </section>
             ) : (
-              <section className="space-y-2 rounded-md border border-[#E8E1D7] bg-white p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <section className="space-y-2.5 rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
                   Actions
                 </p>
                 {detail.status === "approved" && detail.appliedOperationId ? (
@@ -277,7 +281,7 @@ function DrawerBody({
                     View Applied Change
                   </button>
                 ) : (
-                  <p className="text-[11px] text-muted-foreground">This request is closed.</p>
+                  <p className="text-xs text-muted-foreground">This request is closed.</p>
                 )}
               </section>
             )}
@@ -319,54 +323,33 @@ export function ApprovalDetailDrawer({
   onCancel: () => void;
   onViewApplied: (view: "rate-history" | "restriction-history" | "commercial-history") => void;
 }) {
-  const [desktop, setDesktop] = useState(true);
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 1280px)");
-    const sync = () => setDesktop(media.matches);
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, []);
-
-  const body = (
-    <DrawerBody
-      detail={detail}
-      loading={loading}
-      error={error}
-      applyError={applyError}
-      staleCopy={staleCopy}
-      access={access}
-      busy={busy}
-      onClose={onClose}
-      onRetry={onRetry}
-      onApprove={onApprove}
-      onReject={onReject}
-      onCancel={onCancel}
-      onViewApplied={onViewApplied}
-    />
-  );
-
   return (
-    <>
-      <aside className="hidden h-full min-h-[32rem] w-[480px] overflow-hidden rounded-xl border border-[#E8E1D7] bg-[#F7F4EE] xl:block">
-        {open ? (
-          body
-        ) : (
-          <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
-            Select a request to review the proposed change.
-          </div>
-        )}
-      </aside>
-      <Sheet
-        open={!desktop && open}
-        onOpenChange={(next) => {
-          if (!next) onClose();
-        }}
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <SheetContent
+        side="right"
+        className="w-[92vw] sm:max-w-[540px] p-0 [&>button]:hidden border-l border-[#E8E1D7] shadow-xl"
       >
-        <SheetContent side="right" className="w-[92vw] max-w-[480px] p-0 xl:hidden">
-          {body}
-        </SheetContent>
-      </Sheet>
-    </>
+        <DrawerBody
+          detail={detail}
+          loading={loading}
+          error={error}
+          applyError={applyError}
+          staleCopy={staleCopy}
+          access={access}
+          busy={busy}
+          onClose={onClose}
+          onRetry={onRetry}
+          onApprove={onApprove}
+          onReject={onReject}
+          onCancel={onCancel}
+          onViewApplied={onViewApplied}
+        />
+      </SheetContent>
+    </Sheet>
   );
 }

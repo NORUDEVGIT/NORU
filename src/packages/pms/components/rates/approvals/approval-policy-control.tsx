@@ -18,16 +18,29 @@ export function ApprovalPolicyControl({
   onRequestChange: (next: boolean) => void;
 }) {
   return (
-    <section className="rounded-xl border border-[#E8E1D7] bg-card px-3 py-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+    <section className="rounded-xl border border-[#E8E1D7] bg-card p-4 shadow-2xs">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
             Approval Workflow
           </p>
-          <p className="mt-0.5 text-[12px] font-medium text-[#251605]">
-            {loading ? "Loading policy…" : enabled ? "Enabled" : "Disabled"}
-          </p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-[#251605]">
+              {loading ? "Loading policy…" : enabled ? "Workflow Enabled" : "Workflow Disabled"}
+            </span>
+            {!loading ? (
+              <span
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  enabled
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200/80"
+                    : "bg-[#F0EBE1] text-[#736B5E] border border-[#DDD4C5]"
+                }`}
+              >
+                {enabled ? "Active" : "Inactive"}
+              </span>
+            ) : null}
+          </div>
+          <p className="text-xs text-muted-foreground">
             {enabled ? APPROVAL_POLICY_ENABLED_HELP : APPROVAL_POLICY_DISABLED_HELP}
           </p>
         </div>
@@ -37,7 +50,7 @@ export function ApprovalPolicyControl({
           disabled={busy || loading}
           onClick={() => onRequestChange(!enabled)}
         >
-          {enabled ? "Disable" : "Enable"}
+          {enabled ? "Disable Workflow" : "Enable Workflow"}
         </button>
       </div>
     </section>

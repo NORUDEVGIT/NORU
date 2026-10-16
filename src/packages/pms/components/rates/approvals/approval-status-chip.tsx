@@ -2,17 +2,17 @@ import { revenueApprovalStatusLabel } from "@/packages/pms/lib/revenue/revenue-a
 import type { RevenueApprovalStatus } from "@/packages/pms/lib/revenue/revenue-approval";
 
 const TONE: Record<RevenueApprovalStatus, string> = {
-  pending: "bg-amber-100 text-amber-900",
-  approved: "bg-emerald-100 text-emerald-900",
-  rejected: "bg-red-100 text-red-800",
-  cancelled: "bg-[#E8E1D7] text-[#5C5146]",
-  stale: "bg-orange-100 text-orange-900",
+  pending: "bg-amber-50 text-amber-800 border border-amber-200/80",
+  approved: "bg-emerald-50 text-emerald-800 border border-emerald-200/80",
+  rejected: "bg-rose-50 text-rose-800 border border-rose-200/80",
+  cancelled: "bg-[#F0EBE1] text-[#736B5E] border border-[#DDD4C5]",
+  stale: "bg-orange-50 text-orange-800 border border-orange-200/80",
 };
 
 export function ApprovalStatusChip({ status }: { status: RevenueApprovalStatus | string }) {
-  const tone = TONE[status as RevenueApprovalStatus] ?? "bg-[#E8E1D7] text-[#5C5146]";
+  const tone = TONE[status as RevenueApprovalStatus] ?? "bg-[#F0EBE1] text-[#736B5E] border border-[#DDD4C5]";
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-semibold ${tone}`}>
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${tone}`}>
       {revenueApprovalStatusLabel(status)}
     </span>
   );

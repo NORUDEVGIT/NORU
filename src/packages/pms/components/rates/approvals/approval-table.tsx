@@ -40,10 +40,10 @@ export function ApprovalTable({
 
   return (
     <>
-      <div className="hidden overflow-auto rounded-xl border border-[#E8E1D7] bg-card md:block">
-        <table className="min-w-max w-full border-collapse">
+      <div className="hidden overflow-x-auto rounded-xl border border-[#E8E1D7] bg-card md:block">
+        <table className="w-full min-w-[840px] border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-[#E8E1D7] bg-[#F7F4EE]">
+            <tr className="border-b border-[#E8E1D7] bg-[#FAF8F4]">
               {(history
                 ? [
                     "Reviewed / Updated",
@@ -70,81 +70,81 @@ export function ApprovalTable({
               ).map((label) => (
                 <th
                   key={label}
-                  className="whitespace-nowrap px-2 py-1.5 text-left text-[9px] font-semibold uppercase tracking-wide text-muted-foreground"
+                  className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#736B5E]"
                 >
                   {label}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-[#E8E1D7]">
             {rows.map((row) => (
               <tr
                 key={row.id}
-                className="cursor-pointer border-t border-[#E8E1D7] hover:bg-[#F7F4EE]"
+                className="cursor-pointer hover:bg-[#FAF8F4]/70 transition-colors"
                 onClick={() => onReview(row)}
               >
-                <td className="whitespace-nowrap px-2 py-1.5 text-[10px] text-[#251605]">
+                <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
                   {formatWhen(history ? (row.reviewedAt ?? row.requestedAt) : row.requestedAt)}
                 </td>
-                <td className="px-2 py-1.5 text-[10px] text-[#251605]">
+                <td className="px-4 py-3 text-xs font-medium text-[#251605]">
                   {revenueApprovalDomainLabel(row.domain)}
                 </td>
-                <td className="max-w-56 px-2 py-1.5 text-[10px] text-[#251605]">{row.summary}</td>
+                <td className="max-w-64 px-4 py-3 text-xs text-[#251605]">{row.summary}</td>
                 {history ? (
                   <>
-                    <td className="px-2 py-1.5 text-[10px] text-[#251605]">
+                    <td className="px-4 py-3 text-xs text-[#251605]">
                       {revenueApprovalRequesterLabel(row.requestedByLabel)}
                     </td>
-                    <td className="px-2 py-1.5 text-[10px] text-[#251605]">
+                    <td className="px-4 py-3 text-xs text-[#251605]">
                       {row.reviewedByLabel
                         ? revenueApprovalRequesterLabel(row.reviewedByLabel)
                         : "—"}
                     </td>
-                    <td className="px-2 py-1.5">
+                    <td className="px-4 py-3">
                       <ApprovalStatusChip status={row.status} />
                     </td>
-                    <td className="max-w-40 truncate px-2 py-1.5 text-[10px] text-muted-foreground">
+                    <td className="max-w-44 truncate px-4 py-3 text-xs text-muted-foreground">
                       {revenueApprovalReasonLabel(row.reviewReason ?? row.requestReason)}
                     </td>
                   </>
                 ) : mine ? (
                   <>
-                    <td className="px-2 py-1.5">
+                    <td className="px-4 py-3">
                       <ApprovalStatusChip status={row.status} />
                     </td>
-                    <td className="px-2 py-1.5 text-[10px] text-[#251605]">
+                    <td className="px-4 py-3 text-xs text-[#251605]">
                       {row.reviewedByLabel
                         ? revenueApprovalRequesterLabel(row.reviewedByLabel)
                         : "—"}
                     </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-[10px] text-[#251605]">
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
                       {formatWhen(row.reviewedAt ?? row.requestedAt)}
                     </td>
                   </>
                 ) : (
                   <>
-                    <td className="max-w-48 px-2 py-1.5 text-[10px] text-[#251605]">
+                    <td className="max-w-48 px-4 py-3 text-xs text-muted-foreground">
                       {revenueApprovalScopeLabel(row.displaySnapshot)}
                     </td>
-                    <td className="px-2 py-1.5 text-[10px] text-[#251605]">
+                    <td className="px-4 py-3 text-xs text-[#251605]">
                       {revenueApprovalRequesterLabel(row.requestedByLabel)}
                     </td>
-                    <td className="max-w-40 truncate px-2 py-1.5 text-[10px] text-muted-foreground">
+                    <td className="max-w-44 truncate px-4 py-3 text-xs text-muted-foreground">
                       {revenueApprovalReasonLabel(row.requestReason)}
                     </td>
-                    <td className="px-2 py-1.5">
+                    <td className="px-4 py-3">
                       <ApprovalStatusChip status={row.status} />
                     </td>
                   </>
                 )}
-                <td className="px-2 py-1.5 text-right" onClick={(event) => event.stopPropagation()}>
+                <td className="px-4 py-3 text-right" onClick={(event) => event.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
                         aria-label={`Actions for ${row.summary}`}
-                        className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[#F3ECE2] hover:text-[#251605] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]/40"
+                        className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[#F3ECE2] hover:text-[#251605] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]/40"
                       >
                         <MoreHorizontal className="size-4" />
                       </button>
@@ -167,25 +167,25 @@ export function ApprovalTable({
           </tbody>
         </table>
       </div>
-      <div className="space-y-2 md:hidden">
+      <div className="space-y-3 md:hidden">
         {rows.map((row) => (
           <button
             key={row.id}
             type="button"
             onClick={() => onReview(row)}
-            className="w-full rounded-xl border border-[#E8E1D7] bg-card px-3 py-2 text-left"
+            className="w-full rounded-xl border border-[#E8E1D7] bg-card p-4 text-left transition-colors hover:bg-[#FAF8F4]/70 space-y-2"
           >
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[11px] font-medium text-[#251605]">{row.summary}</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-semibold text-[#251605]">{row.summary}</p>
               <ApprovalStatusChip status={row.status} />
             </div>
-            <p className="mt-1 text-[10px] text-[#251605]">
+            <p className="text-xs font-medium text-[#251605]">
               {revenueApprovalDomainLabel(row.domain)}
             </p>
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {formatWhen(row.requestedAt)} · {revenueApprovalRequesterLabel(row.requestedByLabel)}
             </p>
-            <p className="mt-1 text-[10px] text-[#251605]">
+            <p className="text-xs text-[#251605]">
               {revenueApprovalScopeLabel(row.displaySnapshot)}
             </p>
           </button>
