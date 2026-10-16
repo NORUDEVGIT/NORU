@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Coins, FileText, Percent, Plus, Printer, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Coins,
+  FileText,
+  Percent,
+  Plus,
+  Printer,
+  Receipt,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { GuestInvoiceModal } from "@/packages/pms/components/cashiering/guest-invoice-modal";
@@ -47,6 +58,57 @@ function chargeKind(group: InvoiceGroupView): "room" | "service" | "manual" | "o
   if (group.chargeSource === "service") return "service";
   if (group.category === "manual" || group.chargeSource === "manual") return "manual";
   return "other";
+}
+
+function InvoiceSettlementBadge({
+  state,
+  legacy,
+}: {
+  state?: string | null;
+  legacy?: boolean;
+}) {
+  if (legacy) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
+        <span className="size-1.5 rounded-full bg-slate-400" />
+        Legacy
+      </span>
+    );
+  }
+  if (!state) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  const label = guestSettlementLabel(state as any);
+  if (state === "PAID") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+        <span className="size-1.5 rounded-full bg-emerald-500" />
+        {label}
+      </span>
+    );
+  }
+  if (state === "PARTIALLY_PAID") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-800">
+        <span className="size-1.5 rounded-full bg-amber-500" />
+        {label}
+      </span>
+    );
+  }
+  if (state === "NO_AMOUNT_DUE") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E8E1D7] bg-[#F5EFE6] px-2.5 py-0.5 text-[11px] font-medium text-[#765719]">
+        <span className="size-1.5 rounded-full bg-[#8a6a1f]" />
+        {label}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[11px] font-medium text-rose-700">
+      <span className="size-1.5 rounded-full bg-rose-500" />
+      {label}
+    </span>
+  );
 }
 
 export function GuestInvoiceWorkspace({
@@ -131,6 +193,8 @@ export function GuestInvoiceWorkspace({
   const [search, setSearch] = useState("");
   const [pane, setPane] = useState<"items" | "preview" | "tax">("items");
   const [viewingInvoice, setViewingInvoice] = useState<IssuedFolioInvoiceRow | null>(null);
+  const [invoicePage, setInvoicePage] = useState(1);
+  const [invoicePageSize, setInvoicePageSize] = useState(5);
   const issueStarted = useRef(false);
 
   useEffect(() => {
@@ -631,94 +695,198 @@ export function GuestInvoiceWorkspace({
         </div>
       ) : null}
 
-      <div className={cn(CARD, "overflow-hidden")}>
-        <div className="border-b border-[#E8E1D7] px-4 py-3">
-          <h3 className="text-sm font-semibold">Issued invoices</h3>
-        </div>
-        {folio.issuedInvoices.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-muted-foreground">No issued invoice yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className={HEAD}>
-                <tr>
-                  <th className="px-3 py-2 font-medium">Invoice no.</th>
-                  <th className="px-3 py-2 font-medium">Issued at</th>
-                  <th className="px-3 py-2 text-right font-medium">Total</th>
-                  <th className="px-3 py-2 font-medium">Settlement</th>
-                  <th className="px-3 py-2 font-medium">Fiscal</th>
-                  <th className="px-3 py-2 font-medium">Reprints</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {folio.issuedInvoices.map((invoice) => (
-                  <tr key={invoice.id} className="border-t border-[#E8E1D7]/80">
-                    <td className="px-3 py-2 font-medium">
-                      {invoice.issuedNumber}
-                      {invoice.coverageScope === "legacy_folio" ? (
-                        <div className="text-xs text-muted-foreground">Legacy folio invoice</div>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {dateTime(invoice.issuedAt)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {money(
-                        invoice.snapshot.totals.invoiceTotal ?? invoice.snapshot.totals.balance,
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {invoice.coverageScope === "legacy_folio"
-                        ? "Unavailable"
-                        : (() => {
-                            const state = settlementQuery.data?.find(
-                              (row) => row.invoiceId === invoice.id,
-                            )?.settlementState;
-                            return state ? guestSettlementLabel(state) : "—";
-                          })()}
-                    </td>
-                    <td className="px-3 py-2">
-                      {fiscalQuery.isLoading ? (
-                        "—"
-                      ) : (
-                        <FiscalInvoiceStatusBadge
-                          status={fiscalByInvoice.get(invoice.id)?.status ?? "not_registered"}
-                          error={fiscalByInvoice.get(invoice.id)?.error}
-                        />
-                      )}
-                    </td>
-                    <td className="px-3 py-2">{invoice.reprintCount}</td>
-                    <td className="px-3 py-2 text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mr-2 h-7 gap-1.5 border-[#DDD4C5] bg-white text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
-                        onClick={() => setViewingInvoice(invoice)}
-                      >
-                        <FileText className="size-3.5 text-[#8a6a1f]" />
-                        <span>View</span>
-                      </Button>
-                      {workspace.capabilities.canReprintInvoice ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 gap-1 border-[#DDD4C5] bg-white text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
-                          disabled={reprinting}
-                          onClick={() => onReprint(invoice)}
+      {(() => {
+        const issuedInvoices = folio.issuedInvoices;
+        const totalInvoicePages = Math.max(1, Math.ceil(issuedInvoices.length / invoicePageSize));
+        const currentInvoicePage = Math.min(invoicePage, totalInvoicePages);
+        const startInvoiceIndex = (currentInvoicePage - 1) * invoicePageSize;
+        const endInvoiceIndex = Math.min(startInvoiceIndex + invoicePageSize, issuedInvoices.length);
+        const pageInvoices = issuedInvoices.slice(startInvoiceIndex, endInvoiceIndex);
+
+        return (
+          <div className={cn(CARD, "overflow-hidden")}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E8E1D7] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="size-4 text-[#8a6a1f]" />
+                <h3 className="text-sm font-semibold">Issued invoices</h3>
+                {issuedInvoices.length > 0 ? (
+                  <span className="rounded-full border border-[#E8E1D7] bg-[#F5EFE6] px-2 py-0.5 text-[11px] font-medium text-[#765719]">
+                    {issuedInvoices.length} {issuedInvoices.length === 1 ? "invoice" : "invoices"}
+                  </span>
+                ) : null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Official immutable invoice documents for this folio
+              </p>
+            </div>
+            {issuedInvoices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-8 text-center">
+                <FileText className="mb-2 size-8 text-muted-foreground/40" />
+                <p className="text-sm font-medium text-foreground">No issued invoice yet.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Create and issue an invoice from uninvoiced folio charges above.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead className="border-b border-[#E8E1D7] bg-[#F8F5F0] text-left text-[11px] font-semibold uppercase tracking-wider text-[#765719]">
+                      <tr>
+                        <th className="px-3.5 py-2.5">Invoice no.</th>
+                        <th className="px-3.5 py-2.5">Issued at</th>
+                        <th className="px-3.5 py-2.5 text-right">Total</th>
+                        <th className="px-3.5 py-2.5">Settlement state</th>
+                        <th className="px-3.5 py-2.5">Fiscal registration</th>
+                        <th className="px-3.5 py-2.5 text-center">Reprints</th>
+                        <th className="px-3.5 py-2.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E8E1D7]">
+                      {pageInvoices.map((invoice) => {
+                        const settlement = settlementQuery.data?.find(
+                          (row) => row.invoiceId === invoice.id,
+                        );
+                        const fiscalStatus = fiscalByInvoice.get(invoice.id);
+                        const totalAmount =
+                          invoice.snapshot.totals.invoiceTotal ?? invoice.snapshot.totals.balance;
+
+                        return (
+                          <tr key={invoice.id} className="transition-colors hover:bg-[#FAF8F4]/80">
+                            <td className="px-3.5 py-2.5">
+                              <div className="flex items-center gap-2">
+                                <FileText className="size-3.5 text-muted-foreground" />
+                                <span className="font-semibold text-foreground">
+                                  {invoice.issuedNumber}
+                                </span>
+                              </div>
+                              {invoice.coverageScope === "legacy_folio" ? (
+                                <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                  Legacy folio invoice
+                                </div>
+                              ) : null}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-xs text-muted-foreground">
+                              {dateTime(invoice.issuedAt)}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-right font-medium tabular-nums text-foreground">
+                              {money(totalAmount)}
+                            </td>
+                            <td className="px-3.5 py-2.5">
+                              <InvoiceSettlementBadge
+                                state={settlement?.settlementState}
+                                legacy={invoice.coverageScope === "legacy_folio"}
+                              />
+                            </td>
+                            <td className="px-3.5 py-2.5">
+                              {fiscalQuery.isLoading ? (
+                                <span className="text-xs text-muted-foreground">Loading…</span>
+                              ) : (
+                                <FiscalInvoiceStatusBadge
+                                  status={fiscalStatus?.status ?? "not_registered"}
+                                  error={fiscalStatus?.error}
+                                />
+                              )}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-center">
+                              {invoice.reprintCount > 0 ? (
+                                <span className="inline-flex items-center rounded-md border border-[#E2D7C3] bg-[#F5EFE6] px-1.5 py-0.5 text-[11px] font-medium text-[#765719]">
+                                  {invoice.reprintCount}×
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60">0</span>
+                              )}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-right">
+                              <div className="flex justify-end gap-1.5">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 gap-1 border-[#DDD4C5] bg-white px-2.5 text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
+                                  onClick={() => setViewingInvoice(invoice)}
+                                >
+                                  <FileText className="size-3.5 text-[#8a6a1f]" />
+                                  <span>View</span>
+                                </Button>
+                                {workspace.capabilities.canReprintInvoice ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 gap-1 border-[#DDD4C5] bg-white px-2.5 text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
+                                    disabled={reprinting}
+                                    onClick={() => onReprint(invoice)}
+                                  >
+                                    <Printer className="size-3.5 text-[#7A6B58]" />
+                                    <span>Reprint</span>
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {issuedInvoices.length > 5 ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E1D7] bg-[#FDFBF7] px-3.5 py-2.5 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-3">
+                      <span>
+                        Showing <span className="font-medium text-foreground">{startInvoiceIndex + 1}</span>–
+                        <span className="font-medium text-foreground">{endInvoiceIndex}</span> of{" "}
+                        <span className="font-medium text-foreground">{issuedInvoices.length}</span> invoices
+                      </span>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span>Rows:</span>
+                        <select
+                          value={invoicePageSize}
+                          onChange={(e) => {
+                            setInvoicePageSize(Number(e.target.value));
+                            setInvoicePage(1);
+                          }}
+                          className="rounded border border-[#E8E1D7] bg-white px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#8a6a1f]"
                         >
-                          <Printer className="size-3.5 text-[#7A6B58]" />
-                          <span>Reprint</span>
-                        </Button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                          <option value={5}>5</option>
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentInvoicePage <= 1}
+                        onClick={() => setInvoicePage((p) => Math.max(1, p - 1))}
+                        className="h-7 px-2 text-xs"
+                      >
+                        <ChevronLeft className="mr-0.5 size-3.5" />
+                        Previous
+                      </Button>
+                      <span className="px-2 font-medium text-foreground">
+                        {currentInvoicePage} / {totalInvoicePages}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentInvoicePage >= totalInvoicePages}
+                        onClick={() => setInvoicePage((p) => Math.min(totalInvoicePages, p + 1))}
+                        className="h-7 px-2 text-xs"
+                      >
+                        Next
+                        <ChevronRight className="ml-0.5 size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       <GuestInvoiceModal
         open={currentViewingInvoice !== null}

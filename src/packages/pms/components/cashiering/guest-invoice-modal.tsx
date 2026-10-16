@@ -107,7 +107,7 @@ export function GuestInvoiceModal({
   const availableUnallocated = useMemo(
     () =>
       workspace.folio.transactions
-        .filter((row) => row.type === "payment" || row.type === "deposit")
+        .filter((row) => row.type === "payment")
         .reduce((sum, payment) => {
           const refunded = workspace.folio.transactions
             .filter((row) => row.type === "refund" && row.originalTransactionId === payment.id)

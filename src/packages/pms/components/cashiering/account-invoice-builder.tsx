@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { FileText, Printer, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Printer,
+  Receipt,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { listFinancialAccountOutstandingInvoices } from "@/packages/pms/lib/cashiering-account-allocation.functions";
@@ -35,6 +43,48 @@ import { cn } from "@/shared/lib/utils";
 const CARD = "rounded-xl border border-[#E8E1D7] bg-white shadow-sm";
 const HEAD =
   "border-b border-[#E8E1D7] bg-[#F7F4EE] text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
+
+function AccountSettlementBadge({ state }: { state?: string | null }) {
+  if (!state) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[11px] font-medium text-rose-700">
+        <span className="size-1.5 rounded-full bg-rose-500" />
+        Unpaid
+      </span>
+    );
+  }
+  const label = settlementStateLabel(state as any);
+  if (state === "PAID") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+        <span className="size-1.5 rounded-full bg-emerald-500" />
+        {label}
+      </span>
+    );
+  }
+  if (state === "PARTIALLY_PAID") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-800">
+        <span className="size-1.5 rounded-full bg-amber-500" />
+        {label}
+      </span>
+    );
+  }
+  if (state === "NO_AMOUNT_DUE") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E8E1D7] bg-[#F5EFE6] px-2.5 py-0.5 text-[11px] font-medium text-[#765719]">
+        <span className="size-1.5 rounded-full bg-[#8a6a1f]" />
+        {label}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[11px] font-medium text-rose-700">
+      <span className="size-1.5 rounded-full bg-rose-500" />
+      {label}
+    </span>
+  );
+}
 
 const WARNING_TEXT: Record<string, string> = {
   ACCOUNT_CHARGE_ALREADY_INVOICED: "That charge is already on an issued invoice.",
@@ -88,6 +138,8 @@ export function AccountInvoiceWorkspace({
     queryFn: () => fetchInvoices({ data: { restaurantId, accountId } }),
   });
   const [viewingInvoice, setViewingInvoice] = useState<IssuedAccountInvoice | null>(null);
+  const [invoicePage, setInvoicePage] = useState(1);
+  const [invoicePageSize, setInvoicePageSize] = useState(5);
   const settlementsQuery = useQuery({
     queryKey: ["account-invoice-settlements", restaurantId, accountId],
     queryFn: () => fetchSettlements({ data: { restaurantId, accountId } }),
@@ -584,94 +636,192 @@ export function AccountInvoiceWorkspace({
         </div>
       ) : null}
 
-      <div className={cn(CARD, "overflow-hidden")}>
-        <div className="border-b border-[#E8E1D7] px-4 py-3">
-          <h3 className="font-medium">Issued invoices</h3>
-        </div>
-        {invoices.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-muted-foreground">
-            No invoice has been issued for this account.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[840px] text-left text-sm">
-              <thead className={HEAD}>
-                <tr>
-                  <th className="px-3 py-2">Invoice no.</th>
-                  <th className="px-3 py-2">Issued</th>
-                  <th className="px-3 py-2 text-right">Effective net</th>
-                  <th className="px-3 py-2 text-right">Allocated</th>
-                  <th className="px-3 py-2 text-right">Outstanding</th>
-                  <th className="px-3 py-2">Settlement</th>
-                  <th className="px-3 py-2">Fiscal</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.map((invoice) => {
-                  const settlement = (settlementsQuery.data ?? []).find(
-                    (row) => row.invoiceId === invoice.id,
-                  );
-                  return (
-                    <tr key={invoice.id} className="border-b border-[#E8E1D7]">
-                      <td className="px-3 py-2 font-medium">
-                        {invoice.issuedNumber}
-                        <span className="mt-1 block text-[11px] text-muted-foreground">Issued</span>
-                      </td>
-                      <td className="px-3 py-2">{dateTime(invoice.issuedAt)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {money(settlement?.effectiveNet ?? invoice.snapshot.totals.invoiceTotal)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {money(settlement?.allocated ?? 0)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {money(settlement?.outstanding ?? invoice.snapshot.totals.invoiceTotal)}
-                      </td>
-                      <td className="px-3 py-2">
-                        {settlement ? settlementStateLabel(settlement.settlementState) : "Unpaid"}
-                      </td>
-                      <td className="px-3 py-2">
-                        {fiscalQuery.isLoading ? (
-                          "—"
-                        ) : (
-                          <FiscalInvoiceStatusBadge
-                            status={fiscalByInvoice.get(invoice.id)?.status ?? "not_registered"}
-                            error={fiscalByInvoice.get(invoice.id)?.error}
-                          />
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mr-2 h-7 gap-1.5 border-[#DDD4C5] bg-white text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
-                          onClick={() => setViewingInvoice(invoice)}
+      {(() => {
+        const totalInvoicePages = Math.max(1, Math.ceil(invoices.length / invoicePageSize));
+        const currentInvoicePage = Math.min(invoicePage, totalInvoicePages);
+        const startInvoiceIndex = (currentInvoicePage - 1) * invoicePageSize;
+        const endInvoiceIndex = Math.min(startInvoiceIndex + invoicePageSize, invoices.length);
+        const pageInvoices = invoices.slice(startInvoiceIndex, endInvoiceIndex);
+
+        return (
+          <div className={cn(CARD, "overflow-hidden")}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E8E1D7] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="size-4 text-[#8a6a1f]" />
+                <h3 className="text-sm font-semibold">Issued invoices</h3>
+                {invoices.length > 0 ? (
+                  <span className="rounded-full border border-[#E8E1D7] bg-[#F5EFE6] px-2 py-0.5 text-[11px] font-medium text-[#765719]">
+                    {invoices.length} {invoices.length === 1 ? "invoice" : "invoices"}
+                  </span>
+                ) : null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Official immutable invoice documents for this company account
+              </p>
+            </div>
+            {invoices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-8 text-center">
+                <FileText className="mb-2 size-8 text-muted-foreground/40" />
+                <p className="text-sm font-medium text-foreground">No invoice has been issued for this account.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Create and issue an invoice from uninvoiced account charges above.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[840px] text-left text-sm">
+                    <thead className="border-b border-[#E8E1D7] bg-[#F8F5F0] text-left text-[11px] font-semibold uppercase tracking-wider text-[#765719]">
+                      <tr>
+                        <th className="px-3.5 py-2.5">Invoice no.</th>
+                        <th className="px-3.5 py-2.5">Issued at</th>
+                        <th className="px-3.5 py-2.5 text-right">Effective net</th>
+                        <th className="px-3.5 py-2.5 text-right">Allocated</th>
+                        <th className="px-3.5 py-2.5 text-right">Outstanding</th>
+                        <th className="px-3.5 py-2.5">Settlement state</th>
+                        <th className="px-3.5 py-2.5">Fiscal registration</th>
+                        <th className="px-3.5 py-2.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E8E1D7]">
+                      {pageInvoices.map((invoice) => {
+                        const settlement = (settlementsQuery.data ?? []).find(
+                          (row) => row.invoiceId === invoice.id,
+                        );
+                        const fiscalStatus = fiscalByInvoice.get(invoice.id);
+                        return (
+                          <tr key={invoice.id} className="transition-colors hover:bg-[#FAF8F4]/80">
+                            <td className="px-3.5 py-2.5">
+                              <div className="flex items-center gap-2">
+                                <FileText className="size-3.5 text-muted-foreground" />
+                                <span className="font-semibold text-foreground">
+                                  {invoice.issuedNumber}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-3.5 py-2.5 text-xs text-muted-foreground">
+                              {dateTime(invoice.issuedAt)}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-right tabular-nums text-foreground">
+                              {money(settlement?.effectiveNet ?? invoice.snapshot.totals.invoiceTotal)}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-right tabular-nums text-muted-foreground">
+                              {money(settlement?.allocated ?? 0)}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-right font-medium tabular-nums">
+                              <span
+                                className={
+                                  (settlement?.outstanding ?? invoice.snapshot.totals.invoiceTotal) > 0.01
+                                    ? "text-amber-800"
+                                    : "text-emerald-700"
+                                }
+                              >
+                                {money(settlement?.outstanding ?? invoice.snapshot.totals.invoiceTotal)}
+                              </span>
+                            </td>
+                            <td className="px-3.5 py-2.5">
+                              <AccountSettlementBadge state={settlement?.settlementState} />
+                            </td>
+                            <td className="px-3.5 py-2.5">
+                              {fiscalQuery.isLoading ? (
+                                <span className="text-xs text-muted-foreground">Loading…</span>
+                              ) : (
+                                <FiscalInvoiceStatusBadge
+                                  status={fiscalStatus?.status ?? "not_registered"}
+                                  error={fiscalStatus?.error}
+                                />
+                              )}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-right">
+                              <div className="flex justify-end gap-1.5">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 gap-1 border-[#DDD4C5] bg-white px-2.5 text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
+                                  onClick={() => setViewingInvoice(invoice)}
+                                >
+                                  <FileText className="size-3.5 text-[#8a6a1f]" />
+                                  <span>View</span>
+                                </Button>
+                                {canManage ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 gap-1 border-[#DDD4C5] bg-white px-2.5 text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
+                                    disabled={reprintMut.isPending}
+                                    onClick={() => reprintMut.mutate(invoice.id)}
+                                  >
+                                    <Printer className="size-3.5 text-[#7A6B58]" />
+                                    <span>Reprint</span>
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {invoices.length > 5 ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E1D7] bg-[#FDFBF7] px-3.5 py-2.5 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-3">
+                      <span>
+                        Showing <span className="font-medium text-foreground">{startInvoiceIndex + 1}</span>–
+                        <span className="font-medium text-foreground">{endInvoiceIndex}</span> of{" "}
+                        <span className="font-medium text-foreground">{invoices.length}</span> invoices
+                      </span>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span>Rows:</span>
+                        <select
+                          value={invoicePageSize}
+                          onChange={(e) => {
+                            setInvoicePageSize(Number(e.target.value));
+                            setInvoicePage(1);
+                          }}
+                          className="rounded border border-[#E8E1D7] bg-white px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#8a6a1f]"
                         >
-                          <FileText className="size-3.5 text-[#8a6a1f]" />
-                          <span>View</span>
-                        </Button>
-                        {canManage ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 gap-1 border-[#DDD4C5] bg-white text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
-                            disabled={reprintMut.isPending}
-                            onClick={() => reprintMut.mutate(invoice.id)}
-                          >
-                            <Printer className="size-3.5 text-[#7A6B58]" />
-                            <span>Reprint</span>
-                          </Button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          <option value={5}>5</option>
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentInvoicePage <= 1}
+                        onClick={() => setInvoicePage((p) => Math.max(1, p - 1))}
+                        className="h-7 px-2 text-xs"
+                      >
+                        <ChevronLeft className="mr-0.5 size-3.5" />
+                        Previous
+                      </Button>
+                      <span className="px-2 font-medium text-foreground">
+                        {currentInvoicePage} / {totalInvoicePages}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentInvoicePage >= totalInvoicePages}
+                        onClick={() => setInvoicePage((p) => Math.min(totalInvoicePages, p + 1))}
+                        className="h-7 px-2 text-xs"
+                      >
+                        Next
+                        <ChevronRight className="ml-0.5 size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       <AccountInvoiceModal
         open={currentViewingInvoice !== null}
