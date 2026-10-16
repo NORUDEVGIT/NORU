@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { NoruLogo } from "@/core/components/noru-logo";
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+import { ArrowLeft } from "lucide-react";
+import { AuthShell, AuthField, AuthError, AuthSubmit, authLinkClass } from "@/core/components/auth/authshell";
+import loginImage from "@/core/components/noru-site/assets/login.png";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/restaurant/login")({
@@ -16,19 +15,22 @@ export const Route = createFileRoute("/restaurant/login")({
   },
   head: () => ({
     meta: [
-      { title: "Restaurant Log In — NORU" },
-      { name: "description", content: "Restaurant owners and managers: sign in to manage your restaurant on the NORU platform." },
-      { property: "og:title", content: "Restaurant Log In — NORU" },
-      { property: "og:description", content: "Sign in to your restaurant portal." },
+      { title: "Hotel Log In — NORU" },
+      { name: "description", content: "Hotel owners and managers: sign in to manage your hotel on the NORU platform." },
+      { property: "og:title", content: "Hotel Log In — NORU" },
+      { property: "og:description", content: "Sign in to your hotel portal." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: RestaurantLogin,
+  component: HotelLogin,
 });
 
-function RestaurantLogin() {
+const backLinkClass =
+  "fixed left-4 top-4 z-50 inline-flex items-center gap-1.5 rounded-full bg-black/40 px-4 py-2 text-sm font-medium text-white backdrop-blur transition hover:bg-black/60";
+
+function HotelLogin() {
   const navigate = useNavigate();
   const { redirect: redirectTo } = Route.useSearch();
   const [email, setEmail] = useState("");
@@ -66,45 +68,45 @@ function RestaurantLogin() {
     setBusy(false);
     if (!membership) {
       await supabase.auth.signOut();
-      setError("This account isn't linked to a restaurant. Customers can log in from the main site.");
+      setError("This account isn't linked to a hotel. Customers can log in from the main site.");
       return;
     }
     void navigate({ to: redirectTo ?? "/restaurant/home", replace: true });
   }
 
   return (
-    <div className="min-h-dvh bg-muted/30">
-      <main className="mx-auto w-full max-w-md px-4 py-12">
-        <NoruLogo size="lg" className="mb-8" />
-        <h1 className="font-display text-3xl">Restaurant log in</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Manage your restaurant on the NORU platform.</p>
-
-        <form onSubmit={onSubmit} className="mt-6 space-y-4 rounded-2xl border border-border bg-card p-5">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email address</Label>
-            <Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 rounded-xl text-base" />
+    <>
+      <Link to="/" className={backLinkClass}>
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Back to home
+      </Link>
+      <AuthShell
+        image={loginImage}
+        title="Hotel log in"
+        subtitle="Manage your hotel on the NORU platform."
+        visualTitle="Run your whole hotel from one place."
+        chips={["PMS", "RMS", "POS", "Back Office"]}
+        footer={
+          <>
+            New to NORU?{" "}
+            <Link to="/restaurant/register" className={authLinkClass}>
+              Register your hotel
+            </Link>
+          </>
+        }
+      >
+        <form onSubmit={onSubmit} className="space-y-4">
+          <AuthField id="email" label="Email address" type="email" value={email} onChange={setEmail} autoComplete="email" />
+          <AuthField id="password" label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
+          <div className="-mt-1.5 flex justify-end text-sm">
+            <Link to="/forgot-password" className={authLinkClass}>
+              Forgot password?
+            </Link>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-12 rounded-xl text-base" />
-          </div>
-          {error ? (
-            <p role="alert" className="rounded-xl bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">{error}</p>
-          ) : null}
-          <Button type="submit" size="lg" disabled={busy} className="h-13 w-full rounded-full text-base">
-            {busy ? "Logging in…" : "Log in"}
-          </Button>
+          {error ? <AuthError>{error}</AuthError> : null}
+          <AuthSubmit busy={busy}>{busy ? "Logging in…" : "Log in"}</AuthSubmit>
         </form>
-
-        <div className="mt-6 space-y-2 text-center text-sm text-muted-foreground">
-          <p>
-            <Link to="/forgot-password" className="font-semibold text-foreground underline underline-offset-4">Forgot password?</Link>
-          </p>
-          <p>
-            <Link to="/restaurant/register" className="font-semibold text-foreground underline underline-offset-4">Register your restaurant</Link>
-          </p>
-        </div>
-      </main>
-    </div>
+      </AuthShell>
+    </>
   );
 }
