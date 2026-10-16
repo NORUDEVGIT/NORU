@@ -571,7 +571,7 @@ export async function assertListingCreateAllowed(
 
 export const getGuestWorkspaceConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GuestWorkspaceConfig> => {
     await requireGuestManager(context as never, data.restaurantId);
     return loadGuestWorkspaceConfig(data.restaurantId);

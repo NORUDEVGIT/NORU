@@ -48,7 +48,7 @@ function slugify(value: string): string {
  * role='owner' and approved=false; none of those come from the request.
  */
 export const registerRestaurant = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => registerSchema.parse(input))
+  .validator((input: unknown) => registerSchema.parse(input))
   .handler(async ({ data }) => {
     const { publicServerClient } = await import("@/core/lib/public-client.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -266,7 +266,7 @@ export const getMyRestaurants = createServerFn({ method: "GET" })
  */
 export const updateMyRestaurant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => settingsSchema.parse(input))
+  .validator((input: unknown) => settingsSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { data: membership } = await context.supabase
       .from("restaurant_users")

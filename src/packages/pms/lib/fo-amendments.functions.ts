@@ -389,7 +389,7 @@ function companionSnapshot(primaryName: string, companions: Array<{ name: string
 
 export const getAmendContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<AmendContext> => {
@@ -507,7 +507,7 @@ async function persistStayFields(params: {
 
 export const upgradeReservationType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -622,7 +622,7 @@ export const upgradeReservationType = createServerFn({ method: "POST" })
 
 export const amendStayGuests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -702,7 +702,7 @@ export const amendStayGuests = createServerFn({ method: "POST" })
 
 export const attachStayCompanion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -776,7 +776,7 @@ export const attachStayCompanion = createServerFn({ method: "POST" })
 
 export const detachStayCompanion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -837,7 +837,7 @@ export const detachStayCompanion = createServerFn({ method: "POST" })
 
 export const addStayService = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -910,7 +910,7 @@ export const addStayService = createServerFn({ method: "POST" })
 
 export const addSpecialRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -968,7 +968,7 @@ export const addSpecialRequest = createServerFn({ method: "POST" })
 
 export const createGuestRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1010,7 +1010,7 @@ export const createGuestRequest = createServerFn({ method: "POST" })
 
 export const setGuestRequestStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1052,7 +1052,7 @@ export const setGuestRequestStatus = createServerFn({ method: "POST" })
 
 export const listGuestRequests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<FoGuestRequestRow[]> => {

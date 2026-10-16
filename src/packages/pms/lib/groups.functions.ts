@@ -420,7 +420,7 @@ export async function attachReservationToGroup(
 
 export const listGroups = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -526,7 +526,7 @@ export const listGroups = createServerFn({ method: "POST" })
 
 export const getGroup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -654,7 +654,7 @@ const groupWriteSchema = z.object({
 
 export const createGroup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => groupWriteSchema.parse(input))
+  .validator((input: unknown) => groupWriteSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireGroupWriter(context as never, data.restaurantId);
     assertStayDates(data.arrivalDate, data.departureDate);
@@ -704,7 +704,7 @@ export const createGroup = createServerFn({ method: "POST" })
 
 export const amendGroup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => groupWriteSchema.extend({ groupId: idSchema }).parse(input))
+  .validator((input: unknown) => groupWriteSchema.extend({ groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireGroupWriter(context as never, data.restaurantId);
     assertStayDates(data.arrivalDate, data.departureDate);
@@ -762,7 +762,7 @@ export const amendGroup = createServerFn({ method: "POST" })
 
 export const addGroupBlock = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -823,7 +823,7 @@ export const addGroupBlock = createServerFn({ method: "POST" })
 
 export const releaseGroupBlock = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -884,7 +884,7 @@ export const releaseGroupBlock = createServerFn({ method: "POST" })
 
 export const addRoomingRow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -936,7 +936,7 @@ export const addRoomingRow = createServerFn({ method: "POST" })
 
 export const convertRoomingRow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, groupId: idSchema, rowId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {

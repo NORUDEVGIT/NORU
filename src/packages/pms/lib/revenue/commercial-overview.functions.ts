@@ -31,7 +31,7 @@ const workspaceSchema = z.object({
 
 export const getCommercialOverviewWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => workspaceSchema.parse(input))
+  .validator((input: unknown) => workspaceSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -44,7 +44,7 @@ export const getCommercialOverviewWorkspace = createServerFn({ method: "POST" })
 
 export const getPromotionsWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => workspaceSchema.parse(input))
+  .validator((input: unknown) => workspaceSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -57,7 +57,7 @@ export const getPromotionsWorkspace = createServerFn({ method: "POST" })
 
 export const getPromotionPerformanceSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     workspaceSchema.extend({ activationId: idSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {

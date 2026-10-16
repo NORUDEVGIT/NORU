@@ -56,7 +56,7 @@ export interface DirectBookingSettings {
 
 export const getDistributionAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await callerMembership(context as never, data.restaurantId);
     return { role: me.role, canManage: canManageDistribution(me.role) };
@@ -64,7 +64,7 @@ export const getDistributionAccess = createServerFn({ method: "POST" })
 
 export const getDistributionOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(
     async ({
       data,
@@ -174,7 +174,7 @@ export const getDistributionOverview = createServerFn({ method: "POST" })
 
 export const saveDirectBookingSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -202,7 +202,7 @@ export const saveDirectBookingSettings = createServerFn({ method: "POST" })
 
 export const setChannelStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, channelId: idSchema, status: z.enum(CHANNEL_STATUSES) })
       .parse(input),
@@ -220,7 +220,7 @@ export const setChannelStatus = createServerFn({ method: "POST" })
 
 export const saveRoomMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -249,7 +249,7 @@ export const saveRoomMapping = createServerFn({ method: "POST" })
 
 export const saveRateMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

@@ -312,7 +312,7 @@ function requireOption(
 
 export const getCard5Facilities = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -330,7 +330,7 @@ export const getCard5Facilities = createServerFn({ method: "POST" })
 
 export const saveCard5Facility = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => facilitySchema.parse(input))
+  .validator((input: unknown) => facilitySchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,

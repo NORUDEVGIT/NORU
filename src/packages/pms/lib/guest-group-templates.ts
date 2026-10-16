@@ -74,7 +74,7 @@ function mapTemplate(row: Record<string, unknown>): GroupTemplateRow {
 
 export const listGroupTemplates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GroupTemplateRow[]> => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -90,7 +90,7 @@ export const listGroupTemplates = createServerFn({ method: "POST" })
 
 export const saveGroupTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -135,7 +135,7 @@ export const saveGroupTemplate = createServerFn({ method: "POST" })
 
 export const deleteGroupTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, templateId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {

@@ -73,7 +73,7 @@ function blankToNull(value: string | null | undefined): string | null {
 
 export const listSuppliers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -141,7 +141,7 @@ export const listSuppliers = createServerFn({ method: "POST" })
 
 export const createSupplier = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, ...supplierFields }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -178,7 +178,7 @@ export const createSupplier = createServerFn({ method: "POST" })
 
 export const updateSupplier = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -235,7 +235,7 @@ export interface SupplierPurchase {
 
 export const getSupplierPurchaseHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, supplierId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<SupplierPurchase[]> => {

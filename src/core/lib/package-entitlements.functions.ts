@@ -17,7 +17,7 @@ export interface MyPackageEntitlements {
 
 export const getMyPackageEntitlements = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<MyPackageEntitlements> => {
@@ -70,7 +70,7 @@ export const getMyPackageEntitlements = createServerFn({ method: "POST" })
  */
 export const getMyRoutePackageAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ packageKey: z.enum(["restaurant_management", "pms", "pos", "back_office"]) }).parse(
       input,
     ),
@@ -153,7 +153,7 @@ async function requireExistingRestaurant(restaurantId: string): Promise<string> 
 
 export const getPackageEntitlementsAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: restaurantIdSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: restaurantIdSchema }).parse(input))
   .handler(async ({ data, context }): Promise<AdminPackageState[]> => {
     const { requirePlatformAdmin } = await import("./admin-authz");
     await requirePlatformAdmin(context as never);
@@ -172,7 +172,7 @@ interface MutationResult {
  */
 export const setPropertyPackageEntitlement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: restaurantIdSchema,
@@ -252,7 +252,7 @@ export const setPropertyPackageEntitlement = createServerFn({ method: "POST" })
  */
 export const clearPropertyPackageEntitlement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: restaurantIdSchema, packageKey: packageKeySchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<MutationResult> => {

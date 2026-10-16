@@ -163,7 +163,7 @@ export interface CashieringDashboard {
 
 export const getDefaultDepositPolicy = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
+  .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<{ summary: string | null }> => {
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -213,7 +213,7 @@ export const getDefaultDepositPolicy = createServerFn({ method: "GET" })
 
 export const getCashieringCorrectionNotice = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
+  .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(
     async ({
       data,
@@ -272,7 +272,7 @@ async function readThresholdNotice(
 
 export const getCashieringAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
+  .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }) => {
     const me = await requireCashieringAccess(context as never, data.restaurantId);
     return {
@@ -403,7 +403,7 @@ async function staffNames(
 
 export const listFolios = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; status?: string; search?: string }) =>
+  .validator((d: { restaurantId: string; status?: string; search?: string }) =>
     z
       .object({
         restaurantId: idSchema,
@@ -921,7 +921,7 @@ export interface FolioWorkspace {
 
 export const getFolio = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; folioId: string }) =>
+  .validator((d: { restaurantId: string; folioId: string }) =>
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioDetail | null> => {
@@ -932,7 +932,7 @@ export const getFolio = createServerFn({ method: "GET" })
 
 export const getFolioWorkspace = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; folioId: string }) =>
+  .validator((d: { restaurantId: string; folioId: string }) =>
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioWorkspace | null> => {
@@ -990,7 +990,7 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
 /** The folio for a reservation, if one has been opened. */
 export const getReservationFolio = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; reservationId: string }) =>
+  .validator((d: { restaurantId: string; reservationId: string }) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(d),
   )
   .handler(
@@ -1022,7 +1022,7 @@ export const getReservationFolio = createServerFn({ method: "GET" })
 
 export const getCashieringDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; today: string }) =>
+  .validator((d: { restaurantId: string; today: string }) =>
     z.object({ restaurantId: idSchema, today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(d),
   )
   .handler(async ({ data, context }): Promise<CashieringDashboard> => {
@@ -1104,7 +1104,7 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
 /** Opens (or reuses) the primary folio for a reservation and posts the room charge once. */
 export const initializeFolio = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; reservationId: string }) =>
+  .validator((d: { restaurantId: string; reservationId: string }) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
@@ -1130,7 +1130,7 @@ export const initializeFolio = createServerFn({ method: "POST" })
 
 export const postFolioEntry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: {
       restaurantId: string;
       folioId: string;
@@ -1311,7 +1311,7 @@ function readChargePreview(value: unknown): FolioChargePreview {
 /** Read-only tax and service preview for a manual charge. Does not post. */
 export const previewFolioCharge = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; folioId: string; amount: number }) =>
+  .validator((d: { restaurantId: string; folioId: string; amount: number }) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1422,7 +1422,7 @@ function readServiceChargePreview(value: unknown): FolioServiceChargePreview {
 /** Guest services with one billing department, including rows that still need a price. Does not post. */
 export const listChargeableGuestServices = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; folioId: string }) =>
+  .validator((d: { restaurantId: string; folioId: string }) =>
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<ChargeableGuestService[]> => {
@@ -1443,7 +1443,7 @@ export const listChargeableGuestServices = createServerFn({ method: "GET" })
 /** Read-only tax preview for a guest-service charge. Price is re-derived on the server. */
 export const previewFolioServiceCharge = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: { restaurantId: string; folioId: string; serviceTypeId: string; quantity: number }) =>
       z
         .object({
@@ -1470,7 +1470,7 @@ export const previewFolioServiceCharge = createServerFn({ method: "GET" })
 /** Posts a guest service. The browser does not send price, department, or total. */
 export const postFolioServiceCharge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: {
       restaurantId: string;
       folioId: string;
@@ -1517,7 +1517,7 @@ export const postFolioServiceCharge = createServerFn({ method: "POST" })
 
 export const closeFolio = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; folioId: string }) =>
+  .validator((d: { restaurantId: string; folioId: string }) =>
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
@@ -1536,7 +1536,7 @@ export const closeFolio = createServerFn({ method: "POST" })
 
 export const listCashierShifts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
+  .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<CashierShiftRow[]> => {
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1615,7 +1615,7 @@ export const listCashierShifts = createServerFn({ method: "GET" })
 
 export const openCashierShift = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; openingCash: number; notes?: string }) =>
+  .validator((d: { restaurantId: string; openingCash: number; notes?: string }) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1639,7 +1639,7 @@ export const openCashierShift = createServerFn({ method: "POST" })
 
 export const closeCashierShift = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: { restaurantId: string; shiftId: string; closingCash: number; notes?: string }) =>
       z
         .object({
@@ -1680,7 +1680,7 @@ export const closeCashierShift = createServerFn({ method: "POST" })
 
 export const postHotelDrawerMovement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: {
       restaurantId: string;
       shiftId: string;
@@ -1731,7 +1731,7 @@ export const postHotelDrawerMovement = createServerFn({ method: "POST" })
 /** Cash movement recorded while a shift was open, for the closing count. */
 export const getShiftSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; shiftId: string }) =>
+  .validator((d: { restaurantId: string; shiftId: string }) =>
     z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(d),
   )
   .handler(
@@ -1805,7 +1805,7 @@ export interface LedgerEntryRow {
  */
 export const listLedgerEntries = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; types: string[]; search?: string }) =>
+  .validator((d: { restaurantId: string; types: string[]; search?: string }) =>
     z
       .object({
         restaurantId: idSchema,

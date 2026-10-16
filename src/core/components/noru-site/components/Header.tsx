@@ -1,13 +1,7 @@
-
 import { useEffect, useState } from "react";
 import logo from "../assets/logo.png";
-import { PRODUCTS, SOLUTIONS } from "../data/content";
-import {
-  hrefFor,
-  useRequestDemo,
-  type PageId,
-  type Route,
-} from "../lib/router";
+import { useNoruSite } from "../site-context";
+import { hrefFor, useRequestDemo, type PageId, type Route } from "../lib/router";
 
 const PRODUCT_MENU_ORDER = ["back", "rms", "pos", "pms"] as const;
 
@@ -27,26 +21,23 @@ const RESOURCE_LINKS = [
 ] as const;
 
 function activeNav(page: PageId): NavKey | null {
-  if (
-    page === "product" ||
-    page === "solutions" ||
-    page === "pricing" ||
-    page === "resources"
-  ) {
+  if (page === "product" || page === "solutions" || page === "pricing" || page === "resources") {
     return page;
   }
 
   return null;
 }
 
-export function Header({
-  route,
-  account,
-}: {
-  route: Route;
-  account: SiteAccount;
-}) {
+export function Header({ route, account }: { route: Route; account: SiteAccount }) {
   const requestDemo = useRequestDemo();
+  const { products, solutions } = useNoruSite();
+  const menuProducts = [...products].sort((a, b) => {
+    const rank = (id: string) => {
+      const index = PRODUCT_MENU_ORDER.indexOf(id as (typeof PRODUCT_MENU_ORDER)[number]);
+      return index === -1 ? PRODUCT_MENU_ORDER.length + 1 : index;
+    };
+    return rank(a.id) - rank(b.id);
+  });
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [openNav, setOpenNav] = useState<NavKey | null>(null);
@@ -77,13 +68,7 @@ export function Header({
   const active = activeNav(route.page);
 
   const itemClass = (key: NavKey): string =>
-    [
-      "nav-i",
-      openNav === key ? "open" : "",
-      active === key ? "act" : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
+    ["nav-i", openNav === key ? "open" : "", active === key ? "act" : ""].filter(Boolean).join(" ");
 
   const toggle = (key: NavKey): void => {
     setOpenNav((current) => (current === key ? null : key));
@@ -94,17 +79,8 @@ export function Header({
       <div className="w">
         <nav>
           {/* Logo and Home */}
-          <a
-            className="logo"
-            href={hrefFor("home")}
-            aria-label="Noru Digital Solutions – Home"
-          >
-            <img
-              src={logo}
-              alt=""
-              width={42}
-              height={42}
-            />
+          <a className="logo" href={hrefFor("home")} aria-label="Noru Digital Solutions – Home">
+            <img src={logo} alt="" width={42} height={42} />
             Noru Digital Solutions
           </a>
 
@@ -121,10 +97,7 @@ export function Header({
           </button>
 
           {/* Navigation Menu */}
-          <div
-            className={menuOpen ? "menu show" : "menu"}
-            id="menu"
-          >
+          <div className={menuOpen ? "menu show" : "menu"} id="menu">
             {/* Product Features Dropdown */}
             <div className={itemClass("product")}>
               <button
@@ -136,20 +109,11 @@ export function Header({
               </button>
 
               <div className="dd">
-                {PRODUCT_MENU_ORDER.map((id) => {
-                  const product = PRODUCTS.find(
-                    (item) => item.id === id
-                  );
-
-                  return product ? (
-                    <a
-                      key={product.id}
-                      href={hrefFor("product", product.id)}
-                    >
-                      {product.title}
-                    </a>
-                  ) : null;
-                })}
+                {menuProducts.map((product) => (
+                  <a key={product.id} href={hrefFor("product", product.id)}>
+                    {product.title}
+                  </a>
+                ))}
               </div>
             </div>
 
@@ -164,11 +128,8 @@ export function Header({
               </button>
 
               <div className="dd">
-                {SOLUTIONS.map((solution) => (
-                  <a
-                    key={solution.id}
-                    href={hrefFor("solutions", solution.id)}
-                  >
+                {solutions.map((solution) => (
+                  <a key={solution.id} href={hrefFor("solutions", solution.id)}>
                     {solution.title}
                   </a>
                 ))}
@@ -177,9 +138,7 @@ export function Header({
 
             {/* Pricing */}
             <div className={itemClass("pricing")}>
-              <a href={hrefFor("pricing")}>
-                Pricing
-              </a>
+              <a href={hrefFor("pricing")}>Pricing</a>
             </div>
 
             {/* Resources Dropdown */}
@@ -194,10 +153,7 @@ export function Header({
 
               <div className="dd">
                 {RESOURCE_LINKS.map((resource) => (
-                  <a
-                    key={resource.id}
-                    href={hrefFor("resources", resource.id)}
-                  >
+                  <a key={resource.id} href={hrefFor("resources", resource.id)}>
                     {resource.label}
                   </a>
                 ))}
@@ -206,9 +162,7 @@ export function Header({
 
             {/* Sign In Only: No Account or Dashboard Menu */}
             <div className="nav-i">
-              <a href="/restaurant/login">
-                Sign In
-              </a>
+              <a href="/restaurant/login">Sign In</a>
             </div>
 
             {/* Request Demo */}

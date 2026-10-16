@@ -1,6 +1,7 @@
 import type { KeyboardEvent } from "react";
-import { SOLUTIONS, PRODUCTS, type Offering } from "../data/content";
+import type { SiteOffering } from "@/core/lib/marketing/types";
 import { useNavigate, type PageId } from "../lib/router";
+import { useNoruSite } from "../site-context";
 import { ArrowIcon, Icon } from "./Icon";
 import photoRestaurants from "../assets/photo-restaurants.jpg";
 import photoResorts from "../assets/photo-resorts.jpg";
@@ -15,7 +16,7 @@ const SOLUTION_PHOTOS: Record<string, string> = {
 };
 
 interface CardProps {
-  item: Offering;
+  item: SiteOffering;
   page: PageId;
   cta: string;
   photo?: string | undefined;
@@ -40,7 +41,7 @@ function OfferingCard({ item, page, cta, photo }: CardProps) {
     >
       {photo ? (
         <div className="cimg">
-          <img src={photo} alt="" loading="lazy" />
+          <img src={photo} alt={item.imageAlt ?? ""} loading="lazy" />
         </div>
       ) : null}
       <div className="fb">
@@ -57,13 +58,14 @@ function OfferingCard({ item, page, cta, photo }: CardProps) {
 }
 
 export function ProductHighlights() {
+  const { products } = useNoruSite();
   return (
     <section>
       <div className="w">
         <h2>Product highlights</h2>
         <div className="g4">
-          {PRODUCTS.map((p) => (
-            <OfferingCard key={p.id} item={p} page="product" cta="Learn More" />
+          {products.map((product) => (
+            <OfferingCard key={product.id} item={product} page="product" cta="Learn More" />
           ))}
         </div>
       </div>
@@ -72,13 +74,20 @@ export function ProductHighlights() {
 }
 
 export function SolutionHighlights() {
+  const { solutions } = useNoruSite();
   return (
     <section className="alt">
       <div className="w">
         <h2>Solutions for every property</h2>
         <div className="g4">
-          {SOLUTIONS.map((s) => (
-            <OfferingCard key={s.id} item={s} page="solutions" cta="See solution" photo={SOLUTION_PHOTOS[s.id]} />
+          {solutions.map((solution) => (
+            <OfferingCard
+              key={solution.id}
+              item={solution}
+              page="solutions"
+              cta="See solution"
+              photo={solution.imageUrl || SOLUTION_PHOTOS[solution.id]}
+            />
           ))}
         </div>
       </div>

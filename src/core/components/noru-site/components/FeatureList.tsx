@@ -1,6 +1,6 @@
-import type { Point } from "../data/content";
+import type { SitePoint } from "@/core/lib/marketing/types";
 
-export function FeatureList({ points }: { points: Point[] }) {
+export function FeatureList({ points }: { points: SitePoint[] }) {
   return (
     <ul className="ck">
       {points.map((p) => (

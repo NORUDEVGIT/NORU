@@ -182,7 +182,7 @@ async function buildRecipeDetail(
 
 export const getMenuItemRecipe = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, menuItemId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RecipeDetail> => {
@@ -194,7 +194,7 @@ export const getMenuItemRecipe = createServerFn({ method: "POST" })
 /** Cost-only view of one recipe (same maths, lighter payload). */
 export const getRecipeCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, menuItemId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -215,7 +215,7 @@ export const getRecipeCost = createServerFn({ method: "POST" })
 /** Active ingredients of this restaurant plus the units each may be measured in. */
 export const listRecipeIngredientOptions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RecipeIngredientOption[]> => {
     await requireView(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -254,7 +254,7 @@ const componentInput = z.object({
 
 export const saveRecipeComponent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => componentInput.parse(input))
+  .validator((input: unknown) => componentInput.parse(input))
   .handler(async ({ data, context }): Promise<{ ok: boolean; message?: string }> => {
     const me = await requireManage(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -297,7 +297,7 @@ export const saveRecipeComponent = createServerFn({ method: "POST" })
 
 export const updateRecipeComponent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -346,7 +346,7 @@ export const updateRecipeComponent = createServerFn({ method: "POST" })
 
 export const removeRecipeComponent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, componentId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: boolean; message?: string }> => {
@@ -371,7 +371,7 @@ export interface MenuRecipeSummary {
 /** Per-menu-item recipe indicators for the menu management list. */
 export const getMenuRecipeSummaries = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(
     async ({
       data,
@@ -424,7 +424,7 @@ export const getMenuRecipeSummaries = createServerFn({ method: "POST" })
 /** Read-only "used in recipes" visibility for an ingredient. */
 export const getIngredientUsage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, inventoryItemId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ menuItems: { id: string; name: string }[] }> => {

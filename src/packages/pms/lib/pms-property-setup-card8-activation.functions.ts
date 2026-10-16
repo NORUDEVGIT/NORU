@@ -9,7 +9,7 @@ import { loadCard8ActivationEligibility } from "./pms-property-setup-card8-activ
 
 export const getCard8ActivationEligibility = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,

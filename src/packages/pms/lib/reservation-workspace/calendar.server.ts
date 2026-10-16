@@ -520,7 +520,7 @@ function withBarExceptions(
 
 export const getReservationCalendar = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => calendarReadInputSchema.parse(input))
+  .validator((input: unknown) => calendarReadInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<CalendarRead> => {
     await requireReservationManager(context as never, data.restaurantId);
     const generatedAt = new Date().toISOString();

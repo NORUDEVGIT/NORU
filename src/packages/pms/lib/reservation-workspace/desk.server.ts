@@ -131,7 +131,7 @@ export async function loadReservationDeskKpis(params: {
 
 export const getReservationDesk = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => operationalReservationSearchInputSchema.parse(input))
+  .validator((input: unknown) => operationalReservationSearchInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<ReservationDeskSnapshot> => {
     await requireReservationManager(context as never, data.restaurantId);
     const generatedAt = new Date().toISOString();

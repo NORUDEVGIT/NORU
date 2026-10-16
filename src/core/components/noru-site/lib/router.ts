@@ -9,19 +9,21 @@ export type PageId = "home" | "product" | "solutions" | "pricing" | "resources";
 export interface Route {
   page: PageId;
   anchor?: string | undefined;
+  detail?: string | undefined;
 }
 
 const PAGES: readonly PageId[] = ["home", "product", "solutions", "pricing", "resources"];
 
 export function parseHash(hash: string): Route {
-  const [rawPage = "", anchor] = hash.replace(/^#/, "").split("/");
+  const [rawPage = "", anchor, detail] = hash.replace(/^#/, "").split("/");
   const page = PAGES.find((p) => p === rawPage) ?? "home";
-  return { page, anchor: anchor || undefined };
+  return { page, anchor: anchor || undefined, detail: detail || undefined };
 }
 
-export function hrefFor(page: PageId, anchor?: string): string {
+export function hrefFor(page: PageId, anchor?: string, detail?: string): string {
   if (page === "home") return "#";
-  return `#${page}${anchor ? `/${anchor}` : ""}`;
+  const path = `#${page}${anchor ? `/${anchor}` : ""}`;
+  return detail ? `${path}/${detail}` : path;
 }
 
 function subscribe(onChange: () => void): () => void {
@@ -39,9 +41,9 @@ export function useRoute(): Route {
   return parseHash(hash);
 }
 
-export function useNavigate(): (page: PageId, anchor?: string) => void {
-  return useCallback((page: PageId, anchor?: string) => {
-    const next = hrefFor(page, anchor);
+export function useNavigate(): (page: PageId, anchor?: string, detail?: string) => void {
+  return useCallback((page: PageId, anchor?: string, detail?: string) => {
+    const next = hrefFor(page, anchor, detail);
     const target = next === "#" ? "" : next;
     if (window.location.hash === target) {
       window.scrollTo(0, 0);
@@ -54,15 +56,26 @@ export function useNavigate(): (page: PageId, anchor?: string) => void {
 export function useScrollToTop(route: Route): void {
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [route.page, route.anchor]);
+  }, [route.page, route.anchor, route.detail]);
 }
 
 export const DEMO_EVENT = "noru:demo";
+
+let demoMarkedAt = 0;
+
+export function markDemoRequest(): void {
+  demoMarkedAt = Date.now();
+}
+
+export function isDemoRequestNavigation(): boolean {
+  return Date.now() - demoMarkedAt < 1000;
+}
 
 /** "Request Demo" opens the contact form and resets it, even if it is already open. */
 export function useRequestDemo(): () => void {
   const navigate = useNavigate();
   return useCallback(() => {
+    markDemoRequest();
     navigate("resources", "contact");
     window.dispatchEvent(new Event(DEMO_EVENT));
   }, [navigate]);

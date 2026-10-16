@@ -273,7 +273,7 @@ function mapAgency(agency: TravelAgentMasterRow, logoUrl: string | null) {
 
 export const getTravelAgentDetailWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -390,7 +390,7 @@ export const getTravelAgentDetailWorkspace = createServerFn({ method: "POST" })
 
 export const setTravelAgentStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -423,7 +423,7 @@ export const setTravelAgentStatus = createServerFn({ method: "POST" })
 
 export const createTravelAgentLogoUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -446,7 +446,7 @@ export const createTravelAgentLogoUpload = createServerFn({ method: "POST" })
 
 export const saveTravelAgentLogo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, agencyId: idSchema, path: z.string().min(1).max(400) }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -528,7 +528,7 @@ async function decorateTaContacts(
 
 export const listTravelAgentContacts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -621,7 +621,7 @@ function emptyContactKpis() {
 
 export const saveTravelAgentContact = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -717,7 +717,7 @@ export const saveTravelAgentContact = createServerFn({ method: "POST" })
 
 export const setTravelAgentContactPrimary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, agencyId: idSchema, contactId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -759,7 +759,7 @@ export const setTravelAgentContactPrimary = createServerFn({ method: "POST" })
 
 export const createTravelAgentContactPhotoUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -784,7 +784,7 @@ export { getCompanyContactCatalogues as getTravelAgentContactCatalogues };
 
 export const listTravelAgentReservations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -879,7 +879,7 @@ export const listTravelAgentReservations = createServerFn({ method: "POST" })
 
 export const addTravelAgentNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -921,7 +921,7 @@ export const addTravelAgentNote = createServerFn({ method: "POST" })
 
 export const listTravelAgentNotes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -991,7 +991,7 @@ export const listTravelAgentNotes = createServerFn({ method: "POST" })
 
 export const updateTravelAgentNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1028,7 +1028,7 @@ export const updateTravelAgentNote = createServerFn({ method: "POST" })
 
 export const archiveTravelAgentNote = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, agencyId: idSchema, noteId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1073,7 +1073,7 @@ async function ensureTravelAgentDocumentTypes(db: { from: (table: string) => any
 
 export const listTravelAgentDocuments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1136,7 +1136,7 @@ export const listTravelAgentDocuments = createServerFn({ method: "POST" })
 
 export const createTravelAgentDocumentUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1159,7 +1159,7 @@ export const createTravelAgentDocumentUpload = createServerFn({ method: "POST" }
 
 export const saveTravelAgentDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1227,7 +1227,7 @@ export const saveTravelAgentDocument = createServerFn({ method: "POST" })
 
 export const reviewTravelAgentDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1267,7 +1267,7 @@ export const reviewTravelAgentDocument = createServerFn({ method: "POST" })
 
 export const deleteTravelAgentDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, agencyId: idSchema, documentId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1286,7 +1286,7 @@ export const deleteTravelAgentDocument = createServerFn({ method: "POST" })
 
 export const listTravelAgentAgreements = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1397,7 +1397,7 @@ export const listTravelAgentAgreements = createServerFn({ method: "POST" })
 
 export const saveTravelAgentAgreement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1473,7 +1473,7 @@ export const saveTravelAgentAgreement = createServerFn({ method: "POST" })
 
 export const expireTravelAgentAgreement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, agencyId: idSchema, agreementId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1500,7 +1500,7 @@ export const expireTravelAgentAgreement = createServerFn({ method: "POST" })
 
 export const listTravelAgentBilling = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1643,7 +1643,7 @@ export const listTravelAgentBilling = createServerFn({ method: "POST" })
 
 export const updateTravelAgentSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1790,7 +1790,7 @@ export const updateTravelAgentSettings = createServerFn({ method: "POST" })
 
 export const listTravelAgentSettingsCatalogues = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1826,7 +1826,7 @@ export const listTravelAgentSettingsCatalogues = createServerFn({ method: "POST"
 
 export const listTravelAgentCommissionPlans = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1898,7 +1898,7 @@ export const listTravelAgentCommissionPlans = createServerFn({ method: "POST" })
 
 export const saveTravelAgentCommissionPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1956,7 +1956,7 @@ export const saveTravelAgentCommissionPlan = createServerFn({ method: "POST" })
 
 export const listTravelAgentCommissionEntries = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -2047,7 +2047,7 @@ export const listTravelAgentCommissionEntries = createServerFn({ method: "POST" 
 
 export const updateTravelAgentCommissionStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -2085,7 +2085,7 @@ export const updateTravelAgentCommissionStatus = createServerFn({ method: "POST"
 
 export const listTravelAgentAllotments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -2132,7 +2132,7 @@ export const listTravelAgentAllotments = createServerFn({ method: "POST" })
 
 export const saveTravelAgentAllotment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -2188,7 +2188,7 @@ export const saveTravelAgentAllotment = createServerFn({ method: "POST" })
 
 export const listTravelAgentNotificationPrefs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -2216,7 +2216,7 @@ export const listTravelAgentNotificationPrefs = createServerFn({ method: "POST" 
 
 export const saveTravelAgentNotificationPrefs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -2287,7 +2287,7 @@ export async function notifyTravelAgentBookingEvent(options: {
 
 export const getTravelAgentWorkspaceSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

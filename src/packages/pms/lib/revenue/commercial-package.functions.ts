@@ -29,7 +29,7 @@ const stayQuerySchema = z.object({
 
 export const listEligiblePackageActivations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => stayQuerySchema.parse(input))
+  .validator((input: unknown) => stayQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -42,7 +42,7 @@ export const listEligiblePackageActivations = createServerFn({ method: "POST" })
 
 export const getReservationPackageAttributions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -53,7 +53,7 @@ export const getReservationPackageAttributions = createServerFn({ method: "POST"
 
 export const getReservationCommercialAttribution = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({
       restaurantId: idSchema,
       reservationId: idSchema,

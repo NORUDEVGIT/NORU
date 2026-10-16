@@ -111,7 +111,7 @@ export type { StayQuote } from "./rates.server";
 
 export const getRatesAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await callerMembership(context as never, data.restaurantId);
     return { role: me.role, canManage: canManageRates(me.role) };
@@ -121,7 +121,7 @@ export const getRatesAccess = createServerFn({ method: "POST" })
 
 export const listRateCategories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RateCategory[]> => {
     await requireRateManager(context as never, data.restaurantId);
     const { data: rows, error } = await context.supabase
@@ -141,7 +141,7 @@ export const listRateCategories = createServerFn({ method: "POST" })
 
 export const saveRateCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -606,7 +606,7 @@ async function loadRatePlans(
 
 export const listRatePlans = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -627,7 +627,7 @@ export const listRatePlans = createServerFn({ method: "POST" })
 
 export const saveRatePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -767,7 +767,7 @@ export const saveRatePlan = createServerFn({ method: "POST" })
 
 export const setRatePlanActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, ratePlanId: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; active: boolean }> => {
@@ -812,7 +812,7 @@ async function assertPlan(context: { supabase: never }, restaurantId: string, ra
 
 export const listRateCalendar = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, ratePlanId: idSchema, from: dateSchema, to: dateSchema })
       .parse(input),
@@ -846,7 +846,7 @@ export const listRateCalendar = createServerFn({ method: "POST" })
 
 export const saveRateOverride = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -893,7 +893,7 @@ export const saveRateOverride = createServerFn({ method: "POST" })
 
 export const listRateRestrictions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, ratePlanId: idSchema, from: dateSchema, to: dateSchema })
       .parse(input),
@@ -941,7 +941,7 @@ export const listRateRestrictions = createServerFn({ method: "POST" })
 /** Compatibility Restriction Calendar writer. Official Phase 3 writes use applyRestrictionChanges. */
 export const saveRateRestriction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1027,7 +1027,7 @@ export interface RatePlanQuote {
 /** Authoritative server pricing for every plan of a room type across a stay. */
 export const quoteStay = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1237,7 +1237,7 @@ export type FlexibleStayWindow = {
 /** Adjacent-date quotes for one selected plan. Does not invent a yield engine. */
 export const quoteFlexibleStay = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1314,7 +1314,7 @@ function agreementRatePlanIds(row: Record<string, unknown>): string[] {
 /** Maps the company's saved agreement and billing rule onto the reservation. */
 export const listAccountRatePlanHints = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1464,7 +1464,7 @@ export const listAccountRatePlanHints = createServerFn({ method: "POST" })
 
 export const repriceReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, reservationId: idSchema, ratePlanId: idSchema })
       .parse(input),
@@ -1527,7 +1527,7 @@ export const repriceReservation = createServerFn({ method: "POST" })
 
 export const getRevenueOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, from: dateSchema, to: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RevenueOverview> => {

@@ -21,7 +21,7 @@ import { RATE_HISTORY_LOAD_ERROR, toRevenueReadError } from "./revenue-read-erro
 
 export const previewRateChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => rateChangeRequestSchema.parse(input))
+  .validator((input: unknown) => rateChangeRequestSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     return previewRateChangesOnServer(context.supabase, data);
@@ -29,7 +29,7 @@ export const previewRateChanges = createServerFn({ method: "POST" })
 
 export const applyRateChanges = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => rateChangeRequestSchema.parse(input))
+  .validator((input: unknown) => rateChangeRequestSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -41,7 +41,7 @@ export const applyRateChanges = createServerFn({ method: "POST" })
 
 export const listRateChangeHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => rateChangeHistoryQuerySchema.parse(input))
+  .validator((input: unknown) => rateChangeHistoryQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -54,7 +54,7 @@ export const listRateChangeHistory = createServerFn({ method: "POST" })
 
 export const getRateChangeOperationDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => rateChangeOperationQuerySchema.parse(input))
+  .validator((input: unknown) => rateChangeOperationQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

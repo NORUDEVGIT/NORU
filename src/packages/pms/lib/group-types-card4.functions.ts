@@ -82,7 +82,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<GroupTy
 
 export const getPmsCard4GroupTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -91,7 +91,7 @@ export const getPmsCard4GroupTypes = createServerFn({ method: "POST" })
 
 export const savePmsCard4GroupType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveSchema.parse(input))
+  .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -155,7 +155,7 @@ export const savePmsCard4GroupType = createServerFn({ method: "POST" })
 
 export const setPmsCard4GroupTypeActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -179,7 +179,7 @@ export const setPmsCard4GroupTypeActive = createServerFn({ method: "POST" })
 
 export const deletePmsCard4GroupType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {

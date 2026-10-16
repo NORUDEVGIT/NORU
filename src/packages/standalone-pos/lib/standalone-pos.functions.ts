@@ -104,7 +104,7 @@ async function loadOpenSale(db: any, restaurantId: string, saleId: string) {
 
 export const getPosSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireStandalonePosAccess(context as any, data.restaurantId);
     const db = await admin();
@@ -117,7 +117,7 @@ export const getPosSettings = createServerFn({ method: "POST" })
 
 export const savePosSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; defaultTaxRate: number; taxInclusive: boolean }) =>
+  .validator((input: { restaurantId: string; defaultTaxRate: number; taxInclusive: boolean }) =>
     z
       .object({
         restaurantId: idSchema,
@@ -145,7 +145,7 @@ export const savePosSettings = createServerFn({ method: "POST" })
 
 export const listPosRegisters = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireStandalonePosAccess(context as any, data.restaurantId);
     const db = await admin();
@@ -182,7 +182,7 @@ export const listPosRegisters = createServerFn({ method: "POST" })
 
 export const savePosRegister = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { restaurantId: string; id?: string; name: string; locationLabel?: string | null; active?: boolean }) =>
       z
         .object({
@@ -234,7 +234,7 @@ export const savePosRegister = createServerFn({ method: "POST" })
 
 export const listPosCategories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireStandalonePosAccess(context as any, data.restaurantId);
     const db = await admin();
@@ -254,7 +254,7 @@ export const listPosCategories = createServerFn({ method: "POST" })
 
 export const savePosCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { restaurantId: string; id?: string; name: string; sortOrder?: number; active?: boolean }) =>
       z
         .object({
@@ -287,7 +287,7 @@ export const savePosCategory = createServerFn({ method: "POST" })
 
 export const listPosProducts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; includeInactive?: boolean }) =>
+  .validator((input: { restaurantId: string; includeInactive?: boolean }) =>
     z.object({ restaurantId: idSchema, includeInactive: z.boolean().optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -314,7 +314,7 @@ export const listPosProducts = createServerFn({ method: "POST" })
 
 export const savePosProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       restaurantId: string;
       id?: string;
@@ -423,7 +423,7 @@ async function expectedCashFor(db: any, shiftId: string, openingFloat: number) {
 
 export const getOpenPosShift = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; registerId: string }) =>
+  .validator((input: { restaurantId: string; registerId: string }) =>
     z.object({ restaurantId: idSchema, registerId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -449,7 +449,7 @@ export const getOpenPosShift = createServerFn({ method: "POST" })
 
 export const openPosShift = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; registerId: string; openingFloat?: number }) =>
+  .validator((input: { restaurantId: string; registerId: string; openingFloat?: number }) =>
     z
       .object({ restaurantId: idSchema, registerId: idSchema, openingFloat: z.number().min(0).optional() })
       .parse(input),
@@ -489,7 +489,7 @@ export const openPosShift = createServerFn({ method: "POST" })
 
 export const closePosShift = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; shiftId: string; closingCash: number; notes?: string | null }) =>
+  .validator((input: { restaurantId: string; shiftId: string; closingCash: number; notes?: string | null }) =>
     z
       .object({
         restaurantId: idSchema,
@@ -548,7 +548,7 @@ export const closePosShift = createServerFn({ method: "POST" })
  */
 export const getPosShiftState = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const membership = await requireStandalonePosAccess(context as any, data.restaurantId);
     const db = await admin();
@@ -613,7 +613,7 @@ export const getPosShiftState = createServerFn({ method: "POST" })
 /** Recent Standalone POS shift history. Never Restaurant Management shifts. */
 export const listPosShifts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; limit?: number }) =>
+  .validator((input: { restaurantId: string; limit?: number }) =>
     z.object({ restaurantId: idSchema, limit: z.number().int().min(1).max(100).optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -662,7 +662,7 @@ export const listPosShifts = createServerFn({ method: "POST" })
  */
 export const posSellReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     let membership: { id: string; role: string };
     try {
@@ -705,7 +705,7 @@ export const posSellReadiness = createServerFn({ method: "POST" })
 
 export const openPosSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; registerId: string; shiftId?: string | null }) =>
+  .validator((input: { restaurantId: string; registerId: string; shiftId?: string | null }) =>
     z.object({ restaurantId: idSchema, registerId: idSchema, shiftId: idSchema.nullable().optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -730,7 +730,7 @@ export const openPosSale = createServerFn({ method: "POST" })
 
 export const listOpenPosSales = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; registerId?: string }) =>
+  .validator((input: { restaurantId: string; registerId?: string }) =>
     z.object({ restaurantId: idSchema, registerId: idSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -755,7 +755,7 @@ export const listOpenPosSales = createServerFn({ method: "POST" })
 
 export const getPosSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; saleId: string }) =>
+  .validator((input: { restaurantId: string; saleId: string }) =>
     z.object({ restaurantId: idSchema, saleId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -886,7 +886,7 @@ export const getPosSale = createServerFn({ method: "POST" })
 
 export const addPosSaleItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { restaurantId: string; saleId: string; productId: string; quantity: number; discountAmount?: number }) =>
       z
         .object({
@@ -949,7 +949,7 @@ export const addPosSaleItem = createServerFn({ method: "POST" })
 
 export const updatePosSaleItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; saleId: string; itemId: string; quantity: number; discountAmount?: number }) =>
+  .validator((input: { restaurantId: string; saleId: string; itemId: string; quantity: number; discountAmount?: number }) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1007,7 +1007,7 @@ export const updatePosSaleItem = createServerFn({ method: "POST" })
 
 export const removePosSaleItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; saleId: string; itemId: string }) =>
+  .validator((input: { restaurantId: string; saleId: string; itemId: string }) =>
     z.object({ restaurantId: idSchema, saleId: idSchema, itemId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1031,7 +1031,7 @@ export const removePosSaleItem = createServerFn({ method: "POST" })
 
 export const voidPosSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; saleId: string; reason?: string | null }) =>
+  .validator((input: { restaurantId: string; saleId: string; reason?: string | null }) =>
     z.object({ restaurantId: idSchema, saleId: idSchema, reason: z.string().trim().max(300).nullable().optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1056,7 +1056,7 @@ export const voidPosSale = createServerFn({ method: "POST" })
 
 export const recordPosPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       restaurantId: string;
       saleId: string;
@@ -1110,7 +1110,7 @@ export const recordPosPayment = createServerFn({ method: "POST" })
 
 export const completePosSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; saleId: string }) =>
+  .validator((input: { restaurantId: string; saleId: string }) =>
     z.object({ restaurantId: idSchema, saleId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1167,7 +1167,7 @@ export const completePosSale = createServerFn({ method: "POST" })
  */
 export const refundPosSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: { restaurantId: string; saleId: string; paymentId: string; amount: number; reason?: string | null }) =>
       z
         .object({
@@ -1242,7 +1242,7 @@ export type PosTransactionFilters = {
  */
 export const listPosTransactions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: PosTransactionFilters) =>
+  .validator((input: PosTransactionFilters) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1341,7 +1341,7 @@ export const listPosTransactions = createServerFn({ method: "POST" })
 /** Registers and cashiers that actually appear in this till's history. */
 export const getPosTransactionFilterOptions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireStandalonePosAccess(context as any, data.restaurantId);
     const db = await admin();
@@ -1371,7 +1371,7 @@ export const getPosTransactionFilterOptions = createServerFn({ method: "POST" })
  */
 export const getPosOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireStandalonePosAccess(context as any, data.restaurantId);
     const db = await admin();
@@ -1480,7 +1480,7 @@ export type PosSaleSnapshot = NonNullable<Awaited<ReturnType<typeof saleSnapshot
  */
 export const getPosSellContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; saleId?: string | null; create?: boolean }) =>
+  .validator((input: { restaurantId: string; saleId?: string | null; create?: boolean }) =>
     z
       .object({ restaurantId: idSchema, saleId: idSchema.nullable().optional(), create: z.boolean().optional() })
       .parse(input),
@@ -1616,7 +1616,7 @@ export const getPosSellContext = createServerFn({ method: "POST" })
  */
 export const removePosPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; saleId: string; paymentId: string }) =>
+  .validator((input: { restaurantId: string; saleId: string; paymentId: string }) =>
     z.object({ restaurantId: idSchema, saleId: idSchema, paymentId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1667,7 +1667,7 @@ async function reportFor(restaurantId: string, from?: string | null, to?: string
 
 export const getStandalonePosReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; fromDate?: string | null; toDate?: string | null }) =>
+  .validator((input: { restaurantId: string; fromDate?: string | null; toDate?: string | null }) =>
     rangeSchema.parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1679,7 +1679,7 @@ export const getStandalonePosReport = createServerFn({ method: "POST" })
 /** Today's trading picture plus the till's live state. */
 export const getStandalonePosDashboard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { restaurantId: string; businessDate?: string | null }) =>
+  .validator((input: { restaurantId: string; businessDate?: string | null }) =>
     z
       .object({ restaurantId: idSchema, businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional() })
       .parse(input),

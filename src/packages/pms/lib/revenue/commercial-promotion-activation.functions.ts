@@ -35,7 +35,7 @@ const previewSchema = z.object({
 
 export const previewPromotionActivation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => previewSchema.parse(input))
+  .validator((input: unknown) => previewSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -48,7 +48,7 @@ export const previewPromotionActivation = createServerFn({ method: "POST" })
 
 export const applyPromotionActivation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => previewSchema.parse(input))
+  .validator((input: unknown) => previewSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -64,7 +64,7 @@ export const applyPromotionActivation = createServerFn({ method: "POST" })
 
 export const listPromotionActivations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -73,7 +73,7 @@ export const listPromotionActivations = createServerFn({ method: "POST" })
 
 export const getPromotionActivationDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, activationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {

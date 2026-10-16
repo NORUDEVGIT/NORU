@@ -19,7 +19,7 @@ function pmsDb(client: unknown): DbClient {
 
 export const getCard7Validation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

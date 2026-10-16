@@ -190,7 +190,7 @@ async function sendTestEmail(to: string, subject: string, text: string): Promise
 
 export const getPmsCard4CommunicationTemplates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -199,7 +199,7 @@ export const getPmsCard4CommunicationTemplates = createServerFn({ method: "POST"
 
 export const savePmsCard4CommunicationTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveSchema.parse(input))
+  .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -260,7 +260,7 @@ export const savePmsCard4CommunicationTemplate = createServerFn({ method: "POST"
 
 export const setPmsCard4CommunicationTemplateActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -298,7 +298,7 @@ export const setPmsCard4CommunicationTemplateActive = createServerFn({ method: "
 
 export const deletePmsCard4CommunicationTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -324,7 +324,7 @@ export const deletePmsCard4CommunicationTemplate = createServerFn({ method: "POS
 
 export const previewPmsCard4CommunicationTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     saveSchema
       .omit({ id: true, active: true, allowManualSending: true, attachPdf: true })
       .parse(input),
@@ -350,7 +350,7 @@ export const previewPmsCard4CommunicationTemplate = createServerFn({ method: "PO
 
 export const testPmsCard4CommunicationTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveSchema.omit({ id: true }).strict().parse(input))
+  .validator((input: unknown) => saveSchema.omit({ id: true }).strict().parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const draft = normalizeDraft(data);

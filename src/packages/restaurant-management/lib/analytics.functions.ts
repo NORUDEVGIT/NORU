@@ -106,7 +106,7 @@ type Row = { created_at: string; total: number | string; status: string };
 
 export const getRestaurantAnalytics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => inputSchema.parse(input))
+  .validator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data, context }): Promise<RestaurantAnalytics> => {
     const supabase = context.supabase;
 

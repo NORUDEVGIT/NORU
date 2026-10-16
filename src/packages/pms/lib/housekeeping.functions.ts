@@ -520,7 +520,7 @@ async function staffNames(supabase: any, restaurantId: string) {
 
 export const getHousekeepingAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<HousekeepingAccess> => {
     const { requireHousekeepingAccess, canManageHousekeeping, housekeepingScope } =
       await import("./housekeeping.server");
@@ -535,7 +535,7 @@ export const getHousekeepingAccess = createServerFn({ method: "POST" })
 
 export const listHousekeepingStaff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<HousekeepingStaffOption[]> => {
     await requireHousekeepingManager(context as never, data.restaurantId);
     const names = await staffNames(context.supabase, data.restaurantId);
@@ -552,7 +552,7 @@ export const listHousekeepingStaff = createServerFn({ method: "POST" })
 
 export const getHousekeepingDashboard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, today: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<HousekeepingDashboard> => {
@@ -610,7 +610,7 @@ export const getHousekeepingDashboard = createServerFn({ method: "POST" })
 
 export const listRoomRack = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, today: dateSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RackRoom[]> => {
@@ -745,7 +745,7 @@ export const listRoomRack = createServerFn({ method: "POST" })
 
 export const listHousekeepingTasks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, today: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<HousekeepingTask[]> => {
@@ -804,7 +804,7 @@ export const listHousekeepingTasks = createServerFn({ method: "POST" })
 
 export const createHousekeepingTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -863,7 +863,7 @@ export const createHousekeepingTask = createServerFn({ method: "POST" })
 /** Non-transitional task updates (assign / start / cancel) with history. */
 export const updateHousekeepingTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1005,7 +1005,7 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
 
 export const completeHousekeepingTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, taskId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: TaskStatus }> => {
@@ -1040,7 +1040,7 @@ export const completeHousekeepingTask = createServerFn({ method: "POST" })
 
 export const listInspections = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<HousekeepingInspection[]> => {
     await requireHousekeepingManager(context as never, data.restaurantId);
 
@@ -1082,7 +1082,7 @@ export const listInspections = createServerFn({ method: "POST" })
 
 export const inspectRoom = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1125,7 +1125,7 @@ export const inspectRoom = createServerFn({ method: "POST" })
 
 export const setRoomRestriction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1169,7 +1169,7 @@ export const setRoomRestriction = createServerFn({ method: "POST" })
 
 export const listDiscrepancies = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<HousekeepingDiscrepancy[]> => {
     await requireHousekeepingManager(context as never, data.restaurantId);
     const { data: rows, error } = await context.supabase
@@ -1213,7 +1213,7 @@ export const listDiscrepancies = createServerFn({ method: "POST" })
 
 export const createDiscrepancy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1264,7 +1264,7 @@ export const createDiscrepancy = createServerFn({ method: "POST" })
 
 export const resolveDiscrepancy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1310,7 +1310,7 @@ export const resolveDiscrepancy = createServerFn({ method: "POST" })
 
 export const listHousekeepingExceptions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, today: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<ReturnType<typeof deriveHousekeepingExceptions>> => {
@@ -1332,7 +1332,7 @@ export const listHousekeepingExceptions = createServerFn({ method: "POST" })
 
 export const listMaintenanceRequests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<MaintenanceRequest[]> => {
     const me = await requireHousekeepingAccess(context as never, data.restaurantId);
     const { data: rows, error } = await context.supabase
@@ -1372,7 +1372,7 @@ export const listMaintenanceRequests = createServerFn({ method: "POST" })
 
 export const createMaintenanceRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1429,7 +1429,7 @@ export const createMaintenanceRequest = createServerFn({ method: "POST" })
 
 export const updateMaintenanceRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1484,7 +1484,7 @@ export const updateMaintenanceRequest = createServerFn({ method: "POST" })
 
 export const listHousekeepingHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1584,7 +1584,7 @@ export const listHousekeepingHistory = createServerFn({ method: "POST" })
 
 export const listHousekeepingGuestRequests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, roomId: idSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<HousekeepingGuestRequest[]> => {
@@ -1789,7 +1789,7 @@ export const listHousekeepingGuestRequests = createServerFn({ method: "POST" })
 
 export const updateHousekeepingGuestRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

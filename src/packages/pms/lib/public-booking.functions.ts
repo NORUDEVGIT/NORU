@@ -83,7 +83,7 @@ export interface PublicBookingDetail {
 /* ---------------------------------------------------------------- property */
 
 export const getStayProperty = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => z.object({ slug: slugSchema }).parse(input))
+  .validator((input: unknown) => z.object({ slug: slugSchema }).parse(input))
   .handler(
     async ({
       data,
@@ -96,7 +96,7 @@ export const getStayProperty = createServerFn({ method: "GET" })
 /* ------------------------------------------------------------------ search */
 
 export const searchStay = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => staySchema.parse(input))
+  .validator((input: unknown) => staySchema.parse(input))
   .handler(
     async ({
       data,
@@ -210,7 +210,7 @@ export const searchStay = createServerFn({ method: "POST" })
 /* ------------------------------------------------------------------ submit */
 
 export const submitDirectBooking = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     staySchema
       .extend({
         roomTypeId: idSchema,
@@ -403,7 +403,7 @@ function toPublicDetail(property: StayProperty, row: PublicRow): PublicBookingDe
 }
 
 export const lookupDirectBooking = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => lookupSchema.parse(input))
+  .validator((input: unknown) => lookupSchema.parse(input))
   .handler(
     async ({ data }): Promise<{ ok: false; message: string } | { ok: true; booking: PublicBookingDetail }> => {
       const found = await findBooking(data.slug, data.confirmationNumber, data.contact);
@@ -413,7 +413,7 @@ export const lookupDirectBooking = createServerFn({ method: "POST" })
   );
 
 export const cancelDirectBooking = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => lookupSchema.parse(input))
+  .validator((input: unknown) => lookupSchema.parse(input))
   .handler(
     async ({ data }): Promise<{ ok: false; message: string } | { ok: true; booking: PublicBookingDetail }> => {
       const found = await findBooking(data.slug, data.confirmationNumber, data.contact);

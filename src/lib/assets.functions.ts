@@ -136,7 +136,7 @@ function mapAsset(row: any, today: string): RestaurantAsset {
 
 export const listRestaurantAssets = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -180,7 +180,7 @@ export const listRestaurantAssets = createServerFn({ method: "POST" })
 
 export const getAssetOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireAssetAccess(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -205,7 +205,7 @@ export const getAssetOverview = createServerFn({ method: "POST" })
 
 export const listAssetHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, assetId: idSchema, limit: z.number().int().min(1).max(200).optional() })
       .parse(input),
@@ -258,7 +258,7 @@ export const listAssetHistory = createServerFn({ method: "POST" })
 
 export const createRestaurantAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -335,7 +335,7 @@ export const createRestaurantAsset = createServerFn({ method: "POST" })
 
 export const updateRestaurantAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -416,7 +416,7 @@ export const updateRestaurantAsset = createServerFn({ method: "POST" })
 
 export const disposeRestaurantAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, assetId: idSchema, reason: notesSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {

@@ -52,7 +52,7 @@ const auditFilterSchema = z.object({
 
 export const exportRevenuePerformanceCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => revenuePerformanceQuerySchema.parse(input))
+  .validator((input: unknown) => revenuePerformanceQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -65,7 +65,7 @@ export const exportRevenuePerformanceCsv = createServerFn({ method: "POST" })
 
 export const exportCommercialPerformanceCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => commercialPerformanceQuerySchema.parse(input))
+  .validator((input: unknown) => commercialPerformanceQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -78,7 +78,7 @@ export const exportCommercialPerformanceCsv = createServerFn({ method: "POST" })
 
 export const exportUnifiedRevenueAuditCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => auditFilterSchema.parse(input))
+  .validator((input: unknown) => auditFilterSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

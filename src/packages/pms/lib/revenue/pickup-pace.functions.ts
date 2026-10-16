@@ -12,7 +12,7 @@ import { PICKUP_PACE_LOAD_ERROR, toRevenueReadError } from "./revenue-read-error
 
 export const getRevenuePickupPace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => pickupPaceQuerySchema.parse(input))
+  .validator((input: unknown) => pickupPaceQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

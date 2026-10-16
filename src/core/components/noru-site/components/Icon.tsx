@@ -1,16 +1,7 @@
 import type { ReactElement } from "react";
+import type { NoruSiteIcon } from "@/core/lib/marketing/types";
 
-export type IconName =
-  | "pms"
-  | "rms"
-  | "pos"
-  | "back"
-  | "guest"
-  | "resorts"
-  | "about"
-  | "blogs"
-  | "testimonials"
-  | "contact";
+export type IconName = NoruSiteIcon;
 
 const SHAPES: Record<IconName, ReactElement> = {
   pms: <path d="M3 20V9l9-5 9 5v11M9 20v-6h6v6" />,

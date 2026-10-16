@@ -368,7 +368,7 @@ export async function loadFrontOfficeStay(
 
 export const listArrivals = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -414,7 +414,7 @@ export async function loadFrontOfficeInHouse(
 
 export const listInHouse = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, today: dateSchema, search: z.string().max(120).optional() })
       .parse(input),
@@ -462,7 +462,7 @@ export async function loadFrontOfficeDepartures(
 
 export const listDepartures = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, date: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<FrontOfficeStay[]> => {
@@ -473,7 +473,7 @@ export const listDepartures = createServerFn({ method: "POST" })
 /** Room-level occupancy view; occupancy is derived from checked-in stays. */
 export const listOccupancy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<OccupancyRoom[]> => {
     await requireReservationManager(context as never, data.restaurantId);
 
@@ -640,7 +640,7 @@ async function assertStayMutationFreshness(
  */
 export const checkInReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -667,7 +667,7 @@ export const checkInReservation = createServerFn({ method: "POST" })
  */
 export const checkOutReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: ReservationStatus }> => {
@@ -684,7 +684,7 @@ export const checkOutReservation = createServerFn({ method: "POST" })
 
 export const moveReservationRoom = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -722,7 +722,7 @@ export const moveReservationRoom = createServerFn({ method: "POST" })
 
 export const changeStayDates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -764,7 +764,7 @@ export const changeStayDates = createServerFn({ method: "POST" })
  */
 export const markNoShow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema, today: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: ReservationStatus }> => {

@@ -1,15 +1,17 @@
 import type { CSSProperties } from "react";
-import { EVENTS, type EventItem } from "../data/content";
+import type { SiteEvent } from "@/core/lib/marketing/types";
+import { useNoruSite } from "../site-context";
 
 /**
  * "Events We Attend" slides continuously, exactly like the partners strip.
  * The list is rendered twice so the loop has no gap; the copy is hidden from screen readers.
  * Hovering or focusing the strip pauses it.
  */
-export function EventsMarquee({ events = EVENTS }: { events?: EventItem[] }) {
+export function EventsMarquee() {
+  const { events } = useNoruSite();
   const style = { "--n": events.length } as CSSProperties;
 
-  const card = (ev: EventItem, copy: string) => (
+  const card = (ev: SiteEvent, copy: string) => (
     <article className="ev-card" key={`${copy}-${ev.id}`}>
       <span className="ev-date">{ev.date}</span>
       <h3>{ev.title}</h3>

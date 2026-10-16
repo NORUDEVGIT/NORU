@@ -11,7 +11,7 @@ import { REVENUE_CONTROL_LOAD_ERROR, toRevenueReadError } from "./revenue-read-e
 
 export const getRevenueControlWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => revenueControlQuerySchema.parse(input))
+  .validator((input: unknown) => revenueControlQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

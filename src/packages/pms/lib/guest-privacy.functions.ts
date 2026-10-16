@@ -164,7 +164,7 @@ function hubSource(eventType: string): GuestActivityEntry["source"] {
 
 export const getGuestActivityHub = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestActivityHub> => {
@@ -255,7 +255,7 @@ export const getGuestActivityHub = createServerFn({ method: "POST" })
 
 export const getGuestAccountActivityHub = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestActivityHub> => {
@@ -308,7 +308,7 @@ export const getGuestAccountActivityHub = createServerFn({ method: "POST" })
 
 export const recordGuestCommunication = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -349,7 +349,7 @@ export const recordGuestCommunication = createServerFn({ method: "POST" })
 
 export const recordGuestAccountCommunication = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -386,7 +386,7 @@ export const recordGuestAccountCommunication = createServerFn({ method: "POST" }
 
 export const sendGuestMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -431,7 +431,7 @@ export const sendGuestMessage = createServerFn({ method: "POST" })
 
 export const sendGuestAccountMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -472,7 +472,7 @@ export const sendGuestAccountMessage = createServerFn({ method: "POST" })
 
 export const listGuestPrivacyAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestPrivacyAuditEntry[]> => {
@@ -508,7 +508,7 @@ export const listGuestPrivacyAudit = createServerFn({ method: "POST" })
 
 export const listGuestAccountPrivacyAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestPrivacyAuditEntry[]> => {
@@ -543,7 +543,7 @@ export const listGuestAccountPrivacyAudit = createServerFn({ method: "POST" })
 
 export const exportGuestProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestHeldExport> => {
@@ -635,7 +635,7 @@ export const exportGuestProfile = createServerFn({ method: "POST" })
 
 export const exportGuestAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestHeldExport> => {
@@ -687,7 +687,7 @@ export const exportGuestAccount = createServerFn({ method: "POST" })
 
 export const anonymiseGuest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -806,7 +806,7 @@ export const anonymiseGuest = createServerFn({ method: "POST" })
 
 export const anonymiseGuestAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -925,7 +925,7 @@ async function loadOpenLedger(
 
 export const listGuestUnmergeCandidates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestUnmergeCandidate[]> => {
@@ -1014,7 +1014,7 @@ async function assessUnmerge(
 
 export const unmergeGuests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

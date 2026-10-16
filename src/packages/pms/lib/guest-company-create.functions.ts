@@ -100,7 +100,7 @@ async function loadOptionalOptions(
 
 export const getCompanyCreateContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<CompanyCreateContext> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -421,7 +421,7 @@ export interface CompanyBillingCreditCreateConfig {
 
 export const getCompanyBillingCreditCreateConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<CompanyBillingCreditCreateConfig> => {
     await requireGuestManager(context as never, data.restaurantId);
     let db: any = context.supabase;
@@ -544,7 +544,7 @@ export const getCompanyBillingCreditCreateConfig = createServerFn({ method: "POS
 
 export const saveCompanyCreateDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, payload: z.record(z.unknown()) }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -586,7 +586,7 @@ export const saveCompanyCreateDraft = createServerFn({ method: "POST" })
 
 export const deleteCompanyCreateDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -669,7 +669,7 @@ async function forcePending(restaurantId: string, accountId: string) {
 
 export const persistCompanyCreate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -933,7 +933,7 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
 
 export const getCompanyEditDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, companyId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestCompanyCreateDraft> => {
@@ -1109,7 +1109,7 @@ export const getCompanyEditDraft = createServerFn({ method: "POST" })
 
 export const getNextCorporateContractCode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);

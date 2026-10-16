@@ -299,7 +299,7 @@ async function requireNightAuditView(
 
 export const getPropertyBusinessDate = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
+  .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }) => {
     await callerMembership(context as never, data.restaurantId);
     await requirePmsPackage(data.restaurantId);
@@ -311,7 +311,7 @@ export const getPropertyBusinessDate = createServerFn({ method: "GET" })
 
 export const getNightAuditAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
+  .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }) => {
     const me = await requireNightAuditView(context as never, data.restaurantId);
     return {
@@ -325,7 +325,7 @@ export const getNightAuditAccess = createServerFn({ method: "GET" })
 
 export const runNightAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
+  .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<NightAuditState> => {
     const me = await requireNightAuditView(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -497,7 +497,7 @@ export const runNightAudit = createServerFn({ method: "POST" })
 
 export const updateException = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: {
       restaurantId: string;
       exceptionId: string;
@@ -558,7 +558,7 @@ export const updateException = createServerFn({ method: "POST" })
 
 export const closeBusinessDate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; runId: string; notes?: string }) =>
+  .validator((d: { restaurantId: string; runId: string; notes?: string }) =>
     z
       .object({
         restaurantId: idSchema,
@@ -714,7 +714,7 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
 
 export const listNightAuditRuns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
+  .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<NightAuditRunRow[]> => {
     await requireNightAuditView(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -757,7 +757,7 @@ export const listNightAuditRuns = createServerFn({ method: "GET" })
 
 export const getNightAuditRun = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; runId: string }) =>
+  .validator((d: { restaurantId: string; runId: string }) =>
     z.object({ restaurantId: idSchema, runId: idSchema }).parse(d),
   )
   .handler(

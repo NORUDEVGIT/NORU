@@ -252,7 +252,7 @@ function assertKnownStaff(
 
 export const getCard5Departments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -270,7 +270,7 @@ export const getCard5Departments = createServerFn({ method: "POST" })
 
 export const saveCard5Department = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => departmentSchema.parse(input))
+  .validator((input: unknown) => departmentSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -348,7 +348,7 @@ export const saveCard5Department = createServerFn({ method: "POST" })
 
 export const saveCard5DepartmentRouting = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => routingSchema.parse(input))
+  .validator((input: unknown) => routingSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,

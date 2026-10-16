@@ -209,7 +209,7 @@ export async function loadSet5Snapshot(supabaseAdmin: Admin, restaurantId: strin
 
 export const getPmsSet5Snapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -238,7 +238,7 @@ async function requireEditor(restaurantId: string, context: { userId: string }) 
 
 export const savePmsDepartment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => catalogueItemSchema.parse(input))
+  .validator((input: unknown) => catalogueItemSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireEditor(data.restaurantId, context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -274,7 +274,7 @@ const workCenterSchema = catalogueItemSchema.extend({ departmentId: idSchema });
 
 export const savePmsWorkCenter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => workCenterSchema.parse(input))
+  .validator((input: unknown) => workCenterSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireEditor(data.restaurantId, context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -312,7 +312,7 @@ export const savePmsWorkCenter = createServerFn({ method: "POST" })
 
 export const savePmsRoutingDefaults = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -355,7 +355,7 @@ const requestTypeSchema = catalogueItemSchema.extend({ departmentId: idSchema.nu
 
 export const savePmsGuestRequestType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => requestTypeSchema.parse(input))
+  .validator((input: unknown) => requestTypeSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireEditor(data.restaurantId, context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -394,7 +394,7 @@ export const savePmsGuestRequestType = createServerFn({ method: "POST" })
 
 export const savePmsNotificationChannels = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -448,7 +448,7 @@ const templateSchema = z.object({
 
 export const savePmsNotificationTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => templateSchema.parse(input))
+  .validator((input: unknown) => templateSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireEditor(data.restaurantId, context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -488,7 +488,7 @@ export const savePmsNotificationTemplate = createServerFn({ method: "POST" })
 
 export const savePmsNotificationEventRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -532,7 +532,7 @@ export const savePmsNotificationEventRules = createServerFn({ method: "POST" })
 
 export const savePmsAdminControls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -579,7 +579,7 @@ export const savePmsAdminControls = createServerFn({ method: "POST" })
 
 export const savePmsSessionAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -620,7 +620,7 @@ export const savePmsSessionAccess = createServerFn({ method: "POST" })
 
 export const savePmsAuditRetention = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

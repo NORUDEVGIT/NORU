@@ -50,7 +50,7 @@ function mapOption(row: {
 
 export const listPmsPreferenceOptions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(
     async ({ data, context }): Promise<{ available: boolean; options: PmsPreferenceOption[] }> => {
       await withPmsPackage(
@@ -74,7 +74,7 @@ export const listPmsPreferenceOptions = createServerFn({ method: "POST" })
 
 export const savePmsPreferenceOption = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

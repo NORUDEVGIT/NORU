@@ -80,7 +80,7 @@ const UNAVAILABLE = (currency: string, businessDate: string): BackOfficePosSumma
  */
 export const getBackOfficePosSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (input: {
       restaurantId: string;
       businessDate?: string | null;

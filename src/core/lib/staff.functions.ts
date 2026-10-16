@@ -151,7 +151,7 @@ async function loadMembership(admin: any, restaurantId: string, membershipId: st
 
 export const listStaff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(
     async ({
       data,
@@ -242,7 +242,7 @@ function tempPassword(): string {
 
 export const createStaff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -399,7 +399,7 @@ export const createStaff = createServerFn({ method: "POST" })
 
 export const changeStaffRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, membershipId: idSchema, role: roleSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -443,7 +443,7 @@ export const changeStaffRole = createServerFn({ method: "POST" })
 
 export const setStaffActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, membershipId: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {

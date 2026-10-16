@@ -109,7 +109,7 @@ export async function assertActiveGroupType(
 
 export const listGroupTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GroupTypeRow[]> => {
     await requireGuestManager(context as never, data.restaurantId);
     return loadGroupTypes(data.restaurantId, context.supabase);
@@ -117,7 +117,7 @@ export const listGroupTypes = createServerFn({ method: "POST" })
 
 export const saveGroupType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

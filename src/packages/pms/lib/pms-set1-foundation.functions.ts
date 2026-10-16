@@ -144,7 +144,7 @@ async function writeAudit(
 
 export const getPmsSet1Foundation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -310,7 +310,7 @@ function feesFromSave(data: z.infer<typeof policiesSchema>): FoFeeDefaults {
 
 export const savePmsSet1Foundation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveSchema.parse(input))
+  .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
@@ -444,7 +444,7 @@ export async function loadSet1ActivationState(supabaseAdmin: Awaited<typeof impo
 
 export const activatePmsSet1 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -529,7 +529,7 @@ export type Set1AuditRow = {
 
 export const listPmsSet1Audit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<Set1AuditRow[]> => {
     await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

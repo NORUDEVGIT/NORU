@@ -188,7 +188,7 @@ export async function applyLateCheckout(params: {
 
 export const setExpectedArrivalTime = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -208,7 +208,7 @@ export const setExpectedArrivalTime = createServerFn({ method: "POST" })
 
 export const setLateCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -232,7 +232,7 @@ export const setLateCheckout = createServerFn({ method: "POST" })
 
 export const bulkSetExpectedArrivalTime = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

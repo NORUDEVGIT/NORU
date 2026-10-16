@@ -66,7 +66,7 @@ async function loadOptionalOptions(
 
 export const getGroupCreateContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GroupCreateContext> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -136,7 +136,7 @@ export const getGroupCreateContext = createServerFn({ method: "POST" })
 
 export const saveGroupCreateDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, payload: z.record(z.unknown()) }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -176,7 +176,7 @@ export const saveGroupCreateDraft = createServerFn({ method: "POST" })
 
 export const deleteGroupCreateDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -191,7 +191,7 @@ export const deleteGroupCreateDraft = createServerFn({ method: "POST" })
 
 export const loadGroupCreateCredit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -303,7 +303,7 @@ async function persistGroupOperations(
 
 export const persistGroupCreate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

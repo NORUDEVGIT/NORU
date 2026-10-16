@@ -380,7 +380,7 @@ async function loadStay(
 
 export const getCheckInContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckInContext> => {
@@ -468,7 +468,7 @@ export const getCheckInContext = createServerFn({ method: "POST" })
 
 export const startWalkInCheckIn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
@@ -507,7 +507,7 @@ const registrationSchema = z.object({
 
 export const saveCheckInRegistration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => registrationSchema.parse(input))
+  .validator((input: unknown) => registrationSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -634,7 +634,7 @@ export const saveCheckInRegistration = createServerFn({ method: "POST" })
 
 export const waiveCheckInRegistration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -666,7 +666,7 @@ export const waiveCheckInRegistration = createServerFn({ method: "POST" })
 
 export const ensureCheckInFolio = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckInFolioStrip> => {
@@ -690,7 +690,7 @@ export const ensureCheckInFolio = createServerFn({ method: "POST" })
 
 export const postCheckInDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -767,7 +767,7 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
 
 export const waiveCheckInDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -799,7 +799,7 @@ export const waiveCheckInDeposit = createServerFn({ method: "POST" })
 
 export const recordCheckInKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -838,7 +838,7 @@ export const recordCheckInKey = createServerFn({ method: "POST" })
 
 export const waiveCheckInKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -870,7 +870,7 @@ export const waiveCheckInKey = createServerFn({ method: "POST" })
 
 export const completeFoCheckIn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
