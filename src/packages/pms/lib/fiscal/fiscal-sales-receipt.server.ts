@@ -18,7 +18,9 @@ import {
   SALES_RECEIPT_REVERSAL_WARNING,
   assessSalesReceiptFiscal,
   parseFiscalSalesReceiptSuccess,
+  salesReceiptCorrectionDecision,
   salesReceiptPreviewFromPayload,
+  type SalesReceiptCorrection,
   type SalesReceiptFiscalAssessment,
   type SalesReceiptPreview,
 } from "./fiscal-sales-receipt.ts";
@@ -49,6 +51,9 @@ export type GuestSalesReceiptLine = {
   warning: string | null;
   canRegister: boolean;
   canRetry: boolean;
+  canCorrect: boolean;
+  correctionNeedsConfirmation: boolean;
+  correctionReason: string | null;
   preview: SalesReceiptPreview | null;
   registration: SalesReceiptRegistrationView | null;
 };
@@ -74,6 +79,9 @@ type StoredRegistration = {
   providerStatus: string | null;
   signedQr: string | null;
   lastError: string | null;
+  lastErrorCode: string | null;
+  nextAttemptAt: string | null;
+  registeredAt: string | null;
   request: unknown;
 };
 
@@ -320,7 +328,7 @@ async function loadInvoiceFiscalContext(
   const registrationResult = await db
     .from("fiscal_registrations")
     .select(
-      "id, source_id, status, trnx_id, external_irn, external_document_number, external_id, external_rrn, external_status, signed_qr, last_error_message, request_snapshot",
+      "id, source_id, status, trnx_id, external_irn, external_document_number, external_id, external_rrn, external_status, signed_qr, last_error_code, last_error_message, next_attempt_at, registered_at, request_snapshot",
     )
     .eq("restaurant_id", restaurantId)
     .eq("source_type", "guest_allocation")
@@ -406,6 +414,17 @@ function presentAllocation(
 ): GuestSalesReceiptLine {
   const assessment = assessAllocation(allocation, context);
   const reversed = isReversed(allocation, context.allocations);
+  const correction =
+    registration && !reversed
+      ? salesReceiptCorrectionDecision({
+          status: registration.status,
+          nextAttemptAt: registration.nextAttemptAt,
+          lastErrorCode: registration.lastErrorCode,
+          externalRrn: registration.rrn,
+          externalIrn: registration.irn,
+          registeredAt: registration.registeredAt,
+        })
+      : { canCorrect: false, needsConfirmation: false, reason: null };
   const stored = registration ? salesReceiptPreviewFromPayload(registration.request) : null;
   const fresh = assessment.ok ? assessment.preview : assessment.projection;
   const preview = stored ? { ...stored, invoiceNumber: context.invoiceNumber } : fresh;
@@ -425,10 +444,32 @@ function presentAllocation(
       }
     : null;
   if (registration?.status === "REGISTERED") {
-    return line(allocation, reversed, "registered", [], warning, false, false, preview, view);
+    return line(
+      allocation,
+      reversed,
+      "registered",
+      [],
+      warning,
+      false,
+      false,
+      correction,
+      preview,
+      view,
+    );
   }
   if (registration?.status === "PENDING") {
-    return line(allocation, reversed, "queued", [], warning, false, false, preview, view);
+    return line(
+      allocation,
+      reversed,
+      "queued",
+      [],
+      warning,
+      false,
+      false,
+      correction,
+      preview,
+      view,
+    );
   }
   if (!assessment.ok) {
     return line(
@@ -439,14 +480,26 @@ function presentAllocation(
       warning,
       false,
       false,
+      correction,
       preview,
       view,
     );
   }
   if (!registration) {
-    return line(allocation, reversed, "not_registered", [], null, true, false, preview, null);
+    return line(
+      allocation,
+      reversed,
+      "not_registered",
+      [],
+      null,
+      true,
+      false,
+      correction,
+      preview,
+      null,
+    );
   }
-  return line(allocation, reversed, "failed", [], warning, false, true, preview, view);
+  return line(allocation, reversed, "failed", [], warning, false, true, correction, preview, view);
 }
 
 function line(
@@ -457,6 +510,7 @@ function line(
   warning: string | null,
   canRegister: boolean,
   canRetry: boolean,
+  correction: SalesReceiptCorrection,
   preview: SalesReceiptPreview | null,
   registration: SalesReceiptRegistrationView | null,
 ): GuestSalesReceiptLine {
@@ -470,6 +524,9 @@ function line(
     warning,
     canRegister,
     canRetry,
+    canCorrect: correction.canCorrect,
+    correctionNeedsConfirmation: correction.needsConfirmation,
+    correctionReason: correction.reason,
     preview,
     registration,
   };
@@ -619,6 +676,9 @@ function mapRegistration(row: Record<string, unknown>): StoredRegistration | nul
     signedQr:
       typeof row.signed_qr === "string" && row.signed_qr.trim().length > 0 ? row.signed_qr : null,
     lastError: text(row.last_error_message),
+    lastErrorCode: text(row.last_error_code),
+    nextAttemptAt: text(row.next_attempt_at),
+    registeredAt: text(row.registered_at),
     request: row.request_snapshot ?? null,
   };
 }

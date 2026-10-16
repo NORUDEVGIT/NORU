@@ -38,6 +38,66 @@ export const FISCAL_P5_SOURCE = "guest_allocation" as const;
 export const FISCAL_P5_DOCUMENT = "SALES_RECEIPT" as const;
 export const SALES_RECEIPT_REVERSAL_WARNING =
   "Fiscal Sales Receipt exists; external receipt cancellation is not yet implemented.";
+export const SALES_RECEIPT_CORRECTION_UNCERTAIN =
+  "Retry this receipt before changing the allocation. The provider may still accept it.";
+export const SALES_RECEIPT_CORRECTION_CONFIRM =
+  "Retries are used up, but the provider never confirmed a rejection. Check the provider portal before correcting this allocation.";
+
+const UNCERTAIN_SALES_RECEIPT_ERRORS = new Set([
+  "FISCAL_TIMEOUT",
+  "FISCAL_NETWORK_ERROR",
+  "FISCAL_AUTH_FAILED",
+  "FISCAL_HTTP_ERROR",
+]);
+
+export type SalesReceiptCorrection = {
+  canCorrect: boolean;
+  needsConfirmation: boolean;
+  reason: string | null;
+};
+
+/**
+ * A confirmed provider rejection can be replaced. An uncertain failure can be
+ * replaced only after its retries are used up and the user confirms the
+ * provider did not register it.
+ */
+export function salesReceiptCorrectionDecision(input: {
+  status: string;
+  nextAttemptAt: string | null;
+  lastErrorCode: string | null;
+  externalRrn: string | null;
+  externalIrn: string | null;
+  registeredAt: string | null;
+}): SalesReceiptCorrection {
+  if (
+    input.status === "REGISTERED" ||
+    input.externalRrn ||
+    input.externalIrn ||
+    input.registeredAt
+  ) {
+    return { canCorrect: false, needsConfirmation: false, reason: null };
+  }
+  if (input.status !== "FAILED" && input.status !== "BLOCKED") {
+    return {
+      canCorrect: false,
+      needsConfirmation: false,
+      reason: input.status === "PENDING" ? SALES_RECEIPT_CORRECTION_UNCERTAIN : null,
+    };
+  }
+  const uncertain =
+    input.lastErrorCode != null && UNCERTAIN_SALES_RECEIPT_ERRORS.has(input.lastErrorCode);
+  if (input.nextAttemptAt) {
+    return {
+      canCorrect: false,
+      needsConfirmation: false,
+      reason: uncertain ? SALES_RECEIPT_CORRECTION_UNCERTAIN : null,
+    };
+  }
+  if (uncertain) {
+    return { canCorrect: true, needsConfirmation: true, reason: SALES_RECEIPT_CORRECTION_CONFIRM };
+  }
+  return { canCorrect: true, needsConfirmation: false, reason: null };
+}
 
 export function salesReceiptTrnxId(allocationId: string): string {
   return `gsr-${allocationId}`;

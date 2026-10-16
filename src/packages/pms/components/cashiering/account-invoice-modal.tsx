@@ -398,7 +398,7 @@ export function AccountInvoiceModal({
           </DialogHeader>
 
           {/* Tab Content Body with independent scroll */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-[#FAF8F5]">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-[#FAF8F5]">
             {activeTab === "preview" ? (
               <div className="space-y-4 max-w-5xl mx-auto">
                 <div className="flex items-center justify-between rounded-xl border border-[#E8E1D7] bg-white px-4 py-2.5 shadow-xs">
@@ -597,6 +597,12 @@ export function AccountInvoiceModal({
                       </div>
                     ) : null}
                   </section>
+                ) : settlementQuery.isError ? (
+                  <div className="p-8 text-center text-sm text-destructive">
+                    {settlementQuery.error instanceof Error
+                      ? settlementQuery.error.message
+                      : "Settlement could not be loaded."}
+                  </div>
                 ) : (
                   <div className="p-8 text-center text-sm text-[#7A6B58]">
                     Loading settlement detail…
@@ -611,6 +617,7 @@ export function AccountInvoiceModal({
                       invoiceId={invoice.id}
                       canRegister={canManage}
                       canInspect={canManage}
+                      canAllocate={canAllocate}
                       money={money}
                     />
                   </div>

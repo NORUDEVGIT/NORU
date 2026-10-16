@@ -102,7 +102,22 @@ export function GuestInvoiceSettlementPanel({
   if (query.isLoading) {
     return <p className="px-4 py-3 text-sm text-muted-foreground">Loading invoice settlement…</p>;
   }
-  if (rows.length === 0) return null;
+  if (query.isError) {
+    return (
+      <p className="px-4 py-3 text-sm text-destructive">
+        {query.error instanceof Error
+          ? query.error.message
+          : "Invoice settlement could not be loaded."}
+      </p>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <p className="px-4 py-3 text-sm text-muted-foreground">
+        No issued invoice is on this folio yet.
+      </p>
+    );
+  }
   return (
     <div className="space-y-3" data-testid="guest-invoice-settlement">
       {warn ? (
@@ -218,115 +233,142 @@ export function GuestInvoiceSettlementDetail({
     );
   }
   const settlement = query.data?.settlement;
-  if (!settlement?.eligible || settlement.effectiveNet == null) return null;
+  const showBreakdown = Boolean(settlement?.eligible && settlement.effectiveNet != null);
   return (
     <div
       className="mt-4 space-y-4 rounded-xl border border-[#E8E1D7] bg-white p-5 shadow-xs text-sm"
       data-testid="invoice-settlement-detail"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E8E1D7] pb-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h4 className="font-semibold text-[#251605]">Settlement Status</h4>
-            {settlement.settlementState ? (
-              <span
-                className={cn(
-                  "rounded-md border px-2 py-0.5 text-xs font-semibold",
-                  settlement.settlementState === "settled"
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                    : settlement.settlementState === "partial"
-                      ? "border-blue-200 bg-blue-50 text-blue-800"
-                      : "border-amber-200 bg-amber-50 text-amber-900",
-                )}
+      {query.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading settlement…</p>
+      ) : null}
+      {query.isError ? (
+        <p className="text-sm text-destructive">
+          {query.error instanceof Error ? query.error.message : "Settlement could not be loaded."}
+        </p>
+      ) : null}
+      {!query.isLoading && !query.isError && !showBreakdown ? (
+        <p className="text-sm text-muted-foreground">
+          This invoice does not have a settlement breakdown yet.
+        </p>
+      ) : null}
+      {showBreakdown && settlement ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E8E1D7] pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-semibold text-[#251605]">Settlement Status</h4>
+                {settlement.settlementState ? (
+                  <span
+                    className={cn(
+                      "rounded-md border px-2 py-0.5 text-xs font-semibold",
+                      settlement.settlementState === "PAID" ||
+                        settlement.settlementState === "NO_AMOUNT_DUE"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                        : settlement.settlementState === "PARTIALLY_PAID"
+                          ? "border-blue-200 bg-blue-50 text-blue-800"
+                          : "border-amber-200 bg-amber-50 text-amber-900",
+                    )}
+                  >
+                    {guestSettlementLabel(settlement.settlementState)}
+                  </span>
+                ) : null}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">Document state: Issued</p>
+            </div>
+
+            {canAllocate && (settlement.outstanding ?? 0) > 0.01 && onAllocate ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => onAllocate(invoiceId)}
+                className="h-8 gap-1.5 bg-[#8A641A] text-white hover:bg-[#735315] text-xs font-semibold px-3 shadow-xs"
               >
-                {guestSettlementLabel(settlement.settlementState)}
-              </span>
+                <ArrowRightLeft className="size-3.5" />
+                <span>Allocate Payment</span>
+              </Button>
             ) : null}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">Document state: Issued</p>
-        </div>
 
-        {canAllocate && (settlement.outstanding ?? 0) > 0.01 && onAllocate ? (
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => onAllocate(invoiceId)}
-            className="h-8 gap-1.5 bg-[#8A641A] text-white hover:bg-[#735315] text-xs font-semibold px-3 shadow-xs"
-          >
-            <ArrowRightLeft className="size-3.5" />
-            <span>Allocate Payment</span>
-          </Button>
-        ) : null}
-      </div>
+          {/* 4-KPI Grid */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3">
+              <p className="text-[11px] font-medium text-[#7A6B58]">Original Invoice</p>
+              <p className="font-display text-base font-bold tabular-nums text-[#251605]">
+                {money(settlement.originalAmount ?? 0)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3">
+              <p className="text-[11px] font-medium text-[#7A6B58]">Effective Net</p>
+              <p className="font-display text-base font-bold tabular-nums text-[#251605]">
+                {money(settlement.effectiveNet)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3">
+              <p className="text-[11px] font-medium text-[#7A6B58]">Allocated Paid</p>
+              <p className="font-display text-base font-bold tabular-nums text-emerald-700">
+                {money(settlement.allocated)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+              <p className="text-[11px] font-medium text-amber-900">Outstanding</p>
+              <p className="font-display text-base font-bold tabular-nums text-amber-950">
+                {money(settlement.outstanding ?? 0)}
+              </p>
+            </div>
+          </div>
 
-      {/* 4-KPI Grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3">
-          <p className="text-[11px] font-medium text-[#7A6B58]">Original Invoice</p>
-          <p className="font-display text-base font-bold tabular-nums text-[#251605]">
-            {money(settlement.originalAmount ?? 0)}
-          </p>
-        </div>
-        <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3">
-          <p className="text-[11px] font-medium text-[#7A6B58]">Effective Net</p>
-          <p className="font-display text-base font-bold tabular-nums text-[#251605]">
-            {money(settlement.effectiveNet)}
-          </p>
-        </div>
-        <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F5] p-3">
-          <p className="text-[11px] font-medium text-[#7A6B58]">Allocated Paid</p>
-          <p className="font-display text-base font-bold tabular-nums text-emerald-700">
-            {money(settlement.allocated)}
-          </p>
-        </div>
-        <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
-          <p className="text-[11px] font-medium text-amber-900">Outstanding</p>
-          <p className="font-display text-base font-bold tabular-nums text-amber-950">
-            {money(settlement.outstanding ?? 0)}
-          </p>
-        </div>
-      </div>
-
-      <div className="divide-y divide-[#E8E1D7]/60 text-xs">
-        <div className="flex justify-between py-2 text-[#7A6B58]">
-          <span>Credit Notes Applied</span>
-          <span className="tabular-nums font-medium text-[#251605]">
-            {money(settlement.creditNoteTotal)}
-          </span>
-        </div>
-        <div className="flex justify-between py-2 text-[#7A6B58]">
-          <span>Debit Notes Applied</span>
-          <span className="tabular-nums font-medium text-[#251605]">
-            {money(settlement.debitNoteTotal)}
-          </span>
-        </div>
-      </div>
-      <div>
-        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Payments
-        </p>
-        {(query.data?.payments ?? []).length === 0 ? (
-          <p className="text-muted-foreground">No payment has been allocated to this invoice.</p>
-        ) : (
-          <ul className="space-y-1">
-            {(query.data?.payments ?? []).map((payment) => (
-              <li key={payment.id} className="flex justify-between gap-3">
-                <span>
-                  {dateTime(payment.postedAt)} · {methodLabel(payment.method)}
-                  {payment.actor ? ` · ${payment.actor}` : ""}
-                  {payment.reversed ? " · Reversed" : ""}
-                </span>
-                <span className="tabular-nums">{money(payment.amount)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+          <div className="divide-y divide-[#E8E1D7]/60 text-xs">
+            <div className="flex justify-between py-2 text-[#7A6B58]">
+              <span>Credit Notes Applied</span>
+              <span className="tabular-nums font-medium text-[#251605]">
+                {money(settlement.creditNoteTotal)}
+              </span>
+            </div>
+            <div className="flex justify-between py-2 text-[#7A6B58]">
+              <span>Debit Notes Applied</span>
+              <span className="tabular-nums font-medium text-[#251605]">
+                {money(settlement.debitNoteTotal)}
+              </span>
+            </div>
+            <div className="flex justify-between py-2 text-[#7A6B58]">
+              <span>Deposit Applied</span>
+              <span className="tabular-nums font-medium text-[#251605]">
+                {money(settlement.depositApplied)}
+              </span>
+            </div>
+          </div>
+          <div>
+            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Payments
+            </p>
+            {(query.data?.payments ?? []).length === 0 ? (
+              <p className="text-muted-foreground">
+                No payment has been allocated to this invoice.
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {(query.data?.payments ?? []).map((payment) => (
+                  <li key={payment.id} className="flex justify-between gap-3">
+                    <span>
+                      {dateTime(payment.postedAt)} · {methodLabel(payment.method)}
+                      {payment.actor ? ` · ${payment.actor}` : ""}
+                      {payment.reversed ? " · Reversed" : ""}
+                    </span>
+                    <span className="tabular-nums">{money(payment.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      ) : null}
       <GuestSalesReceiptSection
         restaurantId={restaurantId}
         invoiceId={invoiceId}
         canRegister={canFiscalRegister}
         canInspect={canFiscalRegister}
+        canAllocate={canAllocate}
         money={money}
       />
     </div>

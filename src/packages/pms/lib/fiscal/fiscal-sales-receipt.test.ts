@@ -16,6 +16,7 @@ import {
   assessSalesReceiptFiscal,
   p5HandlerEnabled,
   parseFiscalSalesReceiptSuccess,
+  salesReceiptCorrectionDecision,
   salesReceiptTrnxId,
   type SalesReceiptFiscalInput,
 } from "./fiscal-sales-receipt.ts";
@@ -84,6 +85,81 @@ function input(overrides: Partial<SalesReceiptFiscalInput> = {}): SalesReceiptFi
     ...overrides,
   };
 }
+
+describe("failed sales receipt correction", () => {
+  it("allows a rejection, waits on retries, and confirms an exhausted server error", () => {
+    const rejected = salesReceiptCorrectionDecision({
+      status: "FAILED",
+      nextAttemptAt: null,
+      lastErrorCode: "FISCAL_PROVIDER_REJECTED",
+      externalRrn: null,
+      externalIrn: null,
+      registeredAt: null,
+    });
+    assert.equal(rejected.canCorrect, true);
+    assert.equal(rejected.needsConfirmation, false);
+    const retrying = salesReceiptCorrectionDecision({
+      status: "FAILED",
+      nextAttemptAt: "2026-10-16T06:00:00Z",
+      lastErrorCode: "FISCAL_HTTP_ERROR",
+      externalRrn: null,
+      externalIrn: null,
+      registeredAt: null,
+    });
+    assert.equal(retrying.canCorrect, false);
+    assert.match(retrying.reason ?? "", /Retry this receipt/);
+    const exhausted = salesReceiptCorrectionDecision({
+      status: "FAILED",
+      nextAttemptAt: null,
+      lastErrorCode: "FISCAL_HTTP_ERROR",
+      externalRrn: null,
+      externalIrn: null,
+      registeredAt: null,
+    });
+    assert.equal(exhausted.canCorrect, true);
+    assert.equal(exhausted.needsConfirmation, true);
+    assert.match(exhausted.reason ?? "", /provider portal/);
+    assert.equal(
+      salesReceiptCorrectionDecision({
+        status: "REGISTERED",
+        nextAttemptAt: null,
+        lastErrorCode: null,
+        externalRrn: "rrn",
+        externalIrn: null,
+        registeredAt: "2026-10-16T00:00:00Z",
+      }).canCorrect,
+      false,
+    );
+  });
+
+  it("replaces the allocation without posting a folio transaction", () => {
+    const sql = readFileSync(
+      new URL(
+        "../../../../../supabase/migrations/0162_correct_failed_sales_receipt_allocation.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const drizzle = readFileSync(
+      new URL(
+        "../../../../../drizzle/migrations/0162_correct_failed_sales_receipt_allocation.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    assert.equal(sql, drizzle);
+    assert.match(sql, /FISCAL_RECEIPT_UNCERTAIN/);
+    assert.match(sql, /FISCAL_RECEIPT_CONFIRMATION_REQUIRED/);
+    assert.match(sql, /status = 'BLOCKED'/);
+    assert.doesNotMatch(sql, /INSERT INTO public\.folio_transactions/);
+    const guest = sql.slice(
+      sql.indexOf("FUNCTION public.correct_failed_guest_sales_receipt_allocation"),
+      sql.indexOf("FUNCTION public.correct_failed_company_sales_receipt_allocation"),
+    );
+    assert.match(guest, /-remaining/);
+    assert.match(guest, /guest_invoice_deposit_cover/);
+  });
+});
 
 describe("fiscal sales receipt eligibility and payload", () => {
   it("builds the confirmed partial receipt from one allocation", () => {

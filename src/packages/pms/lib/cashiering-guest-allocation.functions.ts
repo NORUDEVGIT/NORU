@@ -13,6 +13,7 @@ import {
   type GuestSettlementState,
 } from "./cashiering-guest-allocation";
 import { fiscalSnapshotMode, registeredCashDebitCover } from "./cashiering-cash-debit-cover";
+import { isMissingSchemaError } from "./pms-set2-structure";
 import {
   assertIdempotencyKey,
   cashierError,
@@ -235,8 +236,9 @@ export const getGuestPaymentAllocationDetail = createServerFn({ method: "GET" })
         .select("amount")
         .eq("restaurant_id", data.restaurantId)
         .eq("deposit_transaction_id", row.id);
-      if (charges.error && charges.error.code !== "42P01")
+      if (charges.error && !isMissingSchemaError(charges.error)) {
         throw cashierError(charges.error.message);
+      }
       allocated = roundGuestMoney(
         allocated +
           ((charges.data ?? []) as Array<{ amount: number | string }>).reduce(
@@ -560,7 +562,7 @@ async function loadGuestSettlements(
           .select("charge_transaction_id, amount")
           .eq("restaurant_id", restaurantId)
           .in("charge_transaction_id", chargeIds);
-  if (chargeAllocations.error && chargeAllocations.error.code !== "42P01") {
+  if (chargeAllocations.error && !isMissingSchemaError(chargeAllocations.error)) {
     throw cashierError(chargeAllocations.error.message);
   }
   const noteRows = (notes.data ?? []) as Array<{

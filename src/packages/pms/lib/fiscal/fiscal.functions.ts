@@ -7,7 +7,12 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireCashierManager, requireCashieringAccess } from "../cashiering.server";
+import {
+  assertIdempotencyKey,
+  requireCashierAllocator,
+  requireCashierManager,
+  requireCashieringAccess,
+} from "../cashiering.server";
 import { requireRoomManager } from "../rooms.server";
 import { loadFiscalRegistrationExchange } from "./fiscal-exchange.server.ts";
 import { getCreditNoteFiscalState, queueCreditNoteFiscal } from "./fiscal-credit-note.server.ts";
@@ -1145,6 +1150,58 @@ export const registerGuestAllocationSalesReceipt = createServerFn({ method: "POS
     return result;
   });
 
+export const correctGuestSalesReceiptAllocation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        allocationId: idSchema,
+        amount: z.number().positive().finite(),
+        idempotencyKey: z.string().min(8).max(72),
+        providerUnregisteredConfirmed: z.boolean().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireCashierAllocator(context as never, data.restaurantId);
+    const db = await admin();
+    const corrected = await db.rpc("correct_failed_guest_sales_receipt_allocation", {
+      _restaurant_id: data.restaurantId,
+      _allocation_id: data.allocationId,
+      _amount: data.amount,
+      _idempotency_key: assertIdempotencyKey(data.idempotencyKey).slice(0, 72),
+      _membership_id: me.id,
+      _provider_unregistered_confirmed: data.providerUnregisteredConfirmed ?? false,
+    });
+    if (corrected.error) throw new Error(salesReceiptCorrectionError(corrected.error.message));
+    return corrected.data as {
+      replayed: boolean;
+      allocationId: string;
+      invoiceId: string;
+      amount: number;
+    };
+  });
+
+function salesReceiptCorrectionError(message: string): string {
+  if (message.includes("FISCAL_RECEIPT_CONFIRMATION_REQUIRED")) {
+    return "Confirm the provider did not register this receipt before correcting the allocation.";
+  }
+  if (message.includes("FISCAL_RECEIPT_UNCERTAIN")) {
+    return "This receipt is still being retried. Wait for the retries to finish first.";
+  }
+  if (message.includes("FISCAL_RECEIPT_REGISTERED")) {
+    return "This receipt is already registered. Its allocation cannot be corrected.";
+  }
+  if (message.includes("ALLOCATION_EXCEEDS_INVOICE")) {
+    return "The corrected amount is more than the invoice outstanding.";
+  }
+  if (message.includes("ALLOCATION_EXCEEDS_PAYMENT")) {
+    return "The corrected amount is more than the payment has available.";
+  }
+  return message;
+}
+
 async function allocationInvoiceId(db: Db, restaurantId: string, allocationId: string) {
   const result = await db
     .from("guest_payment_invoice_allocations")
@@ -1361,6 +1418,39 @@ export const registerCompanyAllocationSalesReceipt = createServerFn({ method: "P
               ),
     });
     return result;
+  });
+
+export const correctCompanySalesReceiptAllocation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        allocationId: idSchema,
+        amount: z.number().positive().finite(),
+        idempotencyKey: z.string().min(8).max(72),
+        providerUnregisteredConfirmed: z.boolean().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireCashierAllocator(context as never, data.restaurantId);
+    const db = await admin();
+    const corrected = await db.rpc("correct_failed_company_sales_receipt_allocation", {
+      _restaurant_id: data.restaurantId,
+      _allocation_id: data.allocationId,
+      _amount: data.amount,
+      _idempotency_key: assertIdempotencyKey(data.idempotencyKey).slice(0, 72),
+      _membership_id: me.id,
+      _provider_unregistered_confirmed: data.providerUnregisteredConfirmed ?? false,
+    });
+    if (corrected.error) throw new Error(salesReceiptCorrectionError(corrected.error.message));
+    return corrected.data as {
+      replayed: boolean;
+      allocationId: string;
+      invoiceId: string;
+      amount: number;
+    };
   });
 
 async function companyAllocationInvoiceId(db: Db, restaurantId: string, allocationId: string) {

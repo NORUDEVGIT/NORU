@@ -5,8 +5,10 @@ import { ReceiptText, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { FiscalExchangeDrawer } from "@/packages/pms/components/cashiering/fiscal-exchange-drawer";
+import { SalesReceiptCorrectionDialog } from "@/packages/pms/components/cashiering/sales-receipt-correction-dialog";
 import { SalesReceiptFiscalResult } from "@/packages/pms/components/cashiering/sales-receipt-fiscal-result";
 import {
+  correctGuestSalesReceiptAllocation,
   getGuestInvoiceSalesReceiptFiscal,
   registerGuestAllocationSalesReceipt,
 } from "@/packages/pms/lib/fiscal/fiscal.functions";
@@ -33,18 +35,22 @@ export function GuestSalesReceiptSection({
   invoiceId,
   canRegister,
   canInspect,
+  canAllocate = false,
   money,
 }: {
   restaurantId: string;
   invoiceId: string;
   canRegister: boolean;
   canInspect: boolean;
+  canAllocate?: boolean;
   money: (value: number) => string;
 }) {
   const queryClient = useQueryClient();
   const load = useServerFn(getGuestInvoiceSalesReceiptFiscal);
   const register = useServerFn(registerGuestAllocationSalesReceipt);
+  const correct = useServerFn(correctGuestSalesReceiptAllocation);
   const [allocationId, setAllocationId] = useState<string | null>(null);
+  const [correctId, setCorrectId] = useState<string | null>(null);
   const [exchangeId, setExchangeId] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["guest-sales-receipts", restaurantId, invoiceId],
@@ -64,8 +70,26 @@ export function GuestSalesReceiptSection({
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const correction = useMutation({
+    mutationFn: (input: {
+      allocationId: string;
+      amount: number;
+      idempotencyKey: string;
+      providerUnregisteredConfirmed: boolean;
+    }) => correct({ data: { restaurantId, ...input } }),
+    onSuccess: async () => {
+      setCorrectId(null);
+      await queryClient.invalidateQueries({
+        queryKey: ["guest-sales-receipts", restaurantId, invoiceId],
+      });
+      await queryClient.invalidateQueries({ queryKey: ["guest-invoice-settlement", restaurantId] });
+      toast.success("Allocation corrected. Register the new sales receipt line.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const lines = query.data?.lines ?? [];
   const selected = lines.find((line) => line.allocationId === allocationId) ?? null;
+  const correcting = lines.find((line) => line.allocationId === correctId) ?? null;
 
   return (
     <section
@@ -85,7 +109,14 @@ export function GuestSalesReceiptSection({
         </p>
       ) : null}
       {query.isLoading ? <p className="text-sm text-muted-foreground">Loading receipts…</p> : null}
-      {!query.isLoading && lines.length === 0 ? (
+      {query.isError ? (
+        <p className="text-sm text-destructive">
+          {query.error instanceof Error
+            ? query.error.message
+            : "Fiscal sales receipts could not be loaded."}
+        </p>
+      ) : null}
+      {!query.isLoading && !query.isError && lines.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No payment has been allocated to this invoice.
         </p>
@@ -131,6 +162,9 @@ export function GuestSalesReceiptSection({
                     {line.status === "failed" && line.registration?.lastError ? (
                       <p className="text-xs text-destructive">{line.registration.lastError}</p>
                     ) : null}
+                    {line.correctionReason ? (
+                      <p className="text-xs text-muted-foreground">{line.correctionReason}</p>
+                    ) : null}
                   </td>
                   <td className="px-2 py-2 text-right">
                     {canRegister && line.canRegister ? (
@@ -140,6 +174,17 @@ export function GuestSalesReceiptSection({
                         onClick={() => setAllocationId(line.allocationId)}
                       >
                         Register fiscal sales receipt
+                      </Button>
+                    ) : null}
+                    {canAllocate && line.canCorrect ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="ml-2"
+                        onClick={() => setCorrectId(line.allocationId)}
+                      >
+                        Correct allocation
                       </Button>
                     ) : null}
                     {canRegister && line.canRetry ? (
@@ -266,6 +311,23 @@ export function GuestSalesReceiptSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <SalesReceiptCorrectionDialog
+        open={Boolean(correcting)}
+        currentAmount={correcting?.amount ?? 0}
+        needsConfirmation={correcting?.correctionNeedsConfirmation ?? false}
+        money={money}
+        pending={correction.isPending}
+        onOpenChange={(open) => !open && setCorrectId(null)}
+        onConfirm={(amount, idempotencyKey, providerUnregisteredConfirmed) => {
+          if (!correcting) return;
+          correction.mutate({
+            allocationId: correcting.allocationId,
+            amount,
+            idempotencyKey,
+            providerUnregisteredConfirmed,
+          });
+        }}
+      />
       {canInspect && exchangeId ? (
         <FiscalExchangeDrawer
           open={Boolean(exchangeId)}

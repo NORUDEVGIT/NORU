@@ -361,7 +361,7 @@ export function GuestInvoiceModal({
         </DialogHeader>
 
         {/* Tab Content Body with independent scroll */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-[#FAF8F5]">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-[#FAF8F5]">
           {activeTab === "preview" ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between rounded-xl border border-[#E8E1D7] bg-white px-4 py-2.5 shadow-xs">
