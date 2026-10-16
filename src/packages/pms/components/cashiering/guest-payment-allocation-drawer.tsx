@@ -6,10 +6,12 @@ import { toast } from "sonner";
 import { methodLabel } from "@/packages/pms/components/cashiering/cashiering-desk-shared";
 import { GuestSalesReceiptSection } from "@/packages/pms/components/cashiering/guest-sales-receipt-section";
 import {
+  applyGuestDepositInvoiceAllocations,
   applyGuestPaymentInvoiceAllocations,
   getGuestInvoiceSettlement,
   getGuestPaymentAllocationDetail,
   listGuestInvoiceSettlementForFolio,
+  previewGuestDepositInvoiceAllocation,
   previewGuestPaymentInvoiceAllocation,
   reverseGuestPaymentInvoiceAllocation,
 } from "@/packages/pms/lib/cashiering-guest-allocation.functions";
@@ -73,7 +75,9 @@ export function GuestInvoiceSettlementPanel({
   money,
   dateTime,
   canAllocate,
+  canReceive = false,
   onAllocate,
+  onReceive,
 }: {
   restaurantId: string;
   folioId: string;
@@ -81,7 +85,9 @@ export function GuestInvoiceSettlementPanel({
   money: Money;
   dateTime: DateTime;
   canAllocate: boolean;
+  canReceive?: boolean;
   onAllocate: (invoiceId: string) => void;
+  onReceive?: (invoice: { invoiceId: string; outstanding: number; currency: string }) => void;
 }) {
   const fetchRows = useServerFn(listGuestInvoiceSettlementForFolio);
   const query = useQuery({
@@ -122,6 +128,11 @@ export function GuestInvoiceSettlementPanel({
                 <td className="px-3 py-2">
                   <div className="font-medium">{row.number}</div>
                   <div className="text-xs text-muted-foreground">{dateTime(row.issuedAt)}</div>
+                  {row.depositApplied > 0.009 ? (
+                    <div className="text-xs text-[#8a6a1f]">
+                      Deposit applied {money(row.depositApplied)}
+                    </div>
+                  ) : null}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   {money(row.effectiveNet ?? 0)}
@@ -132,16 +143,33 @@ export function GuestInvoiceSettlementPanel({
                   {row.settlementState ? guestSettlementLabel(row.settlementState) : "—"}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  {canAllocate && (row.outstanding ?? 0) > 0.01 ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onAllocate(row.invoiceId)}
-                    >
-                      Allocate
-                    </Button>
-                  ) : null}
+                  <div className="flex justify-end gap-2">
+                    {canReceive && onReceive && (row.outstanding ?? 0) > 0.01 ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() =>
+                          onReceive({
+                            invoiceId: row.invoiceId,
+                            outstanding: row.outstanding ?? 0,
+                            currency: row.currency,
+                          })
+                        }
+                      >
+                        Receive
+                      </Button>
+                    ) : null}
+                    {canAllocate && (row.outstanding ?? 0) > 0.01 ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onAllocate(row.invoiceId)}
+                      >
+                        Allocate
+                      </Button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -457,7 +485,12 @@ export function GuestPaymentAllocationDrawer({
   restaurantId: string;
   folioId: string;
   paymentId: string | null;
-  payments?: Array<{ id: string; label: string; available: number }>;
+  payments?: Array<{
+    id: string;
+    label: string;
+    available: number;
+    kind?: "payment" | "deposit";
+  }>;
   focusInvoiceId: string | null;
   money: Money;
   dateTime: DateTime;
@@ -466,11 +499,13 @@ export function GuestPaymentAllocationDrawer({
   const queryClient = useQueryClient();
   const fetchRows = useServerFn(listGuestInvoiceSettlementForFolio);
   const fetchDetail = useServerFn(getGuestPaymentAllocationDetail);
-  const preview = useServerFn(previewGuestPaymentInvoiceAllocation);
-  const apply = useServerFn(applyGuestPaymentInvoiceAllocations);
+  const previewPayment = useServerFn(previewGuestPaymentInvoiceAllocation);
+  const previewDeposit = useServerFn(previewGuestDepositInvoiceAllocation);
+  const applyPayment = useServerFn(applyGuestPaymentInvoiceAllocations);
+  const applyDeposit = useServerFn(applyGuestDepositInvoiceAllocations);
   const [pickedPaymentId, setPickedPaymentId] = useState<string | null>(paymentId);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
-  const [review, setReview] = useState<Awaited<ReturnType<typeof preview>> | null>(null);
+  const [review, setReview] = useState<Awaited<ReturnType<typeof previewPayment>> | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(() => postingKey("galloc"));
   const invoices = useQuery({
     queryKey: ["guest-invoice-settlement", restaurantId, folioId],
@@ -483,6 +518,8 @@ export function GuestPaymentAllocationDrawer({
       fetchDetail({ data: { restaurantId, folioId, paymentId: pickedPaymentId ?? "" } }),
     enabled: open && Boolean(pickedPaymentId),
   });
+  const pickedKind =
+    payments.find((row) => row.id === pickedPaymentId)?.kind ?? (paymentId ? "payment" : "payment");
   const eligible = useMemo(
     () => (invoices.data ?? []).filter((row) => row.eligible && (row.outstanding ?? 0) > 0.01),
     [invoices.data],
@@ -505,11 +542,15 @@ export function GuestPaymentAllocationDrawer({
 
   const reviewMutation = useMutation({
     mutationFn: async () => {
-      if (!pickedPaymentId) throw new Error("Choose a payment.");
+      if (!pickedPaymentId) throw new Error("Choose a payment or deposit.");
       if (selected.length === 0) throw new Error("Enter an amount on at least one invoice.");
-      return preview({
-        data: { restaurantId, folioId, paymentId: pickedPaymentId, targets: selected },
-      });
+      return pickedKind === "deposit"
+        ? previewDeposit({
+            data: { restaurantId, folioId, depositId: pickedPaymentId, targets: selected },
+          })
+        : previewPayment({
+            data: { restaurantId, folioId, paymentId: pickedPaymentId, targets: selected },
+          });
     },
     onSuccess: (result) => setReview(result),
     onError: (error: Error) => toast.error(error.message),
@@ -518,23 +559,35 @@ export function GuestPaymentAllocationDrawer({
   const applyMutation = useMutation({
     mutationFn: async () => {
       if (!pickedPaymentId || !review) throw new Error("Review the allocation first.");
-      return apply({
-        data: {
-          restaurantId,
-          folioId,
-          paymentId: pickedPaymentId,
-          expectedPaymentAvailable: Number(review.payment.available),
-          idempotencyKey,
-          targets: review.targets.map((target) => ({
-            invoiceId: target.invoiceId,
-            amount: Number(target.proposed),
-            expectedOutstanding: Number(target.outstanding),
-          })),
-        },
-      });
+      const targets = review.targets.map((target) => ({
+        invoiceId: target.invoiceId,
+        amount: Number(target.proposed),
+        expectedOutstanding: Number(target.outstanding),
+      }));
+      return pickedKind === "deposit"
+        ? applyDeposit({
+            data: {
+              restaurantId,
+              folioId,
+              depositId: pickedPaymentId,
+              expectedDepositAvailable: Number(review.payment.available),
+              idempotencyKey,
+              targets,
+            },
+          })
+        : applyPayment({
+            data: {
+              restaurantId,
+              folioId,
+              paymentId: pickedPaymentId,
+              expectedPaymentAvailable: Number(review.payment.available),
+              idempotencyKey,
+              targets,
+            },
+          });
     },
     onSuccess: () => {
-      toast.success("Payment allocated");
+      toast.success(pickedKind === "deposit" ? "Deposit allocated" : "Payment allocated");
       refreshGuestAllocation(queryClient, restaurantId, folioId);
       onOpenChange(false);
     },
@@ -580,11 +633,11 @@ export function GuestPaymentAllocationDrawer({
             </div>
             <div>
               <DialogTitle className="font-display text-xl font-bold tracking-tight text-[#251605]">
-                Allocate Payment to Invoices
+                Allocate to Invoices
               </DialogTitle>
               <DialogDescription className="text-xs text-[#7A6B58] mt-0.5">
-                Classify posted payment funds against eligible issued invoices. Total folio balance
-                remains unaffected.
+                Classify a posted payment or deposit against eligible issued invoices. The folio
+                balance stays unchanged.
               </DialogDescription>
             </div>
           </div>
@@ -596,7 +649,7 @@ export function GuestPaymentAllocationDrawer({
           {!paymentId && payments.length > 0 ? (
             <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-xs space-y-2">
               <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A6B58]">
-                Select Posted Payment
+                Select payment or deposit
               </label>
               <select
                 className="h-10 w-full rounded-lg border border-[#DDD4C5] bg-white px-3 text-sm text-[#251605] shadow-2xs focus:border-[#C89933] focus:outline-none focus:ring-2 focus:ring-[#C89933]/20"
@@ -606,7 +659,7 @@ export function GuestPaymentAllocationDrawer({
                   setReview(null);
                 }}
               >
-                <option value="">Choose a payment to allocate</option>
+                <option value="">Choose a payment or deposit</option>
                 {payments.map((row) => (
                   <option key={row.id} value={row.id}>
                     {row.label} · Available {money(row.available)}

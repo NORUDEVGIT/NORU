@@ -5,9 +5,11 @@
  */
 import {
   eligiblePaymentTotal,
+  eligibleSettlementTotal,
   fiscalSettlementSummary,
   snapshotInvoiceTotal,
   type EligibleAllocationKind,
+  type EligibleAllocationRow,
   type FiscalSettlementSummary,
 } from "./fiscal-document-mode.ts";
 import { groupHasItemMapping } from "./fiscal-manual-item.ts";
@@ -50,7 +52,74 @@ export async function loadFiscalSettlement(
       sourceKind: await paymentSourceKind(db, input.restaurantId, paymentId),
     });
   }
-  return fiscalSettlementSummary(snapshotInvoiceTotal(input.snapshot), eligiblePaymentTotal(rows));
+  const depositRows =
+    input.allocationTable === "guest_payment_invoice_allocations"
+      ? await guestDepositRows(db, input.restaurantId, input.invoiceId, input.snapshot)
+      : [];
+  return fiscalSettlementSummary(
+    snapshotInvoiceTotal(input.snapshot),
+    roundSettlement(eligiblePaymentTotal(rows) + eligibleSettlementTotal(depositRows)),
+  );
+}
+
+function roundSettlement(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+async function guestDepositRows(
+  db: Db,
+  restaurantId: string,
+  invoiceId: string,
+  snapshot: unknown,
+): Promise<EligibleAllocationRow[]> {
+  const explicit = await db
+    .from("guest_deposit_invoice_allocations")
+    .select("id, amount, reverses_allocation_id")
+    .eq("restaurant_id", restaurantId)
+    .eq("invoice_id", invoiceId);
+  const rows: EligibleAllocationRow[] = fiscalRecords((await explicit).data).flatMap((row) => {
+    const id = text(row.id);
+    if (!id) return [];
+    return [
+      {
+        id,
+        amount: numberValue(row.amount),
+        reversesAllocationId: text(row.reverses_allocation_id),
+        sourceKind: "deposit" as const,
+      },
+    ];
+  });
+  const chargeIds = snapshotParentIds(snapshot);
+  if (chargeIds.length === 0) return rows;
+  const charges = await db
+    .from("folio_deposit_allocations")
+    .select("id, amount, charge_transaction_id, restaurant_id")
+    .eq("restaurant_id", restaurantId);
+  for (const row of fiscalRecords((await charges).data)) {
+    const id = text(row.id);
+    const chargeId = text(row.charge_transaction_id);
+    if (!id || !chargeId || !chargeIds.includes(chargeId)) continue;
+    rows.push({
+      id: `charge:${id}`,
+      amount: numberValue(row.amount),
+      reversesAllocationId: null,
+      sourceKind: "deposit",
+    });
+  }
+  return rows;
+}
+
+function snapshotParentIds(snapshot: unknown): string[] {
+  const recordValue =
+    snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)
+      ? (snapshot as { groups?: unknown[] })
+      : null;
+  if (!Array.isArray(recordValue?.groups)) return [];
+  return recordValue.groups.flatMap((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+    const id = text((value as { parentTransactionId?: unknown }).parentTransactionId);
+    return id ? [id] : [];
+  });
 }
 
 export async function allocateUnmappedManualCodes(

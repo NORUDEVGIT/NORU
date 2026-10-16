@@ -108,7 +108,6 @@ export function guestPaymentRefundable(input: {
   allocatedNet: number;
 }): number | null {
   if (input.sourceType !== "payment" && input.sourceType !== "deposit") return null;
-  if (input.sourceType === "deposit") return roundGuestMoney(input.faceMinusRefunds);
   return roundGuestMoney(input.faceMinusRefunds - input.allocatedNet);
 }
 

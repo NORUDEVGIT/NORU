@@ -678,7 +678,7 @@ describe("company fiscal settlement at registration", () => {
     assert.equal(state.settlement?.unpaid, 12);
     assert.equal(
       state.settlement?.reason,
-      "Invoice is not fully covered by eligible payment allocations.",
+      "Invoice is not fully covered by payments and applied deposits.",
     );
 
     const paid = memoryDb();
@@ -703,7 +703,7 @@ describe("company fiscal settlement at registration", () => {
     assert.equal(settled.settlement?.eligiblePayments, 12);
     assert.equal(
       settled.settlement?.reason,
-      "Invoice was fully settled by eligible payment allocations before fiscal registration.",
+      "Invoice was fully settled by payments and applied deposits before fiscal registration.",
     );
     const cash = await queueCompanyInvoiceFiscal(paid.db, {
       restaurantId: "property-1",

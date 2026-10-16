@@ -42,6 +42,7 @@ export type GuestInvoiceSettlementRow = {
   creditNoteTotal: number;
   debitNoteTotal: number;
   cashDebitCovered: number;
+  depositApplied: number;
   effectiveNet: number | null;
   allocated: number;
   outstanding: number | null;
@@ -186,7 +187,14 @@ export const getGuestPaymentAllocationDetail = createServerFn({ method: "GET" })
       payment_method: string | null;
       posted_at: string;
     } | null;
-    if (!row || row.folio_id !== data.folioId || row.transaction_type !== "payment") return null;
+    if (
+      !row ||
+      row.folio_id !== data.folioId ||
+      (row.transaction_type !== "payment" && row.transaction_type !== "deposit")
+    ) {
+      return null;
+    }
+    const deposit = row.transaction_type === "deposit";
     const refunds = await supabaseAdmin
       .from("folio_transactions")
       .select("amount")
@@ -202,12 +210,12 @@ export const getGuestPaymentAllocationDetail = createServerFn({ method: "GET" })
       ),
     );
     const allocations = await supabaseAdmin
-      .from("guest_payment_invoice_allocations")
+      .from(deposit ? "guest_deposit_invoice_allocations" : "guest_payment_invoice_allocations")
       .select(
         "id, invoice_id, amount, created_at, created_by_membership_id, reverses_allocation_id, reason",
       )
       .eq("restaurant_id", data.restaurantId)
-      .eq("payment_transaction_id", row.id);
+      .eq(deposit ? "deposit_transaction_id" : "payment_transaction_id", row.id);
     if (allocations.error && allocations.error.code !== "42P01") {
       throw cashierError(allocations.error.message);
     }
@@ -220,9 +228,23 @@ export const getGuestPaymentAllocationDetail = createServerFn({ method: "GET" })
       reverses_allocation_id: string | null;
       reason: string | null;
     }>;
-    const allocated = roundGuestMoney(
-      allocRows.reduce((sum, line) => sum + Number(line.amount), 0),
-    );
+    let allocated = roundGuestMoney(allocRows.reduce((sum, line) => sum + Number(line.amount), 0));
+    if (deposit) {
+      const charges = await supabaseAdmin
+        .from("folio_deposit_allocations")
+        .select("amount")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("deposit_transaction_id", row.id);
+      if (charges.error && charges.error.code !== "42P01")
+        throw cashierError(charges.error.message);
+      allocated = roundGuestMoney(
+        allocated +
+          ((charges.data ?? []) as Array<{ amount: number | string }>).reduce(
+            (sum, line) => sum + Number(line.amount),
+            0,
+          ),
+      );
+    }
     const face = guestPaymentFace(Number(row.amount));
     const invoiceIds = [...new Set(allocRows.map((line) => line.invoice_id))];
     const numbers = new Map<string, string>();
@@ -322,6 +344,88 @@ export const previewGuestPaymentInvoiceAllocation = createServerFn({ method: "PO
     };
   });
 
+export const previewGuestDepositInvoiceAllocation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        folioId: idSchema,
+        depositId: idSchema,
+        targets: z.array(previewTargetSchema).min(1).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: preview, error } = await supabaseAdmin.rpc(
+      "preview_guest_deposit_invoice_allocation",
+      {
+        _restaurant_id: data.restaurantId,
+        _folio_id: data.folioId,
+        _deposit_id: data.depositId,
+        _targets: data.targets,
+      },
+    );
+    if (error) throw cashierError(error.message);
+    return preview as {
+      payment: {
+        id: string;
+        face: number;
+        refunded: number;
+        allocated: number;
+        available: number;
+        currency: string;
+      };
+      targets: Array<{
+        invoiceId: string;
+        invoiceNumber: string;
+        issuedAt: string;
+        effectiveNet: number;
+        allocated: number;
+        outstanding: number;
+        proposed: number;
+        remainingOutstanding: number;
+      }>;
+      operationTotal: number;
+      remainingAvailable: number;
+    };
+  });
+
+export const applyGuestDepositInvoiceAllocations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        folioId: idSchema,
+        depositId: idSchema,
+        targets: z.array(targetSchema).min(1).max(40),
+        expectedDepositAvailable: z.number().finite(),
+        idempotencyKey: z.string().min(8).max(80),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requireCashierAllocator(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: applied, error } = await supabaseAdmin.rpc(
+      "apply_guest_deposit_invoice_allocations",
+      {
+        _restaurant_id: data.restaurantId,
+        _folio_id: data.folioId,
+        _deposit_id: data.depositId,
+        _targets: data.targets,
+        _expected_available: data.expectedDepositAvailable,
+        _idempotency_key: assertIdempotencyKey(data.idempotencyKey),
+        _membership_id: me.id,
+      },
+    );
+    if (error) throw cashierError(error.message);
+    return applied;
+  });
+
 export const applyGuestPaymentInvoiceAllocations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -384,6 +488,19 @@ export const reverseGuestPaymentInvoiceAllocation = createServerFn({ method: "PO
     return reversed;
   });
 
+function snapshotParentIds(snapshot: unknown): string[] {
+  const groups =
+    snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)
+      ? (snapshot as { groups?: unknown[] }).groups
+      : null;
+  if (!Array.isArray(groups)) return [];
+  return groups.flatMap((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+    const id = (value as { parentTransactionId?: unknown }).parentTransactionId;
+    return typeof id === "string" && id.length > 0 ? [id] : [];
+  });
+}
+
 async function loadFolio(supabaseAdmin: ServiceClient, restaurantId: string, folioId: string) {
   const result = await supabaseAdmin
     .from("guest_folios")
@@ -419,6 +536,32 @@ async function loadGuestSettlements(
     .eq("guest_folio_id", folio.id);
   if (allocations.error && allocations.error.code !== "42P01") {
     throw cashierError(allocations.error.message);
+  }
+  const depositAllocations = await supabaseAdmin
+    .from("guest_deposit_invoice_allocations")
+    .select("invoice_id, amount")
+    .eq("restaurant_id", restaurantId)
+    .eq("guest_folio_id", folio.id);
+  if (depositAllocations.error && depositAllocations.error.code !== "42P01") {
+    throw cashierError(depositAllocations.error.message);
+  }
+  const chargeIds = [
+    ...new Set(
+      ((invoices.data ?? []) as Array<{ snapshot: unknown }>).flatMap((invoice) =>
+        snapshotParentIds(invoice.snapshot),
+      ),
+    ),
+  ];
+  const chargeAllocations =
+    chargeIds.length === 0
+      ? { data: [], error: null }
+      : await supabaseAdmin
+          .from("folio_deposit_allocations")
+          .select("charge_transaction_id, amount")
+          .eq("restaurant_id", restaurantId)
+          .in("charge_transaction_id", chargeIds);
+  if (chargeAllocations.error && chargeAllocations.error.code !== "42P01") {
+    throw cashierError(chargeAllocations.error.message);
   }
   const noteRows = (notes.data ?? []) as Array<{
     id: string;
@@ -457,6 +600,14 @@ async function loadGuestSettlements(
     invoice_id: string;
     amount: number | string;
   }>;
+  const depositRows = (depositAllocations.data ?? []) as Array<{
+    invoice_id: string;
+    amount: number | string;
+  }>;
+  const chargeRows = (chargeAllocations.data ?? []) as Array<{
+    charge_transaction_id: string;
+    amount: number | string;
+  }>;
   return (
     (invoices.data ?? []) as Array<{
       id: string;
@@ -488,6 +639,16 @@ async function loadGuestSettlements(
           .filter((note) => note.note_type === "debit")
           .reduce((sum, note) => sum + Number(note.total_delta), 0),
       );
+      const depositApplied = roundGuestMoney(
+        depositRows
+          .filter((row) => row.invoice_id === invoice.id)
+          .reduce((sum, row) => sum + Number(row.amount), 0) +
+          chargeRows
+            .filter((row) =>
+              snapshotParentIds(invoice.snapshot).includes(row.charge_transaction_id),
+            )
+            .reduce((sum, row) => sum + Number(row.amount), 0),
+      );
       const cashDebitCovered = registeredCashDebitCover(
         invoiceNotes.map((note) => ({
           id: note.id,
@@ -511,6 +672,7 @@ async function loadGuestSettlements(
           creditNoteTotal,
           debitNoteTotal,
           cashDebitCovered,
+          depositApplied,
           effectiveNet: null,
           allocated: 0,
           outstanding: null,
@@ -519,7 +681,7 @@ async function loadGuestSettlements(
         } satisfies GuestInvoiceSettlementRow;
       }
       const effectiveNet = guestInvoiceEffectiveNet(original, deltas);
-      const settled = roundGuestMoney(allocated + cashDebitCovered);
+      const settled = roundGuestMoney(allocated + depositApplied + cashDebitCovered);
       return {
         invoiceId: invoice.id,
         number: invoice.issued_number,
@@ -530,6 +692,7 @@ async function loadGuestSettlements(
         creditNoteTotal,
         debitNoteTotal,
         cashDebitCovered,
+        depositApplied,
         effectiveNet,
         allocated,
         outstanding: Math.max(0, guestInvoiceOutstanding(effectiveNet, settled)),

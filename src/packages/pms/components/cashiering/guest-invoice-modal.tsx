@@ -107,7 +107,7 @@ export function GuestInvoiceModal({
   const availableUnallocated = useMemo(
     () =>
       workspace.folio.transactions
-        .filter((row) => row.type === "payment")
+        .filter((row) => row.type === "payment" || row.type === "deposit")
         .reduce((sum, payment) => {
           const refunded = workspace.folio.transactions
             .filter((row) => row.type === "refund" && row.originalTransactionId === payment.id)
@@ -149,7 +149,7 @@ export function GuestInvoiceModal({
       ? "Fiscal Mode was frozen when this invoice was first registered."
       : null
     : fiscalMode === "CASH"
-      ? "Invoice is fully covered by eligible payment allocations."
+      ? "Invoice is fully covered by payments and applied deposits."
       : (fiscalState?.settlement?.eligiblePayments ?? allocated) <= 0.009
         ? "No eligible payment has been allocated."
         : `${money(fiscalState?.settlement?.unpaid ?? outstanding)} remains unpaid by eligible payments.`;
@@ -307,6 +307,7 @@ export function GuestInvoiceModal({
             outstanding={outstanding}
             status={status}
             cashDebitCovered={settlement?.cashDebitCovered ?? 0}
+            depositApplied={settlement?.depositApplied ?? 0}
             availableUnallocated={availableUnallocated}
             expectedMode={fiscalMode}
             fiscalReason={fiscalReason}

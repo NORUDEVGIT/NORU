@@ -156,10 +156,14 @@ describe("guest payment allocation", () => {
     );
   });
 
-  it("does not reduce a deposit refund by payment allocations", () => {
+  it("reduces a deposit refund by the amount applied to an invoice", () => {
     assert.equal(
       guestPaymentRefundable({ sourceType: "deposit", faceMinusRefunds: 4000, allocatedNet: 4000 }),
-      4000,
+      0,
+    );
+    assert.equal(
+      guestPaymentRefundable({ sourceType: "deposit", faceMinusRefunds: 4000, allocatedNet: 1500 }),
+      2500,
     );
   });
 

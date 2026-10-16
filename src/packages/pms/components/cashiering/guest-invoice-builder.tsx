@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Coins, FileText, Percent, Plus, Printer, Trash2 } from "lucide-react";
@@ -57,6 +57,8 @@ export function GuestInvoiceWorkspace({
   onReprint,
   reprinting,
   onAllocate,
+  autoStartIssue = false,
+  onIssued,
 }: {
   restaurantId: string;
   workspace: FolioWorkspace;
@@ -67,6 +69,8 @@ export function GuestInvoiceWorkspace({
   onReprint: (invoice: IssuedFolioInvoiceRow) => void;
   reprinting: boolean;
   onAllocate?: ((invoiceId: string, paymentId?: string) => void) | undefined;
+  autoStartIssue?: boolean;
+  onIssued?: ((invoice: IssuedFolioInvoiceRow) => void) | undefined;
 }) {
   const folio = workspace.folio;
   const canManage = workspace.canManage && workspace.capabilities.canIssueInvoice;
@@ -104,12 +108,20 @@ export function GuestInvoiceWorkspace({
   const [search, setSearch] = useState("");
   const [pane, setPane] = useState<"items" | "preview" | "tax">("items");
   const [viewingInvoice, setViewingInvoice] = useState<IssuedFolioInvoiceRow | null>(null);
+  const issueStarted = useRef(false);
 
   useEffect(() => {
     if (!board?.draft || !editing) return;
-    setSelectedIds(board.draft.selectedIds);
+    const saved = board.draft.selectedIds;
+    setSelectedIds(
+      saved.length > 0
+        ? saved
+        : (board.groups ?? [])
+            .filter((group) => group.invoiceState !== "invoiced")
+            .map((group) => group.parentTransactionId),
+    );
     setNotes(board.draft.notes ?? "");
-  }, [board?.draft, editing]);
+  }, [board?.draft, board?.groups, editing]);
 
   const previewQuery = useQuery({
     queryKey: ["folio", restaurantId, folio.id, "invoice-preview", selectedIds],
@@ -158,6 +170,26 @@ export function GuestInvoiceWorkspace({
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  useEffect(() => {
+    if (!autoStartIssue || issueStarted.current || !board || !canManage || board.legacyFolio) return;
+    if (editing || board.draft) {
+      issueStarted.current = true;
+      if (board.draft && !editing) setEditing(true);
+      return;
+    }
+    if (!workspace.invoiceSettingsAvailable || createMut.isPending) return;
+    issueStarted.current = true;
+    createMut.mutate();
+  }, [
+    autoStartIssue,
+    board,
+    canManage,
+    createMut,
+    editing,
+    workspace.invoiceSettingsAvailable,
+  ]);
+
   const saveMut = useMutation({
     mutationFn: () => {
       if (!board?.draft) throw new Error("Save the draft after it has been created.");
@@ -229,7 +261,8 @@ export function GuestInvoiceWorkspace({
       toast.success(`Invoice ${result.invoice.issuedNumber} issued.`);
       setEditing(false);
       setSelectedIds([]);
-      setViewingInvoice(result.invoice);
+      if (autoStartIssue) onIssued?.(result.invoice);
+      else setViewingInvoice(result.invoice);
       void boardQuery.refetch();
       onChanged();
     },

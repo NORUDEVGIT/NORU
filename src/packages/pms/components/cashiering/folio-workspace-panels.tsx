@@ -68,10 +68,12 @@ import {
   postSettlementWriteOff,
 } from "@/packages/pms/lib/cashiering-phases.functions";
 import { correctableGroupRemainder } from "@/packages/pms/lib/cashiering-transfer-allocate";
+import { InvoiceReceivePaymentDialog } from "@/packages/pms/components/cashiering/invoice-receive-payment-dialog";
 import {
   GuestInvoiceSettlementPanel,
   GuestPaymentAllocationFacts,
 } from "@/packages/pms/components/cashiering/guest-payment-allocation-drawer";
+import { listGuestInvoiceSettlementForFolio } from "@/packages/pms/lib/cashiering-guest-allocation.functions";
 import { guestPaymentRefundable } from "@/packages/pms/lib/cashiering-guest-allocation";
 import { remainingOnPaymentSource } from "@/packages/pms/lib/cashiering.server";
 import {
@@ -387,6 +389,10 @@ export type RowActions = {
   onPrintReceipt?: (row: FolioTransactionRow) => void;
 };
 
+function heldOnSource(workspace: FolioWorkspace, row: FolioTransactionRow): number {
+  return workspace.paymentAllocationNets[row.id] ?? 0;
+}
+
 function legalCorrections(
   row: FolioTransactionRow,
   rows: FolioTransactionRow[],
@@ -399,7 +405,7 @@ function legalCorrections(
     const refundable = guestPaymentRefundable({
       sourceType: row.type,
       faceMinusRefunds: base,
-      allocatedNet: workspace.paymentAllocationNets[row.id] ?? 0,
+      allocatedNet: heldOnSource(workspace, row),
     });
     if ((refundable ?? 0) > 0.009) out.push("refund");
   }
@@ -727,12 +733,7 @@ function ChildTaxRow({
         —
       </td>
       <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums">
-        <span
-          className={cn(
-            "font-semibold",
-            isService ? "text-sky-900" : "text-amber-900",
-          )}
-        >
+        <span className={cn("font-semibold", isService ? "text-sky-900" : "text-amber-900")}>
           {money(child.amount)}
         </span>
       </td>
@@ -1004,12 +1005,7 @@ function ChargeGroupRows({
       />
       {isExpanded &&
         group.children.map((child) => (
-          <ChildTaxRow
-            key={child.id}
-            child={child}
-            parentNet={group.net}
-            money={money}
-          />
+          <ChildTaxRow key={child.id} child={child} parentNet={group.net} money={money} />
         ))}
     </>
   );
@@ -1221,7 +1217,7 @@ export function PaymentsDepositsTab({
                     : guestPaymentRefundable({
                         sourceType: row.type,
                         faceMinusRefunds: baseRefundable,
-                        allocatedNet: workspace.paymentAllocationNets[row.id] ?? 0,
+                        allocatedNet: heldOnSource(workspace, row),
                       });
                 const remaining =
                   row.type === "deposit"
@@ -1547,6 +1543,7 @@ export function SettlementTab({
   onRefund,
   onTransfer,
   onAllocateInvoice,
+  onIssueInvoice,
 }: {
   restaurantId: string;
   workspace: FolioWorkspace;
@@ -1559,7 +1556,8 @@ export function SettlementTab({
   onPrintStatement: () => void;
   onRefund: () => void;
   onTransfer: () => void;
-  onAllocateInvoice: (invoiceId: string) => void;
+  onAllocateInvoice: (invoiceId: string, paymentId?: string) => void;
+  onIssueInvoice: () => void;
 }) {
   const folio = workspace.folio;
   const summary = workspace.financialSummary;
@@ -1577,6 +1575,20 @@ export function SettlementTab({
     queryFn: () => fetchShifts({ data: { restaurantId } }),
   });
   const shiftOpen = (shifts.data ?? []).some((shift) => shift.status === "open");
+  const fetchInvoiceSettlement = useServerFn(listGuestInvoiceSettlementForFolio);
+  const invoiceSettlement = useQuery({
+    queryKey: ["guest-invoice-settlement", restaurantId, folio.id],
+    queryFn: () => fetchInvoiceSettlement({ data: { restaurantId, folioId: folio.id } }),
+    enabled: open,
+  });
+  const payableInvoices = (invoiceSettlement.data ?? []).filter(
+    (row) => row.eligible && (row.outstanding ?? 0) > 0.01,
+  );
+  const [receiveInvoice, setReceiveInvoice] = useState<{
+    invoiceId: string;
+    outstanding: number;
+    currency: string;
+  } | null>(null);
   const payments = workspace.recentPayments;
   const writeOffs = folio.transactions
     .filter((row) => row.referenceType === "settlement_write_off")
@@ -1617,6 +1629,81 @@ export function SettlementTab({
           tint={open ? KPI_TINT.tax : KPI_TINT.neutral}
         />
       </div>
+
+      {open ? (
+        <SectionCard
+          title="Final settlement"
+          description="Issue the invoice here, apply any open deposit, then receive the remaining balance."
+          testId="final-settlement"
+        >
+          <div className="space-y-3 px-4 py-4 text-sm">
+            <ol className="list-decimal space-y-1 pl-4 text-muted-foreground">
+              <li>All uninvoiced charges start selected on the invoice.</li>
+              <li>
+                Apply an open deposit to that invoice. It settles the invoice and counts toward
+                fiscal CASH.
+              </li>
+              <li>
+                Receive the remaining amount on the invoice so it is allocated, then a manager
+                registers it.
+              </li>
+            </ol>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" onClick={onIssueInvoice}>
+                <FileText className="size-4" /> Issue final invoice
+              </Button>
+              {payableInvoices.length === 1 && workspace.canOperate ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    const row = payableInvoices[0];
+                    if (!row) return;
+                    setReceiveInvoice({
+                      invoiceId: row.invoiceId,
+                      outstanding: row.outstanding ?? 0,
+                      currency: row.currency || currency,
+                    });
+                  }}
+                >
+                  <CreditCard className="size-4" /> Receive remaining payment
+                </Button>
+              ) : null}
+              {workspace.canAllocateInvoices ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onAllocateInvoice("")}
+                >
+                  <ArrowLeftRight className="size-4" /> Allocate payment or deposit
+                </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  An accountant allocates an existing payment or deposit.
+                </p>
+              )}
+            </div>
+            {payableInvoices.length > 1 ? (
+              <p className="text-xs text-muted-foreground">
+                More than one invoice is still open. Receive the remaining amount on each invoice
+                below.
+              </p>
+            ) : null}
+            {payableInvoices.length > 0 && !workspace.canOperate ? (
+              <p className="text-xs text-muted-foreground">
+                A cashier receives the remaining payment on the invoice.
+              </p>
+            ) : null}
+            {balance < -0.009 ? (
+              <p>
+                This folio has a credit balance. Refund the original payment or deposit after
+                releasing any amount applied to an invoice.
+              </p>
+            ) : null}
+          </div>
+        </SectionCard>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <SectionCard
@@ -1691,15 +1778,23 @@ export function SettlementTab({
 
         <div className="space-y-4">
           {open && outstanding > 0 && caps.canPostPayment ? (
-            <SettlementPaymentCard
-              restaurantId={restaurantId}
-              folioId={folio.id}
-              balance={balance}
-              currency={currency}
-              guestName={folio.guestName}
-              money={money}
-              onPosted={onPosted}
-            />
+            <div className="space-y-2">
+              {payableInvoices.length > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  A payment posted here stays on the folio until it is allocated. Use Receive
+                  remaining payment to settle the issued invoice.
+                </p>
+              ) : null}
+              <SettlementPaymentCard
+                restaurantId={restaurantId}
+                folioId={folio.id}
+                balance={balance}
+                currency={currency}
+                guestName={folio.guestName}
+                money={money}
+                onPosted={onPosted}
+              />
+            </div>
           ) : null}
           {open && Math.abs(balance) < 0.01 ? (
             <SectionCard title="Final payment" description="This folio is financially settled.">
@@ -1768,7 +1863,7 @@ export function SettlementTab({
 
       <SectionCard
         title="Invoice settlement"
-        description="Issued charge-group invoices. Deposit application stays on charges and is not invoice settlement."
+        description="Issued charge-group invoices. Payments and applied deposits both settle the invoice."
         testId="invoice-settlement-summary"
       >
         <GuestInvoiceSettlementPanel
@@ -1778,9 +1873,38 @@ export function SettlementTab({
           money={money}
           dateTime={dateTime}
           canAllocate={workspace.canAllocateInvoices}
+          canReceive={workspace.canOperate}
           onAllocate={onAllocateInvoice}
+          onReceive={setReceiveInvoice}
         />
       </SectionCard>
+      {receiveInvoice ? (
+        <InvoiceReceivePaymentDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setReceiveInvoice(null);
+          }}
+          target={{
+            lane: "guest",
+            restaurantId,
+            folioId: folio.id,
+            invoiceId: receiveInvoice.invoiceId,
+          }}
+          outstanding={receiveInvoice.outstanding}
+          currency={receiveInvoice.currency}
+          receivedFrom={folio.guestName}
+          canAllocateExisting={workspace.canAllocateInvoices}
+          onSettled={async () => {
+            await invoiceSettlement.refetch();
+            onPosted();
+          }}
+          onAllocateExisting={(paymentId) => {
+            const invoiceId = receiveInvoice.invoiceId;
+            setReceiveInvoice(null);
+            onAllocateInvoice(invoiceId, paymentId);
+          }}
+        />
+      ) : null}
 
       {open && workspace.canManage ? (
         <SectionCard
@@ -2413,7 +2537,7 @@ export function TransactionDetailDialog({
       ? guestPaymentRefundable({
           sourceType: row.type,
           faceMinusRefunds: baseRefundable,
-          allocatedNet: row.type === "payment" ? allocationNet : 0,
+          allocatedNet: allocationNet,
         })
       : null;
   const refunded =
@@ -2481,7 +2605,7 @@ export function TransactionDetailDialog({
                   <DetailRow label="Refundable" value={money(refundable)} />
                 </>
               ) : null}
-              {row.type === "payment" && allocationNet > 0.009 ? (
+              {(row.type === "payment" || row.type === "deposit") && allocationNet > 0.009 ? (
                 <p className="text-xs text-muted-foreground">
                   Allocated amounts must be reversed before they can be refunded.
                 </p>
@@ -2499,7 +2623,7 @@ export function TransactionDetailDialog({
                 />
               ) : null}
             </dl>
-            {row.type === "payment" && restaurantId && folioId ? (
+            {(row.type === "payment" || row.type === "deposit") && restaurantId && folioId ? (
               <GuestPaymentAllocationFacts
                 restaurantId={restaurantId}
                 folioId={folioId}

@@ -150,7 +150,7 @@ export function AccountInvoiceModal({
       ? "Fiscal Mode was frozen when this invoice was first registered."
       : null
     : fiscalMode === "CASH"
-      ? "Invoice is fully covered by eligible payment allocations."
+      ? "Invoice is fully covered by payments and applied deposits."
       : (fiscalState?.settlement?.eligiblePayments ?? allocated) <= 0.009
         ? "No eligible payment has been allocated."
         : `${money(fiscalState?.settlement?.unpaid ?? outstanding)} remains unpaid by eligible payments.`;

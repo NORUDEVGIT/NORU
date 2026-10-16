@@ -78,6 +78,8 @@ import {
   InventoryStatusBadge,
 } from "@/packages/pms/components/rooms/room-inventory-shared";
 import { GuestInvoiceWorkspace } from "@/packages/pms/components/cashiering/guest-invoice-builder";
+import { InvoiceReceivePaymentDialog } from "@/packages/pms/components/cashiering/invoice-receive-payment-dialog";
+import { getGuestInvoiceSettlement } from "@/packages/pms/lib/cashiering-guest-allocation.functions";
 import {
   getCashieringDocumentProperty,
   reprintGuestFolioInvoice,
@@ -106,6 +108,13 @@ import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useMoney, useRestaurantTime } from "@/core/state/property-format";
 import { Button } from "@/shared/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -168,6 +177,7 @@ export function GuestFolioPage({
     void queryClient.invalidateQueries({ queryKey: ["cashiering-folios", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["cashiering-ledger", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["cashiering-dashboard", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["guest-invoice-settlement", restaurantId, folioId] });
   }
 
   function go(tab: CashieringTabId) {
@@ -357,6 +367,23 @@ function FolioWorkspaceBody({
   const [allocateOpen, setAllocateOpen] = useState(false);
   const [allocatePaymentId, setAllocatePaymentId] = useState<string | null>(null);
   const [allocateInvoiceId, setAllocateInvoiceId] = useState<string | null>(null);
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [issuedNext, setIssuedNext] = useState<IssuedFolioInvoiceRow | null>(null);
+  const [receiveIssued, setReceiveIssued] = useState(false);
+  const fetchIssuedSettlement = useServerFn(getGuestInvoiceSettlement);
+  const issuedSettlement = useQuery({
+    queryKey: ["guest-invoice-settlement", restaurantId, folio.id, issuedNext?.id],
+    queryFn: () =>
+      fetchIssuedSettlement({
+        data: { restaurantId, folioId: folio.id, invoiceId: issuedNext?.id ?? "" },
+      }),
+    enabled: Boolean(issuedNext),
+  });
+  const issuedOutstanding =
+    issuedSettlement.data?.settlement?.outstanding ??
+    (issuedNext && !issuedSettlement.isLoading
+      ? issuedNext.snapshot.totals.invoiceTotal
+      : null);
   const [detailRow, setDetailRow] = useState<FolioTransactionRow | null>(null);
   const [chargeId, setChargeId] = useState<string | null>(null);
   const [correctSourceId, setCorrectSourceId] = useState<string | null>(null);
@@ -931,11 +958,12 @@ function FolioWorkspaceBody({
                 onPrintStatement={() => printWith("statement")}
                 onRefund={() => openEntry("refund")}
                 onTransfer={() => openTransfer(null)}
-                onAllocateInvoice={(invoiceId) => {
-                  setAllocateInvoiceId(invoiceId);
-                  setAllocatePaymentId(null);
+                onAllocateInvoice={(invoiceId, paymentId) => {
+                  setAllocateInvoiceId(invoiceId || null);
+                  setAllocatePaymentId(paymentId ?? null);
                   setAllocateOpen(true);
                 }}
+                onIssueInvoice={() => setIssueOpen(true)}
               />
             ) : null}
           </div>
@@ -1075,9 +1103,7 @@ function FolioWorkspaceBody({
         dateTime={dateTime}
         onClose={() => setDetailRow(null)}
         canAllocate={workspace.canAllocateInvoices}
-        allocationNet={
-          detailRow?.type === "payment" ? (workspace.paymentAllocationNets[detailRow.id] ?? 0) : 0
-        }
+        allocationNet={detailRow ? (workspace.paymentAllocationNets[detailRow.id] ?? 0) : 0}
         onAllocatePayment={(paymentId) => {
           setDetailRow(null);
           setAllocatePaymentId(paymentId);
@@ -1095,7 +1121,7 @@ function FolioWorkspaceBody({
         folioId={folio.id}
         paymentId={allocatePaymentId}
         payments={folio.transactions
-          .filter((row) => row.type === "payment")
+          .filter((row) => row.type === "payment" || row.type === "deposit")
           .map((row) => {
             const refunded = folio.transactions
               .filter((line) => line.type === "refund" && line.originalTransactionId === row.id)
@@ -1106,8 +1132,9 @@ function FolioWorkspaceBody({
               ) / 100;
             return {
               id: row.id,
-              label: row.description || "Payment",
+              label: `${row.type === "deposit" ? "Deposit" : "Payment"} · ${row.description || row.type}`,
               available,
+              kind: row.type,
             };
           })
           .filter((row) => row.available > 0.009)}
@@ -1116,6 +1143,130 @@ function FolioWorkspaceBody({
         dateTime={dateTime}
         onOpenChange={setAllocateOpen}
       />
+      <Dialog open={issueOpen} onOpenChange={setIssueOpen}>
+        <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Issue final invoice</DialogTitle>
+            <DialogDescription>
+              Review the charges and issue the invoice here. Payment and fiscal registration stay
+              separate.
+            </DialogDescription>
+          </DialogHeader>
+          <GuestInvoiceWorkspace
+            restaurantId={restaurantId}
+            workspace={workspace}
+            money={money}
+            dateTime={dateTime}
+            onChanged={onChanged}
+            onPostCharge={() => openEntry("charge")}
+            onReprint={(invoice) => reprintMut.mutate(invoice)}
+            reprinting={reprintMut.isPending}
+            autoStartIssue
+            onIssued={(invoice) => {
+              setIssueOpen(false);
+              setIssuedNext(invoice);
+            }}
+            onAllocate={(invoiceId, paymentId) => {
+              setIssueOpen(false);
+              setAllocateInvoiceId(invoiceId);
+              setAllocatePaymentId(paymentId ?? null);
+              setAllocateOpen(true);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={issuedNext !== null && !receiveIssued}
+        onOpenChange={(open) => {
+          if (!open && !receiveIssued) setIssuedNext(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invoice {issuedNext?.issuedNumber} issued</DialogTitle>
+            <DialogDescription>
+              Receive a payment for this invoice, or allocate an existing payment or deposit.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            {workspace.canOperate && (issuedOutstanding == null || issuedOutstanding > 0.01) ? (
+              <Button
+                type="button"
+                disabled={issuedOutstanding == null}
+                onClick={() => {
+                  if (!issuedNext || issuedOutstanding == null) return;
+                  setReceiveIssued(true);
+                }}
+              >
+                <CreditCard className="size-4" /> Receive payment
+              </Button>
+            ) : null}
+            {workspace.canAllocateInvoices &&
+            (issuedOutstanding == null || issuedOutstanding > 0.01) ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (!issuedNext) return;
+                  const invoiceId = issuedNext.id;
+                  setIssuedNext(null);
+                  setAllocateInvoiceId(invoiceId);
+                  setAllocatePaymentId(null);
+                  setAllocateOpen(true);
+                }}
+              >
+                Allocate payment or deposit
+              </Button>
+            ) : null}
+          </div>
+          {issuedOutstanding != null && issuedOutstanding <= 0.01 ? (
+            <p className="text-sm text-muted-foreground">
+              This invoice is already covered. A manager can register it.
+            </p>
+          ) : null}
+          {issuedOutstanding != null && issuedOutstanding > 0.01 && !workspace.canOperate ? (
+            <p className="text-sm text-muted-foreground">A cashier receives the payment.</p>
+          ) : null}
+          {issuedOutstanding != null &&
+          issuedOutstanding > 0.01 &&
+          !workspace.canAllocateInvoices ? (
+            <p className="text-sm text-muted-foreground">
+              An accountant allocates an existing payment or deposit.
+            </p>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      {issuedNext && receiveIssued && issuedOutstanding != null ? (
+        <InvoiceReceivePaymentDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setReceiveIssued(false);
+          }}
+          target={{
+            lane: "guest",
+            restaurantId,
+            folioId: folio.id,
+            invoiceId: issuedNext.id,
+          }}
+          outstanding={issuedOutstanding}
+          currency={folio.currency}
+          receivedFrom={folio.guestName}
+          canAllocateExisting={workspace.canAllocateInvoices}
+          onSettled={() => {
+            setReceiveIssued(false);
+            setIssuedNext(null);
+            onChanged();
+          }}
+          onAllocateExisting={(paymentId) => {
+            const invoiceId = issuedNext.id;
+            setReceiveIssued(false);
+            setIssuedNext(null);
+            setAllocateInvoiceId(invoiceId);
+            setAllocatePaymentId(paymentId);
+            setAllocateOpen(true);
+          }}
+        />
+      ) : null}
       <DepositReceiptModal
         receipt={viewReceipt}
         open={viewReceipt !== null}

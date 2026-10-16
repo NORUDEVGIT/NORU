@@ -1,9 +1,11 @@
 /**
  * Fiscal document Mode is settlement timing, not a tender type.
  *
- * CASH means eligible payment allocations already cover the original fiscal
- * invoice total. CREDIT means they do not. Deposits, write-offs, transfers,
- * withholding, and credit or debit notes do not count.
+ * CASH means eligible settlement already covers the original fiscal invoice
+ * total. CREDIT means it does not. Eligible settlement is payment allocations
+ * plus deposit amounts applied to that invoice. Write-offs, transfers,
+ * withholding, and credit or debit notes do not count. A deposit is not a
+ * separate sales receipt.
  */
 export const FISCAL_DOCUMENT_MODES = ["CASH", "CREDIT"] as const;
 export type FiscalDocumentMode = (typeof FISCAL_DOCUMENT_MODES)[number];
@@ -12,9 +14,10 @@ export const SALES_RECEIPT_CASH_BLOCK =
   "Sales Receipt is not applicable because the original fiscal invoice was registered as CASH.";
 
 export const FISCAL_CASH_REASON =
-  "Invoice was fully settled by eligible payment allocations before fiscal registration.";
+  "Invoice was fully settled by payments and applied deposits before fiscal registration.";
 
-export const FISCAL_CREDIT_REASON = "Invoice is not fully covered by eligible payment allocations.";
+export const FISCAL_CREDIT_REASON =
+  "Invoice is not fully covered by payments and applied deposits.";
 
 export type EligibleAllocationKind = "payment" | "deposit" | "other";
 
@@ -45,13 +48,25 @@ export function frozenFiscalMode(snapshot: unknown): FiscalDocumentMode | null {
 
 /** Positive, non-reversed allocations whose source transaction is a payment. */
 export function eligiblePaymentTotal(rows: readonly EligibleAllocationRow[]): number {
+  return coveredTotal(rows, new Set(["payment"]));
+}
+
+/** Payments plus deposits applied to the invoice. This is the fiscal CASH base. */
+export function eligibleSettlementTotal(rows: readonly EligibleAllocationRow[]): number {
+  return coveredTotal(rows, new Set(["payment", "deposit"]));
+}
+
+function coveredTotal(
+  rows: readonly EligibleAllocationRow[],
+  kinds: ReadonlySet<EligibleAllocationKind>,
+): number {
   const reversed = new Set(
     rows
       .map((row) => row.reversesAllocationId)
       .filter((id): id is string => typeof id === "string" && id.length > 0),
   );
   const total = rows.reduce((sum, row) => {
-    if (row.sourceKind !== "payment") return sum;
+    if (!kinds.has(row.sourceKind)) return sum;
     if (row.reversesAllocationId) return sum;
     if (reversed.has(row.id)) return sum;
     if (!(row.amount > 0.009)) return sum;

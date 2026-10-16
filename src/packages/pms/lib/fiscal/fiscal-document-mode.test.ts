@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import {
   deriveFiscalDocumentMode,
   eligiblePaymentTotal,
+  eligibleSettlementTotal,
   FISCAL_CASH_REASON,
   FISCAL_CREDIT_REASON,
   fiscalSettlementSummary,
@@ -58,6 +59,18 @@ describe("fiscal document mode", () => {
     assert.equal(
       fiscalSettlementSummary(1000, eligiblePaymentTotal([row("deposit", 1000, "deposit")])).mode,
       "CREDIT",
+    );
+    assert.equal(
+      fiscalSettlementSummary(
+        1000,
+        eligibleSettlementTotal([row("deposit", 200, "deposit"), row("pay", 800, "payment")]),
+      ).mode,
+      "CASH",
+    );
+    assert.equal(
+      fiscalSettlementSummary(1000, eligibleSettlementTotal([row("deposit", 1000, "deposit")]))
+        .mode,
+      "CASH",
     );
   });
 

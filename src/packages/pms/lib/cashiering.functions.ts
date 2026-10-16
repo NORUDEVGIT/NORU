@@ -782,6 +782,22 @@ async function loadPaymentAllocationNets(
     const current = nets[row.payment_transaction_id] ?? 0;
     nets[row.payment_transaction_id] = Math.round((current + Number(row.amount)) * 100) / 100;
   }
+  const deposits = await supabaseAdmin
+    .from("guest_deposit_invoice_allocations")
+    .select("deposit_transaction_id, amount")
+    .eq("restaurant_id", restaurantId)
+    .in("deposit_transaction_id", paymentIds);
+  if (deposits.error) {
+    if (isMissingSchemaError(deposits.error)) return nets;
+    throw cashierError(deposits.error.message);
+  }
+  for (const row of (deposits.data ?? []) as Array<{
+    deposit_transaction_id: string;
+    amount: number | string;
+  }>) {
+    const current = nets[row.deposit_transaction_id] ?? 0;
+    nets[row.deposit_transaction_id] = Math.round((current + Number(row.amount)) * 100) / 100;
+  }
   return nets;
 }
 
@@ -928,7 +944,7 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
       ),
     ];
     const paymentIds = folio.transactions
-      .filter((row) => row.type === "payment")
+      .filter((row) => row.type === "payment" || row.type === "deposit")
       .map((row) => row.id);
     const [allocations, settings, counterparts, paymentAllocationNets] = await Promise.all([
       loadDepositAllocations(
@@ -946,6 +962,11 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
     ]);
     const invoiceSettingsAvailable = !settings.error && Boolean(settings.data);
     const depositLines = buildDepositLines(folio.transactions, allocations);
+    for (const line of depositLines) {
+      const current = paymentAllocationNets[line.transaction.id] ?? 0;
+      paymentAllocationNets[line.transaction.id] =
+        Math.round((current + line.applied) * 100) / 100;
+    }
     const canManage = canManageCashiering(me.role);
     const canOperate = (CASHIER_OPERATE_ROLES as readonly string[]).includes(me.role);
 
