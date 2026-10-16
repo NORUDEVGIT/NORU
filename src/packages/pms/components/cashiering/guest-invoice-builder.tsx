@@ -1,0 +1,1139 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Coins,
+  FileText,
+  Percent,
+  Plus,
+  Printer,
+  Receipt,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { GuestInvoiceModal } from "@/packages/pms/components/cashiering/guest-invoice-modal";
+import { FiscalInvoiceStatusBadge } from "@/packages/pms/components/cashiering/fiscal-invoice-status-badge";
+import { listInvoiceFiscalStatuses } from "@/packages/pms/lib/fiscal/fiscal.functions";
+import { listGuestInvoiceSettlementForFolio } from "@/packages/pms/lib/cashiering-guest-allocation.functions";
+import { guestSettlementLabel } from "@/packages/pms/lib/cashiering-guest-allocation";
+import { stayNights } from "@/packages/pms/lib/folio-workspace";
+import {
+  createGuestFolioInvoiceDraft,
+  deleteGuestFolioInvoiceDraft,
+  getCashieringDocumentProperty,
+  getGuestFolioInvoiceBoard,
+  issueGuestFolioInvoiceDraft,
+  previewGuestFolioInvoiceSelection,
+  updateGuestFolioInvoiceDraft,
+} from "@/packages/pms/lib/cashiering-invoices.functions";
+import type { CashieringDocumentProperty } from "@/packages/pms/lib/cashiering-document-property";
+import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
+import type {
+  InvoiceGroupView,
+  IssuedFolioInvoiceRow,
+} from "@/packages/pms/lib/cashiering-invoices.server";
+import type { FolioWorkspace } from "@/packages/pms/lib/cashiering.functions";
+import { Button } from "@/shared/components/ui/button";
+import { Checkbox } from "@/shared/components/ui/checkbox";
+import { cn } from "@/shared/lib/utils";
+
+const CARD = "rounded-xl border border-[#E8E1D7] bg-white shadow-sm";
+const HEAD =
+  "border-b border-[#E8E1D7] bg-[#F7F4EE] text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
+
+const WARNING_TEXT: Record<string, string> = {
+  CHARGE_ALREADY_INVOICED: "That charge is already on an issued invoice.",
+  CHARGE_NOT_INVOICEABLE: "That line cannot be added to a guest invoice.",
+  CHARGE_TRANSFERRED: "That charge has moved off this folio. Remove it from the draft.",
+  CHARGE_GROUP_INCOMPLETE: "The tax or service lines for that charge are no longer on this folio.",
+  LEGACY_FOLIO_ALREADY_INVOICED: "This folio already has a whole-folio invoice.",
+};
+
+function chargeKind(group: InvoiceGroupView): "room" | "service" | "manual" | "other" {
+  if (group.category === "room" || group.chargeSource === "room") return "room";
+  if (group.chargeSource === "service") return "service";
+  if (group.category === "manual" || group.chargeSource === "manual") return "manual";
+  return "other";
+}
+
+function InvoiceSettlementBadge({
+  state,
+  legacy,
+}: {
+  state?: string | null;
+  legacy?: boolean;
+}) {
+  if (legacy) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
+        <span className="size-1.5 rounded-full bg-slate-400" />
+        Legacy
+      </span>
+    );
+  }
+  if (!state) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  const label = guestSettlementLabel(state as any);
+  if (state === "PAID") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+        <span className="size-1.5 rounded-full bg-emerald-500" />
+        {label}
+      </span>
+    );
+  }
+  if (state === "PARTIALLY_PAID") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-800">
+        <span className="size-1.5 rounded-full bg-amber-500" />
+        {label}
+      </span>
+    );
+  }
+  if (state === "NO_AMOUNT_DUE") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E8E1D7] bg-[#F5EFE6] px-2.5 py-0.5 text-[11px] font-medium text-[#765719]">
+        <span className="size-1.5 rounded-full bg-[#8a6a1f]" />
+        {label}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[11px] font-medium text-rose-700">
+      <span className="size-1.5 rounded-full bg-rose-500" />
+      {label}
+    </span>
+  );
+}
+
+export function GuestInvoiceWorkspace({
+  restaurantId,
+  workspace,
+  money,
+  dateTime,
+  onChanged,
+  onPostCharge,
+  onReprint,
+  reprinting,
+  onAllocate,
+  autoStartIssue = false,
+  onIssued,
+}: {
+  restaurantId: string;
+  workspace: FolioWorkspace;
+  money: (value: number) => string;
+  dateTime: (iso: string | null | undefined) => string;
+  onChanged: () => void;
+  onPostCharge?: (() => void) | undefined;
+  onReprint: (invoice: IssuedFolioInvoiceRow) => void;
+  reprinting: boolean;
+  onAllocate?: ((invoiceId: string, paymentId?: string) => void) | undefined;
+  autoStartIssue?: boolean;
+  onIssued?: ((invoice: IssuedFolioInvoiceRow) => void) | undefined;
+}) {
+  const folio = workspace.folio;
+  const canManage = workspace.canManage && workspace.capabilities.canIssueInvoice;
+  const fetchBoard = useServerFn(getGuestFolioInvoiceBoard);
+  const previewSelection = useServerFn(previewGuestFolioInvoiceSelection);
+  const createDraft = useServerFn(createGuestFolioInvoiceDraft);
+  const updateDraft = useServerFn(updateGuestFolioInvoiceDraft);
+  const removeDraft = useServerFn(deleteGuestFolioInvoiceDraft);
+  const issueDraft = useServerFn(issueGuestFolioInvoiceDraft);
+
+  const fetchSettlements = useServerFn(listGuestInvoiceSettlementForFolio);
+  const settlementQuery = useQuery({
+    queryKey: ["guest-invoice-settlement", restaurantId, folio.id],
+    queryFn: () => fetchSettlements({ data: { restaurantId, folioId: folio.id } }),
+  });
+  const issuedInvoiceIds = useMemo(
+    () => folio.issuedInvoices.map((invoice) => invoice.id),
+    [folio.issuedInvoices],
+  );
+  const fetchFiscalStatuses = useServerFn(listInvoiceFiscalStatuses);
+  const fiscalQuery = useQuery({
+    queryKey: ["invoice-fiscal-status", restaurantId, "guest_invoice", issuedInvoiceIds],
+    queryFn: () =>
+      fetchFiscalStatuses({
+        data: { restaurantId, sourceType: "guest_invoice", invoiceIds: issuedInvoiceIds },
+      }),
+    enabled: issuedInvoiceIds.length > 0,
+  });
+  const fiscalByInvoice = useMemo(() => {
+    const map = new Map<
+      string,
+      { status: "registered" | "error" | "queued" | "not_registered"; error: string | null }
+    >();
+    for (const row of fiscalQuery.data ?? []) map.set(row.invoiceId, row);
+    return map;
+  }, [fiscalQuery.data]);
+  const boardQuery = useQuery({
+    queryKey: ["folio", restaurantId, folio.id, "invoice-board"],
+    queryFn: () => fetchBoard({ data: { restaurantId, folioId: folio.id } }),
+  });
+  const fetchDocumentProperty = useServerFn(getCashieringDocumentProperty);
+  const documentPropertyQuery = useQuery({
+    queryKey: ["cashiering-document-property", restaurantId],
+    queryFn: () => fetchDocumentProperty({ data: { restaurantId } }),
+  });
+  const documentProperty = documentPropertyQuery.data ?? null;
+  const board = boardQuery.data;
+  const [editing, setEditing] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [notes, setNotes] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [department, setDepartment] = useState("all");
+  const [kind, setKind] = useState("all");
+  const [stateFilter, setStateFilter] = useState("uninvoiced");
+  const [search, setSearch] = useState("");
+  const [pane, setPane] = useState<"items" | "preview" | "tax">("items");
+  const [viewingInvoice, setViewingInvoice] = useState<IssuedFolioInvoiceRow | null>(null);
+  const [invoicePage, setInvoicePage] = useState(1);
+  const [invoicePageSize, setInvoicePageSize] = useState(5);
+  const issueStarted = useRef(false);
+
+  useEffect(() => {
+    if (!board?.draft || !editing) return;
+    const saved = board.draft.selectedIds;
+    setSelectedIds(
+      saved.length > 0
+        ? saved
+        : (board.groups ?? [])
+            .filter((group) => group.invoiceState !== "invoiced")
+            .map((group) => group.parentTransactionId),
+    );
+    setNotes(board.draft.notes ?? "");
+  }, [board?.draft, board?.groups, editing]);
+
+  const previewQuery = useQuery({
+    queryKey: ["folio", restaurantId, folio.id, "invoice-preview", selectedIds],
+    enabled: editing,
+    queryFn: () =>
+      previewSelection({
+        data: { restaurantId, folioId: folio.id, sourceIds: selectedIds },
+      }),
+  });
+  const preview = previewQuery.data;
+
+  const departments = useMemo(() => {
+    const names = new Set<string>();
+    for (const group of board?.groups ?? []) {
+      if (group.departmentName) names.add(group.departmentName);
+    }
+    return [...names].sort();
+  }, [board?.groups]);
+
+  const visible = (board?.groups ?? []).filter((group) => {
+    const day = group.postedAt.slice(0, 10);
+    if (from && day < from) return false;
+    if (to && day > to) return false;
+    if (department !== "all" && group.departmentName !== department) return false;
+    if (kind !== "all" && chargeKind(group) !== kind) return false;
+    if (stateFilter === "uninvoiced" && group.invoiceState === "invoiced") return false;
+    if (stateFilter === "invoiced" && group.invoiceState !== "invoiced") return false;
+    const haystack = `${group.description} ${group.departmentName ?? ""}`.toLowerCase();
+    return haystack.includes(search.trim().toLowerCase());
+  });
+
+  const createMut = useMutation({
+    mutationFn: () =>
+      createDraft({ data: { restaurantId, folioId: folio.id } }) as Promise<{
+        ok: boolean;
+        message?: string;
+      }>,
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message ?? "The draft could not be created.");
+        return;
+      }
+      setEditing(true);
+      setPane("items");
+      void boardQuery.refetch();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  useEffect(() => {
+    if (!autoStartIssue || issueStarted.current || !board || !canManage || board.legacyFolio)
+      return;
+    if (editing || board.draft) {
+      issueStarted.current = true;
+      if (board.draft && !editing) setEditing(true);
+      return;
+    }
+    if (!workspace.invoiceSettingsAvailable || createMut.isPending) return;
+    issueStarted.current = true;
+    createMut.mutate();
+  }, [autoStartIssue, board, canManage, createMut, editing, workspace.invoiceSettingsAvailable]);
+
+  const saveMut = useMutation({
+    mutationFn: () => {
+      if (!board?.draft) throw new Error("Save the draft after it has been created.");
+      return updateDraft({
+        data: { restaurantId, draftId: board.draft.id, notes, sourceIds: selectedIds },
+      }) as Promise<{ ok: boolean; message?: string }>;
+    },
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message ?? "The draft could not be saved.");
+        return;
+      }
+      toast.success("Draft saved.");
+      void boardQuery.refetch();
+      onChanged();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const deleteMut = useMutation({
+    mutationFn: () => {
+      if (!board?.draft) throw new Error("There is no draft to delete.");
+      return removeDraft({ data: { restaurantId, draftId: board.draft.id } }) as Promise<{
+        ok: boolean;
+        message?: string;
+      }>;
+    },
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message ?? "The draft could not be deleted.");
+        return;
+      }
+      setEditing(false);
+      setSelectedIds([]);
+      setNotes("");
+      toast.success("Draft deleted.");
+      void boardQuery.refetch();
+      onChanged();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const issueMut = useMutation({
+    mutationFn: async () => {
+      if (!board?.draft) throw new Error("Create a draft before issuing.");
+      const saved = (await updateDraft({
+        data: { restaurantId, draftId: board.draft.id, notes, sourceIds: selectedIds },
+      })) as { ok: boolean; message?: string };
+      if (!saved.ok)
+        return { ok: false as const, message: saved.message ?? "The draft could not be saved." };
+      const issueResult = (await issueDraft({
+        data: {
+          restaurantId,
+          draftId: board.draft.id,
+          idempotencyKey: `invdraft:${board.draft.id}`,
+        },
+      })) as { ok: boolean; message?: string; invoice?: IssuedFolioInvoiceRow };
+      if (!issueResult.ok || !issueResult.invoice) {
+        return {
+          ok: false as const,
+          message: issueResult.message ?? "The draft could not be issued.",
+        };
+      }
+      return { ok: true as const, invoice: issueResult.invoice };
+    },
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(`Invoice ${result.invoice.issuedNumber} issued.`);
+      setEditing(false);
+      setSelectedIds([]);
+      if (autoStartIssue) onIssued?.(result.invoice);
+      else setViewingInvoice(result.invoice);
+      void boardQuery.refetch();
+      onChanged();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  function toggle(id: string, checked: boolean) {
+    setSelectedIds((current) =>
+      checked ? [...current, id] : current.filter((item) => item !== id),
+    );
+  }
+
+  const currentViewingInvoice = useMemo(() => {
+    if (!viewingInvoice) return null;
+    return (
+      folio.issuedInvoices.find((invoice) => invoice.id === viewingInvoice.id) ?? viewingInvoice
+    );
+  }, [folio.issuedInvoices, viewingInvoice]);
+
+  return (
+    <section className="space-y-4" data-testid="folio-invoices">
+      <div className={cn(CARD, "flex flex-wrap items-center justify-between gap-3 px-4 py-3")}>
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Invoiceable amount
+          </p>
+          <p className="font-display text-2xl tabular-nums">
+            {money(board?.invoiceableAmount ?? 0)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Uninvoiced charges on this folio. Payments and deposits stay off the invoice.
+          </p>
+        </div>
+        {canManage && !board?.legacyFolio ? (
+          <div className="flex flex-wrap gap-2">
+            {board?.draft && !editing ? (
+              <>
+                <Button
+                  size="sm"
+                  className="h-8 bg-[#C89933] text-white hover:bg-[#b7892d]"
+                  onClick={() => setEditing(true)}
+                >
+                  Continue draft
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  disabled={deleteMut.isPending}
+                  onClick={() => deleteMut.mutate()}
+                >
+                  <Trash2 className="size-4" /> Delete draft
+                </Button>
+              </>
+            ) : null}
+            {!board?.draft && !editing ? (
+              <Button
+                size="sm"
+                className="h-8 bg-[#C89933] text-white hover:bg-[#b7892d]"
+                disabled={createMut.isPending || !workspace.invoiceSettingsAvailable}
+                onClick={() => createMut.mutate()}
+                data-testid="create-invoice"
+              >
+                <FileText className="size-4" /> Create invoice
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      {boardQuery.isError ? (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Invoice charges could not be loaded. {boardQuery.error.message}
+        </p>
+      ) : null}
+
+      {board?.legacyFolio ? (
+        <p className="rounded-xl border border-[#E8E1D7] bg-[#F7F4EE] px-4 py-3 text-sm">
+          This folio has a whole-folio invoice. Its snapshot stays as issued. A second invoice is
+          not available for this folio.
+        </p>
+      ) : null}
+
+      {editing && board?.draft ? (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+          <div className={cn(CARD, "overflow-hidden")}>
+            <div className="border-b border-[#E8E1D7] px-4 py-3">
+              <h3 className="font-display text-lg">Create invoice</h3>
+              <p className="text-xs text-muted-foreground">Select uninvoiced charges to include.</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Folio {folio.folioNumber} · {folio.guestName}
+                {folio.roomNumber ? ` · Room ${folio.roomNumber}` : ""} · {folio.currency}
+              </p>
+            </div>
+            <div className="grid gap-3 border-b border-[#E8E1D7] px-4 py-3 sm:grid-cols-2">
+              <p className="text-sm">
+                <span className="text-muted-foreground">Bill to </span>
+                {folio.guestName}
+              </p>
+              <p className="text-sm">
+                <span className="text-muted-foreground">Invoice number </span>Assigned on issue
+              </p>
+              <p className="text-sm">
+                <span className="text-muted-foreground">Issue date </span>Assigned on issue
+              </p>
+              <p className="text-sm">
+                <span className="text-muted-foreground">Currency </span>
+                {folio.currency}
+              </p>
+            </div>
+            <div className="flex gap-2 border-b border-[#E8E1D7] px-4 py-2 lg:hidden">
+              {(["items", "preview", "tax"] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={cn(
+                    "rounded-md px-2 py-1 text-xs",
+                    pane === item ? "bg-[#C89933]/15 text-[#8a6a1f]" : "text-muted-foreground",
+                  )}
+                  onClick={() => setPane(item)}
+                >
+                  {item === "items"
+                    ? "Invoice items"
+                    : item === "preview"
+                      ? "Preview"
+                      : "Tax breakdown"}
+                </button>
+              ))}
+            </div>
+            <div className={cn("space-y-3 p-4", pane !== "items" && "hidden lg:block")}>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  className="h-8 rounded-md border border-[#E8E1D7] px-2 text-xs"
+                  type="date"
+                  value={from}
+                  onChange={(event) => setFrom(event.target.value)}
+                />
+                <input
+                  className="h-8 rounded-md border border-[#E8E1D7] px-2 text-xs"
+                  type="date"
+                  value={to}
+                  onChange={(event) => setTo(event.target.value)}
+                />
+                <select
+                  className="h-8 rounded-md border border-[#E8E1D7] px-2 text-xs"
+                  value={department}
+                  onChange={(event) => setDepartment(event.target.value)}
+                >
+                  <option value="all">All departments</option>
+                  {departments.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="h-8 rounded-md border border-[#E8E1D7] px-2 text-xs"
+                  value={kind}
+                  onChange={(event) => setKind(event.target.value)}
+                >
+                  <option value="all">All charges</option>
+                  <option value="room">Room</option>
+                  <option value="service">Service</option>
+                  <option value="manual">Manual</option>
+                </select>
+                <select
+                  className="h-8 rounded-md border border-[#E8E1D7] px-2 text-xs"
+                  value={stateFilter}
+                  onChange={(event) => setStateFilter(event.target.value)}
+                >
+                  <option value="uninvoiced">Uninvoiced</option>
+                  <option value="invoiced">Invoiced</option>
+                  <option value="all">All</option>
+                </select>
+                <input
+                  className="h-8 min-w-[140px] flex-1 rounded-md border border-[#E8E1D7] px-2 text-xs"
+                  placeholder="Search charges"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-sm">
+                  <thead className={HEAD}>
+                    <tr>
+                      <th className="px-2 py-2" />
+                      <th className="px-2 py-2 font-medium">Date</th>
+                      <th className="px-2 py-2 font-medium">Charge</th>
+                      <th className="px-2 py-2 font-medium">Department</th>
+                      <th className="px-2 py-2 text-right font-medium">Qty / Unit</th>
+                      <th className="px-2 py-2 text-right font-medium">Subtotal</th>
+                      <th className="px-2 py-2 text-right font-medium">Tax</th>
+                      <th className="px-2 py-2 text-right font-medium">Service</th>
+                      <th className="px-2 py-2 text-right font-medium">Total</th>
+                      <th className="px-2 py-2 font-medium">State</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.map((group) => {
+                      const invoiced = group.invoiceState === "invoiced";
+                      const checked = selectedIds.includes(group.parentTransactionId);
+                      return (
+                        <tr
+                          key={group.parentTransactionId}
+                          className="border-t border-[#E8E1D7]/80"
+                        >
+                          <td className="px-2 py-2">
+                            <Checkbox
+                              checked={checked}
+                              disabled={invoiced}
+                              onCheckedChange={(value) =>
+                                toggle(group.parentTransactionId, value === true)
+                              }
+                            />
+                          </td>
+                          <td className="px-2 py-2 text-muted-foreground">
+                            {dateTime(group.postedAt)}
+                          </td>
+                          <td className="px-2 py-2">{group.description}</td>
+                          <td className="px-2 py-2">{group.departmentName ?? "—"}</td>
+                          <td className="px-2 py-2 text-right tabular-nums">
+                            {group.quantity == null
+                              ? "—"
+                              : `${group.quantity} × ${group.unitAmount == null ? "—" : money(group.unitAmount)}`}
+                          </td>
+                          <td className="px-2 py-2 text-right tabular-nums text-slate-800">
+                            {money(group.subtotal)}
+                          </td>
+                          <td className="px-2 py-2 text-right tabular-nums">
+                            {group.taxTotal > 0 ? (
+                              <span className="font-semibold text-amber-900">
+                                {money(group.taxTotal)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-right tabular-nums">
+                            {group.serviceChargeTotal > 0 ? (
+                              <span className="font-semibold text-sky-900">
+                                {money(group.serviceChargeTotal)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-right font-semibold tabular-nums text-[#251605]">
+                            {money(group.grossTotal)}
+                          </td>
+                          <td className="px-2 py-2 text-xs">
+                            {invoiced
+                              ? group.coveredInvoiceNumber?.startsWith("DN-")
+                                ? `Invoiced via ${group.coveredInvoiceNumber}`
+                                : `Invoiced · ${group.coveredInvoiceNumber ?? ""}`
+                              : checked
+                                ? "In draft"
+                                : "Uninvoiced"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex flex-wrap items-end justify-between gap-3 text-sm">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-xs text-[#8a6a1f]"
+                  onClick={onPostCharge}
+                >
+                  <Plus className="size-3.5" /> Need another charge? Post charge
+                </button>
+                <div className="space-y-1 text-right">
+                  <p>Selected {selectedIds.length} charges</p>
+                  <p>Subtotal {money(preview?.subtotal ?? 0)}</p>
+                  <p>Tax {money(preview?.tax ?? 0)}</p>
+                  <p>Service charge {money(preview?.serviceCharge ?? 0)}</p>
+                  <p className="font-semibold">Total {money(preview?.total ?? 0)}</p>
+                </div>
+              </div>
+              {(preview?.warnings ?? []).map((warning) => (
+                <div
+                  key={warning.parentTransactionId}
+                  className="flex items-center justify-between gap-2 rounded-md border border-[#E8E1D7] px-3 py-2 text-xs"
+                >
+                  <span>{WARNING_TEXT[warning.code] ?? warning.code}</span>
+                  <button
+                    type="button"
+                    className="text-[#8a6a1f]"
+                    onClick={() => toggle(warning.parentTransactionId, false)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <label className="block text-xs text-muted-foreground">
+                Invoice notes
+                <textarea
+                  className="mt-1 w-full rounded-md border border-[#E8E1D7] px-2 py-1 text-sm text-foreground"
+                  rows={3}
+                  maxLength={500}
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                />
+              </label>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  disabled={saveMut.isPending}
+                  onClick={() => saveMut.mutate()}
+                >
+                  Save draft
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 bg-[#C89933] text-white hover:bg-[#b7892d]"
+                  disabled={issueMut.isPending || selectedIds.length === 0}
+                  onClick={() => issueMut.mutate()}
+                  data-testid="issue-invoice"
+                >
+                  Issue invoice
+                </Button>
+              </div>
+            </div>
+            <div className={cn("space-y-2 p-4 text-sm lg:hidden", pane !== "tax" && "hidden")}>
+              <TaxBreakdown groups={preview?.groups ?? []} money={money} />
+            </div>
+          </div>
+          <aside className={cn(CARD, "p-4", pane !== "preview" && "hidden lg:block")}>
+            <InvoiceDraftPreview
+              folio={folio}
+              money={money}
+              dateTime={dateTime}
+              notes={notes}
+              preparedBy={board?.draft?.preparedBy ?? null}
+              property={documentProperty}
+              groups={preview?.groups ?? []}
+              subtotal={preview?.subtotal ?? 0}
+              tax={preview?.tax ?? 0}
+              serviceCharge={preview?.serviceCharge ?? 0}
+              total={preview?.total ?? 0}
+            />
+            <div className="mt-4 hidden lg:block">
+              <TaxBreakdown groups={preview?.groups ?? []} money={money} />
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
+      {(() => {
+        const issuedInvoices = folio.issuedInvoices;
+        const totalInvoicePages = Math.max(1, Math.ceil(issuedInvoices.length / invoicePageSize));
+        const currentInvoicePage = Math.min(invoicePage, totalInvoicePages);
+        const startInvoiceIndex = (currentInvoicePage - 1) * invoicePageSize;
+        const endInvoiceIndex = Math.min(startInvoiceIndex + invoicePageSize, issuedInvoices.length);
+        const pageInvoices = issuedInvoices.slice(startInvoiceIndex, endInvoiceIndex);
+
+        return (
+          <div className={cn(CARD, "overflow-hidden")}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E8E1D7] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="size-4 text-[#8a6a1f]" />
+                <h3 className="text-sm font-semibold">Issued invoices</h3>
+                {issuedInvoices.length > 0 ? (
+                  <span className="rounded-full border border-[#E8E1D7] bg-[#F5EFE6] px-2 py-0.5 text-[11px] font-medium text-[#765719]">
+                    {issuedInvoices.length} {issuedInvoices.length === 1 ? "invoice" : "invoices"}
+                  </span>
+                ) : null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Official immutable invoice documents for this folio
+              </p>
+            </div>
+            {issuedInvoices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-8 text-center">
+                <FileText className="mb-2 size-8 text-muted-foreground/40" />
+                <p className="text-sm font-medium text-foreground">No issued invoice yet.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Create and issue an invoice from uninvoiced folio charges above.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead className="border-b border-[#E8E1D7] bg-[#F8F5F0] text-left text-[11px] font-semibold uppercase tracking-wider text-[#765719]">
+                      <tr>
+                        <th className="px-3.5 py-2.5">Invoice no.</th>
+                        <th className="px-3.5 py-2.5">Issued at</th>
+                        <th className="px-3.5 py-2.5 text-right">Total</th>
+                        <th className="px-3.5 py-2.5">Settlement state</th>
+                        <th className="px-3.5 py-2.5">Fiscal registration</th>
+                        <th className="px-3.5 py-2.5 text-center">Reprints</th>
+                        <th className="px-3.5 py-2.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E8E1D7]">
+                      {pageInvoices.map((invoice) => {
+                        const settlement = settlementQuery.data?.find(
+                          (row) => row.invoiceId === invoice.id,
+                        );
+                        const fiscalStatus = fiscalByInvoice.get(invoice.id);
+                        const totalAmount =
+                          invoice.snapshot.totals.invoiceTotal ?? invoice.snapshot.totals.balance;
+
+                        return (
+                          <tr key={invoice.id} className="transition-colors hover:bg-[#FAF8F4]/80">
+                            <td className="px-3.5 py-2.5">
+                              <div className="flex items-center gap-2">
+                                <FileText className="size-3.5 text-muted-foreground" />
+                                <span className="font-semibold text-foreground">
+                                  {invoice.issuedNumber}
+                                </span>
+                              </div>
+                              {invoice.coverageScope === "legacy_folio" ? (
+                                <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                  Legacy folio invoice
+                                </div>
+                              ) : null}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-xs text-muted-foreground">
+                              {dateTime(invoice.issuedAt)}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-right font-medium tabular-nums text-foreground">
+                              {money(totalAmount)}
+                            </td>
+                            <td className="px-3.5 py-2.5">
+                              <InvoiceSettlementBadge
+                                state={settlement?.settlementState}
+                                legacy={invoice.coverageScope === "legacy_folio"}
+                              />
+                            </td>
+                            <td className="px-3.5 py-2.5">
+                              {fiscalQuery.isLoading ? (
+                                <span className="text-xs text-muted-foreground">Loading…</span>
+                              ) : (
+                                <FiscalInvoiceStatusBadge
+                                  status={fiscalStatus?.status ?? "not_registered"}
+                                  error={fiscalStatus?.error}
+                                />
+                              )}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-center">
+                              {invoice.reprintCount > 0 ? (
+                                <span className="inline-flex items-center rounded-md border border-[#E2D7C3] bg-[#F5EFE6] px-1.5 py-0.5 text-[11px] font-medium text-[#765719]">
+                                  {invoice.reprintCount}×
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60">0</span>
+                              )}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-right">
+                              <div className="flex justify-end gap-1.5">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 gap-1 border-[#DDD4C5] bg-white px-2.5 text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
+                                  onClick={() => setViewingInvoice(invoice)}
+                                >
+                                  <FileText className="size-3.5 text-[#8a6a1f]" />
+                                  <span>View</span>
+                                </Button>
+                                {workspace.capabilities.canReprintInvoice ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 gap-1 border-[#DDD4C5] bg-white px-2.5 text-xs text-[#251605] shadow-xs hover:bg-[#F2ECE1]"
+                                    disabled={reprinting}
+                                    onClick={() => onReprint(invoice)}
+                                  >
+                                    <Printer className="size-3.5 text-[#7A6B58]" />
+                                    <span>Reprint</span>
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {issuedInvoices.length > 5 ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E1D7] bg-[#FDFBF7] px-3.5 py-2.5 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-3">
+                      <span>
+                        Showing <span className="font-medium text-foreground">{startInvoiceIndex + 1}</span>–
+                        <span className="font-medium text-foreground">{endInvoiceIndex}</span> of{" "}
+                        <span className="font-medium text-foreground">{issuedInvoices.length}</span> invoices
+                      </span>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span>Rows:</span>
+                        <select
+                          value={invoicePageSize}
+                          onChange={(e) => {
+                            setInvoicePageSize(Number(e.target.value));
+                            setInvoicePage(1);
+                          }}
+                          className="rounded border border-[#E8E1D7] bg-white px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#8a6a1f]"
+                        >
+                          <option value={5}>5</option>
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentInvoicePage <= 1}
+                        onClick={() => setInvoicePage((p) => Math.max(1, p - 1))}
+                        className="h-7 px-2 text-xs"
+                      >
+                        <ChevronLeft className="mr-0.5 size-3.5" />
+                        Previous
+                      </Button>
+                      <span className="px-2 font-medium text-foreground">
+                        {currentInvoicePage} / {totalInvoicePages}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={currentInvoicePage >= totalInvoicePages}
+                        onClick={() => setInvoicePage((p) => Math.min(totalInvoicePages, p + 1))}
+                        className="h-7 px-2 text-xs"
+                      >
+                        Next
+                        <ChevronRight className="ml-0.5 size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      <GuestInvoiceModal
+        open={currentViewingInvoice !== null}
+        invoice={currentViewingInvoice}
+        restaurantId={restaurantId}
+        folio={folio}
+        workspace={workspace}
+        money={money}
+        dateTime={dateTime}
+        documentProperty={documentProperty}
+        settlementState={
+          currentViewingInvoice?.coverageScope === "legacy_folio"
+            ? null
+            : settlementQuery.data?.find((row) => row.invoiceId === currentViewingInvoice?.id)
+                ?.settlementState
+        }
+        onClose={() => setViewingInvoice(null)}
+        onChanged={() => {
+          void boardQuery.refetch();
+          void settlementQuery.refetch();
+          void fiscalQuery.refetch();
+          onChanged();
+        }}
+        onReprint={onReprint}
+        reprinting={reprinting}
+        onPostCharge={onPostCharge}
+        onAllocate={onAllocate}
+      />
+    </section>
+  );
+}
+
+function InvoiceDraftPreview({
+  folio,
+  money,
+  dateTime,
+  notes,
+  preparedBy,
+  property,
+  groups,
+  subtotal,
+  tax,
+  serviceCharge,
+  total,
+}: {
+  folio: FolioWorkspace["folio"];
+  money: (value: number) => string;
+  dateTime: (iso: string | null | undefined) => string;
+  notes: string;
+  preparedBy: string | null;
+  property: CashieringDocumentProperty | null;
+  groups: InvoiceGroupView[];
+  subtotal: number;
+  tax: number;
+  serviceCharge: number;
+  total: number;
+}) {
+  const nights = stayNights(folio.arrivalDate, folio.departureDate) ?? 1;
+  const currency = folio.currency || "ETB";
+
+  return (
+    <div
+      className="space-y-5 text-xs bg-white p-4 rounded-xl border border-slate-100"
+      data-testid="invoice-draft-preview"
+    >
+      {/* Top Header */}
+      <header className="flex justify-between items-start gap-4 pb-2 border-b border-slate-100">
+        <CashieringDocumentLetterhead property={property} logoClassName="size-8" />
+        <div className="text-right space-y-0.5">
+          <h4 className="text-sm font-extrabold text-[#0E2C6C] uppercase tracking-tight">
+            INTERNAL INVOICE
+          </h4>
+          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+            Draft Preview
+          </span>
+          <p className="text-[11px] text-slate-600 pt-1">
+            <span className="font-medium">No:</span> Assigned on issue
+          </p>
+          <p className="text-[11px] text-slate-600">
+            <span className="font-medium">Folio:</span> {folio.folioNumber}
+          </p>
+          <p className="text-[11px] text-slate-600">
+            <span className="font-medium">Reservation:</span> {folio.confirmationNumber || "—"}
+          </p>
+        </div>
+      </header>
+
+      {/* Guest & Stay Period */}
+      <section className="grid grid-cols-2 gap-3 text-xs">
+        <div>
+          <p className="font-bold text-[#0E2C6C] text-[10px] uppercase tracking-wider">Guest</p>
+          <p className="font-bold text-slate-950">{folio.guestName}</p>
+          <p className="text-slate-600">Room {folio.roomNumber || "—"}</p>
+        </div>
+        <div>
+          <p className="font-bold text-[#0E2C6C] text-[10px] uppercase tracking-wider">
+            Stay Period
+          </p>
+          <p className="font-semibold text-slate-900">
+            {folio.arrivalDate?.slice(0, 10) || "—"} → {folio.departureDate?.slice(0, 10) || "—"}
+          </p>
+          <p className="text-slate-600">Nights: {nights}</p>
+        </div>
+      </section>
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded border border-slate-100">
+        <table className="w-full text-[11px]">
+          <thead className="bg-[#EDF3FA] text-[#0E2C6C]">
+            <tr>
+              <th className="px-2.5 py-1.5 text-left font-bold">Description</th>
+              <th className="px-2.5 py-1.5 text-right font-bold">Amount</th>
+              <th className="px-2.5 py-1.5 text-right font-bold">Tax</th>
+              <th className="px-2.5 py-1.5 text-right font-bold">Total</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#EDF3FA]/70">
+            {groups.map((group) => {
+              const groupTax = group.taxLines.reduce((sum, l) => sum + l.amount, 0);
+              return (
+                <tr key={group.parentTransactionId}>
+                  <td className="px-2.5 py-1.5 text-slate-800">{group.description}</td>
+                  <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-700">
+                    {money(group.subtotal)}
+                  </td>
+                  <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-700">
+                    {money(groupTax)}
+                  </td>
+                  <td className="px-2.5 py-1.5 text-right font-semibold tabular-nums text-slate-900">
+                    {money(group.grossTotal)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Totals */}
+      <div className="space-y-1 border-t border-slate-200 pt-2 text-xs">
+        <div className="flex justify-between items-center text-slate-700">
+          <span className="font-bold text-[#0E2C6C]">Subtotal</span>
+          <span className="tabular-nums font-semibold">{money(subtotal)}</span>
+        </div>
+        <div className="flex justify-between items-center text-slate-700">
+          <span className="font-bold text-[#0E2C6C]">VAT (15%)</span>
+          <span className="tabular-nums font-semibold">{money(tax)}</span>
+        </div>
+        {serviceCharge > 0 ? (
+          <div className="flex justify-between items-center text-slate-700">
+            <span className="font-bold text-[#0E2C6C]">Service Fee</span>
+            <span className="tabular-nums font-semibold">{money(serviceCharge)}</span>
+          </div>
+        ) : null}
+        <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-200">
+          <span className="font-extrabold text-[#0E2C6C]">Total Amount</span>
+          <span className="font-extrabold text-[#0E2C6C] tabular-nums">
+            {money(total)} {currency}
+          </span>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="text-[11px] text-slate-500 pt-1 space-y-0.5">
+        {notes ? <p className="text-slate-700">Notes: {notes}</p> : null}
+        {preparedBy ? (
+          <p className="font-medium text-slate-700">Prepared by: {preparedBy}</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function TaxBreakdown({
+  groups,
+  money,
+}: {
+  groups: InvoiceGroupView[];
+  money: (value: number) => string;
+}) {
+  const taxes = groups.flatMap((group) => group.taxLines);
+  const services = groups.flatMap((group) => group.serviceLines);
+  if (taxes.length === 0 && services.length === 0) return null;
+
+  return (
+    <div className="space-y-3 rounded-xl border border-[#E8E1D7] bg-[#FAF8F5] p-3.5 shadow-2xs">
+      <div className="flex items-center gap-2 border-b border-[#E8E1D7]/80 pb-2">
+        <span className="grid size-6 place-items-center rounded-md bg-[#FAF2DE] text-[#8a6a1f]">
+          <Percent className="size-3.5" />
+        </span>
+        <p className="text-xs font-bold uppercase tracking-wider text-[#251605]">
+          Tax & Fee Breakdown
+        </p>
+      </div>
+
+      {taxes.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#7A6B58]">
+            Statutory Taxes
+          </p>
+          <div className="space-y-1">
+            {taxes.map((line) => (
+              <div
+                key={line.id}
+                className="flex items-center justify-between gap-2 rounded-lg border border-[#E8E1D7]/70 bg-white px-2.5 py-1.5 text-xs shadow-2xs"
+              >
+                <div className="min-w-0">
+                  <span className="font-semibold text-[#251605]">{line.name}</span>
+                  {line.code ? (
+                    <span className="ml-1.5 rounded bg-[#F4EFE6] px-1 py-0.2 text-[9px] text-[#7A6B58]">
+                      {line.code}
+                    </span>
+                  ) : null}
+                  {line.basis ? (
+                    <span className="ml-1 text-[10px] text-muted-foreground">· {line.basis}</span>
+                  ) : null}
+                </div>
+                <span className="font-bold tabular-nums text-amber-900">{money(line.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {services.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#7A6B58]">
+            Service Charges
+          </p>
+          <div className="space-y-1">
+            {services.map((line) => (
+              <div
+                key={line.id}
+                className="flex items-center justify-between gap-2 rounded-lg border border-[#E8E1D7]/70 bg-white px-2.5 py-1.5 text-xs shadow-2xs"
+              >
+                <div className="min-w-0">
+                  <span className="font-semibold text-[#251605]">{line.name}</span>
+                  {line.basis ? (
+                    <span className="ml-1 text-[10px] text-muted-foreground">· {line.basis}</span>
+                  ) : null}
+                </div>
+                <span className="font-bold tabular-nums text-sky-900">{money(line.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

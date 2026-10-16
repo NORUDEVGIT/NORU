@@ -10,8 +10,8 @@ export function ApprovalSubmittedNotice({
   approvalRequestId: string;
 }) {
   return (
-    <div className="space-y-2 rounded-xl border border-[#E8E1D7] bg-[#F7F4EE] p-3">
-      <p className="text-[12px] font-medium text-[#251605]">{message}</p>
+    <div className="space-y-2.5 rounded-xl border border-[#E8E1D7] bg-[#F7F4EE] p-3.5 shadow-2xs">
+      <p className="text-sm font-medium text-[#251605]">{message}</p>
       <Link
         to="/restaurant/pms/rates-revenue"
         search={{ view: "approvals", approvalTab: "mine", approvalRequest: approvalRequestId }}

@@ -190,10 +190,10 @@ function FinancialReport({ restaurantId, readerDate }: { restaurantId: string; r
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <StatCard label="Open folios" value={data.openFolios} />
       <StatCard label="Outstanding balance" value={money(data.outstandingBalance)} hint="Sum of open folio amounts, all dates" />
-      <StatCard label="Charges" value={money(data.todayCharges)} hint={`posted_at UTC day of ${readerDate}`} />
-      <StatCard label="Payments" value={money(data.todayPayments)} hint={`posted_at UTC day of ${readerDate}`} />
-      <StatCard label="Deposits" value={money(data.todayDeposits)} hint={`posted_at UTC day of ${readerDate}`} />
-      <StatCard label="Refunds" value={money(data.todayRefunds)} hint={`posted_at UTC day of ${readerDate}`} />
+      <StatCard label="Charges" value={money(data.todayCharges)} hint={`Property-timezone day of hotel business date ${data.businessDate}`} />
+      <StatCard label="Payments" value={money(data.todayPayments)} hint={`Guest payments only, business date ${data.businessDate}`} />
+      <StatCard label="Deposits" value={money(data.todayDeposits)} hint={`Guest deposits only, business date ${data.businessDate}`} />
+      <StatCard label="Refunds" value={money(data.todayRefunds)} hint={`Property-timezone day of hotel business date ${data.businessDate}`} />
       <StatCard label="Open hotel drawers" value={data.openShifts} />
     </div>
   );

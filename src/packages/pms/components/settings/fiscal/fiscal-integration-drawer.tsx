@@ -1,0 +1,965 @@
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/shared/components/ui/sheet";
+import { Switch } from "@/shared/components/ui/switch";
+import {
+  getFiscalIntegrationStatus,
+  saveFiscalBuyerCodeMapping,
+  saveFiscalCredentials,
+  saveFiscalIntegrationConfig,
+  saveFiscalItemMapping,
+  saveFiscalTaxMapping,
+  testFiscalConnection,
+} from "@/packages/pms/lib/fiscal/fiscal.functions";
+import {
+  FISCAL_DOCUMENT_MODE,
+  FISCAL_ITEM_UNIT,
+  fiscalItemCodeNumber,
+  fiscalNatureOfSupplies,
+  type FiscalCatalogRow,
+  type FiscalNatureOfSupplies,
+} from "@/packages/pms/lib/fiscal/fiscal.types";
+
+type MappingSnapshot = {
+  taxes: FiscalCatalogRow[];
+  taxMappings: FiscalCatalogRow[];
+  departments: FiscalCatalogRow[];
+  serviceTypes: FiscalCatalogRow[];
+  itemMappings: FiscalCatalogRow[];
+  chargeSources: readonly string[];
+  buyerTypes: readonly string[];
+};
+
+const SECTIONS = ["Connection", "Credentials", "Mappings", "Status"] as const;
+
+function formatWhen(value: string | null): string {
+  if (!value) return "Not tested";
+  return new Date(value).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function FiscalIntegrationDrawer({
+  open,
+  onOpenChange,
+  restaurantId,
+  canEdit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  restaurantId: string;
+  canEdit: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const load = useServerFn(getFiscalIntegrationStatus);
+  const saveConfig = useServerFn(saveFiscalIntegrationConfig);
+  const saveCredentials = useServerFn(saveFiscalCredentials);
+  const testConnection = useServerFn(testFiscalConnection);
+  const saveTax = useServerFn(saveFiscalTaxMapping);
+  const saveItem = useServerFn(saveFiscalItemMapping);
+  const saveBuyer = useServerFn(saveFiscalBuyerCodeMapping);
+
+  const query = useQuery({
+    queryKey: ["fiscal-integration", restaurantId],
+    queryFn: () => load({ data: { restaurantId } }),
+    enabled: open,
+  });
+  const status = query.data;
+  const [section, setSection] = useState<(typeof SECTIONS)[number]>("Connection");
+  const [environment, setEnvironment] = useState<"TEST" | "PRODUCTION">("TEST");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [taxpayerTin, setTaxpayerTin] = useState("");
+  const [client, setClient] = useState("");
+  const [deviceId, setDeviceId] = useState("");
+  const [enabled, setEnabled] = useState(true);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [replaceCredentials, setReplaceCredentials] = useState(false);
+
+  useEffect(() => {
+    if (!status) return;
+    setEnvironment(status.connection.environment);
+    setBaseUrl(status.connection.baseUrl);
+    setTaxpayerTin(status.connection.taxpayerTin);
+    setClient(status.connection.client);
+    setDeviceId(status.connection.deviceId);
+    setEnabled(status.connection.enabled);
+  }, [status]);
+
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["fiscal-integration", restaurantId] });
+    await queryClient.invalidateQueries({ queryKey: ["pms-card6-integrations", restaurantId] });
+  };
+
+  const configMutation = useMutation({
+    mutationFn: () =>
+      saveConfig({
+        data: { restaurantId, environment, baseUrl, taxpayerTin, client, deviceId, enabled },
+      }),
+    onSuccess: async () => {
+      await refresh();
+      toast.success("Fiscal connection saved.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const credentialMutation = useMutation({
+    mutationFn: () =>
+      saveCredentials({ data: { restaurantId, apiUsername: username, apiPassword: password } }),
+    onSuccess: async () => {
+      setUsername("");
+      setPassword("");
+      setReplaceCredentials(false);
+      await refresh();
+      toast.success("Credentials saved. They are not shown again.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const testMutation = useMutation({
+    mutationFn: () => testConnection({ data: { restaurantId } }),
+    onSuccess: async (result) => {
+      await refresh();
+      if (result.ok) toast.success(result.message);
+      else toast.error(result.message);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-2xl"
+        data-testid="fiscal-integration-drawer"
+      >
+        <SheetHeader className="border-b border-[#E5DED1] px-6 py-4 text-left">
+          <SheetTitle className="font-display text-xl text-[#251605]">
+            ERP / Fiscal Integration
+          </SheetTitle>
+          <SheetDescription>
+            Connect NORU financial documents to the external fiscal service. Guest B2C invoice
+            registration can be started from an issued invoice. Other fiscal documents are not
+            enabled.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex gap-2 border-b border-[#E5DED1] px-6 py-3">
+          {SECTIONS.map((item) => (
+            <Button
+              key={item}
+              type="button"
+              size="sm"
+              variant={section === item ? "default" : "outline"}
+              onClick={() => setSection(item)}
+            >
+              {item}
+            </Button>
+          ))}
+        </div>
+        <div className="space-y-4 px-6 py-4">
+          {query.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading fiscal settings…</p>
+          ) : null}
+          {section === "Connection" && status ? (
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                configMutation.mutate();
+              }}
+            >
+              <Label>Environment</Label>
+              <Select
+                value={environment}
+                onValueChange={(value) => setEnvironment(value as "TEST" | "PRODUCTION")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TEST">TEST</SelectItem>
+                  <SelectItem value="PRODUCTION">PRODUCTION</SelectItem>
+                </SelectContent>
+              </Select>
+              <Label htmlFor="fiscal-base-url">Base URL</Label>
+              <Input
+                id="fiscal-base-url"
+                value={baseUrl}
+                onChange={(event) => setBaseUrl(event.target.value)}
+                placeholder="https://"
+                disabled={!canEdit}
+              />
+              <Label htmlFor="fiscal-tin">Taxpayer TIN</Label>
+              <Input
+                id="fiscal-tin"
+                value={taxpayerTin}
+                onChange={(event) => setTaxpayerTin(event.target.value)}
+                disabled={!canEdit}
+              />
+              <Label htmlFor="fiscal-client">Client</Label>
+              <Input
+                id="fiscal-client"
+                value={client}
+                onChange={(event) => setClient(event.target.value)}
+                disabled={!canEdit}
+              />
+              <Label htmlFor="fiscal-device">Device ID</Label>
+              <Input
+                id="fiscal-device"
+                value={deviceId}
+                onChange={(event) => setDeviceId(event.target.value)}
+                disabled={!canEdit}
+              />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="fiscal-enabled">Enabled</Label>
+                <Switch
+                  id="fiscal-enabled"
+                  checked={enabled}
+                  onCheckedChange={setEnabled}
+                  disabled={!canEdit}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Production requires an https URL. No production endpoint is assumed.
+              </p>
+              {canEdit ? (
+                <Button
+                  type="submit"
+                  disabled={configMutation.isPending}
+                  className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+                >
+                  Save connection
+                </Button>
+              ) : null}
+            </form>
+          ) : null}
+          {section === "Credentials" && status ? (
+            <div className="space-y-3">
+              <p className="text-sm text-[#251605]">API Username: {status.credentials.username}</p>
+              <p className="text-sm text-[#251605]">API Password: {status.credentials.password}</p>
+              {status.credentials.configured && !replaceCredentials ? (
+                canEdit ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setReplaceCredentials(true)}
+                  >
+                    Replace credentials
+                  </Button>
+                ) : null
+              ) : canEdit ? (
+                <form
+                  className="space-y-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    credentialMutation.mutate();
+                  }}
+                >
+                  <Label htmlFor="fiscal-username">API Username</Label>
+                  <Input
+                    id="fiscal-username"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                    autoComplete="off"
+                  />
+                  <Label htmlFor="fiscal-password">API Password</Label>
+                  <Input
+                    id="fiscal-password"
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    autoComplete="new-password"
+                  />
+                  <Button type="submit" disabled={credentialMutation.isPending}>
+                    Save credentials
+                  </Button>
+                </form>
+              ) : null}
+            </div>
+          ) : null}
+          {section === "Mappings" && status ? (
+            <FiscalMappings
+              status={status}
+              canEdit={canEdit}
+              onTax={(input) =>
+                saveTax({ data: { restaurantId, ...input } }).then(async () => {
+                  await refresh();
+                  toast.success("Tax mapping saved.");
+                })
+              }
+              onItem={(input) =>
+                saveItem({ data: { restaurantId, ...input } }).then(async () => {
+                  await refresh();
+                  toast.success("Item mapping saved.");
+                })
+              }
+              onBuyer={(input) =>
+                saveBuyer({ data: { restaurantId, ...input } }).then(async () => {
+                  await refresh();
+                  toast.success("Buyer code saved.");
+                })
+              }
+            />
+          ) : null}
+          {section === "Status" && status ? (
+            <div className="space-y-2 text-sm text-[#251605]">
+              <p>
+                Connection:{" "}
+                {status.lastTestResult === "passed"
+                  ? "Connected"
+                  : status.lastTestResult === "failed"
+                    ? "Failed"
+                    : "Not tested"}
+              </p>
+              <p>Environment: {status.connection.environment}</p>
+              <p>Taxpayer TIN: {status.connection.taxpayerTinMasked || "Not configured"}</p>
+              <p>Device ID: {status.connection.deviceIdMasked || "Not configured"}</p>
+              <p>Credentials: {status.credentials.configured ? "Configured" : "Missing"}</p>
+              <p>Last test: {formatWhen(status.lastTestAt)}</p>
+              <p>
+                Token:{" "}
+                {status.token.hasToken && status.token.expiresAt
+                  ? `Valid until ${formatWhen(status.token.expiresAt)}`
+                  : "Not available"}
+              </p>
+              <p>
+                Tax codes:{" "}
+                {
+                  (status.taxMappings as { mapping_kind: string }[]).filter(
+                    (row) => row.mapping_kind === "TAX",
+                  ).length
+                }{" "}
+                / {status.taxes.length} mapped
+              </p>
+              <p>Items: {status.itemMappings.length} configured</p>
+              <p>Document mode: {FISCAL_DOCUMENT_MODE}</p>
+              <p>Buyer codes: {status.buyerMappings.length} configured</p>
+              <p>
+                Queue: {status.queue.pending} pending, {status.queue.failed} failed,{" "}
+                {status.queue.registered} registered
+              </p>
+              <p className="text-muted-foreground">{status.registrationNotice}</p>
+              <p className="text-muted-foreground">{status.buyerNotice}</p>
+              <p className="text-muted-foreground">
+                {status.readiness.authReady
+                  ? "Authentication can be tested."
+                  : "Authentication still needs an endpoint, TIN, client, and credentials."}{" "}
+                Document registration is not active.
+              </p>
+              {canEdit ? (
+                <Button
+                  type="button"
+                  disabled={testMutation.isPending}
+                  onClick={() => testMutation.mutate()}
+                  data-testid="fiscal-test-connection"
+                >
+                  {testMutation.isPending ? "Testing..." : "Test Connection"}
+                </Button>
+              ) : null}
+              {testMutation.data ? (
+                <p className={testMutation.data.ok ? "text-[#436436]" : "text-destructive"}>
+                  {testMutation.data.message}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function FiscalMappings({
+  status,
+  canEdit,
+  onTax,
+  onItem,
+  onBuyer,
+}: {
+  status: MappingSnapshot;
+  canEdit: boolean;
+  onTax: (input: {
+    mappingKind: "TAX" | "NO_TAX";
+    pmsTaxId: string | null;
+    externalTaxCode: string;
+    fiscalTreatment?: "SAME_LINE_TAX" | "SEPARATE_ITEM";
+    externalItemCode?: string;
+    natureOfSupplies?: FiscalNatureOfSupplies;
+    harmonizationCode?: string | null;
+  }) => Promise<unknown>;
+  onItem: (input: {
+    serviceTypeId: string | null;
+    departmentId: string | null;
+    chargeSource: string | null;
+    isDefault: boolean;
+    externalItemCode: string;
+    natureOfSupplies: FiscalNatureOfSupplies;
+    harmonizationCode: string | null;
+  }) => Promise<unknown>;
+  onBuyer: (input: {
+    mappingType: string;
+    internalValue: string;
+    externalValue: string;
+  }) => Promise<unknown>;
+}) {
+  return (
+    <div className="space-y-6">
+      <section className="space-y-2">
+        <h3 className="font-medium text-[#251605]">Tax codes</h3>
+        <p className="text-xs text-muted-foreground">
+          Enter the provider TaxCode for each NORU tax. Apply it on the source item, or create a
+          separate fiscal item. VAT15 and VAT0 are known examples. The percentage is not copied
+          automatically.
+        </p>
+        {status.taxes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No NORU taxes are configured for this property.
+          </p>
+        ) : null}
+        {status.taxes.map((tax: FiscalCatalogRow) => {
+          const current = status.taxMappings.find(
+            (row: FiscalCatalogRow) => row.pms_tax_id === tax.id,
+          );
+          return (
+            <TaxMappingRow
+              key={tax.id}
+              title={`${tax.name} (${tax.code})`}
+              detail={`${tax.charge_type} ${tax.amount}`}
+              current={current}
+              canEdit={canEdit}
+              onSave={(values) =>
+                onTax({
+                  mappingKind: "TAX",
+                  pmsTaxId: tax.id,
+                  externalTaxCode: values.taxCode,
+                  ...values,
+                })
+              }
+            />
+          );
+        })}
+        <MappingRow
+          title="No tax / exempt"
+          detail="Enter the provider code. NORU does not guess one."
+          statusLabel={
+            status.taxMappings.some((row: FiscalCatalogRow) => row.mapping_kind === "NO_TAX")
+              ? "Mapped"
+              : "Missing"
+          }
+          canEdit={canEdit}
+          initial={
+            status.taxMappings.find((row: FiscalCatalogRow) => row.mapping_kind === "NO_TAX")
+              ?.external_tax_code ?? ""
+          }
+          placeholder="External code for untaxed lines"
+          onSave={(value) =>
+            onTax({
+              mappingKind: "NO_TAX",
+              pmsTaxId: null,
+              externalTaxCode: value,
+              fiscalTreatment: "SAME_LINE_TAX",
+            })
+          }
+        />
+      </section>
+      <section className="space-y-2">
+        <h3 className="font-medium text-[#251605]">Items</h3>
+        <p className="text-xs text-muted-foreground">
+          Leave the item code blank to assign the next number. Nature is Service or Goods. Unit is{" "}
+          {FISCAL_ITEM_UNIT} for every item.
+        </p>
+        <ItemRow
+          title="Room Accommodation"
+          detail="One fiscal item for every rate plan"
+          defaultNature="service"
+          current={status.itemMappings.find(
+            (row: FiscalCatalogRow) => row.charge_source === "room",
+          )}
+          canEdit={canEdit}
+          onSave={(values) =>
+            onItem({
+              ...values,
+              serviceTypeId: null,
+              departmentId: null,
+              chargeSource: "room",
+              isDefault: false,
+            })
+          }
+        />
+        {status.departments.map((department: FiscalCatalogRow) => (
+          <ItemRow
+            key={department.id}
+            title={department.name}
+            detail={`department ${department.code}`}
+            current={status.itemMappings.find(
+              (row: FiscalCatalogRow) => row.department_id === department.id,
+            )}
+            canEdit={canEdit}
+            onSave={(values) =>
+              onItem({
+                ...values,
+                serviceTypeId: null,
+                departmentId: department.id,
+                chargeSource: null,
+                isDefault: false,
+              })
+            }
+          />
+        ))}
+        {status.serviceTypes.map((service: FiscalCatalogRow) => (
+          <ItemRow
+            key={service.id}
+            title={service.name}
+            detail={`service ${service.code}`}
+            current={status.itemMappings.find(
+              (row: FiscalCatalogRow) => row.service_type_id === service.id,
+            )}
+            canEdit={canEdit}
+            onSave={(values) =>
+              onItem({
+                ...values,
+                serviceTypeId: service.id,
+                departmentId: null,
+                chargeSource: null,
+                isDefault: false,
+              })
+            }
+          />
+        ))}
+        {status.chargeSources
+          .filter((source: string) => source !== "room")
+          .map((source: string) => (
+            <ItemRow
+              key={source}
+              title={source}
+              detail="charge source"
+              current={status.itemMappings.find(
+                (row: FiscalCatalogRow) => row.charge_source === source,
+              )}
+              canEdit={canEdit}
+              onSave={(values) =>
+                onItem({
+                  ...values,
+                  serviceTypeId: null,
+                  departmentId: null,
+                  chargeSource: source,
+                  isDefault: false,
+                })
+              }
+            />
+          ))}
+        <ItemRow
+          title="Property default"
+          detail="used when nothing more specific matches"
+          current={status.itemMappings.find((row: FiscalCatalogRow) => row.is_default)}
+          canEdit={canEdit}
+          onSave={(values) =>
+            onItem({
+              ...values,
+              serviceTypeId: null,
+              departmentId: null,
+              chargeSource: null,
+              isDefault: true,
+            })
+          }
+        />
+      </section>
+      <BuyerRow canEdit={canEdit} types={status.buyerTypes} onSave={onBuyer} />
+    </div>
+  );
+}
+
+function TaxMappingRow({
+  title,
+  detail,
+  current,
+  canEdit,
+  onSave,
+}: {
+  title: string;
+  detail: string;
+  current: FiscalCatalogRow | undefined;
+  canEdit: boolean;
+  onSave: (values: {
+    taxCode: string;
+    fiscalTreatment: "SAME_LINE_TAX" | "SEPARATE_ITEM";
+    externalItemCode: string;
+    natureOfSupplies: FiscalNatureOfSupplies;
+    harmonizationCode: string | null;
+  }) => Promise<unknown>;
+}) {
+  const separate = current?.fiscal_treatment === "SEPARATE_ITEM";
+  const [taxCode, setTaxCode] = useState(current?.external_tax_code ?? "");
+  const [treatment, setTreatment] = useState<"SAME_LINE_TAX" | "SEPARATE_ITEM">(
+    separate ? "SEPARATE_ITEM" : "SAME_LINE_TAX",
+  );
+  const [itemCode, setItemCode] = useState(current?.external_item_code ?? "");
+  const [nature, setNature] = useState<FiscalNatureOfSupplies>(
+    fiscalNatureOfSupplies(current?.nature_of_supplies ?? "") ?? "service",
+  );
+  const [harmonization, setHarmonization] = useState(current?.harmonization_code ?? "");
+  useEffect(() => {
+    setTaxCode(current?.external_tax_code ?? "");
+    setTreatment(current?.fiscal_treatment === "SEPARATE_ITEM" ? "SEPARATE_ITEM" : "SAME_LINE_TAX");
+    setItemCode(current?.external_item_code ?? "");
+    setNature(fiscalNatureOfSupplies(current?.nature_of_supplies ?? "") ?? "service");
+    setHarmonization(current?.harmonization_code ?? "");
+  }, [current]);
+  return (
+    <div className="space-y-2 rounded-xl border border-[#E5DED1] p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-[#251605]">{title}</p>
+          <p className="text-xs text-muted-foreground">
+            {detail} · {current ? (separate ? "Separate item" : "Mapped") : "Missing"}
+          </p>
+        </div>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        <div className="space-y-1">
+          <Label>Provider tax code</Label>
+          <Input
+            value={taxCode}
+            placeholder="External TaxCode"
+            onChange={(event) => setTaxCode(event.target.value)}
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label>Fiscal treatment</Label>
+          <Select
+            value={treatment}
+            onValueChange={(value) => setTreatment(value as "SAME_LINE_TAX" | "SEPARATE_ITEM")}
+            disabled={!canEdit}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="SAME_LINE_TAX">Apply on source item</SelectItem>
+              <SelectItem value="SEPARATE_ITEM">Create separate fiscal item</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {treatment === "SEPARATE_ITEM" ? (
+          <>
+            <div className="space-y-1">
+              <Label>Fiscal item code</Label>
+              <Input
+                value={itemCode}
+                placeholder="Assigned on save"
+                onChange={(event) => setItemCode(event.target.value)}
+                disabled={!canEdit}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Nature of supplies</Label>
+              <Select
+                value={nature}
+                onValueChange={(value) => setNature(value as FiscalNatureOfSupplies)}
+                disabled={!canEdit}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="service">Service</SelectItem>
+                  <SelectItem value="goods">Goods</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Unit</Label>
+              <Input value={FISCAL_ITEM_UNIT} disabled />
+            </div>
+            <div className="space-y-1">
+              <Label>Harmonization code</Label>
+              <Input
+                value={harmonization}
+                placeholder="Optional"
+                onChange={(event) => setHarmonization(event.target.value)}
+                disabled={!canEdit}
+              />
+            </div>
+          </>
+        ) : null}
+      </div>
+      {canEdit ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            if (taxCode.trim().length === 0) {
+              toast.error("External tax code is required.");
+              return;
+            }
+            if (
+              treatment === "SEPARATE_ITEM" &&
+              itemCode.trim() &&
+              fiscalItemCodeNumber(itemCode) == null
+            ) {
+              toast.error("Fiscal item code must be a whole number such as 1001.");
+              return;
+            }
+            onSave({
+              taxCode,
+              fiscalTreatment: treatment,
+              externalItemCode: itemCode,
+              natureOfSupplies: nature,
+              harmonizationCode: harmonization.trim() || null,
+            }).catch((error: Error) => toast.error(error.message));
+          }}
+        >
+          Save
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function MappingRow({
+  title,
+  detail,
+  statusLabel,
+  canEdit,
+  initial,
+  placeholder,
+  onSave,
+}: {
+  title: string;
+  detail: string;
+  statusLabel: string;
+  canEdit: boolean;
+  initial: string;
+  placeholder: string;
+  onSave: (value: string) => Promise<unknown>;
+}) {
+  const [value, setValue] = useState(initial);
+  useEffect(() => setValue(initial), [initial]);
+  return (
+    <div className="grid gap-2 rounded-xl border border-[#E5DED1] p-3 md:grid-cols-[1fr_12rem_auto]">
+      <div>
+        <p className="text-sm font-medium text-[#251605]">{title}</p>
+        {detail ? <p className="text-xs text-muted-foreground">{detail}</p> : null}
+        <p className="text-xs text-muted-foreground">{statusLabel}</p>
+      </div>
+      <Input
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => setValue(event.target.value)}
+        disabled={!canEdit}
+      />
+      {canEdit ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => onSave(value).catch((error: Error) => toast.error(error.message))}
+        >
+          Save
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function ItemRow({
+  title,
+  detail,
+  current,
+  canEdit,
+  defaultNature,
+  onSave,
+}: {
+  title: string;
+  detail: string;
+  current: FiscalCatalogRow | undefined;
+  canEdit: boolean;
+  defaultNature?: FiscalNatureOfSupplies;
+  onSave: (values: {
+    externalItemCode: string;
+    natureOfSupplies: FiscalNatureOfSupplies;
+    harmonizationCode: string | null;
+  }) => Promise<unknown>;
+}) {
+  const storedNature = fiscalNatureOfSupplies(current?.nature_of_supplies ?? "");
+  const invalidNature = Boolean(current?.nature_of_supplies) && storedNature == null;
+  const [itemCode, setItemCode] = useState(current?.external_item_code ?? "");
+  const [nature, setNature] = useState<FiscalNatureOfSupplies | "">(
+    storedNature ?? (current ? "" : (defaultNature ?? "")),
+  );
+  const [harmonization, setHarmonization] = useState(current?.harmonization_code ?? "");
+  useEffect(() => {
+    const nextNature = fiscalNatureOfSupplies(current?.nature_of_supplies ?? "");
+    setItemCode(current?.external_item_code ?? "");
+    setNature(nextNature ?? (current ? "" : (defaultNature ?? "")));
+    setHarmonization(current?.harmonization_code ?? "");
+  }, [current, defaultNature]);
+  const complete = Boolean(
+    fiscalItemCodeNumber(current?.external_item_code ?? "") &&
+    fiscalNatureOfSupplies(current?.nature_of_supplies ?? ""),
+  );
+  return (
+    <div className="space-y-2 rounded-xl border border-[#E5DED1] p-3">
+      <p className="text-sm font-medium text-[#251605]">{title}</p>
+      <p className="text-xs text-muted-foreground">
+        {detail} · {complete ? "Mapped" : "Incomplete"} · Unit {FISCAL_ITEM_UNIT}
+      </p>
+      {invalidNature ? (
+        <p className="text-xs text-destructive">
+          Stored nature “{current?.nature_of_supplies}” must be corrected to Service or Goods.
+        </p>
+      ) : null}
+      <div className="grid gap-2 md:grid-cols-2">
+        <div className="space-y-1">
+          <Label>Fiscal item code</Label>
+          <Input
+            value={itemCode}
+            placeholder="Assigned on save"
+            onChange={(event) => setItemCode(event.target.value)}
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label>Nature of supplies</Label>
+          <Select
+            value={nature || undefined}
+            onValueChange={(value) => setNature(value as FiscalNatureOfSupplies)}
+            disabled={!canEdit}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Service or Goods" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="service">Service</SelectItem>
+              <SelectItem value="goods">Goods</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1 md:col-span-2">
+          <Label>Harmonization code</Label>
+          <Input
+            value={harmonization}
+            placeholder="Optional"
+            onChange={(event) => setHarmonization(event.target.value)}
+            disabled={!canEdit}
+          />
+        </div>
+      </div>
+      {canEdit ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            const chosen = fiscalNatureOfSupplies(nature);
+            if (!chosen) {
+              toast.error("Choose Service or Goods.");
+              return;
+            }
+            if (itemCode.trim().length > 0 && fiscalItemCodeNumber(itemCode) == null) {
+              toast.error("Fiscal item code must be a whole number such as 1001.");
+              return;
+            }
+            onSave({
+              externalItemCode: itemCode,
+              natureOfSupplies: chosen,
+              harmonizationCode: harmonization.trim() || null,
+            }).catch((error: Error) => toast.error(error.message));
+          }}
+        >
+          Save
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function BuyerRow({
+  canEdit,
+  types,
+  onSave,
+}: {
+  canEdit: boolean;
+  types: string[];
+  onSave: (input: {
+    mappingType: string;
+    internalValue: string;
+    externalValue: string;
+  }) => Promise<unknown>;
+}) {
+  const [mappingType, setMappingType] = useState(types[0] ?? "ID_TYPE");
+  const [internalValue, setInternalValue] = useState("");
+  const [externalValue, setExternalValue] = useState("");
+  return (
+    <section className="space-y-2">
+      <h3 className="font-medium text-[#251605]">Buyer codes</h3>
+      <p className="text-xs text-muted-foreground">
+        Map a NORU value to the provider code. No code list is prefilled.
+      </p>
+      <div className="grid gap-2 md:grid-cols-3">
+        <Select value={mappingType} onValueChange={setMappingType}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {types.map((type) => (
+              <SelectItem key={type} value={type}>
+                {type}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          value={internalValue}
+          placeholder="NORU value"
+          onChange={(event) => setInternalValue(event.target.value)}
+          disabled={!canEdit}
+        />
+        <Input
+          value={externalValue}
+          placeholder="External code"
+          onChange={(event) => setExternalValue(event.target.value)}
+          disabled={!canEdit}
+        />
+      </div>
+      {canEdit ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() =>
+            onSave({ mappingType, internalValue, externalValue })
+              .then(() => {
+                setInternalValue("");
+                setExternalValue("");
+              })
+              .catch((error: Error) => toast.error(error.message))
+          }
+        >
+          Save buyer code
+        </Button>
+      ) : null}
+    </section>
+  );
+}

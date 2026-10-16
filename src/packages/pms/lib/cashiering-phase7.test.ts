@@ -9,11 +9,17 @@ import {
 } from "./cashiering-transfer-model.ts";
 
 const sql = readFileSync(
-  new URL("../../../../drizzle/migrations/0127_cashiering_phase7_windows_transfers.sql", import.meta.url),
+  new URL(
+    "../../../../drizzle/migrations/0127_cashiering_phase7_windows_transfers.sql",
+    import.meta.url,
+  ),
   "utf8",
 );
 const supabaseSql = readFileSync(
-  new URL("../../../../supabase/migrations/0127_cashiering_phase7_windows_transfers.sql", import.meta.url),
+  new URL(
+    "../../../../supabase/migrations/0127_cashiering_phase7_windows_transfers.sql",
+    import.meta.url,
+  ),
   "utf8",
 );
 const poster = readFileSync(new URL("./cashiering-phases.functions.ts", import.meta.url), "utf8");
@@ -35,6 +41,6 @@ describe("Cashiering Phase 7 windows and transfers", () => {
     assert.match(sql, /post_folio_transfer/);
     assert.doesNotMatch(sql, /guest_folios\.balance/);
     assert.match(poster, /post_folio_transfer/);
-    assert.match(shell, /id: "transfers"/);
+    assert.match(shell, /transfers: "overview"/);
   });
 });

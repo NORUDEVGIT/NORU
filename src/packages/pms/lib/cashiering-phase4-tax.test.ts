@@ -9,10 +9,7 @@ import {
 } from "./cashiering-tax.ts";
 
 const sql = readFileSync(
-  new URL(
-    "../../../../drizzle/migrations/0135_cashiering_phase4_tax_on_post.sql",
-    import.meta.url,
-  ),
+  new URL("../../../../drizzle/migrations/0135_cashiering_phase4_tax_on_post.sql", import.meta.url),
   "utf8",
 );
 const supabaseSql = readFileSync(
@@ -78,6 +75,34 @@ describe("Cashiering Phase 4 tax on post", () => {
         calculation: "exclusive",
       }),
       20,
+    );
+  });
+
+  it("calculates exclusive VAT and occupancy fee from the same pretax base", () => {
+    const posted = computeExclusiveTaxLines(1000, [
+      { code: "VAT15", rate: 15 },
+      { code: "FEE5", rate: 5 },
+    ]);
+    assert.deepEqual(
+      posted.lines.map((line) => line.amount),
+      [150, 50],
+    );
+    assert.equal(posted.netBase + 150 + 50, 1200);
+    assert.equal(
+      computeTaxComponentAmount(333.33, {
+        chargeType: "percentage",
+        rate: 5,
+        calculation: "exclusive",
+      }),
+      16.67,
+    );
+    assert.equal(
+      computeTaxComponentAmount(999.99, {
+        chargeType: "percentage",
+        rate: 5,
+        calculation: "exclusive",
+      }),
+      50,
     );
   });
 

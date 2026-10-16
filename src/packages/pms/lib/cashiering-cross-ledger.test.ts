@@ -82,6 +82,9 @@ describe("cross-ledger transfer", () => {
     assert.match(dialog, /sourceType: "guest_folio"/);
     assert.match(dialog, /destinationType: "financial_account"/);
     assert.match(dialog, /Linked to this stay/);
+    assert.match(dialog, /openCompanyTransferLink/);
+    assert.match(read("./cashiering-transfer-company-link.ts"), /Linked company/);
+    assert.match(functions, /listTransferCompanyLinks/);
     assert.match(dialog, /\["guest_folio", "Guest Folio"\]/);
     assert.match(dialog, /\["company", "Company"\]/);
     assert.match(dialog, /\["group", "Group"\]/);

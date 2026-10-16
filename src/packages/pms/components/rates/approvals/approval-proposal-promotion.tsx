@@ -3,9 +3,9 @@ import { commercialProposalActionLabel } from "@/packages/pms/lib/revenue/revenu
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-3 text-[11px]">
+    <div className="flex justify-between gap-3 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <span className="text-right text-[#251605]">{value}</span>
+      <span className="font-medium text-right text-[#251605]">{value}</span>
     </div>
   );
 }
@@ -25,7 +25,7 @@ export function PromotionApprovalProposal({
 }) {
   const operation = String(proposal["operation"] ?? snapshot?.operationLabel ?? "EDIT");
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Row label="Promotion" value={snapshot?.name || snapshot?.code || "Promotion"} />
       <Row
         label="Action"

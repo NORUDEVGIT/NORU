@@ -264,10 +264,10 @@ export function ApprovalsView({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div>
-        <h2 className="font-display text-xl font-semibold text-[#251605]">Approvals</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <h2 className="font-display text-2xl font-semibold text-[#251605]">Approvals</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           Review submitted Rate & Revenue changes before they are applied.
         </p>
       </div>
@@ -291,31 +291,31 @@ export function ApprovalsView({
       />
 
       {tab === "history" ? (
-        <div className="flex flex-wrap items-end gap-2 rounded-xl border border-[#E8E1D7] bg-card px-3 py-2">
-          <label className="min-w-32">
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#E8E1D7] bg-card p-4 shadow-2xs">
+          <label className="min-w-36 flex-1 sm:flex-none">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               From
             </span>
             <input
               type="date"
               value={fromDate}
               onChange={(event) => setFromDate(event.target.value)}
-              className="mt-1 flex h-8 w-full rounded-md border border-[#DED7CD] bg-white px-2 text-[11px] text-[#251605]"
+              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             />
           </label>
-          <label className="min-w-32">
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <label className="min-w-36 flex-1 sm:flex-none">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               To
             </span>
             <input
               type="date"
               value={toDate}
               onChange={(event) => setToDate(event.target.value)}
-              className="mt-1 flex h-8 w-full rounded-md border border-[#DED7CD] bg-white px-2 text-[11px] text-[#251605]"
+              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             />
           </label>
-          <label className="min-w-32">
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <label className="min-w-36 flex-1 sm:flex-none">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               Status
             </span>
             <select
@@ -323,7 +323,7 @@ export function ApprovalsView({
               onChange={(event) =>
                 setHistoryStatus(event.target.value as RevenueApprovalStatus | "")
               }
-              className="mt-1 flex h-8 w-full rounded-md border border-[#DED7CD] bg-white px-2 text-[11px] text-[#251605]"
+              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             >
               <option value="">All terminal</option>
               {REVENUE_APPROVAL_TERMINAL_STATUSES.map((status) => (
@@ -333,8 +333,8 @@ export function ApprovalsView({
               ))}
             </select>
           </label>
-          <label className="min-w-32">
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <label className="min-w-36 flex-1 sm:flex-none">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               Domain
             </span>
             <select
@@ -342,7 +342,7 @@ export function ApprovalsView({
               onChange={(event) =>
                 setHistoryDomain(event.target.value as RevenueApprovalDomain | "")
               }
-              className="mt-1 flex h-8 w-full rounded-md border border-[#DED7CD] bg-white px-2 text-[11px] text-[#251605]"
+              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             >
               <option value="">All domains</option>
               {REVENUE_APPROVAL_DOMAINS.map((domain) => (
@@ -352,14 +352,14 @@ export function ApprovalsView({
               ))}
             </select>
           </label>
-          <label className="min-w-36">
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <label className="min-w-40 flex-1 sm:flex-none">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               Requested By
             </span>
             <select
               value={requestedBy}
               onChange={(event) => setRequestedBy(event.target.value)}
-              className="mt-1 flex h-8 w-full rounded-md border border-[#DED7CD] bg-white px-2 text-[11px] text-[#251605]"
+              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             >
               <option value="">Anyone</option>
               {actors.map((actor) => (
@@ -369,14 +369,14 @@ export function ApprovalsView({
               ))}
             </select>
           </label>
-          <label className="min-w-36">
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <label className="min-w-40 flex-1 sm:flex-none">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               Reviewed By
             </span>
             <select
               value={reviewedBy}
               onChange={(event) => setReviewedBy(event.target.value)}
-              className="mt-1 flex h-8 w-full rounded-md border border-[#DED7CD] bg-white px-2 text-[11px] text-[#251605]"
+              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             >
               <option value="">Anyone</option>
               {actors.map((actor) => (
@@ -389,119 +389,117 @@ export function ApprovalsView({
         </div>
       ) : null}
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_480px]">
-        <div className="min-w-0 space-y-2">
-          {listQuery.isLoading ? (
-            <TableSkeleton />
-          ) : listQuery.isError ? (
-            <InventoryState
-              state="error"
-              title="Approvals could not be loaded."
-              description={revenueUiError(listQuery.error, "Approvals could not be loaded.")}
-              onRetry={() => void listQuery.refetch()}
+      <div className="min-w-0 space-y-4">
+        {listQuery.isLoading ? (
+          <TableSkeleton />
+        ) : listQuery.isError ? (
+          <InventoryState
+            state="error"
+            title="Approvals could not be loaded."
+            description={revenueUiError(listQuery.error, "Approvals could not be loaded.")}
+            onRetry={() => void listQuery.refetch()}
+          />
+        ) : listQuery.data && listQuery.data.rows.length === 0 ? (
+          <div className="rounded-xl border border-[#E8E1D7] bg-card px-4 py-12 text-center text-sm text-muted-foreground shadow-2xs">
+            {emptyCopy}
+          </div>
+        ) : listQuery.data ? (
+          <>
+            <ApprovalTable
+              rows={listQuery.data.rows}
+              tab={tab}
+              membershipId={access.membershipId}
+              onReview={openRow}
+              onCancel={(row) => {
+                setSelectedId(row.id);
+                setDialog("cancel");
+              }}
             />
-          ) : listQuery.data && listQuery.data.rows.length === 0 ? (
-            <div className="rounded-xl border border-[#E8E1D7] bg-card px-4 py-8 text-center text-[12px] text-muted-foreground">
-              {emptyCopy}
-            </div>
-          ) : listQuery.data ? (
-            <>
-              <ApprovalTable
-                rows={listQuery.data.rows}
-                tab={tab}
-                membershipId={access.membershipId}
-                onReview={openRow}
-                onCancel={(row) => {
-                  setSelectedId(row.id);
-                  setDialog("cancel");
-                }}
-              />
-              <footer className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E8E1D7] bg-card px-3 py-2">
-                <p className="text-[9px] text-muted-foreground">
-                  Showing {range.start}–{range.end} of {range.total}
-                </p>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    disabled={page <= 1}
-                    onClick={() => setPage((current) => Math.max(1, current - 1))}
-                    className="inline-flex h-7 items-center rounded-md border border-[#DED7CD] bg-white px-2 text-[9px] text-[#251605] disabled:opacity-50"
-                  >
-                    <ChevronLeft className="mr-1 size-3" />
-                    Previous
-                  </button>
-                  <span className="grid size-7 place-items-center rounded bg-[#C89933] text-[9px] font-semibold text-[#251605]">
-                    {page}
-                  </span>
-                  <span className="px-1 text-[9px] text-muted-foreground">
-                    of {range.pageCount}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={page >= range.pageCount}
-                    onClick={() => setPage((current) => current + 1)}
-                    className="inline-flex h-7 items-center rounded-md border border-[#DED7CD] bg-white px-2 text-[9px] text-[#251605] disabled:opacity-50"
-                  >
-                    Next
-                    <ChevronRight className="ml-1 size-3" />
-                  </button>
-                  {/* page sizes: 10, 25, 50 */}
-                  <select
-                    value={pageSize}
-                    onChange={(event) => setPageSize(Number(event.target.value))}
-                    className="ml-2 h-7 rounded border border-[#DED7CD] bg-white px-2 text-[9px]"
-                    aria-label="Rows per page"
-                  >
-                    {REVENUE_APPROVAL_PAGE_SIZES.map((size) => (
-                      <option key={size} value={size}>
-                        {size} / page
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </footer>
-            </>
-          ) : null}
-        </div>
-
-        <ApprovalDetailDrawer
-          open={Boolean(selectedId)}
-          detail={detailQuery.data ?? null}
-          loading={detailQuery.isFetching}
-          error={
-            detailQuery.isError
-              ? revenueUiError(detailQuery.error, "Request could not be loaded.")
-              : null
-          }
-          applyError={actionError}
-          staleCopy={staleCopy || detailQuery.data?.status === "stale"}
-          access={access}
-          busy={approveMutation.isPending || rejectMutation.isPending || cancelMutation.isPending}
-          onClose={() => {
-            setSelectedId(null);
-            writeApprovalSearch(tab, null);
-          }}
-          onRetry={() => void detailQuery.refetch()}
-          onApprove={() => {
-            setActionError(null);
-            setDialog("approve");
-          }}
-          onReject={() => {
-            setActionError(null);
-            setDialog("reject");
-          }}
-          onCancel={() => {
-            setActionError(null);
-            setDialog("cancel");
-          }}
-          onViewApplied={(view) => {
-            void navigate({
-              to: "/restaurant/pms/rates-revenue",
-              search: serializeRevenueSearch(view, context),
-            });
-          }}
-        />
+            <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E8E1D7] bg-card px-4 py-3 shadow-2xs">
+              <p className="text-sm text-muted-foreground">
+                Showing {range.start}–{range.end} of {range.total}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3 text-sm font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors disabled:opacity-50"
+                >
+                  <ChevronLeft className="mr-1 size-4" />
+                  Previous
+                </button>
+                <span className="grid size-9 place-items-center rounded-lg bg-[#C89933] text-sm font-semibold text-[#251605]">
+                  {page}
+                </span>
+                <span className="px-1 text-sm text-muted-foreground">
+                  of {range.pageCount}
+                </span>
+                <button
+                  type="button"
+                  disabled={page >= range.pageCount}
+                  onClick={() => setPage((current) => current + 1)}
+                  className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3 text-sm font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors disabled:opacity-50"
+                >
+                  Next
+                  <ChevronRight className="ml-1 size-4" />
+                </button>
+                {/* page sizes: 10, 25, 50 */}
+                <select
+                  value={pageSize}
+                  onChange={(event) => setPageSize(Number(event.target.value))}
+                  className="ml-2 h-9 rounded-lg border border-[#DED7CD] bg-white px-2.5 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+                  aria-label="Rows per page"
+                >
+                  {REVENUE_APPROVAL_PAGE_SIZES.map((size) => (
+                    <option key={size} value={size}>
+                      {size} / page
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </footer>
+          </>
+        ) : null}
       </div>
+
+      <ApprovalDetailDrawer
+        open={Boolean(selectedId)}
+        detail={detailQuery.data ?? null}
+        loading={detailQuery.isFetching}
+        error={
+          detailQuery.isError
+            ? revenueUiError(detailQuery.error, "Request could not be loaded.")
+            : null
+        }
+        applyError={actionError}
+        staleCopy={staleCopy || detailQuery.data?.status === "stale"}
+        access={access}
+        busy={approveMutation.isPending || rejectMutation.isPending || cancelMutation.isPending}
+        onClose={() => {
+          setSelectedId(null);
+          writeApprovalSearch(tab, null);
+        }}
+        onRetry={() => void detailQuery.refetch()}
+        onApprove={() => {
+          setActionError(null);
+          setDialog("approve");
+        }}
+        onReject={() => {
+          setActionError(null);
+          setDialog("reject");
+        }}
+        onCancel={() => {
+          setActionError(null);
+          setDialog("cancel");
+        }}
+        onViewApplied={(view) => {
+          void navigate({
+            to: "/restaurant/pms/rates-revenue",
+            search: serializeRevenueSearch(view, context),
+          });
+        }}
+      />
 
       <ApprovalActionDialog
         open={dialog != null}

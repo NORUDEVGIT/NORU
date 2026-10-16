@@ -350,12 +350,14 @@ export function CreateReservationBookingDetails({
       onCommercialDefaultsHeld?.();
       return;
     }
+    onBillingRuleIdChange(defaults.defaultBillingRuleId ?? "");
     const planId = defaults.hints.find((row) => row.planId)?.planId;
     if (planId) onApplyRatePlan(planId);
   }, [
     agencyHintsQuery.data,
     holdCommercialDefaults,
     onApplyRatePlan,
+    onBillingRuleIdChange,
     onCommercialDefaultsHeld,
     relationTab,
     travelAgentMaster?.id,

@@ -8,10 +8,20 @@
  */
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
-import { CASHIER_MANAGE_ROLES, canManageCashiering } from "@/core/lib/cashiering-roles";
+import {
+  CASHIER_ALLOCATE_ROLES,
+  CASHIER_MANAGE_ROLES,
+  canAllocateAccountPayments,
+  canManageCashiering,
+} from "@/core/lib/cashiering-roles";
 import { withPmsPackage } from "./pms-package.server";
 
-export { CASHIER_MANAGE_ROLES, canManageCashiering };
+export {
+  CASHIER_ALLOCATE_ROLES,
+  CASHIER_MANAGE_ROLES,
+  canAllocateAccountPayments,
+  canManageCashiering,
+};
 
 /** Roles that may open Accounting & Finance and run day-to-day cashiering. */
 export const CASHIER_ACCESS_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
@@ -75,6 +85,23 @@ export async function requireCashierOperator(
   );
 }
 
+/** Classify an existing account payment against issued invoices. Not cash handling. */
+export async function requireCashierAllocator(
+  context: AuthedCtx,
+  restaurantId: string,
+): Promise<Membership> {
+  return withPmsPackage(
+    restaurantId,
+    requireModuleRole(
+      context,
+      restaurantId,
+      "accounting_finance",
+      CASHIER_ALLOCATE_ROLES,
+      NO_PERMISSION,
+    ),
+  );
+}
+
 /** Sensitive corrections and night audit: owner/manager only. */
 export async function requireCashierManager(
   context: AuthedCtx,
@@ -108,6 +135,8 @@ const CASHIER_ERRORS: Record<string, string> = {
   DESCRIPTION_REQUIRED: "A description is required.",
   REFUND_EXCEEDS_SETTLED: "A refund can't exceed what has been paid on this folio.",
   SOURCE_NOT_ON_FOLIO: "Choose a source line from this folio.",
+  SOURCE_NOT_ON_ACCOUNT: "Choose a payment on this financial account.",
+  REFUND_METHOD_MISMATCH: "A refund uses the same method as the original payment.",
   SOURCE_NOT_ALLOWED: "A source line can only be stored on a refund, adjustment, or discount.",
   SOURCE_REQUIRED: "Choose the folio line this corrects.",
   SOURCE_NOT_A_PAYMENT: "A refund must name a payment or deposit on this folio.",
@@ -134,16 +163,88 @@ const CASHIER_ERRORS: Record<string, string> = {
   TRANSFER_ACCOUNT_TO_ACCOUNT: "A charge cannot move from one financial account to another.",
   INVALID_TRANSFER_TARGET: "Choose a guest folio or a company or group account.",
   ACCOUNT_KIND_NOT_TRANSFERABLE: "Only company and group accounts can receive a transfer.",
-  TRANSFER_INVOICED: "This folio already has an issued invoice. The charge cannot move to a company or group account.",
+  TRANSFER_INVOICED: "This charge is already on an issued invoice, so it cannot be transferred.",
+  CORRECTION_INVOICED: "This charge is already on an issued invoice, so it cannot be corrected.",
+  INVOICE_SETTINGS_REQUIRED: "Set up invoice numbering before issuing an invoice.",
+  INVOICE_DRAFT_NOT_FOUND: "That invoice draft is no longer on this folio.",
+  INVOICE_DRAFT_EMPTY: "Select at least one uninvoiced charge before issuing.",
+  CHARGE_ALREADY_INVOICED: "That charge is already on an issued invoice.",
+  CHARGE_NOT_INVOICEABLE: "That line cannot be added to a guest invoice.",
+  CHARGE_TRANSFERRED: "That charge has moved off this folio. Remove it from the draft.",
+  CHARGE_GROUP_INCOMPLETE: "The tax or service lines for that charge are no longer on this folio.",
+  LEGACY_FOLIO_ALREADY_INVOICED:
+    "This folio already has a whole-folio invoice. Another invoice cannot be issued.",
+  NOTES_TOO_LONG: "Invoice notes must be 500 characters or fewer.",
+  INVOICE_IMMUTABLE: "An issued invoice cannot be changed.",
+  CORRECTION_CHILD_NOT_ALLOWED: "Correct the posted charge. Tax and service lines move with it.",
+  CORRECTION_EXCEEDS_REMAINDER: "That amount exceeds what remains on this charge.",
+  CORRECTION_AMOUNT_CHANGED:
+    "The remaining amount changed. Review the correction and post it again.",
+  INVALID_CORRECTION_MODE:
+    "Choose an amount adjustment, quantity correction, discount, or reversal.",
+  QUANTITY_NOT_AVAILABLE: "This charge has no posted quantity to correct.",
   CREDIT_LIMIT_EXCEEDED: "That transfer would exceed the company credit limit.",
   TARGET_WINDOW_NOT_FOUND: "Choose a target window on the destination folio.",
   ACCOUNT_NOT_FOUND: "Financial account not found for this property.",
   ACCOUNT_CLOSED: "This financial account is closed.",
+  ACCOUNT_KIND_NOT_INVOICEABLE: "Only company and group accounts can be invoiced.",
+  ACCOUNT_INVOICE_DRAFT_NOT_FOUND: "That invoice draft is no longer on this account.",
+  ACCOUNT_INVOICE_DRAFT_EMPTY: "Select at least one uninvoiced charge before issuing.",
+  ACCOUNT_CHARGE_NOT_INVOICEABLE: "That line cannot be added to this account invoice.",
+  ACCOUNT_CHARGE_ALREADY_INVOICED: "That charge is already on an issued invoice.",
+  ACCOUNT_CHARGE_NO_LONGER_OWNED: "That charge is no longer owned by this account.",
+  INVOICE_NOT_FOUND: "That invoice could not be found.",
+  INVOICE_NOT_ISSUED: "Notes can only be created from an issued invoice.",
+  CREDIT_NOTE_DRAFT_NOT_FOUND: "That credit note draft is no longer available.",
+  CREDIT_NOTE_DRAFT_EMPTY: "Select at least one invoice charge and enter a credit amount.",
+  INVOICE_ITEM_NOT_CREDITABLE: "That line is not on this issued invoice.",
+  CREDIT_EXCEEDS_REMAINDER: "That credit is more than the amount still available on the invoice.",
+  CREDIT_NOTE_ALREADY_ISSUED: "That credit note has already been issued.",
+  CREDIT_NOTE_NOT_FOUND: "That credit note could not be found.",
+  DEBIT_NOTE_DRAFT_NOT_FOUND: "That debit note draft is no longer available.",
+  DEBIT_NOTE_DRAFT_EMPTY: "Select at least one uninvoiced charge before issuing a debit note.",
+  DEBIT_SOURCE_NOT_ELIGIBLE: "That charge cannot be added to this debit note.",
+  DEBIT_SOURCE_ALREADY_COVERED: "That charge is already on an issued invoice or debit note.",
+  DEBIT_SOURCE_WRONG_TARGET:
+    "A debit note can only add charges owned by the same guest, company, or group.",
+  UNSUPPORTED_INVOICE_TARGET: "Choose a guest, company, or group invoice.",
+  REASON_REQUIRED: "A reason is required.",
+  WITHHOLDING_EXCEEDS_OUTSTANDING:
+    "That withholding amount is more than the invoice still has outstanding.",
+  WITHHOLDING_AMOUNT_INVALID: "Enter a withholding amount greater than zero.",
+  WITHHOLDING_PRETAX_INVALID: "Enter a pretax base greater than zero.",
+  WITHHOLDING_DATE_REQUIRED: "Choose the certificate date.",
+  WITHHOLDING_NOT_ISSUED: "Only an issued company invoice can receive a withholding certificate.",
+  WITHHOLDING_NOT_COMPANY: "Withholding certificates are only available for company invoices.",
+  WITHHOLDING_CURRENCY_UNSUPPORTED: "Withholding certificates currently require ETB.",
+  WITHHOLDING_NOT_REVERSIBLE: "Only an active withholding certificate can be reversed.",
+  WITHHOLDING_ALREADY_REVERSED: "That withholding certificate has already been reversed.",
+  WITHHOLDING_IMMUTABLE: "A withholding certificate cannot be changed or deleted.",
+  WITHHOLDING_LEDGER_INVALID: "The withholding ledger entry is not valid.",
   MASTER_NOT_FOUND: "Company or group master not found for this property.",
   ALLOCATION_EXCEEDS_UNALLOCATED: "That amount exceeds the unallocated deposit remainder.",
+  ALLOCATION_EXCEEDS_PAYMENT: "That allocation is more than this payment still has available.",
+  ALLOCATION_EXCEEDS_INVOICE: "That allocation is more than the invoice still has outstanding.",
+  ALLOCATION_STALE: "The payment or invoice amounts changed. Review the allocation and try again.",
+  ALLOCATION_NOT_A_PAYMENT: "Only a posted account payment can be allocated.",
+  ALLOCATION_NOT_A_GUEST_PAYMENT: "Only a posted guest payment can be allocated.",
+  ALLOCATION_FOLIO_MISMATCH:
+    "A payment can only be allocated to an invoice on the same guest folio.",
+  LEGACY_INVOICE_ALLOCATION_UNSUPPORTED:
+    "Payment allocation is unavailable for this legacy whole-folio invoice.",
+  ALLOCATION_NOT_ISSUED: "Only an issued invoice can receive a payment allocation.",
+  ALLOCATION_ACCOUNT_MISMATCH:
+    "A payment can only be allocated to an invoice on the same financial account.",
+  ALLOCATION_CURRENCY_MISMATCH: "The payment and invoice use different currencies.",
+  ALLOCATION_ALREADY_REVERSED: "That allocation has already been reversed.",
+  ALLOCATION_NOT_FOUND: "That allocation could not be found.",
+  ALLOCATION_NOT_REVERSIBLE: "Only an active allocation can be reversed.",
+  ALLOCATION_AMOUNT_INVALID: "Enter an allocation amount greater than zero.",
+  ALLOCATION_DUPLICATE_TARGET: "Each invoice can only appear once in an allocation.",
   ALLOCATION_SAME_FOLIO_ONLY: "Deposit allocation must stay on the same folio for now.",
   SOURCE_NOT_A_DEPOSIT: "Choose a deposit line to allocate.",
-  INVALID_WRITE_OFF_AMOUNT: "Write-off amount must match the outstanding balance.",
+  INVALID_WRITE_OFF_AMOUNT:
+    "Write-off amount must be greater than zero and no more than the amount due.",
   WRITE_OFF_TARGET_REQUIRED: "Choose a folio or financial account for the write-off.",
   SERVICE_NOT_FOUND: "That guest service is not on this property.",
   SERVICE_INACTIVE: "That guest service is inactive.",
@@ -157,6 +258,13 @@ const CASHIER_ERRORS: Record<string, string> = {
 
 /** Map RAISE EXCEPTION codes from the cashiering functions to user-facing text. */
 export function cashierError(message: string): Error {
+  const allocationNet = message.match(/ALLOCATION_EXCEEDS_INVOICE_NET:([^:]+):([0-9.]+):([0-9.]+)/);
+  if (allocationNet) {
+    const [, currency, allocated, release] = allocationNet;
+    return new Error(
+      `This invoice has ${currency} ${allocated} allocated. Reverse at least ${currency} ${release} of payment allocation before issuing this credit note.`,
+    );
+  }
   if (/duplicate key value/i.test(message)) {
     if (message.includes("guest_folios_one_per_reservation")) {
       return new Error("This reservation already has a folio.");

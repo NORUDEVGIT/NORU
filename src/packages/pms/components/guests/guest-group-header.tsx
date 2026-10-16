@@ -102,15 +102,24 @@ export function GuestGroupHeader({
     <header className="rounded-2xl border border-[#DDD4C5] bg-white p-5 shadow-sm" data-testid="group-detail-header">
       {/* Back Link */}
       <div className="mb-4">
-        <Link
-          to={GUEST_PROFILE_DIRECTORY_PATH}
-          search={guestProfileSearch({ type: "group" })}
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              window.history.back();
+            } else {
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({ type: "group" }),
+              });
+            }
+          }}
           className="inline-flex items-center gap-1.5 text-xs font-medium text-[#756A5B] transition-colors hover:text-[#251605]"
           data-testid="group-back-link"
         >
           <ArrowLeft className="size-3.5" />
-          Back to Groups
-        </Link>
+          Back to Previous Page
+        </button>
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">

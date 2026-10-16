@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import { GuestTaxIdentitiesCard } from "@/packages/pms/components/guests/guest-tax-identities-card";
 import { GUEST_GENDER_LABELS, GUEST_TITLE_LABELS } from "@/packages/pms/lib/guest-profile-individual";
 import { GUEST_ACCOUNT_TYPE_LABELS } from "@/packages/pms/lib/guest-profile-wave4";
 import {
@@ -337,6 +338,8 @@ export function GuestPersonalContactView({
           </div>
         )}
       </SectionPanel>
+
+      <GuestTaxIdentitiesCard restaurantId={restaurantId} guest={guest} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Download, MoreHorizontal, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -50,6 +50,7 @@ export function GuestCompanyHeader({
   onEdit: () => void;
   showBackButton?: boolean;
 }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const changeStatus = useServerFn(setCompanyStatus);
   const exportAccount = useServerFn(exportGuestAccount);
@@ -87,14 +88,23 @@ export function GuestCompanyHeader({
     <div className="space-y-3" data-testid="company-detail-header-wrapper">
       {showBackButton && (
         <div>
-          <Link
-            to={GUEST_PROFILE_DIRECTORY_PATH}
-            search={guestProfileSearch({ type: "company" })}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                window.history.back();
+              } else {
+                void navigate({
+                  to: GUEST_PROFILE_DIRECTORY_PATH,
+                  search: guestProfileSearch({ type: "company" }),
+                });
+              }
+            }}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#756A5B] hover:text-[#251605] transition-colors"
             data-testid="company-header-back-button"
           >
-            <ArrowLeft className="size-3.5" /> Back to Companies
-          </Link>
+            <ArrowLeft className="size-3.5" /> Back to Previous Page
+          </button>
         </div>
       )}
 

@@ -8,6 +8,7 @@ import { CashieringChrome } from "@/packages/pms/components/cashiering/cashierin
 import { CashieringDesk } from "@/packages/pms/components/cashiering/cashiering-desk";
 import { getCashieringAccess } from "@/packages/pms/lib/cashiering.functions";
 import {
+  activityFilterFromLegacyTab,
   cashieringTabSearch,
   resolveCashieringTab,
   type CashieringSearchParams,
@@ -29,9 +30,13 @@ export function CashieringWorkspace({
   useEffect(() => {
     if (search.tab === tab || (!search.tab && tab === "overview")) return;
     const { tab: _tab, folio, ...rest } = search;
+    const legacyActivity = activityFilterFromLegacyTab(search.tab);
     void navigate({
       to: "/restaurant/pms/cashiering",
-      search: cashieringTabSearch(tab, folio, rest),
+      search: cashieringTabSearch(tab, folio, {
+        ...rest,
+        ...(legacyActivity ? { activity: legacyActivity } : {}),
+      }),
       replace: true,
     });
   }, [navigate, search, tab]);
@@ -43,10 +48,13 @@ export function CashieringWorkspace({
     retry: false,
   });
 
-  function go(next: CashieringTabId, folio?: string | null, extra?: Partial<CashieringSearchParams>) {
-    const { tab: _tab, folio: currentFolio, ...rest } = search;
-    const nextFolio =
-      folio === null ? null : folio !== undefined ? folio : next === "folios" ? currentFolio : null;
+  function go(
+    next: CashieringTabId,
+    folio?: string | null,
+    extra?: Partial<CashieringSearchParams>,
+  ) {
+    const { tab: _tab, folio: _currentFolio, ...rest } = search;
+    const nextFolio = folio === null ? null : folio !== undefined ? folio : null;
     void navigate({
       to: "/restaurant/pms/cashiering",
       search: cashieringTabSearch(next, nextFolio, { ...rest, ...extra }),
@@ -78,12 +86,12 @@ export function CashieringWorkspace({
     <CashieringChrome
       membership={membership}
       active={tab}
-      onNavigate={(id) => go(id)}
+      onNavigate={(id) => go(id, null)}
       onSearch={(value) => {
         setModuleSearch(value);
-        go("folios", search.folio, { q: value, tab: "folios" });
+        go("folios", null, { q: value, tab: "folios" });
       }}
-      onPostPayment={() => go("payments")}
+      onPostPayment={() => go("overview", null, { activity: "payment" })}
     >
       <CashieringDesk
         restaurantId={restaurantId}
@@ -95,6 +103,8 @@ export function CashieringWorkspace({
         moduleSearch={moduleSearch}
         canOperate={accessQuery.data.canOperate}
         canManage={accessQuery.data.canManage}
+        membershipId={accessQuery.data.membershipId}
+        role={accessQuery.data.role}
         onTab={go}
       />
     </CashieringChrome>

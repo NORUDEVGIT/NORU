@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -107,6 +107,7 @@ import {
   type TravelAgentCreateContext,
 } from "@/packages/pms/lib/guest-travel-agent-create.functions";
 import { getGuestAccount, type GuestAccountProfile } from "@/packages/pms/lib/guest-accounts.functions";
+import { listTravelAgentContacts } from "@/packages/pms/lib/guest-travel-agent-detail.functions";
 import { BasicInfoStep, ContactsStep } from "./guest-travel-agency-basic-info-step";
 import {
   GuestTravelAgencyCommissionRatesStep,
@@ -226,6 +227,122 @@ function agencyProfileToCreateDraft(account: GuestAccountProfile): GuestTravelAg
   };
 }
 
+function hydrateAgencyEditDraft(
+  account: GuestAccountProfile,
+  step3: TravelAgencyCommissionRatesConfig,
+  step4: TravelAgencyStep4Config,
+  savedContacts: Array<{
+    id: string;
+    name: string;
+    position?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    whatsapp?: string | null;
+    isPrimary?: boolean;
+    notes?: string | null;
+  }>,
+): GuestTravelAgentCreateDraft {
+  const base = agencyProfileToCreateDraft(account);
+  const contacts = savedContacts
+    .filter((row) => row.name?.trim())
+    .map((row) => ({
+      key: row.id,
+      id: row.id,
+      name: row.name,
+      roleId: null,
+      position: row.position ?? "",
+      email: row.email ?? "",
+      phone: row.phone ?? "",
+      whatsapp: row.whatsapp ?? "",
+      isPrimary: Boolean(row.isPrimary),
+      preferredMethod: "",
+      notes: row.notes ?? "",
+    }));
+  const billing = step4.existingValues;
+  const agreement = step3.existingAgreement;
+  const plan = step3.currentCommissionPlan;
+  const rules = step3.commissionRules ?? [];
+  const allRule = rules.find((row) => row.scopeType === "all");
+  const hasSpecificRules = rules.some((row) => row.scopeType !== "all");
+  const netRatePlan = agreement?.ratePlanId
+    ? step3.ratePlans.find((row) => row.id === agreement.ratePlanId)
+    : null;
+  const commercialFields: Partial<GuestTravelAgentCreateDraft> = agreement
+    ? {
+        commercialModel: "net_rate",
+        commissionEnabled: false,
+        netPricingMethod: agreement.pricingMethod,
+        netRoomTypeId:
+          netRatePlan?.roomTypeId ??
+          (agreement.contractedRates.length === 1 ? agreement.contractedRates[0]?.roomTypeId ?? null : null),
+        netRatePlanId: agreement.ratePlanId,
+        netDiscountType: agreement.discountType,
+        netDiscountValue: agreement.discountValue == null ? "" : String(agreement.discountValue),
+        netCurrencyCode: agreement.currencyCode || step3.baseCurrency,
+        netValidFrom: agreement.validFrom,
+        netValidUntil: agreement.validTo,
+        contractedRates: agreement.contractedRates.map((row) => ({
+          roomTypeId: row.roomTypeId,
+          amount: String(row.amount),
+        })),
+      }
+    : {
+        commercialModel: "commissionable",
+        commissionEnabled: true,
+        commissionType: allRule?.commissionType ?? plan?.commissionType ?? "percent",
+        commissionValue: String(allRule?.commissionValue ?? plan?.rateValue ?? 0),
+        allCommissionType: allRule?.commissionType ?? plan?.commissionType ?? "percent",
+        allCommissionValue: String(allRule?.commissionValue ?? plan?.rateValue ?? 0),
+        commissionCurrency: plan?.currency || step3.baseCurrency,
+        commissionEffectiveOn: plan?.effectiveOn ?? "",
+        commissionExpiresOn: plan?.expiresOn ?? "",
+        commissionNotes: plan?.notes ?? "",
+        commissionApplicationMode: hasSpecificRules ? "specific" : "all",
+        commissionRules: rules.map((row) => ({
+          id: row.id,
+          scopeType: row.scopeType,
+          roomTypeId: row.roomTypeId,
+          ratePlanId: row.ratePlanId,
+          commissionType: row.commissionType,
+          commissionValue: String(row.commissionValue),
+        })),
+        agencyRateDefaults: step3.agencyRateDefaults ?? [],
+      };
+  return {
+    ...base,
+    ...commercialFields,
+    contacts: contacts.length > 0 ? contacts : base.contacts,
+    billingCurrencyCode: billing?.billingCurrencyCode || base.billingCurrencyCode || step4.baseCurrency,
+    currency: billing?.billingCurrencyCode || base.currency || step4.baseCurrency,
+    defaultPaymentMethodId: billing?.defaultPaymentMethodId ?? null,
+    paymentMethodId: billing?.defaultPaymentMethodId ?? base.paymentMethodId,
+    paymentTiming:
+      billing?.paymentTiming === "due_on_arrival" ||
+      billing?.paymentTiming === "due_on_departure" ||
+      billing?.paymentTiming === "prepaid" ||
+      billing?.paymentTiming === "credit_terms"
+        ? billing.paymentTiming
+        : base.paymentTiming,
+    defaultBillingRuleId: billing?.defaultBillingRuleId ?? null,
+    billingInstruction: billing?.billingInstruction ?? "",
+    allowCredit: Boolean(billing?.creditAccountEnabled),
+    creditLimitAmount:
+      billing?.creditLimitAmount == null ? base.creditLimitAmount : String(billing.creditLimitAmount),
+    creditDays: billing?.creditDays ?? base.creditDays,
+    creditDaysPreset: billing?.creditDays == null ? base.creditDaysPreset : String(billing.creditDays),
+    creditStatus:
+      billing?.creditStatus === "approved" ||
+      billing?.creditStatus === "suspended" ||
+      billing?.creditStatus === "pending_approval"
+        ? billing.creditStatus
+        : base.creditStatus,
+    defaultDepositPolicyId: billing?.defaultDepositPolicyId ?? null,
+    defaultCancellationPolicyId: billing?.defaultCancellationPolicyId ?? null,
+    defaultNoShowPolicyId: billing?.defaultNoShowPolicyId ?? null,
+    bookingNotes: billing?.bookingNotes ?? "",
+  };
+}
+
 export function GuestTravelAgencyCreateModal({
   restaurantId,
   open,
@@ -256,6 +373,7 @@ export function GuestTravelAgencyCreateModal({
   const clearDraft = useServerFn(deleteTravelAgentCreateDraft);
   const persist = useServerFn(persistTravelAgentCreate);
   const loadStep3Config = useServerFn(getTravelAgencyCommissionRatesConfig);
+  const loadContacts = useServerFn(listTravelAgentContacts);
 
   const accountQuery = useQuery({
     queryKey: ["guest-account", restaurantId, agencyId],
@@ -277,6 +395,7 @@ export function GuestTravelAgencyCreateModal({
   const [created, setCreated] = useState<{ id: string; name: string; code: string | null } | null>(null);
   const [holdState, setHoldState] = useState<"idle" | "saving" | "saved">(localHold ? "saved" : "idle");
   const [attemptedSteps, setAttemptedSteps] = useState<Set<string>>(new Set());
+  const editHydratedFor = useRef<string | null>(null);
 
   const context = useQuery({
     queryKey: ["travel-agent-create-context", restaurantId],
@@ -309,16 +428,52 @@ export function GuestTravelAgencyCreateModal({
     enabled: open,
   });
 
+  const editContactsQuery = useQuery({
+    queryKey: ["travel-agent-edit-contacts", restaurantId, agencyId],
+    queryFn: () =>
+      loadContacts({
+        data: { restaurantId, agencyId: agencyId!, status: "all", limit: 50 },
+      }),
+    enabled: open && isEdit && Boolean(agencyId),
+    retry: false,
+  });
+
   useEffect(() => {
-    if (!open) return;
-    if (isEdit) {
-      if (currentAgency) {
-        setDraft(agencyProfileToCreateDraft(currentAgency));
-        setStep("basic_info");
-        setDefaultsApplied(true);
-      }
+    if (!open) {
+      editHydratedFor.current = null;
       return;
     }
+    if (!isEdit || !agencyId || editHydratedFor.current === agencyId) return;
+    if (
+      currentAgency &&
+      step3ConfigQuery.data &&
+      step4ConfigQuery.data &&
+      editContactsQuery.data
+    ) {
+      setDraft(
+        hydrateAgencyEditDraft(
+          currentAgency,
+          step3ConfigQuery.data,
+          step4ConfigQuery.data,
+          editContactsQuery.data.items,
+        ),
+      );
+      setStep("basic_info");
+      setDefaultsApplied(true);
+      editHydratedFor.current = agencyId;
+    }
+  }, [
+    agencyId,
+    currentAgency,
+    editContactsQuery.data,
+    isEdit,
+    open,
+    step3ConfigQuery.data,
+    step4ConfigQuery.data,
+  ]);
+
+  useEffect(() => {
+    if (!open || isEdit) return;
     if (!context.data || defaultsApplied) return;
     const local = readGuestTravelAgentCreateHold(restaurantId);
     if (local) {
@@ -343,7 +498,7 @@ export function GuestTravelAgencyCreateModal({
       });
     }
     setDefaultsApplied(true);
-  }, [context.data, currentAgency, defaultsApplied, isEdit, open, restaurantId]);
+  }, [context.data, defaultsApplied, isEdit, open, restaurantId]);
 
   useEffect(() => {
     if (isEdit || !defaultsApplied || created) return;

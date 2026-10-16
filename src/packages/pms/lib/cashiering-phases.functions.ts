@@ -16,6 +16,7 @@ import {
   type TransactionType,
 } from "./cashiering.server";
 import type { CashierResult } from "./cashiering.functions";
+import { propertyDayBounds } from "./cashiering-control";
 
 const idSchema = z.string().uuid();
 
@@ -70,6 +71,102 @@ export interface CashieringReportTotals {
   transfersOut: number;
   transfersIn: number;
   lineCount: number;
+  netMovement: number;
+}
+
+export interface CashieringReportLine {
+  id: string;
+  folioId: string;
+  folioNumber: string;
+  guestName: string;
+  type: string;
+  description: string;
+  amount: number;
+  paymentMethod: string | null;
+  postedAt: string;
+}
+
+export interface CashieringReport {
+  totals: CashieringReportTotals;
+  lines: CashieringReportLine[];
+  page: number;
+  limit: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export function escapeCashieringCsvCell(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  let str = String(val);
+  if (/^[=+\-@]/.test(str)) {
+    str = `'${str}`;
+  }
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+export function buildCashieringReportCsv(input: {
+  restaurantId: string;
+  fromDate: string;
+  toDate: string;
+  totals?: CashieringReportTotals;
+  lines: CashieringReportLine[];
+  currencyCode?: string;
+}): string {
+  const rows: string[][] = [];
+
+  rows.push(["CASHIERING TRANSACTIONS REPORT"]);
+  rows.push(["Property ID", input.restaurantId]);
+  rows.push(["Date Range", `${input.fromDate} to ${input.toDate}`]);
+  rows.push(["Generated At", new Date().toISOString()]);
+  if (input.currencyCode) {
+    rows.push(["Currency", input.currencyCode]);
+  }
+  rows.push([]);
+
+  if (input.totals) {
+    rows.push(["SUMMARY TOTALS"]);
+    rows.push(["Metric", "Amount"]);
+    rows.push(["Charges", String(input.totals.charges)]);
+    rows.push(["Payments", String(input.totals.payments)]);
+    rows.push(["Deposits", String(input.totals.deposits)]);
+    rows.push(["Refunds", String(input.totals.refunds)]);
+    rows.push(["Adjustments", String(input.totals.adjustments)]);
+    rows.push(["Discounts", String(input.totals.discounts)]);
+    rows.push(["Transfers Out", String(input.totals.transfersOut)]);
+    rows.push(["Transfers In", String(input.totals.transfersIn)]);
+    rows.push(["Net Movement", String(input.totals.netMovement)]);
+    rows.push(["Total Line Count", String(input.totals.lineCount)]);
+    rows.push([]);
+  }
+
+  rows.push(["TRANSACTION DETAILS"]);
+  rows.push([
+    "Posted At",
+    "Type",
+    "Guest Name",
+    "Folio Number",
+    "Description",
+    "Payment Method",
+    "Amount",
+  ]);
+
+  for (const line of input.lines) {
+    rows.push([
+      line.postedAt,
+      line.type,
+      line.guestName,
+      line.folioNumber,
+      line.description,
+      line.paymentMethod ?? "",
+      String(line.amount),
+    ]);
+  }
+
+  return rows.map((r) => r.map(escapeCashieringCsvCell).join(",")).join("\r\n");
 }
 
 export const listFolioWindows = createServerFn({ method: "GET" })
@@ -195,9 +292,7 @@ export const postCrossLedgerTransfer = createServerFn({ method: "POST" })
 
 export const listFinancialAccounts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { restaurantId: string }) =>
-    z.object({ restaurantId: idSchema }).parse(d),
-  )
+  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<FinancialAccountRow[]> => {
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -262,6 +357,37 @@ export const listFinancialAccounts = createServerFn({ method: "GET" })
       });
     }
     return out;
+  });
+
+export interface TransferCompanyLinkRow {
+  masterId: string;
+  role: "employer" | "bill_to";
+}
+
+export const listTransferCompanyLinks = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string; guestId: string }) =>
+    z.object({ restaurantId: idSchema, guestId: idSchema }).parse(d),
+  )
+  .handler(async ({ data, context }): Promise<TransferCompanyLinkRow[]> => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin
+      .from("guest_account_links")
+      .select("master_id, role")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .in("role", ["employer", "bill_to"]);
+    if (error) {
+      if (error.code === "42P01" || error.code === "PGRST205") return [];
+      throw cashierError(error.message);
+    }
+    return ((rows ?? []) as Array<{ master_id: string; role: string }>)
+      .filter((row) => row.role === "employer" || row.role === "bill_to")
+      .map((row) => ({
+        masterId: row.master_id,
+        role: row.role as TransferCompanyLinkRow["role"],
+      }));
   });
 
 export interface FinancialAccountChargeRow {
@@ -340,7 +466,9 @@ export const listFinancialAccountCharges = createServerFn({ method: "GET" })
       }
     }
     return lines.map((row) => {
-      const source = row.original_transaction_id ? sources.get(row.original_transaction_id) : undefined;
+      const source = row.original_transaction_id
+        ? sources.get(row.original_transaction_id)
+        : undefined;
       const local = lines.find((line) => line.id === row.original_transaction_id);
       const department = source?.charge_snapshot?.departmentName;
       const quantity = source?.quantity ?? null;
@@ -394,6 +522,25 @@ export const openFinancialAccount = createServerFn({ method: "POST" })
     return { ok: true, id: (acct as { id: string }).id };
   });
 
+export const getMasterBillingCurrency = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string; masterId: string }) =>
+    z.object({ restaurantId: idSchema, masterId: idSchema }).parse(d),
+  )
+  .handler(async ({ data, context }): Promise<{ currency: string | null }> => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { masterBillingCurrency } = await import("./cashiering-account-workspace");
+    const { data: row, error } = await supabaseAdmin
+      .from("guest_account_masters")
+      .select("billing_currency_code, account_operations")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.masterId)
+      .maybeSingle();
+    if (error) throw new Error(cashierError(error.message).message);
+    return { currency: masterBillingCurrency(row) };
+  });
+
 export const postFinancialAccountEntry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(
@@ -404,6 +551,7 @@ export const postFinancialAccountEntry = createServerFn({ method: "POST" })
       amount: number;
       description: string;
       method?: string;
+      originalTransactionId?: string;
       idempotencyKey: string;
     }) =>
       z
@@ -414,6 +562,7 @@ export const postFinancialAccountEntry = createServerFn({ method: "POST" })
           amount: z.number().finite(),
           description: z.string().min(1).max(200),
           method: z.string().max(60).optional(),
+          originalTransactionId: idSchema.optional(),
           idempotencyKey: z.string().min(8).max(80),
         })
         .parse(d),
@@ -423,6 +572,12 @@ export const postFinancialAccountEntry = createServerFn({ method: "POST" })
       data.type === "payment" || data.type === "deposit"
         ? await requireCashierOperator(context as never, data.restaurantId)
         : await requireCashierManager(context as never, data.restaurantId);
+    if ((data.type === "payment" || data.type === "deposit") && !blankToNull(data.method)) {
+      return { ok: false, message: "Choose a payment method." };
+    }
+    if (data.type === "refund" && !data.originalTransactionId) {
+      return { ok: false, message: "Choose the payment this refunds." };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: txn, error } = await supabaseAdmin.rpc("post_financial_account_transaction", {
       _restaurant_id: data.restaurantId,
@@ -434,6 +589,7 @@ export const postFinancialAccountEntry = createServerFn({ method: "POST" })
       _membership_id: me.id,
       _payment_method: blankToNull(data.method ?? null) ?? undefined,
       _idempotency_key: assertIdempotencyKey(data.idempotencyKey),
+      _original_transaction_id: data.originalTransactionId,
     });
     if (error) return { ok: false, message: cashierError(error.message).message };
     return { ok: true, id: (txn as { id: string }).id };
@@ -547,73 +703,205 @@ export const postSettlementWriteOff = createServerFn({ method: "POST" })
 
 export const listCashieringExceptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { restaurantId: string }) =>
-    z.object({ restaurantId: idSchema }).parse(d),
-  )
+  .inputValidator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<CashieringExceptionRow[]> => {
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: payload, error } = await supabaseAdmin.rpc("list_cashiering_exceptions", {
-      _restaurant_id: data.restaurantId,
-    });
-    if (error) throw cashierError(error.message);
-    const body = payload as {
-      unsettled_checkouts: Array<Record<string, unknown>>;
-      drawer_variances: Array<Record<string, unknown>>;
-    };
-    const rows: CashieringExceptionRow[] = [];
-    for (const item of body.unsettled_checkouts ?? []) {
-      rows.push({
-        kind: "unsettled_checkout",
-        folioId: String(item.folio_id ?? ""),
-        folioNumber: String(item.folio_number ?? ""),
-        balance: Number(item.balance ?? 0),
-        reason: (item.reason as string | null) ?? null,
-        at: (item.at as string | null) ?? null,
-      });
+    const { data: folios, error: folioError } = await supabaseAdmin
+      .from("guest_folios")
+      .select("id, folio_number, settlement_exception_reason, settlement_exception_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("status", "open")
+      .eq("settlement_exception", "unsettled_checkout");
+    if (folioError) throw cashierError(folioError.message);
+
+    const openExceptions = (folios ?? []) as Array<{
+      id: string;
+      folio_number: string;
+      settlement_exception_reason: string | null;
+      settlement_exception_at: string | null;
+    }>;
+    const balances = new Map<string, number>();
+    if (openExceptions.length > 0) {
+      const { data: txns, error: txnError } = await supabaseAdmin
+        .from("folio_transactions")
+        .select("folio_id, amount")
+        .eq("restaurant_id", data.restaurantId)
+        .in(
+          "folio_id",
+          openExceptions.map((folio) => folio.id),
+        );
+      if (txnError) throw cashierError(txnError.message);
+      for (const txn of (txns ?? []) as Array<{ folio_id: string; amount: number | string }>) {
+        balances.set(txn.folio_id, (balances.get(txn.folio_id) ?? 0) + Number(txn.amount));
+      }
     }
-    for (const item of body.drawer_variances ?? []) {
+
+    const rows: CashieringExceptionRow[] = openExceptions.map((folio) => ({
+      kind: "unsettled_checkout",
+      folioId: folio.id,
+      folioNumber: folio.folio_number,
+      balance: Math.round((balances.get(folio.id) ?? 0) * 100) / 100,
+      reason: folio.settlement_exception_reason,
+      at: folio.settlement_exception_at,
+    }));
+
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: shifts, error: shiftError } = await supabaseAdmin
+      .from("hotel_cashier_shifts")
+      .select("id, closed_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("status", "closed")
+      .gte("closed_at", since);
+    if (shiftError) throw cashierError(shiftError.message);
+    for (const shift of (shifts ?? []) as Array<{ id: string; closed_at: string | null }>) {
+      const { data: figures, error: figureError } = await supabaseAdmin.rpc(
+        "hotel_drawer_figures",
+        { _restaurant_id: data.restaurantId, _shift_id: shift.id },
+      );
+      if (figureError) throw cashierError(figureError.message);
+      const variance = Number((figures as { variance?: number | string | null } | null)?.variance);
+      if (!Number.isFinite(variance) || Math.abs(variance) < 0.01) continue;
       rows.push({
         kind: "drawer_variance",
-        shiftId: String(item.shift_id ?? ""),
-        variance: Number(item.variance ?? 0),
-        at: (item.closed_at as string | null) ?? null,
+        shiftId: shift.id,
+        variance: Math.round(variance * 100) / 100,
+        at: shift.closed_at,
       });
     }
     return rows;
   });
 
+const reportDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
 export const getCashieringReportTotals = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { restaurantId: string; from: string; to: string }) =>
-    z
-      .object({
-        restaurantId: idSchema,
-        from: z.string().datetime(),
-        to: z.string().datetime(),
-      })
-      .parse(d),
+  .inputValidator(
+    (d: {
+      restaurantId: string;
+      fromDate: string;
+      toDate: string;
+      page?: number;
+      limit?: number;
+      pageSize?: number;
+    }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          fromDate: reportDate,
+          toDate: reportDate,
+          page: z.coerce.number().int().min(1).optional().default(1),
+          limit: z.coerce.number().int().min(1).max(500).optional(),
+          pageSize: z.coerce.number().int().min(1).max(500).optional(),
+        })
+        .parse(d),
   )
-  .handler(async ({ data, context }): Promise<CashieringReportTotals> => {
+  .handler(async ({ data, context }): Promise<CashieringReport> => {
     await requireCashieringAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: payload, error } = await supabaseAdmin.rpc("cashiering_report_totals", {
-      _restaurant_id: data.restaurantId,
-      _from: data.from,
-      _to: data.to,
-    });
+    const fromDate = data.fromDate <= data.toDate ? data.fromDate : data.toDate;
+    const toDate = data.fromDate <= data.toDate ? data.toDate : data.fromDate;
+    const span =
+      (Date.parse(`${toDate}T00:00:00Z`) - Date.parse(`${fromDate}T00:00:00Z`)) / 86_400_000;
+    if (span > 31) throw cashierError("Choose a report range of 31 days or less.");
+
+    const { data: restaurant, error: restaurantError } = await supabaseAdmin
+      .from("restaurants")
+      .select("timezone")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    if (restaurantError) throw cashierError(restaurantError.message);
+    const timezone = (restaurant as { timezone: string | null } | null)?.timezone?.trim() || "UTC";
+    const boundsStart = propertyDayBounds(fromDate, timezone).startIso;
+    const boundsEnd = propertyDayBounds(toDate, timezone).endIso;
+
+    const { data: txns, error } = await supabaseAdmin
+      .from("folio_transactions")
+      .select("id, folio_id, transaction_type, description, amount, payment_method, posted_at")
+      .eq("restaurant_id", data.restaurantId)
+      .gte("posted_at", boundsStart)
+      .lt("posted_at", boundsEnd)
+      .order("posted_at", { ascending: false })
+      .limit(5000);
     if (error) throw cashierError(error.message);
-    const row = payload as Record<string, number>;
+
+    const ledger = (txns ?? []) as Array<{
+      id: string;
+      folio_id: string;
+      transaction_type: string;
+      description: string;
+      amount: number | string;
+      payment_method: string | null;
+      posted_at: string;
+    }>;
+    const sum = (type: string, signed: (amount: number) => number) =>
+      Math.round(
+        ledger
+          .filter((row) => row.transaction_type === type)
+          .reduce((total, row) => total + signed(Number(row.amount)), 0) * 100,
+      ) / 100;
+    const totals: CashieringReportTotals = {
+      charges: sum("charge", (amount) => amount),
+      payments: sum("payment", (amount) => -amount),
+      deposits: sum("deposit", (amount) => -amount),
+      refunds: sum("refund", (amount) => amount),
+      adjustments: sum("adjustment", (amount) => amount),
+      discounts: sum("discount", (amount) => -amount),
+      transfersOut: sum("transfer_out", (amount) => -amount),
+      transfersIn: sum("transfer_in", (amount) => amount),
+      lineCount: ledger.length,
+      netMovement:
+        Math.round(ledger.reduce((total, row) => total + Number(row.amount), 0) * 100) / 100,
+    };
+
+    const limit = data.limit ?? data.pageSize ?? 25;
+    const total = ledger.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(Math.max(1, data.page ?? 1), totalPages);
+    const start = (safePage - 1) * limit;
+    const shown = ledger.slice(start, start + limit);
+
+    const folioIds = [...new Set(shown.map((row) => row.folio_id))];
+    const folioMeta = new Map<string, { number: string; guest: string }>();
+    if (folioIds.length > 0) {
+      const { data: folios } = await supabaseAdmin
+        .from("guest_folios")
+        .select(
+          "id, folio_number, guest_profiles!guest_folios_guest_same_property(first_name, last_name)",
+        )
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", folioIds);
+      for (const folio of (folios ?? []) as unknown as Array<{
+        id: string;
+        folio_number: string;
+        guest_profiles: { first_name: string | null; last_name: string | null } | null;
+      }>) {
+        const guest = [folio.guest_profiles?.first_name, folio.guest_profiles?.last_name]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        folioMeta.set(folio.id, { number: folio.folio_number, guest: guest || "Guest" });
+      }
+    }
+
     return {
-      charges: Number(row.charges ?? 0),
-      payments: Number(row.payments ?? 0),
-      deposits: Number(row.deposits ?? 0),
-      refunds: Number(row.refunds ?? 0),
-      adjustments: Number(row.adjustments ?? 0),
-      discounts: Number(row.discounts ?? 0),
-      transfersOut: Number(row.transfers_out ?? 0),
-      transfersIn: Number(row.transfers_in ?? 0),
-      lineCount: Number(row.line_count ?? 0),
+      totals,
+      lines: shown.map((row) => ({
+        id: row.id,
+        folioId: row.folio_id,
+        folioNumber: folioMeta.get(row.folio_id)?.number ?? "—",
+        guestName: folioMeta.get(row.folio_id)?.guest ?? "Guest",
+        type: row.transaction_type,
+        description: row.description,
+        amount: Number(row.amount),
+        paymentMethod: row.payment_method,
+        postedAt: row.posted_at,
+      })),
+      page: safePage,
+      limit,
+      pageSize: limit,
+      total,
+      totalPages,
     };
   });
 

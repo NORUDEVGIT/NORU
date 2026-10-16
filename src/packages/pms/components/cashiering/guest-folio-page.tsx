@@ -16,6 +16,8 @@ import {
   Link2,
   Lock,
   Network,
+  PanelRightClose,
+  PanelRightOpen,
   Printer,
   Receipt,
   ReceiptText,
@@ -35,18 +37,29 @@ import {
 } from "@/packages/pms/components/cashiering/folio-bits";
 import {
   CloseFolioDialog,
+  DepositReceiptModal,
   FolioEntryDialog,
+  buildTenderReceiptFromFolioRow,
+  TenderReceiptDocument,
+  type TenderReceipt,
 } from "@/packages/pms/components/cashiering/folio-dialogs";
-import { ChargeDetailsSheet } from "@/packages/pms/components/cashiering/charge-details-sheet";
+import {
+  ChargeDetailsSheet,
+  chargeDepartment,
+  chargeItemTitle,
+  chargeQuantity,
+  chargeUnitAmount,
+} from "@/packages/pms/components/cashiering/charge-details-sheet";
+import { CorrectChargeDialog } from "@/packages/pms/components/cashiering/correct-charge-dialog";
 import { TransferChargeDialog } from "@/packages/pms/components/cashiering/transfer-charge-dialog";
 import { PostChargeDialog } from "@/packages/pms/components/cashiering/post-charge-dialog";
-import {
-  FolioInvoicePanel,
-  FolioInvoicePreview,
-} from "@/packages/pms/components/cashiering/folio-invoice-panel";
+import { FolioInvoicePanel } from "@/packages/pms/components/cashiering/folio-invoice-panel";
+import { GuestPaymentAllocationDrawer } from "@/packages/pms/components/cashiering/guest-payment-allocation-drawer";
+import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
+import { ReservationWorkspaceOverlay } from "@/packages/pms/components/reservations/reservation-workspace-overlay";
+import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import {
   AdjustmentsTab,
-  ApplyDepositDialog,
   CARD,
   ChargesTab,
   FolioKpiRow,
@@ -57,18 +70,21 @@ import {
   TransfersTab,
   WriteOffDialog,
   formatBalance,
-  methodLabel,
   type RowActions,
 } from "@/packages/pms/components/cashiering/folio-workspace-panels";
 import {
   InventoryState,
   InventoryStatusBadge,
 } from "@/packages/pms/components/rooms/room-inventory-shared";
+import { GuestInvoiceWorkspace } from "@/packages/pms/components/cashiering/guest-invoice-builder";
+import { InvoiceReceivePaymentDialog } from "@/packages/pms/components/cashiering/invoice-receive-payment-dialog";
+import { getGuestInvoiceSettlement } from "@/packages/pms/lib/cashiering-guest-allocation.functions";
 import {
-  issueGuestFolioInvoice,
+  getCashieringDocumentProperty,
   reprintGuestFolioInvoice,
   type InvoiceActionResult,
 } from "@/packages/pms/lib/cashiering-invoices.functions";
+import type { IssuedFolioInvoiceRow } from "@/packages/pms/lib/cashiering-invoices.server";
 import {
   getCashieringCorrectionNotice,
   getDefaultDepositPolicy,
@@ -92,6 +108,13 @@ import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-busines
 import { useMoney, useRestaurantTime } from "@/core/state/property-format";
 import { Button } from "@/shared/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -101,10 +124,12 @@ import {
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
+import { TransactionHistoryPanel } from "@/packages/pms/components/cashiering/transaction-history-panel";
+import {
+  activityLabel,
+  historyRowsFromFolio,
+} from "@/packages/pms/lib/cashiering-transaction-history";
 
-const TABLE_HEAD =
-  "border-b border-[#E8E1D7] bg-muted/30 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
-const TABLE_ROW = "border-b border-[#E8E1D7]/80 last:border-0 transition-colors hover:bg-muted/20";
 const NOT_CONFIGURED = "Not configured";
 
 function resolveTab(value: string | undefined): FolioWorkspaceTabId {
@@ -151,6 +176,9 @@ export function GuestFolioPage({
     void queryClient.invalidateQueries({ queryKey: ["cashiering-folios", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["cashiering-ledger", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["cashiering-dashboard", restaurantId] });
+    void queryClient.invalidateQueries({
+      queryKey: ["guest-invoice-settlement", restaurantId, folioId],
+    });
   }
 
   function go(tab: CashieringTabId) {
@@ -164,7 +192,7 @@ export function GuestFolioPage({
       active="folios"
       onNavigate={go}
       onSearch={() => go("folios")}
-      onPostPayment={() => go("payments")}
+      onPostPayment={() => go("overview")}
       bodyClassName="space-y-4 p-3 sm:p-4"
     >
       {query.isLoading ? <WorkspaceSkeleton /> : null}
@@ -185,6 +213,7 @@ export function GuestFolioPage({
       ) : null}
       {workspace ? (
         <FolioWorkspaceBody
+          membership={membership}
           restaurantId={restaurantId}
           propertyName={membership.restaurant.name}
           businessDate={businessDate}
@@ -288,6 +317,7 @@ function ActionItem({
 }
 
 function FolioWorkspaceBody({
+  membership,
   restaurantId,
   propertyName,
   businessDate,
@@ -298,6 +328,7 @@ function FolioWorkspaceBody({
   correctionNotice,
   onChanged,
 }: {
+  membership: RestaurantMembership;
   restaurantId: string;
   propertyName: string;
   businessDate: string;
@@ -315,27 +346,66 @@ function FolioWorkspaceBody({
   const navigate = useNavigate();
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
+  const fetchDocumentProperty = useServerFn(getCashieringDocumentProperty);
+  const documentPropertyQuery = useQuery({
+    queryKey: ["cashiering-document-property", restaurantId],
+    queryFn: () => fetchDocumentProperty({ data: { restaurantId } }),
+  });
   const folio = workspace.folio;
   const caps = workspace.capabilities;
-  const invoice = folio.issuedInvoice;
 
   const [tab, setTab] = useState<FolioWorkspaceTabId>(() => resolveTab(initialTab));
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [viewReservationId, setViewReservationId] = useState<string | null>(null);
   const [entryType, setEntryType] = useState<TransactionType | null>(null);
   const [entrySourceId, setEntrySourceId] = useState<string | null>(null);
   const [closeOpen, setCloseOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferSourceId, setTransferSourceId] = useState<string | null>(null);
-  const [applyOpen, setApplyOpen] = useState(false);
-  const [applyDepositId, setApplyDepositId] = useState<string | null>(null);
   const [writeOffOpen, setWriteOffOpen] = useState(false);
+  const [allocateOpen, setAllocateOpen] = useState(false);
+  const [allocatePaymentId, setAllocatePaymentId] = useState<string | null>(null);
+  const [allocateInvoiceId, setAllocateInvoiceId] = useState<string | null>(null);
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [issuedNext, setIssuedNext] = useState<IssuedFolioInvoiceRow | null>(null);
+  const [receiveIssued, setReceiveIssued] = useState(false);
+  const fetchIssuedSettlement = useServerFn(getGuestInvoiceSettlement);
+  const issuedSettlement = useQuery({
+    queryKey: ["guest-invoice-settlement", restaurantId, folio.id, issuedNext?.id],
+    queryFn: () =>
+      fetchIssuedSettlement({
+        data: { restaurantId, folioId: folio.id, invoiceId: issuedNext?.id ?? "" },
+      }),
+    enabled: Boolean(issuedNext),
+  });
+  const issuedOutstanding =
+    issuedSettlement.data?.settlement?.outstanding ??
+    (issuedNext && !issuedSettlement.isLoading ? issuedNext.snapshot.totals.invoiceTotal : null);
   const [detailRow, setDetailRow] = useState<FolioTransactionRow | null>(null);
   const [chargeId, setChargeId] = useState<string | null>(null);
+  const [correctSourceId, setCorrectSourceId] = useState<string | null>(null);
   const [printMode, setPrintMode] = useState<"statement" | "invoice">("statement");
-  const [showPreview, setShowPreview] = useState(false);
+  const [printInvoice, setPrintInvoice] = useState<IssuedFolioInvoiceRow | null>(null);
+  const [viewReceipt, setViewReceipt] = useState<TenderReceipt | null>(null);
+  const [printReceipt, setPrintReceipt] = useState<TenderReceipt | null>(null);
 
   useEffect(() => {
     setTab(resolveTab(initialTab));
   }, [initialTab]);
+
+  useEffect(() => {
+    const clear = () => setPrintReceipt(null);
+    const media = window.matchMedia("print");
+    const onMedia = (event: MediaQueryListEvent) => {
+      if (!event.matches) clear();
+    };
+    window.addEventListener("afterprint", clear);
+    media.addEventListener("change", onMedia);
+    return () => {
+      window.removeEventListener("afterprint", clear);
+      media.removeEventListener("change", onMedia);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isFolioAction(initialAction)) return;
@@ -379,36 +449,11 @@ function FolioWorkspaceBody({
     setTransferOpen(true);
   }
 
-  function openApply(depositId: string | null) {
-    setApplyDepositId(depositId);
-    setApplyOpen(true);
-  }
-
-  const issueInvoice = useServerFn(issueGuestFolioInvoice);
   const reprintInvoice = useServerFn(reprintGuestFolioInvoice);
-  const issueMut = useMutation({
-    mutationFn: () =>
-      issueInvoice({
-        data: {
-          restaurantId,
-          folioId: folio.id,
-          idempotencyKey: `issue:${folio.id}:${Date.now()}`,
-        },
-      }) as Promise<InvoiceActionResult>,
-    onSuccess: (result) => {
-      if (!result.ok) {
-        toast.error(result.message);
-        return;
-      }
-      toast.success(`Invoice ${result.invoice.issuedNumber} issued.`);
-      onChanged();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
   const reprintMut = useMutation({
-    mutationFn: () =>
+    mutationFn: (invoice: IssuedFolioInvoiceRow) =>
       reprintInvoice({
-        data: { restaurantId, invoiceId: folio.issuedInvoice!.id },
+        data: { restaurantId, invoiceId: invoice.id },
       }) as Promise<InvoiceActionResult>,
     onSuccess: (result) => {
       if (!result.ok) {
@@ -416,6 +461,7 @@ function FolioWorkspaceBody({
         return;
       }
       toast.success(`Reprint recorded for ${result.invoice.issuedNumber}.`);
+      setPrintInvoice(result.invoice);
       onChanged();
       printWith("invoice");
     },
@@ -425,6 +471,32 @@ function FolioWorkspaceBody({
   const chargeGroup = chargeId
     ? (workspace.chargeGroups.find((group) => group.parent.id === chargeId) ?? null)
     : null;
+  const correctRow = correctSourceId
+    ? (folio.transactions.find((row) => row.id === correctSourceId) ?? null)
+    : null;
+
+  const fetchWorkspace = useServerFn(getFolioWorkspace);
+  const tenderReceiptContext = {
+    property: documentPropertyQuery.data ?? null,
+    propertyDisplayName: propertyName,
+    depositPolicySummary,
+  };
+
+  async function printPostedTender(transactionId: string) {
+    onChanged();
+    try {
+      const fresh = await fetchWorkspace({ data: { restaurantId, folioId: folio.id } });
+      const row = fresh?.folio.transactions.find((line) => line.id === transactionId);
+      if (!fresh || !row) return;
+      const receipt = buildTenderReceiptFromFolioRow(row, fresh, tenderReceiptContext);
+      if (!receipt) return;
+      setViewReceipt(null);
+      setPrintReceipt(receipt);
+      window.setTimeout(() => window.print(), 80);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Receipt could not be printed.");
+    }
+  }
 
   const rowActions: RowActions = {
     onDetails: (row) => {
@@ -438,6 +510,13 @@ function FolioWorkspaceBody({
     },
     onTransfer: (row) => openTransfer(row.id),
     onCorrect: (type, row) => openEntry(type, row.id),
+    onCorrectCharge: (row) => setCorrectSourceId(row.id),
+    onPrintReceipt: (row) => {
+      const receipt = buildTenderReceiptFromFolioRow(row, workspace, tenderReceiptContext);
+      if (!receipt) return;
+      setPrintReceipt(receipt);
+      window.setTimeout(() => window.print(), 50);
+    },
   };
 
   const nights = stayNights(folio.arrivalDate, folio.departureDate);
@@ -501,7 +580,7 @@ function FolioWorkspaceBody({
           <ChevronRight className="size-3" />
           <Link
             to="/restaurant/pms/cashiering"
-            search={{ tab: "folios", folio: folio.id }}
+            search={{ tab: "folios" }}
             className="hover:text-foreground"
           >
             Folio Search
@@ -556,8 +635,8 @@ function FolioWorkspaceBody({
                 <TooltipContent className="max-w-xs text-xs leading-5">
                   Each posting records a ledger line; posted lines are never edited. Corrections
                   post as adjustments, discounts or refunds. Add deposit credit records a folio
-                  credit. Tax and service lines reflect Settings at post time. Print statement is
-                  not an issued invoice.
+                  credit. Tax and service lines reflect Settings at post time. Issue invoice from
+                  this folio. Print statement is not an issued invoice.
                 </TooltipContent>
               </Tooltip>
               <DropdownMenu>
@@ -593,18 +672,14 @@ function FolioWorkspaceBody({
                     Print Statement
                   </ActionItem>
                   {caps.canIssueInvoice ? (
-                    <ActionItem
-                      icon={FileText}
-                      onSelect={() => issueMut.mutate()}
-                      disabled={issueMut.isPending}
-                    >
-                      Issue Invoice
+                    <ActionItem icon={FileText} onSelect={() => selectTab("invoices")}>
+                      Create Invoice
                     </ActionItem>
                   ) : null}
-                  {caps.canReprintInvoice ? (
+                  {caps.canReprintInvoice && folio.issuedInvoices[0] ? (
                     <ActionItem
                       icon={FileText}
-                      onSelect={() => reprintMut.mutate()}
+                      onSelect={() => reprintMut.mutate(folio.issuedInvoices[0])}
                       disabled={reprintMut.isPending}
                     >
                       Reprint Invoice
@@ -635,35 +710,76 @@ function FolioWorkspaceBody({
 
         <FolioKpiRow summary={workspace.financialSummary} money={money} />
 
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_288px] xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div
+          className={cn(
+            "grid items-start gap-4 transition-all duration-200",
+            showSidebar
+              ? "lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]"
+              : "grid-cols-1",
+          )}
+        >
           <div className="min-w-0 space-y-4">
-            <nav
-              className="flex items-end gap-1 overflow-x-auto border-b border-[#E8E1D7] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              role="tablist"
-              aria-label="Folio sections"
-            >
-              {FOLIO_WORKSPACE_TABS.map((item) => (
-                <button
-                  key={item.id}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E8E1D7] pb-0.5">
+              <nav
+                className="flex items-end gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                role="tablist"
+                aria-label="Folio sections"
+              >
+                {FOLIO_WORKSPACE_TABS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === item.id}
+                    data-testid={`folio-tab-${item.id}`}
+                    onClick={() => selectTab(item.id)}
+                    className={cn(
+                      "relative flex h-10 shrink-0 items-center whitespace-nowrap px-3 text-xs font-medium transition-colors",
+                      tab === item.id
+                        ? "font-semibold text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {item.label}
+                    {tab === item.id ? (
+                      <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+                    ) : null}
+                  </button>
+                ))}
+              </nav>
+
+              <div className="flex items-center gap-2 pb-1.5 pt-1">
+                <Button
                   type="button"
-                  role="tab"
-                  aria-selected={tab === item.id}
-                  data-testid={`folio-tab-${item.id}`}
-                  onClick={() => selectTab(item.id)}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSidebar((prev) => !prev)}
                   className={cn(
-                    "relative flex h-10 shrink-0 items-center whitespace-nowrap px-2.5 text-xs font-medium transition-colors",
-                    tab === item.id
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
+                    "h-8 gap-1.5 px-3 text-xs font-medium transition-all shadow-xs",
+                    showSidebar
+                      ? "border-[#C89933]/50 bg-[#C89933]/10 text-[#765719] hover:bg-[#C89933]/15"
+                      : "border-[#E8E1D7] bg-card text-muted-foreground hover:bg-[#F7F4EE] hover:text-foreground",
                   )}
+                  title={
+                    showSidebar
+                      ? "Hide side cards to give tables maximum space"
+                      : "Show side cards with guest, stay and document details"
+                  }
                 >
-                  {item.label}
-                  {tab === item.id ? (
-                    <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
-                  ) : null}
-                </button>
-              ))}
-            </nav>
+                  {showSidebar ? (
+                    <>
+                      <PanelRightClose className="size-3.5" />
+                      <span>Hide Details</span>
+                    </>
+                  ) : (
+                    <>
+                      <PanelRightOpen className="size-3.5" />
+                      <span>Show Details</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
 
             {tab === "charges" ? (
               <ChargesTab
@@ -686,7 +802,6 @@ function FolioWorkspaceBody({
                 actions={rowActions}
                 onReceivePayment={() => openEntry("payment")}
                 onAddDeposit={() => openEntry("deposit")}
-                onAllocate={(line) => openApply(line.transaction.id)}
               />
             ) : null}
             {tab === "adjustments" ? (
@@ -706,57 +821,175 @@ function FolioWorkspaceBody({
               />
             ) : null}
             {tab === "invoices" ? (
-              <InvoicesPanel
+              <GuestInvoiceWorkspace
+                restaurantId={restaurantId}
                 workspace={workspace}
                 money={money}
                 dateTime={dateTime}
-                showPreview={showPreview}
-                onTogglePreview={() => setShowPreview((v) => !v)}
-                onIssue={() => issueMut.mutate()}
-                issuing={issueMut.isPending}
-                onReprint={() => reprintMut.mutate()}
+                onChanged={onChanged}
+                onPostCharge={() => openEntry("charge")}
+                onReprint={(invoice) => reprintMut.mutate(invoice)}
                 reprinting={reprintMut.isPending}
-                onPrintStatement={() => printWith("statement")}
+                onAllocate={(invoiceId, paymentId) => {
+                  setAllocateInvoiceId(invoiceId);
+                  setAllocatePaymentId(paymentId ?? null);
+                  setAllocateOpen(true);
+                }}
               />
             ) : null}
             {tab === "history" ? (
-              <HistoryList workspace={workspace} money={money} dateTime={dateTime} />
+              <div data-testid="folio-history">
+                <TransactionHistoryPanel
+                  restaurantId={restaurantId}
+                  ownerType="guest_folio"
+                  ownerId={folio.id}
+                  rows={historyRowsFromFolio(
+                    workspace.folio.transactions.map((row) => ({
+                      ...row,
+                      sourceDescription: row.sourceDescription,
+                      postedBy: row.postedBy,
+                    })),
+                  )}
+                  allocations={workspace.depositAllocations.map((line) => ({
+                    depositTransactionId: line.depositTransactionId,
+                    chargeTransactionId: line.chargeTransactionId ?? null,
+                    amount: line.amount,
+                  }))}
+                  counterparts={Object.fromEntries(
+                    Object.entries(workspace.transferCounterparts).map(([id, party]) => [
+                      id,
+                      {
+                        label: party.accountName ?? party.folioNumber ?? "Transfer",
+                        folioId: party.folioId,
+                        accountId: party.accountId,
+                      },
+                    ]),
+                  )}
+                  coverage={{
+                    legacyInvoice:
+                      workspace.folio.legacyFolioInvoice && workspace.folio.issuedInvoices[0]
+                        ? {
+                            id: workspace.folio.issuedInvoices[0].id,
+                            number: workspace.folio.issuedInvoices[0].issuedNumber,
+                          }
+                        : null,
+                    invoices: workspace.folio.legacyFolioInvoice
+                      ? []
+                      : workspace.folio.issuedInvoices.map((invoice) => ({
+                          id: invoice.id,
+                          number: invoice.issuedNumber,
+                          parentIds: invoice.snapshot.lines
+                            .filter(
+                              (line) =>
+                                line.category !== "tax" &&
+                                line.category !== "service_charge" &&
+                                !line.originalTransactionId,
+                            )
+                            .map((line) => line.id),
+                        })),
+                    debitNotes: [],
+                    creditNotes: [],
+                  }}
+                  access={{ canManage: workspace.canManage, open: folio.status === "open" }}
+                  searchExtras={[folio.folioNumber, folio.guestName]}
+                  documents={workspace.folio.issuedInvoices.flatMap((invoice) => {
+                    const issued = {
+                      id: `invoice-${invoice.id}`,
+                      kind: "invoice_issued",
+                      label: activityLabel("invoice_issued"),
+                      occurredAt: invoice.issuedAt,
+                      detail: invoice.issuedNumber,
+                      actor: null,
+                    };
+                    if (invoice.reprintCount <= 0 || !invoice.lastReprintedAt) return [issued];
+                    return [
+                      issued,
+                      {
+                        id: `reprint-${invoice.id}`,
+                        kind: "invoice_reprinted",
+                        label: activityLabel("invoice_reprinted"),
+                        occurredAt: invoice.lastReprintedAt,
+                        detail: invoice.issuedNumber,
+                        actor: null,
+                      },
+                    ];
+                  })}
+                  money={money}
+                  dateTime={dateTime}
+                  onCorrect={(chargeId) => setCorrectSourceId(chargeId)}
+                  onTransfer={(chargeId) => openTransfer(chargeId)}
+                  onRefund={(sourceId) => openEntry("refund", sourceId)}
+                  onViewDocuments={() => selectTab("invoices")}
+                  onOpenFolio={(nextId) =>
+                    void navigate({
+                      to: "/restaurant/pms/cashiering/folios/$folioId",
+                      params: { folioId: nextId },
+                    })
+                  }
+                  onOpenAccount={(accountId) =>
+                    void navigate({
+                      to: "/restaurant/pms/cashiering/accounts/$accountId",
+                      params: { accountId },
+                    })
+                  }
+                />
+              </div>
             ) : null}
             {tab === "settlement" ? (
               <SettlementTab
+                restaurantId={restaurantId}
                 workspace={workspace}
                 money={money}
                 dateTime={dateTime}
-                onAllocate={() => openApply(null)}
-                onReceivePayment={() => openEntry("payment")}
                 onWriteOff={() => setWriteOffOpen(true)}
                 onClose={() => setCloseOpen(true)}
+                onPosted={onChanged}
+                onPrintStatement={() => printWith("statement")}
+                onRefund={() => openEntry("refund")}
+                onTransfer={() => openTransfer(null)}
+                onPostPayment={() => openEntry("payment")}
+                onAllocateInvoice={(invoiceId, paymentId) => {
+                  setAllocateInvoiceId(invoiceId || null);
+                  setAllocatePaymentId(paymentId ?? null);
+                  setAllocateOpen(true);
+                }}
+                onIssueInvoice={() => setIssueOpen(true)}
               />
             ) : null}
           </div>
-          <FolioSidebar
-            workspace={workspace}
-            money={money}
-            dateTime={dateTime}
-            onViewInvoice={() => {
-              setShowPreview(true);
-              selectTab("invoices");
-            }}
-          />
+          {showSidebar ? (
+            <FolioSidebar
+              workspace={workspace}
+              money={money}
+              dateTime={dateTime}
+              onViewInvoice={() => selectTab("invoices")}
+              onClose={() => setShowSidebar(false)}
+              onViewReservation={(resId) => setViewReservationId(resId)}
+            />
+          ) : null}
         </div>
       </div>
 
-      {printMode === "statement" ? (
-        <StatementPrint
-          workspace={workspace}
-          money={money}
-          dateTime={dateTime}
-          propertyName={propertyName}
-        />
-      ) : null}
-      {printMode === "invoice" && invoice ? (
-        <FolioInvoicePanel invoice={invoice} money={money} dateTime={dateTime} />
-      ) : null}
+      <CashieringPrintLayer active={printMode === "statement"}>
+        {printMode === "statement" ? (
+          <StatementPrint
+            workspace={workspace}
+            money={money}
+            dateTime={dateTime}
+            propertyName={propertyName}
+          />
+        ) : null}
+      </CashieringPrintLayer>
+      <CashieringPrintLayer active={printMode === "invoice" && printInvoice !== null}>
+        {printMode === "invoice" && printInvoice ? (
+          <FolioInvoicePanel
+            invoice={printInvoice}
+            money={money}
+            dateTime={dateTime}
+            liveProperty={documentPropertyQuery.data ?? null}
+          />
+        ) : null}
+      </CashieringPrintLayer>
 
       {entryType === "charge" ? (
         <PostChargeDialog
@@ -778,6 +1011,21 @@ function FolioWorkspaceBody({
         sources={folio.transactions}
         initialSourceId={entrySourceId}
         depositPolicySummary={depositPolicySummary}
+        currentBalance={workspace.financialSummary.currentBalance}
+        currencyCode={folio.currency}
+        guestName={folio.guestName}
+        folioNumber={folio.folioNumber}
+        propertyName={propertyName}
+        guestPhone={folio.guestPhone}
+        guestEmail={folio.guestEmail}
+        confirmationNumber={folio.confirmationNumber}
+        arrivalDate={folio.arrivalDate}
+        departureDate={folio.departureDate}
+        roomType={folio.roomTypeName}
+        ratePlan={folio.ratePlanName}
+        roomNumber={folio.roomNumber}
+        documentProperty={documentPropertyQuery.data ?? null}
+        paymentAllocationNets={workspace.paymentAllocationNets}
         authorizerNote={correctionNotice?.authorizer ?? null}
         thresholdNote={
           (entryType === "adjustment"
@@ -791,11 +1039,12 @@ function FolioWorkspaceBody({
           setEntrySourceId(null);
         }}
         onDone={onChanged}
+        onPrintPosted={(transactionId) => void printPostedTender(transactionId)}
       />
       <CloseFolioDialog
         restaurantId={restaurantId}
         folioId={folio.id}
-        balance={folio.balance}
+        balance={workspace.financialSummary.currentBalance}
         open={closeOpen}
         onClose={() => setCloseOpen(false)}
         onDone={onChanged}
@@ -810,16 +1059,6 @@ function FolioWorkspaceBody({
           onDone={onChanged}
         />
       ) : null}
-      {workspace.canManage ? (
-        <ApplyDepositDialog
-          restaurantId={restaurantId}
-          workspace={workspace}
-          initialDepositId={applyDepositId}
-          open={applyOpen}
-          onClose={() => setApplyOpen(false)}
-          onDone={onChanged}
-        />
-      ) : null}
       {caps.canWriteOff ? (
         <WriteOffDialog
           restaurantId={restaurantId}
@@ -831,139 +1070,252 @@ function FolioWorkspaceBody({
         />
       ) : null}
       <TransactionDetailDialog
+        restaurantId={restaurantId}
+        folioId={folio.id}
         row={detailRow}
         rows={folio.transactions}
+        depositLine={
+          detailRow
+            ? (workspace.depositLines.find((line) => line.transaction.id === detailRow.id) ?? null)
+            : null
+        }
         money={money}
         dateTime={dateTime}
         onClose={() => setDetailRow(null)}
+        canAllocate={workspace.canAllocateInvoices}
+        allocationNet={detailRow ? (workspace.paymentAllocationNets[detailRow.id] ?? 0) : 0}
+        onAllocatePayment={(paymentId) => {
+          setDetailRow(null);
+          setAllocatePaymentId(paymentId);
+          setAllocateInvoiceId(null);
+          setAllocateOpen(true);
+        }}
+        onViewReceipt={(row) => {
+          const receipt = buildTenderReceiptFromFolioRow(row, workspace, tenderReceiptContext);
+          if (receipt) setViewReceipt(receipt);
+        }}
       />
+      <GuestPaymentAllocationDrawer
+        open={allocateOpen}
+        restaurantId={restaurantId}
+        folioId={folio.id}
+        paymentId={allocatePaymentId}
+        payments={folio.transactions
+          .filter((row) => row.type === "payment" || row.type === "deposit")
+          .map((row) => {
+            const refunded = folio.transactions
+              .filter((line) => line.type === "refund" && line.originalTransactionId === row.id)
+              .reduce((sum, line) => sum + line.amount, 0);
+            const available =
+              Math.round(
+                (-row.amount - refunded - (workspace.paymentAllocationNets[row.id] ?? 0)) * 100,
+              ) / 100;
+            return {
+              id: row.id,
+              label: `${row.type === "deposit" ? "Deposit" : "Payment"} · ${row.description || row.type}`,
+              available,
+              kind: row.type,
+            };
+          })
+          .filter((row) => row.available > 0.009)}
+        focusInvoiceId={allocateInvoiceId}
+        money={money}
+        dateTime={dateTime}
+        onOpenChange={setAllocateOpen}
+      />
+      <Dialog open={issueOpen} onOpenChange={setIssueOpen}>
+        <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Issue final invoice</DialogTitle>
+            <DialogDescription>
+              Review the charges and issue the invoice here. Payment and fiscal registration stay
+              separate.
+            </DialogDescription>
+          </DialogHeader>
+          <GuestInvoiceWorkspace
+            restaurantId={restaurantId}
+            workspace={workspace}
+            money={money}
+            dateTime={dateTime}
+            onChanged={onChanged}
+            onPostCharge={() => openEntry("charge")}
+            onReprint={(invoice) => reprintMut.mutate(invoice)}
+            reprinting={reprintMut.isPending}
+            autoStartIssue
+            onIssued={(invoice) => {
+              setIssueOpen(false);
+              setIssuedNext(invoice);
+            }}
+            onAllocate={(invoiceId, paymentId) => {
+              setIssueOpen(false);
+              setAllocateInvoiceId(invoiceId);
+              setAllocatePaymentId(paymentId ?? null);
+              setAllocateOpen(true);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={issuedNext !== null && !receiveIssued}
+        onOpenChange={(open) => {
+          if (!open && !receiveIssued) setIssuedNext(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invoice {issuedNext?.issuedNumber} issued</DialogTitle>
+            <DialogDescription>
+              Receive a payment for this invoice, or allocate an existing payment or deposit.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            {workspace.canOperate && (issuedOutstanding == null || issuedOutstanding > 0.01) ? (
+              <Button
+                type="button"
+                disabled={issuedOutstanding == null}
+                onClick={() => {
+                  if (!issuedNext || issuedOutstanding == null) return;
+                  setReceiveIssued(true);
+                }}
+              >
+                <CreditCard className="size-4" /> Receive payment
+              </Button>
+            ) : null}
+            {workspace.canAllocateInvoices &&
+            (issuedOutstanding == null || issuedOutstanding > 0.01) ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (!issuedNext) return;
+                  const invoiceId = issuedNext.id;
+                  setIssuedNext(null);
+                  setAllocateInvoiceId(invoiceId);
+                  setAllocatePaymentId(null);
+                  setAllocateOpen(true);
+                }}
+              >
+                Allocate payment or deposit
+              </Button>
+            ) : null}
+          </div>
+          {issuedOutstanding != null && issuedOutstanding <= 0.01 ? (
+            <p className="text-sm text-muted-foreground">
+              This invoice is already covered. A manager can register it.
+            </p>
+          ) : null}
+          {issuedOutstanding != null && issuedOutstanding > 0.01 && !workspace.canOperate ? (
+            <p className="text-sm text-muted-foreground">A cashier receives the payment.</p>
+          ) : null}
+          {issuedOutstanding != null &&
+          issuedOutstanding > 0.01 &&
+          !workspace.canAllocateInvoices ? (
+            <p className="text-sm text-muted-foreground">
+              An accountant allocates an existing payment or deposit.
+            </p>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      {issuedNext && receiveIssued && issuedOutstanding != null ? (
+        <InvoiceReceivePaymentDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setReceiveIssued(false);
+          }}
+          target={{
+            lane: "guest",
+            restaurantId,
+            folioId: folio.id,
+            invoiceId: issuedNext.id,
+          }}
+          outstanding={issuedOutstanding}
+          currency={folio.currency}
+          receivedFrom={folio.guestName}
+          canAllocateExisting={workspace.canAllocateInvoices}
+          onSettled={() => {
+            setReceiveIssued(false);
+            setIssuedNext(null);
+            onChanged();
+          }}
+          onAllocateExisting={(paymentId) => {
+            const invoiceId = issuedNext.id;
+            setReceiveIssued(false);
+            setIssuedNext(null);
+            setAllocateInvoiceId(invoiceId);
+            setAllocatePaymentId(paymentId);
+            setAllocateOpen(true);
+          }}
+        />
+      ) : null}
+      <DepositReceiptModal
+        receipt={viewReceipt}
+        open={viewReceipt !== null}
+        money={money}
+        dateTime={dateTime}
+        onClose={() => setViewReceipt(null)}
+        onPrint={
+          viewReceipt
+            ? () => {
+                setPrintReceipt(viewReceipt);
+                setViewReceipt(null);
+                window.setTimeout(() => window.print(), 80);
+              }
+            : undefined
+        }
+      />
+      <CashieringPrintLayer active={printReceipt !== null}>
+        {printReceipt ? (
+          <TenderReceiptDocument receipt={printReceipt} money={money} dateTime={dateTime} />
+        ) : null}
+      </CashieringPrintLayer>
       <ChargeDetailsSheet
         group={chargeGroup}
         workspace={workspace}
         money={money}
         dateTime={dateTime}
         onClose={() => setChargeId(null)}
-        onPostAdjustment={() => {
+        onCorrectCharge={() => {
           if (!chargeGroup) return;
-          openEntry("adjustment", chargeGroup.parent.id);
-        }}
-        onApplyDiscount={() => {
-          if (!chargeGroup) return;
-          openEntry("discount", chargeGroup.parent.id);
+          setCorrectSourceId(chargeGroup.parent.id);
         }}
         onTransferCharge={() => {
           if (!chargeGroup) return;
           openTransfer(chargeGroup.parent.id);
         }}
       />
-    </div>
-  );
-}
-
-function InvoicesPanel({
-  workspace,
-  money,
-  dateTime,
-  showPreview,
-  onTogglePreview,
-  onIssue,
-  issuing,
-  onReprint,
-  reprinting,
-  onPrintStatement,
-}: {
-  workspace: FolioWorkspace;
-  money: (value: number) => string;
-  dateTime: (iso: string | null | undefined) => string;
-  showPreview: boolean;
-  onTogglePreview: () => void;
-  onIssue: () => void;
-  issuing: boolean;
-  onReprint: () => void;
-  reprinting: boolean;
-  onPrintStatement: () => void;
-}) {
-  const caps = workspace.capabilities;
-  const invoice = workspace.folio.issuedInvoice;
-  return (
-    <section className={cn(CARD, "overflow-hidden")} data-testid="folio-invoices">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E8E1D7] px-4 py-3">
-        <div>
-          <h3 className="text-sm font-semibold">Invoices & Documents</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Issued invoices are immutable snapshots. The live folio may continue to change after
-            issuance.
-          </p>
-        </div>
-        <Button size="sm" variant="outline" className="h-8" onClick={onPrintStatement}>
-          <Printer className="size-4" /> Print statement
-        </Button>
-      </div>
-      <div className="space-y-3 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E8E1D7] px-3 py-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span
-              className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-lg",
-                invoice ? "bg-blue-500/10 text-blue-700" : "bg-muted text-muted-foreground",
-              )}
-            >
-              <FileText className="size-4" />
-            </span>
-            {invoice ? (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{invoice.issuedNumber}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Issued {dateTime(invoice.issuedAt)} · Reprinted {invoice.reprintCount}{" "}
-                  {invoice.reprintCount === 1 ? "time" : "times"}
-                </p>
-              </div>
-            ) : (
-              <div>
-                <p className="text-sm font-medium">No issued invoice</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {workspace.canManage && !workspace.invoiceSettingsAvailable
-                    ? "Set up invoice settings before issuing an invoice."
-                    : "A statement prints the live folio and is not an issued invoice."}
-                </p>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {invoice ? (
-              <Button size="sm" variant="outline" className="h-8" onClick={onTogglePreview}>
-                {showPreview ? "Hide preview" : "Preview"}
-              </Button>
-            ) : null}
-            {caps.canIssueInvoice ? (
-              <Button
-                size="sm"
-                className="h-8"
-                disabled={issuing}
-                onClick={onIssue}
-                data-testid="folio-invoice-issue"
-              >
-                <FileText className="size-4" /> Issue invoice
-              </Button>
-            ) : null}
-            {caps.canReprintInvoice ? (
-              <Button
-                size="sm"
-                className="h-8"
-                disabled={reprinting}
-                onClick={onReprint}
-                data-testid="reprint-invoice"
-              >
-                <Printer className="size-4" /> Reprint invoice
-              </Button>
-            ) : null}
-          </div>
-        </div>
-        {invoice && showPreview ? (
-          <FolioInvoicePreview invoice={invoice} money={money} dateTime={dateTime} />
+      <CorrectChargeDialog
+        restaurantId={restaurantId}
+        sourceTransactionId={correctRow?.id ?? null}
+        title={correctRow ? chargeItemTitle(correctRow) : "Charge"}
+        department={correctRow ? chargeDepartment(correctRow) : null}
+        quantity={correctRow ? chargeQuantity(correctRow) : null}
+        unitAmount={correctRow ? chargeUnitAmount(correctRow) : null}
+        open={correctRow != null}
+        allowReplacement
+        onClose={() => setCorrectSourceId(null)}
+        onDone={onChanged}
+        onPostReplacement={() => setEntryType("charge")}
+        money={money}
+      />
+      <ReservationWorkspaceOverlay
+        open={viewReservationId !== null}
+        title={folio.confirmationNumber ?? "Reservation"}
+        description={`${folio.guestName} · Room ${folio.roomNumber ?? "—"}`}
+        hideVisualHeader
+        onOpenChange={(open) => {
+          if (!open) setViewReservationId(null);
+        }}
+      >
+        {viewReservationId ? (
+          <ReservationDetailWorkspace
+            membership={membership}
+            reservationId={viewReservationId}
+            embedded
+            onBackToList={() => setViewReservationId(null)}
+          />
         ) : null}
-      </div>
-    </section>
+      </ReservationWorkspaceOverlay>
+    </div>
   );
 }
 
@@ -971,95 +1323,6 @@ function lineTypeLabel(row: FolioTransactionRow): string {
   return isTaxRelatedCategory(row.category)
     ? labelTransactionCategory(row.category)
     : labelTransactionType(row.type);
-}
-
-function HistoryList({
-  workspace,
-  money,
-  dateTime,
-}: {
-  workspace: FolioWorkspace;
-  money: (value: number) => string;
-  dateTime: (iso: string | null | undefined) => string;
-}) {
-  const rows = [...workspace.folio.transactions].sort((a, b) =>
-    a.postedAt < b.postedAt ? -1 : a.postedAt > b.postedAt ? 1 : 0,
-  );
-  const invoice = workspace.folio.issuedInvoice;
-  return (
-    <section className={cn(CARD, "overflow-hidden")} data-testid="folio-history">
-      <div className="border-b border-[#E8E1D7] px-4 py-3">
-        <h3 className="text-sm font-semibold">History</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Every posted line in order, with who posted it.
-        </p>
-      </div>
-      {rows.length === 0 ? (
-        <div className="p-4">
-          <InventoryState state="empty" title="No posted lines yet" />
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className={TABLE_HEAD}>
-              <tr>
-                <th className="px-3 py-2.5 font-medium">Posted</th>
-                <th className="px-3 py-2.5 font-medium">Event</th>
-                <th className="px-3 py-2.5 font-medium">Description</th>
-                <th className="px-3 py-2.5 font-medium">Method</th>
-                <th className="px-3 py-2.5 text-right font-medium">Amount</th>
-                <th className="px-3 py-2.5 font-medium">Posted by</th>
-                <th className="px-3 py-2.5 font-medium">Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className={TABLE_ROW}>
-                  <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
-                    {dateTime(row.postedAt)}
-                  </td>
-                  <td className="px-3 py-2 text-xs font-medium">{lineTypeLabel(row)}</td>
-                  <td className={cn("px-3 py-2", row.originalTransactionId && "pl-6")}>
-                    {row.originalTransactionId && isTaxRelatedCategory(row.category) ? (
-                      <span className="text-muted-foreground">↳ </span>
-                    ) : null}
-                    {row.description}
-                    {row.roomUnitLabel ? (
-                      <span className="ml-1 text-[11px] text-muted-foreground">
-                        {row.roomUnitLabel}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    {row.paymentMethod ? methodLabel(row.paymentMethod) : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{money(row.amount)}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{row.postedBy ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">
-                    {row.sourceDescription ?? "—"}
-                  </td>
-                </tr>
-              ))}
-              {invoice ? (
-                <tr className={cn(TABLE_ROW, "bg-blue-500/5")}>
-                  <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
-                    {dateTime(invoice.issuedAt)}
-                  </td>
-                  <td className="px-3 py-2 text-xs font-medium">Invoice issued</td>
-                  <td className="px-3 py-2" colSpan={5}>
-                    {invoice.issuedNumber}
-                    {invoice.reprintCount > 0 && invoice.lastReprintedAt
-                      ? ` · reprinted ${invoice.reprintCount}×, last ${dateTime(invoice.lastReprintedAt)}`
-                      : ""}
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
 }
 
 function StatementPrint({
@@ -1076,10 +1339,7 @@ function StatementPrint({
   const folio = workspace.folio;
   const s = workspace.financialSummary;
   return (
-    <section
-      className="hidden space-y-4 bg-white p-6 text-foreground print:block"
-      data-testid="folio-statement-print"
-    >
+    <section className="space-y-4 bg-white p-6 text-foreground" data-testid="folio-statement-print">
       <div>
         <p className="text-xs uppercase tracking-wide">{propertyName}</p>
         <h1 className="text-lg font-semibold">Folio statement · {folio.folioNumber}</h1>
@@ -1104,7 +1364,10 @@ function StatementPrint({
             <tr key={row.id} className="border-b">
               <td className="py-1">{dateTime(row.postedAt)}</td>
               <td className="py-1">{lineTypeLabel(row)}</td>
-              <td className="py-1">{row.description}</td>
+              <td className="py-1">
+                {row.description}
+                {row.roomUnitLabel ? ` · ${row.roomUnitLabel}` : ""}
+              </td>
               <td className="py-1 text-right tabular-nums">{money(row.amount)}</td>
             </tr>
           ))}

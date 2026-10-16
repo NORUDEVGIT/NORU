@@ -3,10 +3,6 @@
 export const CASHIERING_TABS = [
   { id: "overview", label: "Overview" },
   { id: "folios", label: "Folios" },
-  { id: "payments", label: "Payments" },
-  { id: "deposits", label: "Deposits" },
-  { id: "refunds", label: "Refunds" },
-  { id: "transfers", label: "Transfers" },
   { id: "accounts", label: "Accounts" },
   { id: "exceptions", label: "Exceptions" },
   { id: "reports", label: "Reports" },
@@ -14,6 +10,7 @@ export const CASHIERING_TABS = [
 ] as const;
 
 export type CashieringTabId = (typeof CASHIERING_TABS)[number]["id"];
+export type CashieringActivityFilter = "all" | "payment" | "deposit" | "refund" | "transfer";
 
 export const CASHIERING_DESK_EYEBROW = "Operations";
 export const CASHIERING_DESK_TITLE = "Cashiering";
@@ -22,9 +19,23 @@ export const CASHIERING_DESK_DESCRIPTION =
 
 const TAB_ALIASES: Record<string, CashieringTabId> = {
   dashboard: "overview",
+  payments: "overview",
+  deposits: "overview",
+  refunds: "overview",
   shifts: "cashier-shift",
   "cashier-shifts": "cashier-shift",
+  transfers: "overview",
 };
+
+export function activityFilterFromLegacyTab(
+  value: string | undefined | null,
+): CashieringActivityFilter | null {
+  if (value === "payments") return "payment";
+  if (value === "deposits") return "deposit";
+  if (value === "refunds") return "refund";
+  if (value === "transfers") return "transfer";
+  return null;
+}
 
 const FOLIO_ACTIONS = [
   "charge",
@@ -60,7 +71,9 @@ export type CashieringSearchParams = {
   stayFrom?: string;
   stayTo?: string;
   paymentState?: string;
+  activity?: CashieringActivityFilter;
   sort?: string;
+  returnToTab?: CashieringTabId;
 };
 
 export function cashieringTabSearch(

@@ -142,18 +142,25 @@ export function GuestProfileHeader({
         <div>
           <button
             type="button"
-            onClick={() =>
-              void navigate({
-                to: GUEST_PROFILE_DIRECTORY_PATH,
-                search: directorySearch
-                  ? { ...guestProfileSearch({ card: returnCard, type: profileType }), ...directorySearch }
-                  : guestProfileSearch({ card: returnCard, type: profileType }),
-              })
-            }
+            onClick={() => {
+              if (directorySearch?.returnTo && typeof directorySearch.returnTo === "string") {
+                void navigate({ to: directorySearch.returnTo as string });
+              } else if (typeof window !== "undefined" && window.history.length > 1) {
+                window.history.back();
+              } else {
+                void navigate({
+                  to: GUEST_PROFILE_DIRECTORY_PATH,
+                  search: directorySearch
+                    ? { ...guestProfileSearch({ card: returnCard, type: profileType }), ...directorySearch }
+                    : guestProfileSearch({ card: returnCard, type: profileType }),
+                });
+              }
+            }}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#756A5B] hover:text-[#251605] transition-colors"
             data-testid="guest-header-back-button"
           >
-            <ArrowLeft className="size-3.5" /> Back to Guest Profiles
+            <ArrowLeft className="size-3.5" />
+            <span>{directorySearch?.returnTo ? "Back to Previous Page" : "Back to Guest Profiles"}</span>
           </button>
         </div>
       )}

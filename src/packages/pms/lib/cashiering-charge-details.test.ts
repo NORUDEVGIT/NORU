@@ -17,8 +17,7 @@ describe("charge details drawer", () => {
     assert.match(sheet, /Posting Info/);
     assert.match(sheet, /Corrections/);
     assert.match(sheet, /History/);
-    assert.match(sheet, /Post Adjustment/);
-    assert.match(sheet, /Apply Discount/);
+    assert.match(sheet, /Correct Charge/);
     assert.match(sheet, /Transfer Charge/);
     assert.match(sheet, /\/restaurant\/pms\/reservations\/\$reservationId/);
     assert.match(sheet, /\/restaurant\/pms\/guests\/\$guestId/);
@@ -36,6 +35,7 @@ describe("charge details drawer", () => {
     assert.match(page, /ChargeDetailsSheet/);
     assert.match(page, /row\.type === "charge"/);
     assert.match(page, /TransactionDetailDialog/);
-    assert.doesNotMatch(`${sheet}\n${panels}\n${page}`, /allocated|captured|tax calculated/i);
+    assert.match(panels, /Invoice settlement/);
+    assert.doesNotMatch(`${sheet}\n${panels}\n${page}`, /captured|tax calculated/i);
   });
 });

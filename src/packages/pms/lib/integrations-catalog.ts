@@ -18,6 +18,7 @@ export const INTEGRATION_CATEGORIES = [
   "hospitality",
   "government",
   "distribution",
+  "fiscal",
   "other",
 ] as const;
 export type IntegrationCategory = (typeof INTEGRATION_CATEGORIES)[number];
@@ -910,6 +911,23 @@ export const INTEGRATION_CATALOG: readonly IntegrationCategoryDef[] = [
       { value: "stay.checked_out", label: "Guest checked out" },
     ],
     providers: OTHER_PROVIDERS,
+  },
+  {
+    id: "fiscal",
+    label: "ERP / Fiscal",
+    description:
+      "Connect NORU financial documents to an external fiscal service. Credentials stay server-side. Document registration is not enabled yet.",
+    events: [],
+    providers: [
+      {
+        id: "erp_fiscal",
+        label: "ERP / Fiscal Integration",
+        blurb: "Authenticate and store fiscal mappings. Invoice registration is a later phase.",
+        authMethods: ["basic"],
+        supportsWebhook: false,
+        fields: [],
+      },
+    ],
   },
 ];
 

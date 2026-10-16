@@ -84,10 +84,13 @@ export function PmsCard4CommunicationDefaults({
     setDraft(communicationDefaultsToDraft(query.data.defaults));
   }, [query.data, dirty]);
 
-  const channels = query.data?.channels ?? [];
-  const senders = query.data?.senders ?? [];
+  const channels = useMemo(() => query.data?.channels ?? [], [query.data?.channels]);
+  const senders = useMemo(() => query.data?.senders ?? [], [query.data?.senders]);
   const inherited = query.data?.inherited;
-  const errors = draft ? validateCommunicationDefaultsDraft(draft, channels, senders) : [];
+  const errors = useMemo(
+    () => (draft ? validateCommunicationDefaultsDraft(draft, channels, senders) : []),
+    [draft, channels, senders],
+  );
   const errorFor = (field: string) => errors.find((row) => row.field === field)?.message ?? null;
 
   function mark<K extends keyof CommunicationDefaultsDraft>(

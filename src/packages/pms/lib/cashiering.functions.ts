@@ -7,6 +7,7 @@ import {
   assertIdempotencyKey,
   blankToNull,
   callPostFolioTransaction,
+  canAllocateAccountPayments,
   canManageCashiering,
   cashierError,
   categoryForType,
@@ -20,13 +21,14 @@ import {
   type FolioStatus,
   type TransactionType,
 } from "./cashiering.server";
-import { callerMembership } from "@/core/lib/workforce.server";
+import { propertyDayBounds } from "./cashiering-control";
+import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { roomUnitAttributionLabel } from "./reservation-room-units";
 import { formatDepositPolicyResult, type DepositPolicyType } from "./payments-card3.server";
-import { loadGuestFolioInvoice } from "./cashiering-invoices.functions";
+import { loadGuestFolioInvoices } from "./cashiering-invoices.functions";
 import type { IssuedFolioInvoiceRow } from "./cashiering-invoices.server";
 import {
   buildDepositLines,
@@ -79,6 +81,7 @@ export interface FolioTransactionRow {
   description: string;
   amount: number;
   postedAt: string;
+  createdAt?: string | null;
   referenceType: string | null;
   referenceId?: string | null;
   paymentMethod: string | null;
@@ -124,6 +127,8 @@ export interface FolioDetail extends FolioRow {
   ratePlanCode?: string | null;
   transactions: FolioTransactionRow[];
   issuedInvoice: IssuedFolioInvoiceRow | null;
+  issuedInvoices: IssuedFolioInvoiceRow[];
+  legacyFolioInvoice: boolean;
   companyMasterId: string | null;
   groupAccountMasterId: string | null;
 }
@@ -157,6 +162,8 @@ export interface CashieringDashboard {
   transfersSupported: boolean;
   openShifts: number;
   myOpenShiftId: string | null;
+  /** Canonical hotel business date. Activity is the property-timezone day of this date, not UTC midnight. */
+  businessDate: string;
 }
 
 /* ------------------------------------------------------------------ access */
@@ -293,6 +300,7 @@ type TxnRow = {
   description: string;
   amount: number | string;
   posted_at: string;
+  created_at?: string | null;
   reference_type: string | null;
   reference_id?: string | null;
   payment_method?: string | null;
@@ -351,9 +359,18 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function guestName(g: { first_name?: string | null; last_name?: string | null } | null): string {
+function guestName(
+  g:
+    | { first_name?: string | null; last_name?: string | null; name?: string | null }
+    | Array<{ first_name?: string | null; last_name?: string | null; name?: string | null }>
+    | null
+    | undefined,
+): string {
   if (!g) return "Guest";
-  return [g.first_name, g.last_name].filter(Boolean).join(" ").trim() || "Guest";
+  const item = Array.isArray(g) ? g[0] : g;
+  if (!item) return "Guest";
+  const combined = [item.first_name, item.last_name].filter(Boolean).join(" ").trim();
+  return combined || (item as { name?: string }).name || "Guest";
 }
 
 type SupabaseAdmin = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
@@ -503,9 +520,9 @@ export const listFolios = createServerFn({ method: "GET" })
   });
 
 const FOLIO_TXN_SELECT =
-  "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id, tax_snapshot, transfer_id, transfer_direction, charge_source, quantity, unit_amount, charge_snapshot, reservation_room_id";
+  "id, folio_id, transaction_type, category, description, amount, posted_at, created_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id, tax_snapshot, transfer_id, transfer_direction, charge_source, quantity, unit_amount, charge_snapshot, reservation_room_id";
 const FOLIO_TXN_SELECT_BASE =
-  "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id";
+  "id, folio_id, transaction_type, category, description, amount, posted_at, created_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CATALOGUE_NOT_CONFIGURED = "Not configured";
@@ -602,7 +619,7 @@ async function loadGuestFolio(
     .select(
       "id, folio_number, status, currency, opened_at, closed_at, reservation_id, guest_id, settlement_exception, " +
         "guest_profiles!guest_folios_guest_same_property(first_name, last_name, email, phone, nationality, vip_status), " +
-        "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, arrival_date, departure_date, status, company_master_id, group_account_master_id, market_segment, commercial_booking_source, commercial_sales_channel, guarantee_method, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name), rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property(id, code, name))",
+        "hotel_reservations!guest_folios_reservation_same_property(id, confirmation_number, arrival_date, departure_date, status, company_master_id, group_account_master_id, market_segment, commercial_booking_source, commercial_sales_channel, guarantee_method, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name), rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property(id, code, name))",
     )
     .eq("id", folioId)
     .eq("restaurant_id", restaurantId)
@@ -629,6 +646,7 @@ async function loadGuestFolio(
       vip_status: boolean | null;
     } | null;
     hotel_reservations: {
+      id?: string;
       confirmation_number: string;
       arrival_date: string;
       departure_date: string;
@@ -697,6 +715,7 @@ async function loadGuestFolio(
     description: t.description,
     amount: Number(t.amount),
     postedAt: t.posted_at,
+    createdAt: t.created_at ?? t.posted_at,
     referenceType: t.reference_type,
     referenceId: t.reference_id ?? null,
     paymentMethod: t.payment_method ?? null,
@@ -729,8 +748,8 @@ async function loadGuestFolio(
   }));
 
   const reservation = f.hotel_reservations;
-  const [issuedInvoice, marketSegment, bookingSource, salesChannel] = await Promise.all([
-    loadGuestFolioInvoice(supabaseAdmin, restaurantId, f.id),
+  const [invoiceLoad, marketSegment, bookingSource, salesChannel] = await Promise.all([
+    loadGuestFolioInvoices(supabaseAdmin, restaurantId, f.id),
     resolveCatalogueLabel(
       supabaseAdmin,
       restaurantId,
@@ -759,7 +778,7 @@ async function loadGuestFolio(
     guestPhone: f.guest_profiles?.phone ?? null,
     guestNationality: f.guest_profiles?.nationality ?? null,
     guestVip: Boolean(f.guest_profiles?.vip_status),
-    reservationId: f.reservation_id,
+    reservationId: f.hotel_reservations?.id ?? f.reservation_id,
     confirmationNumber: f.hotel_reservations?.confirmation_number ?? null,
     arrivalDate: f.hotel_reservations?.arrival_date ?? null,
     departureDate: f.hotel_reservations?.departure_date ?? null,
@@ -777,7 +796,9 @@ async function loadGuestFolio(
     marketSegment,
     bookingSource,
     transactions,
-    issuedInvoice,
+    issuedInvoice: invoiceLoad.invoices[0] ?? null,
+    issuedInvoices: invoiceLoad.invoices,
+    legacyFolioInvoice: invoiceLoad.legacyFolio,
     companyMasterId: f.hotel_reservations?.company_master_id ?? null,
     groupAccountMasterId: f.hotel_reservations?.group_account_master_id ?? null,
     ...totals(transactions.map((t) => ({ amount: t.amount }))),
@@ -792,19 +813,66 @@ async function loadDepositAllocations(
   if (depositIds.length === 0) return [];
   const { data, error } = await supabaseAdmin
     .from("folio_deposit_allocations")
-    .select("deposit_transaction_id, amount")
+    .select("deposit_transaction_id, charge_transaction_id, amount")
     .eq("restaurant_id", restaurantId)
     .in("deposit_transaction_id", depositIds);
   if (error) {
     if (isMissingSchemaError(error)) return [];
     throw cashierError(error.message);
   }
-  return ((data ?? []) as Array<{ deposit_transaction_id: string; amount: number | string }>).map(
-    (row) => ({
-      depositTransactionId: row.deposit_transaction_id,
-      amount: Number(row.amount),
-    }),
-  );
+  return (
+    (data ?? []) as Array<{
+      deposit_transaction_id: string;
+      charge_transaction_id?: string | null;
+      amount: number | string;
+    }>
+  ).map((row) => ({
+    depositTransactionId: row.deposit_transaction_id,
+    chargeTransactionId: row.charge_transaction_id ?? null,
+    amount: Number(row.amount),
+  }));
+}
+
+async function loadPaymentAllocationNets(
+  supabaseAdmin: SupabaseAdmin,
+  restaurantId: string,
+  paymentIds: string[],
+): Promise<Record<string, number>> {
+  if (paymentIds.length === 0) return {};
+  const { data, error } = await supabaseAdmin
+    .from("guest_payment_invoice_allocations")
+    .select("payment_transaction_id, amount")
+    .eq("restaurant_id", restaurantId)
+    .in("payment_transaction_id", paymentIds);
+  if (error) {
+    if (isMissingSchemaError(error)) return {};
+    throw cashierError(error.message);
+  }
+  const nets: Record<string, number> = {};
+  for (const row of (data ?? []) as Array<{
+    payment_transaction_id: string;
+    amount: number | string;
+  }>) {
+    const current = nets[row.payment_transaction_id] ?? 0;
+    nets[row.payment_transaction_id] = Math.round((current + Number(row.amount)) * 100) / 100;
+  }
+  const deposits = await supabaseAdmin
+    .from("guest_deposit_invoice_allocations")
+    .select("deposit_transaction_id, amount")
+    .eq("restaurant_id", restaurantId)
+    .in("deposit_transaction_id", paymentIds);
+  if (deposits.error) {
+    if (isMissingSchemaError(deposits.error)) return nets;
+    throw cashierError(deposits.error.message);
+  }
+  for (const row of (deposits.data ?? []) as Array<{
+    deposit_transaction_id: string;
+    amount: number | string;
+  }>) {
+    const current = nets[row.deposit_transaction_id] ?? 0;
+    nets[row.deposit_transaction_id] = Math.round((current + Number(row.amount)) * 100) / 100;
+  }
+  return nets;
 }
 
 async function loadTransferCounterparts(
@@ -900,7 +968,10 @@ export interface FolioWorkspace {
   folio: FolioDetail;
   financialSummary: FolioFinancialSummary;
   depositLines: FolioDepositLine[];
+  depositAllocations: FolioAllocationInput[];
   depositSummary: { received: number; applied: number; available: number };
+  paymentAllocationNets: Record<string, number>;
+  canAllocateInvoices: boolean;
   chargeGroups: FolioChargeGroup[];
   recentPayments: FolioTransactionRow[];
   transferCounterparts: Record<
@@ -946,21 +1017,36 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
         folio.transactions.map((row) => row.transferId).filter((id): id is string => Boolean(id)),
       ),
     ];
-    const [allocations, settings, counterparts] = await Promise.all([
-      loadDepositAllocations(
-        supabaseAdmin,
-        data.restaurantId,
-        folio.transactions.filter((row) => row.type === "deposit").map((row) => row.id),
-      ),
+    const paymentIds = folio.transactions
+      .filter((row) => row.type === "payment" || row.type === "deposit")
+      .map((row) => row.id);
+    const depositIds = folio.transactions
+      .filter((row) => row.type === "deposit")
+      .map((row) => row.id);
+    const [allocations, settings, counterparts, paymentAllocationNets] = await Promise.all([
+      loadDepositAllocations(supabaseAdmin, data.restaurantId, depositIds),
       supabaseAdmin
         .from("pms_invoice_settings")
         .select("restaurant_id")
         .eq("restaurant_id", data.restaurantId)
         .maybeSingle(),
       loadTransferCounterparts(supabaseAdmin, data.restaurantId, folio.id, transferIds),
+      loadPaymentAllocationNets(supabaseAdmin, data.restaurantId, paymentIds),
     ]);
     const invoiceSettingsAvailable = !settings.error && Boolean(settings.data);
-    const depositLines = buildDepositLines(folio.transactions, allocations);
+    const invoiceDepositAllocations: FolioAllocationInput[] = depositIds.flatMap((depositId) => {
+      const amount = paymentAllocationNets[depositId] ?? 0;
+      return Math.abs(amount) > 0.001
+        ? [{ depositTransactionId: depositId, chargeTransactionId: null, amount }]
+        : [];
+    });
+    const depositLines = buildDepositLines(folio.transactions, [
+      ...allocations,
+      ...invoiceDepositAllocations,
+    ]);
+    for (const line of depositLines) {
+      paymentAllocationNets[line.transaction.id] = line.applied;
+    }
     const canManage = canManageCashiering(me.role);
     const canOperate = (CASHIER_OPERATE_ROLES as readonly string[]).includes(me.role);
 
@@ -968,7 +1054,10 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
       folio,
       financialSummary: summarizeFolioLedger(folio.transactions),
       depositLines,
+      depositAllocations: allocations,
       depositSummary: depositSummaryFromLines(depositLines),
+      paymentAllocationNets,
+      canAllocateInvoices: folio.status === "open" && canAllocateAccountPayments(me.role),
       chargeGroups: groupChargeRows(folio.transactions),
       recentPayments: recentPayments(folio.transactions, 3),
       transferCounterparts: counterparts,
@@ -980,9 +1069,10 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
         balance: folio.balance,
         canManage,
         canOperate,
-        hasInvoice: Boolean(folio.issuedInvoice),
+        hasInvoice: folio.issuedInvoices.length > 0,
         hasLines: folio.transactions.length > 0,
         invoiceSettingsAvailable,
+        legacyFolioInvoice: folio.legacyFolioInvoice,
       }),
     };
   });
@@ -1031,9 +1121,22 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
 
     const { data: restaurant } = await supabaseAdmin
       .from("restaurants")
-      .select("currency_code")
+      .select("currency_code, timezone, business_date")
       .eq("id", data.restaurantId)
       .maybeSingle();
+    const property = restaurant as {
+      currency_code: string | null;
+      timezone: string | null;
+      business_date: string | null;
+    } | null;
+    const timezone = property?.timezone || "UTC";
+    const businessDate = resolvePropertyBusinessDate(
+      property?.business_date ? property.business_date.slice(0, 10) : null,
+      timezone,
+    );
+    // Client `today` is not the hotel day. Rows have no business_date column, so
+    // this window is property-local midnight to the next property-local midnight.
+    const bounds = propertyDayBounds(businessDate, timezone);
 
     const { data: folios } = await supabaseAdmin
       .from("guest_folios")
@@ -1062,8 +1165,8 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
       .from("folio_transactions")
       .select("transaction_type, amount")
       .eq("restaurant_id", data.restaurantId)
-      .gte("posted_at", `${data.today}T00:00:00Z`)
-      .lte("posted_at", `${data.today}T23:59:59Z`);
+      .gte("posted_at", bounds.startIso)
+      .lt("posted_at", bounds.endIso);
 
     let todayPayments = 0;
     let todayCharges = 0;
@@ -1071,8 +1174,7 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
     let todayRefunds = 0;
     for (const t of (todayTxns ?? []) as { transaction_type: string; amount: number | string }[]) {
       const amount = Number(t.amount);
-      if (t.transaction_type === "payment" || t.transaction_type === "deposit")
-        todayPayments += -amount;
+      if (t.transaction_type === "payment") todayPayments += -amount;
       if (t.transaction_type === "deposit") todayDeposits += -amount;
       if (t.transaction_type === "refund") todayRefunds += Math.abs(amount);
       if (t.transaction_type === "charge") todayCharges += amount;
@@ -1086,7 +1188,7 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
     ) as { id: string; membership_id: string }[];
 
     return {
-      currency: (restaurant as { currency_code: string } | null)?.currency_code ?? "GBP",
+      currency: property?.currency_code ?? "GBP",
       openFolios: openIds.length,
       outstandingBalance: outstanding,
       todayPayments: round2(todayPayments),
@@ -1096,6 +1198,7 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
       transfersSupported: true,
       openShifts: openShiftRows.length,
       myOpenShiftId: openShiftRows.find((s) => s.membership_id === me.id)?.id ?? null,
+      businessDate,
     };
   });
 
@@ -1138,6 +1241,7 @@ export const postFolioEntry = createServerFn({ method: "POST" })
       amount: number;
       description: string;
       method?: string;
+      receivedFrom?: string;
       idempotencyKey: string;
       originalTransactionId?: string;
     }) =>
@@ -1149,6 +1253,7 @@ export const postFolioEntry = createServerFn({ method: "POST" })
           amount: z.number().finite(),
           description: z.string().min(1).max(200),
           method: z.string().max(60).optional(),
+          receivedFrom: z.string().trim().min(1).max(120).optional(),
           idempotencyKey: z.string().min(8).max(80),
           originalTransactionId: idSchema.optional(),
         })
@@ -1190,7 +1295,18 @@ export const postFolioEntry = createServerFn({ method: "POST" })
       paymentMethod = tender.stored;
     }
 
-    const description = method ? `${data.description.trim()} (${method})` : data.description.trim();
+    const payer = data.receivedFrom?.trim() ?? "";
+    if ((data.type === "payment" || data.type === "deposit") && !payer) {
+      return { ok: false, message: "Enter who the money was received from." };
+    }
+    const noted = data.description.trim();
+    const withPayer =
+      data.type === "payment" || data.type === "deposit"
+        ? noted && noted !== payer
+          ? `${noted} · Received from ${payer}`
+          : `Received from ${payer}`
+        : noted;
+    const description = (method ? `${withPayer} (${method})` : withPayer).slice(0, 200);
     const correction =
       data.type === "refund" || data.type === "adjustment" || data.type === "discount";
     let originalTransactionId: string | null = null;
@@ -1332,6 +1448,139 @@ export const previewFolioCharge = createServerFn({ method: "GET" })
     return readChargePreview(preview);
   });
 
+export const CORRECTION_MODES = [
+  "adjust_amount",
+  "correct_quantity",
+  "discount",
+  "reverse_remaining",
+] as const;
+export type CorrectionMode = (typeof CORRECTION_MODES)[number];
+
+export interface FolioChargeCorrectionShare {
+  id: string;
+  share: number;
+}
+
+export interface FolioChargeCorrectionPreview {
+  mode: CorrectionMode;
+  transactionType: "adjustment" | "discount";
+  sourceTransactionId: string;
+  folioId: string | null;
+  financialAccountId: string | null;
+  quantity: number | null;
+  unitAmount: number | null;
+  originalGross: number;
+  remainingGross: number;
+  parentRemaining: number;
+  taxRemaining: number;
+  serviceRemaining: number;
+  netCorrection: number;
+  taxCorrection: number;
+  serviceCorrection: number;
+  grossCorrection: number;
+  newEffectiveGross: number;
+  shares: FolioChargeCorrectionShare[];
+}
+
+function readCorrectionPreview(value: unknown): FolioChargeCorrectionPreview {
+  const row = (value ?? {}) as Record<string, unknown>;
+  const shares = Array.isArray(row.shares) ? row.shares : [];
+  const mode = String(row.mode ?? "adjust_amount") as CorrectionMode;
+  return {
+    mode,
+    transactionType: row.transaction_type === "discount" ? "discount" : "adjustment",
+    sourceTransactionId: String(row.source_transaction_id ?? ""),
+    folioId: row.folio_id == null ? null : String(row.folio_id),
+    financialAccountId: row.financial_account_id == null ? null : String(row.financial_account_id),
+    quantity: row.quantity == null ? null : Number(row.quantity),
+    unitAmount: row.unit_amount == null ? null : Number(row.unit_amount),
+    originalGross: Number(row.original_gross ?? 0),
+    remainingGross: Number(row.remaining_gross ?? 0),
+    parentRemaining: Number(row.parent_remaining ?? 0),
+    taxRemaining: Number(row.tax_remaining ?? 0),
+    serviceRemaining: Number(row.service_remaining ?? 0),
+    netCorrection: Number(row.net_correction ?? 0),
+    taxCorrection: Number(row.tax_correction ?? 0),
+    serviceCorrection: Number(row.service_correction ?? 0),
+    grossCorrection: Number(row.gross_correction ?? 0),
+    newEffectiveGross: Number(row.new_effective_gross ?? 0),
+    shares: shares.map((share) => {
+      const line = share as Record<string, unknown>;
+      return { id: String(line.id ?? ""), share: Number(line.share ?? 0) };
+    }),
+  };
+}
+
+export const previewFolioChargeCorrection = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d: {
+      restaurantId: string;
+      sourceTransactionId: string;
+      mode: CorrectionMode;
+      amount?: number | null;
+    }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          sourceTransactionId: idSchema,
+          mode: z.enum(CORRECTION_MODES),
+          amount: z.number().finite().nullable().optional(),
+        })
+        .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<FolioChargeCorrectionPreview> => {
+    await requireCashierManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: preview, error } = await supabaseAdmin.rpc("preview_folio_charge_correction", {
+      _restaurant_id: data.restaurantId,
+      _source_transaction_id: data.sourceTransactionId,
+      _mode: data.mode,
+      _amount: data.amount ?? null,
+    });
+    if (error) throw cashierError(error.message);
+    return readCorrectionPreview(preview);
+  });
+
+export const postFolioChargeCorrection = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d: {
+      restaurantId: string;
+      sourceTransactionId: string;
+      mode: CorrectionMode;
+      amount?: number | null;
+      description: string;
+      idempotencyKey: string;
+    }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          sourceTransactionId: idSchema,
+          mode: z.enum(CORRECTION_MODES),
+          amount: z.number().finite().nullable().optional(),
+          description: z.string().min(1).max(200),
+          idempotencyKey: z.string().min(8).max(80),
+        })
+        .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<CashierResult & { gross?: number }> => {
+    const me = await requireCashierManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: result, error } = await supabaseAdmin.rpc("post_folio_charge_correction", {
+      _restaurant_id: data.restaurantId,
+      _source_transaction_id: data.sourceTransactionId,
+      _mode: data.mode,
+      _amount: data.amount ?? null,
+      _description: data.description.trim(),
+      _membership_id: me.id,
+      _idempotency_key: assertIdempotencyKey(data.idempotencyKey),
+    });
+    if (error) return { ok: false, message: cashierError(error.message).message };
+    const payload = result as { correction_id: string; gross: number };
+    return { ok: true, id: payload.correction_id, gross: Number(payload.gross) };
+  });
+
 const PRICING_UNITS = ["per_service", "per_person", "per_room", "per_night", "per_item"] as const;
 export type ChargePricingUnit = (typeof PRICING_UNITS)[number];
 
@@ -1443,7 +1692,7 @@ export const listChargeableGuestServices = createServerFn({ method: "GET" })
 /** Read-only tax preview for a guest-service charge. Price is re-derived on the server. */
 export const previewFolioServiceCharge = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator(
+  .inputValidator(
     (d: { restaurantId: string; folioId: string; serviceTypeId: string; quantity: number }) =>
       z
         .object({
@@ -1728,7 +1977,12 @@ export const postHotelDrawerMovement = createServerFn({ method: "POST" })
     return { ok: true, id: (figures as { shift_id: string }).shift_id };
   });
 
-/** Cash movement recorded while a shift was open, for the closing count. */
+/**
+ * Unused by Cashier Control. Reads the legacy cashier_shifts table and every
+ * folio row between opened_at and closed_at. Do not wire this into the hotel
+ * drawer. Hotel shift totals come from hotel_drawer_figures and
+ * folio_transactions.hotel_cashier_shift_id.
+ */
 export const getShiftSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((d: { restaurantId: string; shiftId: string }) =>
@@ -1786,7 +2040,7 @@ export interface LedgerEntryRow {
   folioNumber: string;
   guestName: string;
   confirmationNumber: string | null;
-  type: TransactionType;
+  type: TransactionType | "transfer_in" | "transfer_out";
   category: string;
   description: string;
   amount: number;
@@ -1809,7 +2063,20 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
     z
       .object({
         restaurantId: idSchema,
-        types: z.array(z.enum(TRANSACTION_TYPES)).min(1),
+        types: z
+          .array(
+            z.enum([
+              "charge",
+              "payment",
+              "deposit",
+              "refund",
+              "adjustment",
+              "discount",
+              "transfer_in",
+              "transfer_out",
+            ]),
+          )
+          .min(1),
         search: z.string().max(120).optional(),
       })
       .parse(d),
@@ -1857,26 +2124,86 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
       const { data: folios } = await supabaseAdmin
         .from("guest_folios")
         .select(
-          "id, folio_number, guest_profiles!guest_folios_guest_same_property(first_name, last_name), " +
-            "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, hotel_rooms!hotel_reservations_room_same_type(room_number))",
+          "id, folio_number, guest_id, " +
+            "guest_profiles!guest_folios_guest_same_property(first_name, last_name), " +
+            "hotel_reservations!guest_folios_reservation_same_property(confirmation_number, hotel_rooms!hotel_reservations_room_same_type(room_number), guest_profiles!hotel_reservations_guest_same_property(first_name, last_name))",
         )
         .eq("restaurant_id", data.restaurantId)
         .in("id", folioIds);
 
-      for (const f of (folios ?? []) as unknown as {
+      type FolioRowRaw = {
         id: string;
         folio_number: string;
-        guest_profiles: { first_name: string | null; last_name: string | null } | null;
-        hotel_reservations: {
-          confirmation_number: string;
-          hotel_rooms: { room_number: string } | null;
-        } | null;
-      }[]) {
+        guest_id?: string | null;
+        guest_profiles: unknown;
+        hotel_reservations:
+          | {
+              confirmation_number?: string | null;
+              hotel_rooms?: { room_number: string } | Array<{ room_number: string }> | null;
+              guest_profiles?: unknown;
+            }
+          | Array<{
+              confirmation_number?: string | null;
+              hotel_rooms?: { room_number: string } | Array<{ room_number: string }> | null;
+              guest_profiles?: unknown;
+            }>
+          | null;
+      };
+
+      const folioList = (folios ?? []) as unknown as FolioRowRaw[];
+
+      const missingGuestIds: string[] = [];
+      for (const f of folioList) {
+        const res = Array.isArray(f.hotel_reservations)
+          ? f.hotel_reservations[0]
+          : f.hotel_reservations;
+        const name =
+          guestName(f.guest_profiles as never) !== "Guest"
+            ? guestName(f.guest_profiles as never)
+            : guestName(res?.guest_profiles as never);
+        if (name === "Guest" && f.guest_id) {
+          missingGuestIds.push(f.guest_id);
+        }
+      }
+
+      const directGuestNames = new Map<string, string>();
+      if (missingGuestIds.length > 0) {
+        const { data: directGuests } = await supabaseAdmin
+          .from("guest_profiles")
+          .select("id, first_name, last_name")
+          .eq("restaurant_id", data.restaurantId)
+          .in("id", [...new Set(missingGuestIds)]);
+        for (const g of (directGuests ?? []) as Array<{
+          id: string;
+          first_name: string | null;
+          last_name: string | null;
+        }>) {
+          const gn = guestName(g);
+          if (gn !== "Guest") directGuestNames.set(g.id, gn);
+        }
+      }
+
+      for (const f of folioList) {
+        const res = Array.isArray(f.hotel_reservations)
+          ? f.hotel_reservations[0]
+          : f.hotel_reservations;
+        const rooms = res?.hotel_rooms;
+        const room = Array.isArray(rooms) ? rooms[0] : rooms;
+        const resolvedName =
+          (guestName(f.guest_profiles as never) !== "Guest"
+            ? guestName(f.guest_profiles as never)
+            : null) ??
+          (guestName(res?.guest_profiles as never) !== "Guest"
+            ? guestName(res?.guest_profiles as never)
+            : null) ??
+          (f.guest_id ? directGuestNames.get(f.guest_id) : null) ??
+          "Guest";
+
         folioMeta.set(f.id, {
           folioNumber: f.folio_number,
-          guestName: guestName(f.guest_profiles),
-          confirmationNumber: f.hotel_reservations?.confirmation_number ?? null,
-          roomNumber: f.hotel_reservations?.hotel_rooms?.room_number ?? null,
+          guestName: resolvedName,
+          confirmationNumber: res?.confirmation_number ?? null,
+          roomNumber: room?.room_number ?? null,
         });
       }
     }
@@ -1930,7 +2257,7 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
           folioNumber: meta?.folioNumber ?? "—",
           guestName: meta?.guestName ?? "Guest",
           confirmationNumber: meta?.confirmationNumber ?? null,
-          type: r.transaction_type as TransactionType,
+          type: r.transaction_type as LedgerEntryRow["type"],
           category: r.category,
           description: r.description,
           amount: Math.abs(Number(r.amount)),
@@ -1952,4 +2279,70 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
           (r.roomNumber ?? "").toLowerCase().includes(term) ||
           r.id.toLowerCase().includes(term),
       );
+  });
+
+export interface FolioTenderHistoryEvent {
+  id: string;
+  eventType: string;
+  notes: string | null;
+  createdAt: string;
+  transactionId: string | null;
+  depositTransactionId: string | null;
+  originalTransactionId: string | null;
+}
+
+const TENDER_HISTORY_EVENTS = [
+  "payment_received",
+  "deposit_received",
+  "refund_posted",
+  "deposit_allocated",
+  "guest_payment_allocated",
+  "guest_payment_allocation_reversed",
+] as const;
+
+/** Read-only folio_history rows for payment, deposit, refund, and deposit application. */
+export const listFolioTenderHistory = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { restaurantId: string; folioId: string }) =>
+    z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
+  )
+  .handler(async ({ data, context }): Promise<FolioTenderHistoryEvent[]> => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin
+      .from("folio_history")
+      .select("id, event_type, notes, new_values, created_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("folio_id", data.folioId)
+      .in("event_type", [...TENDER_HISTORY_EVENTS])
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) {
+      if (isMissingSchemaError(error)) return [];
+      throw cashierError(error.message);
+    }
+    return (
+      (rows ?? []) as Array<{
+        id: string;
+        event_type: string;
+        notes: string | null;
+        new_values: Record<string, unknown> | null;
+        created_at: string;
+      }>
+    ).map((row) => {
+      const values = row.new_values ?? {};
+      const text = (key: string) => {
+        const value = values[key];
+        return typeof value === "string" && value.trim() !== "" ? value : null;
+      };
+      return {
+        id: row.id,
+        eventType: row.event_type,
+        notes: row.notes,
+        createdAt: row.created_at,
+        transactionId: text("transaction_id"),
+        depositTransactionId: text("deposit_transaction_id"),
+        originalTransactionId: text("original_transaction_id"),
+      };
+    });
   });

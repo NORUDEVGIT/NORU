@@ -9,9 +9,9 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-3 text-[11px]">
+    <div className="flex justify-between gap-3 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <span className="text-right text-[#251605]">{value}</span>
+      <span className="font-medium text-right text-[#251605]">{value}</span>
     </div>
   );
 }
@@ -39,7 +39,7 @@ export function RestrictionApprovalProposal({
   const changed = Object.keys(fields);
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Row label="Operation" value={type === "CLEAR_ALL" ? "Clear restrictions" : "Set fields"} />
       <Row label="Date range" value={revenueApprovalScopeLabel(snapshot).split(" · ")[0] ?? "—"} />
       <Row label="Room types" value={snapshot?.roomTypeNames.join(", ") || "—"} />

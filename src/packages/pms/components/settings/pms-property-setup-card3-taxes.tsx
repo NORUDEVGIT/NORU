@@ -36,8 +36,8 @@ import {
   EXEMPTION_REASONS,
   FEE_BASIS,
   FEE_BASIS_LABELS,
-  TAX_BASIS,
-  TAX_BASIS_LABELS,
+  TAX_APPLICABILITY_LABELS,
+  TAX_APPLICABILITY_SCOPES,
   TAX_CALCULATION_LABELS,
   TAX_CALCULATIONS,
   TAX_CHARGE_TYPE_LABELS,
@@ -47,8 +47,9 @@ import {
   type FeeBasis,
   type FeeRow,
   type ServiceChargeRow,
-  type TaxBasis,
+  type TaxApplicabilityScope,
   type TaxCalculation,
+  type TaxDepartmentOption,
   type TaxChargeType,
   type TaxRow,
   type TaxesCard3Snapshot,
@@ -99,11 +100,29 @@ export function PmsPropertySetupCard3Taxes({
 
   const filteredTaxes = useMemo(
     () =>
-      taxes.filter((row) => matchesQuery(taxSearch, row.code, row.name, row.basis, row.chargeType)),
+      taxes.filter((row) =>
+        matchesQuery(
+          taxSearch,
+          row.code,
+          row.name,
+          row.basis,
+          TAX_APPLICABILITY_LABELS[row.applicabilityScope ?? "all"],
+          row.chargeType,
+        ),
+      ),
     [taxes, taxSearch],
   );
   const filteredServices = useMemo(
-    () => services.filter((row) => matchesQuery(serviceSearch, row.code, row.name, row.basis)),
+    () =>
+      services.filter((row) =>
+        matchesQuery(
+          serviceSearch,
+          row.code,
+          row.name,
+          row.basis,
+          TAX_APPLICABILITY_LABELS[row.applicabilityScope ?? "all"],
+        ),
+      ),
     [services, serviceSearch],
   );
   const filteredFees = useMemo(
@@ -132,7 +151,7 @@ export function PmsPropertySetupCard3Taxes({
   function friendlyValidationError(error: Error): string {
     try {
       const issues = JSON.parse(error.message);
-  
+
       if (Array.isArray(issues) && issues.length > 0) {
         return issues
           .map((issue) => issue?.message)
@@ -142,7 +161,7 @@ export function PmsPropertySetupCard3Taxes({
     } catch {
       // Not a serialized validation error.
     }
-  
+
     return error.message || "Please check the form and try again.";
   }
 
@@ -247,7 +266,7 @@ export function PmsPropertySetupCard3Taxes({
             canEdit={canEdit}
             addLabel="Add tax"
             empty="No taxes saved yet."
-            columns={["Code", "Name", "Type", "Amount", "Basis", "Calculation", "Status"]}
+            columns={["Code", "Name", "Type", "Amount", "Applies to", "Calculation", "Status"]}
             rows={filteredTaxes.map((row) => ({
               id: row.id,
               cells: [
@@ -255,14 +274,14 @@ export function PmsPropertySetupCard3Taxes({
                 row.name,
                 TAX_CHARGE_TYPE_LABELS[row.chargeType],
                 String(row.amount),
-                TAX_BASIS_LABELS[row.basis],
+                TAX_APPLICABILITY_LABELS[row.applicabilityScope ?? "all"],
                 TAX_CALCULATION_LABELS[row.calculation],
                 <Card3StatusDot active={row.active} />,
               ],
               onEdit: () => setTaxDraft(row),
             }))}
             onAdd={() => setTaxDraft("new")}
-  />
+          />
 
           <Card3ListSection
             title="Service charges"
@@ -273,7 +292,7 @@ export function PmsPropertySetupCard3Taxes({
             canEdit={canEdit}
             addLabel="Add service charge"
             empty="No service charges saved yet."
-            columns={["Code", "Name", "Type", "Amount", "Basis", "Status"]}
+            columns={["Code", "Name", "Type", "Amount", "Applies to", "Status"]}
             rows={filteredServices.map((row) => ({
               id: row.id,
               cells: [
@@ -281,7 +300,7 @@ export function PmsPropertySetupCard3Taxes({
                 row.name,
                 TAX_CHARGE_TYPE_LABELS[row.chargeType],
                 String(row.amount),
-                TAX_BASIS_LABELS[row.basis],
+                TAX_APPLICABILITY_LABELS[row.applicabilityScope ?? "all"],
                 <Card3StatusDot active={row.active} />,
               ],
               onEdit: () => setServiceDraft(row),
@@ -331,7 +350,7 @@ export function PmsPropertySetupCard3Taxes({
                 row.name,
                 row.reasonCategory === "other" && row.customReason
                   ? `${EXEMPTION_REASON_LABELS.other} (${row.customReason})`
-                  : EXEMPTION_REASON_LABELS[row.reasonCategory] ?? row.reasonCategory,
+                  : (EXEMPTION_REASON_LABELS[row.reasonCategory] ?? row.reasonCategory),
                 row.documentationRequired ? "Required" : "Optional",
                 row.approvalRequired ? "Required" : "Optional",
                 <Card3StatusDot active={row.active} />,
@@ -345,6 +364,7 @@ export function PmsPropertySetupCard3Taxes({
             key={taxDraft === "new" ? "tax-new" : (taxDraft?.id ?? "tax-closed")}
             open={taxDraft !== null}
             canEdit={canEdit}
+            departments={snapshot?.departments ?? []}
             value={taxDraft === "new" || taxDraft === null ? null : taxDraft}
             pending={taxMut.isPending}
             onClose={() => setTaxDraft(null)}
@@ -354,6 +374,7 @@ export function PmsPropertySetupCard3Taxes({
             key={serviceDraft === "new" ? "svc-new" : (serviceDraft?.id ?? "svc-closed")}
             open={serviceDraft !== null}
             canEdit={canEdit}
+            departments={snapshot?.departments ?? []}
             value={serviceDraft === "new" || serviceDraft === null ? null : serviceDraft}
             pending={serviceMut.isPending}
             onClose={() => setServiceDraft(null)}
@@ -410,8 +431,8 @@ function CodeFields({
           onChange={(event) => onCode(event.target.value.toUpperCase())}
         />
         <p className="text-xs text-muted-foreground">
-  Use 1–20 uppercase letters, numbers, or underscores. Example: VAT_15.
-</p>
+          Use 1–20 uppercase letters, numbers, or underscores. Example: VAT_15.
+        </p>
       </div>
       <div className="space-y-1">
         <Label htmlFor="setup-name">Name</Label>
@@ -493,9 +514,86 @@ function ActiveField({
   );
 }
 
+function AppliesToFields({
+  scope,
+  departmentIds,
+  departments,
+  canEdit,
+  onScope,
+  onDepartments,
+}: {
+  scope: TaxApplicabilityScope;
+  departmentIds: string[];
+  departments: TaxDepartmentOption[];
+  canEdit: boolean;
+  onScope: (scope: TaxApplicabilityScope) => void;
+  onDepartments: (ids: string[]) => void;
+}) {
+  const choices =
+    scope === "folio"
+      ? (["folio", ...TAX_APPLICABILITY_SCOPES] as const)
+      : TAX_APPLICABILITY_SCOPES;
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <Label>Applies to</Label>
+        <Select
+          value={scope}
+          disabled={!canEdit}
+          onValueChange={(next) => onScope(next as TaxApplicabilityScope)}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {choices.map((row) => (
+              <SelectItem key={row} value={row}>
+                {TAX_APPLICABILITY_LABELS[row]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {scope === "departments" ? (
+        <div className="space-y-2">
+          <Label>Departments</Label>
+          {departments.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No active departments are set up yet.</p>
+          ) : (
+            departments.map((department) => {
+              const checked = departmentIds.includes(department.id);
+              return (
+                <label key={department.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={!canEdit}
+                    onChange={(event) => {
+                      onDepartments(
+                        event.target.checked
+                          ? [...departmentIds, department.id]
+                          : departmentIds.filter((id) => id !== department.id),
+                      );
+                    }}
+                  />
+                  <span>
+                    {department.name}
+                    {department.code ? ` (${department.code})` : ""}
+                  </span>
+                </label>
+              );
+            })
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function TaxDrawer({
   open,
   canEdit,
+  departments,
   value,
   pending,
   onClose,
@@ -503,6 +601,7 @@ function TaxDrawer({
 }: {
   open: boolean;
   canEdit: boolean;
+  departments: TaxDepartmentOption[];
   value: TaxRow | null;
   pending: boolean;
   onClose: () => void;
@@ -512,7 +611,8 @@ function TaxDrawer({
   const [name, setName] = useState(value?.name ?? "");
   const [chargeType, setChargeType] = useState<TaxChargeType>(value?.chargeType ?? "percentage");
   const [amount, setAmount] = useState(value?.amount ?? 15);
-  const [basis, setBasis] = useState<TaxBasis>(value?.basis ?? "all");
+  const [scope, setScope] = useState<TaxApplicabilityScope>(value?.applicabilityScope ?? "all");
+  const [departmentIds, setDepartmentIds] = useState<string[]>(value?.departmentIds ?? []);
   const [calculation, setCalculation] = useState<TaxCalculation>(value?.calculation ?? "exclusive");
   const [active, setActive] = useState(value?.active ?? true);
 
@@ -521,7 +621,7 @@ function TaxDrawer({
       open={open}
       onClose={onClose}
       title={value ? "Edit tax" : "Add tax"}
-      description="Catalogue only. This does not change the SET1 till rate."
+      description="Cashiering uses this rule on matching charges. It does not change the SET1 till rate."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save tax"
@@ -532,7 +632,9 @@ function TaxDrawer({
           name,
           chargeType,
           amount,
-          basis,
+          basis: value?.basis ?? "all",
+          applicabilityScope: scope,
+          departmentIds: scope === "departments" ? departmentIds : [],
           calculation,
           active,
         })
@@ -554,25 +656,14 @@ function TaxDrawer({
           onType={setChargeType}
           onAmount={setAmount}
         />
-        <div className="space-y-1">
-          <Label>Basis</Label>
-          <Select
-            value={basis}
-            disabled={!canEdit}
-            onValueChange={(next) => setBasis(next as TaxBasis)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TAX_BASIS.map((row) => (
-                <SelectItem key={row} value={row}>
-                  {TAX_BASIS_LABELS[row]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <AppliesToFields
+          scope={scope}
+          departmentIds={departmentIds}
+          departments={departments}
+          canEdit={canEdit}
+          onScope={setScope}
+          onDepartments={setDepartmentIds}
+        />
         <div className="space-y-1">
           <Label>Calculation</Label>
           <Select
@@ -601,6 +692,7 @@ function TaxDrawer({
 function ServiceDrawer({
   open,
   canEdit,
+  departments,
   value,
   pending,
   onClose,
@@ -608,6 +700,7 @@ function ServiceDrawer({
 }: {
   open: boolean;
   canEdit: boolean;
+  departments: TaxDepartmentOption[];
   value: ServiceChargeRow | null;
   pending: boolean;
   onClose: () => void;
@@ -617,7 +710,10 @@ function ServiceDrawer({
   const [name, setName] = useState(value?.name ?? "");
   const [chargeType, setChargeType] = useState<TaxChargeType>(value?.chargeType ?? "percentage");
   const [amount, setAmount] = useState(value?.amount ?? 10);
-  const [basis, setBasis] = useState<TaxBasis>(value?.basis ?? "fnb");
+  const [scope, setScope] = useState<TaxApplicabilityScope>(
+    value?.applicabilityScope ?? "services",
+  );
+  const [departmentIds, setDepartmentIds] = useState<string[]>(value?.departmentIds ?? []);
   const [active, setActive] = useState(value?.active ?? true);
 
   return (
@@ -625,7 +721,7 @@ function ServiceDrawer({
       open={open}
       onClose={onClose}
       title={value ? "Edit service charge" : "Add service charge"}
-      description="Catalogue only. This does not change the SET1 service rate."
+      description="Cashiering uses this rule on matching charges. It does not change the SET1 service rate."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save service charge"
@@ -636,7 +732,9 @@ function ServiceDrawer({
           name,
           chargeType,
           amount,
-          basis,
+          basis: value?.basis ?? "fnb",
+          applicabilityScope: scope,
+          departmentIds: scope === "departments" ? departmentIds : [],
           active,
         })
       }
@@ -657,25 +755,14 @@ function ServiceDrawer({
           onType={setChargeType}
           onAmount={setAmount}
         />
-        <div className="space-y-1">
-          <Label>Basis</Label>
-          <Select
-            value={basis}
-            disabled={!canEdit}
-            onValueChange={(next) => setBasis(next as TaxBasis)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TAX_BASIS.map((row) => (
-                <SelectItem key={row} value={row}>
-                  {TAX_BASIS_LABELS[row]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <AppliesToFields
+          scope={scope}
+          departmentIds={departmentIds}
+          departments={departments}
+          canEdit={canEdit}
+          onScope={setScope}
+          onDepartments={setDepartmentIds}
+        />
         <ActiveField active={active} canEdit={canEdit} onChange={setActive} />
       </div>
     </Card3OverlapSheet>
@@ -810,7 +897,8 @@ function RuleDrawer({
           name,
           description,
           reasonCategory,
-          customReason: reasonCategory === "other" && customReason.trim() ? customReason.trim() : null,
+          customReason:
+            reasonCategory === "other" && customReason.trim() ? customReason.trim() : null,
           documentationRequired,
           approvalRequired,
           active,

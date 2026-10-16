@@ -19,10 +19,12 @@ import {
 import {
   listFolioWindows,
   listFinancialAccounts,
+  listTransferCompanyLinks,
   postCrossLedgerTransfer,
   postFolioTransfer,
   type FinancialAccountRow,
 } from "@/packages/pms/lib/cashiering-phases.functions";
+import { openCompanyTransferLink } from "@/packages/pms/lib/cashiering-transfer-company-link";
 import {
   chargeGroupRemainder,
   isParentTransferCharge,
@@ -124,6 +126,7 @@ export function TransferChargeDialog({
   const fetchFolios = useServerFn(listFolios);
   const fetchWindows = useServerFn(listFolioWindows);
   const fetchAccounts = useServerFn(listFinancialAccounts);
+  const fetchCompanyLinks = useServerFn(listTransferCompanyLinks);
   const postFolio = useServerFn(postFolioTransfer);
   const postAccount = useServerFn(postCrossLedgerTransfer);
   const foliosQuery = useQuery({
@@ -144,12 +147,26 @@ export function TransferChargeDialog({
     enabled: open && destinationKind !== "guest_folio",
     retry: false,
   });
+  const companyLinksQuery = useQuery({
+    queryKey: ["transfer-company-links", restaurantId, folio.guestId],
+    queryFn: () => fetchCompanyLinks({ data: { restaurantId, guestId: folio.guestId } }),
+    enabled: open && destinationKind === "company" && Boolean(folio.guestId),
+    retry: false,
+  });
+  const profileCompanyLinks = companyLinksQuery.data ?? [];
   const linkedMasterId =
     destinationKind === "company"
       ? folio.companyMasterId
       : destinationKind === "group"
         ? folio.groupAccountMasterId
         : null;
+  const companyLinkFor = (masterId: string, accountOpen: boolean) =>
+    openCompanyTransferLink({
+      masterId,
+      accountOpen,
+      stayMasterId: folio.companyMasterId,
+      profileLinks: profileCompanyLinks,
+    });
   const accountTargets = (accountsQuery.data ?? [])
     .filter(
       (row) =>
@@ -160,8 +177,20 @@ export function TransferChargeDialog({
           row.masterName.toLowerCase().includes(search.trim().toLowerCase()) ||
           row.accountNumber.toLowerCase().includes(search.trim().toLowerCase())),
     )
-    .sort((a, b) => Number(b.masterId === linkedMasterId) - Number(a.masterId === linkedMasterId));
+    .sort((a, b) => {
+      if (destinationKind === "company") {
+        return (
+          companyLinkFor(a.masterId, true).rank - companyLinkFor(b.masterId, true).rank ||
+          a.masterName.localeCompare(b.masterName)
+        );
+      }
+      return Number(b.masterId === linkedMasterId) - Number(a.masterId === linkedMasterId);
+    });
   const accountDestination = accountTargets.find((row) => row.id === targetId) ?? null;
+  const selectedCompanyLink =
+    destinationKind === "company" && accountDestination
+      ? companyLinkFor(accountDestination.masterId, accountDestination.status === "open")
+      : null;
   const destination = targets.find((row) => row.id === targetId) ?? null;
   const windowsQuery = useQuery({
     queryKey: ["folio-windows", restaurantId, targetId],
@@ -249,20 +278,24 @@ export function TransferChargeDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
-      <DialogContent className="flex max-h-[88vh] w-[min(1000px,calc(100vw-2rem))] max-w-[1000px] flex-col gap-0 overflow-hidden border-[#E8E1D7] bg-[#fbf8f3] p-0 sm:max-w-[1000px]">
-        <DialogHeader className="space-y-2 border-b border-[#E8E1D7] bg-card px-5 py-4 pr-12 text-left">
-          <div className="flex items-center gap-2">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-[#C89933]/15 text-[#8a6a1f]">
-              <ArrowLeftRight className="size-4" />
+      <DialogContent className="flex max-h-[90vh] w-[min(1000px,calc(100vw-2rem))] max-w-[1000px] flex-col gap-0 overflow-hidden rounded-2xl border border-[#E8E1D7] bg-[#fbf8f3] p-0 shadow-2xl sm:max-w-[1000px]">
+        <header className="flex items-start justify-between border-b border-[#E8E1D7] bg-[#F7F4EE]/80 px-6 py-4.5 pr-12 text-left">
+          <div className="flex items-start gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#C89933]/15 text-[#8a6a1f] shadow-xs">
+              <ArrowLeftRight className="size-5" />
             </span>
-            <DialogTitle className="text-base">Transfer Charge</DialogTitle>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <DialogTitle className="text-base font-semibold leading-tight text-[#251605]">Transfer Charge</DialogTitle>
+                <FolioSearchFolioStatusBadge status={folio.status} />
+              </div>
+              <DialogDescription className="mt-1 text-xs text-muted-foreground leading-normal">
+                {folio.folioNumber} · {folio.guestName}
+                <span className="mt-0.5 block font-medium text-foreground">{title}</span>
+              </DialogDescription>
+            </div>
           </div>
-          <DialogDescription className="text-sm text-foreground">
-            {folio.folioNumber} · {folio.guestName}
-            <span className="mt-0.5 block font-medium">{title}</span>
-          </DialogDescription>
-          <FolioSearchFolioStatusBadge status={folio.status} />
-        </DialogHeader>
+        </header>
 
         <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 md:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
           <div className="space-y-4">
@@ -394,7 +427,13 @@ export function TransferChargeDialog({
                     <AccountDestinationCard
                       key={row.id}
                       row={row}
-                      linked={row.masterId === linkedMasterId}
+                      linkText={
+                        destinationKind === "company"
+                          ? companyLinkFor(row.masterId, row.status === "open").label
+                          : row.masterId === linkedMasterId
+                            ? "Linked to this stay"
+                            : null
+                      }
                       selected={row.id === targetId}
                       money={money}
                       onSelect={() => setTargetId(row.id)}
@@ -497,6 +536,11 @@ export function TransferChargeDialog({
                       ? `${accountDestination.accountNumber} · ${accountDestination.accountKind}`
                       : "Choose a destination account"}
                 </dd>
+                {selectedCompanyLink?.label ? (
+                  <dd className="mt-1 text-xs font-medium text-[#8a6a1f]">
+                    {selectedCompanyLink.label}
+                  </dd>
+                ) : null}
               </div>
               <MoneyLine label="Charge" value={title} />
               <MoneyLine label="Transfer" value={amountValid ? money(moved) : "—"} strong />
@@ -620,13 +664,13 @@ function DestinationCard({
 
 function AccountDestinationCard({
   row,
-  linked,
+  linkText,
   selected,
   money,
   onSelect,
 }: {
   row: FinancialAccountRow;
-  linked: boolean;
+  linkText: string | null;
   selected: boolean;
   money: (value: number) => string;
   onSelect: () => void;
@@ -644,7 +688,7 @@ function AccountDestinationCard({
       <p className="text-xs text-muted-foreground">
         {row.accountNumber} · {row.accountKind} · {row.status}
       </p>
-      {linked ? <p className="text-xs text-[#8a6a1f]">Linked to this stay</p> : null}
+      {linkText ? <p className="text-xs font-medium text-[#8a6a1f]">{linkText}</p> : null}
       <p className="mt-1 text-xs text-muted-foreground">
         Current balance <span className="tabular-nums text-foreground">{money(row.balance)}</span>
         {" · "}

@@ -17,7 +17,7 @@ export function CashieringChrome({
   active,
   onNavigate,
   onSearch,
-  onPostPayment,
+  onPostPayment: _onPostPayment,
   bodyClassName = "space-y-4 p-4 sm:p-5 lg:p-6",
   children,
 }: {
@@ -25,7 +25,7 @@ export function CashieringChrome({
   active: CashieringTabId;
   onNavigate: (id: CashieringTabId) => void;
   onSearch: (value: string) => void;
-  onPostPayment: () => void;
+  onPostPayment?: () => void;
   bodyClassName?: string;
   children: ReactNode;
 }) {
@@ -54,14 +54,6 @@ export function CashieringChrome({
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">{CASHIERING_DESK_DESCRIPTION}</p>
             </div>
-            <Button
-              type="button"
-              data-testid="cashiering-post-payment"
-              className="h-9 min-h-11 shrink-0 bg-[#C89933] px-3 text-[#251605] hover:bg-[#B5882D] sm:min-h-9"
-              onClick={onPostPayment}
-            >
-              + Post Payment
-            </Button>
           </div>
           <nav
             data-testid="cashiering-workspace-nav"
