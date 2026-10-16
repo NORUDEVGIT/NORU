@@ -21,7 +21,7 @@ export function ApprovalTabs({
           type="button"
           onClick={() => onChange(item.id)}
           className={[
-            "relative h-10 px-3.5 text-xs font-medium transition-colors",
+            "relative h-11 px-4 text-sm font-medium transition-colors",
             tab === item.id ? "font-semibold text-[#251605]" : "text-muted-foreground hover:text-[#251605]",
           ].join(" ")}
         >

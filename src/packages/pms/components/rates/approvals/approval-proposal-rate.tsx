@@ -9,7 +9,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-3 text-xs">
+    <div className="flex justify-between gap-3 text-sm">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium text-right text-[#251605]">{value}</span>
     </div>

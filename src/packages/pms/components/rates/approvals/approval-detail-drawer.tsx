@@ -30,7 +30,7 @@ function formatWhen(value: string | null | undefined) {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-xs">
+    <div className="flex items-baseline justify-between gap-3 text-sm">
       <span className="font-medium text-muted-foreground">{label}</span>
       <span className="text-right font-medium text-[#251605]">{value}</span>
     </div>
@@ -112,7 +112,7 @@ function DrawerBody({
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Approval request
           </p>
-          <h3 className="mt-1 font-display text-lg font-semibold text-[#251605]">
+          <h3 className="mt-1 font-display text-xl font-semibold text-[#251605]">
             {detail?.summary ?? "Request"}
           </h3>
         </div>
@@ -126,10 +126,10 @@ function DrawerBody({
         </button>
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
-        {loading ? <p className="text-xs text-muted-foreground">Loading request…</p> : null}
+        {loading ? <p className="text-sm text-muted-foreground">Loading request…</p> : null}
         {error ? (
           <div className="space-y-2">
-            <p className="text-xs font-medium text-[#6B4A0A]">{error}</p>
+            <p className="text-sm font-medium text-[#6B4A0A]">{error}</p>
             <button type="button" className={commercialOutlineButton()} onClick={onRetry}>
               Retry
             </button>
@@ -137,11 +137,11 @@ function DrawerBody({
         ) : null}
         {detail ? (
           <>
-            <section className="space-y-2 rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs">
+            <section className="space-y-2.5 rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs">
               <p className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
                 Request
               </p>
-              <div className="flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center justify-between gap-2 text-sm">
                 <span className="font-medium text-muted-foreground">Status</span>
                 <ApprovalStatusChip status={detail.status} />
               </div>
@@ -171,26 +171,26 @@ function DrawerBody({
               ) : null}
             </section>
 
-            <section className="space-y-2 rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs">
+            <section className="space-y-2.5 rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs">
               <p className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
                 Proposed Change
               </p>
               <ProposalBody detail={detail} />
             </section>
 
-            <section className="space-y-2 rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs">
+            <section className="space-y-2.5 rounded-xl border border-[#E8E1D7] bg-white p-4 shadow-2xs">
               <p className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
                 Current State / Warnings
               </p>
               {detail.currentStateHint?.changed ? (
-                <p className="text-xs text-[#6B4A0A]">{APPROVAL_CURRENT_STATE_CHANGED}</p>
+                <p className="text-sm text-[#6B4A0A]">{APPROVAL_CURRENT_STATE_CHANGED}</p>
               ) : (
-                <p className="text-xs text-muted-foreground">No current-state warning.</p>
+                <p className="text-sm text-muted-foreground">No current-state warning.</p>
               )}
               {staleCopy || detail.status === "stale" ? (
                 <>
-                  <p className="text-xs font-medium text-[#6B4A0A]">{APPROVAL_STALE_COPY}</p>
-                  <p className="text-xs text-muted-foreground">{APPROVAL_STALE_HELP}</p>
+                  <p className="text-sm font-medium text-[#6B4A0A]">{APPROVAL_STALE_COPY}</p>
+                  <p className="text-sm text-muted-foreground">{APPROVAL_STALE_HELP}</p>
                 </>
               ) : null}
             </section>
@@ -205,15 +205,15 @@ function DrawerBody({
                     key={event.id}
                     className="rounded-lg border border-[#EAE4DB] bg-[#FAF8F4]/80 p-3 space-y-1"
                   >
-                    <p className="text-xs font-medium text-[#251605]">
+                    <p className="text-sm font-semibold text-[#251605]">
                       {revenueApprovalStatusLabel(event.eventType)}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                       {revenueApprovalRequesterLabel(event.actorLabel)} ·{" "}
                       {formatWhen(event.createdAt)}
                     </p>
                     {event.reason ? (
-                      <p className="text-xs text-[#251605]">
+                      <p className="text-sm text-[#251605]">
                         {revenueApprovalReasonLabel(event.reason)}
                       </p>
                     ) : null}
@@ -223,7 +223,7 @@ function DrawerBody({
             </section>
 
             {applyError ? (
-              <p className="text-xs font-medium text-destructive">{applyError}</p>
+              <p className="text-sm font-medium text-destructive">{applyError}</p>
             ) : null}
 
             {pending ? (
@@ -232,7 +232,7 @@ function DrawerBody({
                   Actions
                 </p>
                 {detail.selfApprovalBlocked ? (
-                  <p className="text-xs text-[#6B4A0A]">{SELF_APPROVAL_BLOCKED_COPY}</p>
+                  <p className="text-sm text-[#6B4A0A]">{SELF_APPROVAL_BLOCKED_COPY}</p>
                 ) : null}
                 <div className="flex flex-wrap gap-2 pt-1">
                   {canApprove ? (
@@ -281,7 +281,7 @@ function DrawerBody({
                     View Applied Change
                   </button>
                 ) : (
-                  <p className="text-xs text-muted-foreground">This request is closed.</p>
+                  <p className="text-sm text-muted-foreground">This request is closed.</p>
                 )}
               </section>
             )}

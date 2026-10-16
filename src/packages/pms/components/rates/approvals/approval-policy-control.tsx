@@ -25,12 +25,12 @@ export function ApprovalPolicyControl({
             Approval Workflow
           </p>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-[#251605]">
+            <span className="text-base font-semibold text-[#251605]">
               {loading ? "Loading policy…" : enabled ? "Workflow Enabled" : "Workflow Disabled"}
             </span>
             {!loading ? (
               <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                   enabled
                     ? "bg-emerald-50 text-emerald-800 border border-emerald-200/80"
                     : "bg-[#F0EBE1] text-[#736B5E] border border-[#DDD4C5]"
@@ -40,7 +40,7 @@ export function ApprovalPolicyControl({
               </span>
             ) : null}
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {enabled ? APPROVAL_POLICY_ENABLED_HELP : APPROVAL_POLICY_DISABLED_HELP}
           </p>
         </div>

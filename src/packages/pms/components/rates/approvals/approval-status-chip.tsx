@@ -12,7 +12,7 @@ const TONE: Record<RevenueApprovalStatus, string> = {
 export function ApprovalStatusChip({ status }: { status: RevenueApprovalStatus | string }) {
   const tone = TONE[status as RevenueApprovalStatus] ?? "bg-[#F0EBE1] text-[#736B5E] border border-[#DDD4C5]";
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${tone}`}>
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold tracking-wide ${tone}`}>
       {revenueApprovalStatusLabel(status)}
     </span>
   );

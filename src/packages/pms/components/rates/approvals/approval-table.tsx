@@ -84,61 +84,61 @@ export function ApprovalTable({
                 className="cursor-pointer hover:bg-[#FAF8F4]/70 transition-colors"
                 onClick={() => onReview(row)}
               >
-                <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                <td className="whitespace-nowrap px-4 py-3.5 text-sm text-muted-foreground">
                   {formatWhen(history ? (row.reviewedAt ?? row.requestedAt) : row.requestedAt)}
                 </td>
-                <td className="px-4 py-3 text-xs font-medium text-[#251605]">
+                <td className="px-4 py-3.5 text-sm font-semibold text-[#251605]">
                   {revenueApprovalDomainLabel(row.domain)}
                 </td>
-                <td className="max-w-64 px-4 py-3 text-xs text-[#251605]">{row.summary}</td>
+                <td className="max-w-64 px-4 py-3.5 text-sm font-medium text-[#251605]">{row.summary}</td>
                 {history ? (
                   <>
-                    <td className="px-4 py-3 text-xs text-[#251605]">
+                    <td className="px-4 py-3.5 text-sm text-[#251605]">
                       {revenueApprovalRequesterLabel(row.requestedByLabel)}
                     </td>
-                    <td className="px-4 py-3 text-xs text-[#251605]">
+                    <td className="px-4 py-3.5 text-sm text-[#251605]">
                       {row.reviewedByLabel
                         ? revenueApprovalRequesterLabel(row.reviewedByLabel)
                         : "—"}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5">
                       <ApprovalStatusChip status={row.status} />
                     </td>
-                    <td className="max-w-44 truncate px-4 py-3 text-xs text-muted-foreground">
+                    <td className="max-w-44 truncate px-4 py-3.5 text-sm text-muted-foreground">
                       {revenueApprovalReasonLabel(row.reviewReason ?? row.requestReason)}
                     </td>
                   </>
                 ) : mine ? (
                   <>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5">
                       <ApprovalStatusChip status={row.status} />
                     </td>
-                    <td className="px-4 py-3 text-xs text-[#251605]">
+                    <td className="px-4 py-3.5 text-sm text-[#251605]">
                       {row.reviewedByLabel
                         ? revenueApprovalRequesterLabel(row.reviewedByLabel)
                         : "—"}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                    <td className="whitespace-nowrap px-4 py-3.5 text-sm text-muted-foreground">
                       {formatWhen(row.reviewedAt ?? row.requestedAt)}
                     </td>
                   </>
                 ) : (
                   <>
-                    <td className="max-w-48 px-4 py-3 text-xs text-muted-foreground">
+                    <td className="max-w-48 px-4 py-3.5 text-sm text-muted-foreground">
                       {revenueApprovalScopeLabel(row.displaySnapshot)}
                     </td>
-                    <td className="px-4 py-3 text-xs text-[#251605]">
+                    <td className="px-4 py-3.5 text-sm text-[#251605]">
                       {revenueApprovalRequesterLabel(row.requestedByLabel)}
                     </td>
-                    <td className="max-w-44 truncate px-4 py-3 text-xs text-muted-foreground">
+                    <td className="max-w-44 truncate px-4 py-3.5 text-sm text-muted-foreground">
                       {revenueApprovalReasonLabel(row.requestReason)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5">
                       <ApprovalStatusChip status={row.status} />
                     </td>
                   </>
                 )}
-                <td className="px-4 py-3 text-right" onClick={(event) => event.stopPropagation()}>
+                <td className="px-4 py-3.5 text-right" onClick={(event) => event.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
@@ -176,16 +176,16 @@ export function ApprovalTable({
             className="w-full rounded-xl border border-[#E8E1D7] bg-card p-4 text-left transition-colors hover:bg-[#FAF8F4]/70 space-y-2"
           >
             <div className="flex items-start justify-between gap-3">
-              <p className="text-sm font-semibold text-[#251605]">{row.summary}</p>
+              <p className="text-base font-semibold text-[#251605]">{row.summary}</p>
               <ApprovalStatusChip status={row.status} />
             </div>
-            <p className="text-xs font-medium text-[#251605]">
+            <p className="text-sm font-semibold text-[#251605]">
               {revenueApprovalDomainLabel(row.domain)}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {formatWhen(row.requestedAt)} · {revenueApprovalRequesterLabel(row.requestedByLabel)}
             </p>
-            <p className="text-xs text-[#251605]">
+            <p className="text-sm text-[#251605]">
               {revenueApprovalScopeLabel(row.displaySnapshot)}
             </p>
           </button>

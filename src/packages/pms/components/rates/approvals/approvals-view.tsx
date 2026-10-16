@@ -266,8 +266,8 @@ export function ApprovalsView({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="font-display text-xl font-semibold text-[#251605]">Approvals</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <h2 className="font-display text-2xl font-semibold text-[#251605]">Approvals</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           Review submitted Rate & Revenue changes before they are applied.
         </p>
       </div>
@@ -293,29 +293,29 @@ export function ApprovalsView({
       {tab === "history" ? (
         <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#E8E1D7] bg-card p-4 shadow-2xs">
           <label className="min-w-36 flex-1 sm:flex-none">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               From
             </span>
             <input
               type="date"
               value={fromDate}
               onChange={(event) => setFromDate(event.target.value)}
-              className="mt-1.5 flex h-9 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             />
           </label>
           <label className="min-w-36 flex-1 sm:flex-none">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               To
             </span>
             <input
               type="date"
               value={toDate}
               onChange={(event) => setToDate(event.target.value)}
-              className="mt-1.5 flex h-9 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             />
           </label>
           <label className="min-w-36 flex-1 sm:flex-none">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               Status
             </span>
             <select
@@ -323,7 +323,7 @@ export function ApprovalsView({
               onChange={(event) =>
                 setHistoryStatus(event.target.value as RevenueApprovalStatus | "")
               }
-              className="mt-1.5 flex h-9 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             >
               <option value="">All terminal</option>
               {REVENUE_APPROVAL_TERMINAL_STATUSES.map((status) => (
@@ -334,7 +334,7 @@ export function ApprovalsView({
             </select>
           </label>
           <label className="min-w-36 flex-1 sm:flex-none">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               Domain
             </span>
             <select
@@ -342,7 +342,7 @@ export function ApprovalsView({
               onChange={(event) =>
                 setHistoryDomain(event.target.value as RevenueApprovalDomain | "")
               }
-              className="mt-1.5 flex h-9 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             >
               <option value="">All domains</option>
               {REVENUE_APPROVAL_DOMAINS.map((domain) => (
@@ -353,13 +353,13 @@ export function ApprovalsView({
             </select>
           </label>
           <label className="min-w-40 flex-1 sm:flex-none">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               Requested By
             </span>
             <select
               value={requestedBy}
               onChange={(event) => setRequestedBy(event.target.value)}
-              className="mt-1.5 flex h-9 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             >
               <option value="">Anyone</option>
               {actors.map((actor) => (
@@ -370,13 +370,13 @@ export function ApprovalsView({
             </select>
           </label>
           <label className="min-w-40 flex-1 sm:flex-none">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               Reviewed By
             </span>
             <select
               value={reviewedBy}
               onChange={(event) => setReviewedBy(event.target.value)}
-              className="mt-1.5 flex h-9 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             >
               <option value="">Anyone</option>
               {actors.map((actor) => (
@@ -416,7 +416,7 @@ export function ApprovalsView({
               }}
             />
             <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E8E1D7] bg-card px-4 py-3 shadow-2xs">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Showing {range.start}–{range.end} of {range.total}
               </p>
               <div className="flex items-center gap-1.5">
@@ -424,31 +424,31 @@ export function ApprovalsView({
                   type="button"
                   disabled={page <= 1}
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  className="inline-flex h-8 items-center rounded-lg border border-[#DED7CD] bg-white px-3 text-xs font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors disabled:opacity-50"
+                  className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3 text-sm font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors disabled:opacity-50"
                 >
-                  <ChevronLeft className="mr-1 size-3.5" />
+                  <ChevronLeft className="mr-1 size-4" />
                   Previous
                 </button>
-                <span className="grid size-8 place-items-center rounded-lg bg-[#C89933] text-xs font-semibold text-[#251605]">
+                <span className="grid size-9 place-items-center rounded-lg bg-[#C89933] text-sm font-semibold text-[#251605]">
                   {page}
                 </span>
-                <span className="px-1 text-xs text-muted-foreground">
+                <span className="px-1 text-sm text-muted-foreground">
                   of {range.pageCount}
                 </span>
                 <button
                   type="button"
                   disabled={page >= range.pageCount}
                   onClick={() => setPage((current) => current + 1)}
-                  className="inline-flex h-8 items-center rounded-lg border border-[#DED7CD] bg-white px-3 text-xs font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors disabled:opacity-50"
+                  className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3 text-sm font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors disabled:opacity-50"
                 >
                   Next
-                  <ChevronRight className="ml-1 size-3.5" />
+                  <ChevronRight className="ml-1 size-4" />
                 </button>
                 {/* page sizes: 10, 25, 50 */}
                 <select
                   value={pageSize}
                   onChange={(event) => setPageSize(Number(event.target.value))}
-                  className="ml-2 h-8 rounded-lg border border-[#DED7CD] bg-white px-2.5 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+                  className="ml-2 h-9 rounded-lg border border-[#DED7CD] bg-white px-2.5 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
                   aria-label="Rows per page"
                 >
                   {REVENUE_APPROVAL_PAGE_SIZES.map((size) => (
