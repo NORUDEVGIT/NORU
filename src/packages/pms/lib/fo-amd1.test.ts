@@ -140,10 +140,11 @@ describe("FO-AMD1 catalogue-first Add Service", () => {
     const addService = fns.slice(fns.indexOf("export const addStayService"));
     assert.match(addService, /servicePostsToFolio/);
     assert.match(addService, /open_folio_for_reservation/);
-    assert.match(addService, /post_folio_transaction/);
-    assert.match(addService, /_type: "charge"/);
-    assert.match(addService, /_category: "manual"/);
-    assert.ok(addService.indexOf("servicePostsToFolio") < addService.indexOf("post_folio_transaction"));
+    assert.match(addService, /callPostFolioTransaction/);
+    assert.match(addService, /type: "charge"/);
+    assert.match(addService, /requireCashierManager/);
+    assert.match(addService, /category: "manual"/);
+    assert.ok(addService.indexOf("servicePostsToFolio") < addService.indexOf("callPostFolioTransaction"));
     assert.doesNotMatch(addService, /_type: "refund"/);
     assert.doesNotMatch(addService, /yield|reprice/i);
   });

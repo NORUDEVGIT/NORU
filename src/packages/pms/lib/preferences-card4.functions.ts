@@ -7,6 +7,7 @@ import { requireRoomManager } from "./rooms.server";
 import {
   DEFAULT_PREFERENCE_CATEGORIES,
   DEFAULT_PREFERENCE_TYPES,
+  enrichPreferenceTypesWithOptions,
   isPreferenceValueType,
   normalizePreferenceCode,
   normalizePreferenceName,
@@ -167,12 +168,50 @@ async function seedDefaults(db: DbClient, restaurantId: string, userId: string) 
   }
   const categories = (categoryResult.data ?? []) as Array<{ id: string; code: string }>;
   const byCode = new Map(categories.map((row) => [row.code, row.id]));
+
+  const [roomTypesRes, mealPlansRes] = await Promise.all([
+    db
+      .from("room_types")
+      .select("id, name, code, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
+    db
+      .from("pms_meal_plans")
+      .select("id, name, code, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
+    db
+      .from("hotel_rate_plans")
+      .select("id, name, code, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
+  ]);
+
   const orderByCategory = new Map<string, number>();
   const typePayload = DEFAULT_PREFERENCE_TYPES.flatMap((row) => {
     const categoryId = byCode.get(row.categoryCode);
     if (!categoryId) return [];
     const displayOrder = (orderByCategory.get(row.categoryCode) ?? 0) + 1;
     orderByCategory.set(row.categoryCode, displayOrder);
+
+    let optionsToSeed = row.options;
+    if (row.code === "ROOM_TYPE" && (roomTypesRes.data ?? []).length > 0) {
+      optionsToSeed = (roomTypesRes.data as Array<{ id: string; name: string }>).map((rt) => ({
+        label: rt.name,
+        value: rt.id,
+      }));
+    } else if (row.code === "RATE_PLAN" && (ratePlansRes.data ?? []).length > 0) {
+      optionsToSeed = (ratePlansRes.data as Array<{ id: string; name: string }>).map((rp) => ({
+        label: rp.name,
+        value: rp.id,
+      }));
+    } else if (row.code === "MEAL_PLAN" && (mealPlansRes.data ?? []).length > 0) {
+      optionsToSeed = (mealPlansRes.data as Array<{ id: string; name: string }>).map((mp) => ({
+        label: mp.name,
+        value: mp.id,
+      }));
+    }
+
     return [
       {
         restaurant_id: restaurantId,
@@ -180,7 +219,7 @@ async function seedDefaults(db: DbClient, restaurantId: string, userId: string) 
         name: row.name,
         code: row.code,
         value_type: row.valueType,
-        options: seedOptionRows(row.options),
+        options: seedOptionRows(optionsToSeed),
         required: row.required,
         active: true,
         display_order: displayOrder,
@@ -215,7 +254,14 @@ async function loadSnapshot(
     return loadSnapshot(db, restaurantId, userId, true, seedMissing);
   }
 
-  const typesRes = await db
+  // Remove deprecated QUIET and CONNECT if present in database
+  await db
+    .from("pms_guest_preference_types")
+    .delete()
+    .eq("restaurant_id", restaurantId)
+    .in("code", ["QUIET", "CONNECT"]);
+
+  let typesRes = await db
     .from("pms_guest_preference_types")
     .select(
       "id, category_id, name, code, value_type, options, required, active, display_order, created_at, updated_at",
@@ -225,8 +271,103 @@ async function loadSnapshot(
     .order("name");
   if (typesRes.error) unavailable(typesRes.error);
 
+  // Auto-provision ROOM_TYPE, RATE_PLAN, and MEAL_PLAN if missing for existing properties
+  const existingCodes = new Set((typesRes.data ?? []).map((row: any) => String(row.code)));
+  const missingDefs = DEFAULT_PREFERENCE_TYPES.filter(
+    (def) => (def.code === "ROOM_TYPE" || def.code === "RATE_PLAN" || def.code === "MEAL_PLAN") && !existingCodes.has(def.code),
+  );
+  if (missingDefs.length > 0) {
+    const catByCode = new Map(((categoriesRes.data ?? []) as any[]).map((c) => [c.code, c.id]));
+    const [rtRes, mpRes, rpRes] = await Promise.all([
+      db
+        .from("room_types")
+        .select("id, name, code, active")
+        .eq("restaurant_id", restaurantId)
+        .order("name"),
+      db
+        .from("pms_meal_plans")
+        .select("id, name, code, active")
+        .eq("restaurant_id", restaurantId)
+        .order("name"),
+      db
+        .from("hotel_rate_plans")
+        .select("id, name, code, active")
+        .eq("restaurant_id", restaurantId)
+        .order("name"),
+    ]);
+    const insertPayload: any[] = [];
+    for (const def of missingDefs) {
+      const catId = catByCode.get(def.categoryCode);
+      if (!catId) continue;
+      let opts = def.options;
+      if (def.code === "ROOM_TYPE" && (rtRes.data ?? []).length > 0) {
+        opts = (rtRes.data as Array<{ id: string; name: string }>).map((rt) => ({
+          label: rt.name,
+          value: rt.id,
+        }));
+      } else if (def.code === "RATE_PLAN" && (rpRes.data ?? []).length > 0) {
+        opts = (rpRes.data as Array<{ id: string; name: string }>).map((rp) => ({
+          label: rp.name,
+          value: rp.id,
+        }));
+      } else if (def.code === "MEAL_PLAN" && (mpRes.data ?? []).length > 0) {
+        opts = (mpRes.data as Array<{ id: string; name: string }>).map((mp) => ({
+          label: mp.name,
+          value: mp.id,
+        }));
+      }
+      insertPayload.push({
+        restaurant_id: restaurantId,
+        category_id: catId,
+        name: def.name,
+        code: def.code,
+        value_type: def.valueType,
+        options: seedOptionRows(opts),
+        required: def.required,
+        active: true,
+        display_order: def.code === "ROOM_TYPE" ? 1 : def.code === "RATE_PLAN" ? 2 : 3,
+        updated_by: userId,
+      });
+    }
+    if (insertPayload.length > 0) {
+      await db.from("pms_guest_preference_types").insert(insertPayload);
+      typesRes = await db
+        .from("pms_guest_preference_types")
+        .select(
+          "id, category_id, name, code, value_type, options, required, active, display_order, created_at, updated_at",
+        )
+        .eq("restaurant_id", restaurantId)
+        .order("display_order")
+        .order("name");
+    }
+  }
+
+  const [propRoomTypes, propMealPlans, propRatePlans] = await Promise.all([
+    db
+      .from("room_types")
+      .select("id, name, code, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
+    db
+      .from("pms_meal_plans")
+      .select("id, name, code, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
+    db
+      .from("hotel_rate_plans")
+      .select("id, name, code, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
+  ]);
+
   const categories = (categoriesRes.data ?? []).map(mapCategory);
-  const types = (typesRes.data ?? []).map(mapType);
+  const rawTypes = (typesRes.data ?? []).map(mapType);
+  const types = enrichPreferenceTypesWithOptions(
+    rawTypes,
+    propRoomTypes.data as any,
+    propMealPlans.data as any,
+    propRatePlans.data as any,
+  );
   const timestamps = [
     ...categories.map((row) => row.updatedAt),
     ...types.map((row) => row.updatedAt),
@@ -447,6 +588,32 @@ export const reorderPmsCard4PreferenceTypes = createServerFn({ method: "POST" })
     for (const [index, id] of data.ids.entries()) {
       const result = await db
         .from("pms_guest_preference_types")
+        .update({ display_order: index + 1, updated_by: context.userId })
+        .eq("id", id)
+        .eq("restaurant_id", data.restaurantId);
+      if (result.error) unavailable(result.error);
+    }
+    return { ok: true as const };
+  });
+
+export const reorderPmsCard4PreferenceCategories = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({ restaurantId: idSchema, ids: z.array(idSchema).min(1).max(40) })
+      .strict()
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    if (new Set(data.ids).size !== data.ids.length) {
+      throw new Error("Category order must be unique.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as DbClient;
+    for (const [index, id] of data.ids.entries()) {
+      const result = await db
+        .from("pms_guest_preference_categories")
         .update({ display_order: index + 1, updated_by: context.userId })
         .eq("id", id)
         .eq("restaurant_id", data.restaurantId);

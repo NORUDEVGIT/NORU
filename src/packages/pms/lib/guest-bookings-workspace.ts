@@ -18,6 +18,7 @@ export const GUEST_BOOKINGS_EMPTY = "No bookings yet";
 export const GUEST_BOOKINGS_SELECT_EMPTY = "Select a reservation to view details.";
 export const GUEST_BOOKINGS_ACTIVE_EMPTY = "No current or upcoming reservation";
 export const GUEST_NEW_RESERVATION_PATH = "/restaurant/bookings/new";
+export const MODERN_GUEST_NEW_RESERVATION_PATH = "/restaurant/pms/reservations";
 export const GUEST_SERVICES_HREF = "/restaurant/pms/guest-services";
 export const GUEST_BOOKINGS_PAGE_SIZE = 25;
 
@@ -218,6 +219,10 @@ export function guestBookingsCsv(stays: GuestStay[]): string {
 
 export function newReservationHref(guestId: string): string {
   return `${GUEST_NEW_RESERVATION_PATH}?guestId=${encodeURIComponent(guestId)}`;
+}
+
+export function modernNewReservationHref(guestId: string): string {
+  return `${MODERN_GUEST_NEW_RESERVATION_PATH}?create=new&guestId=${encodeURIComponent(guestId)}`;
 }
 
 export function uniqueBookingIds(stays: GuestStay[]): string[] {

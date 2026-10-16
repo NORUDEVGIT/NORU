@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { foSearchFromUnknown } from "@/packages/pms/lib/front-office-shell";
 
 /**
  * Legacy URL kept for backward compatibility.
@@ -8,7 +9,11 @@ export const Route = createFileRoute("/restaurant/rooms/arrivals")({
   ssr: false,
   validateSearch: (search: Record<string, unknown>) => search as { tab?: string },
   beforeLoad: ({ search }) => {
-    throw redirect({ to: "/restaurant/pms/front-office", search, replace: true });
+    throw redirect({
+      to: "/restaurant/pms/front-office",
+      search: foSearchFromUnknown(search),
+      replace: true,
+    });
   },
   head: () => ({
     meta: [

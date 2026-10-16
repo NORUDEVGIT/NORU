@@ -10,6 +10,11 @@ import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
 import type { GuestAccountEventType } from "./guest-profile-wave4";
 import { GUEST_PRIVACY_ROLES } from "./guest-profile-wave5";
+import {
+  canTransitionGuestService,
+  isGuestServiceStatus,
+  type GuestServiceStatus,
+} from "./guest-services-workspace";
 
 export const GUEST_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;
 
@@ -165,6 +170,81 @@ export async function recordGuestEvent(entry: {
     notes: entry.notes ?? null,
     actor_membership_id: entry.actorMembershipId,
   });
+}
+
+/** Canonical guest_service_history status/assign/notes write. Callers must already authorize. */
+export async function applyGuestServiceRequestUpdate(params: {
+  admin: { from: (table: string) => any };
+  restaurantId: string;
+  guestId: string;
+  requestId: string;
+  actorMembershipId: string;
+  status?: GuestServiceStatus;
+  assignedMembershipId?: string | null;
+  notes?: string;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const existing = await params.admin
+    .from("guest_service_history")
+    .select("id, status, assigned_membership_id, notes")
+    .eq("restaurant_id", params.restaurantId)
+    .eq("guest_id", params.guestId)
+    .eq("id", params.requestId)
+    .maybeSingle();
+  if (!existing.data) return { ok: false, message: "That service request could not be found." };
+  const current = existing.data as {
+    status: string;
+    assigned_membership_id: string | null;
+    notes: string | null;
+  };
+  const currentStatus = isGuestServiceStatus(current.status)
+    ? (current.status as GuestServiceStatus)
+    : "requested";
+  const patch: Record<string, unknown> = {};
+  if (params.status && params.status !== currentStatus) {
+    if (!canTransitionGuestService(currentStatus, params.status)) {
+      return { ok: false, message: "That status change is not allowed." };
+    }
+    patch.status = params.status;
+    if (params.status === "completed") patch.completed_at = new Date().toISOString();
+    if (params.status === "cancelled") patch.cancelled_at = new Date().toISOString();
+  }
+  if (params.assignedMembershipId !== undefined) {
+    if (params.assignedMembershipId) {
+      const assigned = await params.admin
+        .from("restaurant_users")
+        .select("id")
+        .eq("restaurant_id", params.restaurantId)
+        .eq("id", params.assignedMembershipId)
+        .maybeSingle();
+      if (!assigned.data) return { ok: false, message: "That staff member is not on this property." };
+    }
+    patch.assigned_membership_id = params.assignedMembershipId;
+  }
+  if (params.notes !== undefined) patch.notes = params.notes;
+  if (Object.keys(patch).length === 0) return { ok: true };
+  const updated = await params.admin
+    .from("guest_service_history")
+    .update(patch)
+    .eq("restaurant_id", params.restaurantId)
+    .eq("guest_id", params.guestId)
+    .eq("id", params.requestId);
+  if (updated.error) return { ok: false, message: updated.error.message };
+  try {
+    await recordGuestEvent({
+      restaurantId: params.restaurantId,
+      guestId: params.guestId,
+      eventType: "service_request_updated",
+      previousValues: {
+        status: current.status,
+        assigned_membership_id: current.assigned_membership_id,
+      },
+      newValues: patch,
+      actorMembershipId: params.actorMembershipId,
+    });
+  } catch {
+    /* History event types land with 0089; the request row is the source of truth. */
+  }
+  return { ok: true };
 }
 
 /** Shallow diff of two records, restricted to the given keys. */

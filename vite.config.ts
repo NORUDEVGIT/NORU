@@ -6,6 +6,13 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+// Vercel sets VERCEL=1. A dashboard NITRO_PRESET/SERVER_PRESET (e.g. cloudflare from Lovable)
+// would ignore nitro.preset below and emit the wrong output, so Production fails after vite.
+if (process.env.VERCEL) {
+  delete process.env.NITRO_PRESET;
+  delete process.env.SERVER_PRESET;
+}
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).

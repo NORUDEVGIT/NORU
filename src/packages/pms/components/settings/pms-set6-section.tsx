@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
@@ -54,6 +54,7 @@ import {
   savePmsReportsScheduleAccessPosture,
   savePmsSet6Catalogue,
 } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
+import { listPurposeOfStay, savePurposeOfStay } from "@/packages/pms/lib/purpose-of-stay.functions";
 
 function refreshSet6(queryClient: ReturnType<typeof useQueryClient>, restaurantId: string) {
   void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
@@ -274,6 +275,93 @@ function SalesCatalogueBlock({
   );
 }
 
+function PurposeOfStayCatalogueBlock({
+  restaurantId,
+  canEdit,
+}: {
+  restaurantId: string;
+  canEdit: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const load = useServerFn(listPurposeOfStay);
+  const save = useServerFn(savePurposeOfStay);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<PmsSet6CatalogueItem | null>(null);
+  const query = useQuery({
+    queryKey: ["pms-purpose-of-stay", restaurantId, "set6"],
+    queryFn: () => load({ data: { restaurantId } }),
+    retry: false,
+  });
+  const rows: PmsSet6CatalogueItem[] = (query.data?.items ?? []).map((row) => ({
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    description: row.description,
+    active: row.active,
+  }));
+  const mutation = useMutation({
+    mutationFn: (input: { id?: string; code: string; name: string; description: string; active: boolean }) =>
+      save({ data: { restaurantId, ...input } }),
+    onSuccess: () => {
+      toast.success("Purpose of stay saved.");
+      setOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ["pms-purpose-of-stay", restaurantId] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  return (
+    <div className="space-y-3" data-testid="set6-purpose-of-stay">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-medium text-[#251605]">Purpose of stay</h3>
+        {canEdit && query.data?.available !== false ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setEditing(null);
+              setOpen(true);
+            }}
+          >
+            Add
+          </Button>
+        ) : null}
+      </div>
+      {query.data?.available === false ? (
+        <p className="text-sm text-muted-foreground">Purpose of stay is unavailable until its migration is applied.</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-[#C89933]">Add at least one purpose of stay. Travel purpose uses this same list.</p>
+      ) : (
+        <CatalogueList
+          rows={rows}
+          canEdit={canEdit}
+          onEdit={(row) => {
+            setEditing(row);
+            setOpen(true);
+          }}
+          onToggle={(row) =>
+            mutation.mutate({
+              id: row.id,
+              code: row.code,
+              name: row.name,
+              description: row.description,
+              active: !row.active,
+            })
+          }
+        />
+      )}
+      <CatalogueDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={editing ? "Edit purpose of stay" : "Add purpose of stay"}
+        row={editing}
+        saving={mutation.isPending}
+        onSubmit={(values) => mutation.mutate(values)}
+      />
+    </div>
+  );
+}
+
 export function Set6SalesEventsSection({
   restaurantId,
   snapshot,
@@ -353,6 +441,7 @@ export function Set6SalesEventsSection({
             canEdit={canEdit}
             restaurantId={restaurantId}
           />
+          <PurposeOfStayCatalogueBlock restaurantId={restaurantId} canEdit={canEdit} />
         </div>
       )}
 

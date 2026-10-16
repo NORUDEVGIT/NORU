@@ -20,6 +20,14 @@ import {
   type GuestFieldType,
   type NamedOption,
 } from "./required-fields-card4.server";
+import {
+  INDIVIDUAL_GUEST_CREATION_FIELDS,
+  COMPANY_CREATION_FIELDS,
+  ALL_COMPANY_CREATION_FIELDS,
+  ALL_TRAVEL_AGENCY_CREATION_FIELDS,
+  isCompanyFieldCode,
+  isTravelAgencyFieldCode,
+} from "./guest-creation-field-definitions";
 
 // Generated schema predates 0078.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -191,6 +199,70 @@ async function loadSnapshot(
     return loadSnapshot(db, restaurantId, userId, true, seedMissing);
   }
 
+  const existingCodes = new Set(
+    (fieldsRes.data ?? []).map((row: { code: string }) => row.code.toUpperCase()),
+  );
+  const existingNames = new Set(
+    (fieldsRes.data ?? []).map((row: { name: string }) => row.name.trim().toLowerCase()),
+  );
+  const combinedDefs = [
+    ...INDIVIDUAL_GUEST_CREATION_FIELDS.filter((def) => def.code !== "ADDRESS"),
+    ...ALL_COMPANY_CREATION_FIELDS,
+    ...ALL_TRAVEL_AGENCY_CREATION_FIELDS,
+  ];
+  const missingDefs = combinedDefs.filter(
+    (def, index, self) =>
+      !existingCodes.has(def.code.toUpperCase()) &&
+      self.findIndex((d) => d.code.toUpperCase() === def.code.toUpperCase()) === index,
+  );
+  if (missingDefs.length > 0) {
+    const nextOrder = (fieldsRes.data ?? []).length;
+    for (let index = 0; index < missingDefs.length; index++) {
+      const def = missingDefs[index];
+      let fieldName = def.name;
+      if (existingNames.has(fieldName.trim().toLowerCase())) {
+        fieldName = def.code.startsWith("COMPANY_")
+          ? `Company ${def.name}`
+          : def.code.startsWith("TA_") || def.code.startsWith("TRAVEL_AGENCY_")
+            ? `Travel Agency ${def.name}`
+            : `${def.name} (${def.code})`;
+      }
+      existingNames.add(fieldName.trim().toLowerCase());
+      const isCompanyField = def.code.startsWith("COMPANY_");
+      const isTaField = def.code.startsWith("TA_") || def.code.startsWith("TRAVEL_AGENCY_");
+      const rowPayload = {
+        restaurant_id: restaurantId,
+        name: fieldName,
+        code: def.code,
+        field_type: def.fieldType,
+        description: def.description,
+        options: [],
+        required: Boolean(def.systemRequired),
+        check_in: false,
+        reservation: false,
+        active: isCompanyField || isTaField ? true : (def.essential ? true : false),
+        display_order: nextOrder + index,
+        lookup_source: def.code === "COMPANY" ? "company" : null,
+        document_type_ids: [],
+        min_value: null,
+        max_value: null,
+        updated_by: userId || null,
+      };
+      await db.from("pms_guest_fields").insert(rowPayload).catch(() => undefined);
+    }
+    const refreshed = await db
+      .from("pms_guest_fields")
+      .select(
+        "id, name, code, field_type, description, options, required, check_in, reservation, active, display_order, lookup_source, document_type_ids, min_value, max_value, created_at, updated_at",
+      )
+      .eq("restaurant_id", restaurantId)
+      .order("display_order")
+      .order("name");
+    if (!refreshed.error && refreshed.data) {
+      fieldsRes.data = refreshed.data;
+    }
+  }
+
   const docsRes = await db
     .from("pms_guest_id_types")
     .select("id, name")
@@ -284,6 +356,22 @@ export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
 
     let id = data.id;
     if (data.id) {
+      const currentField = snapshot.fields.find((row) => row.id === data.id);
+      if (currentField?.code === "FIRST_NAME") {
+        throw new Error("First Name is a system-required field and cannot be customized.");
+      }
+      if (currentField && (currentField.code !== code || currentField.fieldType !== data.fieldType)) {
+        const hasValues = await supabaseAdmin
+          .from("guest_custom_field_values")
+          .select("id")
+          .eq("field_id", data.id)
+          .eq("restaurant_id", data.restaurantId)
+          .limit(1);
+        if (hasValues.data && hasValues.data.length > 0) {
+          throw new Error("Field code and type cannot be changed after operational guest data has been recorded.");
+        }
+      }
+
       const result = await db
         .from("pms_guest_fields")
         .update(payload)
@@ -303,6 +391,34 @@ export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
       id = result.data?.id;
     }
     if (!id) throw new Error("Could not save the field.");
+    if (data.required !== undefined && id) {
+      const isCompanyField = code.toUpperCase().startsWith("COMPANY_");
+      const isTaField = code.toUpperCase().startsWith("TA_") || code.toUpperCase().startsWith("TRAVEL_AGENCY_");
+      const targetCodes = isTaField
+        ? ["TRA", "TRAVEL_AGENCY", "TRAVEL_AGENT"]
+        : isCompanyField
+          ? ["COM", "COMPANY"]
+          : ["IND", "INDIVIDUAL"];
+      const targetTypes = await db
+        .from("pms_guest_profile_types")
+        .select("id, required_field_ids")
+        .eq("restaurant_id", data.restaurantId)
+        .in("code", targetCodes);
+      if (targetTypes.data && targetTypes.data.length > 0) {
+        for (const targetType of targetTypes.data) {
+          const currentIds: string[] = Array.isArray(targetType.required_field_ids)
+            ? targetType.required_field_ids
+            : [];
+          const nextIds = data.required
+            ? [...new Set([...currentIds, id])]
+            : currentIds.filter((fid) => fid !== id);
+          await db
+            .from("pms_guest_profile_types")
+            .update({ required_field_ids: nextIds, updated_by: context.userId })
+            .eq("id", targetType.id);
+        }
+      }
+    }
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_guest_field_saved", {
       id,
       code,
@@ -321,50 +437,296 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
     z
       .object({
         restaurantId: idSchema,
-        id: idSchema,
+        id: idSchema.optional(),
+        code: z.string().optional(),
+        profileTypeId: idSchema.optional(),
         required: z.boolean().optional(),
         checkIn: z.boolean().optional(),
         reservation: z.boolean().optional(),
         active: z.boolean().optional(),
+        fieldName: z.string().optional(),
       })
-      .strict()
+      .passthrough()
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
-    const current = await db
-      .from("pms_guest_fields")
-      .select("id, required, check_in, reservation, active")
-      .eq("id", data.id)
-      .eq("restaurant_id", data.restaurantId)
-      .maybeSingle();
-    if (current.error) unavailable(current.error);
-    if (!current.data) throw new Error("That field no longer exists.");
-    const active = data.active ?? current.data.active;
-    const required = flagsForActiveChange(active, data.required ?? current.data.required).required;
+
+    let fieldRow: {
+      id: string;
+      code: string;
+      required: boolean;
+      check_in: boolean;
+      reservation: boolean;
+      active: boolean;
+    } | null = null;
+
+    if (data.id) {
+      const current = await db
+        .from("pms_guest_fields")
+        .select("id, code, required, check_in, reservation, active")
+        .eq("id", data.id)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (current.error) unavailable(current.error);
+      if (current.data) fieldRow = current.data;
+    }
+
+    if (!fieldRow && data.code) {
+      const codeUpper = data.code.toUpperCase();
+      const stripped = codeUpper.startsWith("COMPANY_")
+        ? codeUpper.replace(/^COMPANY_/, "")
+        : codeUpper;
+      const prefixed = `COMPANY_${stripped}`;
+      const current = await db
+        .from("pms_guest_fields")
+        .select("id, code, required, check_in, reservation, active")
+        .eq("restaurant_id", data.restaurantId)
+        .in("code", [codeUpper, stripped, prefixed])
+        .limit(1);
+      if (current.error) unavailable(current.error);
+      if (current.data && current.data.length > 0) fieldRow = current.data[0];
+    }
+
+    if (!fieldRow && data.code) {
+      const codeUpper = data.code.toUpperCase();
+      const combinedDefs = [
+        ...INDIVIDUAL_GUEST_CREATION_FIELDS.filter((def) => def.code !== "ADDRESS"),
+        ...ALL_COMPANY_CREATION_FIELDS,
+        ...ALL_TRAVEL_AGENCY_CREATION_FIELDS,
+      ];
+      const foundDef = combinedDefs.find(
+        (d) =>
+          d.code.toUpperCase() === codeUpper ||
+          d.code.toUpperCase().replace(/^COMPANY_/, "") === codeUpper.replace(/^COMPANY_/, "") ||
+          d.code.toUpperCase().replace(/^TA_/, "") === codeUpper.replace(/^TA_/, ""),
+      );
+      if (foundDef) {
+        let nameToUse = foundDef.name;
+        const existingWithName = await db
+          .from("pms_guest_fields")
+          .select("id")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("name", nameToUse)
+          .maybeSingle();
+        if (existingWithName.data) {
+          nameToUse = foundDef.code.startsWith("COMPANY_")
+            ? `Company ${foundDef.name}`
+            : foundDef.code.startsWith("TA_") || foundDef.code.startsWith("TRAVEL_AGENCY_")
+              ? `Travel Agency ${foundDef.name}`
+              : `${foundDef.name} (${foundDef.code})`;
+        }
+
+        const rowPayload = {
+          restaurant_id: data.restaurantId,
+          name: nameToUse,
+          code: foundDef.code,
+          field_type: foundDef.fieldType,
+          description: foundDef.description,
+          options: [],
+          required: Boolean(data.required ?? foundDef.systemRequired),
+          check_in: false,
+          reservation: false,
+          active: true,
+          display_order: 999,
+          lookup_source: foundDef.code === "COMPANY" ? "company" : null,
+          document_type_ids: [],
+          min_value: null,
+          max_value: null,
+          updated_by: context.userId,
+        };
+        const ins = await db
+          .from("pms_guest_fields")
+          .insert(rowPayload)
+          .select("id, code, required, check_in, reservation, active")
+          .maybeSingle();
+        if (ins.data) {
+          fieldRow = ins.data;
+        } else {
+          const fetchAgain = await db
+            .from("pms_guest_fields")
+            .select("id, code, required, check_in, reservation, active")
+            .eq("restaurant_id", data.restaurantId)
+            .eq("code", foundDef.code)
+            .maybeSingle();
+          if (fetchAgain.data) fieldRow = fetchAgain.data;
+        }
+      }
+    }
+
+    if (!fieldRow) throw new Error("That field no longer exists.");
+
+    if (fieldRow.code === "FIRST_NAME") {
+      if (data.required === false) {
+        throw new Error("First Name is system-required and cannot be made optional.");
+      }
+      if (data.active === false) {
+        throw new Error("First Name is system-required and cannot be deactivated.");
+      }
+    }
+    if (fieldRow.code === "COMPANY_NAME" || fieldRow.code === "COMPANY_TYPE") {
+      const fieldTitle = fieldRow.code === "COMPANY_NAME" ? "Company Name" : "Company Type";
+      if (data.required === false) {
+        throw new Error(`${fieldTitle} is system-required and cannot be made optional.`);
+      }
+      if (data.active === false) {
+        throw new Error(`${fieldTitle} is system-required and cannot be deactivated.`);
+      }
+    }
+    if (
+      fieldRow.code === "TA_NAME" ||
+      fieldRow.code === "AGENCY_NAME" ||
+      fieldRow.code === "TA_AGENCY_TYPE" ||
+      fieldRow.code === "AGENCY_TYPE"
+    ) {
+      const fieldTitle = fieldRow.code.includes("TYPE") ? "Agency Type" : "Agency Name";
+      if (data.required === false) {
+        throw new Error(`${fieldTitle} is system-required and cannot be made optional.`);
+      }
+      if (data.active === false) {
+        throw new Error(`${fieldTitle} is system-required and cannot be deactivated.`);
+      }
+    }
+    let active = data.active ?? fieldRow.active;
+    if (data.required === true && !active) {
+      active = true;
+    }
+    const required = flagsForActiveChange(active, data.required ?? fieldRow.required).required;
     if (!active && required) throw new Error("An inactive field cannot be required.");
     const patch = {
       required,
-      check_in: data.checkIn ?? current.data.check_in,
-      reservation: data.reservation ?? current.data.reservation,
+      check_in: data.checkIn ?? fieldRow.check_in,
+      reservation: data.reservation ?? fieldRow.reservation,
       active,
       updated_by: context.userId,
     };
     const result = await db
       .from("pms_guest_fields")
       .update(patch)
-      .eq("id", data.id)
+      .eq("id", fieldRow.id)
       .eq("restaurant_id", data.restaurantId)
       .select("id")
       .maybeSingle();
     if (result.error) unavailable(result.error);
+    if (data.required !== undefined) {
+      const codeToCheck = (data.code ?? fieldRow.code).toUpperCase();
+      let isCompanyField = isCompanyFieldCode(codeToCheck);
+      let isTaField = isTravelAgencyFieldCode(codeToCheck);
+
+      if (data.profileTypeId) {
+        const pt = await db
+          .from("pms_guest_profile_types")
+          .select("id, code")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", data.profileTypeId)
+          .maybeSingle();
+        if (pt.data?.code) {
+          const ptCode = pt.data.code.toUpperCase();
+          if (ptCode === "COM" || ptCode === "COMPANY") {
+            isCompanyField = true;
+            isTaField = false;
+          } else if (ptCode === "TRA" || ptCode === "TRAVEL_AGENCY" || ptCode === "TRAVEL_AGENT") {
+            isTaField = true;
+            isCompanyField = false;
+          } else if (ptCode === "IND" || ptCode === "INDIVIDUAL") {
+            isCompanyField = false;
+            isTaField = false;
+          }
+        }
+      }
+
+      const targetCodes = isTaField
+        ? ["TRA", "TRAVEL_AGENCY", "TRAVEL_AGENT"]
+        : isCompanyField
+          ? ["COM", "COMPANY"]
+          : ["IND", "INDIVIDUAL"];
+
+      // Strip non-applicable fields from other entity profile types
+      if (isCompanyField || isTaField) {
+        const indTypes = await db
+          .from("pms_guest_profile_types")
+          .select("id, required_field_ids")
+          .eq("restaurant_id", data.restaurantId)
+          .in("code", ["IND", "INDIVIDUAL"]);
+        if (indTypes.data) {
+          for (const it of indTypes.data) {
+            const cur: string[] = Array.isArray(it.required_field_ids) ? it.required_field_ids : [];
+            if (cur.includes(fieldRow.id)) {
+              await db
+                .from("pms_guest_profile_types")
+                .update({
+                  required_field_ids: cur.filter((fid) => fid !== fieldRow.id),
+                  updated_by: context.userId,
+                })
+                .eq("id", it.id);
+            }
+          }
+        }
+      }
+      if (!isCompanyField && !isTaField) {
+        const otherTypes = await db
+          .from("pms_guest_profile_types")
+          .select("id, required_field_ids")
+          .eq("restaurant_id", data.restaurantId)
+          .in("code", ["COM", "COMPANY", "TRA", "TRAVEL_AGENCY", "TRAVEL_AGENT"]);
+        if (otherTypes.data) {
+          for (const ot of otherTypes.data) {
+            const cur: string[] = Array.isArray(ot.required_field_ids) ? ot.required_field_ids : [];
+            if (cur.includes(fieldRow.id)) {
+              await db
+                .from("pms_guest_profile_types")
+                .update({
+                  required_field_ids: cur.filter((fid) => fid !== fieldRow.id),
+                  updated_by: context.userId,
+                })
+                .eq("id", ot.id);
+            }
+          }
+        }
+      }
+
+      const targetTypes = await db
+        .from("pms_guest_profile_types")
+        .select("id, required_field_ids")
+        .eq("restaurant_id", data.restaurantId)
+        .in("code", targetCodes);
+
+      const targetIdsToUpdate = new Set<string>();
+      if (data.profileTypeId) targetIdsToUpdate.add(data.profileTypeId);
+      if (targetTypes.data && targetTypes.data.length > 0) {
+        for (const targetType of targetTypes.data) {
+          targetIdsToUpdate.add(targetType.id);
+        }
+      }
+
+      for (const tId of targetIdsToUpdate) {
+        const specificType = await db
+          .from("pms_guest_profile_types")
+          .select("id, required_field_ids")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", tId)
+          .maybeSingle();
+        if (specificType.data) {
+          const currentIds: string[] = Array.isArray(specificType.data.required_field_ids)
+            ? specificType.data.required_field_ids
+            : [];
+          const nextIds = required
+            ? [...new Set([...currentIds, fieldRow.id])]
+            : currentIds.filter((fid) => fid !== fieldRow.id);
+          await db
+            .from("pms_guest_profile_types")
+            .update({ required_field_ids: nextIds, updated_by: context.userId })
+            .eq("id", specificType.data.id);
+        }
+      }
+    }
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_guest_field_toggled", {
-      id: data.id,
+      id: fieldRow.id,
       ...patch,
     });
-    return { ok: true as const };
+    return { ok: true as const, id: fieldRow.id, code: fieldRow.code };
   });
 
 export const reorderPmsCard4RequiredFields = createServerFn({ method: "POST" })
@@ -408,6 +770,15 @@ export const deletePmsCard4RequiredField = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const fieldToCheck = await supabaseAdmin
+      .from("pms_guest_fields")
+      .select("code")
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (fieldToCheck.data?.code === "FIRST_NAME") {
+      throw new Error("First Name is a system-required field and cannot be deleted.");
+    }
     const referenced = await supabaseAdmin
       .from("pms_guest_profile_types")
       .select("id")
@@ -417,6 +788,16 @@ export const deletePmsCard4RequiredField = createServerFn({ method: "POST" })
     if (referenced.error && referenced.error.code !== "42P01") unavailable(referenced.error);
     if ((referenced.data ?? []).length > 0) {
       throw new Error("This field is used by a profile type. Disable it instead of deleting.");
+    }
+    const hasValues = await supabaseAdmin
+      .from("guest_custom_field_values")
+      .select("id")
+      .eq("field_id", data.id)
+      .eq("restaurant_id", data.restaurantId)
+      .limit(1);
+    if (hasValues.error && hasValues.error.code !== "42P01") unavailable(hasValues.error);
+    if ((hasValues.data ?? []).length > 0) {
+      throw new Error("This field already has guest data. Disable it instead of deleting it.");
     }
     const result = await supabaseAdmin
       .from("pms_guest_fields")

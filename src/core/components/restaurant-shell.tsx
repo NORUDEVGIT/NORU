@@ -48,15 +48,14 @@ import { getMyRestaurants, type RestaurantMembership } from "@/core/lib/restaura
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
 import { clearRoutePackageCache } from "@/core/lib/route-package-guard";
-import { PMS_NAV_GROUPS, getPmsModule } from "@/packages/pms/lib/pms-modules";
+import { getPmsModule, pmsLauncherModules } from "@/packages/pms/lib/pms-modules";
 import { RM_GROUPS, RM_MODULES } from "@/packages/restaurant-management/lib/restaurant-management-modules";
 import { BO_GROUPS, BO_MODULES, getBoModule } from "@/packages/back-office/lib/back-office-modules";
 import { POS_MODULES, getPosModule } from "@/packages/standalone-pos/lib/standalone-pos-modules";
 import { useAuth } from "@/core/state/auth-store";
 import { cn } from "@/shared/lib/utils";
-import { RestaurantSettingsProvider } from "@/packages/restaurant-management/state/restaurant-context";
+import { RestaurantSettingsProvider } from "@/core/state/property-format";
 import { PmsHeadingProvider } from "@/core/state/pms-context";
-import { HK_STATUS_TAB_LABEL } from "@/packages/pms/lib/housekeeping-labels";
 import { shouldSuppressRestaurantPmsRail } from "@/packages/pms/lib/front-office-shell";
 import { canEditSet1 } from "@/packages/pms/lib/pms-set1-foundation";
 
@@ -241,8 +240,8 @@ const ROOMS_NAV: NavEntry[] = [
     roles: FO,
   },
   { to: "/restaurant/pms/front-office", label: "Arrivals", icon: LogIn, roles: FO },
-  { to: "/restaurant/rooms/in-house", label: "In-House", icon: Hotel, roles: FO },
-  { to: "/restaurant/rooms/departures", label: "Departures", icon: LogOut, roles: FO },
+  { to: "/restaurant/pms/front-office", tab: "inhouse", label: "In-House", icon: Hotel, roles: FO },
+  { to: "/restaurant/pms/front-office", tab: "departures", label: "Departures", icon: LogOut, roles: FO },
   {
     to: "/restaurant/pms/reservations",
     label: "Reservations",
@@ -255,56 +254,49 @@ const ROOMS_NAV: NavEntry[] = [
 
 const HOUSEKEEPING_NAV: NavEntry[] = [
   {
-    to: "/restaurant/housekeeping",
-    tab: "dashboard",
-    label: "Dashboard",
+    to: "/restaurant/pms/housekeeping",
+    tab: "board",
+    label: "Board",
     icon: LayoutDashboard,
     roles: HK_ALL,
   },
   {
-    to: "/restaurant/housekeeping",
-    tab: "rack",
-    label: HK_STATUS_TAB_LABEL,
-    icon: DoorOpen,
-    roles: HK_ALL,
-  },
-  {
-    to: "/restaurant/housekeeping",
-    tab: "board",
-    label: "Cleaning Board",
+    to: "/restaurant/pms/housekeeping",
+    tab: "cleaning",
+    label: "Cleaning Tasks",
     icon: Sparkles,
     roles: HK_CLEAN,
   },
   {
-    to: "/restaurant/housekeeping",
+    to: "/restaurant/pms/housekeeping",
     tab: "inspections",
     label: "Inspections",
     icon: ClipboardCheck,
     roles: HK_SUP,
   },
   {
-    to: "/restaurant/housekeeping",
-    tab: "discrepancies",
-    label: "Discrepancies",
-    icon: AlertTriangle,
-    roles: HK_SUP,
+    to: "/restaurant/pms/housekeeping",
+    tab: "requests",
+    label: "Requests",
+    icon: DoorOpen,
+    roles: HK_CLEAN,
   },
   {
-    to: "/restaurant/housekeeping",
-    tab: "restrictions",
-    label: "Room Restrictions",
-    icon: Ban,
-    roles: HK_SUP,
-  },
-  {
-    to: "/restaurant/housekeeping",
+    to: "/restaurant/pms/maintenance",
     tab: "maintenance",
     label: "Maintenance",
     icon: Wrench,
     roles: HK_MAINT,
   },
   {
-    to: "/restaurant/housekeeping",
+    to: "/restaurant/pms/housekeeping",
+    tab: "exceptions",
+    label: "Exceptions",
+    icon: AlertTriangle,
+    roles: HK_SUP,
+  },
+  {
+    to: "/restaurant/pms/housekeeping",
     tab: "history",
     label: "History",
     icon: History,
@@ -314,30 +306,30 @@ const HOUSEKEEPING_NAV: NavEntry[] = [
 
 const CASHIERING_NAV: NavEntry[] = [
   {
-    to: "/restaurant/cashiering",
-    tab: "dashboard",
-    label: "Dashboard",
+    to: "/restaurant/pms/cashiering",
+    tab: "overview",
+    label: "Overview",
     icon: LayoutDashboard,
     roles: CASH,
   },
   {
-    to: "/restaurant/cashiering",
+    to: "/restaurant/pms/cashiering",
     tab: "folios",
     label: "Folios",
     icon: ReceiptText,
     roles: CASH,
   },
   {
-    to: "/restaurant/cashiering",
+    to: "/restaurant/pms/cashiering",
     tab: "payments",
     label: "Payments",
     icon: Wallet,
     roles: CASH,
   },
   {
-    to: "/restaurant/cashiering",
-    tab: "shifts",
-    label: "Cashier Shifts",
+    to: "/restaurant/pms/cashiering",
+    tab: "cashier-shift",
+    label: "Cashier Shift",
     icon: ClipboardCheck,
     roles: CASH,
   },
@@ -489,6 +481,7 @@ export function RestaurantShell({
   posModule,
   sidebarDefaultCollapsed,
   hidePackageRail: hidePackageRailProp,
+  hideTopHeader = false,
   children,
 }: {
   active: RestaurantNavLabel;
@@ -532,6 +525,8 @@ export function RestaurantShell({
   sidebarDefaultCollapsed?: boolean;
   /** Hide the left package / SETTINGS rail (FO chrome and Card 1 full-screen). */
   hidePackageRail?: boolean;
+  /** Let a full-screen workspace supply the single approved application chrome. */
+  hideTopHeader?: boolean;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
   const navigate = useNavigate();
@@ -616,35 +611,26 @@ export function RestaurantShell({
 
   const pmsSidebarNav = (
     <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="PMS navigation">
-      {PMS_NAV_GROUPS.map((group) => {
-        const groupItems = group.modules.filter((m) => allowedModules.includes(m.moduleKey));
-        if (groupItems.length === 0) return null;
-        return (
-          <div key={group.key} className="pb-2">
-            <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-              {group.title}
-            </p>
-            <ul className="space-y-1">
-              {groupItems.map((m) => (
-                <li key={m.key}>
-                  <Link
-                    to={m.canonicalRoute}
-                    onClick={() => setNavOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-                      m.key === pmsMod?.key
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    )}
-                  >
-                    <m.icon className="size-4 shrink-0" /> {m.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        );
-      })}
+      <ul className="space-y-1 px-1 pt-3">
+        {pmsLauncherModules()
+          .filter((m) => allowedModules.includes(m.moduleKey))
+          .map((m) => (
+            <li key={m.key}>
+              <Link
+                to={m.canonicalRoute}
+                onClick={() => setNavOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                  m.key === pmsMod?.key
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                )}
+              >
+                <m.icon className="size-4 shrink-0" /> {m.key === "property-setup" ? "Settings" : m.title}
+              </Link>
+            </li>
+          ))}
+      </ul>
     </nav>
   );
 
@@ -999,6 +985,7 @@ export function RestaurantShell({
         ) : null}
 
         <div className="flex min-w-0 flex-1 flex-col">
+          {hideTopHeader ? null : (
           <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
             <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
               {hidePackageRail ? null : (
@@ -1066,6 +1053,7 @@ export function RestaurantShell({
               </div>
             </div>
           </header>
+          )}
 
           <main className={cn("min-w-0 flex-1", hidePackageRail ? "flex flex-col p-0" : "px-4 py-6 sm:px-6")}>
             {isLoading ? (

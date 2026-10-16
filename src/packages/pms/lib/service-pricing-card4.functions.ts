@@ -78,6 +78,7 @@ function mapServiceType(row: {
     code: row.code,
     description: row.description,
     active: row.active,
+    chargeableToFolio: false,
     displayOrder: row.display_order,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

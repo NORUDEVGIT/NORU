@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
+import { isMissingSchemaError } from "./pms-set2-structure";
 import {
   CARD3_TAXES_AUDIT_SECTION,
   CARD3_TAXES_UNAVAILABLE,
@@ -87,6 +88,7 @@ const exemptionSchema = z.object({
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(500).optional(),
   reasonCategory: z.enum(EXEMPTION_REASONS),
+  customReason: z.string().trim().max(200).nullable().optional(),
   documentationRequired: z.boolean(),
   approvalRequired: z.boolean(),
   active: z.boolean(),
@@ -184,25 +186,56 @@ function mapExemption(row: any): ExemptionRuleRow {
     name: String(row.name ?? ""),
     description: String(row.description ?? ""),
     reasonCategory: asReason(row.reason_category),
+    customReason: row.custom_reason ? String(row.custom_reason) : null,
     documentationRequired: row.documentation_required === true,
     approvalRequired: row.approval_required === true,
     active: row.active !== false,
   };
 }
 
+async function loadDefaultRoomTaxGroupId(
+  db: DbClient,
+  restaurantId: string,
+): Promise<string | null> {
+  const result = await db
+    .from("restaurants")
+    .select("default_room_tax_group_id")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  if (result.error) {
+    if (isMissingSchemaError(result.error) || String(result.error.message).includes("default_room_tax_group")) {
+      return null;
+    }
+    unavailable(result.error);
+  }
+  const value = result.data?.default_room_tax_group_id;
+  return value ? String(value) : null;
+}
+
 async function loadSnapshot(db: DbClient, restaurantId: string): Promise<TaxesCard3Snapshot> {
-  const [taxes, groups, mappings, services, fees, rules] = await Promise.all([
+  const [taxes, groups, mappings, services, fees, defaultRoomTaxGroupId] = await Promise.all([
     db.from("pms_taxes").select("id, code, name, charge_type, amount, basis, calculation, active").eq("restaurant_id", restaurantId).order("code"),
     db.from("pms_tax_groups").select("id, code, name, active").eq("restaurant_id", restaurantId).order("code"),
     db.from("pms_tax_group_taxes").select("tax_group_id, tax_id").eq("restaurant_id", restaurantId),
     db.from("pms_service_charges").select("id, code, name, charge_type, amount, basis, active").eq("restaurant_id", restaurantId).order("code"),
     db.from("pms_fees").select("id, code, name, charge_type, amount, basis, active").eq("restaurant_id", restaurantId).order("code"),
-    db
+    loadDefaultRoomTaxGroupId(db, restaurantId),
+  ]);
+
+  let rules = await db
+    .from("pms_tax_exemption_rules")
+    .select("id, code, name, description, reason_category, custom_reason, documentation_required, approval_required, active")
+    .eq("restaurant_id", restaurantId)
+    .order("code");
+
+  if (rules.error && (isMissingSchemaError(rules.error) || String(rules.error.message).includes("custom_reason"))) {
+    rules = await db
       .from("pms_tax_exemption_rules")
       .select("id, code, name, description, reason_category, documentation_required, approval_required, active")
       .eq("restaurant_id", restaurantId)
-      .order("code"),
-  ]);
+      .order("code");
+  }
+
   for (const result of [taxes, groups, mappings, services, fees, rules]) {
     if (result.error) unavailable(result.error);
   }
@@ -226,6 +259,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<TaxesCa
     serviceCharges: (services.data ?? []).map(mapService),
     fees: (fees.data ?? []).map(mapFee),
     exemptionRules: (rules.data ?? []).map(mapExemption),
+    defaultRoomTaxGroupId,
   };
 }
 
@@ -448,30 +482,100 @@ export const saveExemptionRuleCard3 = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
-    const payload = {
+    const isOther = data.reasonCategory === "other";
+    const customReasonVal = isOther && data.customReason?.trim() ? data.customReason.trim() : null;
+
+    let payload: Record<string, unknown> = {
       restaurant_id: data.restaurantId,
       code: data.code,
       name: data.name,
       description: data.description?.trim() ? data.description.trim() : null,
       reason_category: data.reasonCategory,
+      custom_reason: customReasonVal,
       documentation_required: data.documentationRequired,
       approval_required: data.approvalRequired,
       active: data.active,
     };
-    if (data.id) {
-      await requireImmutableCode(db, "pms_tax_exemption_rules", data.restaurantId, data.id, data.code);
-      const updated = await db
-        .from("pms_tax_exemption_rules")
-        .update(payload)
-        .eq("id", data.id)
-        .eq("restaurant_id", data.restaurantId);
-      if (updated.error) unavailable(updated.error);
-    } else {
-      const inserted = await db.from("pms_tax_exemption_rules").insert(payload);
-      if (inserted.error) unavailable(inserted.error);
+
+    const executeSave = async (record: Record<string, unknown>) => {
+      if (data.id) {
+        await requireImmutableCode(db, "pms_tax_exemption_rules", data.restaurantId, data.id, data.code);
+        return await db
+          .from("pms_tax_exemption_rules")
+          .update(record)
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId);
+      } else {
+        return await db.from("pms_tax_exemption_rules").insert(record);
+      }
+    };
+
+    let result = await executeSave(payload);
+
+    if (
+      result.error &&
+      (isMissingSchemaError(result.error) || String(result.error.message).includes("custom_reason"))
+    ) {
+      const { custom_reason: _discard, ...rest } = payload;
+      payload = rest;
+      result = await executeSave(payload);
     }
+
+    if (
+      result.error &&
+      (result.error.code === "23514" || String(result.error.message).includes("reason_check"))
+    ) {
+      payload = { ...payload, reason_category: "other" };
+      result = await executeSave(payload);
+    }
+
+    if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "card3_exemption_rule_saved", {
       detail: `${data.code} ${data.name}`,
+    });
+    const snapshot = await loadSnapshot(db, data.restaurantId);
+    return { snapshot, readiness: evaluateTaxesCard3Readiness(snapshot) };
+  });
+
+const defaultRoomTaxGroupSchema = z.object({
+  restaurantId: idSchema,
+  taxGroupId: idSchema.nullable(),
+});
+
+export const saveDefaultRoomTaxGroupCard3 = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => defaultRoomTaxGroupSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+
+    if (data.taxGroupId) {
+      const group = await db
+        .from("pms_tax_groups")
+        .select("id, code, name")
+        .eq("id", data.taxGroupId)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (group.error) unavailable(group.error);
+      if (!group.data) throw new Error("Tax group was not found on this property.");
+    }
+
+    const updated = await db
+      .from("restaurants")
+      .update({ default_room_tax_group_id: data.taxGroupId })
+      .eq("id", data.restaurantId);
+    if (updated.error) {
+      if (
+        isMissingSchemaError(updated.error) ||
+        String(updated.error.message).includes("default_room_tax_group")
+      ) {
+        throw new Error(CARD3_TAXES_UNAVAILABLE);
+      }
+      unavailable(updated.error);
+    }
+
+    await writeAudit(db, data.restaurantId, context.userId, "card3_default_room_tax_group_saved", {
+      detail: data.taxGroupId ?? "cleared",
     });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateTaxesCard3Readiness(snapshot) };

@@ -20,6 +20,13 @@ import {
   menuHasVoid,
   navHasRoomMoves,
   reservationBarPlacement,
+  rackFrozenGridTemplate,
+  rackFrozenStickyLeftPx,
+  rackGroupHeaderColumnSpan,
+  rackFloorSecondaryLabel,
+  rackRoomStatusDisplay,
+  RACK_FROZEN_COLUMN_COUNT,
+  RACK_DATE_TRACK_GRID_COLUMN,
   resolveFoNav,
   RESERVED_BADGE_SLOTS,
   shouldShowDragHandle,
@@ -108,23 +115,20 @@ describe("FO-FS0 single left nav", () => {
     assert.match(shell, /hidePackageRail \? null/);
     assert.doesNotMatch(shell, /Option A/);
 
-    const chrome =
-      readFileSync(new URL("../components/frontoffice/front-office-chrome.tsx", import.meta.url), "utf8") +
-      readFileSync(new URL("../components/pms-command-chrome.tsx", import.meta.url), "utf8");
-    assert.match(chrome, /fo-pms-modules-escape/);
-    assert.match(chrome, /FO_ESCAPE_MODULES/);
-    assert.match(chrome, /PMS modules/);
-    assert.match(chrome, /fo-mobile-nav/);
-    assert.match(chrome, /fo-top-nav/);
-    assert.match(chrome, /fo-top-overflow/);
+    const chrome = readFileSync(new URL("../components/frontoffice/front-office-chrome.tsx", import.meta.url), "utf8");
+    const shared = readFileSync(new URL("../components/rooms/room-inventory-chrome.tsx", import.meta.url), "utf8");
+    assert.match(chrome, /RoomInventoryChrome/);
+    assert.match(chrome, /fo-workspace-nav/);
+    assert.match(chrome, /FO_NAV_ITEMS/);
+    assert.match(shared, /pms-module-nav/);
+    assert.match(shared, /#C89933/);
+    assert.match(chrome, /onGuestSearch/);
+    assert.match(chrome, /fo-module-search/);
+    assert.doesNotMatch(chrome, /fo-top-nav/);
+    assert.doesNotMatch(chrome, /fo-pms-modules-escape/);
+    assert.doesNotMatch(chrome, /fo-mobile-nav/);
     assert.doesNotMatch(chrome, /fo-sidebar-nav/);
     assert.doesNotMatch(chrome, /Room Moves/);
-    assert.match(chrome, /FO_NAV_ITEMS/);
-    assert.match(chrome, /#251605/);
-    assert.match(chrome, /#C89933/);
-    assert.match(chrome, /onGuestSearch/);
-    assert.match(chrome, /fo-guest-search/);
-    assert.match(chrome, /Guest search/);
     assert.doesNotMatch(chrome, /fo-nav-search/);
   });
 });
@@ -133,15 +137,15 @@ describe("Coming soon and writes", () => {
   it("Coming soon clicks never invoke write functions", () => {
     const called: string[] = [];
     const writes = {
-      checkInReservation: () => called.push("checkInReservation"),
-      checkOutReservation: () => called.push("checkOutReservation"),
+      completeFoCheckIn: () => called.push("completeFoCheckIn"),
+      completeFoCheckOut: () => called.push("completeFoCheckOut"),
       moveReservationRoom: () => called.push("moveReservationRoom"),
       changeStayDates: () => called.push("changeStayDates"),
-      markNoShow: () => called.push("markNoShow"),
+      completeFoNoShow: () => called.push("completeFoNoShow"),
+      completeFoCancel: () => called.push("completeFoCancel"),
       assignReservationRoom: () => called.push("assignReservationRoom"),
       createReservation: () => called.push("createReservation"),
       amendReservation: () => called.push("amendReservation"),
-      setReservationStatus: () => called.push("setReservationStatus"),
     };
 
     for (const action of FO_ACTIONS.filter((a) => a.lane === "coming_soon")) {
@@ -198,19 +202,20 @@ describe("HK title lock", () => {
     assert.notEqual(HK_STATUS_TAB_LABEL, "Room Rack");
 
     const hk = readFileSync(new URL("../components/workspaces/housekeeping-workspace.tsx", import.meta.url), "utf8");
-    assert.match(hk, /HK_STATUS_TAB_LABEL/);
-    assert.doesNotMatch(hk, /TabsTrigger value="rack">Room Rack</);
+    assert.doesNotMatch(hk, /Room Rack/);
+    assert.match(hk, /HousekeepingBoardTab|hk-nav-board/);
 
     const shell = readFileSync(new URL("../../../core/components/restaurant-shell.tsx", import.meta.url), "utf8");
-    assert.match(shell, /HK_STATUS_TAB_LABEL/);
     assert.doesNotMatch(shell, /label: "Room Rack"/);
+    assert.match(shell, /label: "Board"/);
   });
 });
 
 describe("calendar helpers", () => {
-  it("treats 1, 7, 14 and 30 day windows as live", () => {
-    assert.deepEqual(LIVE_HORIZONS, [1, 7, 14, 30]);
+  it("treats 1, 3, 7, 14 and 30 day windows as live", () => {
+    assert.deepEqual(LIVE_HORIZONS, [1, 3, 7, 14, 30]);
     assert.equal(isLiveHorizon(1), true);
+    assert.equal(isLiveHorizon(3), true);
     assert.equal(isLiveHorizon(7), true);
     assert.equal(isLiveHorizon(14), true);
     assert.equal(isLiveHorizon(30), true);
@@ -281,5 +286,29 @@ describe("exceptions", () => {
     assert.equal(live.rows.length, 1);
     assert.equal(live.rows[0]?.type, "unassigned");
     assert.ok(live.comingSoon.some((item) => item.id === "payment_issue"));
+  });
+});
+
+describe("FO rack frozen columns", () => {
+  it("uses four frozen tracks and starts date bars at column five", () => {
+    assert.equal(RACK_FROZEN_COLUMN_COUNT, 4);
+    assert.equal(RACK_DATE_TRACK_GRID_COLUMN, 5);
+    assert.match(rackFrozenGridTemplate(7, 128), /^80px 155px 105px 95px repeat\(7,/);
+    assert.equal(rackGroupHeaderColumnSpan(7), 11);
+    assert.equal(rackFrozenStickyLeftPx(0), 0);
+    assert.equal(rackFrozenStickyLeftPx(1), 80);
+    assert.equal(rackFrozenStickyLeftPx(3), 340);
+  });
+
+  it("derives rack status labels from restriction or occupancy", () => {
+    assert.equal(rackRoomStatusDisplay({ status: "out_of_order", occupancy: "vacant" }).key, "out_of_order");
+    assert.equal(rackRoomStatusDisplay({ status: "available", occupancy: "occupied" }).label, "Occupied");
+    assert.equal(rackRoomStatusDisplay({ status: "available", occupancy: "vacant" }).label, "Vacant");
+  });
+
+  it("formats floor secondary labels without Fl. prefix", () => {
+    assert.equal(rackFloorSecondaryLabel("1"), "Floor 1");
+    assert.equal(rackFloorSecondaryLabel("Floor 1"), "Floor 1");
+    assert.equal(rackFloorSecondaryLabel(null), null);
   });
 });

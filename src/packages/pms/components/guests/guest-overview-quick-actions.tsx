@@ -17,7 +17,7 @@ export function GuestOverviewQuickActions() {
       <div className="mt-3 grid gap-2">
         {canCreateReservation ? (
           <Button asChild>
-            <Link to="/restaurant/bookings/new" search={{ guestId: guest.id }}>
+            <Link to="/restaurant/pms/reservations" search={{ create: "new", guestId: guest.id }}>
               <CalendarPlus className="mr-2 size-4" />
               New Reservation
             </Link>

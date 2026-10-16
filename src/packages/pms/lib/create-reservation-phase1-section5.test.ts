@@ -33,6 +33,7 @@ import {
   createSubmitBlockCopy,
   fromNightlyRate,
   rateCatalogueCopy,
+  ratePlanMerchandisingLines,
   resolveCreatePricingState,
   shouldClearStaleRatePlan,
   stickyPricingCopy,
@@ -96,12 +97,15 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-1 Rate list uses quoteStay for stay + room type on /restaurant/bookings/new", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
     const functions = readRel("./rates.functions.ts");
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /quoteStay/);
-    assert.match(page, /\["stay-quotes", restaurantId, roomTypeId, arrival, departure\]/);
+    assert.match(page, /"stay-quotes"/);
+    assert.match(page, /roomsRequested/);
     assert.match(page, /CreateReservationRate/);
     assert.match(rate, /data-testid="create-reservation-rate"/);
     assert.match(rate, /data-testid="rate-plan-list"/);
@@ -112,7 +116,9 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-2 Selected plan binds ratePlanId → _rate_plan_id on the same writer", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /createReservation/);
     assert.match(page, /ratePlanId: ratePlanId \|\| null/);
@@ -126,16 +132,18 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-3 Sticky shows honest server nightly/total from the same quoteStay object", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
-    assert.match(page, /data-testid="create-reservation-summary"/);
-    assert.match(page, /data-testid="summary-rate"/);
-    assert.match(page, /data-testid="summary-stay-total"/);
+    assert.match(page, /CreateReservationSelectedRoom/);
+    assert.match(page, /selectedQuote=\{selectedQuote\}/);
+    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
     assert.match(page, /selectedQuote/);
     assert.match(page, /pricingState\.quote\.subtotal/);
     assert.match(page, /selectedQuote\?\.quote/);
     assert.match(rate, /row\.quote\.subtotal/);
-    assert.match(rate, /selected\.quote\.subtotal/);
+    assert.doesNotMatch(rate, /selected\.quote\.subtotal/);
     assert.equal(fromNightlyRate(sampleQuote), 110);
     const priced = resolveCreatePricingState({
       datesValid: true,
@@ -149,11 +157,13 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-4 Browser totals are ignored as authority — no second calculator", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
     assert.match(functions, /browser totals are ignored/);
-    assert.match(rate, /CREATE_RESERVATION_QUOTE_SERVER_COPY/);
+    assert.doesNotMatch(rate, /CREATE_RESERVATION_QUOTE_SERVER_COPY/);
     assert.match(CREATE_RESERVATION_QUOTE_SERVER_COPY, /Browser totals are ignored/);
     assert.doesNotMatch(page, /stickySummaryTotal|fakeTotal|inventedTotal|clientSubtotal/);
     assert.doesNotMatch(page, /quote\.nightly\.reduce|sumNightly|adr \*/);
@@ -161,7 +171,9 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-5 Unpriced is Pending + owner|manager only, with UI honesty", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.deepEqual([...UNPRICED_PENDING_ROLES], ["owner", "manager"]);
@@ -169,14 +181,22 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     assert.equal(canCreateUnpricedPending("manager"), true);
     assert.equal(canCreateUnpricedPending("receptionist"), false);
     assert.match(CREATE_RESERVATION_UNPRICED_PERMISSION_DOC, /owner\|manager/);
-    assert.match(CREATE_RESERVATION_UNPRICED_PERMISSION_DOC, /Receptionist must select a quoted plan/);
+    assert.match(
+      CREATE_RESERVATION_UNPRICED_PERMISSION_DOC,
+      /Receptionist must select a quoted plan/,
+    );
     assert.match(rate, /CREATE_RESERVATION_UNPRICED_BADGE/);
     assert.equal(CREATE_RESERVATION_UNPRICED_BADGE, "Unpriced");
     assert.match(page, /canCreateUnpricedPending/);
-    assert.match(page, /summary-no-fake-total|summary-pricing-state/);
+    assert.match(page, /stayTotal=\{pricingState\.kind === "priced" \? money\(pricingState\.quote\.subtotal\) : "—"\}/);
     assert.match(functions, /assertCreateReservationPricing/);
     assert.throws(
-      () => assertCreateReservationPricing({ role: "receptionist", status: "pending", ratePlanId: null }),
+      () =>
+        assertCreateReservationPricing({
+          role: "receptionist",
+          status: "pending",
+          ratePlanId: null,
+        }),
       /quoted rate plan is required/,
     );
     assert.doesNotThrow(() =>
@@ -209,7 +229,9 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-6 Confirmed without a successful quote is blocked", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.equal(
       canSubmitCreateReservation({
@@ -248,11 +270,16 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
       CREATE_RESERVATION_CONFIRMED_REQUIRES_RATE,
     );
     assert.throws(
-      () => assertCreateReservationPricing({ role: "owner", status: "confirmed", ratePlanId: null }),
+      () =>
+        assertCreateReservationPricing({ role: "owner", status: "confirmed", ratePlanId: null }),
       /quoted rate plan is required to create a confirmed stay/,
     );
     assert.doesNotThrow(() =>
-      assertCreateReservationPricing({ role: "receptionist", status: "confirmed", ratePlanId: "plan-1" }),
+      assertCreateReservationPricing({
+        role: "receptionist",
+        status: "confirmed",
+        ratePlanId: "plan-1",
+      }),
     );
     assert.match(page, /canSubmitCreateReservation/);
     assert.match(page, /create-as-status/);
@@ -261,7 +288,9 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-7 Unpriced sticky must not show 0.00 as a real stay total", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const unpriced = resolveCreatePricingState({
       datesValid: true,
       roomTypeId: "rt-1",
@@ -283,12 +312,14 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     });
     assert.equal(loading.kind, "loading");
     assert.doesNotMatch(stickyPricingCopy(loading), /0\.00/);
-    assert.match(page, /summary-no-fake-total/);
+    assert.match(page, /stayTotal=\{pricingState\.kind === "priced" \? money\(pricingState\.quote\.subtotal\) : "—"\}/);
     assert.doesNotMatch(page, /money\(0\)|stay total 0\.00|fake 0\.00/i);
   });
 
   it("AC-CR5-8 No second pricing writer — walk-in remains a mode of the same writer", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
     const shell = readRel("./front-office-shell.ts");
@@ -303,7 +334,9 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-9 Fixed Rate is OUT — no fake Fixed Rate control", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
     const helpers = readRel("./create-reservation-phase1-section5.ts");
     assert.match(helpers, /Fixed Rate \/ create adjustment \/ RTC = OUT/);
@@ -312,18 +345,25 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-10 No create-time rate adjustment amount/% and no RTC invented", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
     const functions = readRel("./reservations.functions.ts");
     const createStart = functions.indexOf("export const createReservation");
-    const createFn = functions.slice(createStart, functions.indexOf("export const amendReservation"));
+    const createFn = functions.slice(
+      createStart,
+      functions.indexOf("export const amendReservation"),
+    );
     assert.doesNotMatch(page, /adjustmentPercent|rateAdjustment|roomTypeCharged|rtcRoomType/);
     assert.doesNotMatch(rate, /adjustmentPercent|rtc /i);
     assert.doesNotMatch(createFn, /_adjustment|_rtc|room_type_charged/);
   });
 
   it("AC-CR5-11 No invented LIVE RMS / OTA / commission / yield engine", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
     const helpers = readRel("./create-reservation-phase1-section5.ts");
     const functions = readRel("./rates.functions.ts");
@@ -336,7 +376,9 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-12 Date or room-type change revalidates; stale priced selection is not kept", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.equal(CREATE_RESERVATION_STALE_RATE_RULE, "clear-on-type-and-invalid-stay");
     assert.match(page, /setRatePlanId\(""\)/);
     assert.match(page, /shouldClearStaleRatePlan/);
@@ -410,7 +452,9 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-14 Existing create gates preserved; quoteStay allows reservation managers", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const rates = readRel("./rates.functions.ts");
     assert.match(page, /requireRoutePackage\("pms"\)/);
@@ -427,7 +471,9 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-15 Room assign / Guarantee product / packages / email are not expanded", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /Room assignment \(optional\)/);
     assert.match(page, /const UNASSIGNED = "unassigned"/);
     assert.match(page, /the stay can still be booked and assigned later/);
@@ -448,7 +494,9 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-17 Section 5 does not claim Phase 1 or Create Reservation DONE", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.equal(CREATE_RESERVATION_PHASE1_COMPLETE, false);
     assert.equal(CREATE_RESERVATION_MODULE_DONE, false);
     assert.match(CREATE_RESERVATION_SECTION5_SCOPE, /Section 5 is Rate \+ sticky pricing/);
@@ -458,7 +506,9 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-18 Locked non-goals in §4 are absent", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
     const helpers = readRel("./create-reservation-phase1-section5.ts");
     const functions = readRel("./reservations.functions.ts");
@@ -481,18 +531,26 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     const drizzleDir = join(here, "../../../../drizzle/migrations");
     const supabaseDir = join(here, "../../../../supabase/migrations");
     for (const file of readdirSync(drizzleDir)) {
-      assert.doesNotMatch(file, /create.reservation.phase1.section5|cr5.section5|unpriced_permission/i);
+      assert.doesNotMatch(
+        file,
+        /create.reservation.phase1.section5|cr5.section5|unpriced_permission/i,
+      );
     }
     if (existsSync(supabaseDir)) {
       for (const file of readdirSync(supabaseDir)) {
-        assert.doesNotMatch(file, /create.reservation.phase1.section5|cr5.section5|unpriced_permission/i);
+        assert.doesNotMatch(
+          file,
+          /create.reservation.phase1.section5|cr5.section5|unpriced_permission/i,
+        );
       }
     }
     assert.doesNotMatch(functions, /create policy|alter policy|enable row level security/i);
   });
 
   it("AC-CR5-20 Additive expansion of existing /restaurant/bookings/new — no second product", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /createReservation/);
     assert.match(page, /CreateReservationRate/);
@@ -502,10 +560,57 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
   });
 
   it("AC-CR5-21 Modern sticky may show Rate Code / Rate & Total — no Fixed Rate LIVE claim", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
-    assert.match(page, /data-testid="summary-rate"/);
-    assert.match(page, /data-testid="summary-stay-total"/);
-    assert.match(page, /Rate & Total|Stay total/);
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
+    assert.match(page, /ratePlan=/);
+    assert.match(page, /stayTotal=/);
+    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
     assert.doesNotMatch(page, /Fixed Rate LIVE|legacy Individual create chrome/i);
+  });
+
+  it("Step 2 merchandising reads quoteStay plan breakfast, cancellation, and refundability", () => {
+    const rate = readRel("../components/bookings/create-reservation-rate.tsx");
+    const functions = readRel("./rates.functions.ts");
+    assert.match(functions, /hydrateRatePlanMerchandising/);
+    assert.match(functions, /pms_meal_plans/);
+    assert.match(functions, /includes_breakfast/);
+    assert.match(functions, /pms_rate_cancellation_policies/);
+    assert.match(functions, /pms_rate_refundability_codes/);
+    assert.match(functions, /breakfastLabelFromMealPlan/);
+    assert.match(functions, /deriveCancellationDisplay/);
+    assert.doesNotMatch(rate, /ratePlanMerchandisingLines/);
+    assert.doesNotMatch(rate, /text-muted-foreground">\{row.plan.code\}/);
+    assert.doesNotMatch(rate, /formatRatePlanValidity/);
+    assert.doesNotMatch(rate, /Included Services/);
+    assert.doesNotMatch(rate, /Optional Add-ons/);
+    const selectedRoom = readRel("../components/bookings/create-reservation-selected-room.tsx");
+    assert.doesNotMatch(rate, /row\.cancellationLabel/);
+    assert.doesNotMatch(rate, /row\.breakfastLabel/);
+    assert.match(selectedRoom, /quote\.breakfastLabel/);
+    assert.match(selectedRoom, /rateCopy\.cancellationPolicy/);
+    assert.match(rate, /money\(row\.quote\.subtotal\)/);
+    assert.deepEqual(
+      ratePlanMerchandisingLines({
+        id: "p1",
+        code: "BAR",
+        name: "BAR Deluxe",
+        description: "Flexible stay",
+        breakfastIncluded: true,
+        cancellationName: "Free cancel 24h",
+        refundabilityName: "Refundable",
+      }),
+      ["Flexible stay", "Breakfast included", "Free cancel 24h", "Refundable"],
+    );
+  });
+
+  it("merges base currency into Step 2 display and stores the property base", () => {
+    const page = readRel("../components/bookings/create-reservation-page.tsx");
+    const create = readRel("./reservations.functions.ts");
+    assert.match(page, /options.unshift/);
+    assert.match(page, /formatMoney\(value, displayCurrencyCode/);
+    assert.match(page, /quoteCurrency: null/);
+    assert.doesNotMatch(create, /_quote_currency: data.quoteCurrency/);
+    assert.match(readRel("./rates.functions.ts"), /_quote_currency: data.quoteCurrency/);
   });
 });

@@ -6,10 +6,12 @@ import type { Json } from "@/integrations/supabase/types";
 import { displayedBusinessDate } from "./pms-set1-foundation";
 import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import {
+  CANONICAL_BASE_CURRENCY,
   CARD3_CURRENCY_AUDIT_SECTION,
   CARD3_CURRENCY_UNAVAILABLE,
   CURRENCY_FX_SOURCES,
   CURRENCY_ROUNDING,
+  calculateRateFreshness,
   emptyFinancialSettings,
   evaluateCurrencyCard3Readiness,
   formatFxDirection,
@@ -21,6 +23,7 @@ import {
   type FinancialSettings,
   type PropertyCurrency,
 } from "./currency-card3.server";
+import { defaultFxService } from "./fx/fx-service";
 
 type DbClient = any;
 
@@ -94,7 +97,7 @@ async function loadBase(db: DbClient, restaurantId: string) {
     .eq("id", restaurantId)
     .maybeSingle();
   if (result.error) throw new Error(result.error.message);
-  const baseCurrency = String(result.data?.currency_code ?? "").trim().toUpperCase();
+  const baseCurrency = String(result.data?.currency_code ?? "").trim().toUpperCase() || CANONICAL_BASE_CURRENCY;
   const timezone = String(result.data?.timezone ?? "").trim();
   return {
     baseCurrency,
@@ -117,16 +120,23 @@ function mapCurrency(row: any, baseCurrency: string): PropertyCurrency {
   };
 }
 
-function mapRate(row: any, baseCurrency: string): ExchangeRateRow {
+function mapRate(row: any, baseCurrency: string, providerName = "ExchangeRate-API"): ExchangeRateRow {
   const quote = String(row.quote_currency_code ?? "").toUpperCase();
   const rate = Number(row.rate);
+  const effectiveDate = String(row.effective_date ?? "");
+  const source = ((CURRENCY_FX_SOURCES as readonly string[]).includes(row.source) ? row.source : "manual") as CurrencyFxSource;
+  const status = calculateRateFreshness(effectiveDate);
+  const displaySource = source === "system" ? `${providerName} · Automatic` : source === "bank" ? "Bank" : "Manual";
+
   return {
     id: row.id,
     quoteCurrencyCode: quote,
     rate,
-    effectiveDate: String(row.effective_date ?? ""),
-    source: ((CURRENCY_FX_SOURCES as readonly string[]).includes(row.source) ? row.source : "manual") as CurrencyFxSource,
+    effectiveDate,
+    source,
     directionLabel: formatFxDirection(baseCurrency, quote, rate),
+    status,
+    displaySource,
   };
 }
 
@@ -145,7 +155,7 @@ function mapSettings(row: any | null): FinancialSettings {
 
 async function loadSnapshot(db: DbClient, restaurantId: string): Promise<CurrencyCard3Snapshot> {
   const inherited = await loadBase(db, restaurantId);
-  const [currencies, rates, settings] = await Promise.all([
+  const [currencies, rates, settings, fxStatus] = await Promise.all([
     db
       .from("pms_property_currencies")
       .select("id, code, name, symbol, decimal_places, rounding, active")
@@ -157,6 +167,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Currenc
       .eq("restaurant_id", restaurantId)
       .order("effective_date", { ascending: false }),
     db.from("pms_financial_settings").select("*").eq("restaurant_id", restaurantId).maybeSingle(),
+    defaultFxService.getLatestFxStatus(db, restaurantId),
   ]);
   for (const result of [currencies, rates, settings]) {
     if (result.error) unavailable(result.error);
@@ -164,9 +175,10 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Currenc
   return {
     inherited,
     currencies: (currencies.data ?? []).map((row: any) => mapCurrency(row, inherited.baseCurrency)),
-    rates: (rates.data ?? []).map((row: any) => mapRate(row, inherited.baseCurrency)),
+    rates: (rates.data ?? []).map((row: any) => mapRate(row, inherited.baseCurrency, fxStatus.providerName)),
     settings: mapSettings(settings.data),
     settingsRowExists: Boolean(settings.data),
+    fxStatus,
   };
 }
 
@@ -322,3 +334,28 @@ export const saveFinancialSettingsCard3 = createServerFn({ method: "POST" })
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateCurrencyCard3Readiness(snapshot) };
   });
+
+export const refreshExchangeRatesCard3 = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const refreshResult = await defaultFxService.refreshRatesForProperty(db, data.restaurantId, context.userId);
+    const snapshot = await loadSnapshot(db, data.restaurantId);
+    return {
+      snapshot,
+      readiness: evaluateCurrencyCard3Readiness(snapshot),
+      refreshResult,
+    };
+  });
+
+/**
+ * Standalone background runner entrypoint for cron/task schedulers.
+ * Invoked by external cron trigger or worker.
+ */
+export async function runScheduledFxRefresh(restaurantId: string) {
+  const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+  return defaultFxService.refreshRatesForProperty(db, restaurantId, "system");
+}
+

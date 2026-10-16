@@ -117,7 +117,34 @@ export const GUEST_ACCOUNT_EVENT_TYPES = [
   "status_changed",
   "logo_updated",
   "credit_account_changed",
-  "imported",
+    "imported",
+  "note_added",
+  "note_updated",
+  "note_archived",
+  "contact_created",
+  "contact_updated",
+  "primary_contact_changed",
+  "document_uploaded",
+  "document_verified",
+  "document_rejected",
+  "document_replaced",
+  "agreement_created",
+  "agreement_updated",
+  "commission_configured",
+  "commission_calculated",
+  "commission_updated",
+  "allotment_changed",
+  "settings_changed",
+  "member_imported",
+  "reservation_linked",
+  "reservation_unlinked",
+  "room_assigned",
+  "room_changed",
+  "room_unassigned",
+  "auto_assignment_failed",
+  "document_generated",
+  "template_applied",
+  "duplicated",
 ] as const;
 export type GuestAccountEventType = (typeof GUEST_ACCOUNT_EVENT_TYPES)[number];
 
@@ -236,9 +263,26 @@ export type GuestAccountLink = {
   id: string;
   guestId: string;
   guestName: string;
+  guestFullName?: string;
+  guestEmail?: string | null;
+  guestPhone?: string | null;
+  guestNationality?: string | null;
+  guestStatus?: string | null;
+  guestVip?: boolean;
   masterId: string;
   masterName: string;
   masterType: GuestAccountType;
+  masterCode?: string | null;
+  masterStatus?: string | null;
+  masterEmail?: string | null;
+  masterPhone?: string | null;
+  paymentTerms?: string | null;
+  creditAccountEnabled?: boolean;
+  creditLimitNote?: string | null;
+  primaryContactName?: string | null;
+  accountId?: string;
+  accountName?: string;
+  accountType?: GuestAccountType;
   role: GuestRelationshipRole;
   createdAt: string;
 };

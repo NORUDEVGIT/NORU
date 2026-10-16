@@ -8,28 +8,48 @@ import {
 
 export function CreateReservationConfirmation({
   view,
+  onOpenReservation,
+  onReturnToDesk,
+  onCreateAnother,
+  returnToLabel,
 }: {
   view: CreatedReservationConfirmation;
+  onOpenReservation?: ((reservationId: string) => void) | undefined;
+  onReturnToDesk?: (() => void) | undefined;
+  onCreateAnother?: (() => void) | undefined;
+  returnToLabel?: string | undefined;
 }) {
   return (
     <section
       className="create-reservation-confirmation rounded-2xl border border-border bg-card p-6"
       data-testid="create-reservation-confirmation"
     >
-      <h1 className="font-display text-2xl">Reservation created</h1>
+      <h1 className="font-display text-2xl">Reservation Created Successfully</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Confirmation {view.confirmationNumber}. Print this page for the guest — email and SMS are not sent from
-        create.
+        Confirmation {view.confirmationNumber}. Print this page for the guest —{" "}
+        {"email and SMS are not sent from create."}
       </p>
 
       <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Confirmation</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+            Reservation number
+          </dt>
           <dd data-testid="confirmation-number">{view.confirmationNumber}</dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted-foreground">Status</dt>
-          <dd data-testid="confirmation-status">{view.status === "confirmed" ? "Confirmed" : "Pending"}</dd>
+          <dd data-testid="confirmation-status">
+            {view.status === "confirmed" ? "Confirmed" : "Pending"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created at</dt>
+          <dd>Not returned by the create writer</dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Created by</dt>
+          <dd>Not returned by the create writer</dd>
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guest</dt>
@@ -60,7 +80,9 @@ export function CreateReservationConfirmation({
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted-foreground">Stay total</dt>
           <dd data-testid="confirmation-stay-total">
-            {view.unpriced || !view.stayTotal ? "No stay total — a server quote is required before a total can appear." : view.stayTotal}
+            {view.unpriced || !view.stayTotal
+              ? "No stay total — a server quote is required before a total can appear."
+              : view.stayTotal}
           </dd>
         </div>
         {view.guaranteeMethod ? (
@@ -77,36 +99,113 @@ export function CreateReservationConfirmation({
         ) : null}
         {view.bookingSource ? (
           <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Booking source</dt>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Booking source
+            </dt>
             <dd>{view.bookingSource}</dd>
           </div>
         ) : null}
         {view.marketSegment ? (
           <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Market segment</dt>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Market segment
+            </dt>
             <dd>{view.marketSegment}</dd>
           </div>
         ) : null}
         {view.externalReference ? (
           <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">External reference</dt>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              External reference
+            </dt>
             <dd>{view.externalReference}</dd>
           </div>
         ) : null}
+        <div className="sm:col-span-2">
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Packages</dt>
+          <dd data-testid="confirmation-packages">
+            {view.selectedPackageLines && view.selectedPackageLines.length > 0 ? (
+              <ul className="space-y-0.5">
+                {view.selectedPackageLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ) : (
+              "No packages selected"
+            )}
+          </dd>
+        </div>
+        <div className="sm:col-span-2">
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+            Saved preferences
+          </dt>
+          <dd data-testid="confirmation-preferences">
+            {view.savedPreferenceLines && view.savedPreferenceLines.length > 0 ? (
+              <ul className="space-y-0.5">
+                {view.savedPreferenceLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ) : (
+              "No saved preferences"
+            )}
+          </dd>
+        </div>
+        <div className="sm:col-span-2">
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+            Service requests
+          </dt>
+          <dd data-testid="confirmation-services">
+            {view.selectedServiceLines && view.selectedServiceLines.length > 0 ? (
+              <ul className="space-y-0.5">
+                {view.selectedServiceLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ) : (
+              "No service requests submitted"
+            )}
+          </dd>
+        </div>
       </dl>
 
       <div className="create-reservation-confirmation-actions mt-6 flex flex-wrap gap-3">
         <Button type="button" data-testid="create-reservation-print" onClick={() => window.print()}>
-          {CREATE_RESERVATION_PRINT_LABEL}
+          {CREATE_RESERVATION_PRINT_LABEL} Confirmation
         </Button>
-        <Button asChild variant="outline">
-          <Link
-            to="/restaurant/pms/reservations/$reservationId"
-            params={{ reservationId: view.id }}
+        {onOpenReservation ? (
+          <Button
+            type="button"
+            variant="outline"
             data-testid="open-reservation"
+            onClick={() => onOpenReservation(view.id)}
           >
             {CREATE_RESERVATION_OPEN_RESERVATION_LABEL}
-          </Link>
+          </Button>
+        ) : (
+          <Button asChild variant="outline">
+            <Link
+              to="/restaurant/pms/reservations/$reservationId"
+              params={{ reservationId: view.id }}
+              data-testid="open-reservation"
+            >
+              {CREATE_RESERVATION_OPEN_RESERVATION_LABEL}
+            </Link>
+          </Button>
+        )}
+        {onReturnToDesk ? (
+          <Button type="button" variant="outline" onClick={onReturnToDesk}>
+            {returnToLabel || "Return to Reservation Desk"}
+          </Button>
+        ) : null}
+        {onCreateAnother ? (
+          <Button type="button" variant="outline" onClick={onCreateAnother}>
+            New Reservation
+          </Button>
+        ) : null}
+        <Button type="button" variant="outline" disabled title="Email delivery is not connected">
+          {/* TODO: wire to an outbound confirmation sender. Do not mark mail as sent. */}
+          Send Confirmation
         </Button>
       </div>
 

@@ -68,10 +68,10 @@ export function SettingsDashboardChrome({
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
+                  "inline-flex shrink-0 items-center whitespace-nowrap border-b-2 px-2.5 py-2 text-xs transition-colors",
                   active
-                    ? "bg-[#C89933] text-[#251605]"
-                    : "text-white/75 hover:bg-white/10 hover:text-white",
+                    ? "border-[#C89933] font-medium text-white"
+                    : "border-transparent text-white/75 hover:text-white",
                 )}
               >
                 {item.label}

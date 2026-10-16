@@ -27,6 +27,7 @@ import {
   FileSearch,
 } from "lucide-react";
 import type { ModuleKey } from "@/core/lib/module-access";
+import { PMS_MODULE_NAV } from "./pms-module-nav.ts";
 
 /**
  * Phase 7D.2E — NORU keeps ONE property-wide service per capability
@@ -121,7 +122,7 @@ export const PMS_MODULES: PmsModule[] = [
     group: "core",
     moduleKey: "front_office",
     canonicalRoute: "/restaurant/pms/front-office",
-    legacyRoutes: ["/restaurant/rooms/arrivals"],
+    legacyRoutes: ["/restaurant/rooms/arrivals", "/restaurant/rooms/in-house", "/restaurant/rooms/departures"],
     domain: "pms",
     implementationStatus: "existing",
   },
@@ -148,7 +149,7 @@ export const PMS_MODULES: PmsModule[] = [
     group: "core",
     moduleKey: "housekeeping",
     canonicalRoute: "/restaurant/pms/housekeeping",
-    legacyRoutes: ["/restaurant/housekeeping?tab=dashboard"],
+    legacyRoutes: ["/restaurant/housekeeping", "/restaurant/housekeeping?tab=dashboard"],
     domain: "pms",
     sharedDependencies: ["inventory", "procurement"],
     implementationStatus: "existing",
@@ -169,12 +170,12 @@ export const PMS_MODULES: PmsModule[] = [
   {
     key: "rates-revenue",
     title: "Rate & Revenue Management",
-    description: "Rate plans, rate calendar and stay restrictions.",
+    description: "Daily pricing, revenue control and commercial operations.",
     icon: TrendingUp,
     group: "core",
     moduleKey: "configuration",
     canonicalRoute: "/restaurant/pms/rates-revenue",
-    legacyRoutes: ["/restaurant/bookings/rates?tab=plans"],
+    legacyRoutes: ["/restaurant/bookings/rates?tab=plans", "/restaurant/pms/rates-revenue?tab=overview"],
     domain: "pms",
     implementationStatus: "existing",
   },
@@ -337,9 +338,21 @@ export function getPmsModule(key: string): PmsModule | undefined {
   return PMS_MODULES.find((m) => m.key === key);
 }
 
+function modulesForKeys(keys: readonly string[]): PmsModule[] {
+  return keys.flatMap((key) => {
+    const module = PMS_MODULES.find((entry) => entry.key === key);
+    return module ? [module] : [];
+  });
+}
+
+/** Ten locked desks, in module-bar order. */
+export function pmsLauncherModules(): PmsModule[] {
+  return modulesForKeys(PMS_MODULE_NAV.map((item) => item.catalogueKey));
+}
+
 /**
- * Phase 7D.2D — the one PMS navigation model, grouped in the approved order.
- * Every consumer (PMS Home launcher, PMS sidebar) reads this.
+ * Full catalogue grouped for lookup. The package rail and PMS Home use
+ * `pmsLauncherModules`, not this list.
  */
 export const PMS_NAV_GROUPS: { key: PmsGroupKey; title: string; modules: PmsModule[] }[] =
   PMS_GROUPS.map((g) => ({

@@ -48,7 +48,7 @@ const STAY_SELECT_CORE = `
   id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date,
   adults, children, status, special_requests, source,
   guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ),
-  room_types!hotel_reservations_type_same_property ( name ),
+  room_types!hotel_reservations_type_same_property ( name, code ),
   hotel_rooms!hotel_reservations_room_same_type ( room_number )
 `;
 
@@ -56,7 +56,7 @@ const STAY_SELECT_WITH_COMPANY = `
   id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date,
   adults, children, status, special_requests, source, company_name, group_name,
   guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ),
-  room_types!hotel_reservations_type_same_property ( name ),
+  room_types!hotel_reservations_type_same_property ( name, code ),
   hotel_rooms!hotel_reservations_room_same_type ( room_number )
 `;
 
@@ -65,7 +65,7 @@ const STAY_SELECT_WITH_MASTERS = `
   adults, children, status, special_requests, source, company_name, group_name,
   company_master_id, group_account_master_id, travel_agent_master_id,
   guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ),
-  room_types!hotel_reservations_type_same_property ( name ),
+  room_types!hotel_reservations_type_same_property ( name, code ),
   hotel_rooms!hotel_reservations_room_same_type ( room_number )
 `;
 
@@ -94,7 +94,7 @@ type StaySearchRow = {
     email: string | null;
     vip_status: boolean;
   } | null;
-  room_types: { name: string } | null;
+  room_types: { name: string; code?: string | null } | null;
   hotel_rooms: { room_number: string } | null;
 };
 
@@ -134,6 +134,7 @@ function toHit(
     guestPhone: guest?.phone ?? null,
     roomTypeId: row.room_type_id,
     roomTypeName: row.room_types?.name ?? "Room type",
+    roomTypeCode: row.room_types?.code ?? null,
     roomId: row.room_id,
     roomNumber: row.hotel_rooms?.room_number ?? null,
     arrivalDate: row.arrival_date,

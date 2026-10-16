@@ -88,6 +88,7 @@ export const PROPERTY_SETUP_FIELD_ICONS = {
   star: Star,
   language: Languages,
   tag: Tag,
+  rate: Tag,
   badge: BadgeCheck,
   image: Image,
   palette: Palette,
@@ -114,5 +115,5 @@ export const PROPERTY_SETUP_FIELD_ICONS = {
 export type PropertySetupFieldIconKey = keyof typeof PROPERTY_SETUP_FIELD_ICONS;
 
 export function propertySetupFieldIcon(key: PropertySetupFieldIconKey): LucideIcon {
-  return PROPERTY_SETUP_FIELD_ICONS[key];
+  return PROPERTY_SETUP_FIELD_ICONS[key] ?? Tag;
 }

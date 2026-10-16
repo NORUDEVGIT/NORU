@@ -238,16 +238,31 @@ export function mergeCard2HousekeepingStatus(
   };
 }
 
+/** Product "Ready" is derived. Never a `hotel_rooms.housekeeping_status` value. */
+export const FORBIDDEN_HOUSEKEEPING_ROOM_STATUSES = [
+  "ready",
+  "assigned",
+  "cleaning",
+  "cleaning_in_progress",
+  "occupied",
+] as const;
+
+export type HousekeepingReadinessPolicy = Pick<
+  HousekeepingCard2Settings,
+  "enabled" | "cleanRequired" | "inspectionRequired" | "maintenanceClearRequired"
+>;
+
+/**
+ * Canonical "is this room ready?" calculation for FO, Reservations, and HK.
+ * Call sites must use this (or `isRoomReady` wrappers). Do not special-case dirty/pickup.
+ */
 export function evaluateRoomReadinessWithPolicy(
   room: {
     status: string | null;
     housekeepingStatus: string | null;
     maintenanceStatus?: string | null;
   } | null,
-  settings?: Pick<
-    HousekeepingCard2Settings,
-    "enabled" | "cleanRequired" | "inspectionRequired" | "maintenanceClearRequired"
-  >,
+  settings?: HousekeepingReadinessPolicy,
 ): { ready: boolean; reason: string | null } {
   if (!room?.status) return { ready: false, reason: "Assign a room before continuing." };
   if (room.status === "out_of_order") {
@@ -298,4 +313,99 @@ export function priorityEventLabel(event: HousekeepingPriorityEvent): string {
     special_request: "Special Request",
     room_move: "Room Move",
   }[event];
+}
+
+export function checkStatusDeletability(
+  status: Pick<HousekeepingCard2Status, "code" | "isCore">,
+  snapshot: HousekeepingCard2Snapshot,
+  roomCount: number = 0,
+): { deletable: boolean; reason: string | null } {
+  if (status.isCore || CORE_HOUSEKEEPING_STATUSES.some((s) => s.code === status.code)) {
+    return { deletable: false, reason: "System core statuses cannot be deleted." };
+  }
+  if (snapshot.settings.defaultStatus === status.code) {
+    return {
+      deletable: false,
+      reason: "This housekeeping status is currently configured as the default housekeeping status and cannot be deleted.",
+    };
+  }
+  const transitionCount = snapshot.transitions.filter(
+    (t) => t.fromStatus === status.code || t.toStatus === status.code,
+  ).length;
+
+  if (roomCount > 0 && transitionCount > 0) {
+    return {
+      deletable: false,
+      reason: `This housekeeping status is currently in use and cannot be deleted. Used by ${roomCount} room${roomCount > 1 ? "s" : ""} and ${transitionCount} automatic transition${transitionCount > 1 ? "s" : ""}.`,
+    };
+  }
+  if (roomCount > 0) {
+    return {
+      deletable: false,
+      reason: `This housekeeping status is currently in use by ${roomCount} room${roomCount > 1 ? "s" : ""} and cannot be deleted.`,
+    };
+  }
+  if (transitionCount > 0) {
+    return {
+      deletable: false,
+      reason: `Cannot delete this status because it is used by ${transitionCount} automatic transition${transitionCount > 1 ? "s" : ""}.`,
+    };
+  }
+  return { deletable: true, reason: null };
+}
+
+export type TransitionRuleInput = {
+  id?: string;
+  event: HousekeepingTransitionEvent | "";
+  fromStatus: string;
+  toStatus: string;
+  enabled: boolean;
+  approvalRequired: boolean;
+};
+
+export function validateTransitionRule(
+  input: TransitionRuleInput,
+  existingTransitions: HousekeepingCard2Transition[],
+  statuses?: HousekeepingCard2Status[],
+): { valid: boolean; error: string | null } {
+  if (!input.event) {
+    return { valid: false, error: "Please select an operational event." };
+  }
+  if (!input.fromStatus) {
+    return { valid: false, error: "Please select a From Status." };
+  }
+  if (!input.toStatus) {
+    return { valid: false, error: "Please select a To Status." };
+  }
+  if (input.fromStatus === input.toStatus) {
+    return { valid: false, error: "From Status and To Status cannot be identical." };
+  }
+
+  for (const existing of existingTransitions) {
+    if (existing.id && input.id && existing.id === input.id) continue;
+    if (existing.event === input.event) {
+      if (existing.fromStatus === input.fromStatus) {
+        return {
+          valid: false,
+          error: "An automatic transition with this event and status change already exists.",
+        };
+      }
+      return {
+        valid: false,
+        error: "An automatic transition for this event already exists.",
+      };
+    }
+  }
+
+  if (statuses && input.event !== "guest_check_in") {
+    const to = statuses.find((s) => s.code === input.toStatus);
+    if (to && (!to.operational || to.domain !== "housekeeping")) {
+      return {
+        valid: false,
+        error: `${transitionEventLabel(input.event)} must end in an operational housekeeping status.`,
+      };
+    }
+  }
+
+  return { valid: true, error: null };
 }

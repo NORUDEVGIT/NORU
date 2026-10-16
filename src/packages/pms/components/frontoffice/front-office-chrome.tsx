@@ -1,80 +1,24 @@
 import type { ReactNode } from "react";
-import { MoreHorizontal } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/shared/components/ui/dropdown-menu";
+import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { FoHelpSheet } from "@/packages/pms/components/frontoffice/fo-help-sheet";
-import { PmsCommandChrome } from "@/packages/pms/components/pms-command-chrome";
+import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 import {
-  FO_ESCAPE_MODULES,
+  FO_DESK_DESCRIPTION,
+  FO_DESK_TITLE,
   FO_NAV_ITEMS,
+  actionsForMenu,
   type FoNavId,
 } from "@/packages/pms/lib/front-office-shell";
 import { cn } from "@/shared/lib/utils";
 
-function FoPmsModulesEscape({ variant }: { variant: "overflow" | "phone" }) {
-  const navigate = useNavigate();
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          data-testid="fo-pms-modules-escape"
-          className={
-            variant === "overflow"
-              ? "inline-flex items-center rounded-lg px-2 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white"
-              : "mt-2 flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm"
-          }
-        >
-          <span>PMS modules</span>
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align={variant === "overflow" ? "end" : "start"}
-        side="bottom"
-        className="min-w-[12rem]"
-        data-testid="fo-pms-modules-menu"
-      >
-        {FO_ESCAPE_MODULES.map((item) => (
-          <DropdownMenuItem
-            key={item.to}
-            onSelect={() => {
-              void navigate({ to: item.to });
-            }}
-          >
-            {item.label}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          data-testid="fo-exit-pms"
-          onSelect={() => {
-            void navigate({ to: "/restaurant/pms/dashboard" });
-          }}
-        >
-          Exit FO → PMS
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
 export function FrontOfficeChrome({
+  membership,
   active,
   onNavigate,
   onQuickAction,
   onGuestSearch,
   exceptionBadge = 0,
-  notificationCount = 0,
-  notificationsComingSoon = false,
   onNotifications,
   onFoActivity,
   helpOpen,
@@ -82,13 +26,12 @@ export function FrontOfficeChrome({
   canOpenCashiering = false,
   children,
 }: {
+  membership: RestaurantMembership;
   active: FoNavId;
   onNavigate: (id: FoNavId) => void;
   onQuickAction: (actionId: string) => void;
-  onGuestSearch: () => void;
+  onGuestSearch: (term?: string) => void;
   exceptionBadge?: number;
-  notificationCount?: number;
-  notificationsComingSoon?: boolean;
   onNotifications?: () => void;
   onFoActivity?: () => void;
   helpOpen?: boolean;
@@ -96,113 +39,79 @@ export function FrontOfficeChrome({
   canOpenCashiering?: boolean;
   children: ReactNode;
 }) {
+  const overflowItems = [
+    { label: "FO activity", testId: "fo-activity", onSelect: () => onFoActivity?.() },
+    { label: "Exceptions", onSelect: () => onNotifications?.() ?? onNavigate("exceptions") },
+    ...actionsForMenu("quick").map((action) => ({
+      label: action.label,
+      onSelect: () => onQuickAction(action.id),
+    })),
+  ];
+
   return (
-    <PmsCommandChrome
-      onGuestSearch={onGuestSearch}
-      exceptionBadge={exceptionBadge}
-      notificationCount={notificationCount}
-      notificationsComingSoon={notificationsComingSoon}
-      onNotifications={onNotifications}
-      onQuickAction={onQuickAction}
-      onHelpOpenChange={onHelpOpenChange}
-      onActivity={onFoActivity}
-      helpSheet={
-        <FoHelpSheet
-          open={!!helpOpen}
-          onOpenChange={(open) => onHelpOpenChange?.(open)}
-          onNavigate={onNavigate}
-          canOpenCashiering={canOpenCashiering}
-        />
-      }
-      nav={
-        <nav
-          data-testid="fo-top-nav"
-          className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto md:flex"
-          aria-label="Front Office"
-        >
-          {FO_NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              data-testid={`fo-nav-${item.id}`}
-              onClick={() => onNavigate(item.id)}
-              aria-current={active === item.id ? "page" : undefined}
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs transition-colors",
-                active === item.id
-                  ? "bg-[#C89933] text-[#251605]"
-                  : "text-white/75 hover:bg-white/10 hover:text-white",
-              )}
-            >
-              <span>{item.label}</span>
-              {item.id === "exceptions" ? (
-                <span
-                  data-testid="fo-exceptions-badge"
-                  className={cn(
-                    "min-w-5 rounded-full px-1.5 text-center text-[10px] leading-5",
-                    active === item.id ? "bg-[#251605] text-white" : "bg-white/15 text-white",
-                  )}
-                >
-                  {exceptionBadge}
-                </span>
-              ) : null}
-            </button>
-          ))}
-        </nav>
-      }
-      overflow={
-        <div className="hidden shrink-0 items-center gap-1 md:flex" data-testid="fo-top-overflow">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-white/80 hover:bg-white/10 hover:text-white"
-                aria-label="More Front Office destinations"
-              >
-                <MoreHorizontal className="size-4" />
-                <span>More</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              className="min-w-[14rem]"
-              data-testid="fo-top-overflow-menu"
-            >
-              <DropdownMenuLabel>Front Office</DropdownMenuLabel>
-              {FO_NAV_ITEMS.map((item) => (
-                <DropdownMenuItem key={item.id} onSelect={() => onNavigate(item.id)}>
-                  {item.label}
-                  {item.id === "exceptions" ? ` (${exceptionBadge})` : ""}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <FoPmsModulesEscape variant="overflow" />
-        </div>
-      }
-      mobile={
-        <div className="border-b border-[#CCCCCC] px-3 py-2 md:hidden">
-          <label className="sr-only" htmlFor="fo-mobile-nav">
-            Front Office
-          </label>
-          <select
-            id="fo-mobile-nav"
-            data-testid="fo-mobile-nav"
-            className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
-            value={active}
-            onChange={(e) => onNavigate(e.target.value as FoNavId)}
+    <RoomInventoryChrome
+      membership={membership}
+      activeModule="Front Office"
+      searchPlaceholder="Search guest, reservation, room…"
+      searchTestId="fo-module-search"
+      helpLabel="Front Office Desk operational workspace"
+      shellTestId="fo-command-shell"
+      onRoomSearch={(value) => onGuestSearch(value)}
+      onHelpClick={() => onHelpOpenChange?.(true)}
+      overflowItems={overflowItems}
+    >
+      <div className="min-w-0 bg-[#F7F4EE]" data-testid="fo-desk">
+        <header className="border-b border-border bg-background" data-testid="fo-desk-header">
+          <div className="px-5 pt-4 sm:px-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Operations
+            </p>
+            <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
+              {FO_DESK_TITLE}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">{FO_DESK_DESCRIPTION}</p>
+          </div>
+          <nav
+            data-testid="fo-workspace-nav"
+            className="mt-3 flex items-end gap-3 overflow-x-auto px-5 sm:px-6"
+            aria-label="Front Office"
           >
             {FO_NAV_ITEMS.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.id === "exceptions" ? `${item.label} (${exceptionBadge})` : item.label}
-              </option>
+              <button
+                key={item.id}
+                type="button"
+                data-testid={`fo-nav-${item.id}`}
+                onClick={() => onNavigate(item.id)}
+                aria-current={active === item.id ? "page" : undefined}
+                className={cn(
+                  "relative flex h-10 shrink-0 items-center px-2.5 text-xs font-medium transition-colors",
+                  active === item.id ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <span>{item.label}</span>
+                {item.id === "exceptions" ? (
+                  <span
+                    data-testid="fo-exceptions-badge"
+                    className="ml-1.5 min-w-5 rounded-full bg-[#F4E9D0] px-1.5 text-center text-[10px] leading-5 text-[#251605]"
+                  >
+                    {exceptionBadge}
+                  </span>
+                ) : null}
+                {active === item.id ? (
+                  <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+                ) : null}
+              </button>
             ))}
-          </select>
-          <FoPmsModulesEscape variant="phone" />
-        </div>
-      }
-    >
-      {children}
-    </PmsCommandChrome>
+          </nav>
+        </header>
+        <div className="space-y-4 p-4 sm:p-5 lg:p-6">{children}</div>
+      </div>
+      <FoHelpSheet
+        open={!!helpOpen}
+        onOpenChange={(open) => onHelpOpenChange?.(open)}
+        onNavigate={onNavigate}
+        canOpenCashiering={canOpenCashiering}
+      />
+    </RoomInventoryChrome>
   );
 }

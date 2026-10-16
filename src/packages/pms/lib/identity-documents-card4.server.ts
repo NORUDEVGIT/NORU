@@ -10,10 +10,18 @@ export type IdentityDocumentTypeRecord = {
   name: string;
   code: string;
   description: string | null;
-  issuingCountryRequired: boolean;
-  expiryDateRequired: boolean;
+  documentNumberActive: boolean;
   documentNumberRequired: boolean;
+  issuingCountryActive: boolean;
+  issuingCountryRequired: boolean;
+  issueDateActive: boolean;
+  issueDateRequired: boolean;
+  expiryDateActive: boolean;
+  expiryDateRequired: boolean;
+  issuingAuthorityActive: boolean;
+  issuingAuthorityRequired: boolean;
   scanImageAllowed: boolean;
+  scanImageRequired: boolean;
   requiredAtCheckIn: boolean;
   active: boolean;
   validForProfileTypeIds: string[];
@@ -27,10 +35,18 @@ export type IdentityDocumentTypeDraft = {
   name: string;
   code: string;
   description: string;
-  issuingCountryRequired: boolean;
-  expiryDateRequired: boolean;
+  documentNumberActive: boolean;
   documentNumberRequired: boolean;
+  issuingCountryActive: boolean;
+  issuingCountryRequired: boolean;
+  issueDateActive: boolean;
+  issueDateRequired: boolean;
+  expiryDateActive: boolean;
+  expiryDateRequired: boolean;
+  issuingAuthorityActive: boolean;
+  issuingAuthorityRequired: boolean;
   scanImageAllowed: boolean;
+  scanImageRequired: boolean;
   requiredAtCheckIn: boolean;
   active: boolean;
   validForProfileTypeIds: string[];
@@ -43,9 +59,17 @@ export type IdentityDocumentProfileTypeOption = {
   active: boolean;
 };
 
+export type IdentityDocumentGlobalSettings = {
+  active: boolean;
+  checkIn: boolean;
+  reservation: boolean;
+};
+
 export type IdentityDocumentTypeSnapshot = {
   documentTypes: IdentityDocumentTypeRecord[];
   profileTypes: IdentityDocumentProfileTypeOption[];
+  identityGlobalSettings: IdentityDocumentGlobalSettings;
+  identityDocumentRequired?: boolean;
   lastUpdatedAt: string | null;
 };
 
@@ -56,40 +80,72 @@ export const DEFAULT_IDENTITY_DOCUMENT_TYPES = [
     name: "Passport",
     code: "PAS",
     description: "International passport issued by a government.",
-    issuingCountryRequired: true,
-    expiryDateRequired: true,
+    documentNumberActive: true,
     documentNumberRequired: true,
+    issuingCountryActive: true,
+    issuingCountryRequired: true,
+    issueDateActive: true,
+    issueDateRequired: false,
+    expiryDateActive: true,
+    expiryDateRequired: true,
+    issuingAuthorityActive: true,
+    issuingAuthorityRequired: false,
     scanImageAllowed: true,
+    scanImageRequired: false,
     requiredAtCheckIn: true,
   },
   {
     name: "National ID",
     code: "NID",
     description: "National identity document issued by a government.",
-    issuingCountryRequired: true,
-    expiryDateRequired: false,
+    documentNumberActive: true,
     documentNumberRequired: true,
+    issuingCountryActive: true,
+    issuingCountryRequired: true,
+    issueDateActive: true,
+    issueDateRequired: false,
+    expiryDateActive: true,
+    expiryDateRequired: false,
+    issuingAuthorityActive: true,
+    issuingAuthorityRequired: false,
     scanImageAllowed: true,
+    scanImageRequired: false,
     requiredAtCheckIn: false,
   },
   {
     name: "Driving License",
     code: "DL",
     description: "Government-issued driving licence.",
-    issuingCountryRequired: true,
-    expiryDateRequired: true,
+    documentNumberActive: true,
     documentNumberRequired: true,
+    issuingCountryActive: true,
+    issuingCountryRequired: true,
+    issueDateActive: true,
+    issueDateRequired: false,
+    expiryDateActive: true,
+    expiryDateRequired: true,
+    issuingAuthorityActive: true,
+    issuingAuthorityRequired: false,
     scanImageAllowed: true,
+    scanImageRequired: false,
     requiredAtCheckIn: false,
   },
   {
     name: "Other ID",
     code: "OID",
     description: "Another accepted form of identification.",
-    issuingCountryRequired: false,
-    expiryDateRequired: false,
+    documentNumberActive: true,
     documentNumberRequired: true,
+    issuingCountryActive: true,
+    issuingCountryRequired: false,
+    issueDateActive: true,
+    issueDateRequired: false,
+    expiryDateActive: true,
+    expiryDateRequired: false,
+    issuingAuthorityActive: true,
+    issuingAuthorityRequired: false,
     scanImageAllowed: true,
+    scanImageRequired: false,
     requiredAtCheckIn: false,
   },
 ] as const;
@@ -116,10 +172,18 @@ export function emptyIdentityDocumentTypeDraft(displayOrder = 1): IdentityDocume
     name: "",
     code: "",
     description: "",
-    issuingCountryRequired: false,
-    expiryDateRequired: false,
+    documentNumberActive: true,
     documentNumberRequired: true,
+    issuingCountryActive: true,
+    issuingCountryRequired: false,
+    issueDateActive: true,
+    issueDateRequired: false,
+    expiryDateActive: true,
+    expiryDateRequired: false,
+    issuingAuthorityActive: true,
+    issuingAuthorityRequired: false,
     scanImageAllowed: false,
+    scanImageRequired: false,
     requiredAtCheckIn: false,
     active: true,
     validForProfileTypeIds: [],
@@ -191,6 +255,42 @@ export function validateIdentityDocumentTypeDraft(
     errors.push({
       field: "requiredAtCheckIn",
       message: "An inactive document type cannot be required at check-in.",
+    });
+  }
+  if (!draft.documentNumberActive && draft.documentNumberRequired) {
+    errors.push({
+      field: "documentNumberRequired",
+      message: "An inactive document number field cannot be required.",
+    });
+  }
+  if (!draft.issuingCountryActive && draft.issuingCountryRequired) {
+    errors.push({
+      field: "issuingCountryRequired",
+      message: "An inactive issuing country field cannot be required.",
+    });
+  }
+  if (!draft.issueDateActive && draft.issueDateRequired) {
+    errors.push({
+      field: "issueDateRequired",
+      message: "An inactive issue date field cannot be required.",
+    });
+  }
+  if (!draft.expiryDateActive && draft.expiryDateRequired) {
+    errors.push({
+      field: "expiryDateRequired",
+      message: "An inactive expiry date field cannot be required.",
+    });
+  }
+  if (!draft.issuingAuthorityActive && draft.issuingAuthorityRequired) {
+    errors.push({
+      field: "issuingAuthorityRequired",
+      message: "An inactive issuing authority field cannot be required.",
+    });
+  }
+  if (!draft.scanImageAllowed && draft.scanImageRequired) {
+    errors.push({
+      field: "scanImageRequired",
+      message: "Scan/image upload must be allowed before it can be required.",
     });
   }
 

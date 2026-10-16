@@ -15,7 +15,13 @@ import {
 import { callerMembership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { REPORTS_ROLES } from "@/core/lib/module-access";
+import { selectCompanyBookingDefaults } from "./create-reservation-step3";
 import { requireReservationManager } from "./reservations.server";
+import { computeBookedRevenueOverview } from "./revenue/revenue-metrics";
+import { loadQuoteMerchandising } from "./rate-quote-read-model.server";
+import { breakfastLabelFromMealPlan, deriveCancellationDisplay } from "./cancellation-deadline";
+import { foreignRatePlanPolicyMessage } from "./rate-plan-policy-link";
+import { parsePackageInclusionType, type RatePlanPackageLink } from "./rate-plan-package-inclusion";
 
 const idSchema = z.string().uuid();
 
@@ -45,6 +51,28 @@ export interface RatePlan {
   baseRate: number;
   validFrom: string | null;
   validTo: string | null;
+  mealPlanId: string | null;
+  mealPlanName: string;
+  breakfastIncluded: boolean;
+  cancellationPolicyId: string | null;
+  cancellationName: string;
+  refundabilityId: string | null;
+  refundabilityName: string;
+  refundabilityKind: string | null;
+  depositPolicyId: string | null;
+  depositPolicyName: string;
+  noShowPolicyId: string | null;
+  noShowPolicyName: string;
+  noShowPenaltyType?: string | null;
+  noShowPenaltyValue?: number | null;
+  earlyDeparturePolicyId: string | null;
+  earlyDeparturePolicyName: string;
+  earlyDeparturePenaltyType: string | null;
+  earlyDeparturePenaltyValue: number | null;
+  earlyDepartureDescription: string | null;
+  minAdvanceDays: number | null;
+  maxAdvanceDays: number | null;
+  packages: RatePlanPackageLink[];
   active: boolean;
 }
 
@@ -156,12 +184,22 @@ export const saveRateCategory = createServerFn({ method: "POST" })
 
 /* ------------------------------------------------------------------- plans */
 
-const PLAN_SELECT = `
+const PLAN_SELECT_BASE = `
   id, code, name, description, rate_category_id, room_type_id, currency, base_rate,
-  valid_from, valid_to, active,
+  valid_from, valid_to, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days, active,
   hotel_rate_categories!hotel_rate_plans_category_same_property ( name ),
   room_types!hotel_rate_plans_type_same_property ( name )
 `;
+const PLAN_SELECT = `
+  id, code, name, description, rate_category_id, room_type_id, currency, base_rate,
+  valid_from, valid_to, meal_plan_id, cancellation_policy_id, refundability_id, deposit_policy_id, no_show_policy_id, early_departure_policy_id, min_advance_days, max_advance_days, active,
+  hotel_rate_categories!hotel_rate_plans_category_same_property ( name ),
+  room_types!hotel_rate_plans_type_same_property ( name )
+`;
+
+function missingColumn(error: { code?: string } | null | undefined) {
+  return error?.code === "42703" || error?.code === "PGRST204";
+}
 
 type PlanRow = {
   id: string;
@@ -174,6 +212,14 @@ type PlanRow = {
   base_rate: number | string;
   valid_from: string | null;
   valid_to: string | null;
+  meal_plan_id?: string | null;
+  cancellation_policy_id: string | null;
+  refundability_id: string | null;
+  deposit_policy_id?: string | null;
+  no_show_policy_id?: string | null;
+  early_departure_policy_id?: string | null;
+  min_advance_days: number | null;
+  max_advance_days: number | null;
   active: boolean;
   hotel_rate_categories: { name: string } | null;
   room_types: { name: string } | null;
@@ -193,8 +239,369 @@ function toPlan(row: PlanRow): RatePlan {
     baseRate: Number(row.base_rate),
     validFrom: row.valid_from,
     validTo: row.valid_to,
+    mealPlanId: row.meal_plan_id ?? null,
+    mealPlanName: "",
+    breakfastIncluded: false,
+    cancellationPolicyId: row.cancellation_policy_id,
+    cancellationName: "",
+    refundabilityId: row.refundability_id,
+    refundabilityName: "",
+    refundabilityKind: null,
+    depositPolicyId: row.deposit_policy_id ?? null,
+    depositPolicyName: "",
+    noShowPolicyId: row.no_show_policy_id ?? null,
+    noShowPolicyName: "",
+    noShowPenaltyType: null,
+    noShowPenaltyValue: null,
+    earlyDeparturePolicyId: row.early_departure_policy_id ?? null,
+    earlyDeparturePolicyName: "",
+    earlyDeparturePenaltyType: null,
+    earlyDeparturePenaltyValue: null,
+    earlyDepartureDescription: null,
+    minAdvanceDays: row.min_advance_days == null ? null : Number(row.min_advance_days),
+    maxAdvanceDays: row.max_advance_days == null ? null : Number(row.max_advance_days),
+    packages: [],
     active: row.active,
   };
+}
+
+async function hydrateRatePlanMerchandising(
+  db: { from: (table: string) => any },
+  restaurantId: string,
+  plans: RatePlan[],
+): Promise<RatePlan[]> {
+  const mealIds = [
+    ...new Set(plans.map((row) => row.mealPlanId).filter((id): id is string => Boolean(id))),
+  ];
+  const cancelIds = [
+    ...new Set(
+      plans.map((row) => row.cancellationPolicyId).filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const refundIds = [
+    ...new Set(plans.map((row) => row.refundabilityId).filter((id): id is string => Boolean(id))),
+  ];
+  const depositIds = [
+    ...new Set(plans.map((row) => row.depositPolicyId).filter((id): id is string => Boolean(id))),
+  ];
+  const noShowIds = [
+    ...new Set(plans.map((row) => row.noShowPolicyId).filter((id): id is string => Boolean(id))),
+  ];
+  const earlyDepartureIds = [
+    ...new Set(
+      plans.map((row) => row.earlyDeparturePolicyId).filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  const [meals, cancellations, refundability, deposits, noShows, earlyDepartures] =
+    await Promise.all([
+      mealIds.length
+        ? db
+            .from("pms_meal_plans")
+            .select("id, name, includes_breakfast")
+            .eq("restaurant_id", restaurantId)
+            .in("id", mealIds)
+        : Promise.resolve({ data: [], error: null }),
+      cancelIds.length
+        ? db
+            .from("pms_rate_cancellation_policies")
+            .select("id, name, policy_kind, window_value, window_unit, cutoff_time, deadline_hours")
+            .eq("restaurant_id", restaurantId)
+            .in("id", cancelIds)
+        : Promise.resolve({ data: [], error: null }),
+      refundIds.length
+        ? db
+            .from("pms_rate_refundability_codes")
+            .select("id, name, kind")
+            .eq("restaurant_id", restaurantId)
+            .in("id", refundIds)
+        : Promise.resolve({ data: [], error: null }),
+      depositIds.length
+        ? db
+            .from("pms_deposit_policies")
+            .select("id, name")
+            .eq("restaurant_id", restaurantId)
+            .in("id", depositIds)
+        : Promise.resolve({ data: [], error: null }),
+      noShowIds.length
+        ? db
+            .from("pms_no_show_policies")
+            .select("id, name, penalty_type, penalty_value")
+            .eq("restaurant_id", restaurantId)
+            .in("id", noShowIds)
+        : Promise.resolve({ data: [], error: null }),
+      earlyDepartureIds.length
+        ? db
+            .from("pms_early_departure_policies")
+            .select("id, name, description, penalty_type, penalty_value")
+            .eq("restaurant_id", restaurantId)
+            .in("id", earlyDepartureIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+  let cancelRows = cancellations;
+  if (cancellations.error && missingColumn(cancellations.error) && cancelIds.length > 0) {
+    cancelRows = await db
+      .from("pms_rate_cancellation_policies")
+      .select("id, name, deadline_hours")
+      .eq("restaurant_id", restaurantId)
+      .in("id", cancelIds);
+  }
+
+  let noShowRows = noShows;
+  if (noShows.error && missingColumn(noShows.error) && noShowIds.length > 0) {
+    noShowRows = await db
+      .from("pms_no_show_policies")
+      .select("id, name")
+      .eq("restaurant_id", restaurantId)
+      .in("id", noShowIds);
+  }
+
+  const mealById = new Map(
+    ((meals.data ?? []) as { id: string; name: string; includes_breakfast: boolean | null }[]).map(
+      (row) => [row.id, row],
+    ),
+  );
+  const cancelById = new Map(
+    ((cancelRows.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row]),
+  );
+  const refundById = new Map(
+    ((refundability.data ?? []) as { id: string; name: string; kind: string | null }[]).map(
+      (row) => [row.id, row],
+    ),
+  );
+  const depositById = new Map(
+    ((deposits.error ? [] : (deposits.data ?? [])) as { id: string; name: string }[]).map((row) => [
+      row.id,
+      row,
+    ]),
+  );
+  const noShowById = new Map(
+    (
+      (noShowRows.error ? [] : (noShowRows.data ?? [])) as {
+        id: string;
+        name: string;
+        penalty_type?: string | null;
+        penalty_value?: number | null;
+      }[]
+    ).map((row) => [row.id, row]),
+  );
+  const earlyDepartureById = new Map(
+    (
+      (earlyDepartures.error ? [] : (earlyDepartures.data ?? [])) as {
+        id: string;
+        name: string;
+        description: string | null;
+        penalty_type: string | null;
+        penalty_value: number | string | null;
+      }[]
+    ).map((row) => [row.id, row]),
+  );
+
+  const packagesByPlan = await loadRatePlanPackageLinks(
+    db,
+    restaurantId,
+    plans.map((row) => row.id),
+  );
+
+  return plans.map((plan) => {
+    const meal = plan.mealPlanId ? mealById.get(plan.mealPlanId) : undefined;
+    const cancel = plan.cancellationPolicyId
+      ? cancelById.get(plan.cancellationPolicyId)
+      : undefined;
+    const refund = plan.refundabilityId ? refundById.get(plan.refundabilityId) : undefined;
+    const deposit = plan.depositPolicyId ? depositById.get(plan.depositPolicyId) : undefined;
+    const noShow = plan.noShowPolicyId ? noShowById.get(plan.noShowPolicyId) : undefined;
+    const earlyDeparture = plan.earlyDeparturePolicyId
+      ? earlyDepartureById.get(plan.earlyDeparturePolicyId)
+      : undefined;
+    return {
+      ...plan,
+      mealPlanName: meal?.name ?? "",
+      breakfastIncluded: meal?.includes_breakfast === true,
+      cancellationName: cancel?.name ?? "",
+      refundabilityName: refund?.name ?? "",
+      refundabilityKind: refund?.kind ?? null,
+      depositPolicyName: deposit?.name ?? "",
+      noShowPolicyName: noShow?.name ?? "",
+      noShowPenaltyType: noShow?.penalty_type ?? null,
+      noShowPenaltyValue: noShow?.penalty_value == null ? null : Number(noShow.penalty_value),
+      earlyDeparturePolicyName: earlyDeparture?.name ?? "",
+      earlyDeparturePenaltyType: earlyDeparture?.penalty_type ?? null,
+      earlyDeparturePenaltyValue:
+        earlyDeparture?.penalty_value == null ? null : Number(earlyDeparture.penalty_value),
+      earlyDepartureDescription: earlyDeparture?.description?.trim() || null,
+      packages: packagesByPlan.get(plan.id) ?? [],
+    };
+  });
+}
+
+async function loadRatePlanPackageLinks(
+  db: { from: (table: string) => any },
+  restaurantId: string,
+  planIds: string[],
+): Promise<Map<string, RatePlanPackageLink[]>> {
+  const byPlan = new Map<string, RatePlanPackageLink[]>();
+  if (planIds.length === 0) return byPlan;
+
+  let mapping = await db
+    .from("pms_package_rate_plans")
+    .select("package_id, rate_plan_id, inclusion_type")
+    .eq("restaurant_id", restaurantId)
+    .in("rate_plan_id", planIds);
+  if (mapping.error && (mapping.error.code === "42703" || mapping.error.code === "PGRST204")) {
+    mapping = await db
+      .from("pms_package_rate_plans")
+      .select("package_id, rate_plan_id")
+      .eq("restaurant_id", restaurantId)
+      .in("rate_plan_id", planIds);
+  }
+  if (mapping.error) return byPlan;
+
+  const rows = (mapping.data ?? []) as Array<{
+    package_id: string;
+    rate_plan_id: string;
+    inclusion_type?: string | null;
+  }>;
+  const packageIds = [...new Set(rows.map((row) => row.package_id))];
+  if (packageIds.length === 0) return byPlan;
+
+  const [packages, components] = await Promise.all([
+    db
+      .from("pms_packages")
+      .select("id, name, active")
+      .eq("restaurant_id", restaurantId)
+      .in("id", packageIds),
+    db
+      .from("pms_package_components")
+      .select("package_id, component_kind, meal_plan_id, room_amenity_id, fo_service_id")
+      .eq("restaurant_id", restaurantId)
+      .in("package_id", packageIds),
+  ]);
+  if (packages.error) return byPlan;
+
+  const packageById = new Map(
+    ((packages.data ?? []) as { id: string; name: string; active: boolean | null }[])
+      .filter((row) => row.active !== false)
+      .map((row) => [row.id, row]),
+  );
+  const componentMealIds = [
+    ...new Set(
+      ((components.data ?? []) as { meal_plan_id?: string | null }[])
+        .map((row) => row.meal_plan_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const componentAmenityIds = [
+    ...new Set(
+      ((components.data ?? []) as { room_amenity_id?: string | null }[])
+        .map((row) => row.room_amenity_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const componentServiceIds = [
+    ...new Set(
+      ((components.data ?? []) as { fo_service_id?: string | null }[])
+        .map((row) => row.fo_service_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const [meals, amenities, services] = await Promise.all([
+    componentMealIds.length
+      ? db
+          .from("pms_meal_plans")
+          .select("id, name")
+          .eq("restaurant_id", restaurantId)
+          .in("id", componentMealIds)
+      : Promise.resolve({ data: [], error: null }),
+    componentAmenityIds.length
+      ? db
+          .from("room_amenities")
+          .select("id, name")
+          .eq("restaurant_id", restaurantId)
+          .in("id", componentAmenityIds)
+      : Promise.resolve({ data: [], error: null }),
+    componentServiceIds.length
+      ? db
+          .from("fo_service_catalogue")
+          .select("id, name")
+          .eq("restaurant_id", restaurantId)
+          .in("id", componentServiceIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const mealName = new Map(
+    ((meals.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]),
+  );
+  const amenityName = new Map(
+    ((amenities.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]),
+  );
+  const serviceName = new Map(
+    ((services.data ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]),
+  );
+  const componentsByPackage = new Map<string, RatePlanPackageLink["components"]>();
+  for (const row of (components.data ?? []) as Array<{
+    package_id: string;
+    component_kind: string;
+    meal_plan_id?: string | null;
+    room_amenity_id?: string | null;
+    fo_service_id?: string | null;
+  }>) {
+    const list = componentsByPackage.get(row.package_id) ?? [];
+    const mealPlanId = row.meal_plan_id ?? null;
+    list.push({
+      kind: row.component_kind,
+      mealPlanId,
+      label:
+        (mealPlanId && mealName.get(mealPlanId)) ||
+        (row.room_amenity_id && amenityName.get(row.room_amenity_id)) ||
+        (row.fo_service_id && serviceName.get(row.fo_service_id)) ||
+        row.component_kind,
+    });
+    componentsByPackage.set(row.package_id, list);
+  }
+
+  for (const row of rows) {
+    const pkg = packageById.get(row.package_id);
+    if (!pkg) continue;
+    const list = byPlan.get(row.rate_plan_id) ?? [];
+    list.push({
+      packageId: row.package_id,
+      packageName: pkg.name,
+      inclusionType: parsePackageInclusionType(row.inclusion_type),
+      components: componentsByPackage.get(row.package_id) ?? [],
+    });
+    byPlan.set(row.rate_plan_id, list);
+  }
+  return byPlan;
+}
+
+async function loadRatePlans(
+  supabase: { from: (table: string) => any },
+  restaurantId: string,
+  apply: (query: any) => any,
+): Promise<RatePlan[]> {
+  const composed = await apply(
+    supabase
+      .from("hotel_rate_plans")
+      .select(PLAN_SELECT)
+      .eq("restaurant_id", restaurantId)
+      .order("code"),
+  );
+  let rows = composed.data;
+  if (composed.error) {
+    if (!missingColumn(composed.error)) throw new Error(composed.error.message);
+    const fallback = await apply(
+      supabase
+        .from("hotel_rate_plans")
+        .select(PLAN_SELECT_BASE)
+        .eq("restaurant_id", restaurantId)
+        .order("code"),
+    );
+    if (fallback.error) throw new Error(fallback.error.message);
+    rows = fallback.data;
+  }
+  const plans = ((rows ?? []) as unknown as PlanRow[]).map(toPlan);
+  return hydrateRatePlanMerchandising(supabase, restaurantId, plans);
 }
 
 export const listRatePlans = createServerFn({ method: "POST" })
@@ -210,17 +617,12 @@ export const listRatePlans = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<RatePlan[]> => {
     await requireRateManager(context as never, data.restaurantId);
-    let query = context.supabase
-      .from("hotel_rate_plans")
-      .select(PLAN_SELECT)
-      .eq("restaurant_id", data.restaurantId)
-      .order("code");
-    if (data.roomTypeId) query = query.eq("room_type_id", data.roomTypeId);
-    if (data.activeOnly) query = query.eq("active", true);
-
-    const { data: rows, error } = await query;
-    if (error) throw new Error(error.message);
-    return ((rows ?? []) as unknown as PlanRow[]).map(toPlan);
+    return loadRatePlans(context.supabase, data.restaurantId, (query) => {
+      let next = query;
+      if (data.roomTypeId) next = next.eq("room_type_id", data.roomTypeId);
+      if (data.activeOnly) next = next.eq("active", true);
+      return next;
+    });
   });
 
 export const saveRatePlan = createServerFn({ method: "POST" })
@@ -238,6 +640,13 @@ export const saveRatePlan = createServerFn({ method: "POST" })
         baseRate: z.number().min(0).max(10_000_000),
         validFrom: dateSchema.nullable().optional(),
         validTo: dateSchema.nullable().optional(),
+        cancellationPolicyId: idSchema.nullable().optional(),
+        refundabilityId: idSchema.nullable().optional(),
+        depositPolicyId: idSchema.nullable().optional(),
+        noShowPolicyId: idSchema.nullable().optional(),
+        earlyDeparturePolicyId: idSchema.nullable().optional(),
+        minAdvanceDays: z.number().int().min(0).max(365).nullable().optional(),
+        maxAdvanceDays: z.number().int().min(0).max(365).nullable().optional(),
         active: z.boolean().optional(),
       })
       .parse(input),
@@ -259,10 +668,60 @@ export const saveRatePlan = createServerFn({ method: "POST" })
         .eq("id", data.roomTypeId)
         .eq("restaurant_id", data.restaurantId)
         .maybeSingle(),
-      context.supabase.from("restaurants").select("currency_code").eq("id", data.restaurantId).maybeSingle(),
+      context.supabase
+        .from("restaurants")
+        .select("currency_code")
+        .eq("id", data.restaurantId)
+        .maybeSingle(),
     ]);
-    if (!category) return { ok: false, message: "That rate category doesn't belong to this property." };
+    if (!category)
+      return { ok: false, message: "That rate category doesn't belong to this property." };
     if (!roomType) return { ok: false, message: "That room type doesn't belong to this property." };
+
+    const [depositLookup, noShowLookup, earlyDepartureLookup] = await Promise.all([
+      data.depositPolicyId
+        ? context.supabase
+            .from("pms_deposit_policies")
+            .select("id")
+            .eq("id", data.depositPolicyId)
+            .eq("restaurant_id", data.restaurantId)
+            .maybeSingle()
+        : Promise.resolve({ data: { id: true }, error: null }),
+      data.noShowPolicyId
+        ? context.supabase
+            .from("pms_no_show_policies")
+            .select("id")
+            .eq("id", data.noShowPolicyId)
+            .eq("restaurant_id", data.restaurantId)
+            .maybeSingle()
+        : Promise.resolve({ data: { id: true }, error: null }),
+      data.earlyDeparturePolicyId
+        ? context.supabase
+            .from("pms_early_departure_policies")
+            .select("id")
+            .eq("id", data.earlyDeparturePolicyId)
+            .eq("restaurant_id", data.restaurantId)
+            .maybeSingle()
+        : Promise.resolve({ data: { id: true }, error: null }),
+    ]);
+    const depositMessage = foreignRatePlanPolicyMessage(
+      "deposit",
+      data.depositPolicyId,
+      !depositLookup.error && Boolean(depositLookup.data),
+    );
+    if (depositMessage) return { ok: false, message: depositMessage };
+    const noShowMessage = foreignRatePlanPolicyMessage(
+      "no-show",
+      data.noShowPolicyId,
+      !noShowLookup.error && Boolean(noShowLookup.data),
+    );
+    if (noShowMessage) return { ok: false, message: noShowMessage };
+    const earlyDepartureMessage = foreignRatePlanPolicyMessage(
+      "early-departure",
+      data.earlyDeparturePolicyId,
+      !earlyDepartureLookup.error && Boolean(earlyDepartureLookup.data),
+    );
+    if (earlyDepartureMessage) return { ok: false, message: earlyDepartureMessage };
 
     const payload = {
       restaurant_id: data.restaurantId,
@@ -275,7 +734,16 @@ export const saveRatePlan = createServerFn({ method: "POST" })
       base_rate: data.baseRate,
       valid_from: data.validFrom ?? null,
       valid_to: data.validTo ?? null,
+      cancellation_policy_id: data.cancellationPolicyId ?? null,
+      refundability_id: data.refundabilityId ?? null,
+      min_advance_days: data.minAdvanceDays ?? null,
+      max_advance_days: data.maxAdvanceDays ?? null,
       active: data.active ?? true,
+      ...(data.depositPolicyId !== undefined ? { deposit_policy_id: data.depositPolicyId } : {}),
+      ...(data.noShowPolicyId !== undefined ? { no_show_policy_id: data.noShowPolicyId } : {}),
+      ...(data.earlyDeparturePolicyId !== undefined
+        ? { early_departure_policy_id: data.earlyDeparturePolicyId }
+        : {}),
     };
 
     if (data.ratePlanId) {
@@ -321,7 +789,12 @@ async function assertPlan(context: { supabase: never }, restaurantId: string, ra
         eq: (
           c: string,
           v: string,
-        ) => { eq: (c: string, v: string) => { maybeSingle: () => Promise<{ data: { base_rate: number | string } | null }> } };
+        ) => {
+          eq: (
+            c: string,
+            v: string,
+          ) => { maybeSingle: () => Promise<{ data: { base_rate: number | string } | null }> };
+        };
       };
     };
   };
@@ -340,7 +813,9 @@ async function assertPlan(context: { supabase: never }, restaurantId: string, ra
 export const listRateCalendar = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, ratePlanId: idSchema, from: dateSchema, to: dateSchema }).parse(input),
+    z
+      .object({ restaurantId: idSchema, ratePlanId: idSchema, from: dateSchema, to: dateSchema })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<RateCalendarRow[]> => {
     await requireRateManager(context as never, data.restaurantId);
@@ -382,6 +857,10 @@ export const saveRateOverride = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ date: string }> => {
+    // Compatibility Rate Calendar writer. Official Phase 2 apply is applyRateChanges
+    // (RPC apply_hotel_rate_changes + hotel_rate_change_events). UI-03 should migrate
+    // this path after 0101 is applied. Do not loop this function for bulk apply.
+    // Card 3 also writes hotel_rate_calendar via saveRateOverrideCard3.
     const me = await requireRateManager(context as never, data.restaurantId);
     await assertPlan(context as never, data.restaurantId, data.ratePlanId);
 
@@ -415,7 +894,9 @@ export const saveRateOverride = createServerFn({ method: "POST" })
 export const listRateRestrictions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, ratePlanId: idSchema, from: dateSchema, to: dateSchema }).parse(input),
+    z
+      .object({ restaurantId: idSchema, ratePlanId: idSchema, from: dateSchema, to: dateSchema })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<RateRestrictionRow[]> => {
     await requireRateManager(context as never, data.restaurantId);
@@ -423,7 +904,9 @@ export const listRateRestrictions = createServerFn({ method: "POST" })
 
     const { data: rows, error } = await context.supabase
       .from("hotel_rate_restrictions")
-      .select("restriction_date, min_stay, max_stay, closed_to_arrival, closed_to_departure, stop_sell")
+      .select(
+        "restriction_date, min_stay, max_stay, closed_to_arrival, closed_to_departure, stop_sell",
+      )
       .eq("restaurant_id", data.restaurantId)
       .eq("rate_plan_id", data.ratePlanId)
       .gte("restriction_date", data.from)
@@ -455,6 +938,7 @@ export const listRateRestrictions = createServerFn({ method: "POST" })
     );
   });
 
+/** Compatibility Restriction Calendar writer. Official Phase 3 writes use applyRestrictionChanges. */
 export const saveRateRestriction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -520,8 +1004,24 @@ export const saveRateRestriction = createServerFn({ method: "POST" })
 export interface RatePlanQuote {
   plan: RatePlan;
   quote: StayQuote | null;
-  /** Why this plan can't be sold for the requested stay, if it can't. */
   unavailableReason: string | null;
+  breakfastLabel: string;
+  includedServicesLabel: string;
+  restrictionSummary: string | null;
+  cancellationLabel: string;
+  refundabilityLabel: string;
+  refundabilityKind: string | null;
+  depositPolicyId: string | null;
+  depositPolicyName: string;
+  noShowPolicyId: string | null;
+  noShowPolicyName: string;
+  noShowPenaltyType?: string | null;
+  noShowPenaltyValue?: number | null;
+  earlyDeparturePolicyId: string | null;
+  earlyDeparturePolicyName: string;
+  earlyDeparturePenaltyType: string | null;
+  earlyDeparturePenaltyValue: number | null;
+  earlyDepartureDescription: string | null;
 }
 
 /** Authoritative server pricing for every plan of a room type across a stay. */
@@ -535,61 +1035,455 @@ export const quoteStay = createServerFn({ method: "POST" })
         arrival: dateSchema,
         departure: dateSchema,
         ratePlanId: idSchema.optional(),
+        rooms: z.number().int().min(1).max(20).optional(),
+        adults: z.number().int().min(1).max(20).optional(),
+        children: z.number().int().min(0).max(20).optional(),
+        infants: z.number().int().min(0).max(20).optional(),
+        quoteCurrency: z
+          .string()
+          .trim()
+          .toUpperCase()
+          .regex(/^[A-Z]{3}$/)
+          .nullable()
+          .optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RatePlanQuote[]> => {
-    // Create UX quoting is for reservation managers including receptionist.
-    // Rate admin writers stay owner/manager-only. Unpriced Pending stays manager-only.
     await requireReservationManager(context as never, data.restaurantId);
     if (data.departure <= data.arrival) throw new Error("Departure must be after arrival.");
 
-    let query = context.supabase
-      .from("hotel_rate_plans")
-      .select(PLAN_SELECT)
-      .eq("restaurant_id", data.restaurantId)
-      .eq("room_type_id", data.roomTypeId)
-      .eq("active", true)
-      .order("code");
-    if (data.ratePlanId) query = query.eq("id", data.ratePlanId);
-
-    const { data: rows, error } = await query;
-    if (error) throw new Error(error.message);
-    const plans = ((rows ?? []) as unknown as PlanRow[]).map(toPlan);
+    const plans = await loadRatePlans(context.supabase, data.restaurantId, (query) => {
+      let next = query.eq("room_type_id", data.roomTypeId).eq("active", true);
+      if (data.ratePlanId) next = next.eq("id", data.ratePlanId);
+      return next;
+    });
     if (plans.length === 0) return [];
+
+    const policyLabels = new Map<
+      string,
+      { cancellationLabel: string; refundabilityLabel: string; refundabilityKind: string | null }
+    >();
+    const cancelIds = [
+      ...new Set(
+        plans.map((plan) => plan.cancellationPolicyId).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const refundIds = [
+      ...new Set(
+        plans.map((plan) => plan.refundabilityId).filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const cancelNames = new Map<
+      string,
+      {
+        name: string;
+        policy_kind?: string | null;
+        window_value?: number | null;
+        window_unit?: string | null;
+        cutoff_time?: string | null;
+        deadline_hours?: number | null;
+      }
+    >();
+    const refundNames = new Map<string, string>();
+    const refundKinds = new Map<string, string>();
+    const { data: propertyRow } = await context.supabase
+      .from("restaurants")
+      .select("timezone")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    const timeZone = (propertyRow as { timezone?: string | null } | null)?.timezone ?? null;
+    if (cancelIds.length > 0) {
+      let cancelQuery = await context.supabase
+        .from("pms_rate_cancellation_policies")
+        .select("id, name, policy_kind, window_value, window_unit, cutoff_time, deadline_hours")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", cancelIds);
+      if (cancelQuery.error && missingColumn(cancelQuery.error)) {
+        cancelQuery = await context.supabase
+          .from("pms_rate_cancellation_policies")
+          .select("id, name, deadline_hours")
+          .eq("restaurant_id", data.restaurantId)
+          .in("id", cancelIds);
+      }
+      for (const row of cancelQuery.data ?? []) {
+        cancelNames.set(row.id, row as never);
+      }
+    }
+    if (refundIds.length > 0) {
+      const { data: refundRows } = await context.supabase
+        .from("pms_rate_refundability_codes")
+        .select("id, name, kind")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", refundIds);
+      for (const row of refundRows ?? []) {
+        refundNames.set(row.id, row.name);
+        refundKinds.set(row.id, String(row.kind ?? ""));
+      }
+    }
+    for (const plan of plans) {
+      const cancel = plan.cancellationPolicyId
+        ? cancelNames.get(plan.cancellationPolicyId)
+        : undefined;
+      const derived = cancel
+        ? deriveCancellationDisplay({
+            policyName: cancel.name,
+            policyKind: cancel.policy_kind,
+            windowValue: cancel.window_value == null ? null : Number(cancel.window_value),
+            windowUnit: cancel.window_unit,
+            cutoffTime: cancel.cutoff_time,
+            deadlineHours: cancel.deadline_hours == null ? null : Number(cancel.deadline_hours),
+            arrivalDate: data.arrival,
+            timeZone,
+          })
+        : null;
+      policyLabels.set(plan.id, {
+        cancellationLabel: derived?.label ?? (cancel?.name || "—"),
+        refundabilityLabel: plan.refundabilityId
+          ? (refundNames.get(plan.refundabilityId) ?? "—")
+          : "—",
+        refundabilityKind: plan.refundabilityId
+          ? refundKinds.get(plan.refundabilityId) || null
+          : null,
+      });
+    }
+
+    const merchandising = await loadQuoteMerchandising(
+      context.supabase as never,
+      data.restaurantId,
+      plans.map((plan) => plan.id),
+      data.arrival,
+      data.departure,
+      policyLabels,
+    );
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const out: RatePlanQuote[] = [];
     for (const plan of plans) {
+      const extra = merchandising.get(plan.id);
       const { data: pricing, error: priceError } = await supabaseAdmin.rpc("price_hotel_stay", {
         _restaurant_id: data.restaurantId,
         _rate_plan_id: plan.id,
         _room_type_id: data.roomTypeId,
         _arrival: data.arrival,
         _departure: data.departure,
+        _rooms: data.rooms ?? 1,
+        _adults: data.adults ?? 1,
+        _children: data.children ?? 0,
+        _infants: data.infants ?? 0,
+        _quote_currency: data.quoteCurrency ?? undefined,
       });
       if (priceError) {
-        out.push({ plan, quote: null, unavailableReason: rateError(priceError.message).message });
+        out.push({
+          plan,
+          quote: null,
+          unavailableReason: rateError(priceError.message).message,
+          breakfastLabel: breakfastLabelFromMealPlan(plan),
+          includedServicesLabel: extra?.includedServicesLabel ?? "—",
+          restrictionSummary: extra?.restrictionSummary ?? null,
+          cancellationLabel: extra?.cancellationLabel ?? "—",
+          refundabilityLabel: extra?.refundabilityLabel ?? "—",
+          refundabilityKind: extra?.refundabilityKind ?? null,
+          depositPolicyId: plan.depositPolicyId,
+          depositPolicyName: plan.depositPolicyName || "",
+          noShowPolicyId: plan.noShowPolicyId,
+          noShowPolicyName: plan.noShowPolicyName || "",
+          noShowPenaltyType: plan.noShowPenaltyType ?? null,
+          noShowPenaltyValue: plan.noShowPenaltyValue ?? null,
+          earlyDeparturePolicyId: plan.earlyDeparturePolicyId,
+          earlyDeparturePolicyName: plan.earlyDeparturePolicyName || "",
+          earlyDeparturePenaltyType: plan.earlyDeparturePenaltyType,
+          earlyDeparturePenaltyValue: plan.earlyDeparturePenaltyValue,
+          earlyDepartureDescription: plan.earlyDepartureDescription,
+        });
         continue;
       }
-      out.push({ plan, quote: toQuote(pricing), unavailableReason: null });
+      out.push({
+        plan,
+        quote: toQuote(pricing),
+        unavailableReason: null,
+        breakfastLabel: breakfastLabelFromMealPlan(plan),
+        includedServicesLabel: extra?.includedServicesLabel ?? "—",
+        restrictionSummary: extra?.restrictionSummary ?? null,
+        cancellationLabel: extra?.cancellationLabel ?? "—",
+        refundabilityLabel: extra?.refundabilityLabel ?? "—",
+        refundabilityKind: extra?.refundabilityKind ?? null,
+        depositPolicyId: plan.depositPolicyId,
+        depositPolicyName: plan.depositPolicyName || "",
+        noShowPolicyId: plan.noShowPolicyId,
+        noShowPolicyName: plan.noShowPolicyName || "",
+        noShowPenaltyType: plan.noShowPenaltyType ?? null,
+        noShowPenaltyValue: plan.noShowPenaltyValue ?? null,
+        earlyDeparturePolicyId: plan.earlyDeparturePolicyId,
+        earlyDeparturePolicyName: plan.earlyDeparturePolicyName || "",
+        earlyDeparturePenaltyType: plan.earlyDeparturePenaltyType,
+        earlyDeparturePenaltyValue: plan.earlyDeparturePenaltyValue,
+        earlyDepartureDescription: plan.earlyDepartureDescription,
+      });
     }
     return out;
   });
+
+export type FlexibleStayWindow = {
+  arrival: string;
+  departure: string;
+  offsetDays: number;
+  subtotal: number | null;
+  currency: string | null;
+  available: boolean;
+};
+
+/** Adjacent-date quotes for one selected plan. Does not invent a yield engine. */
+export const quoteFlexibleStay = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        roomTypeId: idSchema,
+        ratePlanId: idSchema,
+        arrival: dateSchema,
+        departure: dateSchema,
+        rooms: z.number().int().min(1).max(20).optional(),
+        adults: z.number().int().min(1).max(20).optional(),
+        children: z.number().int().min(0).max(20).optional(),
+        infants: z.number().int().min(0).max(20).optional(),
+        quoteCurrency: z
+          .string()
+          .trim()
+          .toUpperCase()
+          .regex(/^[A-Z]{3}$/)
+          .nullable()
+          .optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ windows: FlexibleStayWindow[] }> => {
+    await requireReservationManager(context as never, data.restaurantId);
+    if (data.departure <= data.arrival) throw new Error("Departure must be after arrival.");
+    const { addDaysIso, FLEXIBLE_DATE_OFFSETS } = await import("./create-reservation-step3");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const windows: FlexibleStayWindow[] = [];
+    for (const offsetDays of FLEXIBLE_DATE_OFFSETS) {
+      const arrival = addDaysIso(data.arrival, offsetDays);
+      const departure = addDaysIso(data.departure, offsetDays);
+      const { data: pricing, error } = await supabaseAdmin.rpc("price_hotel_stay", {
+        _restaurant_id: data.restaurantId,
+        _rate_plan_id: data.ratePlanId,
+        _room_type_id: data.roomTypeId,
+        _arrival: arrival,
+        _departure: departure,
+        _rooms: data.rooms ?? 1,
+        _adults: data.adults ?? 1,
+        _children: data.children ?? 0,
+        _infants: data.infants ?? 0,
+        _quote_currency: data.quoteCurrency ?? undefined,
+      });
+      const quote = error || pricing == null ? null : toQuote(pricing);
+      windows.push({
+        arrival,
+        departure,
+        offsetDays,
+        subtotal: quote?.subtotal ?? null,
+        currency: quote?.currency ?? null,
+        available: quote != null,
+      });
+    }
+    return { windows };
+  });
+
+export type AccountRatePlanHint = {
+  planId: string | null;
+  label: string;
+  matched: boolean;
+};
+
+function agreementRatePlanIds(row: Record<string, unknown>): string[] {
+  const ids: string[] = [];
+  if (typeof row.rate_plan_id === "string" && row.rate_plan_id) ids.push(row.rate_plan_id);
+  const extra = row.rate_plan_ids;
+  if (Array.isArray(extra)) {
+    for (const item of extra) {
+      if (typeof item === "string" && item) ids.push(item);
+    }
+  }
+  return ids;
+}
+
+/** Maps the company's saved agreement and billing rule onto the reservation. */
+export const listAccountRatePlanHints = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        accountId: idSchema,
+        roomTypeId: idSchema.optional(),
+        arrival: dateSchema.optional(),
+      })
+      .parse(input),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{
+      hints: AccountRatePlanHint[];
+      defaultBillingRuleId: string | null;
+      agreementLabel: string | null;
+    }> => {
+      await requireReservationManager(context as never, data.restaurantId);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      let accountResult = await supabaseAdmin
+        .from("guest_account_masters")
+        .select("id, name, code, negotiated_rate_reference, default_billing_rule_id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.accountId)
+        .maybeSingle();
+      if (accountResult.error?.code === "42703") {
+        accountResult = await supabaseAdmin
+          .from("guest_account_masters")
+          .select("id, name, code, negotiated_rate_reference")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", data.accountId)
+          .maybeSingle();
+      }
+      if (accountResult.error) throw new Error(accountResult.error.message);
+      const account = accountResult.data as {
+        id: string;
+        name: string;
+        code: string | null;
+        negotiated_rate_reference: string | null;
+        default_billing_rule_id?: string | null;
+      } | null;
+      if (!account) {
+        return { hints: [], defaultBillingRuleId: null, agreementLabel: null, contractRates: [] };
+      }
+
+      let plansQuery = supabaseAdmin
+        .from("hotel_rate_plans")
+        .select("id, code, name")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("active", true);
+      if (data.roomTypeId) plansQuery = plansQuery.eq("room_type_id", data.roomTypeId);
+      const { data: plans } = await plansQuery;
+      const planRows = (plans ?? []) as Array<{ id: string; code: string; name: string }>;
+
+      let agreementResult = await supabaseAdmin
+        .from("pms_corporate_agreements")
+        .select(
+          "id, name, code, status, active, valid_from, valid_to, currency_code, pricing_method, rate_plan_scope, discount_type, discount_value, rate_plan_id, rate_plan_ids",
+        )
+        .eq("restaurant_id", data.restaurantId)
+        .eq("company_id", data.accountId)
+        .order("valid_from", { ascending: false });
+      if (agreementResult.error?.code === "42703" || agreementResult.error?.code === "PGRST204") {
+        agreementResult = await supabaseAdmin
+          .from("pms_corporate_agreements")
+          .select(
+            "id, name, code, status, active, valid_from, valid_to, currency_code, rate_plan_id",
+          )
+          .eq("restaurant_id", data.restaurantId)
+          .eq("company_id", data.accountId)
+          .order("valid_from", { ascending: false });
+      }
+      const agreementRows =
+        agreementResult.error || !agreementResult.data
+          ? []
+          : (agreementResult.data as Array<Record<string, unknown>>);
+      const agreementIds = agreementRows.map((row) => String(row.id));
+      const currencyByAgreement = new Map(
+        agreementRows.map((row) => [String(row.id), String(row.currency_code ?? "")]),
+      );
+      let contractRateRows: Array<Record<string, unknown>> = [];
+      if (agreementIds.length > 0) {
+        const ratesResult = await supabaseAdmin
+          .from("pms_contract_rates")
+          .select("agreement_id, room_type_id, amount, active")
+          .eq("restaurant_id", data.restaurantId)
+          .in("agreement_id", agreementIds);
+        if (!ratesResult.error && ratesResult.data) {
+          contractRateRows = ratesResult.data as Array<Record<string, unknown>>;
+        }
+      }
+      const roomTypeIds = [
+        ...new Set(
+          contractRateRows
+            .map((row) => (typeof row.room_type_id === "string" ? row.room_type_id : ""))
+            .filter(Boolean),
+        ),
+      ];
+      const roomNames = new Map<string, string>();
+      if (roomTypeIds.length > 0) {
+        const roomsResult = await supabaseAdmin
+          .from("room_types")
+          .select("id, name")
+          .eq("restaurant_id", data.restaurantId)
+          .in("id", roomTypeIds);
+        for (const row of (roomsResult.data ?? []) as Array<{ id: string; name: string }>) {
+          roomNames.set(row.id, row.name);
+        }
+      }
+
+      const selected = selectCompanyBookingDefaults({
+        arrival: data.arrival ?? null,
+        defaultBillingRuleId: account.default_billing_rule_id ?? null,
+        negotiatedReference: account.negotiated_rate_reference,
+        accountCode: account.code,
+        plans: planRows,
+        agreements: agreementRows.map((row) => ({
+          id: String(row.id),
+          name: String(row.name ?? ""),
+          code: String(row.code ?? ""),
+          active: row.active !== false,
+          status: row.status == null ? null : String(row.status),
+          validFrom: String(row.valid_from ?? ""),
+          validTo: String(row.valid_to ?? ""),
+          ratePlanId: typeof row.rate_plan_id === "string" ? row.rate_plan_id : null,
+          ratePlanIds: agreementRatePlanIds(row).filter((id) => id !== row.rate_plan_id),
+          pricingMethod: row.pricing_method == null ? null : String(row.pricing_method),
+          ratePlanScope: row.rate_plan_scope == null ? null : String(row.rate_plan_scope),
+          discountType: row.discount_type == null ? null : String(row.discount_type),
+          discountValue: row.discount_value == null ? null : Number(row.discount_value),
+        })),
+        contractRates: contractRateRows
+          .filter((row) => row.active !== false && typeof row.room_type_id === "string")
+          .map((row) => ({
+            roomTypeId: String(row.room_type_id),
+            roomTypeName: roomNames.get(String(row.room_type_id)) ?? "",
+            amount: Number(row.amount ?? 0),
+            currency: currencyByAgreement.get(String(row.agreement_id ?? "")) ?? "",
+          })),
+      });
+      return selected;
+    },
+  );
 
 /* --------------------------------------------------------------- repricing */
 
 export const repriceReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, reservationId: idSchema, ratePlanId: idSchema }).parse(input),
+    z
+      .object({ restaurantId: idSchema, reservationId: idSchema, ratePlanId: idSchema })
+      .parse(input),
   )
   .handler(
     async ({
       data,
       context,
-    }): Promise<{ ok: true; id: string; subtotal: number } | { ok: false; message: string }> => {
+    }): Promise<
+      | {
+          ok: true;
+          id: string;
+          subtotal: number;
+          promotionDiscount: number;
+          roomSubtotalAfterPromotion: number;
+          promotionDropped: boolean;
+        }
+      | { ok: false; message: string }
+    > => {
       const me = await requireRateManager(context as never, data.restaurantId);
 
       const { data: reservation } = await context.supabase
@@ -611,7 +1505,21 @@ export const repriceReservation = createServerFn({ method: "POST" })
       if (error) return { ok: false, message: rateError(error.message).message };
 
       const row = updated as unknown as { id: string; room_subtotal: number | string };
-      return { ok: true, id: row.id, subtotal: Number(row.room_subtotal ?? 0) };
+      const { getReservationPromotionAttribution } =
+        await import("./revenue/commercial-promotion.server");
+      const attribution = await getReservationPromotionAttribution(supabaseAdmin, {
+        restaurantId: data.restaurantId,
+        reservationId: row.id,
+      });
+      const subtotal = Number(row.room_subtotal ?? 0);
+      return {
+        ok: true,
+        id: row.id,
+        subtotal,
+        promotionDiscount: attribution?.discountAmount ?? 0,
+        roomSubtotalAfterPromotion: attribution?.roomSubtotalAfterPromotion ?? subtotal,
+        promotionDropped: !attribution,
+      };
     },
   );
 
@@ -623,7 +1531,13 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, from: dateSchema, to: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RevenueOverview> => {
-    await requireModuleRole(context as never, data.restaurantId, "reports_analytics", REPORTS_ROLES, "You don't have access to Reports & Analytics for this property.");
+    await requireModuleRole(
+      context as never,
+      data.restaurantId,
+      "reports_analytics",
+      REPORTS_ROLES,
+      "You don't have access to Reports & Analytics for this property.",
+    );
     // Phase 8E2 — hotel revenue reporting is a PMS-owned read.
     const { requirePmsPackage } = await import("./pms-package.server");
     await requirePmsPackage(data.restaurantId);
@@ -675,18 +1589,17 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
     }
 
     const availableRoomNights = (sellableRooms ?? 0) * days;
-    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const metrics = computeBookedRevenueOverview({
+      soldRoomNights: soldNights,
+      availableRoomNights,
+      bookedRoomRevenue: revenue,
+      pricedNights,
+    });
 
     return {
       from,
       to,
       currency: restaurant?.currency_code ?? "USD",
-      availableRoomNights,
-      soldRoomNights: soldNights,
-      roomRevenue: round2(revenue),
-      occupancyPercent: availableRoomNights > 0 ? round2((soldNights / availableRoomNights) * 100) : 0,
-      adr: soldNights > 0 ? round2(revenue / soldNights) : 0,
-      revPar: availableRoomNights > 0 ? round2(revenue / availableRoomNights) : 0,
-      pricedShare: soldNights > 0 ? round2((pricedNights / soldNights) * 100) : 0,
+      ...metrics,
     };
   });

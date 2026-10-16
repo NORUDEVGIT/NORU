@@ -157,8 +157,11 @@ describe("FO-FS2 stepper source locks", () => {
     assert.match(fns, /closeFolioAtCheckout/);
     assert.match(fns, /close_guest_folio/);
     assert.match(fns, /check_out_hotel_reservation/);
-    assert.match(fns, /post_folio_transaction/);
-    assert.match(fns, /_type: "payment"/);
+    assert.match(fns, /callPostFolioTransaction/);
+    assert.match(fns, /type: "payment"/);
+    assert.match(fns, /settlement_exception: "unsettled_checkout"/);
+    assert.match(fns, /folioSettled/);
+    assert.doesNotMatch(fns, /\.update\(\{ payment_method/);
     assert.doesNotMatch(fns, /_type: "refund"/);
     assert.doesNotMatch(fns, /fo_checkout_progress/);
   });

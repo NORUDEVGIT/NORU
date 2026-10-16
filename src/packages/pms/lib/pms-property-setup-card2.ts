@@ -49,9 +49,39 @@ export const CARD2_STEPS = [
     title: "Maintenance",
     placeholder: "Maintenance configuration will be implemented in a later phase.",
   },
+  {
+    id: "rates-pricing",
+    number: 6,
+    title: "Rate & Pricing",
+    placeholder: "Rate & Pricing configuration is available in this Card 2 step.",
+  },
 ] as const;
 
 export type Card2StepId = (typeof CARD2_STEPS)[number]["id"];
+
+export const CARD2_STEP_QUERY = "card2Step";
+export const CARD2_RATES_STEP: Card2StepId = "rates-pricing";
+export const CARD2_RATES_HREF = `${SET1_HUB_HREF}?${CARD2_STEP_QUERY}=rates-pricing#${CARD2_HASH}`;
+
+export function card2StepHref(stepId: Card2StepId): string {
+  return `${SET1_HUB_HREF}?${CARD2_STEP_QUERY}=${encodeURIComponent(stepId)}#${CARD2_HASH}`;
+}
+
+export function card2StepFromSearch(search: string): Card2StepId | null {
+  const raw = search.startsWith("?") ? search.slice(1) : search;
+  const value = new URLSearchParams(raw).get(CARD2_STEP_QUERY);
+  if (!value) return null;
+  return CARD2_STEPS.some((row) => row.id === value) ? (value as Card2StepId) : null;
+}
+
+export function formatRateValidity(validFrom?: string | null, validTo?: string | null): string {
+  const from = validFrom?.trim();
+  const to = validTo?.trim();
+  if (!from && !to) return "Always";
+  if (from && !to) return `From ${from}`;
+  if (!from && to) return `Until ${to}`;
+  return `${from} – ${to}`;
+}
 
 export function card2StepById(step: Card2StepId) {
   return CARD2_STEPS.find((row) => row.id === step) ?? CARD2_STEPS[0];

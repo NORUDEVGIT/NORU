@@ -44,6 +44,7 @@ export const CARD4_CODE_TO_SECTION: Record<string, GuestListingSectionId> = {
   TRA: "travel-agent",
   TOU: "tour-operator",
   CON: "contact",
+  GRP: "group",
 };
 
 export const LISTING_PAGE_SIZES = [25, 50] as const;
@@ -172,7 +173,6 @@ export function listingCreateAllowed(
   config: ListingTypeConfigSnapshot | null | undefined,
 ): boolean {
   if (section === "tour-operator" || section === "contact") return false;
-  if (section === "group") return true;
   if (!config?.available) return true;
   const rows = config.types.filter((row) => row.section === section);
   if (rows.length === 0) return true;

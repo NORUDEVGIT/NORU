@@ -3,7 +3,6 @@ import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { HousekeepingWorkspace } from "@/packages/pms/components/workspaces/housekeeping-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { SharedModuleLinks } from "@/packages/pms/components/pms/shared-module-links";
 
 export const Route = createFileRoute("/restaurant/pms/maintenance")({
   ssr: false,
@@ -23,9 +22,9 @@ export const Route = createFileRoute("/restaurant/pms/maintenance")({
   head: () => ({
     meta: [
       { title: "Maintenance & Engineering — NORU PMS" },
-      { name: "description", content: "Maintenance requests and room engineering follow-up for your property." },
+      { name: "description", content: "Maintenance requests inside the Housekeeping Desk." },
       { property: "og:title", content: "Maintenance & Engineering — NORU PMS" },
-      { property: "og:description", content: "Maintenance requests and room engineering follow-up for your property." },
+      { property: "og:description", content: "Maintenance requests inside the Housekeeping Desk." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -37,11 +36,21 @@ export const Route = createFileRoute("/restaurant/pms/maintenance")({
 function MaintenancePmsRoute() {
   const searchTab = (Route.useSearch() as { tab?: string }).tab;
   return (
-    <RestaurantShell active="Housekeeping" module="housekeeping" pms pmsModule="maintenance">
-      {(m) => <div className="space-y-8">
-          <HousekeepingWorkspace membership={m} initialTab={searchTab ?? "maintenance"} />
-          <SharedModuleLinks restaurantId={m.restaurantId} modules={["inventory", "procurement"]} />
-        </div>}
+    <RestaurantShell
+      active="Housekeeping"
+      module="housekeeping"
+      pms
+      pmsModule="maintenance"
+      hidePackageRail
+      hideTopHeader
+    >
+      {(m) => (
+        <HousekeepingWorkspace
+          membership={m}
+          initialTab={searchTab ?? "maintenance"}
+          defaultArea="maintenance"
+        />
+      )}
     </RestaurantShell>
   );
 }

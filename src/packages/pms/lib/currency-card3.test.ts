@@ -5,13 +5,17 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  CANONICAL_BASE_CURRENCY,
   CARD3_CURRENCY_AUDIT_SECTION,
   CARD3_CURRENCY_TABS,
+  calculateRateFreshness,
   emptyFinancialSettings,
   evaluateCurrencyCard3Readiness,
   formatFxDirection,
   type CurrencyCard3Snapshot,
 } from "./currency-card3.server.ts";
+import { FxService } from "./fx/fx-service.ts";
+import type { FxProvider, FxFetchResponse } from "./fx/fx-provider.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fns = readFileSync(new URL("./currency-card3.functions.ts", import.meta.url), "utf8");
@@ -32,6 +36,11 @@ function snapshot(partial?: Partial<CurrencyCard3Snapshot>): CurrencyCard3Snapsh
     rates: [],
     settings: emptyFinancialSettings(),
     settingsRowExists: false,
+    fxStatus: {
+      providerName: "ExchangeRate-API",
+      lastRefreshedAt: null,
+      status: "never",
+    },
     ...partial,
   };
 }
@@ -93,7 +102,7 @@ describe("Card 3 Phase 1 currency readiness", () => {
     assert.doesNotMatch(fns, /pms_currency_activity/);
     assert.equal(existsSync(join(here, "../../../../src/integrations/supabase/types.ts")), true);
     const types = readFileSync(join(here, "../../../../src/integrations/supabase/types.ts"), "utf8");
-    assert.doesNotMatch(types, /pms_property_currencies/);
+    assert.match(types, /pms_property_currencies/);
   });
 
   it("keeps five currency tabs and leaves remaining Card 3 domains as placeholders", () => {
@@ -107,7 +116,110 @@ describe("Card 3 Phase 1 currency readiness", () => {
     assert.match(ui, /Card3ListSection/);
     assert.match(ui, /Save Rate/);
     assert.match(ui, /Base Currency/);
+    assert.match(ui, /Refresh Rates/);
+    assert.match(ui, /refreshExchangeRatesCard3/);
     assert.doesNotMatch(section, /CARD3_DOMAIN_PLACEHOLDER/);
     assert.doesNotMatch(ui, /Taxes & Fees configuration will/);
   });
+
+  it("enforces ETB as canonical base currency and computes rate freshness accurately", () => {
+    assert.equal(CANONICAL_BASE_CURRENCY, "ETB");
+    const today = new Date().toISOString().slice(0, 10);
+    assert.equal(calculateRateFreshness(today), "current");
+    assert.equal(calculateRateFreshness("2020-01-01"), "stale");
+    assert.equal(calculateRateFreshness(""), "stale");
+  });
+
+  it("preserves same-day manual rates when automatic refresh executes", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const mockDb: any = {
+      from(table: string) {
+        if (table === "pms_property_currencies") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => Promise.resolve({
+                  data: [
+                    { code: "USD" },
+                    { code: "EUR" },
+                  ],
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "pms_exchange_rates") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => Promise.resolve({
+                  data: [
+                    {
+                      id: "rate-1",
+                      quote_currency_code: "USD",
+                      rate: 0.008,
+                      effective_date: today,
+                      source: "manual",
+                    },
+                  ],
+                  error: null,
+                }),
+              }),
+            }),
+            insert: (payload: any) => {
+              assert.equal(payload.source, "system");
+              return Promise.resolve({ error: null });
+            },
+            update: (payload: any) => {
+              assert.equal(payload.source, "system");
+              return {
+                eq: () => ({
+                  eq: () => Promise.resolve({ error: null }),
+                }),
+              };
+            },
+          };
+        }
+        if (table === "restaurant_staff_audit_log") {
+          return {
+            insert: () => Promise.resolve({ error: null }),
+            select: () => ({
+              eq: () => ({
+                contains: () => ({
+                  order: () => ({
+                    limit: () => Promise.resolve({ data: [], error: null }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        return {};
+      },
+    };
+
+    const mockProvider: FxProvider = {
+      name: "MockProvider",
+      fetchRates: async () => ({
+        success: true,
+        baseCurrency: "ETB",
+        effectiveDate: today,
+        fetchedAt: new Date().toISOString(),
+        provider: "MockProvider",
+        rates: { USD: 0.0075, EUR: 0.0069 },
+      }),
+    };
+
+    const fxService = new FxService(mockProvider);
+    const result = await fxService.refreshRatesForProperty(mockDb, "rest-123", "user-123");
+
+    // USD had a same-day manual rate so it was preserved
+    assert.equal(result.manualPreservedCount, 1);
+    // EUR was updated
+    assert.equal(result.persistedCount, 1);
+    assert.equal(result.baseCurrency, "ETB");
+  });
 });
+
+

@@ -6,7 +6,7 @@ import {
   type FolioSignalLane,
   type StayMoneySignal,
 } from "@/packages/pms/lib/fo-exceptions";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 
 export function StayMoneyStrip({
   folioLane,

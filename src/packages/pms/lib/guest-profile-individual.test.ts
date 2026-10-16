@@ -188,6 +188,8 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.match(form, /GuestFormStagedLinks/);
     assert.match(form, /<Section id="linking" title="Linking">/);
     assert.match(staged, /individual-link-master-search/);
+    assert.match(staged, /CommandInput/);
+    assert.match(staged, /shouldFilter=\{false\}/);
     assert.match(staged, /listGuestAccounts/);
     assert.doesNotMatch(staged, /linkGuestAccount/);
     assert.match(form, /linkGuestAccount/);
@@ -286,7 +288,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
     assert.doesNotMatch(links, /family graph|folio routed|create_hotel_reservation_priced/i);
     assert.doesNotMatch(functions, /from\("guest_family_links"|from\("guest_to_guest"/);
     assert.doesNotMatch(migration, /CREATE TABLE.*guest_account_links|folio_routing/);
-    assert.match(cashiering, /transfersSupported: false/);
+    assert.match(cashiering, /transfersSupported: true/);
     assert.match(migration, /No folio routing/);
     assert.match(migration, /No guest↔guest family graph/);
     assert.doesNotMatch(form, /guest_pending_links/);
@@ -431,6 +433,7 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
   it("AC-GE2-23 stay paths that already touch this guest warn", () => {
     const walkIn = readRel("../components/frontoffice/front-office-dialogs.tsx");
     const amend = readRel("../components/frontoffice/fo-amend-sheet.tsx");
+    const booking = readRel("../components/bookings/create-reservation-page.tsx");
     const bookingGuest = readRel("../components/bookings/create-reservation-guest.tsx");
     const reservation = readRel("../components/workspaces/reservation-detail-workspace.tsx");
     assert.equal(

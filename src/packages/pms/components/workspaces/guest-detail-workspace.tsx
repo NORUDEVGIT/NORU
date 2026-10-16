@@ -50,7 +50,7 @@ import {
   guestRestrictionActive,
 } from "@/packages/pms/lib/guest-profile-individual";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTime } from "@/core/state/property-format";
 
 const EVENT_LABEL: Record<string, string> = {
   created: "Guest created",

@@ -1,3 +1,10 @@
+/**
+ * PMS Settings hub.
+ *
+ * This is the only property-setup editor. Do not restore
+ * `PmsPropertySetupWorkspace` as a second identity, tax, or policy editor.
+ * Rooms stay on Room & Inventory. Rates and Distribution keep their own desks.
+ */
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";

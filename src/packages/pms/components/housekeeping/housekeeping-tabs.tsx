@@ -4,10 +4,11 @@
  * Presentation only: every mutation goes through the tenant-scoped server
  * functions, which re-derive the caller's owner/manager membership.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -28,6 +29,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Badge } from "@/shared/components/ui/badge";
+import { SearchableSelect } from "@/shared/components/ui/searchable-select";
 import { cn } from "@/shared/lib/utils";
 import {
   completeHousekeepingTask,
@@ -36,11 +38,11 @@ import {
   createMaintenanceRequest,
   getHousekeepingDashboard,
   inspectRoom,
-  listDiscrepancies,
   listHousekeepingHistory,
   listHousekeepingStaff,
   listHousekeepingTasks,
   listInspections,
+  listHousekeepingExceptions,
   listMaintenanceRequests,
   listRoomRack,
   resolveDiscrepancy,
@@ -64,8 +66,22 @@ import {
   formatWhen,
   labelTaskType,
 } from "./housekeeping-bits";
+import type { HousekeepingScope } from "@/core/lib/module-access";
+import { occupancyCaption, hkAreaPath, hkRoomQuickViewPath, HK_FIELD_ACTION_CLASS } from "@/packages/pms/lib/housekeeping-shell";
+import { HkDesktopOnly, HkFieldActions, HkFieldCard, HkFieldStack } from "./housekeeping-field";
+import {
+  formatHousekeepingHistoryDetail,
+  HK_HISTORY_FILTER_GROUP_LABELS,
+  HK_HISTORY_FILTER_GROUPS,
+  HK_HISTORY_EVENTS_BY_GROUP,
+  suggestedCleaningType,
+  type HkExceptionAction,
+  type HkExceptionKind,
+} from "@/packages/pms/lib/housekeeping-ops";
+import { HK_HREF, INVENTORY_HREF } from "@/packages/pms/lib/front-office-room-operations";
 
 type Props = { restaurantId: string; today: string };
+type CleaningProps = Props & { scope: HousekeepingScope; membershipId: string };
 
 function useInvalidateHousekeeping(restaurantId: string) {
   const qc = useQueryClient();
@@ -76,8 +92,11 @@ function useInvalidateHousekeeping(restaurantId: string) {
       "hk-tasks",
       "hk-inspections",
       "hk-discrepancies",
+      "hk-exceptions",
       "hk-maintenance",
       "hk-history",
+      "hk-staff",
+      "hk-requests",
     ]) {
       void qc.invalidateQueries({ queryKey: [key, restaurantId] });
     }
@@ -189,7 +208,39 @@ export function RoomRackTab({ restaurantId, canCreateTask = true }: Props & { ca
         />
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-border">
+      <HkFieldStack testId="hk-dashboard-field-worklist">
+        {q.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading rooms…</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No rooms match these filters.</p>
+        ) : (
+          filtered.map((r) => (
+            <HkFieldCard key={r.id}>
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-medium">Room {r.roomNumber}</p>
+                <HkStatusBadge status={r.housekeepingStatus} />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {r.roomTypeName}
+                {r.floor ? ` · Floor ${r.floor}` : ""}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {r.guestName ?? occupancyCaption(r)} · {r.assignedAttendant ?? "Unassigned"}
+              </p>
+              <p className="text-xs">{r.ready ? "Ready" : "Not ready"}</p>
+              {canCreateTask ? (
+                <HkFieldActions>
+                  <Button className={HK_FIELD_ACTION_CLASS} variant="outline" onClick={() => setTaskRoom(r)}>
+                    New task
+                  </Button>
+                </HkFieldActions>
+              ) : null}
+            </HkFieldCard>
+          ))
+        )}
+      </HkFieldStack>
+
+      <HkDesktopOnly className="overflow-x-auto rounded-2xl border border-border">
         <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -258,11 +309,13 @@ export function RoomRackTab({ restaurantId, canCreateTask = true }: Props & { ca
             )}
           </tbody>
         </table>
-      </div>
+      </HkDesktopOnly>
 
       <NewTaskDialog
         restaurantId={restaurantId}
-        room={taskRoom}
+        open={taskRoom !== null}
+        lockedRoom={taskRoom}
+        rooms={rooms}
         onClose={() => setTaskRoom(null)}
         onDone={invalidate}
       />
@@ -300,14 +353,18 @@ function FilterSelect({
   );
 }
 
-function NewTaskDialog({
+export function NewTaskDialog({
   restaurantId,
-  room,
+  open,
+  lockedRoom,
+  rooms,
   onClose,
   onDone,
 }: {
   restaurantId: string;
-  room: RackRoom | null;
+  open: boolean;
+  lockedRoom: RackRoom | null;
+  rooms: RackRoom[];
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -317,7 +374,7 @@ function NewTaskDialog({
     queryKey: ["pms-set4-snapshot", restaurantId],
     queryFn: () => loadSet4({ data: { restaurantId } }),
     retry: false,
-    enabled: room !== null,
+    enabled: open,
   });
   const cleaningTypes = resolveCleaningTypesForCreate(set4.data?.snapshot.cleaningPosture).filter(
     (row) => row.code !== "turn_down",
@@ -326,16 +383,42 @@ function NewTaskDialog({
     set4.data?.snapshot.cleaningPosture,
     set4.data?.snapshot.maintenancePriorities,
   );
+  const [pickedRoomId, setPickedRoomId] = useState("");
   const [taskType, setTaskType] = useState("departure_cleaning");
   const [priority, setPriority] = useState("normal");
   const [notes, setNotes] = useState("");
+
+  const selectedRoom = lockedRoom ?? rooms.find((row) => row.id === pickedRoomId) ?? null;
+
+  useEffect(() => {
+    if (!open) {
+      setPickedRoomId("");
+      setNotes("");
+      setTaskType("departure_cleaning");
+      setPriority("normal");
+      return;
+    }
+    setPickedRoomId("");
+    setNotes("");
+    setPriority("normal");
+    if (lockedRoom) {
+      setTaskType(suggestedCleaningType(lockedRoom.demand));
+    } else {
+      setTaskType("departure_cleaning");
+    }
+  }, [open, lockedRoom?.id]);
+
+  useEffect(() => {
+    if (!open || lockedRoom || !selectedRoom) return;
+    setTaskType(suggestedCleaningType(selectedRoom.demand));
+  }, [open, lockedRoom, selectedRoom?.id]);
 
   const mutation = useMutation({
     mutationFn: () =>
       create({
         data: {
           restaurantId,
-          roomId: room!.id,
+          roomId: selectedRoom!.id,
           taskType: taskType as never,
           priority: priority as never,
           notes,
@@ -345,19 +428,39 @@ function NewTaskDialog({
       toast.success("Cleaning task ready for this room.");
       onDone();
       onClose();
-      setNotes("");
     },
     onError: (e) => toast.error(errText(e)),
   });
 
+  const roomOptions = rooms.map((row) => ({
+    value: row.id,
+    label: `${row.roomNumber} · ${row.roomTypeName} · ${row.housekeepingStatus.replaceAll("_", " ")}`,
+  }));
+
   return (
-    <Dialog open={room !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New housekeeping task</DialogTitle>
-          <DialogDescription>Room {room?.roomNumber}</DialogDescription>
+          <DialogDescription>
+            {lockedRoom ? `Room ${lockedRoom.roomNumber}` : "Choose a room, then set type, priority, and notes."}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
+          {lockedRoom ? null : (
+            <div className="space-y-1.5" data-testid="hk-create-task-room">
+              <Label htmlFor="hk-create-task-room-select">Room</Label>
+              <SearchableSelect
+                id="hk-create-task-room-select"
+                value={pickedRoomId}
+                options={roomOptions}
+                placeholder="Select a room"
+                searchPlaceholder="Search room number"
+                emptyText="No rooms match."
+                onChange={setPickedRoomId}
+              />
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>Task type</Label>
             <Select value={taskType} onValueChange={setTaskType}>
@@ -402,13 +505,17 @@ function NewTaskDialog({
           </div>
           <p className="text-xs text-muted-foreground">
             A room can only have one open cleaning task; if one already exists it stays as-is.
+            Arrival, stayover, and VIP Card 2 rules may raise the saved priority.
           </p>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || !selectedRoom}
+          >
             Create task
           </Button>
         </DialogFooter>
@@ -419,7 +526,7 @@ function NewTaskDialog({
 
 /* ----------------------------------------------------------- cleaning board */
 
-export function CleaningBoardTab({ restaurantId, today }: Props) {
+export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: CleaningProps) {
   const fetchTasks = useServerFn(listHousekeepingTasks);
   const fetchStaff = useServerFn(listHousekeepingStaff);
   const assignFn = useServerFn(updateHousekeepingTask);
@@ -437,20 +544,31 @@ export function CleaningBoardTab({ restaurantId, today }: Props) {
 
   const [assignTask, setAssignTask] = useState<string | null>(null);
   const [assignee, setAssignee] = useState("");
+  const [assignNotes, setAssignNotes] = useState("");
+
+  const isSupervisor = scope === "supervisor";
+  const own = (assignedId: string | null) => assignedId === membershipId;
 
   const act = useMutation({
-    mutationFn: (vars: { taskId: string; action: "assign" | "start" | "cancel"; assigneeMembershipId?: string }) =>
+    mutationFn: (vars: {
+      taskId: string;
+      action: "assign" | "start" | "cancel";
+      assigneeMembershipId?: string;
+      notes?: string;
+    }) =>
       assignFn({
         data: {
           restaurantId,
           taskId: vars.taskId,
           action: vars.action,
           assigneeMembershipId: vars.assigneeMembershipId ?? null,
+          notes: vars.notes,
         },
       }),
     onSuccess: () => {
       invalidate();
       setAssignTask(null);
+      setAssignNotes("");
     },
     onError: (e) => toast.error(errText(e)),
   });
@@ -466,6 +584,9 @@ export function CleaningBoardTab({ restaurantId, today }: Props) {
 
   const all = tasks.data ?? [];
   const todayStr = today;
+  const fieldWork = all.filter(
+    (t) => t.status === "pending" || t.status === "assigned" || t.status === "in_progress",
+  );
   const columns: Array<[string, typeof all]> = [
     ["Pending", all.filter((t) => t.status === "pending")],
     ["Assigned", all.filter((t) => t.status === "assigned")],
@@ -476,9 +597,83 @@ export function CleaningBoardTab({ restaurantId, today }: Props) {
     ],
   ];
 
+  function taskActions(t: (typeof all)[number], large: boolean) {
+    if (t.status === "completed" || t.status === "cancelled") return null;
+    const cls = large ? HK_FIELD_ACTION_CLASS : undefined;
+    return (
+      <HkFieldActions>
+        {isSupervisor ? (
+          <Button size={large ? "default" : "sm"} className={cls} variant="outline" onClick={() => setAssignTask(t.id)}>
+            Assign
+          </Button>
+        ) : null}
+        {t.status !== "in_progress" && (isSupervisor || own(t.assignedMembershipId)) ? (
+          <Button
+            size={large ? "default" : "sm"}
+            className={cls}
+            variant="outline"
+            onClick={() => act.mutate({ taskId: t.id, action: "start" })}
+          >
+            Start
+          </Button>
+        ) : null}
+        {isSupervisor || own(t.assignedMembershipId) ? (
+          <Button
+            size={large ? "default" : "sm"}
+            className={cls}
+            onClick={() => complete.mutate(t.id)}
+            disabled={complete.isPending}
+          >
+            Complete
+          </Button>
+        ) : null}
+        {isSupervisor ? (
+          <Button
+            size={large ? "default" : "sm"}
+            className={cls}
+            variant="ghost"
+            onClick={() => act.mutate({ taskId: t.id, action: "cancel" })}
+          >
+            Cancel
+          </Button>
+        ) : null}
+      </HkFieldActions>
+    );
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-4">
+    <div className="space-y-4" data-testid="hk-cleaning-board">
+      <p className="text-sm text-muted-foreground">
+        {isSupervisor
+          ? "Assign, start, and complete cleaning on the open task. Completing always uses the housekeeping complete RPC."
+          : "Your assignments only. Start and complete rooms assigned to you."}
+      </p>
+      <HkFieldStack testId="hk-cleaning-field-worklist">
+        {tasks.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading tasks…</p>
+        ) : fieldWork.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No open cleaning tasks.</p>
+        ) : (
+          fieldWork.map((t) => (
+            <HkFieldCard key={t.id} testId={`hk-cleaning-card-${t.roomNumber}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-medium">Room {t.roomNumber}</p>
+                <PriorityBadge priority={t.priority} />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {labelTaskType(t.taskType)} · {t.roomTypeName}
+              </p>
+              <div className="flex items-center gap-2">
+                <TaskStatusBadge status={t.status} />
+                <span className="text-xs text-muted-foreground">{t.assignedName ?? "Unassigned"}</span>
+              </div>
+              {t.notes ? <p className="text-xs text-muted-foreground">Notes: {t.notes}</p> : null}
+              {taskActions(t, true)}
+            </HkFieldCard>
+          ))
+        )}
+      </HkFieldStack>
+      <div className="hidden gap-4 md:grid md:grid-cols-2 lg:grid-cols-4">
         {columns.map(([title, list]) => (
           <div key={title} className="space-y-3">
             <h3 className="font-display text-lg">
@@ -490,7 +685,11 @@ export function CleaningBoardTab({ restaurantId, today }: Props) {
               </p>
             ) : (
               list.map((t) => (
-                <div key={t.id} className="space-y-2 rounded-2xl border border-border bg-card p-4">
+                <div
+                  key={t.id}
+                  className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4"
+                  data-testid={`hk-cleaning-card-${t.roomNumber}`}
+                >
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-medium">Room {t.roomNumber}</p>
                     <PriorityBadge priority={t.priority} />
@@ -502,37 +701,13 @@ export function CleaningBoardTab({ restaurantId, today }: Props) {
                     <TaskStatusBadge status={t.status} />
                     <span className="text-xs text-muted-foreground">{t.assignedName ?? "Unassigned"}</span>
                   </div>
+                  {t.notes ? <p className="text-xs text-muted-foreground">Notes: {t.notes}</p> : null}
                   <p className="text-xs text-muted-foreground">
                     Created {formatWhen(t.createdAt)}
                     {t.startedAt ? ` · Started ${formatWhen(t.startedAt)}` : ""}
                     {t.completedAt ? ` · Completed ${formatWhen(t.completedAt)}` : ""}
                   </p>
-                  {t.status !== "completed" && t.status !== "cancelled" && (
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      <Button size="sm" variant="outline" onClick={() => setAssignTask(t.id)}>
-                        Assign
-                      </Button>
-                      {t.status !== "in_progress" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => act.mutate({ taskId: t.id, action: "start" })}
-                        >
-                          Start
-                        </Button>
-                      )}
-                      <Button size="sm" onClick={() => complete.mutate(t.id)} disabled={complete.isPending}>
-                        Complete
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => act.mutate({ taskId: t.id, action: "cancel" })}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  )}
+                  {taskActions(t, false)}
                 </div>
               ))
             )}
@@ -558,6 +733,10 @@ export function CleaningBoardTab({ restaurantId, today }: Props) {
               ))}
             </SelectContent>
           </Select>
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Textarea value={assignNotes} onChange={(e) => setAssignNotes(e.target.value)} rows={2} />
+          </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAssignTask(null)}>
               Cancel
@@ -565,7 +744,12 @@ export function CleaningBoardTab({ restaurantId, today }: Props) {
             <Button
               disabled={!assignee || act.isPending}
               onClick={() =>
-                act.mutate({ taskId: assignTask!, action: "assign", assigneeMembershipId: assignee })
+                act.mutate({
+                  taskId: assignTask!,
+                  action: "assign",
+                  assigneeMembershipId: assignee,
+                  notes: assignNotes,
+                })
               }
             >
               Assign
@@ -579,15 +763,15 @@ export function CleaningBoardTab({ restaurantId, today }: Props) {
 
 /* -------------------------------------------------------------- inspections */
 
-export function InspectionsTab({ restaurantId }: Props) {
+export function InspectionsTab({ restaurantId, today }: Props) {
   const fetchRack = useServerFn(listRoomRack);
   const fetchInspections = useServerFn(listInspections);
   const inspectFn = useServerFn(inspectRoom);
   const invalidate = useInvalidateHousekeeping(restaurantId);
 
   const rack = useQuery({
-    queryKey: ["hk-rack", restaurantId],
-    queryFn: () => fetchRack({ data: { restaurantId } }),
+    queryKey: ["hk-rack", restaurantId, today],
+    queryFn: () => fetchRack({ data: { restaurantId, today } }),
   });
   const inspections = useQuery({
     queryKey: ["hk-inspections", restaurantId],
@@ -611,7 +795,7 @@ export function InspectionsTab({ restaurantId }: Props) {
     onSuccess: () => {
       toast.success(
         target?.result === "passed"
-          ? "Inspection passed — room is inspected."
+          ? "Inspection passed. Ready is derived from Housekeeping Setup — not a Ready status."
           : "Inspection failed — room is dirty and a re-clean task is open.",
       );
       invalidate();
@@ -621,28 +805,57 @@ export function InspectionsTab({ restaurantId }: Props) {
     onError: (e) => toast.error(errText(e)),
   });
 
-  const awaiting = (rack.data ?? []).filter((r) => r.housekeepingStatus === "clean");
+  const awaiting = (rack.data ?? []).filter((r) => r.awaitingInspection);
+  const history = (inspections.data ?? []).filter((i) => i.status === "passed" || i.status === "failed");
+  const failNeedsNotes = target?.result === "failed" && notes.trim().length === 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="hk-inspections">
+      <p className="text-sm text-muted-foreground">
+        Queue is rooms marked clean when inspection is required. Pass and fail use the existing inspection RPC.
+        Fail notes only — no itemized fail list. Inspected is not sellable inventory; Ready is the Front Office outcome
+        plus reason.
+      </p>
       <section className="space-y-3">
         <h3 className="font-display text-lg">Awaiting inspection ({awaiting.length})</h3>
         {awaiting.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No cleaned rooms are waiting for inspection.</p>
+          <p className="text-sm text-muted-foreground">
+            No cleaned rooms are waiting for inspection. If inspection is off in Housekeeping Setup, clean rooms
+            skip this queue.
+          </p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {awaiting.map((r) => (
               <div key={r.id} className="space-y-2 rounded-2xl border border-border bg-card p-4">
-                <p className="font-medium">Room {r.roomNumber}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium">Room {r.roomNumber}</p>
+                  <HkStatusBadge status={r.housekeepingStatus} />
+                </div>
                 <p className="text-sm text-muted-foreground">{r.roomTypeName}</p>
-                <div className="flex gap-2 pt-1">
-                  <Button size="sm" onClick={() => setTarget({ room: r, result: "passed" })}>
+                <p className="text-xs text-muted-foreground">{occupancyCaption(r)}</p>
+                <p
+                  className={cn(
+                    "text-xs font-medium",
+                    r.checkInReady ? "text-teal-800" : "text-rose-800",
+                  )}
+                >
+                  {r.checkInReady ? "Ready for check-in" : "Not ready for check-in"}
+                </p>
+                {r.readyReason ? (
+                  <p className="text-xs text-muted-foreground">{r.readyReason}</p>
+                ) : null}
+                <HkFieldActions>
+                  <Button className={HK_FIELD_ACTION_CLASS} onClick={() => setTarget({ room: r, result: "passed" })}>
                     Pass
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setTarget({ room: r, result: "failed" })}>
+                  <Button
+                    className={HK_FIELD_ACTION_CLASS}
+                    variant="outline"
+                    onClick={() => setTarget({ room: r, result: "failed" })}
+                  >
                     Fail
                   </Button>
-                </div>
+                </HkFieldActions>
               </div>
             ))}
           </div>
@@ -650,8 +863,23 @@ export function InspectionsTab({ restaurantId }: Props) {
       </section>
 
       <section className="space-y-3">
-        <h3 className="font-display text-lg">Recent inspections</h3>
-        <div className="overflow-x-auto rounded-2xl border border-border">
+        <h3 className="font-display text-lg">Inspection history</h3>
+        <HkFieldStack testId="hk-inspections-history-field">
+          {history.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No inspections yet.</p>
+          ) : (
+            history.map((i) => (
+              <HkFieldCard key={i.id}>
+                <p className="font-medium">Room {i.roomNumber}</p>
+                <p className="text-sm capitalize">{i.status}</p>
+                <p className="text-xs text-muted-foreground">{i.inspectorName ?? "—"}</p>
+                {i.notes ? <p className="text-xs text-muted-foreground">{i.notes}</p> : null}
+                <p className="text-xs text-muted-foreground">{formatWhen(i.completedAt ?? i.createdAt)}</p>
+              </HkFieldCard>
+            ))
+          )}
+        </HkFieldStack>
+        <HkDesktopOnly className="overflow-x-auto rounded-2xl border border-border">
           <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
@@ -663,14 +891,14 @@ export function InspectionsTab({ restaurantId }: Props) {
               </tr>
             </thead>
             <tbody>
-              {(inspections.data ?? []).length === 0 ? (
+              {history.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="p-4 text-muted-foreground">
                     No inspections yet.
                   </td>
                 </tr>
               ) : (
-                (inspections.data ?? []).map((i) => (
+                history.map((i) => (
                   <tr key={i.id} className="border-t border-border">
                     <td className="p-3 font-medium">{i.roomNumber}</td>
                     <td className="p-3 capitalize">{i.status}</td>
@@ -682,7 +910,7 @@ export function InspectionsTab({ restaurantId }: Props) {
               )}
             </tbody>
           </table>
-        </div>
+        </HkDesktopOnly>
       </section>
 
       <Dialog open={target !== null} onOpenChange={(open) => !open && setTarget(null)}>
@@ -691,17 +919,25 @@ export function InspectionsTab({ restaurantId }: Props) {
             <DialogTitle>
               {target?.result === "passed" ? "Pass inspection" : "Fail inspection"}
             </DialogTitle>
-            <DialogDescription>Room {target?.room.roomNumber}</DialogDescription>
+            <DialogDescription>
+              Room {target?.room.roomNumber}.{" "}
+              {target?.result === "passed"
+                ? "Pass writes inspected (or the Card 2 transition target). Ready stays derived."
+                : "Fail marks the room dirty and opens a re-clean task. Notes are required."}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
-            <Label>Notes</Label>
+            <Label>{target?.result === "failed" ? "Fail notes" : "Notes"}</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+            {failNeedsNotes ? (
+              <p className="text-xs text-rose-700">Describe why the room failed. There is no itemized fail list.</p>
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setTarget(null)}>
               Cancel
             </Button>
-            <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+            <Button onClick={() => mutation.mutate()} disabled={mutation.isPending || failNeedsNotes}>
               Confirm
             </Button>
           </DialogFooter>
@@ -758,7 +994,33 @@ export function RestrictionsTab({ restaurantId }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-2xl border border-border">
+      <HkFieldStack testId="hk-restrictions-field-worklist">
+        {(rack.data ?? []).map((r) => (
+          <HkFieldCard key={r.id}>
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-medium">Room {r.roomNumber}</p>
+              <RestrictionBadge status={r.restriction} />
+            </div>
+            <p className="text-xs text-muted-foreground">{r.restrictionReason ?? "No reason"}</p>
+            {r.restrictionExpectedReturn ? (
+              <p className="text-xs text-muted-foreground">Return {r.restrictionExpectedReturn}</p>
+            ) : null}
+            <HkFieldActions>
+              <Button
+                className={HK_FIELD_ACTION_CLASS}
+                variant="outline"
+                onClick={() => {
+                  setTarget(r);
+                  setStatus(r.restriction === "available" ? "out_of_order" : "available");
+                }}
+              >
+                {r.restriction === "available" ? "Restrict" : "Release"}
+              </Button>
+            </HkFieldActions>
+          </HkFieldCard>
+        ))}
+      </HkFieldStack>
+      <HkDesktopOnly className="overflow-x-auto rounded-2xl border border-border">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -807,7 +1069,7 @@ export function RestrictionsTab({ restaurantId }: Props) {
             ))}
           </tbody>
         </table>
-      </div>
+      </HkDesktopOnly>
 
       <Dialog open={target !== null} onOpenChange={(open) => !open && setTarget(null)}>
         <DialogContent>
@@ -869,25 +1131,46 @@ export function RestrictionsTab({ restaurantId }: Props) {
   );
 }
 
-/* ------------------------------------------------------------ discrepancies */
+/* ------------------------------------------------------------ exceptions */
 
-export function DiscrepanciesTab({ restaurantId }: Props) {
+const EXCEPTION_KIND_LABEL: Record<HkExceptionKind, string> = {
+  dirty_arrival: "Arrival not ready",
+  inspect_failed: "Inspection failed",
+  maintenance_blocker: "Maintenance",
+  ooo_assigned: "OOO on stay",
+  stale_task: "Stale task",
+  dirty_vacant_no_task: "Dirty vacant",
+  discrepancy: "Discrepancy",
+};
+
+function exceptionActionLabel(action: HkExceptionAction): string {
+  if (action === "board") return "Open board";
+  if (action === "cleaning") return "Open cleaning";
+  if (action === "inspections") return "Open inspections";
+  if (action === "maintenance") return "Open maintenance";
+  if (action === "restrictions") return "Set restriction";
+  return "Resolve";
+}
+
+export function ExceptionsTab({ restaurantId, today }: Props) {
+  const navigate = useNavigate();
   const fetchRack = useServerFn(listRoomRack);
-  const fetchList = useServerFn(listDiscrepancies);
+  const fetchList = useServerFn(listHousekeepingExceptions);
   const createFn = useServerFn(createDiscrepancy);
   const resolveFn = useServerFn(resolveDiscrepancy);
   const invalidate = useInvalidateHousekeeping(restaurantId);
 
   const rack = useQuery({
-    queryKey: ["hk-rack", restaurantId],
-    queryFn: () => fetchRack({ data: { restaurantId } }),
+    queryKey: ["hk-rack", restaurantId, today],
+    queryFn: () => fetchRack({ data: { restaurantId, today } }),
   });
   const list = useQuery({
-    queryKey: ["hk-discrepancies", restaurantId],
-    queryFn: () => fetchList({ data: { restaurantId } }),
+    queryKey: ["hk-exceptions", restaurantId, today],
+    queryFn: () => fetchList({ data: { restaurantId, today } }),
   });
 
   const [open, setOpen] = useState(false);
+  const [kindFilter, setKindFilter] = useState<HkExceptionKind | "all">("all");
   const [roomId, setRoomId] = useState("");
   const [reportedOcc, setReportedOcc] = useState("vacant");
   const [actualOcc, setActualOcc] = useState("occupied");
@@ -922,44 +1205,130 @@ export function DiscrepanciesTab({ restaurantId }: Props) {
     onError: (e) => toast.error(errText(e)),
   });
 
+  const rows = list.data ?? [];
+  const filtered = kindFilter === "all" ? rows : rows.filter((row) => row.kind === kindFilter);
+  const derivedCount = rows.filter((row) => row.source === "derived").length;
+  const persistedCount = rows.filter((row) => row.source === "persisted").length;
+  const highCount = rows.filter((row) => row.severity === "high").length;
+
+  function go(action: HkExceptionAction) {
+    if (action === "resolve_discrepancy") return;
+    const dest = hkAreaPath(action);
+    void navigate({ to: dest.to, search: dest.search });
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
+    <div className="space-y-4" data-testid="hk-exceptions-workspace">
+      <p className="text-sm text-muted-foreground">
+        Exceptions are derived from live Housekeeping, occupancy, inspection, and maintenance state.
+        Only occupancy discrepancies are stored. Do not disturb and refused service are not stored yet.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {[
+          ["Derived", derivedCount, "Clear when the room state changes"],
+          ["Logged discrepancies", persistedCount, "Resolve with the discrepancy writer"],
+          ["High priority", highCount, "Arrival, inspection, maintenance, OOO"],
+        ].map(([label, value, hint]) => (
+          <div key={label} className="rounded-2xl border border-border bg-background px-3 py-3">
+            <p className="text-xs font-medium text-muted-foreground">{label}</p>
+            <p className="mt-1 font-display text-2xl font-semibold">{list.isLoading ? "—" : value}</p>
+            <p className="text-[11px] text-muted-foreground">{hint}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1">
+          <Button size="sm" variant={kindFilter === "all" ? "secondary" : "ghost"} onClick={() => setKindFilter("all")}>
+            All
+          </Button>
+          {(Object.keys(EXCEPTION_KIND_LABEL) as HkExceptionKind[]).map((kind) => (
+            <Button
+              key={kind}
+              size="sm"
+              variant={kindFilter === kind ? "secondary" : "ghost"}
+              onClick={() => setKindFilter(kind)}
+            >
+              {EXCEPTION_KIND_LABEL[kind]}
+            </Button>
+          ))}
+        </div>
         <Button onClick={() => setOpen(true)}>Report discrepancy</Button>
       </div>
-      <div className="overflow-x-auto rounded-2xl border border-border">
-        <table className="w-full min-w-[760px] text-sm">
+
+      <HkFieldStack testId="hk-exceptions-field-worklist">
+        {list.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading exceptions…</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No housekeeping exceptions.</p>
+        ) : (
+          filtered.map((row) => (
+            <HkFieldCard key={row.key}>
+              <p className="font-medium">Room {row.roomNumber}</p>
+              <p className="text-sm">{row.title}</p>
+              <p className="text-xs text-muted-foreground">{row.detail}</p>
+              <HkFieldActions>
+                {row.action === "resolve_discrepancy" && row.discrepancyId ? (
+                  <Button
+                    className={HK_FIELD_ACTION_CLASS}
+                    variant="outline"
+                    onClick={() => resolve.mutate(row.discrepancyId!)}
+                  >
+                    Resolve
+                  </Button>
+                ) : (
+                  <Button className={HK_FIELD_ACTION_CLASS} variant="outline" onClick={() => go(row.action)}>
+                    {exceptionActionLabel(row.action)}
+                  </Button>
+                )}
+              </HkFieldActions>
+            </HkFieldCard>
+          ))
+        )}
+      </HkFieldStack>
+      <HkDesktopOnly className="overflow-x-auto rounded-2xl border border-border">
+        <table className="w-full min-w-[800px] text-sm">
           <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="p-3">Room</th>
-              <th className="p-3">Reported</th>
-              <th className="p-3">Actual</th>
-              <th className="p-3">Reason</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Created</th>
+              <th className="p-3">Exception</th>
+              <th className="p-3">Detail</th>
+              <th className="p-3">Source</th>
               <th className="p-3 text-right">Action</th>
             </tr>
           </thead>
           <tbody>
-            {(list.data ?? []).length === 0 ? (
+            {list.isLoading ? (
               <tr>
-                <td colSpan={7} className="p-4 text-muted-foreground">
-                  No discrepancies logged.
+                <td colSpan={5} className="p-4 text-muted-foreground">
+                  Loading exceptions…
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="p-4 text-muted-foreground">
+                  No housekeeping exceptions.
                 </td>
               </tr>
             ) : (
-              (list.data ?? []).map((d) => (
-                <tr key={d.id} className="border-t border-border">
-                  <td className="p-3 font-medium">{d.roomNumber}</td>
-                  <td className="p-3 capitalize">{d.reportedOccupancy ?? d.reportedHkStatus ?? "—"}</td>
-                  <td className="p-3 capitalize">{d.actualOccupancy ?? d.actualHkStatus ?? "—"}</td>
-                  <td className="p-3 text-muted-foreground">{d.reason ?? "—"}</td>
-                  <td className="p-3 capitalize">{d.status}</td>
-                  <td className="p-3">{formatWhen(d.createdAt)}</td>
+              filtered.map((row) => (
+                <tr key={row.key} className="border-t border-border">
+                  <td className="p-3 font-medium">{row.roomNumber}</td>
+                  <td className="p-3">{row.title}</td>
+                  <td className="p-3 text-muted-foreground">{row.detail}</td>
+                  <td className="p-3 capitalize">{row.source}</td>
                   <td className="p-3 text-right">
-                    {d.status === "open" && (
-                      <Button size="sm" variant="outline" onClick={() => resolve.mutate(d.id)}>
+                    {row.action === "resolve_discrepancy" && row.discrepancyId ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => resolve.mutate(row.discrepancyId!)}
+                      >
                         Resolve
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => go(row.action)}>
+                        {exceptionActionLabel(row.action)}
                       </Button>
                     )}
                   </td>
@@ -968,7 +1337,7 @@ export function DiscrepanciesTab({ restaurantId }: Props) {
             )}
           </tbody>
         </table>
-      </div>
+      </HkDesktopOnly>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -978,19 +1347,19 @@ export function DiscrepanciesTab({ restaurantId }: Props) {
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label>Room</Label>
-              <Select value={roomId} onValueChange={setRoomId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select room" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(rack.data ?? []).map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.roomNumber}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="hk-disc-room">Room</Label>
+              <SearchableSelect
+                id="hk-disc-room"
+                value={roomId}
+                options={(rack.data ?? []).map((r) => ({
+                  value: r.id,
+                  label: `${r.roomNumber} · ${r.roomTypeName}`,
+                }))}
+                placeholder="Select a room"
+                searchPlaceholder="Search room number"
+                emptyText="No rooms match."
+                onChange={setRoomId}
+              />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -1037,9 +1406,11 @@ export function DiscrepanciesTab({ restaurantId }: Props) {
   );
 }
 
+export const DiscrepanciesTab = ExceptionsTab;
+
 /* -------------------------------------------------------------- maintenance */
 
-export function MaintenanceTab({ restaurantId }: Props) {
+export function MaintenanceTab({ restaurantId, today }: Props) {
   const fetchRack = useServerFn(listRoomRack);
   const fetchList = useServerFn(listMaintenanceRequests);
   const createFn = useServerFn(createMaintenanceRequest);
@@ -1067,8 +1438,8 @@ export function MaintenanceTab({ restaurantId }: Props) {
     : livePriorities.map((code) => ({ code, label: code }));
 
   const rack = useQuery({
-    queryKey: ["hk-rack", restaurantId],
-    queryFn: () => fetchRack({ data: { restaurantId } }),
+    queryKey: ["hk-rack", restaurantId, today],
+    queryFn: () => fetchRack({ data: { restaurantId, today } }),
   });
   const list = useQuery({
     queryKey: ["hk-maintenance", restaurantId],
@@ -1076,10 +1447,12 @@ export function MaintenanceTab({ restaurantId }: Props) {
   });
 
   const [open, setOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [roomId, setRoomId] = useState("");
   const [category, setCategory] = useState("plumbing");
   const [priority, setPriority] = useState("normal");
   const [description, setDescription] = useState("");
+  const [workNotes, setWorkNotes] = useState("");
 
   const create = useMutation({
     mutationFn: () =>
@@ -1092,8 +1465,9 @@ export function MaintenanceTab({ restaurantId }: Props) {
           description,
         },
       }),
-    onSuccess: () => {
+    onSuccess: (row) => {
       toast.success("Maintenance request logged.");
+      setSelectedId(row.id);
       invalidate();
       setOpen(false);
       setDescription("");
@@ -1102,74 +1476,217 @@ export function MaintenanceTab({ restaurantId }: Props) {
   });
 
   const update = useMutation({
-    mutationFn: (vars: { requestId: string; status: "open" | "in_progress" | "resolved" }) =>
+    mutationFn: (vars: { requestId: string; status: "open" | "in_progress" | "resolved"; notes?: string }) =>
       updateFn({ data: { restaurantId, ...vars } }),
-    onSuccess: () => invalidate(),
+    onSuccess: () => {
+      invalidate();
+      setWorkNotes("");
+    },
     onError: (e) => toast.error(errText(e)),
   });
 
+  const rows = list.data ?? [];
+  const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
+  const openCount = rows.filter((row) => row.status === "open").length;
+  const highCount = rows.filter((row) => row.priority === "urgent" && row.status !== "resolved").length;
+  const progressCount = rows.filter((row) => row.status === "in_progress").length;
+  const resolvedToday = rows.filter(
+    (row) => row.status === "resolved" && (row.resolvedAt ?? "").slice(0, 10) === today,
+  ).length;
+  const oooCount = (rack.data ?? []).filter((r) => r.restriction === "out_of_order").length;
+  const roomForSelected = selected ? (rack.data ?? []).find((r) => r.id === selected.roomId) : undefined;
+
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={() => setOpen(true)}>Log maintenance</Button>
+    <div className="space-y-4" data-testid="hk-maintenance-workspace">
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          ["Open work orders", openCount, "Requiring attention"],
+          ["High priority", highCount, "Urgent repairs"],
+          ["In progress", progressCount, "Being worked on"],
+          ["Completed today", resolvedToday, "Resolved today"],
+          ["Rooms out of order", oooCount, "Currently unavailable"],
+        ].map(([label, value, hint]) => (
+          <div key={label} className="rounded-2xl border border-border bg-background px-3 py-3">
+            <p className="text-xs font-medium text-muted-foreground">{label}</p>
+            <p className="mt-1 font-display text-2xl font-semibold">{list.isLoading ? "—" : value}</p>
+            <p className="text-[11px] text-muted-foreground">{hint}</p>
+          </div>
+        ))}
       </div>
-      <div className="overflow-x-auto rounded-2xl border border-border">
-        <table className="w-full min-w-[800px] text-sm">
-          <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="p-3">Room</th>
-              <th className="p-3">Category</th>
-              <th className="p-3">Priority</th>
-              <th className="p-3">Description</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Created</th>
-              <th className="p-3 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(list.data ?? []).length === 0 ? (
+
+      <div className="flex justify-end">
+        <Button
+          className={cn(HK_FIELD_ACTION_CLASS, "bg-[#C89933] text-[#251605] hover:bg-[#b8892c] sm:ml-auto")}
+          onClick={() => {
+            setRoomId("");
+            setDescription("");
+            setOpen(true);
+          }}
+        >
+          + Create Work Order
+        </Button>
+      </div>
+
+      <HkFieldStack testId="hk-maintenance-field-worklist">
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No maintenance requests.</p>
+        ) : (
+          rows.map((m) => (
+            <HkFieldCard key={m.id} selected={selected?.id === m.id}>
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-medium">Room {m.roomNumber}</p>
+                <PriorityBadge priority={m.priority} />
+              </div>
+              <p className="text-sm">{m.description}</p>
+              <p className="text-xs capitalize text-muted-foreground">{m.status.replace("_", " ")}</p>
+              {m.status !== "resolved" ? (
+                <HkFieldActions>
+                  {m.status === "open" ? (
+                    <Button
+                      className={HK_FIELD_ACTION_CLASS}
+                      variant="outline"
+                      onClick={() =>
+                        update.mutate({ requestId: m.id, status: "in_progress", notes: workNotes })
+                      }
+                    >
+                      Start work
+                    </Button>
+                  ) : null}
+                  <Button
+                    className={cn(HK_FIELD_ACTION_CLASS, "bg-[#C89933] text-[#251605] hover:bg-[#b8892c]")}
+                    onClick={() => update.mutate({ requestId: m.id, status: "resolved", notes: workNotes })}
+                  >
+                    Complete work
+                  </Button>
+                </HkFieldActions>
+              ) : null}
+            </HkFieldCard>
+          ))
+        )}
+      </HkFieldStack>
+
+      <div className="hidden gap-4 md:grid xl:grid-cols-[minmax(0,1fr)_340px]">
+        <HkDesktopOnly className="overflow-x-auto rounded-2xl border border-border bg-background !block">
+          <table className="w-full min-w-[800px] text-sm">
+            <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <td colSpan={7} className="p-4 text-muted-foreground">
-                  No maintenance requests.
-                </td>
+                <th className="p-3">Room</th>
+                <th className="p-3">Issue</th>
+                <th className="p-3">Priority</th>
+                <th className="p-3">Status</th>
+                <th className="p-3">Created</th>
+                <th className="p-3">Maintenance</th>
               </tr>
-            ) : (
-              (list.data ?? []).map((m) => (
-                <tr key={m.id} className="border-t border-border">
-                  <td className="p-3 font-medium">{m.roomNumber}</td>
-                  <td className="p-3 capitalize">{m.category}</td>
-                  <td className="p-3">
-                    <PriorityBadge priority={m.priority} />
-                  </td>
-                  <td className="p-3 text-muted-foreground">{m.description}</td>
-                  <td className="p-3 capitalize">{m.status.replace("_", " ")}</td>
-                  <td className="p-3">{formatWhen(m.createdAt)}</td>
-                  <td className="p-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      {m.status === "open" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => update.mutate({ requestId: m.id, status: "in_progress" })}
-                        >
-                          Start
-                        </Button>
-                      )}
-                      {m.status !== "resolved" && (
-                        <Button
-                          size="sm"
-                          onClick={() => update.mutate({ requestId: m.id, status: "resolved" })}
-                        >
-                          Resolve
-                        </Button>
-                      )}
-                    </div>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-4 text-muted-foreground">
+                    No maintenance requests.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                rows.map((m) => {
+                  const room = (rack.data ?? []).find((r) => r.id === m.roomId);
+                  return (
+                    <tr
+                      key={m.id}
+                      className={cn(
+                        "cursor-pointer border-t border-border",
+                        selected?.id === m.id && "bg-[#F7F4EE]",
+                      )}
+                      onClick={() => setSelectedId(m.id)}
+                    >
+                      <td className="p-3 font-medium">{m.roomNumber}</td>
+                      <td className="p-3 text-muted-foreground">{m.description}</td>
+                      <td className="p-3">
+                        <PriorityBadge priority={m.priority} />
+                      </td>
+                      <td className="p-3 capitalize">{m.status.replace("_", " ")}</td>
+                      <td className="p-3">{formatWhen(m.createdAt)}</td>
+                      <td className="p-3 capitalize">
+                        {(room?.maintenanceStatus ?? "normal").replaceAll("_", " ")}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </HkDesktopOnly>
+
+        <aside className="rounded-2xl border border-border bg-background p-4">
+          {selected ? (
+            <div className="space-y-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {selected.id.slice(0, 8).toUpperCase()} · {selected.status.replace("_", " ")}
+              </p>
+              <h3 className="font-display text-xl">{selected.description}</h3>
+              <p className="text-sm text-muted-foreground">
+                Room {selected.roomNumber}
+                {roomForSelected ? ` · ${roomForSelected.roomTypeName}` : ""}
+              </p>
+              <p className="text-sm">
+                Category <span className="capitalize">{selected.category}</span>
+              </p>
+              <p className="text-sm">
+                Priority <PriorityBadge priority={selected.priority} />
+              </p>
+              <p className="text-sm">
+                Room maintenance{" "}
+                <span className="capitalize">
+                  {(roomForSelected?.maintenanceStatus ?? "normal").replaceAll("_", " ")}
+                </span>
+              </p>
+              {roomForSelected?.readyReason && !roomForSelected.checkInReady ? (
+                <p className="text-xs text-rose-800">{roomForSelected.readyReason}</p>
+              ) : null}
+              <p className="text-xs text-muted-foreground">Created {formatWhen(selected.createdAt)}</p>
+              <p className="text-xs text-muted-foreground">
+                Tickets stay on this table. Physical OOO/OOS is Inventory restrictions, not this column.
+              </p>
+              <div className="flex flex-col gap-1">
+                <Link to={INVENTORY_HREF} className="text-xs text-[#C89933]">
+                  Open room inventory
+                </Link>
+                <Link to={HK_HREF} search={{ tab: "restrictions" }} className="text-xs text-[#C89933]">
+                  Set OOO / OOS restriction
+                </Link>
+              </div>
+              {selected.status !== "resolved" ? (
+                <div className="space-y-1.5">
+                  <Label>Notes</Label>
+                  <Textarea value={workNotes} onChange={(e) => setWorkNotes(e.target.value)} rows={2} />
+                </div>
+              ) : null}
+              <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:flex-wrap">
+                {selected.status === "open" ? (
+                  <Button
+                    className={HK_FIELD_ACTION_CLASS}
+                    variant="outline"
+                    onClick={() =>
+                      update.mutate({ requestId: selected.id, status: "in_progress", notes: workNotes })
+                    }
+                  >
+                    Start work
+                  </Button>
+                ) : null}
+                {selected.status !== "resolved" ? (
+                  <Button
+                    className={cn(HK_FIELD_ACTION_CLASS, "bg-[#C89933] text-[#251605] hover:bg-[#b8892c]")}
+                    onClick={() =>
+                      update.mutate({ requestId: selected.id, status: "resolved", notes: workNotes })
+                    }
+                  >
+                    Complete work
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Select a request to see details.</p>
+          )}
+        </aside>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -1182,19 +1699,19 @@ export function MaintenanceTab({ restaurantId }: Props) {
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label>Room</Label>
-              <Select value={roomId} onValueChange={setRoomId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select room" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(rack.data ?? []).map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.roomNumber}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="hk-maint-room">Room</Label>
+              <SearchableSelect
+                id="hk-maint-room"
+                value={roomId}
+                options={(rack.data ?? []).map((r) => ({
+                  value: r.id,
+                  label: `${r.roomNumber} · ${r.roomTypeName}`,
+                }))}
+                placeholder="Select a room"
+                searchPlaceholder="Search room number"
+                emptyText="No rooms match."
+                onChange={setRoomId}
+              />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -1252,53 +1769,206 @@ export function MaintenanceTab({ restaurantId }: Props) {
 
 /* ----------------------------------------------------------------- history */
 
-export function HousekeepingHistoryTab({ restaurantId }: Props) {
+const HK_HISTORY_EVENT_TYPE_OPTIONS = Array.from(
+  new Set(Object.values(HK_HISTORY_EVENTS_BY_GROUP).flatMap((types) => [...types])),
+);
+
+export function HousekeepingHistoryTab({ restaurantId, today }: Props) {
   const fetchHistory = useServerFn(listHousekeepingHistory);
-  const q = useQuery({
-    queryKey: ["hk-history", restaurantId],
-    queryFn: () => fetchHistory({ data: { restaurantId } }),
+  const fetchRack = useServerFn(listRoomRack);
+  const fetchStaff = useServerFn(listHousekeepingStaff);
+  const [roomId, setRoomId] = useState("all");
+  const [eventFilter, setEventFilter] = useState("all");
+  const [actorId, setActorId] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const rack = useQuery({
+    queryKey: ["hk-rack", restaurantId, today],
+    queryFn: () => fetchRack({ data: { restaurantId, today } }),
+  });
+  const staff = useQuery({
+    queryKey: ["hk-staff", restaurantId],
+    queryFn: () => fetchStaff({ data: { restaurantId } }),
   });
 
+  const eventGroup = (HK_HISTORY_FILTER_GROUPS as readonly string[]).includes(eventFilter)
+    ? eventFilter
+    : undefined;
+  const eventType = HK_HISTORY_EVENT_TYPE_OPTIONS.includes(eventFilter) ? eventFilter : undefined;
+
+  const q = useQuery({
+    queryKey: ["hk-history", restaurantId, roomId, eventFilter, actorId, dateFrom, dateTo],
+    queryFn: () =>
+      fetchHistory({
+        data: {
+          restaurantId,
+          ...(roomId !== "all" ? { roomId } : {}),
+          ...(eventGroup ? { eventGroup: eventGroup as (typeof HK_HISTORY_FILTER_GROUPS)[number] } : {}),
+          ...(eventType ? { eventType: eventType as never } : {}),
+          ...(actorId !== "all" ? { actorMembershipId: actorId as never } : {}),
+          ...(dateFrom ? { dateFrom } : {}),
+          ...(dateTo ? { dateTo } : {}),
+        },
+      }),
+  });
+
+  const roomOptions = (rack.data ?? [])
+    .slice()
+    .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true }))
+    .map((room) => ({ value: room.id, label: room.roomNumber }));
+
   return (
-    <div className="overflow-x-auto rounded-2xl border border-border">
-      <table className="w-full min-w-[720px] text-sm">
-        <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-          <tr>
-            <th className="p-3">When</th>
-            <th className="p-3">Room</th>
-            <th className="p-3">Event</th>
-            <th className="p-3">Actor</th>
-            <th className="p-3">Detail</th>
-          </tr>
-        </thead>
-        <tbody>
-          {q.isLoading ? (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-border bg-card p-3">
+        <div className="min-w-[10rem] space-y-1">
+          <Label className="text-xs text-muted-foreground">Room</Label>
+          <SearchableSelect
+            id="hk-history-room"
+            value={roomId}
+            options={[{ value: "all", label: "All rooms" }, ...roomOptions]}
+            placeholder="All rooms"
+            searchPlaceholder="Search room"
+            emptyText="No rooms match."
+            onChange={(value) => setRoomId(value || "all")}
+          />
+        </div>
+        <div className="min-w-[12rem] space-y-1">
+          <Label className="text-xs text-muted-foreground">Event type</Label>
+          <Select value={eventFilter} onValueChange={setEventFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="All events" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All events</SelectItem>
+              {HK_HISTORY_FILTER_GROUPS.map((group) => (
+                <SelectItem key={group} value={group}>
+                  {HK_HISTORY_FILTER_GROUP_LABELS[group]}
+                </SelectItem>
+              ))}
+              {HK_HISTORY_EVENT_TYPE_OPTIONS.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type.replace(/_/g, " ")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-[12rem] space-y-1">
+          <Label className="text-xs text-muted-foreground">Actor</Label>
+          <Select value={actorId} onValueChange={setActorId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Anyone" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Anyone</SelectItem>
+              <SelectItem value="system">System</SelectItem>
+              {(staff.data ?? []).map((person) => (
+                <SelectItem key={person.membershipId} value={person.membershipId}>
+                  {person.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">From</Label>
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">To</Label>
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </div>
+      </div>
+      <HkFieldStack testId="hk-history-field-worklist">
+        {q.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading history…</p>
+        ) : (q.data ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">No housekeeping activity yet.</p>
+        ) : (
+          (q.data ?? []).map((h) => {
+            const qv = h.roomId ? hkRoomQuickViewPath(h.roomId) : null;
+            return (
+              <HkFieldCard key={h.id}>
+                <p className="text-xs text-muted-foreground">{formatWhen(h.createdAt)}</p>
+                {qv ? (
+                  <Link to={qv.to} search={qv.search} className="font-medium underline-offset-2 hover:underline">
+                    {h.roomNumber ?? "Room"}
+                  </Link>
+                ) : (
+                  <p className="font-medium">{h.roomNumber ?? "—"}</p>
+                )}
+                <p className="text-sm">{h.eventType.replace(/_/g, " ")}</p>
+                <p className="text-xs text-muted-foreground">{h.actorName ?? "System"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatHousekeepingHistoryDetail({
+                    eventType: h.eventType,
+                    notes: h.notes,
+                    newValues: h.newValues,
+                    previousValues: h.previousValues,
+                  })}
+                </p>
+              </HkFieldCard>
+            );
+          })
+        )}
+      </HkFieldStack>
+      <HkDesktopOnly className="overflow-x-auto rounded-2xl border border-border">
+        <table className="w-full min-w-[720px] text-sm">
+          <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
-              <td colSpan={5} className="p-4 text-muted-foreground">
-                Loading history…
-              </td>
+              <th className="p-3">When</th>
+              <th className="p-3">Room</th>
+              <th className="p-3">Event</th>
+              <th className="p-3">Actor</th>
+              <th className="p-3">Detail</th>
             </tr>
-          ) : (q.data ?? []).length === 0 ? (
-            <tr>
-              <td colSpan={5} className="p-4 text-muted-foreground">
-                No housekeeping activity yet.
-              </td>
-            </tr>
-          ) : (
-            (q.data ?? []).map((h) => (
-              <tr key={h.id} className="border-t border-border align-top">
-                <td className="p-3 whitespace-nowrap">{formatWhen(h.createdAt)}</td>
-                <td className="p-3">{h.roomNumber ?? "—"}</td>
-                <td className="p-3">{h.eventType.replace(/_/g, " ")}</td>
-                <td className="p-3">{h.actorName ?? "System"}</td>
-                <td className="p-3 text-xs text-muted-foreground">
-                  {h.notes ?? h.newValues ?? "—"}
+          </thead>
+          <tbody>
+            {q.isLoading ? (
+              <tr>
+                <td colSpan={5} className="p-4 text-muted-foreground">
+                  Loading history…
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (q.data ?? []).length === 0 ? (
+              <tr>
+                <td colSpan={5} className="p-4 text-muted-foreground">
+                  No housekeeping activity yet.
+                </td>
+              </tr>
+            ) : (
+              (q.data ?? []).map((h) => {
+                const qv = h.roomId ? hkRoomQuickViewPath(h.roomId) : null;
+                return (
+                  <tr key={h.id} className="border-t border-border align-top">
+                    <td className="p-3 whitespace-nowrap">{formatWhen(h.createdAt)}</td>
+                    <td className="p-3">
+                      {qv ? (
+                        <Link to={qv.to} search={qv.search} className="font-medium text-foreground underline-offset-2 hover:underline">
+                          {h.roomNumber ?? "Room"}
+                        </Link>
+                      ) : (
+                        (h.roomNumber ?? "—")
+                      )}
+                    </td>
+                    <td className="p-3">{h.eventType.replace(/_/g, " ")}</td>
+                    <td className="p-3">{h.actorName ?? "System"}</td>
+                    <td className="p-3 text-xs text-muted-foreground">
+                      {formatHousekeepingHistoryDetail({
+                        eventType: h.eventType,
+                        notes: h.notes,
+                        newValues: h.newValues,
+                        previousValues: h.previousValues,
+                      })}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </HkDesktopOnly>
     </div>
   );
 }

@@ -1,12 +1,100 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { BedDouble } from "lucide-react";
 import { addDays, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import {
   CREATE_RESERVATION_MIN_NIGHTS,
   CREATE_RESERVATION_STAY_INVALID_RANGE,
 } from "@/packages/pms/lib/create-reservation-phase1";
+import {
+  PMS_OP_DATE,
+  PMS_OP_INPUT,
+  PMS_OP_LABEL,
+  PMS_OP_PANEL,
+  PMS_OP_PLACEHOLDER,
+  PMS_OP_TEXTAREA,
+} from "@/packages/pms/lib/pms-operational-surface";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { cn } from "@/shared/lib/utils";
+
+const stayControlClass = cn(PMS_OP_INPUT, PMS_OP_PLACEHOLDER);
+
+export function StayCountInput({
+  id,
+  value,
+  min,
+  max,
+  disabled,
+  onCommit,
+  "data-testid": testId,
+  className,
+}: {
+  id: string;
+  value: number;
+  min: number;
+  max?: number;
+  disabled?: boolean;
+  onCommit: (value: number) => void;
+  "data-testid"?: string;
+  className?: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(null);
+  }, [value]);
+
+  function clamp(raw: string): number {
+    const parsed = Number(raw);
+    const next = Number.isFinite(parsed) ? Math.floor(parsed) : min;
+    if (max == null) return Math.max(min, next);
+    return Math.min(max, Math.max(min, next));
+  }
+
+  return (
+    <Input
+      id={id}
+      data-testid={testId}
+      type="number"
+      min={min}
+      max={max}
+      disabled={disabled}
+      className={cn(stayControlClass, "tabular-nums", className)}
+      value={draft ?? String(value)}
+      onChange={(event) => {
+        const raw = event.target.value;
+        if (raw === "") {
+          setDraft("");
+          return;
+        }
+        setDraft(raw);
+        const parsed = Number(raw);
+        if (!Number.isFinite(parsed)) return;
+        const next = Math.floor(parsed);
+        if (next < min) return;
+        if (max != null && next > max) {
+          setDraft(String(max));
+          onCommit(max);
+          return;
+        }
+        onCommit(next);
+      }}
+      onBlur={() => {
+        onCommit(clamp(draft ?? String(value)));
+        setDraft(null);
+      }}
+    />
+  );
+}
+
+function StayFieldLabel({ htmlFor, children }: { htmlFor: string; children: ReactNode }) {
+  return (
+    <Label htmlFor={htmlFor} className={PMS_OP_LABEL}>
+      {children}
+    </Label>
+  );
+}
 
 export function CreateReservationStay({
   arrival,
@@ -15,14 +103,22 @@ export function CreateReservationStay({
   datesValid,
   adults,
   children,
+  infants,
   specialRequests,
   notes,
+  showNotes = true,
+  title = "Stay",
+  rooms = 1,
+  onRoomsChange,
+  requestExtras,
+  actions,
   occupancyWarn,
   onArrivalChange,
   onDepartureChange,
   onNightsChange,
   onAdultsChange,
   onChildrenChange,
+  onInfantsChange,
   onSpecialRequestsChange,
   onNotesChange,
 }: {
@@ -32,84 +128,153 @@ export function CreateReservationStay({
   datesValid: boolean;
   adults: number;
   children: number;
+  infants?: number;
   specialRequests: string;
   notes: string;
+  showNotes?: boolean;
+  title?: string;
+  rooms?: number;
+  onRoomsChange?: (rooms: number) => void;
+  requestExtras?: ReactNode;
+  actions?: ReactNode;
   occupancyWarn: ReactNode;
   onArrivalChange: (value: string) => void;
   onDepartureChange: (value: string) => void;
   onNightsChange: (nights: number) => void;
   onAdultsChange: (adults: number) => void;
   onChildrenChange: (children: number) => void;
+  onInfantsChange?: (infants: number) => void;
   onSpecialRequestsChange: (value: string) => void;
   onNotesChange: (value: string) => void;
 }) {
   const departureMin = arrival ? addDays(arrival, CREATE_RESERVATION_MIN_NIGHTS) : undefined;
+  const denseControl = "!h-9";
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4" data-testid="create-reservation-stay">
-      <h2 className="font-display text-lg">Stay</h2>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="space-y-1">
-          <Label htmlFor="arrival">Arrival</Label>
+    <section
+      id="create-reservation-stay-information"
+      className={cn(
+        PMS_OP_PANEL,
+        "!rounded-[6px] !border-[#CCCCCC] !shadow-none @container h-full scroll-mt-3 p-4",
+      )}
+      data-testid="create-reservation-stay"
+    >
+      <div className="flex items-start gap-2">
+        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+          <BedDouble className="size-3.5" aria-hidden />
+        </span>
+        <div>
+          <h2 className="text-sm font-semibold text-[#251605]">{title}</h2>
+          <p className="text-xs text-[#6B5E4E]">Enter stay details to check availability.</p>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-x-2 gap-y-2 @min-[24rem]:grid-cols-3">
+        <div className="min-w-0 space-y-1">
+          <StayFieldLabel htmlFor="arrival">Arrival Date</StayFieldLabel>
           <Input
             id="arrival"
             data-testid="stay-arrival"
             type="date"
             required
+            className={cn(stayControlClass, PMS_OP_DATE, denseControl)}
             value={arrival}
             onChange={(e) => onArrivalChange(e.target.value)}
           />
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="nights">Nights</Label>
-          <Input
-            id="nights"
-            data-testid="stay-nights"
-            type="number"
-            min={CREATE_RESERVATION_MIN_NIGHTS}
-            value={nights}
-            onChange={(e) => onNightsChange(Number(e.target.value))}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="departure">Departure</Label>
+        <div className="min-w-0 space-y-1">
+          <StayFieldLabel htmlFor="departure">Departure Date</StayFieldLabel>
           <Input
             id="departure"
             data-testid="stay-departure"
             type="date"
             min={departureMin}
+            className={cn(stayControlClass, PMS_OP_DATE, denseControl)}
             value={departure}
             onChange={(e) => onDepartureChange(e.target.value)}
           />
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="adults">Adults</Label>
-          <Input
-            id="adults"
-            data-testid="stay-adults"
-            type="number"
+        <div className="min-w-0 space-y-1">
+          <StayFieldLabel htmlFor="nights">Nights</StayFieldLabel>
+          <StayCountInput
+            id="nights"
+            data-testid="stay-nights"
+            className={denseControl}
+            value={nights}
+            min={CREATE_RESERVATION_MIN_NIGHTS}
+            onCommit={onNightsChange}
+          />
+        </div>
+        <div className="min-w-0 space-y-1">
+          <StayFieldLabel htmlFor="rooms-requested">Rooms</StayFieldLabel>
+          <StayCountInput
+            id="rooms-requested"
+            className={denseControl}
+            value={rooms}
             min={1}
             max={20}
+            disabled={!onRoomsChange}
+            onCommit={(next) => onRoomsChange?.(next)}
+          />
+          {/* TODO: wire to Rooms & Inventory — room count is not on the create payload */}
+        </div>
+        <div className="min-w-0 space-y-1">
+          <StayFieldLabel htmlFor="adults">Adults</StayFieldLabel>
+          <StayCountInput
+            id="adults"
+            data-testid="stay-adults"
+            className={denseControl}
             value={adults}
-            onChange={(e) => onAdultsChange(Math.max(1, Number(e.target.value) || 1))}
+            min={1}
+            max={20}
+            onCommit={onAdultsChange}
           />
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="children">Children</Label>
-          <Input
+        <div className="min-w-0 space-y-1">
+          <StayFieldLabel htmlFor="children">Children</StayFieldLabel>
+          <StayCountInput
             id="children"
             data-testid="stay-children"
-            type="number"
+            className={denseControl}
+            value={children}
             min={0}
             max={20}
-            value={children}
-            onChange={(e) => onChildrenChange(Math.max(0, Number(e.target.value) || 0))}
+            onCommit={onChildrenChange}
           />
         </div>
+        {onInfantsChange != null && infants != null ? (
+          <div className="min-w-0 space-y-1">
+            <StayFieldLabel htmlFor="infants">Infants</StayFieldLabel>
+            <StayCountInput
+              id="infants"
+              data-testid="stay-infants"
+              className={denseControl}
+              value={infants}
+              min={0}
+              max={20}
+              onCommit={onInfantsChange}
+            />
+          </div>
+        ) : null}
+        {requestExtras}
+      </div>
+      <div className="mt-2 grid grid-cols-1 items-end gap-2 @min-[24rem]:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="min-w-0 space-y-1">
+          <StayFieldLabel htmlFor="requests">Special Requirement</StayFieldLabel>
+          <Input
+            id="requests"
+            data-testid="stay-special-requests"
+            className={cn(stayControlClass, denseControl)}
+            placeholder="e.g. High floor, airport pickup, extra bed..."
+            value={specialRequests}
+            onChange={(e) => onSpecialRequestsChange(e.target.value)}
+          />
+        </div>
+        {actions ? <div className="min-w-0">{actions}</div> : null}
       </div>
       {datesValid ? (
         <p className="mt-2 text-xs text-muted-foreground" data-testid="stay-range-summary">
-          {nights} night{nights === 1 ? "" : "s"} · {formatStayDate(arrival)} → {formatStayDate(departure)}
+          {nights} night{nights === 1 ? "" : "s"} · {formatStayDate(arrival)} →{" "}
+          {formatStayDate(departure)}
         </p>
       ) : (
         <p className="mt-2 text-xs text-destructive" data-testid="stay-invalid-range">
@@ -119,28 +284,20 @@ export function CreateReservationStay({
 
       {occupancyWarn ? <div className="mt-3">{occupancyWarn}</div> : null}
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <div className="space-y-1">
-          <Label htmlFor="requests">Special requests</Label>
-          <Textarea
-            id="requests"
-            data-testid="stay-special-requests"
-            rows={3}
-            value={specialRequests}
-            onChange={(e) => onSpecialRequestsChange(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="notes">Internal notes</Label>
+      {showNotes ? (
+        <div className="mt-4 space-y-1.5">
+          <StayFieldLabel htmlFor="notes">Internal notes</StayFieldLabel>
           <Textarea
             id="notes"
             data-testid="stay-notes"
             rows={3}
+            className={cn(PMS_OP_TEXTAREA, PMS_OP_PLACEHOLDER)}
+            placeholder="Staff-only notes for this draft"
             value={notes}
             onChange={(e) => onNotesChange(e.target.value)}
           />
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }

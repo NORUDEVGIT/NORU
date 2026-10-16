@@ -111,17 +111,31 @@ export const DEFAULT_PREFERENCE_TYPES: Array<{
 }> = [
   {
     categoryCode: "ROOM",
-    name: "Floor",
-    code: "FLOOR",
+    name: "Room Type",
+    code: "ROOM_TYPE",
     valueType: "single",
     required: false,
     options: [
-      { label: "1", value: "1" },
-      { label: "2", value: "2" },
-      { label: "3", value: "3" },
-      { label: "4", value: "4" },
-      { label: "5", value: "5" },
-      { label: "6+", value: "6+" },
+      { label: "Standard Room", value: "standard" },
+      { label: "Deluxe Room", value: "deluxe" },
+      { label: "Superior Room", value: "superior" },
+      { label: "Suite", value: "suite" },
+      { label: "Executive Suite", value: "executive_suite" },
+      { label: "Presidential Suite", value: "presidential_suite" },
+    ],
+  },
+  {
+    categoryCode: "ROOM",
+    name: "Rate Plan",
+    code: "RATE_PLAN",
+    valueType: "single",
+    required: false,
+    options: [
+      { label: "Standard Rate (BAR)", value: "standard_rate" },
+      { label: "Non-Refundable Rate", value: "non_refundable" },
+      { label: "Flexible Rate", value: "flexible_rate" },
+      { label: "Corporate Rate", value: "corporate_rate" },
+      { label: "Promotional Package", value: "promotional_package" },
     ],
   },
   {
@@ -139,24 +153,17 @@ export const DEFAULT_PREFERENCE_TYPES: Array<{
   },
   {
     categoryCode: "ROOM",
-    name: "Quiet Room",
-    code: "QUIET",
+    name: "Floor",
+    code: "FLOOR",
     valueType: "single",
     required: false,
     options: [
-      { label: "Yes", value: "yes" },
-      { label: "No", value: "no" },
-    ],
-  },
-  {
-    categoryCode: "ROOM",
-    name: "Connecting Room",
-    code: "CONNECT",
-    valueType: "single",
-    required: false,
-    options: [
-      { label: "Yes", value: "yes" },
-      { label: "No", value: "no" },
+      { label: "1", value: "1" },
+      { label: "2", value: "2" },
+      { label: "3", value: "3" },
+      { label: "4", value: "4" },
+      { label: "5", value: "5" },
+      { label: "6+", value: "6+" },
     ],
   },
   {
@@ -181,6 +188,20 @@ export const DEFAULT_PREFERENCE_TYPES: Array<{
     options: [
       { label: "Yes", value: "yes" },
       { label: "No", value: "no" },
+    ],
+  },
+  {
+    categoryCode: "DIET",
+    name: "Meal Plan",
+    code: "MEAL_PLAN",
+    valueType: "single",
+    required: false,
+    options: [
+      { label: "Room Only (EP)", value: "room_only" },
+      { label: "Bed & Breakfast (CP)", value: "bed_and_breakfast" },
+      { label: "Half Board (MAP)", value: "half_board" },
+      { label: "Full Board (AP)", value: "full_board" },
+      { label: "All Inclusive (AI)", value: "all_inclusive" },
     ],
   },
   {
@@ -397,4 +418,224 @@ export function validatePreferenceTypeDraft(
     values.add(valueKey);
   }
   return errors;
+}
+
+export function enrichPreferenceTypesWithOptions(
+  types: PreferenceTypeRecord[],
+  roomTypes?: Array<{ id: string; name: string; code?: string | null; active?: boolean | null }> | null,
+  mealPlans?: Array<{ id: string; name: string; code?: string | null; active?: boolean | null }> | null,
+  ratePlans?: Array<{ id: string; name: string; code?: string | null; active?: boolean | null }> | null,
+): PreferenceTypeRecord[] {
+  if (!roomTypes?.length && !mealPlans?.length && !ratePlans?.length) return types;
+  return types.map((type) => {
+    if (type.code === "ROOM_TYPE" && roomTypes && roomTypes.length > 0) {
+      const existingValues = new Set(type.options.map((o) => o.value.toLowerCase()));
+      const existingLabels = new Set(type.options.map((o) => o.label.toLowerCase()));
+      const newOptions = [...type.options];
+      let order = newOptions.length;
+      for (const rt of roomTypes) {
+        if (rt.active === false) continue;
+        if (!existingValues.has(rt.id.toLowerCase()) && !existingLabels.has(rt.name.toLowerCase())) {
+          newOptions.push({
+            id: rt.id,
+            label: rt.name,
+            value: rt.id,
+            active: true,
+            displayOrder: order++,
+          });
+          existingValues.add(rt.id.toLowerCase());
+          existingLabels.add(rt.name.toLowerCase());
+        }
+      }
+      return { ...type, options: newOptions };
+    }
+    if (type.code === "RATE_PLAN" && ratePlans && ratePlans.length > 0) {
+      const existingValues = new Set(type.options.map((o) => o.value.toLowerCase()));
+      const existingLabels = new Set(type.options.map((o) => o.label.toLowerCase()));
+      const newOptions = [...type.options];
+      let order = newOptions.length;
+      for (const rp of ratePlans) {
+        if (rp.active === false) continue;
+        if (!existingValues.has(rp.id.toLowerCase()) && !existingLabels.has(rp.name.toLowerCase())) {
+          newOptions.push({
+            id: rp.id,
+            label: rp.name,
+            value: rp.id,
+            active: true,
+            displayOrder: order++,
+          });
+          existingValues.add(rp.id.toLowerCase());
+          existingLabels.add(rp.name.toLowerCase());
+        }
+      }
+      return { ...type, options: newOptions };
+    }
+    if (type.code === "MEAL_PLAN" && mealPlans && mealPlans.length > 0) {
+      const existingValues = new Set(type.options.map((o) => o.value.toLowerCase()));
+      const existingLabels = new Set(type.options.map((o) => o.label.toLowerCase()));
+      const newOptions = [...type.options];
+      let order = newOptions.length;
+      for (const mp of mealPlans) {
+        if (mp.active === false) continue;
+        if (!existingValues.has(mp.id.toLowerCase()) && !existingLabels.has(mp.name.toLowerCase())) {
+          newOptions.push({
+            id: mp.id,
+            label: mp.name,
+            value: mp.id,
+            active: true,
+            displayOrder: order++,
+          });
+          existingValues.add(mp.id.toLowerCase());
+          existingLabels.add(mp.name.toLowerCase());
+        }
+      }
+      return { ...type, options: newOptions };
+    }
+    return type;
+  });
+}
+
+export function resolveEffectivePreferences(
+  categories: PreferenceCategoryRecord[],
+  types: PreferenceTypeRecord[],
+  roomTypes?: Array<{ id: string; name: string; code?: string | null; active?: boolean | null }> | null,
+  mealPlans?: Array<{ id: string; name: string; code?: string | null; active?: boolean | null }> | null,
+  ratePlans?: Array<{ id: string; name: string; code?: string | null; active?: boolean | null }> | null,
+): { categories: PreferenceCategoryRecord[]; types: PreferenceTypeRecord[] } {
+  let resolvedCategories = [...categories];
+  if (resolvedCategories.length === 0) {
+    resolvedCategories = DEFAULT_PREFERENCE_CATEGORIES.map((c, idx) => ({
+      id: `default-cat-${c.code.toLowerCase()}`,
+      name: c.name,
+      code: c.code,
+      description: c.description ?? null,
+      active: true,
+      displayOrder: idx + 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }));
+  }
+
+  const catByCode = new Map(resolvedCategories.map((c) => [c.code, c.id]));
+  const roomCatId = catByCode.get("ROOM") || resolvedCategories[0]?.id || "default-cat-room";
+  const dietCatId = catByCode.get("DIET") || resolvedCategories[0]?.id || "default-cat-diet";
+
+  // Filter out QUIET and CONNECT from types
+  let resolvedTypes = types.filter((t) => t.code !== "QUIET" && t.code !== "CONNECT");
+
+  if (resolvedTypes.length === 0) {
+    const orderByCat = new Map<string, number>();
+    resolvedTypes = DEFAULT_PREFERENCE_TYPES.filter(
+      (def) => def.code !== "QUIET" && def.code !== "CONNECT",
+    ).map((def) => {
+      const catId = catByCode.get(def.categoryCode) || resolvedCategories[0]?.id || "default-cat";
+      const displayOrder = (orderByCat.get(def.categoryCode) ?? 0) + 1;
+      orderByCat.set(def.categoryCode, displayOrder);
+      return {
+        id: `default-type-${def.code.toLowerCase()}`,
+        categoryId: catId,
+        name: def.name,
+        code: def.code,
+        valueType: def.valueType,
+        options: def.options.map((opt, i) => ({
+          id: `opt-${def.code.toLowerCase()}-${i}`,
+          label: opt.label,
+          value: opt.value,
+          active: true,
+          displayOrder: i,
+        })),
+        required: def.required,
+        active: true,
+        displayOrder,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+  } else {
+    const existingCodes = new Set(resolvedTypes.map((t) => t.code));
+    if (!existingCodes.has("ROOM_TYPE")) {
+      const roomDef = DEFAULT_PREFERENCE_TYPES.find((d) => d.code === "ROOM_TYPE");
+      if (roomDef) {
+        resolvedTypes.push({
+          id: "default-type-room_type",
+          categoryId: roomCatId,
+          name: roomDef.name,
+          code: roomDef.code,
+          valueType: roomDef.valueType,
+          options: roomDef.options.map((opt, i) => ({
+            id: `opt-room_type-${i}`,
+            label: opt.label,
+            value: opt.value,
+            active: true,
+            displayOrder: i,
+          })),
+          required: false,
+          active: true,
+          displayOrder: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+    if (!existingCodes.has("RATE_PLAN")) {
+      const rateDef = DEFAULT_PREFERENCE_TYPES.find((d) => d.code === "RATE_PLAN");
+      if (rateDef) {
+        resolvedTypes.push({
+          id: "default-type-rate_plan",
+          categoryId: roomCatId,
+          name: rateDef.name,
+          code: rateDef.code,
+          valueType: rateDef.valueType,
+          options: rateDef.options.map((opt, i) => ({
+            id: `opt-rate_plan-${i}`,
+            label: opt.label,
+            value: opt.value,
+            active: true,
+            displayOrder: 2,
+          })),
+          required: false,
+          active: true,
+          displayOrder: 2,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+    if (!existingCodes.has("MEAL_PLAN")) {
+      const mealDef = DEFAULT_PREFERENCE_TYPES.find((d) => d.code === "MEAL_PLAN");
+      if (mealDef) {
+        resolvedTypes.push({
+          id: "default-type-meal_plan",
+          categoryId: dietCatId,
+          name: mealDef.name,
+          code: mealDef.code,
+          valueType: mealDef.valueType,
+          options: mealDef.options.map((opt, i) => ({
+            id: `opt-meal_plan-${i}`,
+            label: opt.label,
+            value: opt.value,
+            active: true,
+            displayOrder: 1,
+          })),
+          required: false,
+          active: true,
+          displayOrder: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  const enrichedTypes = enrichPreferenceTypesWithOptions(
+    resolvedTypes,
+    roomTypes,
+    mealPlans,
+    ratePlans,
+  );
+
+  return {
+    categories: resolvedCategories,
+    types: enrichedTypes,
+  };
 }

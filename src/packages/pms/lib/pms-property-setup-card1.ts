@@ -82,16 +82,24 @@ export const CARD1_AUDIT_ACTIONS = [
 
 export const CARD1_STEPS = [
   { id: "identity", number: 1, title: "Property Identity" },
-  { id: "address", number: 2, title: "Address & Location" },
-  { id: "contacts", number: 3, title: "Contacts" },
-  { id: "checkin", number: 4, title: "Check-In & Check-Out" },
-  { id: "business-date", number: 5, title: "Business Date" },
-  { id: "legal", number: 6, title: "Legal Identity" },
-  { id: "tax", number: 7, title: "Tax Documents" },
-  { id: "structure", number: 8, title: "Property Structure" },
+  { id: "address", number: 2, title: "Address, Location & Contacts" },
+  { id: "checkin", number: 3, title: "Check-In, Check-Out & Business Date" },
+  { id: "legal", number: 4, title: "Legal & Tax Information" },
+  { id: "structure", number: 5, title: "Property Structure" },
 ] as const;
 
 export type Card1StepId = (typeof CARD1_STEPS)[number]["id"];
+export type Card1LegacyStepId = Card1StepId | "contacts" | "business-date" | "tax";
+
+export function normalizeCard1StepId(step: string): Card1StepId | null {
+  if (step === "contacts") return "address";
+  if (step === "business-date") return "checkin";
+  if (step === "tax") return "legal";
+  if ((CARD1_STEPS as readonly { id: string }[]).some((row) => row.id === step)) {
+    return step as Card1StepId;
+  }
+  return null;
+}
 
 export const PROPERTY_SETUP_CARD_STATUSES = ["complete", "in_progress", "not_started"] as const;
 export type PropertySetupCardStatus = (typeof PROPERTY_SETUP_CARD_STATUSES)[number];
@@ -311,7 +319,6 @@ export function validateIdentityFields(draft: Card1Draft): Card1IdentityFieldErr
   const errors: Card1IdentityFieldErrors = {};
   if (draft.name.trim().length < 2) errors.name = "Property name is required.";
   if (!draft.propertyType.trim()) errors.propertyType = "Property type is required.";
-  if (!draft.businessType.trim()) errors.businessType = "Business type is required.";
   if (!draft.openingDate.trim()) errors.openingDate = "Opening date is required.";
   if (!draft.timezone.trim()) errors.timezone = "Time zone is required.";
   if (!draft.currencyCode.trim()) errors.currencyCode = "Primary currency is required.";
@@ -557,10 +564,19 @@ export type Card1StructureRules = {
 export type Card1StepStatusMap = Partial<Record<Card1StepId, PropertySetupCardStatus>>;
 export type Card2StepStatusMap = Partial<Record<Card2StepId, PropertySetupCardStatus>>;
 
+export type CustomAmenityCategoryStatus = {
+  name: string;
+  icon?: string | null;
+  iconType?: "upload" | "url" | "preset" | "fallback";
+};
+
 export type PropertySetupStatus = {
   cards: Partial<Record<PropertySetupCardId, PropertySetupCardStatus>>;
   card1Steps: Card1StepStatusMap;
   card2Steps?: Card2StepStatusMap;
+  customRoomCategories?: string[];
+  customRoomClasses?: string[];
+  customAmenityCategories?: CustomAmenityCategoryStatus[];
 };
 
 export type Card1DerivedCapacity = {
@@ -758,7 +774,14 @@ export function emptyStructureRules(partial?: Partial<Card1StructureRules>): Car
 export function emptyPropertySetupStatus(
   partial?: Partial<PropertySetupStatus>,
 ): PropertySetupStatus {
-  return { cards: {}, card1Steps: {}, card2Steps: {}, ...partial };
+  return {
+    cards: {},
+    card1Steps: {},
+    card2Steps: {},
+    customRoomCategories: [],
+    customRoomClasses: [],
+    ...partial,
+  };
 }
 
 export function emptyDerivedCapacity(
@@ -1306,7 +1329,13 @@ export function parseCardStatus(value: unknown): PropertySetupCardStatus {
 
 export function parsePropertySetupStatus(value: unknown): PropertySetupStatus {
   if (!value || typeof value !== "object") return emptyPropertySetupStatus();
-  const rec = value as { cards?: unknown; card1Steps?: unknown; card2Steps?: unknown };
+  const rec = value as {
+    cards?: unknown;
+    card1Steps?: unknown;
+    card2Steps?: unknown;
+    customRoomCategories?: unknown;
+    customRoomClasses?: unknown;
+  };
   const cards: PropertySetupStatus["cards"] = {};
   if (rec.cards && typeof rec.cards === "object") {
     for (const card of PROPERTY_SETUP_CARDS) {
@@ -1316,9 +1345,20 @@ export function parsePropertySetupStatus(value: unknown): PropertySetupStatus {
   }
   const card1Steps: Card1StepStatusMap = {};
   if (rec.card1Steps && typeof rec.card1Steps === "object") {
-    for (const step of CARD1_STEPS) {
-      const raw = (rec.card1Steps as Record<string, unknown>)[step.id];
-      if (raw != null) card1Steps[step.id] = parseCardStatus(raw);
+    const rawSteps = rec.card1Steps as Record<string, unknown>;
+    for (const [rawKey, rawVal] of Object.entries(rawSteps)) {
+      if (rawVal == null) continue;
+      const normalized = normalizeCard1StepId(rawKey);
+      if (!normalized) continue;
+      const parsedStatus = parseCardStatus(rawVal);
+      const existing = card1Steps[normalized];
+      if (!existing) {
+        card1Steps[normalized] = parsedStatus;
+      } else if (existing === "complete" && parsedStatus === "complete") {
+        card1Steps[normalized] = "complete";
+      } else if (existing !== "not_started" || parsedStatus !== "not_started") {
+        card1Steps[normalized] = "in_progress";
+      }
     }
   }
   const card2Steps: Card2StepStatusMap = {};
@@ -1328,7 +1368,63 @@ export function parsePropertySetupStatus(value: unknown): PropertySetupStatus {
       if (raw != null) card2Steps[step.id] = parseCardStatus(raw);
     }
   }
-  return { cards, card1Steps, card2Steps };
+
+  const customRoomCategories = Array.isArray(rec.customRoomCategories)
+    ? Array.from(
+        new Map(
+          rec.customRoomCategories
+            .map((row) => String(row ?? "").trim())
+            .filter(Boolean)
+            .map((val) => [val.toLowerCase(), val]),
+        ).values(),
+      )
+    : [];
+  const customRoomClasses = Array.isArray(rec.customRoomClasses)
+    ? Array.from(
+        new Map(
+          rec.customRoomClasses
+            .map((row) => String(row ?? "").trim())
+            .filter(Boolean)
+            .map((val) => [val.toLowerCase(), val]),
+        ).values(),
+      )
+    : [];
+
+  const customAmenityCategories: CustomAmenityCategoryStatus[] = [];
+  if (Array.isArray(rec.customAmenityCategories)) {
+    const seen = new Set<string>();
+    for (const item of rec.customAmenityCategories) {
+      if (!item) continue;
+      const name =
+        typeof item === "string"
+          ? item.trim()
+          : typeof item === "object" && "name" in item
+            ? String((item as Record<string, unknown>).name ?? "").trim()
+            : "";
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const icon =
+        typeof item === "object" && "icon" in item && (item as Record<string, unknown>).icon
+          ? String((item as Record<string, unknown>).icon).trim()
+          : null;
+      const iconType =
+        typeof item === "object" && "iconType" in item
+          ? ((item as Record<string, unknown>).iconType as CustomAmenityCategoryStatus["iconType"])
+          : undefined;
+      customAmenityCategories.push({ name, icon, iconType });
+    }
+  }
+
+  return {
+    cards,
+    card1Steps,
+    card2Steps,
+    customRoomCategories,
+    customRoomClasses,
+    customAmenityCategories,
+  };
 }
 
 function plausiblePhone(value: string): boolean {
@@ -1348,8 +1444,35 @@ function departmentRowPresent(row: Card1DepartmentContact): boolean {
   return Boolean(row.department.trim() || row.email.trim() || row.phone.trim() || row.name.trim());
 }
 
+export function card1ContactsSubstepComplete(draft: Card1Draft): boolean {
+  const departmentsOk = draft.departmentContacts.every(
+    (row) => !departmentRowPresent(row) || departmentRowComplete(row),
+  );
+  return Boolean(
+    plausiblePhone(draft.phone) &&
+      plausibleEmail(draft.email) &&
+      draft.emergency.name.trim() &&
+      plausiblePhone(draft.emergency.phone) &&
+      departmentsOk,
+  );
+}
+
+export function card1BusinessDateSubstepComplete(draft: Card1Draft): boolean {
+  return Boolean(
+    draft.businessDateConfig.dayBoundary.trim() &&
+      draft.businessDateConfig.nightAuditWindowStart.trim() &&
+      draft.businessDateConfig.nightAuditWindowEnd.trim() &&
+      draft.businessDateConfig.manualRolloverRoles.length > 0,
+  );
+}
+
+export function card1TaxSubstepComplete(draft: Card1Draft): boolean {
+  if (!draft.vatRegistered) return true;
+  return hasVatCertificate(draft.taxUploadRefs);
+}
+
 export function card1StepComplete(
-  step: Card1StepId,
+  step: Card1LegacyStepId,
   draft: Card1Draft,
   set2?: Pick<Set2Snapshot, "buildings" | "floors">,
 ): boolean {
@@ -1357,7 +1480,6 @@ export function card1StepComplete(
     return (
       draft.name.trim().length >= 2 &&
       Boolean(draft.propertyType.trim()) &&
-      Boolean(draft.businessType.trim()) &&
       Boolean(draft.openingDate.trim()) &&
       Boolean(draft.timezone.trim()) &&
       Boolean(draft.currencyCode.trim()) &&
@@ -1365,41 +1487,39 @@ export function card1StepComplete(
     );
   }
   if (step === "address") {
-    return Object.keys(validateAddressFields(draft)).length === 0;
+    const addressOk = Object.keys(validateAddressFields(draft)).length === 0;
+    const contactsProvided = Boolean(
+      draft.phone.trim() ||
+        draft.email.trim() ||
+        draft.emergency.name.trim() ||
+        draft.emergency.phone.trim() ||
+        draft.departmentContacts.some(departmentRowPresent),
+    );
+    return addressOk && (!contactsProvided || card1ContactsSubstepComplete(draft));
   }
   if (step === "contacts") {
-    const departmentsOk = draft.departmentContacts.every(
-      (row) => !departmentRowPresent(row) || departmentRowComplete(row),
-    );
-    return Boolean(
-      plausiblePhone(draft.phone) &&
-      plausibleEmail(draft.email) &&
-      draft.emergency.name.trim() &&
-      plausiblePhone(draft.emergency.phone) &&
-      departmentsOk,
-    );
+    return card1ContactsSubstepComplete(draft);
   }
   if (step === "checkin") {
-    return Boolean(
-      normalizeClock(draft.checkInTime) &&
-      normalizeClock(draft.checkOutTime) &&
-      draft.checkinOps.minLeadTime.trim(),
+    return (
+      Boolean(
+        normalizeClock(draft.checkInTime) &&
+          normalizeClock(draft.checkOutTime) &&
+          draft.checkinOps.minLeadTime.trim(),
+      ) && card1BusinessDateSubstepComplete(draft)
     );
   }
   if (step === "business-date") {
-    return Boolean(
-      draft.businessDateConfig.dayBoundary.trim() &&
-      draft.businessDateConfig.nightAuditWindowStart.trim() &&
-      draft.businessDateConfig.nightAuditWindowEnd.trim() &&
-      draft.businessDateConfig.manualRolloverRoles.length > 0,
-    );
+    return card1BusinessDateSubstepComplete(draft);
   }
   if (step === "legal") {
-    return Boolean(draft.legalName.trim() || draft.legalEntityName.trim());
+    return (
+      Boolean(draft.legalName.trim() || draft.legalEntityName.trim()) &&
+      card1TaxSubstepComplete(draft)
+    );
   }
   if (step === "tax") {
-    if (!draft.vatRegistered) return true;
-    return hasVatCertificate(draft.taxUploadRefs);
+    return card1TaxSubstepComplete(draft);
   }
   const buildings = set2?.buildings.filter((row) => row.active).length ?? 0;
   const floors = set2?.floors.filter((row) => row.active).length ?? 0;
@@ -1409,7 +1529,7 @@ export function card1StepComplete(
 }
 
 export function evaluateCard1StepStatus(
-  step: Card1StepId,
+  step: Card1LegacyStepId,
   draft: Card1Draft,
   stored: PropertySetupCardStatus | undefined,
   set2?: Pick<Set2Snapshot, "buildings" | "floors">,
@@ -1566,6 +1686,7 @@ export function markStepInProgress(
   step: Card1StepId,
 ): PropertySetupStatus {
   return {
+    ...status,
     cards: { ...status.cards, "property-business": "in_progress" },
     card1Steps: {
       ...status.card1Steps,
@@ -1586,6 +1707,7 @@ export function markStepComplete(
     [step]: card1StepComplete(step, draft, set2) ? "complete" : "in_progress",
   };
   const next: PropertySetupStatus = {
+    ...status,
     cards: { ...status.cards },
     card1Steps: nextSteps,
     card2Steps: { ...(status.card2Steps ?? {}) },
@@ -1598,6 +1720,7 @@ export function markCard1Complete(status: PropertySetupStatus): PropertySetupSta
   const card1Steps = { ...status.card1Steps };
   for (const step of CARD1_STEPS) card1Steps[step.id] = "complete";
   return {
+    ...status,
     cards: { ...status.cards, "property-business": "complete" },
     card1Steps,
     card2Steps: { ...(status.card2Steps ?? {}) },

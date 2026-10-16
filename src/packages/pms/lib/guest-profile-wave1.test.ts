@@ -130,8 +130,8 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
     const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
     const listing = readRel("../components/workspaces/guest-listing-workspace.tsx");
     const functions = readRel("./guests.functions.ts");
-    assert.match(listing, /Guest Profile/);
-    assert.match(listing, /Search, manage and open guest profiles/);
+    assert.match(shell, /Guest Profiles/);
+    assert.match(shell, /GuestProfileChrome/);
     assert.match(listing, /guest-workspace-stats/);
     assert.match(listing, /Total Profiles/);
     assert.match(functions, /export const getGuestDirectoryStats/);
@@ -166,7 +166,24 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
     assert.equal(isGuestProfileNavCard("directory"), false);
     assert.equal(parseGuestProfileWorkspaceNav({ nav: "stays" }), "bookings");
     assert.equal(parseGuestProfileWorkspaceNav({ nav: "reservations" }), "bookings");
+    assert.equal(
+      parseGuestProfileWorkspaceNav({ nav: "reservations", type: "company" }),
+      "reservations",
+    );
+    assert.equal(parseGuestProfileWorkspaceNav({ nav: "contacts" }), "contacts");
     assert.equal(parseGuestProfileWorkspaceNav({ nav: "bookings" }), "bookings");
+    assert.equal(
+      parseGuestProfileWorkspaceNav({ nav: "commission", type: "travel-agent" }),
+      "commission",
+    );
+    assert.equal(
+      parseGuestProfileWorkspaceNav({ nav: "settings", type: "travel-agent" }),
+      "settings",
+    );
+    assert.equal(
+      parseGuestProfileWorkspaceNav({ nav: "agreements", type: "travel-agent" }),
+      "agreements",
+    );
     assert.equal(
       GUEST_PROFILE_WORKSPACE_NAV.find((item) => item.id === "bookings")?.title,
       "Stays & Reservations",

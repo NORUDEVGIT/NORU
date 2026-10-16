@@ -5,15 +5,21 @@ import { useServerFn } from "@tanstack/react-start";
 import { Plus, Search } from "lucide-react";
 
 import { GuestCompanyDirectory } from "@/packages/pms/components/guests/guest-company-directory";
-import { GuestAccountFormDialog } from "@/packages/pms/components/guests/guest-account-form-dialog";
+import { GuestTravelAgentDirectory } from "@/packages/pms/components/guests/guest-travel-agent-directory";
+import { GuestGroupDirectory } from "@/packages/pms/components/guests/guest-group-directory";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
+  GUEST_PROFILE_DIRECTORY_PATH,
   guestProfileSearch,
   type GuestProfileCardId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { companyDirectorySecondary } from "@/packages/pms/lib/guest-profile-company";
-import { taDirectorySecondary } from "@/packages/pms/lib/guest-profile-travel-agency";
+import {
+  AGENCY_TYPE_LABELS,
+  AGENCY_TYPES,
+  taDirectorySecondary,
+} from "@/packages/pms/lib/guest-profile-travel-agency";
 import {
   GUEST_ACCOUNT_TYPE_LABELS,
   WAVE4_GROUP_ACCOUNT_COPY,
@@ -44,7 +50,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTime } from "@/core/state/property-format";
 
 const ALL = "all";
 
@@ -67,6 +73,12 @@ export function GuestAccountDirectory({
   if (accountType === "company") {
     return <GuestCompanyDirectory membership={membership} returnCard={returnCard} />;
   }
+  if (accountType === "travel_agent") {
+    return <GuestTravelAgentDirectory membership={membership} returnCard={returnCard} />;
+  }
+  if (accountType === "group") {
+    return <GuestGroupDirectory membership={membership} returnCard={returnCard} />;
+  }
   const title = GUEST_ACCOUNT_TYPE_LABELS[accountType];
   const profileType = accountTypeToProfileType(accountType);
 
@@ -78,7 +90,8 @@ export function GuestAccountDirectory({
   const searchValue = search ?? localSearch;
   const setSearch = onSearchChange ?? setLocalSearch;
   const [status, setStatus] = useState<string>(ALL);
-  const [formOpen, setFormOpen] = useState(false);
+  const [agencyType, setAgencyType] = useState<string>(ALL);
+  const [country, setCountry] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<(typeof LISTING_PAGE_SIZES)[number]>(
     LISTING_DEFAULT_PAGE_SIZE,
@@ -86,7 +99,7 @@ export function GuestAccountDirectory({
 
   useEffect(() => {
     setPage(0);
-  }, [searchValue]);
+  }, [searchValue, status, agencyType, country]);
 
   const accessQuery = useQuery({
     queryKey: ["guests-access", restaurantId],
@@ -103,7 +116,17 @@ export function GuestAccountDirectory({
   });
 
   const accountsQuery = useQuery({
-    queryKey: ["guest-accounts", restaurantId, accountType, searchValue, status, offset, pageSize],
+    queryKey: [
+      "guest-accounts",
+      restaurantId,
+      accountType,
+      searchValue,
+      status,
+      agencyType,
+      country,
+      offset,
+      pageSize,
+    ],
     queryFn: () =>
       fetchAccounts({
         data: {
@@ -113,6 +136,12 @@ export function GuestAccountDirectory({
           limit: pageSize,
           ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
           ...(status !== ALL ? { status: status as "active" | "inactive" } : {}),
+          ...(accountType === "travel_agent" && agencyType !== ALL
+            ? { agencyType: agencyType as (typeof AGENCY_TYPES)[number] }
+            : {}),
+          ...(accountType === "travel_agent" && country.trim()
+            ? { country: country.trim() }
+            : {}),
         },
       }),
     enabled: canManage,
@@ -164,7 +193,21 @@ export function GuestAccountDirectory({
           data-testid="guest-account-new"
           disabled={!canCreate}
           title={!canCreate ? PROFILE_TYPE_CREATE_BLOCKED : undefined}
-          onClick={() => setFormOpen(true)}
+          onClick={() => {
+            if (accountType === "group") {
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({ type: "group", create: "group" }),
+              });
+              return;
+            }
+            if (accountType === "travel_agent") {
+              void navigate({
+                to: GUEST_PROFILE_DIRECTORY_PATH,
+                search: guestProfileSearch({ type: "travel-agent", create: "travel-agent" }),
+              });
+            }
+          }}
         >
           <Plus className="size-4 sm:mr-2" />
           <span className="hidden sm:inline">New {title}</span>
@@ -200,6 +243,39 @@ export function GuestAccountDirectory({
             <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
+        {accountType === "travel_agent" ? (
+          <>
+            <Select
+              value={agencyType}
+              onValueChange={(value) => {
+                setAgencyType(value);
+                setPage(0);
+              }}
+            >
+              <SelectTrigger className="w-44" data-testid="guest-account-agency-type">
+                <SelectValue placeholder="Agency type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All agency types</SelectItem>
+                {AGENCY_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {AGENCY_TYPE_LABELS[type]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              className="w-40"
+              data-testid="guest-account-country"
+              placeholder="Country"
+              value={country}
+              onChange={(e) => {
+                setCountry(e.target.value);
+                setPage(0);
+              }}
+            />
+          </>
+        ) : null}
       </div>
 
       {unavailable ? (
@@ -300,13 +376,6 @@ export function GuestAccountDirectory({
         </div>
       </div>
 
-      <GuestAccountFormDialog
-        restaurantId={restaurantId}
-        accountType={accountType}
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        onSaved={openAccount}
-      />
     </div>
   );
 }

@@ -26,6 +26,20 @@ const saveSchema = z
     serviceTypeId: idSchema,
     departmentId: idSchema,
     active: z.boolean(),
+    isBillingDepartment: z.boolean(),
+  })
+  .strict();
+
+const createDepartmentSchema = z
+  .object({
+    restaurantId: idSchema,
+    name: z.string().trim().min(1).max(80),
+    code: z
+      .string()
+      .trim()
+      .min(1)
+      .max(20)
+      .regex(/^[A-Za-z0-9_-]+$/, "Use letters, numbers, hyphens, or underscores."),
   })
   .strict();
 
@@ -67,6 +81,7 @@ function mapServiceType(row: {
   code: string;
   description: string | null;
   active: boolean;
+  chargeable_to_folio?: boolean;
   display_order: number;
   created_at: string;
   updated_at: string;
@@ -78,6 +93,7 @@ function mapServiceType(row: {
     code: row.code,
     description: row.description,
     active: row.active,
+    chargeableToFolio: row.chargeable_to_folio === true,
     displayOrder: row.display_order,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -103,6 +119,7 @@ function mapAssignment(row: {
   service_type_id: string;
   department_id: string;
   active: boolean;
+  is_billing_department?: boolean;
   created_at: string;
   updated_at: string;
 }): ServiceDepartmentAssignmentRecord {
@@ -111,6 +128,7 @@ function mapAssignment(row: {
     serviceTypeId: row.service_type_id,
     departmentId: row.department_id,
     active: row.active,
+    isBillingDepartment: row.is_billing_department === true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -147,7 +165,7 @@ async function loadSnapshot(
     db
       .from("pms_guest_service_types")
       .select(
-        "id, category_id, name, code, description, active, display_order, created_at, updated_at",
+        "id, category_id, name, code, description, active, chargeable_to_folio, display_order, created_at, updated_at",
       )
       .eq("restaurant_id", restaurantId)
       .order("display_order")
@@ -159,7 +177,9 @@ async function loadSnapshot(
       .order("name"),
     db
       .from("pms_guest_service_department_assignments")
-      .select("id, service_type_id, department_id, active, created_at, updated_at")
+      .select(
+        "id, service_type_id, department_id, active, is_billing_department, created_at, updated_at",
+      )
       .eq("restaurant_id", restaurantId)
       .order("created_at"),
   ]);
@@ -200,6 +220,38 @@ export const getPmsCard4ServiceDepartmentAssignments = createServerFn({ method: 
     return loadSnapshot(supabaseAdmin, data.restaurantId);
   });
 
+export const createPmsCard4CustomDepartment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => createDepartmentSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as DbClient;
+    const result = await db
+      .from("pms_departments")
+      .insert({
+        restaurant_id: data.restaurantId,
+        name: data.name.trim(),
+        code: data.code.trim().toUpperCase(),
+        active: true,
+        department_type: "custom",
+      })
+      .select("id")
+      .single();
+    if (result.error?.code === "23505") {
+      throw new Error("That department code is already used.");
+    }
+    if (result.error) unavailable(result.error);
+    const id = result.data?.id;
+    if (!id) throw new Error("Could not create the department.");
+    await writeAudit(db, data.restaurantId, context.userId, "pms_card4_custom_department_created", {
+      id,
+      name: data.name.trim(),
+      code: data.code.trim().toUpperCase(),
+    });
+    return { ok: true as const, id };
+  });
+
 export const savePmsCard4ServiceDepartmentAssignment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => saveSchema.parse(input))
@@ -214,6 +266,7 @@ export const savePmsCard4ServiceDepartmentAssignment = createServerFn({ method: 
         serviceTypeId: data.serviceTypeId,
         departmentId: data.departmentId,
         active: data.active,
+        isBillingDepartment: data.isBillingDepartment,
       },
       snapshot.assignments,
       snapshot.serviceTypes,
@@ -223,11 +276,23 @@ export const savePmsCard4ServiceDepartmentAssignment = createServerFn({ method: 
       throw new Error(errors[0]?.message ?? "Fix the assignment before saving.");
     }
 
+    if (data.isBillingDepartment) {
+      const clear = db
+        .from("pms_guest_service_department_assignments")
+        .update({ is_billing_department: false, updated_by: context.userId })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("service_type_id", data.serviceTypeId)
+        .eq("is_billing_department", true);
+      const cleared = data.id ? await clear.neq("id", data.id) : await clear;
+      if (cleared.error) unavailable(cleared.error);
+    }
+
     const payload = {
       restaurant_id: data.restaurantId,
       service_type_id: data.serviceTypeId,
       department_id: data.departmentId,
       active: data.active,
+      is_billing_department: data.isBillingDepartment,
       updated_by: context.userId,
     };
     const result = data.id

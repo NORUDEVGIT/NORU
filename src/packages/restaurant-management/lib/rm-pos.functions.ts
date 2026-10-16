@@ -13,7 +13,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 import { requirePosAccess, requirePosOperator, posError } from "./rm-pos.server";
-import { canManageCashiering } from "@/packages/pms/lib/cashiering.server";
+import { canManageCashiering } from "@/core/lib/cashiering-roles";
 import { getRestaurantSettings, displayName } from "@/core/lib/workforce.server";
 import { resolveOrderLines } from "./order-pricing.server";
 import { createValidatedOrder, staffNameSnapshot } from "./order-core.server";

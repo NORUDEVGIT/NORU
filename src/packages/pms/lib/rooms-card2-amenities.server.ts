@@ -12,25 +12,92 @@ import {
 export const AMENITY_OVERRIDE_KINDS = ["add", "remove"] as const;
 export type AmenityOverrideKind = (typeof AMENITY_OVERRIDE_KINDS)[number];
 
-export const AMENITY_CATEGORIES = [
-  "Room Amenities",
-  "Bathroom Amenities",
-  "Technology",
-  "Furniture",
-  "Safety",
+export const CANONICAL_AMENITY_CATEGORIES = [
+  "Room Facilities",
+  "Bathroom",
+  "Technology & Connectivity",
+  "Food & Beverage",
+  "Bed & Sleeping",
+  "Safety & Security",
   "Accessibility",
-  "Guest Comfort",
-  "Kitchen / Pantry",
-  "Outdoor Features",
+  "Outdoor & View",
+  "Recreation & Entertainment",
+  "Services",
+  "Property Facilities",
+  "Family & Children",
+  "Work & Business",
+  "Housekeeping & Convenience",
 ] as const;
-export type AmenityCategory = (typeof AMENITY_CATEGORIES)[number];
+export type CanonicalAmenityCategory = (typeof CANONICAL_AMENITY_CATEGORIES)[number];
 
-export function isApprovedAmenityCategory(value: string | null | undefined): value is AmenityCategory {
-  return AMENITY_CATEGORIES.includes((value ?? "").trim() as AmenityCategory);
+/** Legacy categories are removed; canonical 14 categories are the only standard system categories. */
+export const LEGACY_AMENITY_CATEGORIES: readonly string[] = [];
+export type LegacyAmenityCategory = never;
+
+/** Primary system catalogue categories (the 14 canonical categories). */
+export const AMENITY_CATEGORIES = CANONICAL_AMENITY_CATEGORIES;
+export type AmenityCategory = CanonicalAmenityCategory;
+
+/** Canonical semantic Lucide icon mappings for all 14 categories. */
+export const CANONICAL_CATEGORY_ICONS: Record<CanonicalAmenityCategory, string> = {
+  "Room Facilities": "DoorOpen",
+  "Bathroom": "Bath",
+  "Technology & Connectivity": "Wifi",
+  "Food & Beverage": "Coffee",
+  "Bed & Sleeping": "BedDouble",
+  "Safety & Security": "ShieldCheck",
+  "Accessibility": "Accessibility",
+  "Outdoor & View": "Trees",
+  "Recreation & Entertainment": "Dumbbell",
+  "Services": "ConciergeBell",
+  "Property Facilities": "Building2",
+  "Family & Children": "Baby",
+  "Work & Business": "BriefcaseBusiness",
+  "Housekeeping & Convenience": "Sparkles",
+};
+
+export const LEGACY_CATEGORY_ICONS: Record<string, string> = {};
+
+export function isCanonicalAmenityCategory(value: string | null | undefined): value is CanonicalAmenityCategory {
+  return CANONICAL_AMENITY_CATEGORIES.includes((value ?? "").trim() as CanonicalAmenityCategory);
 }
 
-export function uncategorizedAmenityCount(rows: { category?: string | null }[]): number {
-  return rows.filter((row) => !isApprovedAmenityCategory(row.category)).length;
+export function isLegacyAmenityCategory(_value: string | null | undefined): boolean {
+  return false;
+}
+
+export function isApprovedAmenityCategory(
+  value: string | null | undefined,
+  customCategories: string[] = [],
+  _legacyCategories: string[] = [],
+): boolean {
+  const trimmed = (value ?? "").trim().toLowerCase();
+  if (!trimmed) return false;
+  if (CANONICAL_AMENITY_CATEGORIES.some((c) => c.toLowerCase() === trimmed)) return true;
+  if (customCategories.some((c) => c.toLowerCase() === trimmed)) return true;
+  return false;
+}
+
+export function isDuplicateCategoryName(
+  candidate: string,
+  existingCustom: string[] = [],
+  _legacyUsed: string[] = [],
+): boolean {
+  const norm = candidate.trim().toLowerCase();
+  if (!norm) return false;
+  const all = [
+    ...CANONICAL_AMENITY_CATEGORIES,
+    ...existingCustom,
+  ];
+  return all.some((c) => c.toLowerCase() === norm);
+}
+
+export function uncategorizedAmenityCount(
+  rows: { category?: string | null }[],
+  customCategories: string[] = [],
+  _legacyCategories: string[] = [],
+): number {
+  return rows.filter((row) => !isApprovedAmenityCategory(row.category, customCategories)).length;
 }
 
 export type AmenityCatalogDraft = {
@@ -79,11 +146,17 @@ export function normalizeAmenityCode(code: string | null | undefined): string | 
   return trimmed.toLowerCase();
 }
 
-export function amenityCatalogErrors(draft: AmenityCatalogDraft): string[] {
+export function amenityCatalogErrors(
+  draft: AmenityCatalogDraft,
+  customCategories: string[] = [],
+  _legacyCategories: string[] = [],
+): string[] {
   const errors: string[] = [];
   if (!draft.name.trim()) errors.push("Amenity name is required.");
   if (!draft.category.trim()) errors.push("Amenity category is required.");
-  else if (!isApprovedAmenityCategory(draft.category)) errors.push("Choose an approved amenity category.");
+  else if (!isApprovedAmenityCategory(draft.category, customCategories)) {
+    errors.push("Choose an approved amenity category.");
+  }
   if (typeof draft.active !== "boolean") errors.push("Active must be true or false.");
   if (typeof draft.complimentary !== "boolean") errors.push("Complimentary must be true or false.");
   if (typeof draft.displayToGuest !== "boolean") errors.push("Display to guest must be true or false.");
@@ -190,6 +263,8 @@ export function evaluateAmenitiesReadiness(input: {
   overrides: RoomAmenityOverrideRow[];
   roomTypes: { id: string; active?: boolean }[];
   rooms: ReadinessRoom[];
+  customCategories?: string[];
+  legacyCategories?: string[];
 }): { ready: boolean; blockers: string[] } {
   const blockers: string[] = [];
   const typeIds = new Set(input.roomTypes.map((row) => row.id));
@@ -199,7 +274,10 @@ export function evaluateAmenitiesReadiness(input: {
   if (input.catalog.some((row) => !row.name.trim())) {
     blockers.push("Every amenity needs a name and category.");
   }
-  const missingCategory = uncategorizedAmenityCount(input.catalog);
+  const missingCategory = uncategorizedAmenityCount(
+    input.catalog,
+    input.customCategories ?? [],
+  );
   if (missingCategory > 0) {
     blockers.push(
       `${missingCategory} amenities require a category before Amenities setup can be completed.`,

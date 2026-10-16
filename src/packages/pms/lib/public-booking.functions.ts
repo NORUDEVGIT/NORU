@@ -14,6 +14,7 @@ import {
 import { signRoomImages } from "./rooms.server";
 import { parseSnapshot, rateError, toQuote, type StayQuote } from "./rates.server";
 import { nightsBetween, propertyToday } from "./reservation-dates";
+import { getRoomTypeAvailabilityCompat } from "./room-inventory-compat";
 
 const slugSchema = z
   .string()
@@ -150,17 +151,13 @@ export const searchStay = createServerFn({ method: "POST" })
 
       const offers: PublicRoomTypeOffer[] = [];
       for (const type of candidates) {
-        const { data: total } = await db.rpc("count_sellable_rooms", {
-          _restaurant_id: property.id,
-          _room_type_id: type.id,
+        const availability = await getRoomTypeAvailabilityCompat(db, {
+          restaurantId: property.id,
+          roomTypeId: type.id,
+          arrival: data.arrival,
+          departure: data.departure,
         });
-        const { data: reserved } = await db.rpc("count_reserved_rooms", {
-          _restaurant_id: property.id,
-          _room_type_id: type.id,
-          _arrival: data.arrival,
-          _departure: data.departure,
-        });
-        const available = Math.max(0, Number(total ?? 0) - Number(reserved ?? 0));
+        const available = availability.available;
         if (available <= 0) continue;
 
         const plans: PublicRatePlanOption[] = [];

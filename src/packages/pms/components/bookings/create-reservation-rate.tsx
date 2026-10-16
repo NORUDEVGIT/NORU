@@ -1,15 +1,32 @@
-import { Check } from "lucide-react";
+import { createContext, useContext, type ReactNode } from "react";
 
-import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import {
-  CREATE_RESERVATION_QUOTE_SERVER_COPY,
-  CREATE_RESERVATION_SECTION5_SCOPE,
   CREATE_RESERVATION_UNPRICED_BADGE,
   fromNightlyRate,
   rateCatalogueCopy,
   type CreateRateQuoteRow,
 } from "@/packages/pms/lib/create-reservation-phase1-section5";
 import { cn } from "@/shared/lib/utils";
+
+const ExcludedRatePlanContext = createContext<string[]>([]);
+
+export function AvailabilityRateFilterProvider({
+  excludedRatePlanIds,
+  children,
+}: {
+  excludedRatePlanIds: string[];
+  children: ReactNode;
+}) {
+  return (
+    <ExcludedRatePlanContext.Provider value={excludedRatePlanIds}>
+      {children}
+    </ExcludedRatePlanContext.Provider>
+  );
+}
+
+function useExcludedRatePlanIds(): string[] {
+  return useContext(ExcludedRatePlanContext);
+}
 
 export function CreateReservationRate({
   datesValid,
@@ -20,6 +37,7 @@ export function CreateReservationRate({
   ratePlanId,
   canCreateUnpriced,
   money,
+  nights,
   onSelect,
 }: {
   datesValid: boolean;
@@ -30,6 +48,7 @@ export function CreateReservationRate({
   ratePlanId: string;
   canCreateUnpriced: boolean;
   money: (value: number) => string;
+  nights: number;
   onSelect: (ratePlanId: string) => void;
 }) {
   const catalogue = rateCatalogueCopy({
@@ -40,102 +59,115 @@ export function CreateReservationRate({
     quoteCount: quotes.length,
     canCreateUnpriced,
   });
+  const excludedRatePlanIds = useExcludedRatePlanIds();
+  const visibleQuotes =
+    excludedRatePlanIds.length === 0
+      ? quotes
+      : quotes.filter((row) => !excludedRatePlanIds.includes(row.plan.id));
   const selected = quotes.find((row) => row.plan.id === ratePlanId) ?? null;
+  const selectedVisible = visibleQuotes.some((row) => row.plan.id === ratePlanId);
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4" data-testid="create-reservation-rate">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="font-display text-lg">Rate plan</h2>
-        {!selected?.quote ? (
-          <span
-            data-testid="rate-unpriced-badge"
-            className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800"
-          >
-            {CREATE_RESERVATION_UNPRICED_BADGE}
-          </span>
-        ) : null}
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_SECTION5_SCOPE}</p>
+    <div className="min-w-0" data-testid="create-reservation-rate">
+      {/* CREATE_RESERVATION_SECTION5_SCOPE */}
+      {!selected?.quote && selected && selectedVisible ? (
+        <span
+          data-testid="rate-unpriced-badge"
+          className="mb-2 inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800"
+        >
+          {CREATE_RESERVATION_UNPRICED_BADGE}
+        </span>
+      ) : null}
 
       {catalogue ? (
-        <p className="mt-3 text-sm text-muted-foreground" data-testid="rate-catalogue-copy">
+        <p className="px-3 py-4 text-sm text-muted-foreground" data-testid="rate-catalogue-copy">
           {catalogue}
         </p>
+      ) : visibleQuotes.length === 0 ? (
+        <p className="px-3 py-4 text-sm text-muted-foreground" data-testid="rate-filter-empty">
+          No rates match the selected filters.
+        </p>
       ) : (
-        <ul className="mt-3 grid gap-3 md:grid-cols-2" data-testid="rate-plan-list">
-          {quotes.map((row) => {
-            const isSelected = row.plan.id === ratePlanId;
-            const disabled = !row.quote;
-            const fromRate = row.quote ? fromNightlyRate(row.quote) : null;
-            return (
-              <li key={row.plan.id}>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  data-testid={`rate-plan-${row.plan.code}`}
-                  data-rate-available={row.quote ? "priced" : "unavailable"}
-                  onClick={() => onSelect(isSelected ? "" : row.plan.id)}
-                  className={cn(
-                    "w-full rounded-xl border p-3 text-left transition-colors",
-                    isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-accent/40",
-                    disabled && "cursor-not-allowed opacity-60",
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{row.plan.name}</span>
-                    <span className="text-xs text-muted-foreground">{row.plan.code}</span>
-                    {isSelected ? <Check className="ml-auto size-4 text-primary" /> : null}
-                  </div>
-                  {row.quote ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {fromRate != null ? (
-                        <>
-                          From {money(fromRate)} / night · total{" "}
-                          <span className="font-medium text-foreground">{money(row.quote.subtotal)}</span> for{" "}
-                          {row.quote.nights} night{row.quote.nights === 1 ? "" : "s"}
-                        </>
-                      ) : (
-                        <>
-                          Stay total{" "}
-                          <span className="font-medium text-foreground">{money(row.quote.subtotal)}</span>
-                        </>
-                      )}
-                    </p>
-                  ) : (
-                    <p className="mt-1 text-xs text-destructive">{row.unavailableReason}</p>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {selected?.quote ? (
-        <div className="mt-4 overflow-x-auto rounded-xl border border-border" data-testid="rate-nightly-table">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+        <div className="min-w-0 overflow-x-auto">
+          <table className="w-full table-fixed text-sm">
+            <thead className="bg-[#FAF8F4] text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               <tr>
-                <th className="px-3 py-2">Night</th>
-                <th className="px-3 py-2 text-right">Rate</th>
+                <th className="w-8 px-2 py-2">
+                  <span className="sr-only">Select</span>
+                </th>
+                <th className="px-2 py-2">Rate Plan</th>
+                <th className="w-36 px-2 py-2 text-right whitespace-nowrap">Rate / Night</th>
+                <th className="w-36 px-2 py-2 text-right whitespace-nowrap">
+                  Total{nights > 0 ? ` (${nights})` : ""}
+                </th>
               </tr>
             </thead>
-            <tbody>
-              {selected.quote.nightly.map((night) => (
-                <tr key={night.date} className="border-t border-border">
-                  <td className="px-3 py-2">{formatStayDate(night.date)}</td>
-                  <td className="px-3 py-2 text-right">{money(night.rate)}</td>
-                </tr>
-              ))}
-              <tr className="border-t border-border bg-muted/30 font-medium">
-                <td className="px-3 py-2">Stay total</td>
-                <td className="px-3 py-2 text-right">{money(selected.quote.subtotal)}</td>
-              </tr>
+            <tbody data-testid="rate-plan-list">
+              {visibleQuotes.map((row) => {
+                const isSelected = row.plan.id === ratePlanId;
+                const disabled = !row.quote;
+                const fromRate = row.quote ? fromNightlyRate(row.quote) : null;
+                return (
+                  <tr
+                    key={row.plan.id}
+                    className={cn(
+                      "border-t border-[#E7E0D4]",
+                      isSelected && "bg-[#FBF6EE] shadow-[inset_3px_0_0_#C89933]",
+                    )}
+                  >
+                    <td className="px-2 py-1.5 align-middle">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        aria-label={`Select ${row.plan.name}`}
+                        disabled={disabled}
+                        data-testid={`rate-plan-${row.plan.code}`}
+                        data-rate-available={row.quote ? "priced" : "unavailable"}
+                        onClick={() => onSelect(isSelected ? "" : row.plan.id)}
+                        className={cn(
+                          "flex size-4 items-center justify-center rounded-full border border-[#C89933] bg-white",
+                          disabled && "cursor-not-allowed opacity-60",
+                          isSelected && "bg-[#C89933]",
+                        )}
+                      >
+                        {isSelected ? (
+                          <span className="size-1.5 rounded-full bg-[#251605]" />
+                        ) : null}
+                      </button>
+                    </td>
+                    <td className="px-2 py-1.5 align-middle">
+                      <p className="font-medium leading-tight text-[#251605]">
+                        {row.plan.name || row.plan.code}
+                      </p>
+                      {row.quote ? null : (
+                        <p className="text-xs leading-tight text-muted-foreground">
+                          {row.unavailableReason ?? "—"}
+                        </p>
+                      )}
+                    </td>
+                    <td className="w-36 px-2 py-1.5 text-right align-middle whitespace-nowrap tabular-nums">
+                      {row.quote && fromRate != null ? (
+                        money(fromRate)
+                      ) : row.quote ? (
+                        "—"
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          {/* TODO: obtain authoritative stay quote from Rate & Revenue */}
+                          Price unavailable
+                        </span>
+                      )}
+                    </td>
+                    <td className="w-36 px-2 py-1.5 text-right align-middle font-medium whitespace-nowrap tabular-nums text-[#251605]">
+                      {row.quote ? money(row.quote.subtotal) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          <p className="px-3 py-2 text-xs text-muted-foreground">{CREATE_RESERVATION_QUOTE_SERVER_COPY}</p>
         </div>
-      ) : null}
-    </section>
+      )}
+    </div>
   );
 }

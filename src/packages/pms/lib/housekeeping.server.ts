@@ -1,15 +1,28 @@
 /**
- * Phase 6F — Housekeeping operations, server-only helpers.
+ * Housekeeping operations — server-only helpers.
  *
- * Every helper re-derives the caller's membership from restaurant_users; the
- * browser's restaurant id only selects which membership applies. Housekeeping
- * is owner/manager only in this phase.
+ * State freeze (workspace Phase 0): product Dirty→Ready is a workflow, not one enum.
+ * - Room HK: hotel_rooms.housekeeping_status = dirty | clean | inspected | pickup
+ *   Do not write ready | assigned | cleaning | cleaning_in_progress onto that column.
+ * - Cleaning job: housekeeping_tasks.status = pending | assigned | in_progress | completed | cancelled
+ * - Physical: hotel_rooms.status = available | out_of_order | out_of_service
+ * - Maintenance: hotel_rooms.maintenance_status (separate writer; not complete-task)
+ * - Ready: derived via evaluateRoomReadinessWithPolicy
+ *
+ * pickup: live operational HK code (not in the six-step product list). Keep it.
+ * Writers: CHECK default dirty; saveRoom / batch create (gated); housekeeping_complete_task
+ *   / housekeeping_inspect_room / check_in_hotel_reservation / check_out_hotel_reservation
+ *   when Card 2 transition target is pickup.
+ * Readers: HK rack/dashboard, FO glyphs LIVE_HK_STATUSES, readiness (pickup is not clean/inspected).
+ *
+ * Every helper re-derives membership from restaurant_users.
  */
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
 import { HOUSEKEEPING_SUPERVISOR_ROLES, housekeepingScope } from "@/core/lib/module-access";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
+import { nextMaintenanceStatusFromOpenTickets, type TicketMaintenanceStatus } from "./housekeeping-ops";
 import {
   emptyHousekeepingCard2Settings,
   evaluateRoomReadinessWithPolicy,
@@ -91,6 +104,7 @@ export const HK_EVENT_TYPES = [
   "maintenance_created",
   "maintenance_updated",
   "maintenance_resolved",
+  "guest_request_updated",
 ] as const;
 export type HkEventType = (typeof HK_EVENT_TYPES)[number];
 
@@ -245,7 +259,7 @@ export async function recordHousekeepingEvent(params: {
   });
 }
 
-/** Room readiness: sellable-clean state, independent of reservation availability. */
+/** HK rack readiness: policy + vacant/active. Occupied rooms are never "ready" on the rack. */
 export function isRoomReady(params: {
   active: boolean;
   status: RoomRestriction;
@@ -270,4 +284,70 @@ export function isRoomReady(params: {
     },
     settings,
   ).ready;
+}
+
+export const ROOM_MAINTENANCE_STATUSES = [
+  "normal",
+  "maintenance_required",
+  "in_progress",
+  "out_of_service",
+  "out_of_order",
+  "inspection",
+] as const;
+export type RoomMaintenanceStatus = (typeof ROOM_MAINTENANCE_STATUSES)[number];
+
+/**
+ * Canonical writer for hotel_rooms.maintenance_status.
+ * Never writes hotel_rooms.status (Inventory restriction RPC owns OOO/OOS).
+ */
+export async function applyRoomMaintenanceStatus(params: {
+  admin: { from: (table: string) => any };
+  restaurantId: string;
+  roomId: string;
+  nextStatus: RoomMaintenanceStatus;
+}): Promise<{ previous: string; next: RoomMaintenanceStatus }> {
+  if (!(ROOM_MAINTENANCE_STATUSES as readonly string[]).includes(params.nextStatus)) {
+    throw new Error("Invalid maintenance status.");
+  }
+  const { data: room } = await params.admin
+    .from("hotel_rooms")
+    .select("id, maintenance_status")
+    .eq("id", params.roomId)
+    .eq("restaurant_id", params.restaurantId)
+    .maybeSingle();
+  if (!room) throw new Error("That room could not be found for this property.");
+  const previous = String(room.maintenance_status ?? "normal");
+  if (previous === params.nextStatus) return { previous, next: params.nextStatus };
+
+  const { error } = await params.admin
+    .from("hotel_rooms")
+    .update({ maintenance_status: params.nextStatus })
+    .eq("id", params.roomId)
+    .eq("restaurant_id", params.restaurantId);
+  if (error) throw new Error(error.message);
+  return { previous, next: params.nextStatus };
+}
+
+export async function syncRoomMaintenanceFromTickets(params: {
+  admin: { from: (table: string) => any };
+  restaurantId: string;
+  roomId: string;
+}): Promise<TicketMaintenanceStatus> {
+  const { data: tickets, error } = await params.admin
+    .from("housekeeping_maintenance_requests")
+    .select("status")
+    .eq("restaurant_id", params.restaurantId)
+    .eq("room_id", params.roomId)
+    .in("status", ["open", "in_progress"]);
+  if (error) throw new Error(error.message);
+  const next = nextMaintenanceStatusFromOpenTickets(
+    (tickets ?? []) as Array<{ status: string }>,
+  );
+  await applyRoomMaintenanceStatus({
+    admin: params.admin,
+    restaurantId: params.restaurantId,
+    roomId: params.roomId,
+    nextStatus: next,
+  });
+  return next;
 }

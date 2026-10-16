@@ -24,6 +24,7 @@ import {
 } from "@/shared/components/ui/select";
 import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
 import { GuestTravelAgentFormDialog } from "@/packages/pms/components/guests/guest-travel-agent-form-dialog";
+import { GuestGroupFormDialog } from "@/packages/pms/components/guests/guest-group-form-dialog";
 import { createGuestAccount, updateGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import {
   GUEST_ACCOUNT_TYPE_LABELS,
@@ -147,6 +148,41 @@ export function GuestAccountFormDialog({
         open={open}
         onOpenChange={onOpenChange}
         account={account}
+        onSaved={onSaved}
+      />
+    );
+  }
+
+  if (accountType === "group") {
+    return (
+      <GuestGroupFormDialog
+        restaurantId={restaurantId}
+        open={open}
+        onOpenChange={onOpenChange}
+        group={
+          account
+            ? {
+                id: account.id,
+                name: account.name,
+                email: account.email,
+                phone: account.phone,
+                notes: account.notes,
+                specialRequests: null,
+                groupTypeId: null,
+                marketSegmentId: null,
+                sourceCodeId: null,
+                companyMasterId: null,
+                travelAgentMasterId: null,
+                primaryContactGuestId: null,
+                primaryContactName: account.primaryContactName,
+                arrivalDate: null,
+                departureDate: null,
+                expectedPax: null,
+                expectedRooms: null,
+                accountStatus: account.accountStatus,
+              }
+            : null
+        }
         onSaved={onSaved}
       />
     );

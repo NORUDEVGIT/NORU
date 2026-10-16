@@ -8,9 +8,7 @@ import {
   CREATE_RESERVATION_MODULE_DONE,
   CREATE_RESERVATION_PHASE1_COMPLETE,
 } from "./create-reservation-phase1.ts";
-import {
-  canSubmitCreateReservation,
-} from "./create-reservation-phase1-section5.ts";
+import { canSubmitCreateReservation } from "./create-reservation-phase1-section5.ts";
 import {
   CREATE_RESERVATION_ACCEPTANCE_CRITERIA_SECTION6,
   CREATE_RESERVATION_ASSIGN_LATER,
@@ -89,7 +87,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-1 Specific-room list is filtered by selected room type + stay dates via listAssignableRooms", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const assignment = readRel("../components/bookings/create-reservation-room-assignment.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
@@ -110,7 +110,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-2 Selecting a room binds roomId → _room_id on the same writer", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /createReservation/);
     assert.match(page, /roomId: roomId === UNASSIGNED \? null : roomId/);
@@ -123,7 +125,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-3 Unassigned create is allowed; canSubmit does not require a specific room", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const assignment = readRel("../components/bookings/create-reservation-room-assignment.tsx");
     assert.match(page, /const UNASSIGNED = "unassigned"/);
     assert.match(page, /roomId: roomId === UNASSIGNED \? null : roomId/);
@@ -151,7 +155,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-4 Walk-in honesty: FO WalkInDialog requires a room; create path does not", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
     const functions = readRel("./reservations.functions.ts");
     const walkInStart = dialogs.indexOf("export function WalkInDialog");
@@ -168,7 +174,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-5 Conflict: occupied omitted; ROOM_* errors are visible; no overbook success path", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const assignment = readRel("../components/bookings/create-reservation-room-assignment.tsx");
     const functions = readRel("./reservations.functions.ts");
     const server = readRel("./reservations.server.ts");
@@ -185,11 +193,16 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
     assert.match(page, /toast\.error\(error\.message\)/);
     assert.doesNotMatch(page, /swallowRoomClash|ignoreRoomAlreadyBooked|bookOccupiedAnyway/);
     assert.doesNotMatch(assignment, /overbook|book occupied|occupied-with-warn/i);
-    assert.doesNotMatch(functions, /if \(error\.message\.includes\("ROOM_ALREADY_BOOKED"\)\) return/);
+    assert.doesNotMatch(
+      functions,
+      /if \(error\.message\.includes\("ROOM_ALREADY_BOOKED"\)\) return/,
+    );
   });
 
   it("AC-CR6-6 Type change clears room + toast; date change revalidates and clears stale", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.equal(CREATE_RESERVATION_TYPE_CHANGE_ROOM_WARN, "toast");
     assert.equal(CREATE_RESERVATION_STALE_ROOM_RULE, "clear-to-unassigned-toast");
     assert.match(page, /setRoomId\(UNASSIGNED\)/);
@@ -202,11 +215,17 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
     assert.match(CREATE_RESERVATION_ROOM_TYPE_CHANGE_WARN, /Unassigned/);
     assert.match(CREATE_RESERVATION_ROOM_STALE_DATE_WARN, /Unassigned/);
     assert.equal(
-      shouldWarnRoomClearedOnTypeChange({ previousRoomId: "room-1", unassignedValue: "unassigned" }),
+      shouldWarnRoomClearedOnTypeChange({
+        previousRoomId: "room-1",
+        unassignedValue: "unassigned",
+      }),
       true,
     );
     assert.equal(
-      shouldWarnRoomClearedOnTypeChange({ previousRoomId: "unassigned", unassignedValue: "unassigned" }),
+      shouldWarnRoomClearedOnTypeChange({
+        previousRoomId: "unassigned",
+        unassignedValue: "unassigned",
+      }),
       false,
     );
     assert.equal(
@@ -248,13 +267,14 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-7 Sticky shows Room {number} (+ floor) or honest Unassigned", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.equal(CREATE_RESERVATION_STICKY_ROOM_LABEL, "Room");
     assert.equal(CREATE_RESERVATION_UNASSIGNED_LABEL, "Unassigned");
-    assert.match(page, /data-testid="create-reservation-summary"/);
-    assert.match(page, /data-testid="summary-room"/);
-    assert.match(page, /data-testid="summary-room-assignment"/);
-    assert.match(page, />Room</);
+    assert.match(page, /CreateReservationSelectedRoom/);
+    assert.match(page, /Room assignment \(optional\)/i);
+    assert.match(page, /stickyRoomAssignmentLabel\(/);
     assert.match(page, /stickyRoomAssignmentLabel\(/);
     assert.equal(formatAssignedRoomLabel({ roomNumber: "101", floor: null }), "Room 101");
     assert.equal(formatAssignedRoomLabel({ roomNumber: "101", floor: "2" }), "Room 101 · Floor 2");
@@ -289,14 +309,19 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-8 No second assignment writer; walk-in remains createReservation", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
     assert.match(page, /createReservation/);
     assert.doesNotMatch(page, /assignReservationRoom/);
     assert.doesNotMatch(page, /assert_room_assignable/);
     const createStart = functions.indexOf("export const createReservation");
-    const createFn = functions.slice(createStart, functions.indexOf("export const amendReservation"));
+    const createFn = functions.slice(
+      createStart,
+      functions.indexOf("export const amendReservation"),
+    );
     assert.match(createFn, /create_hotel_reservation_priced/);
     assert.doesNotMatch(createFn, /assignReservationRoom/);
     assert.match(functions, /export const assignReservationRoom/);
@@ -305,7 +330,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-9 Existing permission gates preserved; no requireRoomManager on create assign", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const rooms = readRel("./rooms.functions.ts");
     assert.match(page, /requireRoutePackage\("pms"\)/);
@@ -316,7 +343,10 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
     assert.match(listFn, /await requireReservationManager/);
     assert.doesNotMatch(listFn, /requireRoomManager/);
     const createStart = functions.indexOf("export const createReservation");
-    const createFn = functions.slice(createStart, functions.indexOf("export const amendReservation"));
+    const createFn = functions.slice(
+      createStart,
+      functions.indexOf("export const amendReservation"),
+    );
     assert.match(createFn, /await requireReservationManager/);
     assert.doesNotMatch(createFn, /requireRoomManager/);
     assert.match(rooms, /export const saveRoom/);
@@ -327,7 +357,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-10 Section 6 does not claim Phase 1 or Create Reservation DONE", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.equal(CREATE_RESERVATION_PHASE1_COMPLETE, false);
     assert.equal(CREATE_RESERVATION_MODULE_DONE, false);
     assert.match(CREATE_RESERVATION_SECTION6_SCOPE, /Section 6 is Room assignment/);
@@ -348,7 +380,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-12 + create room is OUT — no saveRoom on this page", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const assignment = readRel("../components/bookings/create-reservation-room-assignment.tsx");
     assert.doesNotMatch(page, /saveRoom/);
     assert.doesNotMatch(assignment, /saveRoom|createRoom|Add room/);
@@ -356,7 +390,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-13 No invented LIVE OTA / RMS / allotment / overbooking engine", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const assignment = readRel("../components/bookings/create-reservation-room-assignment.tsx");
     const helpers = readRel("./create-reservation-phase1-section6.ts");
     const functions = readRel("./reservations.functions.ts");
@@ -371,7 +407,10 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
     const assignment = readRel("../components/bookings/create-reservation-room-assignment.tsx");
     const functions = readRel("./reservations.functions.ts");
     assert.equal(CREATE_RESERVATION_HK_CHIP, "omit");
-    assert.doesNotMatch(assignment, /housekeepingStatus|housekeeping_status|HK chip|dirty|inspected/);
+    assert.doesNotMatch(
+      assignment,
+      /housekeepingStatus|housekeeping_status|HK chip|dirty|inspected/,
+    );
     const listStart = functions.indexOf("export const listAssignableRooms");
     const listFn = functions.slice(listStart, functions.indexOf("export const listReservations"));
     assert.doesNotMatch(listFn, /\.eq\("housekeeping_status"/);
@@ -379,7 +418,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-15 RTC / Guarantee product / packages / email are not expanded", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const assignment = readRel("../components/bookings/create-reservation-room-assignment.tsx");
     assert.doesNotMatch(page, /roomTypeCharged|rtcRoomType|Send confirmation email/);
     assert.doesNotMatch(page, /packagePicker|addPackage|emailConfirmation|smsConfirmation/);
@@ -388,11 +429,16 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-16 Server / RPC remains source of truth; UI cannot override ROOM_* / NO_AVAILABILITY", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const server = readRel("./reservations.server.ts");
     assert.match(functions, /create_hotel_reservation_priced/);
-    assert.match(server, /NO_AVAILABILITY: "No rooms of that type are available for those dates\."/);
+    assert.match(
+      server,
+      /NO_AVAILABILITY: "No rooms of that type are available for those dates\."/,
+    );
     assert.match(server, /ROOM_ALREADY_BOOKED/);
     assert.match(server, /ROOM_NOT_ASSIGNABLE/);
     assert.doesNotMatch(page, /swallowAvailability|ignoreNoAvailability|overrideCapacity/);
@@ -401,7 +447,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-17 Section 4 type availability fail-closed create is not weakened", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /CreateReservationRoomType/);
     assert.match(page, /available: selectedType\?\.available \?\? 0/);
     assert.equal(
@@ -432,7 +480,9 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-18 Locked non-goals in §4 are absent", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     const assignment = readRel("../components/bookings/create-reservation-room-assignment.tsx");
     const helpers = readRel("./create-reservation-phase1-section6.ts");
     const functions = readRel("./reservations.functions.ts");
@@ -455,22 +505,30 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
     const drizzleDir = join(here, "../../../../drizzle/migrations");
     const supabaseDir = join(here, "../../../../supabase/migrations");
     for (const file of readdirSync(drizzleDir)) {
-      assert.doesNotMatch(file, /create.reservation.phase1.section6|cr6.section6|room_assign_create/i);
+      assert.doesNotMatch(
+        file,
+        /create.reservation.phase1.section6|cr6.section6|room_assign_create/i,
+      );
     }
     if (existsSync(supabaseDir)) {
       for (const file of readdirSync(supabaseDir)) {
-        assert.doesNotMatch(file, /create.reservation.phase1.section6|cr6.section6|room_assign_create/i);
+        assert.doesNotMatch(
+          file,
+          /create.reservation.phase1.section6|cr6.section6|room_assign_create/i,
+        );
       }
     }
     assert.doesNotMatch(functions, /create policy|alter policy|enable row level security/i);
   });
 
   it("AC-CR6-20 Additive expansion of existing /restaurant/bookings/new — no second product", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /createReservation/);
     assert.match(page, /CreateReservationRoomAssignment/);
-    assert.match(page, /Room assignment \(optional\)/);
+    assert.match(page, /Room assignment \(optional\)/i);
     assert.doesNotMatch(page, /createFileRoute\("\/restaurant\/bookings\/create"\)/);
     assert.doesNotMatch(page, /createFileRoute\("\/restaurant\/pms\/reservations\/new"\)/);
     assert.doesNotMatch(page, /legacy chrome|Fixed Rate LIVE/i);
@@ -487,16 +545,16 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
   });
 
   it("AC-CR6-22 Sticky room line composes with Section 5 rate/total — does not replace", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
-    assert.match(page, /data-testid="summary-room"/);
-    assert.match(page, /data-testid="summary-rate"/);
-    assert.match(page, /data-testid="summary-stay-total"/);
-    assert.match(page, /data-testid="summary-availability"/);
+    const page =
+      readRel("../components/bookings/create-reservation-page.tsx") +
+      readRel("../../../routes/restaurant/bookings/new.tsx");
+    assert.match(page, /stickyRoomAssignmentLabel\(/);
     assert.match(page, /CreateReservationRate/);
-    const roomIdx = page.indexOf('data-testid="summary-room"');
-    const rateIdx = page.indexOf('data-testid="summary-rate"');
-    const totalIdx = page.indexOf('data-testid="summary-stay-total"');
-    assert.ok(roomIdx > 0 && rateIdx > roomIdx && totalIdx > rateIdx);
+    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
+    const roomIdx = page.indexOf("stickyRoomAssignmentLabel(");
+    const rateIdx = page.indexOf("CreateReservationRate");
+    const totalIdx = page.indexOf("money(pricingState.quote.subtotal)");
+    assert.ok(roomIdx > 0 && rateIdx > 0 && totalIdx > rateIdx);
     assert.doesNotMatch(page, /replacePricingLines|removeStayTotal/);
   });
 });

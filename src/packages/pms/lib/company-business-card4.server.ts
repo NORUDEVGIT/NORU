@@ -46,10 +46,27 @@ export type BusinessProfileTypeDraft = {
   creditAccountAllowed: boolean;
 };
 
+export type BusinessContactRoleRecord = {
+  id: string;
+  name: string;
+  code: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BusinessContactRoleDraft = {
+  id: string | null;
+  name: string;
+  code: string;
+  active: boolean;
+};
+
 export type BusinessProfileSnapshot = {
   types: BusinessProfileTypeRecord[];
   settings: BusinessProfileSettings;
   fields: BusinessFieldOption[];
+  roles: BusinessContactRoleRecord[];
   lastUpdatedAt: string | null;
 };
 
@@ -144,6 +161,38 @@ export function emptyBusinessTypeDraft(): BusinessProfileTypeDraft {
     contactRequired: true,
     creditAccountAllowed: false,
   };
+}
+
+export const DEFAULT_BUSINESS_CONTACT_ROLES = [
+  { name: "Booking Contact", code: "BOOK" },
+  { name: "Operations Contact", code: "OPS" },
+  { name: "Finance Contact", code: "FIN" },
+] as const;
+
+export function emptyContactRoleDraft(): BusinessContactRoleDraft {
+  return { id: null, name: "", code: "", active: true };
+}
+
+export function validateContactRoleDraft(
+  draft: BusinessContactRoleDraft,
+  existing: readonly { id: string; name: string; code: string; active: boolean }[],
+): BusinessProfileError[] {
+  const errors: BusinessProfileError[] = [];
+  const name = normalizeBusinessTypeName(draft.name);
+  const code = normalizeBusinessTypeCode(draft.code);
+  if (!name) errors.push({ field: "name", message: "Please enter a contact role name." });
+  if (!code) errors.push({ field: "code", message: "Code is required." });
+  else if (!/^[A-Z][A-Z0-9]{1,11}$/.test(code)) {
+    errors.push({
+      field: "code",
+      message: "Use 2–12 letters or numbers, starting with a letter.",
+    });
+  }
+  const others = existing.filter((row) => row.id !== draft.id);
+  if (others.some((row) => normalizeBusinessTypeCode(row.code) === code)) {
+    errors.push({ field: "code", message: "This code is already in use." });
+  }
+  return errors;
 }
 
 export function emptyBusinessSettings(): BusinessProfileSettings {

@@ -14,10 +14,11 @@ import {
   requireReservationManager,
   reservationError,
 } from "./reservations.server";
-import { cashierError, requireCashierOperator } from "./cashiering.server";
+import { callPostFolioTransaction, cashierError, requireCashierManager } from "./cashiering.server";
 import { parseSnapshot } from "./rates.server";
 import { nightsBetween } from "./reservation-dates";
 import type { FrontOfficeStay } from "./frontoffice.functions";
+import { getRoomTypeAvailabilityCompat } from "./room-inventory-compat";
 import {
   CATALOGUE_EMPTY_HINT,
   GUEST_REQUESTS_UNAVAILABLE,
@@ -45,6 +46,7 @@ const idSchema = z.string().uuid();
 export type AmendRoomType = {
   id: string;
   name: string;
+  code: string | null;
   maxOccupancy: number;
   available: number;
 };
@@ -135,7 +137,7 @@ async function loadStayRow(
   const { data: row, error } = await supabaseAdmin
     .from("hotel_reservations")
     .select(
-      "id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date, adults, children, status, special_requests, notes, rate_plan_id, room_subtotal, nightly_rate_snapshot, currency, guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ), room_types!hotel_reservations_type_same_property ( name, max_occupancy ), hotel_rooms!hotel_reservations_room_same_type ( room_number )",
+      "id, confirmation_number, guest_id, room_type_id, room_id, arrival_date, departure_date, adults, children, status, special_requests, notes, rate_plan_id, room_subtotal, nightly_rate_snapshot, currency, guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ), room_types!hotel_reservations_type_same_property ( name, code, max_occupancy ), hotel_rooms!hotel_reservations_room_same_type ( room_number )",
     )
     .eq("restaurant_id", restaurantId)
     .eq("id", reservationId)
@@ -164,7 +166,7 @@ function toStay(
       phone: string | null;
       vip_status: boolean;
     } | null;
-    room_types: { name: string; max_occupancy?: number } | null;
+    room_types: { name: string; code?: string | null; max_occupancy?: number } | null;
     hotel_rooms: { room_number: string } | null;
   },
 ): FrontOfficeStay {
@@ -177,6 +179,7 @@ function toStay(
     guestPhone: row.guest_profiles?.phone ?? null,
     roomTypeId: row.room_type_id,
     roomTypeName: row.room_types?.name ?? "Room type",
+    roomTypeCode: row.room_types?.code ?? null,
     roomId: row.room_id,
     roomNumber: row.hotel_rooms?.room_number ?? null,
     arrivalDate: row.arrival_date,
@@ -406,7 +409,7 @@ export const getAmendContext = createServerFn({ method: "POST" })
 
     const { data: types } = await supabaseAdmin
       .from("room_types")
-      .select("id, name, max_occupancy")
+      .select("id, name, code, max_occupancy")
       .eq("restaurant_id", data.restaurantId)
       .eq("active", true)
       .eq("sellable", true)
@@ -414,22 +417,19 @@ export const getAmendContext = createServerFn({ method: "POST" })
 
     const roomTypes: AmendRoomType[] = [];
     for (const type of types ?? []) {
-      const { data: total } = await supabaseAdmin.rpc("count_sellable_rooms", {
-        _restaurant_id: data.restaurantId,
-        _room_type_id: type.id,
-      });
-      const { data: reserved } = await supabaseAdmin.rpc("count_reserved_rooms", {
-        _restaurant_id: data.restaurantId,
-        _room_type_id: type.id,
-        _arrival: stay.arrivalDate,
-        _departure: stay.departureDate,
-        _exclude_reservation_id: stay.id,
+      const availability = await getRoomTypeAvailabilityCompat(supabaseAdmin, {
+        restaurantId: data.restaurantId,
+        roomTypeId: type.id,
+        arrival: stay.arrivalDate,
+        departure: stay.departureDate,
+        excludeReservationId: stay.id,
       });
       roomTypes.push({
         id: type.id,
         name: type.name,
+        code: type.code ?? null,
         maxOccupancy: type.max_occupancy,
-        available: Math.max(0, Number(total ?? 0) - Number(reserved ?? 0)),
+        available: availability.available,
       });
     }
 
@@ -846,6 +846,7 @@ export const addStayService = createServerFn({ method: "POST" })
         amount: z.number().finite().min(0),
         quantity: z.number().int().min(1).max(99).optional(),
         reason: z.string().trim().min(3).max(500),
+        idempotencyKey: z.string().min(8).max(80).optional(),
       })
       .parse(input),
   )
@@ -859,7 +860,8 @@ export const addStayService = createServerFn({ method: "POST" })
     let posted = false;
     let transactionId: string | null = null;
     if (servicePostsToFolio(lineTotal)) {
-      const cashier = await requireCashierOperator(context as never, data.restaurantId);
+      if (!data.idempotencyKey) throw new Error("The posting key is invalid. Try the action again.");
+      const cashier = await requireCashierManager(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const opened = await supabaseAdmin.rpc("open_folio_for_reservation", {
         _restaurant_id: data.restaurantId,
@@ -868,22 +870,24 @@ export const addStayService = createServerFn({ method: "POST" })
       });
       if (opened.error) throw cashierError(opened.error.message);
       const folioId = (opened.data as { id: string }).id;
-      const postedTxn = await supabaseAdmin.rpc("post_folio_transaction", {
-        _restaurant_id: data.restaurantId,
-        _folio_id: folioId,
-        _type: "charge",
-        _category: "manual",
-        _description: description,
-        _amount: lineTotal,
-        _reference_type: null as unknown as string,
-        _reference_id: null as unknown as string,
-        _membership_id: cashier.id,
-      });
-      if (postedTxn.error) {
-        throw new Error(mapCashierShiftError(cashierError(postedTxn.error.message).message));
+      let postedTxnId: string;
+      try {
+        const postedTxn = await callPostFolioTransaction({
+          restaurantId: data.restaurantId,
+          folioId,
+          type: "charge",
+          category: "manual",
+          description,
+          amount: lineTotal,
+          membershipId: cashier.id,
+          idempotencyKey: data.idempotencyKey,
+        });
+        postedTxnId = postedTxn.id;
+      } catch (error) {
+        throw new Error(mapCashierShiftError((error as Error).message));
       }
       posted = true;
-      transactionId = (postedTxn.data as { id: string }).id;
+      transactionId = postedTxnId;
     }
 
     await recordReservationEvent({

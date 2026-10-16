@@ -2,16 +2,19 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
+import { requireFrontOfficeAccess, requireRoomManager, ROOM_BUCKET, signRoomImages } from "./rooms.server";
 import {
   amenityCatalogErrors,
   amenityUniqueViolationMessage,
   amenitiesHasStarted,
   AMENITY_CATEGORIES,
+  CANONICAL_AMENITY_CATEGORIES,
   card2RoomAmenitiesStepStatus,
   dedupeAmenityIds,
   effectiveAmenities,
   evaluateAmenitiesReadiness,
+  isApprovedAmenityCategory,
+  isDuplicateCategoryName,
   mappingSaveErrors,
   mergeCard2AmenitiesStatus,
   normalizeAmenityCode,
@@ -19,6 +22,11 @@ import {
   uncategorizedAmenityCount,
   type AmenityOverrideKind,
 } from "./rooms-card2-amenities.server";
+import {
+  parsePropertySetupStatus,
+  type CustomAmenityCategoryStatus,
+} from "./pms-property-setup-card1";
+import { bootstrapCanonicalAmenities } from "./rooms-canonical-amenities";
 
 const idSchema = z.string().uuid();
 
@@ -37,6 +45,7 @@ export type Card2Amenity = {
   category: string;
   description: string;
   icon: string;
+  iconUrl?: string | null;
   active: boolean;
   complimentary: boolean;
   displayToGuest: boolean;
@@ -46,18 +55,21 @@ export type Card2Amenity = {
 const amenitySelect =
   "id, name, code, category, description, icon, active, complimentary, display_to_guest, internal_only";
 
-function mapAmenity(row: {
-  id: string;
-  name: string;
-  code?: string | null;
-  category?: string | null;
-  description?: string | null;
-  icon?: string | null;
-  active: boolean;
-  complimentary: boolean;
-  display_to_guest: boolean;
-  internal_only: boolean;
-}): Card2Amenity {
+function mapAmenity(
+  row: {
+    id: string;
+    name: string;
+    code?: string | null;
+    category?: string | null;
+    description?: string | null;
+    icon?: string | null;
+    active: boolean;
+    complimentary: boolean;
+    display_to_guest: boolean;
+    internal_only: boolean;
+  },
+  signedUrl?: string | null,
+): Card2Amenity {
   return {
     id: row.id,
     name: row.name,
@@ -65,6 +77,7 @@ function mapAmenity(row: {
     category: String(row.category ?? ""),
     description: String(row.description ?? ""),
     icon: String(row.icon ?? ""),
+    iconUrl: signedUrl ?? null,
     active: Boolean(row.active),
     complimentary: Boolean(row.complimentary),
     displayToGuest: Boolean(row.display_to_guest),
@@ -73,7 +86,13 @@ function mapAmenity(row: {
 }
 
 export async function loadAmenitiesReadinessInput(supabase: DbClient, restaurantId: string) {
-  const [{ data: catalog }, { data: mappings }, { data: overrides }, { data: roomTypes }, { data: rooms }] =
+  try {
+    await bootstrapCanonicalAmenities(supabase, restaurantId);
+  } catch (err) {
+    console.warn("Bootstrap canonical amenities failed in loadAmenitiesReadinessInput:", err);
+  }
+
+  const [{ data: catalog }, { data: mappings }, { data: overrides }, { data: roomTypes }, { data: rooms }, { data: restaurant }] =
     await Promise.all([
       supabase
         .from("room_amenities")
@@ -89,7 +108,12 @@ export async function loadAmenitiesReadinessInput(supabase: DbClient, restaurant
         .eq("restaurant_id", restaurantId),
       supabase.from("room_types").select("id, active").eq("restaurant_id", restaurantId),
       supabase.from("hotel_rooms").select("id, room_type_id").eq("restaurant_id", restaurantId),
+      supabase.from("restaurants").select("pms_property_setup_status").eq("id", restaurantId).maybeSingle(),
     ]);
+
+  const status = parsePropertySetupStatus(restaurant?.pms_property_setup_status);
+  const customCategories = (status.customAmenityCategories ?? []).map((c) => c.name);
+
   return {
     catalog: (catalog ?? []).map((row: any) => ({
       id: row.id,
@@ -111,6 +135,7 @@ export async function loadAmenitiesReadinessInput(supabase: DbClient, restaurant
       id: row.id,
       roomTypeId: row.room_type_id ?? null,
     })),
+    customCategories,
   };
 }
 
@@ -148,13 +173,187 @@ export const listAmenities = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<Card2Amenity[]> => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
+    try {
+      await bootstrapCanonicalAmenities(pmsDb(context.supabase), data.restaurantId);
+    } catch (err) {
+      console.warn("Bootstrap canonical amenities failed in listAmenities:", err);
+    }
     const { data: rows, error } = await pmsDb(context.supabase)
       .from("room_amenities")
       .select(amenitySelect)
       .eq("restaurant_id", data.restaurantId)
       .order("name");
     if (error) throw new Error(error.message);
-    return (rows ?? []).map(mapAmenity);
+
+    const storagePaths = (rows ?? [])
+      .map((r: { icon?: string | null }) => r.icon)
+      .filter(
+        (icon: string | null | undefined): icon is string =>
+          Boolean(icon && icon.startsWith(`${data.restaurantId}/`)),
+      );
+    const signedMap = await signRoomImages(storagePaths);
+
+    return (rows ?? []).map((row: any) => {
+      const signed = row.icon && signedMap.has(row.icon) ? signedMap.get(row.icon) : null;
+      return mapAmenity(row, signed);
+    });
+  });
+
+export const listAmenityCategories = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: restaurant } = await supabaseAdmin
+      .from("restaurants")
+      .select("pms_property_setup_status")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+
+    const status = parsePropertySetupStatus(restaurant?.pms_property_setup_status);
+    const custom = status.customAmenityCategories ?? [];
+
+    const storagePaths = custom
+      .map((c) => c.icon)
+      .filter(
+        (icon: string | null | undefined): icon is string =>
+          Boolean(icon && icon.startsWith(`${data.restaurantId}/`)),
+      );
+    const signedMap = await signRoomImages(storagePaths);
+
+    const categoriesWithSigned = custom.map((c) => ({
+      ...c,
+      signedUrl: c.icon && signedMap.has(c.icon) ? signedMap.get(c.icon) : null,
+    }));
+
+    return {
+      canonical: CANONICAL_AMENITY_CATEGORIES,
+      custom: categoriesWithSigned,
+    };
+  });
+
+export const createAmenityIconUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+        size: z.number().int().positive().max(1 * 1024 * 1024), // 1MB max
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const extMap: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+    };
+    const ext = extMap[data.contentType] ?? "png";
+    const path = `${data.restaurantId}/amenities/icons/${crypto.randomUUID()}.${ext}`;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from(ROOM_BUCKET)
+      .createSignedUploadUrl(path);
+    if (error || !signed) return { ok: false as const, message: "Could not start icon upload." };
+    return { ok: true as const, path, token: signed.token };
+  });
+
+export const saveCustomAmenityCategory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        name: z.string().trim().min(1).max(60),
+        icon: z.string().trim().max(500).optional().nullable(),
+        iconType: z.enum(["upload", "url", "preset", "fallback"]).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const trimmedName = data.name.trim();
+
+    const maxAttempts = 3;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const [{ data: restaurant }, { data: existingRows }] = await Promise.all([
+        supabaseAdmin
+          .from("restaurants")
+          .select("pms_property_setup_status")
+          .eq("id", data.restaurantId)
+          .maybeSingle(),
+        supabaseAdmin
+          .from("room_amenities")
+          .select("category")
+          .eq("restaurant_id", data.restaurantId),
+      ]);
+
+      const currentStatus = parsePropertySetupStatus(restaurant?.pms_property_setup_status);
+      const existingCustom = (currentStatus.customAmenityCategories ?? []).map((c) => c.name);
+      const legacyUsed = (existingRows ?? [])
+        .map((r: { category: string | null }) => String(r.category ?? "").trim())
+        .filter(Boolean);
+
+      if (isDuplicateCategoryName(trimmedName, existingCustom, legacyUsed)) {
+        return {
+          ok: false as const,
+          message: "An amenity category with this name already exists.",
+        };
+      }
+
+      const nextCustom = [
+        ...(currentStatus.customAmenityCategories ?? []),
+        {
+          name: trimmedName,
+          icon: data.icon?.trim() || null,
+          iconType: data.iconType ?? "fallback",
+        },
+      ];
+
+      const updatedStatus = {
+        ...currentStatus,
+        customAmenityCategories: nextCustom,
+      };
+
+      const { error: writeError } = await supabaseAdmin
+        .from("restaurants")
+        .update({ pms_property_setup_status: updatedStatus as unknown as Json })
+        .eq("id", data.restaurantId);
+
+      if (writeError) {
+        if (attempt < maxAttempts - 1) continue;
+        return { ok: false as const, message: "Could not save custom category." };
+      }
+
+      // Re-read and verify that new item AND existing items survived
+      const { data: verifyRow } = await supabaseAdmin
+        .from("restaurants")
+        .select("pms_property_setup_status")
+        .eq("id", data.restaurantId)
+        .maybeSingle();
+
+      const verifiedStatus = parsePropertySetupStatus(verifyRow?.pms_property_setup_status);
+      const verifiedList = verifiedStatus.customAmenityCategories ?? [];
+      const hasNewItem = verifiedList.some(
+        (item) => item.name.toLowerCase() === trimmedName.toLowerCase(),
+      );
+      const preservedPriorItems = existingCustom.every((oldName) =>
+        verifiedList.some((item) => item.name.toLowerCase() === oldName.toLowerCase()),
+      );
+
+      if (hasNewItem && preservedPriorItems) {
+        return { ok: true as const, name: trimmedName };
+      }
+    }
+
+    return {
+      ok: false as const,
+      message: "Could not save custom category due to concurrent updates. Please try again.",
+    };
   });
 
 const saveAmenityInput = z.object({
@@ -162,9 +361,9 @@ const saveAmenityInput = z.object({
   id: idSchema.optional(),
   name: z.string().trim().min(1).max(80),
   code: z.string().trim().max(40).optional().nullable(),
-  category: z.enum(AMENITY_CATEGORIES),
+  category: z.string().trim().min(1).max(80),
   description: z.string().trim().max(500).optional().nullable(),
-  icon: z.string().trim().max(80).optional().nullable(),
+  icon: z.string().trim().max(500).optional().nullable(),
   active: z.boolean(),
   complimentary: z.boolean(),
   displayToGuest: z.boolean(),
@@ -176,17 +375,29 @@ export const saveAmenity = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => saveAmenityInput.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
-    const catalogIssue = amenityCatalogErrors({
-      name: data.name,
-      category: data.category,
-      code: data.code,
-      description: data.description,
-      icon: data.icon,
-      active: data.active,
-      complimentary: data.complimentary,
-      displayToGuest: data.displayToGuest,
-      internalOnly: data.internalOnly,
-    })[0];
+
+    const { data: restaurant } = await pmsDb(context.supabase)
+      .from("restaurants")
+      .select("pms_property_setup_status")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    const status = parsePropertySetupStatus(restaurant?.pms_property_setup_status);
+    const customCategories = (status.customAmenityCategories ?? []).map((c) => c.name);
+
+    const catalogIssue = amenityCatalogErrors(
+      {
+        name: data.name,
+        category: data.category,
+        code: data.code,
+        description: data.description,
+        icon: data.icon,
+        active: data.active,
+        complimentary: data.complimentary,
+        displayToGuest: data.displayToGuest,
+        internalOnly: data.internalOnly,
+      },
+      customCategories,
+    )[0];
     if (catalogIssue) return { ok: false as const, message: catalogIssue };
 
     const codeKey = normalizeAmenityCode(data.code);
@@ -508,7 +719,7 @@ export const evaluateCard2AmenitiesReadiness = createServerFn({ method: "POST" }
       ),
       catalogCount: loaded.catalog.length,
       activeCatalogCount: loaded.catalog.length,
-      uncategorizedCount: uncategorizedAmenityCount(loaded.catalog),
+      uncategorizedCount: uncategorizedAmenityCount(loaded.catalog, loaded.customCategories),
       typesConfigured: loaded.roomTypes.filter((row) => row.active !== false && mappedTypes.has(row.id)).length,
       roomsWithOverrides: new Set(loaded.overrides.map((row) => row.roomId)).size,
     };

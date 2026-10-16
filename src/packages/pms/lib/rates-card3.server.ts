@@ -42,10 +42,31 @@ export type RateCategoryRow = {
   active: boolean;
 };
 
+export type RateCancellationPolicyRow = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  deadlineHours: number | null;
+  penaltyType: "none" | "percent" | "nights" | "fixed";
+  penaltyValue: number;
+  active: boolean;
+};
+
+export type RateRefundabilityRow = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  kind: "refundable" | "non_refundable" | "partial";
+  active: boolean;
+};
+
 export type RatePlanRow = {
   id: string;
   code: string;
   name: string;
+  description: string | null;
   categoryId: string;
   categoryName: string;
   roomTypeId: string;
@@ -53,6 +74,12 @@ export type RatePlanRow = {
   roomTypeName: string;
   currency: string;
   baseRate: number;
+  validFrom: string | null;
+  validTo: string | null;
+  cancellationPolicyId: string | null;
+  refundabilityId: string | null;
+  minAdvanceDays: number | null;
+  maxAdvanceDays: number | null;
   active: boolean;
 };
 
@@ -69,6 +96,8 @@ export type RatesCard3Snapshot = {
   categories: RateCategoryRow[];
   plans: RatePlanRow[];
   calendar: RateCalendarRow[];
+  cancellationPolicies: RateCancellationPolicyRow[];
+  refundabilityCodes: RateRefundabilityRow[];
 };
 
 export type RatesCard3Readiness = {

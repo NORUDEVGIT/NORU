@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -24,11 +23,11 @@ import {
 import type { Card3Domain } from "@/packages/pms/lib/pms-property-setup-card3";
 import {
   getTaxesCard3,
+  saveDefaultRoomTaxGroupCard3,
   saveExemptionRuleCard3,
   saveFeeCard3,
   saveServiceChargeCard3,
   saveTaxCard3,
-  saveTaxGroupCard3,
 } from "@/packages/pms/lib/taxes-card3.functions";
 import {
   CARD3_TAXES_SET1_COPY,
@@ -51,7 +50,6 @@ import {
   type TaxBasis,
   type TaxCalculation,
   type TaxChargeType,
-  type TaxGroupRow,
   type TaxRow,
   type TaxesCard3Snapshot,
 } from "@/packages/pms/lib/taxes-card3.server";
@@ -74,18 +72,16 @@ export function PmsPropertySetupCard3Taxes({
 }) {
   const queryClient = useQueryClient();
   const load = useServerFn(getTaxesCard3);
+  const saveDefaultRoomTaxGroup = useServerFn(saveDefaultRoomTaxGroupCard3);
   const saveTax = useServerFn(saveTaxCard3);
-  const saveGroup = useServerFn(saveTaxGroupCard3);
   const saveService = useServerFn(saveServiceChargeCard3);
   const saveFee = useServerFn(saveFeeCard3);
   const saveRule = useServerFn(saveExemptionRuleCard3);
   const [taxSearch, setTaxSearch] = useState("");
-  const [groupSearch, setGroupSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
   const [feeSearch, setFeeSearch] = useState("");
   const [ruleSearch, setRuleSearch] = useState("");
   const [taxDraft, setTaxDraft] = useState<TaxRow | "new" | null>(null);
-  const [groupDraft, setGroupDraft] = useState<TaxGroupRow | "new" | null>(null);
   const [serviceDraft, setServiceDraft] = useState<ServiceChargeRow | "new" | null>(null);
   const [feeDraft, setFeeDraft] = useState<FeeRow | "new" | null>(null);
   const [ruleDraft, setRuleDraft] = useState<ExemptionRuleRow | "new" | null>(null);
@@ -106,10 +102,6 @@ export function PmsPropertySetupCard3Taxes({
       taxes.filter((row) => matchesQuery(taxSearch, row.code, row.name, row.basis, row.chargeType)),
     [taxes, taxSearch],
   );
-  const filteredGroups = useMemo(
-    () => groups.filter((row) => matchesQuery(groupSearch, row.code, row.name)),
-    [groups, groupSearch],
-  );
   const filteredServices = useMemo(
     () => services.filter((row) => matchesQuery(serviceSearch, row.code, row.name, row.basis)),
     [services, serviceSearch],
@@ -121,7 +113,15 @@ export function PmsPropertySetupCard3Taxes({
   const filteredRules = useMemo(
     () =>
       rules.filter((row) =>
-        matchesQuery(ruleSearch, row.code, row.name, row.reasonCategory, row.description),
+        matchesQuery(
+          ruleSearch,
+          row.code,
+          row.name,
+          row.reasonCategory,
+          EXEMPTION_REASON_LABELS[row.reasonCategory] ?? "",
+          row.customReason ?? "",
+          row.description,
+        ),
       ),
     [rules, ruleSearch],
   );
@@ -155,15 +155,6 @@ export function PmsPropertySetupCard3Taxes({
     },
     onError: (error: Error) => toast.error(friendlyValidationError(error)),
   });
-  const groupMut = useMutation({
-    mutationFn: (input: Parameters<typeof saveGroup>[0]["data"]) => saveGroup({ data: input }),
-    onSuccess: () => {
-      toast.success("Tax group saved.");
-      setGroupDraft(null);
-      invalidate();
-    },
-    onError: (error: Error) => toast.error(friendlyValidationError(error)),
-  });
   const serviceMut = useMutation({
     mutationFn: (input: Parameters<typeof saveService>[0]["data"]) => saveService({ data: input }),
     onSuccess: () => {
@@ -191,6 +182,15 @@ export function PmsPropertySetupCard3Taxes({
     },
     onError: (error: Error) => toast.error(friendlyValidationError(error)),
   });
+  const defaultRoomTaxGroupMut = useMutation({
+    mutationFn: (taxGroupId: string | null) =>
+      saveDefaultRoomTaxGroup({ data: { restaurantId, taxGroupId } }),
+    onSuccess: () => {
+      toast.success("Default room tax group saved.");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(friendlyValidationError(error)),
+  });
 
   void CARD3_TAXES_TABS;
 
@@ -205,6 +205,39 @@ export function PmsPropertySetupCard3Taxes({
       ) : (
         <div className="space-y-4" data-testid="pms-card3-taxes">
           <Card3InheritedStrip>{CARD3_TAXES_SET1_COPY}</Card3InheritedStrip>
+          <section
+            className="rounded-xl border border-border bg-card p-4 shadow-sm"
+            data-testid="card3-default-room-tax-group"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="default-room-tax-group">Default room tax group</Label>
+              <p className="text-xs text-muted-foreground">
+                Used when posting room charges if set; otherwise taxes with room or all basis apply.
+              </p>
+              <Select
+                value={snapshot.defaultRoomTaxGroupId ?? "__none__"}
+                onValueChange={(value) => {
+                  if (!canEdit || defaultRoomTaxGroupMut.isPending) return;
+                  defaultRoomTaxGroupMut.mutate(value === "__none__" ? null : value);
+                }}
+                disabled={!canEdit || defaultRoomTaxGroupMut.isPending}
+              >
+                <SelectTrigger id="default-room-tax-group" className="max-w-md">
+                  <SelectValue placeholder="No default group" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No default group</SelectItem>
+                  {groups
+                    .filter((group) => group.active)
+                    .map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.code} — {group.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </section>
           <Card3ListSection
             title="Taxes"
             icon="tax"
@@ -229,30 +262,7 @@ export function PmsPropertySetupCard3Taxes({
               onEdit: () => setTaxDraft(row),
             }))}
             onAdd={() => setTaxDraft("new")}
-          />
-
-          <Card3ListSection
-            title="Tax groups"
-            icon="tax"
-            search={groupSearch}
-            onSearch={setGroupSearch}
-            placeholder="Search tax groups"
-            canEdit={canEdit}
-            addLabel="Add tax group"
-            empty="No tax groups saved yet."
-            columns={["Code", "Name", "Taxes", "Status"]}
-            rows={filteredGroups.map((row) => ({
-              id: row.id,
-              cells: [
-                row.code,
-                row.name,
-                String(row.taxIds.length),
-                <Card3StatusDot active={row.active} />,
-              ],
-              onEdit: () => setGroupDraft(row),
-            }))}
-            onAdd={() => setGroupDraft("new")}
-          />
+  />
 
           <Card3ListSection
             title="Service charges"
@@ -319,7 +329,9 @@ export function PmsPropertySetupCard3Taxes({
               cells: [
                 row.code,
                 row.name,
-                EXEMPTION_REASON_LABELS[row.reasonCategory],
+                row.reasonCategory === "other" && row.customReason
+                  ? `${EXEMPTION_REASON_LABELS.other} (${row.customReason})`
+                  : EXEMPTION_REASON_LABELS[row.reasonCategory] ?? row.reasonCategory,
                 row.documentationRequired ? "Required" : "Optional",
                 row.approvalRequired ? "Required" : "Optional",
                 <Card3StatusDot active={row.active} />,
@@ -337,16 +349,6 @@ export function PmsPropertySetupCard3Taxes({
             pending={taxMut.isPending}
             onClose={() => setTaxDraft(null)}
             onSave={(payload) => taxMut.mutate({ restaurantId, ...payload })}
-          />
-          <GroupDrawer
-            key={groupDraft === "new" ? "group-new" : (groupDraft?.id ?? "group-closed")}
-            open={groupDraft !== null}
-            canEdit={canEdit}
-            taxes={taxes}
-            value={groupDraft === "new" || groupDraft === null ? null : groupDraft}
-            pending={groupMut.isPending}
-            onClose={() => setGroupDraft(null)}
-            onSave={(payload) => groupMut.mutate({ restaurantId, ...payload })}
           />
           <ServiceDrawer
             key={serviceDraft === "new" ? "svc-new" : (serviceDraft?.id ?? "svc-closed")}
@@ -596,81 +598,6 @@ function TaxDrawer({
   );
 }
 
-function GroupDrawer({
-  open,
-  canEdit,
-  taxes,
-  value,
-  pending,
-  onClose,
-  onSave,
-}: {
-  open: boolean;
-  canEdit: boolean;
-  taxes: TaxRow[];
-  value: TaxGroupRow | null;
-  pending: boolean;
-  onClose: () => void;
-  onSave: (payload: {
-    id?: string;
-    code: string;
-    name: string;
-    active: boolean;
-    taxIds: string[];
-  }) => void;
-}) {
-  const [code, setCode] = useState(value?.code ?? "");
-  const [name, setName] = useState(value?.name ?? "");
-  const [active, setActive] = useState(value?.active ?? true);
-  const [taxIds, setTaxIds] = useState<string[]>(value?.taxIds ?? []);
-
-  function toggle(id: string, checked: boolean) {
-    setTaxIds((current) => (checked ? [...current, id] : current.filter((row) => row !== id)));
-  }
-
-  return (
-    <Card3OverlapSheet
-      open={open}
-      onClose={onClose}
-      title={value ? "Edit tax group" : "Add tax group"}
-      description="Assign taxes from this property only."
-      canEdit={canEdit}
-      pending={pending}
-      submitLabel="Save tax group"
-      onSubmit={() => onSave({ ...(value ? { id: value.id } : {}), code, name, active, taxIds })}
-    >
-      <div className="space-y-3">
-        <CodeFields
-          code={code}
-          name={name}
-          locked={Boolean(value)}
-          canEdit={canEdit}
-          onCode={setCode}
-          onName={setName}
-        />
-        <div className="space-y-2 rounded-xl border px-3 py-2">
-          <p className="text-sm font-medium text-[#251605]">Assigned taxes</p>
-          {taxes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Save a tax first.</p>
-          ) : (
-            taxes.map((tax) => (
-              <label key={tax.id} className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={taxIds.includes(tax.id)}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) => toggle(tax.id, checked === true)}
-                />
-                {tax.code} — {tax.name}
-              </label>
-            ))
-          )}
-        </div>
-        <ActiveField active={active} canEdit={canEdit} onChange={setActive} />
-      </div>
-    </Card3OverlapSheet>
-  );
-}
-
 function ServiceDrawer({
   open,
   canEdit,
@@ -858,8 +785,9 @@ function RuleDrawer({
   const [name, setName] = useState(value?.name ?? "");
   const [description, setDescription] = useState(value?.description ?? "");
   const [reasonCategory, setReasonCategory] = useState<ExemptionReason>(
-    value?.reasonCategory ?? "other",
+    value?.reasonCategory ?? "government",
   );
+  const [customReason, setCustomReason] = useState(value?.customReason ?? "");
   const [documentationRequired, setDocumentationRequired] = useState(
     value?.documentationRequired ?? false,
   );
@@ -882,6 +810,7 @@ function RuleDrawer({
           name,
           description,
           reasonCategory,
+          customReason: reasonCategory === "other" && customReason.trim() ? customReason.trim() : null,
           documentationRequired,
           approvalRequired,
           active,
@@ -916,6 +845,18 @@ function RuleDrawer({
             </SelectContent>
           </Select>
         </div>
+        {reasonCategory === "other" && (
+          <div className="space-y-1">
+            <Label htmlFor="rule-custom-reason">Custom reason</Label>
+            <Input
+              id="rule-custom-reason"
+              placeholder="Enter custom reason"
+              value={customReason}
+              disabled={!canEdit}
+              onChange={(event) => setCustomReason(event.target.value)}
+            />
+          </div>
+        )}
         <div className="space-y-1">
           <Label htmlFor="rule-desc">Description</Label>
           <Input

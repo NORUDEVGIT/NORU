@@ -30,32 +30,36 @@ export const CARD4_STEPS = [
     placeholder: null,
   },
   {
-    id: "required-fields",
-    number: 2,
-    title: "Required Fields",
-    placeholder: null,
-  },
-  {
-    id: "identity-documents",
-    number: 3,
-    title: "Identity Documents",
-    placeholder: null,
-  },
-  {
-    id: "preferences",
-    number: 4,
-    title: "Preferences",
-    placeholder: null,
-  },
-  {
     id: "company-business",
-    number: 5,
+    number: 2,
     title: "Company & Business",
+    placeholder: null,
+  },
+  {
+    id: "group-types",
+    number: 3,
+    title: "Group Types",
+    placeholder: null,
+  },
+  {
+    id: "travel-agency-types",
+    number: 4,
+    title: "Travel Agency Types",
     placeholder: null,
   },
 ] as const;
 
 export type Card4StepId = (typeof CARD4_STEPS)[number]["id"];
+
+export const CARD4_COMPATIBILITY_STEPS = [
+  { id: "required-fields", number: 1, title: "Required Fields", placeholder: null },
+  { id: "identity-documents", number: 1, title: "Identity Documents", placeholder: null },
+  { id: "preferences", number: 1, title: "Preferences", placeholder: null },
+] as const;
+
+export type Card4CompatibilityStepId = (typeof CARD4_COMPATIBILITY_STEPS)[number]["id"];
+export type AnyCard4StepId = Card4StepId | Card4CompatibilityStepId;
+
 
 export const CARD4_MAIN_SECTIONS = [
   { id: "profile-rules", title: "Guest Profile Rules" },
@@ -218,8 +222,12 @@ export function card4GstCompletedCount(
   return CARD4_GST_STEPS.filter((row) => stepStatuses[row.id] === "complete").length;
 }
 
-export function card4StepById(step: Card4StepId) {
-  return CARD4_STEPS.find((row) => row.id === step) ?? CARD4_STEPS[0];
+export function card4StepById(step: string) {
+  return (
+    CARD4_STEPS.find((row) => row.id === step) ??
+    CARD4_COMPATIBILITY_STEPS.find((row) => row.id === step) ??
+    CARD4_STEPS[0]
+  );
 }
 
 export function previousCard4Step(step: Card4StepId): Card4StepId | null {
@@ -235,13 +243,15 @@ export function nextCard4Step(step: Card4StepId): Card4StepId | null {
 }
 
 export function evaluateCard4StepStatus(
-  step: Card4StepId,
+  step: string,
   stored: PropertySetupCardStatus | undefined,
   profileTypesConfigured: boolean,
   requiredFieldsConfigured = false,
   identityDocumentsConfigured = false,
   preferencesConfigured = false,
   companyBusinessConfigured = false,
+  groupTypesConfigured = false,
+  travelAgencyTypesConfigured = false,
 ): PropertySetupCardStatus {
   if (step === "profile-types") {
     if (profileTypesConfigured) return "complete";
@@ -265,6 +275,16 @@ export function evaluateCard4StepStatus(
   }
   if (step === "company-business") {
     if (companyBusinessConfigured) return "complete";
+    if (stored === "in_progress" || stored === "complete") return stored;
+    return "not_started";
+  }
+  if (step === "group-types") {
+    if (groupTypesConfigured) return "complete";
+    if (stored === "in_progress" || stored === "complete") return stored;
+    return "not_started";
+  }
+  if (step === "travel-agency-types") {
+    if (travelAgencyTypesConfigured) return "complete";
     if (stored === "in_progress" || stored === "complete") return stored;
     return "not_started";
   }

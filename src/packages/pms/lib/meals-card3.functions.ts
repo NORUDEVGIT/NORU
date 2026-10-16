@@ -3,7 +3,13 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
+import {
+  IMAGE_EXT_BY_TYPE,
+  ROOM_BUCKET,
+  requireFrontOfficeAccess,
+  requireRoomManager,
+  signRoomImages,
+} from "./rooms.server";
 import {
   MEAL_PLAN_TYPES,
   PACKAGE_TYPES,
@@ -20,16 +26,26 @@ import {
   PACKAGE_TYPE_LABELS,
   TAX_POSTURE_LABELS,
   evaluateMealsCard3Readiness,
+  isOwnedPackageCoverPath,
+  packageCoverImagePath,
+  PACKAGE_CHARGE_BASES,
+  PACKAGE_CHARGE_BASIS_DEFAULT,
+  PACKAGE_COVER_CONTENT_TYPES,
+  PACKAGE_COVER_MAX_BYTES,
+  parsePackageChargeBasis,
+  previousPackageCoverToRemove,
   type Card3FoServiceRef,
   type Card3RatePlanRef,
   type Card3RoomAmenityRef,
   type Card3RoomTypeRef,
   type MealPlanCard3Row,
   type MealsCard3Snapshot,
+  type PackageCard3RatePlanLink,
   type PackageCard3Row,
   type PackageComponentCard3Row,
   type PackageComponentKind,
 } from "./meals-card3.server";
+import { parsePackageInclusionType } from "./rate-plan-package-inclusion";
 
 // 0072 is intentionally not represented in generated types.ts until its approved apply.
 // Keep the untyped database boundary isolated to this functions module.
@@ -66,9 +82,19 @@ const packageSchema = z.object({
   type: z.enum(PACKAGE_TYPES),
   description: descriptionSchema,
   packagePrice: z.number().min(0, "Package price cannot be negative.").max(10_000_000),
+  chargeBasis: z.enum(PACKAGE_CHARGE_BASES),
   active: z.boolean(),
   roomTypeIds: z.array(idSchema).max(200),
   ratePlanIds: z.array(idSchema).max(200),
+  ratePlanLinks: z
+    .array(
+      z.object({
+        ratePlanId: idSchema,
+        inclusionType: z.enum(["included", "optional"]),
+      }),
+    )
+    .max(200)
+    .optional(),
 });
 
 const componentBase = {
@@ -213,7 +239,9 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       .order("code"),
     db
       .from("pms_packages")
-      .select("id, code, name, type, description, package_price, active")
+      .select(
+        "id, code, name, type, description, package_price, active, cover_image_path, charge_basis",
+      )
       .eq("restaurant_id", restaurantId)
       .order("code"),
     db
@@ -222,7 +250,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       .eq("restaurant_id", restaurantId),
     db
       .from("pms_package_rate_plans")
-      .select("package_id, rate_plan_id")
+      .select("package_id, rate_plan_id, inclusion_type")
       .eq("restaurant_id", restaurantId),
     db
       .from("pms_package_components")
@@ -255,9 +283,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
   for (const result of [
     restaurant,
     meals,
-    packages,
     roomMappings,
-    rateMappings,
     components,
     roomTypes,
     roomAmenities,
@@ -265,6 +291,33 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     foServices,
   ]) {
     if (result.error) unavailable(result.error);
+  }
+
+  let packageResult = packages;
+  if (
+    packages.error &&
+    (packages.error.code === "42703" || packages.error.code === "PGRST204")
+  ) {
+    packageResult = await db
+      .from("pms_packages")
+      .select("id, code, name, type, description, package_price, active")
+      .eq("restaurant_id", restaurantId)
+      .order("code");
+  }
+  if (packageResult.error) unavailable(packageResult.error);
+
+  let rateMappingRows = rateMappings.data ?? [];
+  if (rateMappings.error) {
+    if (rateMappings.error.code === "42703" || rateMappings.error.code === "PGRST204") {
+      const fallback = await db
+        .from("pms_package_rate_plans")
+        .select("package_id, rate_plan_id")
+        .eq("restaurant_id", restaurantId);
+      if (fallback.error) unavailable(fallback.error);
+      rateMappingRows = fallback.data ?? [];
+    } else {
+      unavailable(rateMappings.error);
+    }
   }
 
   const mealRows = (meals.data ?? []).map(mapMealPlan);
@@ -276,21 +329,37 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
   const amenityById = new Map(roomAmenityRows.map((row) => [row.id, row.name]));
   const serviceById = new Map(foServiceRows.map((row) => [row.id, row.name]));
   const roomTypeIdsByPackage = new Map<string, string[]>();
-  const ratePlanIdsByPackage = new Map<string, string[]>();
+  const ratePlanLinksByPackage = new Map<string, PackageCard3RatePlanLink[]>();
 
   for (const row of roomMappings.data ?? []) {
     const list = roomTypeIdsByPackage.get(String(row.package_id)) ?? [];
     list.push(String(row.room_type_id));
     roomTypeIdsByPackage.set(String(row.package_id), list);
   }
-  for (const row of rateMappings.data ?? []) {
-    const list = ratePlanIdsByPackage.get(String(row.package_id)) ?? [];
-    list.push(String(row.rate_plan_id));
-    ratePlanIdsByPackage.set(String(row.package_id), list);
+  for (const row of rateMappingRows) {
+    const list = ratePlanLinksByPackage.get(String(row.package_id)) ?? [];
+    list.push({
+      ratePlanId: String(row.rate_plan_id),
+      inclusionType: parsePackageInclusionType(row.inclusion_type),
+    });
+    ratePlanLinksByPackage.set(String(row.package_id), list);
   }
 
-  const packageRows: PackageCard3Row[] = (packages.data ?? []).map((row: any) => {
+  const packageSource = packageResult.data ?? [];
+  const coverPaths = packageSource
+    .map((row: { cover_image_path?: string | null }) =>
+      typeof row.cover_image_path === "string" ? row.cover_image_path : "",
+    )
+    .filter((path: string) => path.length > 0);
+  const signedCovers = await signRoomImages(coverPaths);
+
+  const packageRows: PackageCard3Row[] = packageSource.map((row: any) => {
     const type = asPackageType(row.type);
+    const ratePlanLinks = ratePlanLinksByPackage.get(row.id) ?? [];
+    const coverImagePath =
+      typeof row.cover_image_path === "string" && row.cover_image_path.trim()
+        ? row.cover_image_path
+        : null;
     return {
       id: row.id,
       code: String(row.code ?? "").toUpperCase(),
@@ -299,9 +368,16 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       typeLabel: PACKAGE_TYPE_LABELS[type],
       description: String(row.description ?? ""),
       packagePrice: Number(row.package_price ?? 0),
+      chargeBasis:
+        row.charge_basis === undefined || row.charge_basis === null
+          ? PACKAGE_CHARGE_BASIS_DEFAULT
+          : parsePackageChargeBasis(row.charge_basis),
       active: row.active !== false,
       roomTypeIds: roomTypeIdsByPackage.get(row.id) ?? [],
-      ratePlanIds: ratePlanIdsByPackage.get(row.id) ?? [],
+      ratePlanIds: ratePlanLinks.map((link) => link.ratePlanId),
+      ratePlanLinks,
+      coverImagePath,
+      coverUrl: coverImagePath ? (signedCovers.get(coverImagePath) ?? null) : null,
     };
   });
 
@@ -453,6 +529,9 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const roomTypeIds = [...new Set(data.roomTypeIds)];
     const ratePlanIds = [...new Set(data.ratePlanIds)];
+    const inclusionByPlan = new Map(
+      (data.ratePlanLinks ?? []).map((link) => [link.ratePlanId, link.inclusionType]),
+    );
     await Promise.all([
       requireOwnedIds(
         db,
@@ -486,6 +565,7 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
       type: data.type,
       description: data.description?.trim() ? data.description.trim() : null,
       package_price: data.packagePrice,
+      charge_basis: data.chargeBasis,
       active: data.active,
     };
     let packageId = data.id;
@@ -531,15 +611,22 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
       );
     }
     if (ratePlanIds.length > 0) {
-      mappingWrites.push(
-        db.from("pms_package_rate_plans").insert(
-          ratePlanIds.map((ratePlanId) => ({
-            restaurant_id: data.restaurantId,
-            package_id: packageId,
-            rate_plan_id: ratePlanId,
-          })),
-        ),
-      );
+      const rateRows = ratePlanIds.map((ratePlanId) => ({
+        restaurant_id: data.restaurantId,
+        package_id: packageId,
+        rate_plan_id: ratePlanId,
+        inclusion_type: inclusionByPlan.get(ratePlanId) ?? "optional",
+      }));
+      const withType = await db.from("pms_package_rate_plans").insert(rateRows);
+      if (withType.error && (withType.error.code === "42703" || withType.error.code === "PGRST204")) {
+        mappingWrites.push(
+          db.from("pms_package_rate_plans").insert(
+            rateRows.map(({ inclusion_type: _ignored, ...row }) => row),
+          ),
+        );
+      } else if (withType.error) {
+        unavailable(withType.error);
+      }
     }
     for (const write of await Promise.all(mappingWrites)) {
       if (write.error) unavailable(write.error);
@@ -641,4 +728,107 @@ export const deletePackageComponentCard3 = createServerFn({ method: "POST" })
     });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateMealsCard3Readiness(snapshot) };
+  });
+
+const packageCoverUploadSchema = z.object({
+  restaurantId: idSchema,
+  packageId: idSchema,
+  contentType: z.enum(PACKAGE_COVER_CONTENT_TYPES),
+  size: z.number().int().positive().max(PACKAGE_COVER_MAX_BYTES),
+});
+
+const packageCoverPathSchema = z.object({
+  restaurantId: idSchema,
+  packageId: idSchema,
+  storagePath: z.string().trim().min(1).max(500),
+});
+
+async function loadPackageCover(
+  db: DbClient,
+  restaurantId: string,
+  packageId: string,
+): Promise<{ id: string; cover_image_path: string | null }> {
+  const result = await db
+    .from("pms_packages")
+    .select("id, cover_image_path")
+    .eq("id", packageId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (result.error) unavailable(result.error);
+  if (!result.data) throw new Error("That package doesn't belong to this property.");
+  return result.data;
+}
+
+async function removeStoredCover(storagePath: string | null) {
+  if (!storagePath) return;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  await supabaseAdmin.storage.from(ROOM_BUCKET).remove([storagePath]);
+}
+
+/** Signed upload ticket only. Does not write cover_image_path. */
+export const createPackageCoverUpload = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => packageCoverUploadSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    await requireOwnedRecord(
+      db,
+      "pms_packages",
+      data.restaurantId,
+      data.packageId,
+      "That package doesn't belong to this property.",
+    );
+    const ext = IMAGE_EXT_BY_TYPE[data.contentType];
+    if (!ext) return { ok: false as const, message: "Use a JPG, PNG, or WebP image." };
+    const path = packageCoverImagePath(data.restaurantId, data.packageId, ext);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: signed, error } = await supabaseAdmin.storage
+      .from(ROOM_BUCKET)
+      .createSignedUploadUrl(path);
+    if (error || !signed) return { ok: false as const, message: "Could not start the upload." };
+    return { ok: true as const, path, token: signed.token };
+  });
+
+/** Registers an uploaded object as the package cover. Media only — not a package-field writer. */
+export const setPackageCoverImage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => packageCoverPathSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    if (!isOwnedPackageCoverPath(data.restaurantId, data.packageId, data.storagePath)) {
+      throw new Error("Invalid image reference.");
+    }
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const current = await loadPackageCover(db, data.restaurantId, data.packageId);
+    const updated = await db
+      .from("pms_packages")
+      .update({ cover_image_path: data.storagePath })
+      .eq("id", current.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (updated.error) unavailable(updated.error);
+    const previous = previousPackageCoverToRemove(current.cover_image_path, data.storagePath);
+    await removeStoredCover(previous);
+    return { ok: true as const };
+  });
+
+/** Clears the package cover path and deletes the stored object when one exists. */
+export const removePackageCoverImage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ restaurantId: idSchema, packageId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const current = await loadPackageCover(db, data.restaurantId, data.packageId);
+    if (!current.cover_image_path) return { ok: true as const };
+    const updated = await db
+      .from("pms_packages")
+      .update({ cover_image_path: null })
+      .eq("id", current.id)
+      .eq("restaurant_id", data.restaurantId);
+    if (updated.error) unavailable(updated.error);
+    await removeStoredCover(current.cover_image_path);
+    return { ok: true as const };
   });

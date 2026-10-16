@@ -128,7 +128,7 @@ function SourceLink({
   }
   if (source.key === "pms" && packages.has("pms") && modules.includes("accounting_finance")) {
     return (
-      <Link to="/restaurant/cashiering" search={{ tab: "dashboard" }} className={cls}>
+      <Link to="/restaurant/pms/cashiering" search={{ tab: "overview" }} className={cls}>
         Open PMS Cashiering <ArrowUpRight className="size-4" />
       </Link>
     );

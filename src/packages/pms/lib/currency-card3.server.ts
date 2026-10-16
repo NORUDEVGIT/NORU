@@ -25,6 +25,8 @@ export const CARD3_CURRENCY_AUDIT_SECTION = "card3-currency";
 export const CARD3_CURRENCY_UNAVAILABLE =
   "Currency & Financial Settings are unavailable until their approved migration is applied.";
 
+export const CANONICAL_BASE_CURRENCY = "ETB";
+
 export type PropertyCurrency = {
   id: string;
   code: string;
@@ -43,6 +45,8 @@ export type ExchangeRateRow = {
   effectiveDate: string;
   source: CurrencyFxSource;
   directionLabel: string;
+  status: "current" | "stale";
+  displaySource: string;
 };
 
 export type FinancialSettings = {
@@ -66,13 +70,30 @@ export type CurrencyCard3Inherited = {
   businessDate: string;
 };
 
+export type FxStatusInfo = {
+  lastRefreshAt: string | null;
+  providerName: string;
+  status: "current" | "stale" | "failed" | "not_configured";
+  lastError: string | null;
+};
+
 export type CurrencyCard3Snapshot = {
   inherited: CurrencyCard3Inherited;
   currencies: PropertyCurrency[];
   rates: ExchangeRateRow[];
   settings: FinancialSettings;
   settingsRowExists: boolean;
+  fxStatus: FxStatusInfo;
 };
+
+export function calculateRateFreshness(effectiveDate: string): "current" | "stale" {
+  if (!effectiveDate) return "stale";
+  const effective = new Date(effectiveDate).getTime();
+  if (Number.isNaN(effective)) return "stale";
+  const now = Date.now();
+  const hours = (now - effective) / (1000 * 60 * 60);
+  return hours <= 48 ? "current" : "stale";
+}
 
 export type CurrencyCard3Readiness = {
   ready: boolean;

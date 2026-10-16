@@ -354,7 +354,7 @@ function BillingSection({ restaurantId, orderId }: { restaurantId: string; order
           <div className="flex flex-wrap gap-2 pt-2">
             <Button asChild size="sm" variant="outline">
               <Link
-                to="/restaurant/cashiering/folios/$folioId"
+                to="/restaurant/pms/cashiering/folios/$folioId"
                 params={{ folioId: billing.posted.folioId }}
               >
                 View folio

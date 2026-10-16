@@ -92,12 +92,12 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
     assert.equal(CREATE_RESERVATION_PACKAGES_BOX, "visible-gated");
     assert.equal(CREATE_RESERVATION_PACKAGES_DETECT_API, "getPmsSet3Snapshot");
     assert.equal(CREATE_RESERVATION_PACKAGES_SETTINGS_LINK_RULE, "set3-editors-only");
-    assert.equal(CREATE_RESERVATION_PACKAGES_BIND, "out");
+    assert.equal(CREATE_RESERVATION_PACKAGES_BIND, "activation-ids");
     assert.equal(CREATE_RESERVATION_PACKAGES_STICKY, "not-attached-not-in-quote");
   });
 
   it("AC-CR8-1 Catalog detect: schema missing vs empty vs active-not-attached via SET3 snapshot", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const gate = readRel("../components/bookings/create-reservation-packages.tsx");
     const set3Fns = readRel("./pms-set3-rates-guest.functions.ts");
     assert.match(page, /getPmsSet3Snapshot/);
@@ -116,7 +116,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
     assert.equal(activePackageCountFromRows([{ active: true }, { active: false }, { active: true }]), 2);
     assert.equal(activePackageCountFromRows([]), 0);
     assert.match(gate, /data-packages-detect=\{detectKind\}/);
-    assert.match(page, /activePackageCountFromRows\(set3Query\.data\?\.snapshot\.packages \?\? \[\]\)/);
+    assert.match(page, /activePackageCountFromRows\(\s*set3Query\.data\?\.snapshot\.packages \?\? \[\],?\s*\)/);
     assert.match(page, /packagesAvailable=\{set3Query\.data\?\.snapshot\.packagesAvailable \?\? false\}/);
   });
 
@@ -155,7 +155,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-3 GATE list/select: no selectable attach; no FO extras / meal plans / sample rows as packages", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const gate = readRel("../components/bookings/create-reservation-packages.tsx");
     assert.match(page, /CreateReservationPackages/);
     assert.match(gate, /data-testid="create-reservation-packages-gate"/);
@@ -204,10 +204,10 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-5 Bind GATE: no package arg, no column, no notes smuggling", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const types = readRel("../../../integrations/supabase/types.ts");
-    assert.equal(CREATE_RESERVATION_PACKAGES_BIND, "out");
+    assert.equal(CREATE_RESERVATION_PACKAGES_BIND, "activation-ids");
     const createStart = functions.indexOf("export const createReservation");
     const createFn = functions.slice(createStart, functions.indexOf("export const amendReservation"));
     assert.match(createFn, /create_hotel_reservation_priced/);
@@ -227,18 +227,15 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-6 Sticky honesty: Section 5 room quote remains; no invented package 0.00", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const ratesServer = readRel("./rates.server.ts");
     assert.equal(stickyPackagesCopy(), CREATE_RESERVATION_STICKY_PACKAGES);
     assert.match(CREATE_RESERVATION_STICKY_PACKAGES, /not attached on create/);
     assert.match(CREATE_RESERVATION_STICKY_PACKAGES, /not in this quote/);
     assert.doesNotMatch(CREATE_RESERVATION_STICKY_PACKAGES, /0\.00|£0|subtotal/);
-    assert.match(page, /data-testid="summary-packages"/);
-    assert.match(page, /data-testid="summary-packages-honesty"/);
-    assert.match(page, /stickyPackagesCopy\(\)/);
-    assert.match(page, /data-testid="summary-stay-total"/);
+    assert.match(page, /packagesSlot=/);
+    assert.match(page, /CreateReservationPackages/);
     assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
-    assert.match(page, /data-testid="summary-room"/);
     assert.match(page, /stickyRoomAssignmentLabel\(/);
     const stayQuote = ratesServer.slice(
       ratesServer.indexOf("export interface StayQuote"),
@@ -270,7 +267,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-8 No second writer; walk-in remains createReservation", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
     const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
     assert.match(page, /createReservation/);
@@ -284,7 +281,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-9 Existing permission gates preserved; Settings link SET3 editors only", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const gate = readRel("../components/bookings/create-reservation-packages.tsx");
     const functions = readRel("./reservations.functions.ts");
     const set3Fns = readRel("./pms-set3-rates-guest.functions.ts");
@@ -320,7 +317,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-11 Section 8 does not claim Phase 1 or Create Reservation DONE", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.equal(CREATE_RESERVATION_PHASE1_COMPLETE, false);
     assert.equal(CREATE_RESERVATION_MODULE_DONE, false);
     assert.match(CREATE_RESERVATION_SECTION8_SCOPE, /does not claim Phase 1/);
@@ -329,7 +326,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-12 FO extras OUT — do not mount fo_service_catalogue as stay packages", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const gate = readRel("../components/bookings/create-reservation-packages.tsx");
     const amendFns = readRel("./fo-amendments.functions.ts");
     assert.doesNotMatch(page, /fo_service_catalogue|loadServiceCatalogue|Add Service/);
@@ -339,7 +336,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-13 Meal plans OUT of create bind; SET3 meal-plan Setup stays Settings", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const gate = readRel("../components/bookings/create-reservation-packages.tsx");
     const set3Ui = readRel("../components/settings/pms-set3-section.tsx");
     assert.doesNotMatch(page, /pms_meal_plans|savePmsMealPlan|mealPlanId/);
@@ -348,7 +345,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-14 No commission settlement, LIVE OTA/RMS package mapping, or email/SMS", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const gate = readRel("../components/bookings/create-reservation-packages.tsx");
     const helpers = readRel("./create-reservation-phase1-section8.ts");
     assert.match(helpers, /commission settlement/);
@@ -358,7 +355,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-15 CR-100 / Group products are not expanded", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const gate = readRel("../components/bookings/create-reservation-packages.tsx");
     assert.doesNotMatch(page, /CR-100|rooming list|group block|allotmentPickup/);
     assert.doesNotMatch(gate, /CR-100|rooming list|group block/);
@@ -366,27 +363,24 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-16 Rate, Room assign, Guarantee/Confirm are not rewritten; sticky compose keeps §5/§6", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /CreateReservationRate/);
     assert.match(page, /CreateReservationRoomAssignment/);
-    assert.match(page, /data-testid="summary-rate"/);
-    assert.match(page, /data-testid="summary-stay-total"/);
-    assert.match(page, /data-testid="summary-room"/);
+    assert.match(page, /ratePlan=/);
+    assert.match(page, /stayTotal=/);
     assert.match(page, /stickyRoomAssignmentLabel\(/);
-    assert.match(page, /stickyPricingCopy|money\(pricingState\.quote\.subtotal\)/);
-    const roomIdx = page.indexOf('data-testid="summary-room"');
-    const rateIdx = page.indexOf('data-testid="summary-rate"');
-    const totalIdx = page.indexOf('data-testid="summary-stay-total"');
-    const packagesIdx = page.indexOf('data-testid="summary-packages"');
-    assert.ok(roomIdx > 0 && rateIdx > roomIdx && totalIdx > rateIdx);
-    assert.ok(packagesIdx > totalIdx);
+    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
+    const roomIdx = page.indexOf("stickyRoomAssignmentLabel(");
+    const totalIdx = page.indexOf("money(pricingState.quote.subtotal)");
+    const packagesIdx = page.indexOf("packagesSlot=");
+    assert.ok(roomIdx > 0 && totalIdx > roomIdx && packagesIdx > totalIdx);
     assert.match(page, /CreateReservationGuarantee/);
     assert.doesNotMatch(page, /Send confirmation email/);
     assert.doesNotMatch(page, /replacePricingLines|removeStayTotal|replaceRoomLine/);
   });
 
   it("AC-CR8-17 Locked non-goals in §4 are absent", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const gate = readRel("../components/bookings/create-reservation-packages.tsx");
     const helpers = readRel("./create-reservation-phase1-section8.ts");
     const functions = readRel("./reservations.functions.ts");
@@ -421,7 +415,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-19 Additive expansion of existing /restaurant/bookings/new — modern NORU gated box", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     const gate = readRel("../components/bookings/create-reservation-packages.tsx");
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /createReservation/);
@@ -438,14 +432,14 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
     assert.match(CREATE_RESERVATION_SECTION8_PROGRAMME_RULE, /only if CURRENT supports/);
     assert.match(CREATE_RESERVATION_SECTION8_PROGRAMME_RULE, /Do not clone legacy chrome/);
     assert.match(CREATE_RESERVATION_SECTION8_PROGRAMME_RULE, /getPmsSet3Snapshot/);
-    assert.equal(CREATE_RESERVATION_PACKAGES_BIND, "out");
+    assert.equal(CREATE_RESERVATION_PACKAGES_BIND, "activation-ids");
     const gate = readRel("../components/bookings/create-reservation-packages.tsx");
     assert.match(gate, /CREATE_RESERVATION_SECTION8_SCOPE/);
     assert.doesNotMatch(gate, /type="checkbox"/);
   });
 
   it("AC-CR8-21 Parallel Section 6 and Section 7 Spec drafting are not blocked", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(CREATE_RESERVATION_SECTION8_PARALLEL_OK, /Section 6/);
     assert.match(CREATE_RESERVATION_SECTION8_PARALLEL_OK, /Section 7/);
     assert.match(page, /CreateReservationRoomAssignment/);
@@ -454,7 +448,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
   });
 
   it("AC-CR8-22 canSubmit does not require a package; prior Unpriced / Unassigned / Associations stand", () => {
-    const page = readRel("../../../routes/restaurant/bookings/new.tsx");
+    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.equal(
       canSubmitCreateReservation({
         hasGuest: true,
@@ -483,9 +477,9 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
     assert.ok(submitStart > 0);
     const submitBlock = page.slice(submitStart, page.indexOf("});", submitStart));
     assert.doesNotMatch(submitBlock, /package/);
-    assert.match(page, /CreateReservationAssociations/);
+    assert.match(page, /CreateReservationBookingDetails/);
     assert.match(page, /const UNASSIGNED = "unassigned"/);
-    assert.match(page, /data-testid="summary-unpriced-badge"|summary-stay-total/);
+    assert.match(page, /stayTotal=\{pricingState\.kind === "priced" \? money\(pricingState\.quote\.subtotal\) : "—"\}/);
   });
 
   it("resolveCreatePackagesGateView maps loading / error around catalog detect", () => {

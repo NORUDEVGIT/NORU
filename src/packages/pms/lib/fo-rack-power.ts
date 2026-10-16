@@ -3,7 +3,7 @@
  *
  * Drop / resize never write. Confirm is the only path that may invoke
  * moveReservationRoom or changeStayDates({ arrival, departure }). Dirty /
- * pickup block DnD Confirm via isRoomReady; the menu Room Move dialog is
+ * pickup block DnD Confirm via listRoomRack.ready / isRoomReady; the menu Room Move dialog is
  * unchanged. Date Confirm is eligible for pending / confirmed / checked_in.
  * Never invent badge flags, package math, or a green checklist while an API
  * check is pending.
@@ -97,6 +97,8 @@ export type RackMoveDraft = {
   targetRoomTypeName: string;
   targetStatus: string | null;
   targetHousekeeping: string | null;
+  /** Policy-aware flag from `listRoomRack` when the HK feed is loaded. */
+  targetReady?: boolean | null;
   hkKnown: boolean;
   arrivalDate: string;
   departureDate: string;
@@ -283,9 +285,14 @@ function housekeepingCheck(input: {
   status: string | null;
   housekeepingStatus: string | null;
   hkKnown: boolean;
+  targetReady?: boolean | null;
 }): ValidationCheck {
   if (!input.hkKnown || !input.status) {
     return check("housekeeping", "Housekeeping", "unknown", UNAVAILABLE_TO_VERIFY);
+  }
+  if (typeof input.targetReady === "boolean") {
+    if (input.targetReady) return check("housekeeping", "Housekeeping", "pass");
+    return check("housekeeping", "Housekeeping", "fail", "That room is not ready for occupancy.");
   }
   const room: RoomReadiness = {
     status: input.status,
@@ -350,6 +357,7 @@ export function evaluateMoveChecks(
       status: draft.targetStatus,
       housekeepingStatus: draft.targetHousekeeping,
       hkKnown: draft.hkKnown,
+      targetReady: draft.targetReady,
     }),
     availabilityCheck({ localOverlap, lookup, targetRoomId: draft.targetRoomId }),
   ];

@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   GUEST_IMAGE_EXT_BY_TYPE,
@@ -12,6 +13,7 @@ import {
   normalizeEmail,
   normalizePhone,
   recordGuestEvent,
+  applyGuestServiceRequestUpdate,
   requireGuestManager,
   canManageGuestPrivacy,
   type GuestEventType,
@@ -48,10 +50,7 @@ import {
   type GuestStayAccess,
   type GuestStayOverview,
 } from "./guest-profile-wave3";
-import {
-  bookingTimelineLabel,
-  type GuestBookingHistoryEvent,
-} from "./guest-bookings-workspace";
+import { bookingTimelineLabel, type GuestBookingHistoryEvent } from "./guest-bookings-workspace";
 import {
   PREFERRED_CONTACT_METHODS,
   PREFERRED_CONTACT_TIMES,
@@ -72,14 +71,15 @@ import {
   GUEST_SERVICE_DESCRIPTION_MAX,
   GUEST_SERVICE_PRIORITIES,
   GUEST_SERVICE_STATUSES,
-  canTransitionGuestService,
   isGuestServiceStatus,
   type GuestServicePriority,
   type GuestServiceStatus,
 } from "./guest-services-workspace";
 import {
+  enrichPreferenceTypesWithOptions,
   isPreferenceValueType,
   normalizePreferenceOptions,
+  resolveEffectivePreferences,
   type PreferenceCategoryRecord,
   type PreferenceTypeRecord,
   type PreferenceValueType,
@@ -154,6 +154,7 @@ export interface GuestSummary {
   restricted: boolean;
   blacklisted: boolean;
   lastStayAt: string | null;
+  upcomingStayAt?: string | null;
   profileNumber: string | null;
 }
 
@@ -237,6 +238,7 @@ export interface GuestPreferences {
   communicationPreference: string | null;
   accessibilityRequirements: string | null;
   specialRequests: string | null;
+  smokingAllowed?: boolean | null | undefined;
 }
 
 type JsonValue = string | number | boolean | null;
@@ -325,12 +327,14 @@ async function syncWave2PreferencesToCard4(
     if (!type) continue;
     const stored = preferences[key];
     const text = formatPreferenceStoredValue(
-      stored,
+      typeof stored === "string" ? stored : stored ? String(stored) : null,
       Array.isArray(type.options)
-        ? (type.options as Array<{ id?: string; label?: string; value?: string }>).map((option) => ({
-            id: String(option.id ?? option.value ?? ""),
-            label: String(option.label ?? option.value ?? ""),
-          }))
+        ? (type.options as Array<{ id?: string; label?: string; value?: string }>).map(
+            (option) => ({
+              id: String(option.id ?? option.value ?? ""),
+              label: String(option.label ?? option.value ?? ""),
+            }),
+          )
         : [],
     );
     const payload = {
@@ -853,10 +857,11 @@ export const getGuestsAccess = createServerFn({ method: "POST" })
 
 /* ----------------------------------------------------------------- list */
 
-function guestSearchOrFilter(
+export function guestSearchOrFilter(
   term: string,
-  includeIdDocument: boolean,
+  includeIdDocument = true,
   includeProfileNumber = false,
+  extraGuestIds: string[] = [],
 ): string | null {
   const trimmed = term.trim();
   if (!trimmed) return null;
@@ -878,16 +883,44 @@ function guestSearchOrFilter(
       `and(id.gte.${segment}-0000-0000-0000-000000000000,id.lte.${segment}-ffff-ffff-ffff-ffffffffffff)`,
     );
   }
+
+  // Multi-token full-name matching: e.g. "John Smith", "Abebe Kebede"
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length >= 2) {
+    const tFirst = (tokens[0] ?? "").replace(/[%,]/g, "");
+    const tLast = tokens.slice(1).join(" ").replace(/[%,]/g, "");
+    if (tFirst && tLast) {
+      parts.push(`and(first_name.ilike.%${tFirst}%,last_name.ilike.%${tLast}%)`);
+      parts.push(`and(first_name.ilike.%${tLast}%,last_name.ilike.%${tFirst}%)`);
+    }
+  }
+
+  // Linked / matched guest IDs (capped at 50 to prevent oversized query strings)
+  if (extraGuestIds.length > 0) {
+    const validUuids = extraGuestIds.filter(isUuid).slice(0, 50);
+    if (validUuids.length > 0) {
+      parts.push(`id.in.(${validUuids.join(",")})`);
+    }
+  }
+
   return parts.join(",");
 }
 
-async function loadLastStayMap(
-  supabase: { from: (table: string) => any },
+async function loadStayDatesMap(
+  supabase: SupabaseClient,
   restaurantId: string,
   guestIds?: string[],
-): Promise<{ map: Map<string, string>; available: boolean }> {
-  const map = new Map<string, string>();
-  if (guestIds && guestIds.length === 0) return { map, available: true };
+  today = new Date().toISOString().slice(0, 10),
+): Promise<{
+  lastStayMap: Map<string, string>;
+  upcomingStayMap: Map<string, string>;
+  available: boolean;
+}> {
+  const lastStayMap = new Map<string, string>();
+  const upcomingStayMap = new Map<string, string>();
+  if (guestIds && guestIds.length === 0) {
+    return { lastStayMap, upcomingStayMap, available: true };
+  }
   const pageSize = 1_000;
   const chunks: Array<string[] | null> =
     guestIds && guestIds.length > 100
@@ -903,31 +936,54 @@ async function loadLastStayMap(
     for (let from = 0; ; from += pageSize) {
       let query = supabase
         .from("hotel_reservations")
-        .select("guest_id, departure_date, arrival_date")
+        .select("guest_id, departure_date, arrival_date, status")
         .eq("restaurant_id", restaurantId)
         .range(from, from + pageSize - 1);
       if (chunk) query = query.in("guest_id", chunk);
       const result = await query;
       if (result.error && isReservationRlsBlocked(result.error)) {
-        return { map: new Map(), available: false };
+        return { lastStayMap: new Map(), upcomingStayMap: new Map(), available: false };
       }
       if (result.error) throw new Error(result.error.message);
       const page = (result.data ?? []) as Array<{
         guest_id: string | null;
         departure_date: string | null;
         arrival_date: string | null;
+        status?: string | null;
       }>;
       for (const stay of page) {
         if (!stay.guest_id) continue;
-        const date = stay.departure_date || stay.arrival_date;
-        if (!date) continue;
-        const previous = map.get(stay.guest_id);
-        if (!previous || date > previous) map.set(stay.guest_id, date);
+        const dep = stay.departure_date;
+        const arr = stay.arrival_date;
+        const date = dep || arr;
+        if (date) {
+          const prevLast = lastStayMap.get(stay.guest_id);
+          if (!prevLast || date > prevLast) lastStayMap.set(stay.guest_id, date);
+        }
+        if (
+          arr &&
+          arr >= today &&
+          stay.status !== "cancelled" &&
+          stay.status !== "no_show" &&
+          stay.status !== "checked_out"
+        ) {
+          const prevUpcoming = upcomingStayMap.get(stay.guest_id);
+          if (!prevUpcoming || arr < prevUpcoming) upcomingStayMap.set(stay.guest_id, arr);
+        }
       }
       if (page.length < pageSize) break;
     }
   }
-  return { map, available: true };
+  return { lastStayMap, upcomingStayMap, available: true };
+}
+
+async function loadLastStayMap(
+  supabase: SupabaseClient,
+  restaurantId: string,
+  guestIds?: string[],
+): Promise<{ map: Map<string, string>; available: boolean }> {
+  const loaded = await loadStayDatesMap(supabase, restaurantId, guestIds);
+  return { map: loaded.lastStayMap, available: loaded.available };
 }
 
 export const listGuests = createServerFn({ method: "POST" })
@@ -960,11 +1016,66 @@ export const listGuests = createServerFn({ method: "POST" })
 
     const needsStayMap = lastStay !== "all" || sort === "last_stay";
     let stayMap = new Map<string, string>();
+    let upcomingStayMap = new Map<string, string>();
     let lastStayAvailable = true;
     if (needsStayMap) {
-      const loaded = await loadLastStayMap(context.supabase, data.restaurantId);
-      stayMap = loaded.map;
+      const loaded = await loadStayDatesMap(context.supabase, data.restaurantId, undefined, today);
+      stayMap = loaded.lastStayMap;
+      upcomingStayMap = loaded.upcomingStayMap;
       lastStayAvailable = loaded.available;
+    }
+
+    // Lookup matching guest IDs for reservation confirmation number and company/agency master
+    // Intermediate results are capped at 50 to prevent oversized URL / query filters
+    const extraGuestIds: string[] = [];
+    const trimmedSearch = (data.search ?? "").trim();
+    if (trimmedSearch) {
+      try {
+        const resMatches = await context.supabase
+          .from("hotel_reservations")
+          .select("guest_id")
+          .eq("restaurant_id", data.restaurantId)
+          .ilike("confirmation_number", `%${trimmedSearch}%`)
+          .limit(50);
+        if (resMatches.data) {
+          for (const row of resMatches.data) {
+            if (row.guest_id && !extraGuestIds.includes(row.guest_id)) {
+              extraGuestIds.push(row.guest_id);
+            }
+          }
+        }
+      } catch {
+        // Safe degrade if reservations table / RLS is restricted
+      }
+
+      if (extraGuestIds.length < 50) {
+        try {
+          const masterMatches = await context.supabase
+            .from("guest_account_masters")
+            .select("id")
+            .eq("restaurant_id", data.restaurantId)
+            .ilike("name", `%${trimmedSearch}%`)
+            .limit(50);
+          if (masterMatches.data && masterMatches.data.length > 0) {
+            const masterIds = (masterMatches.data as Array<{ id: string }>).map((m) => m.id);
+            const linkMatches = await context.supabase
+              .from("guest_account_links")
+              .select("guest_id")
+              .in("master_id", masterIds)
+              .limit(50);
+            if (linkMatches.data) {
+              for (const row of linkMatches.data as Array<{ guest_id: string | null }>) {
+                if (row.guest_id && !extraGuestIds.includes(row.guest_id)) {
+                  extraGuestIds.push(row.guest_id);
+                  if (extraGuestIds.length >= 50) break;
+                }
+              }
+            }
+          }
+        } catch {
+          // Safe degrade if accounts not readable
+        }
+      }
     }
 
     const applyFilters = (
@@ -988,6 +1099,7 @@ export const listGuests = createServerFn({ method: "POST" })
         (data.search ?? "").trim(),
         includeIdDocument,
         includeProfileNumber,
+        extraGuestIds,
       );
       if (searchOr) query = query.or(searchOr);
       if (lastStayAvailable && lastStay !== "all") {
@@ -1051,12 +1163,14 @@ export const listGuests = createServerFn({ method: "POST" })
     }
 
     if (!needsStayMap) {
-      const loaded = await loadLastStayMap(
+      const loaded = await loadStayDatesMap(
         context.supabase,
         data.restaurantId,
         rows.map((row) => row.id),
+        today,
       );
-      stayMap = loaded.map;
+      stayMap = loaded.lastStayMap;
+      upcomingStayMap = loaded.upcomingStayMap;
       lastStayAvailable = loaded.available;
     }
 
@@ -1064,6 +1178,7 @@ export const listGuests = createServerFn({ method: "POST" })
       items: rows.map((row) => ({
         ...row,
         lastStayAt: lastStayAvailable ? (stayMap.get(row.id) ?? null) : null,
+        upcomingStayAt: upcomingStayMap.get(row.id) ?? null,
       })),
       total,
       offset,
@@ -1178,8 +1293,11 @@ export const getGuestWorkspaceStats = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GuestWorkspaceStats> => {
     await requireGuestManager(context as never, data.restaurantId);
-    const individuals = await countRows(context.supabase, "guest_profiles", data.restaurantId, (query) =>
-      query.is("merged_into_guest_id", null),
+    const individuals = await countRows(
+      context.supabase,
+      "guest_profiles",
+      data.restaurantId,
+      (query) => query.is("merged_into_guest_id", null),
     );
     const companies = await countRows(
       context.supabase,
@@ -1211,10 +1329,7 @@ export const getGuestWorkspaceStats = createServerFn({ method: "POST" })
   });
 
 export type GuestWorkspaceActivityKind =
-  | GuestEventType
-  | "account_created"
-  | "account_updated"
-  | "reservation_created";
+  GuestEventType | "account_created" | "account_updated" | "reservation_created";
 
 export type GuestWorkspaceActivityItem = {
   id: string;
@@ -1258,7 +1373,9 @@ const WORKSPACE_ACTIVITY_LABELS: Record<string, string> = {
 export const listGuestWorkspaceActivity = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, limit: z.number().int().min(1).max(30).optional() }).parse(input),
+    z
+      .object({ restaurantId: idSchema, limit: z.number().int().min(1).max(30).optional() })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestWorkspaceActivityItem[]> => {
     await requireGuestManager(context as never, data.restaurantId);
@@ -1271,7 +1388,8 @@ export const listGuestWorkspaceActivity = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId)
       .order("created_at", { ascending: false })
       .limit(limit);
-    if (history.error && !isMissingSchemaError(history.error)) throw new Error(history.error.message);
+    if (history.error && !isMissingSchemaError(history.error))
+      throw new Error(history.error.message);
     const guestIds = [...new Set((history.data ?? []).map((row) => row.guest_id).filter(Boolean))];
     const guestNames = new Map<string, string>();
     if (guestIds.length > 0) {
@@ -1288,7 +1406,9 @@ export const listGuestWorkspaceActivity = createServerFn({ method: "POST" })
       }>) {
         guestNames.set(
           row.id,
-          row.anonymised_at ? WAVE5_ANONYMISED_GUEST_LABEL : fullName(row.first_name, row.last_name),
+          row.anonymised_at
+            ? WAVE5_ANONYMISED_GUEST_LABEL
+            : fullName(row.first_name, row.last_name),
         );
       }
     }
@@ -1361,7 +1481,9 @@ export const listGuestWorkspaceActivity = createServerFn({ method: "POST" })
       throw new Error(reservations.error.message);
     } else if (!reservations.error) {
       const resGuestIds = [
-        ...new Set((reservations.data ?? []).map((row) => row.guest_id).filter(Boolean) as string[]),
+        ...new Set(
+          (reservations.data ?? []).map((row) => row.guest_id).filter(Boolean) as string[],
+        ),
       ].filter((id) => !guestNames.has(id));
       if (resGuestIds.length > 0) {
         const guests = await context.supabase
@@ -1377,7 +1499,9 @@ export const listGuestWorkspaceActivity = createServerFn({ method: "POST" })
         }>) {
           guestNames.set(
             row.id,
-            row.anonymised_at ? WAVE5_ANONYMISED_GUEST_LABEL : fullName(row.first_name, row.last_name),
+            row.anonymised_at
+              ? WAVE5_ANONYMISED_GUEST_LABEL
+              : fullName(row.first_name, row.last_name),
           );
         }
       }
@@ -1385,8 +1509,11 @@ export const listGuestWorkspaceActivity = createServerFn({ method: "POST" })
         items.push({
           id: `reservation:${row.id}`,
           kind: "reservation_created",
-          label: WORKSPACE_ACTIVITY_LABELS.reservation_created,
-          partyName: (row.guest_id && guestNames.get(row.guest_id)) || row.confirmation_number || "Reservation",
+          label: WORKSPACE_ACTIVITY_LABELS["reservation_created"] ?? "Reservation Created",
+          partyName:
+            (row.guest_id && guestNames.get(row.guest_id)) ||
+            row.confirmation_number ||
+            "Reservation",
           createdAt: row.created_at,
         });
       }
@@ -1407,6 +1534,10 @@ export const findGuestDuplicates = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         email: z.string().max(200).optional().nullable(),
         phone: z.string().max(60).optional().nullable(),
+        firstName: z.string().max(120).optional().nullable(),
+        lastName: z.string().max(120).optional().nullable(),
+        dateOfBirth: z.string().max(20).optional().nullable(),
+        documentNumber: z.string().max(80).optional().nullable(),
         excludeGuestId: idSchema.optional(),
       })
       .parse(input),
@@ -1416,11 +1547,21 @@ export const findGuestDuplicates = createServerFn({ method: "POST" })
 
     const email = normalizeEmail(data.email);
     const phone = normalizePhone(data.phone);
-    if (!email && !phone) return [];
+    const firstName = data.firstName?.trim();
+    const lastName = data.lastName?.trim();
+    const dateOfBirth = data.dateOfBirth?.trim();
+    const documentNumber = data.documentNumber?.trim();
+    if (!email && !phone && !(firstName && lastName && dateOfBirth) && !documentNumber) return [];
 
     const filters: string[] = [];
     if (email) filters.push(`email_normalized.eq.${email}`);
     if (phone) filters.push(`phone_normalized.eq.${phone}`);
+    if (documentNumber) filters.push(`id_document_number.eq.${documentNumber}`);
+    if (firstName && lastName && dateOfBirth) {
+      filters.push(
+        `and(first_name.ilike.${firstName},last_name.ilike.${lastName},date_of_birth.eq.${dateOfBirth})`,
+      );
+    }
 
     const run = async (columns: string, excludeMerged: boolean) => {
       let query = context.supabase
@@ -1579,7 +1720,8 @@ export const getGuest = createServerFn({ method: "POST" })
             emergencyContactsAvailable: emergency.available,
             profileType: await loadGuestProfileTypeRef(data.restaurantId, row.profile_type_id),
             photoUrl: row.photo_storage_path
-              ? ((await signRoomImages([row.photo_storage_path])).get(row.photo_storage_path) ?? null)
+              ? ((await signRoomImages([row.photo_storage_path])).get(row.photo_storage_path) ??
+                null)
               : null,
           },
         ),
@@ -1606,12 +1748,25 @@ export const createGuest = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
-    const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");
+    const { assertListingCreateAllowed, loadGuestWorkspaceConfig } =
+      await import("./guest-workspace-config.functions");
     await assertListingCreateAllowed(data.restaurantId, "individual");
+    const workspaceConfig = await loadGuestWorkspaceConfig(data.restaurantId);
+    const { resolveIndividualProfileType, resolveGuestFieldRules, validateGuestFields } =
+      await import("./guest-field-rules");
+    const individualType = resolveIndividualProfileType(workspaceConfig);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const rules = await loadGuestProfileRules(supabaseAdmin, data.restaurantId);
-    const blocked = guestCreateBlocked(rules, data.guest);
-    if (blocked) throw new Error(blocked);
+    const fieldRules = resolveGuestFieldRules(workspaceConfig, individualType, "profile_create");
+    const fieldValidation = validateGuestFields(
+      data.guest as unknown as Record<string, unknown>,
+      fieldRules,
+      "profile_create",
+      rules,
+    );
+    if (!fieldValidation.valid) {
+      throw new Error(fieldValidation.errors[0] || "Guest creation requirements not met.");
+    }
     const columns = toColumns(data.guest);
     const restrictionOn = columns.restricted || columns.blacklisted;
     const identity = await allocateGuestIdentity(data.restaurantId);
@@ -1774,7 +1929,7 @@ export const updateGuest = createServerFn({ method: "POST" })
         : {}),
     };
 
-    let { error } = await context.supabase
+    const { error } = await context.supabase
       .from("guest_profiles")
       .update(updateRow as never)
       .eq("restaurant_id", data.restaurantId)
@@ -2111,7 +2266,16 @@ export const saveGuestPreferences = createServerFn({ method: "POST" })
         actorMembershipId: me.id,
       });
     }
-    await syncWave2PreferencesToCard4(data.restaurantId, data.guestId, p);
+    await syncWave2PreferencesToCard4(data.restaurantId, data.guestId, {
+      roomPreference: p.roomPreference ?? null,
+      bedPreference: p.bedPreference ?? null,
+      floorPreference: p.floorPreference ?? null,
+      viewPreference: p.viewPreference ?? null,
+      foodPreference: p.foodPreference ?? null,
+      communicationPreference: p.communicationPreference ?? null,
+      accessibilityRequirements: p.accessibilityRequirements ?? null,
+      specialRequests: p.specialRequests ?? null,
+    });
     return { ok: true };
   });
 
@@ -2141,7 +2305,7 @@ async function loadPreferenceWorkspaceCatalogue(
   restaurantId: string,
 ): Promise<{ categories: PreferenceCategoryRecord[]; types: PreferenceTypeRecord[] }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const [categories, types] = await Promise.all([
+  const [categories, types, roomTypesRes, mealPlansRes, ratePlansRes] = await Promise.all([
     supabaseAdmin
       .from("pms_guest_preference_categories")
       .select("id, name, code, description, active, display_order, created_at, updated_at")
@@ -2154,6 +2318,21 @@ async function loadPreferenceWorkspaceCatalogue(
       )
       .eq("restaurant_id", restaurantId)
       .order("display_order"),
+    supabaseAdmin
+      .from("room_types")
+      .select("id, name, code, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
+    supabaseAdmin
+      .from("pms_meal_plans")
+      .select("id, name, code, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
+    supabaseAdmin
+      .from("hotel_rate_plans")
+      .select("id, name, code, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
   ]);
   if (categories.error) {
     if (isMissingSchemaError(categories.error)) return { categories: [], types: [] };
@@ -2163,44 +2342,77 @@ async function loadPreferenceWorkspaceCatalogue(
     if (isMissingSchemaError(types.error)) return { categories: [], types: [] };
     throw new Error(types.error.message);
   }
+  interface PrefCategoryRow {
+    id?: string | null;
+    name?: string | null;
+    code?: string | null;
+    description?: string | null;
+    active?: boolean | null;
+    display_order?: number | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  interface PrefTypeRow {
+    id?: string | null;
+    category_id?: string | null;
+    name?: string | null;
+    code?: string | null;
+    value_type?: string | null;
+    options?: unknown;
+    required?: boolean | null;
+    active?: boolean | null;
+    display_order?: number | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  const rawCategories = ((categories.data ?? []) as PrefCategoryRow[]).map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    code: String(row.code),
+    description: (row.description as string | null) ?? null,
+    active: Boolean(row.active),
+    displayOrder: Number(row.display_order ?? 1),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  }));
+
+  const rawTypes = ((types.data ?? []) as PrefTypeRow[]).map((row) => ({
+    id: String(row.id),
+    categoryId: String(row.category_id),
+    name: String(row.name),
+    code: String(row.code),
+    valueType: isPreferenceValueType(String(row.value_type))
+      ? (row.value_type as PreferenceValueType)
+      : "single",
+    options: normalizePreferenceOptions(row.options),
+    required: Boolean(row.required),
+    active: Boolean(row.active),
+    displayOrder: Number(row.display_order ?? 1),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  }));
+
+  const effective = resolveEffectivePreferences(
+    rawCategories,
+    rawTypes,
+    (roomTypesRes.data ?? []) as any,
+    (mealPlansRes.data ?? []) as any,
+    (ratePlansRes.data ?? []) as any,
+  );
+
   return {
-    categories: ((categories.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-      id: String(row.id),
-      name: String(row.name),
-      code: String(row.code),
-      description: (row.description as string | null) ?? null,
-      active: Boolean(row.active),
-      displayOrder: Number(row.display_order ?? 1),
-      createdAt: String(row.created_at),
-      updatedAt: String(row.updated_at),
-    })),
-    types: ((types.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
-      id: String(row.id),
-      categoryId: String(row.category_id),
-      name: String(row.name),
-      code: String(row.code),
-      valueType: isPreferenceValueType(String(row.value_type))
-        ? (row.value_type as PreferenceValueType)
-        : "single",
-      options: normalizePreferenceOptions(row.options),
-      required: Boolean(row.required),
-      active: Boolean(row.active),
-      displayOrder: Number(row.display_order ?? 1),
-      createdAt: String(row.created_at),
-      updatedAt: String(row.updated_at),
-    })),
+    categories: effective.categories,
+    types: effective.types,
   };
 }
 
-function hydrateFromWave2(
-  type: PreferenceTypeRecord,
-  wave2: GuestPreferences,
-): string[] {
+function hydrateFromWave2(type: PreferenceTypeRecord, wave2: GuestPreferences): string[] {
   const field = WAVE2_FIELD_BY_CARD4_CODE[type.code];
   if (!field) return [];
   const stored = wave2[field];
+  const storedStr = typeof stored === "string" ? stored : stored != null ? String(stored) : null;
   const label = formatPreferenceStoredValue(
-    stored,
+    storedStr,
     type.options.map((option) => ({ id: option.id, label: option.label })),
   );
   if (!label) return [];
@@ -2208,7 +2420,7 @@ function hydrateFromWave2(
     (option) =>
       option.value.toLowerCase() === label.toLowerCase() ||
       option.label.toLowerCase() === label.toLowerCase() ||
-      option.id === stored?.replace(/^id:/, ""),
+      option.id === (typeof stored === "string" ? stored.replace(/^id:/, "") : undefined),
   );
   if (type.valueType === "multi") {
     return match ? [match.value] : [label];
@@ -2218,7 +2430,11 @@ function hydrateFromWave2(
     if (lower.startsWith("y")) return ["yes"];
     if (lower.startsWith("n")) return ["no"];
   }
-  return match ? [match.value] : type.valueType === "text" || type.valueType === "number" ? [label] : [];
+  return match
+    ? [match.value]
+    : type.valueType === "text" || type.valueType === "number"
+      ? [label]
+      : [];
 }
 
 export const listGuestPreferenceWorkspace = createServerFn({ method: "POST" })
@@ -2261,7 +2477,10 @@ export const listGuestPreferenceWorkspace = createServerFn({ method: "POST" })
       .eq("guest_id", data.guestId);
     const byType = new Map<string, string[]>();
     if (!values.error) {
-      for (const row of (values.data ?? []) as Array<{ preference_type_id: string; value_json: unknown }>) {
+      for (const row of (values.data ?? []) as Array<{
+        preference_type_id: string;
+        value_json: unknown;
+      }>) {
         const raw = Array.isArray(row.value_json) ? row.value_json.map(String) : [];
         byType.set(row.preference_type_id, raw);
       }
@@ -2284,22 +2503,50 @@ export const listGuestPreferenceWorkspace = createServerFn({ method: "POST" })
       })
       .filter((category) => category.active || category.types.length > 0);
 
-    const method = (guest.data as { preferred_contact_method?: string | null }).preferred_contact_method;
+    const method = (guest.data as { preferred_contact_method?: string | null })
+      .preferred_contact_method;
     const time = (guest.data as { preferred_contact_time?: string | null }).preferred_contact_time;
+    const safeMethod = method ?? "";
+    const safeTime = time ?? "";
     return {
       available: catalogue.categories.length > 0 || catalogue.types.length > 0,
       categories,
       applyToFutureReservations: Boolean(
-        (prefs.data as { apply_to_future_reservations?: boolean } | null)?.apply_to_future_reservations,
+        (prefs.data as { apply_to_future_reservations?: boolean } | null)
+          ?.apply_to_future_reservations,
       ),
       contactDefaults: {
         language: ((guest.data as { language?: string | null }).language ?? "") as string,
-        preferredContactMethod: isPreferredContactMethod(method ?? "")
-          ? method
-          : "",
-        preferredContactTime: isPreferredContactTime(time ?? "") ? time : "",
+        preferredContactMethod: isPreferredContactMethod(safeMethod) ? safeMethod : "",
+        preferredContactTime: isPreferredContactTime(safeTime) ? safeTime : "",
       },
       wave2,
+    };
+  });
+
+export type GuestPreferenceRegistrationCatalogue = {
+  available: boolean;
+  categories: Array<PreferenceCategoryRecord & { types: GuestPreferenceWorkspaceType[] }>;
+};
+
+export const listGuestPreferenceRegistrationCatalogue = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data }): Promise<GuestPreferenceRegistrationCatalogue> => {
+    const catalogue = await loadPreferenceWorkspaceCatalogue(data.restaurantId);
+    const categories = catalogue.categories
+      .map((category) => {
+        const types = catalogue.types
+          .filter((type) => type.categoryId === category.id)
+          .map((type) => ({ ...type, values: [] }))
+          .filter((type) => type.active);
+        return { ...category, types };
+      })
+      .filter((category) => category.active && category.types.length > 0);
+
+    return {
+      available: categories.length > 0,
+      categories,
     };
   });
 
@@ -2325,55 +2572,191 @@ export const saveGuestPreferenceWorkspace = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(
-    async ({
-      data,
-      context,
-    }): Promise<{ ok: true } | { ok: false; message: string }> => {
-      const me = await requireGuestManager(context as never, data.restaurantId);
-      const catalogue = await loadPreferenceWorkspaceCatalogue(data.restaurantId);
-      const typeById = new Map(catalogue.types.map((type) => [type.id, type]));
-      const normalized: Array<{ type: PreferenceTypeRecord; values: string[] }> = [];
-      for (const answer of data.answers) {
-        const type = typeById.get(answer.typeId);
-        if (!type) return { ok: false, message: "A preference type is no longer available." };
-        const values = normalizePreferenceAnswers(type.valueType, answer.values);
-        const error = validatePreferenceAnswer(type, values);
-        if (error) return { ok: false, message: error };
-        if (!type.active && values.length === 0) continue;
-        if (!type.active && values.length > 0) {
-          normalized.push({ type, values });
-          continue;
-        }
+  .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
+    const me = await requireGuestManager(context as never, data.restaurantId);
+    const catalogue = await loadPreferenceWorkspaceCatalogue(data.restaurantId);
+    const typeById = new Map(catalogue.types.map((type) => [type.id, type]));
+    const normalized: Array<{ type: PreferenceTypeRecord; values: string[] }> = [];
+    for (const answer of data.answers) {
+      const type = typeById.get(answer.typeId);
+      if (!type) return { ok: false, message: "A preference type is no longer available." };
+      const values = normalizePreferenceAnswers(type.valueType, answer.values);
+      const error = validatePreferenceAnswer(type, values);
+      if (error) return { ok: false, message: error };
+      if (!type.active && values.length === 0) continue;
+      if (!type.active && values.length > 0) {
         normalized.push({ type, values });
+        continue;
       }
+      normalized.push({ type, values });
+    }
 
-      const { data: guest, error: guestError } = await context.supabase
-        .from("guest_profiles")
-        .select("id, anonymised_at")
+    const { data: guest, error: guestError } = await context.supabase
+      .from("guest_profiles")
+      .select("id, anonymised_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId)
+      .maybeSingle();
+    if (guestError && isMissingSchemaError(guestError))
+      return {
+        ok: false,
+        message: "Guest preferences are unavailable until their migration is applied.",
+      };
+    if (!guest) return { ok: false, message: "That guest could not be found." };
+    if ((guest as { anonymised_at?: string | null }).anonymised_at) {
+      return { ok: false, message: "This profile has been anonymised and cannot be changed." };
+    }
+
+    const { error: contactError } = await context.supabase
+      .from("guest_profiles")
+      .update({
+        language: blankToNull(data.contactDefaults.language),
+        preferred_contact_method: data.contactDefaults.preferredContactMethod || null,
+        preferred_contact_time: data.contactDefaults.preferredContactTime || null,
+      })
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId);
+    if (contactError) return { ok: false, message: contactError.message };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    for (const item of normalized) {
+      const { error } = await supabaseAdmin.from("guest_preference_values").upsert(
+        {
+          restaurant_id: data.restaurantId,
+          guest_id: data.guestId,
+          preference_type_id: item.type.id,
+          value_json: item.values,
+        } as never,
+        { onConflict: "guest_id,preference_type_id" },
+      );
+      if (error) return { ok: false, message: error.message };
+    }
+
+    const wave2Patch: Record<string, string | null> = {};
+    for (const item of normalized) {
+      const field = WAVE2_FIELD_BY_CARD4_CODE[item.type.code];
+      if (!field) continue;
+      const label =
+        item.values.length === 0
+          ? null
+          : (item.type.options.find((option) => option.value === item.values[0])?.label ??
+            item.values.join(", "));
+      wave2Patch[
+        field === "roomPreference"
+          ? "room_preference"
+          : field === "bedPreference"
+            ? "bed_preference"
+            : field === "floorPreference"
+              ? "floor_preference"
+              : field === "viewPreference"
+                ? "view_preference"
+                : field === "foodPreference"
+                  ? "food_preference"
+                  : field === "communicationPreference"
+                    ? "communication_preference"
+                    : field === "accessibilityRequirements"
+                      ? "accessibility_requirements"
+                      : "special_requests"
+      ] = label ? `other:${label}` : null;
+    }
+    const textNotes = normalized
+      .filter((item) => item.type.valueType === "text")
+      .flatMap((item) => item.values);
+    if (textNotes.length > 0) wave2Patch["special_requests"] = textNotes.join("\n");
+
+    const existing = await context.supabase
+      .from("guest_preferences")
+      .select("id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .maybeSingle();
+    const prefRow = {
+      ...wave2Patch,
+      apply_to_future_reservations: data.applyToFutureReservations,
+    };
+    if (existing.data) {
+      const { error } = await context.supabase
+        .from("guest_preferences")
+        .update(prefRow)
         .eq("restaurant_id", data.restaurantId)
-        .eq("id", data.guestId)
-        .maybeSingle();
-      if (guestError && isMissingSchemaError(guestError))
-        return { ok: false, message: "Guest preferences are unavailable until their migration is applied." };
-      if (!guest) return { ok: false, message: "That guest could not be found." };
-      if ((guest as { anonymised_at?: string | null }).anonymised_at) {
-        return { ok: false, message: "This profile has been anonymised and cannot be changed." };
-      }
+        .eq("guest_id", data.guestId);
+      if (error) return { ok: false, message: error.message };
+    } else {
+      const { error } = await context.supabase.from("guest_preferences").insert({
+        restaurant_id: data.restaurantId,
+        guest_id: data.guestId,
+        ...prefRow,
+      });
+      if (error) return { ok: false, message: error.message };
+    }
 
-      const { error: contactError } = await context.supabase
-        .from("guest_profiles")
-        .update({
-          language: blankToNull(data.contactDefaults.language),
-          preferred_contact_method: data.contactDefaults.preferredContactMethod || null,
-          preferred_contact_time: data.contactDefaults.preferredContactTime || null,
-        })
-        .eq("restaurant_id", data.restaurantId)
-        .eq("id", data.guestId);
-      if (contactError) return { ok: false, message: contactError.message };
+    await recordGuestEvent({
+      restaurantId: data.restaurantId,
+      guestId: data.guestId,
+      eventType: "preference_updated",
+      newValues: {
+        apply_to_future_reservations: data.applyToFutureReservations,
+        types: normalized.map((item) => item.type.code),
+      },
+      actorMembershipId: me.id,
+    });
+    return { ok: true };
+  });
 
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      for (const item of normalized) {
+export const saveGuestPreferenceAnswers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        guestId: idSchema,
+        answers: z.array(
+          z.object({
+            typeId: idSchema,
+            values: z.array(z.string().max(PREFERENCE_TEXT_MAX)).max(40),
+          }),
+        ),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
+    await requireGuestManager(context as never, data.restaurantId);
+    const catalogue = await loadPreferenceWorkspaceCatalogue(data.restaurantId);
+    const typeById = new Map(catalogue.types.map((type) => [type.id, type]));
+    const normalized: Array<{ type: PreferenceTypeRecord; values: string[] }> = [];
+
+    for (const answer of data.answers) {
+      const type = typeById.get(answer.typeId);
+      if (!type) continue;
+      const values = normalizePreferenceAnswers(type.valueType, answer.values);
+      const error = validatePreferenceAnswer(type, values);
+      if (error) return { ok: false, message: error };
+      if (!type.active && values.length === 0) continue;
+      normalized.push({ type, values });
+    }
+
+    const { data: guest } = await context.supabase
+      .from("guest_profiles")
+      .select("id, anonymised_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId)
+      .maybeSingle();
+
+    if (!guest) return { ok: false, message: "That guest could not be found." };
+    if ((guest as { anonymised_at?: string | null }).anonymised_at) {
+      return { ok: false, message: "This profile has been anonymised and cannot be changed." };
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    for (const item of normalized) {
+      if (item.values.length === 0) {
+        await supabaseAdmin
+          .from("guest_preference_values")
+          .delete()
+          .eq("restaurant_id", data.restaurantId)
+          .eq("guest_id", data.guestId)
+          .eq("preference_type_id", item.type.id);
+      } else {
         const { error } = await supabaseAdmin.from("guest_preference_values").upsert(
           {
             restaurant_id: data.restaurantId,
@@ -2385,78 +2768,10 @@ export const saveGuestPreferenceWorkspace = createServerFn({ method: "POST" })
         );
         if (error) return { ok: false, message: error.message };
       }
+    }
 
-      const wave2Patch: Record<string, string | null> = {};
-      for (const item of normalized) {
-        const field = WAVE2_FIELD_BY_CARD4_CODE[item.type.code];
-        if (!field) continue;
-        const label =
-          item.values.length === 0
-            ? null
-            : item.type.options.find((option) => option.value === item.values[0])?.label ??
-              item.values.join(", ");
-        wave2Patch[
-          field === "roomPreference"
-            ? "room_preference"
-            : field === "bedPreference"
-              ? "bed_preference"
-              : field === "floorPreference"
-                ? "floor_preference"
-                : field === "viewPreference"
-                  ? "view_preference"
-                  : field === "foodPreference"
-                    ? "food_preference"
-                    : field === "communicationPreference"
-                      ? "communication_preference"
-                      : field === "accessibilityRequirements"
-                        ? "accessibility_requirements"
-                        : "special_requests"
-        ] = label ? `other:${label}` : null;
-      }
-      const textNotes = normalized
-        .filter((item) => item.type.valueType === "text")
-        .flatMap((item) => item.values);
-      if (textNotes.length > 0) wave2Patch.special_requests = textNotes.join("\n");
-
-      const existing = await context.supabase
-        .from("guest_preferences")
-        .select("id")
-        .eq("restaurant_id", data.restaurantId)
-        .eq("guest_id", data.guestId)
-        .maybeSingle();
-      const prefRow = {
-        ...wave2Patch,
-        apply_to_future_reservations: data.applyToFutureReservations,
-      };
-      if (existing.data) {
-        const { error } = await context.supabase
-          .from("guest_preferences")
-          .update(prefRow)
-          .eq("restaurant_id", data.restaurantId)
-          .eq("guest_id", data.guestId);
-        if (error) return { ok: false, message: error.message };
-      } else {
-        const { error } = await context.supabase.from("guest_preferences").insert({
-          restaurant_id: data.restaurantId,
-          guest_id: data.guestId,
-          ...prefRow,
-        });
-        if (error) return { ok: false, message: error.message };
-      }
-
-      await recordGuestEvent({
-        restaurantId: data.restaurantId,
-        guestId: data.guestId,
-        eventType: "preference_updated",
-        newValues: {
-          apply_to_future_reservations: data.applyToFutureReservations,
-          types: normalized.map((item) => item.type.code),
-        },
-        actorMembershipId: me.id,
-      });
-      return { ok: true };
-    },
-  );
+    return { ok: true };
+  });
 
 export const getGuestReservationPreferenceDefaults = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -2563,9 +2878,9 @@ export const listGuestPreferenceSummary = createServerFn({ method: "POST" })
         .eq("restaurant_id", data.restaurantId);
       if (!types.error) {
         const typeById = new Map(
-          ((types.data ?? []) as Array<{ id: string; name: string; code: string; active: boolean }>).map(
-            (row) => [row.id, row],
-          ),
+          (
+            (types.data ?? []) as Array<{ id: string; name: string; code: string; active: boolean }>
+          ).map((row) => [row.id, row]),
         );
         const chips: OverviewPreferenceChip[] = [];
         for (const row of (values.data ?? []) as Array<{
@@ -2573,7 +2888,9 @@ export const listGuestPreferenceSummary = createServerFn({ method: "POST" })
           value_json: unknown;
         }>) {
           const type = typeById.get(row.preference_type_id);
-          const raw = Array.isArray(row.value_json) ? row.value_json.map(String).filter(Boolean) : [];
+          const raw = Array.isArray(row.value_json)
+            ? row.value_json.map(String).filter(Boolean)
+            : [];
           if (!type || raw.length === 0) continue;
           chips.push({
             code: type.code,
@@ -2593,7 +2910,9 @@ export const listGuestPreferenceSummary = createServerFn({ method: "POST" })
       .eq("guest_id", data.guestId)
       .maybeSingle();
     if (!prefs.data) return { available: true, chips: [] };
-    const catalogues = await getGuestPreferenceCatalogues({ data: { restaurantId: data.restaurantId } });
+    const catalogues = await getGuestPreferenceCatalogues({
+      data: { restaurantId: data.restaurantId },
+    });
     const optionsFor = (key: keyof GuestPreferences) => {
       if (key === "roomPreference") return catalogues.roomTypes;
       if (key === "floorPreference") return catalogues.floors;
@@ -2785,15 +3104,20 @@ async function loadGuestServiceWorkspace(
     .select("service_type_id, amount, currency_code, active")
     .eq("restaurant_id", restaurantId);
   const categoryName = new Map(
-    ((categoriesRes.data ?? []) as Array<{ id: string; name: string }>).map((row) => [row.id, row.name]),
+    ((categoriesRes.data ?? []) as Array<{ id: string; name: string }>).map((row) => [
+      row.id,
+      row.name,
+    ]),
   );
   const priceByType = new Map(
-    ((pricingRes.data ?? []) as Array<{
-      service_type_id: string;
-      amount: number | string;
-      currency_code: string;
-      active: boolean;
-    }>)
+    (
+      (pricingRes.data ?? []) as Array<{
+        service_type_id: string;
+        amount: number | string;
+        currency_code: string;
+        active: boolean;
+      }>
+    )
       .filter((row) => row.active)
       .map((row) => [
         row.service_type_id,
@@ -2819,12 +3143,16 @@ async function loadGuestServiceWorkspace(
   }));
   const typeById = new Map(types.map((type) => [type.id, type]));
 
-  const reservationIds = [...new Set(rows.map((row) => row.reservation_id).filter(Boolean) as string[])];
+  const reservationIds = [
+    ...new Set(rows.map((row) => row.reservation_id).filter(Boolean) as string[]),
+  ];
   const stayById = new Map<string, { confirmationNumber: string; roomNumber: string | null }>();
   if (reservationIds.length > 0) {
     const stays = await supabaseAdmin
       .from("hotel_reservations")
-      .select("id, confirmation_number, room_id, hotel_rooms!hotel_reservations_room_same_type ( room_number )")
+      .select(
+        "id, confirmation_number, room_id, hotel_rooms!hotel_reservations_room_same_type ( room_number )",
+      )
       .eq("restaurant_id", restaurantId)
       .in("id", reservationIds);
     for (const stay of (stays.data ?? []) as Array<{
@@ -2852,7 +3180,10 @@ async function loadGuestServiceWorkspace(
     restaurantId,
     ((members.data ?? []) as Array<{ id: string }>).map((row) => row.id),
   );
-  const staff: GuestServiceStaffOption[] = [...staffNames.entries()].map(([id, name]) => ({ id, name }));
+  const staff: GuestServiceStaffOption[] = [...staffNames.entries()].map(([id, name]) => ({
+    id,
+    name,
+  }));
 
   const notesRes = await context.supabase
     .from("guest_profile_history")
@@ -2941,111 +3272,130 @@ export const createGuestServiceRequest = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ ok: true; id: string } | { ok: false; message: string }> => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const type = await supabaseAdmin
-      .from("pms_guest_service_types")
-      .select("id, active")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("id", data.serviceTypeId)
-      .maybeSingle();
-    if (type.error && isMissingSchemaError(type.error)) {
-      return { ok: false, message: "Guest service types are unavailable until their migration is applied." };
-    }
-    if (!type.data) return { ok: false, message: "That service type is not configured for this property." };
-    if (!(type.data as { active: boolean }).active) {
-      return { ok: false, message: "That service type is inactive and cannot be requested." };
-    }
-    if (data.reservationId) {
-      const stay = await context.supabase
-        .from("hotel_reservations")
-        .select("id, guest_id")
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ ok: true; id: string } | { ok: false; message: string }> => {
+      const me = await requireGuestManager(context as never, data.restaurantId);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const type = await supabaseAdmin
+        .from("pms_guest_service_types")
+        .select("id, active")
         .eq("restaurant_id", data.restaurantId)
-        .eq("id", data.reservationId)
+        .eq("id", data.serviceTypeId)
         .maybeSingle();
-      if (!stay.data || (stay.data as { guest_id: string }).guest_id !== data.guestId) {
-        return { ok: false, message: "That reservation does not belong to this guest." };
+      if (type.error && isMissingSchemaError(type.error)) {
+        return {
+          ok: false,
+          message: "Guest service types are unavailable until their migration is applied.",
+        };
       }
-    }
-    if (data.assignedMembershipId) {
-      const assigned = await supabaseAdmin
-        .from("restaurant_users")
-        .select("id")
+      if (!type.data)
+        return { ok: false, message: "That service type is not configured for this property." };
+      if (!(type.data as { active: boolean }).active) {
+        return { ok: false, message: "That service type is inactive and cannot be requested." };
+      }
+      if (data.reservationId) {
+        const stay = await context.supabase
+          .from("hotel_reservations")
+          .select("id, guest_id")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", data.reservationId)
+          .maybeSingle();
+        if (!stay.data || (stay.data as { guest_id: string }).guest_id !== data.guestId) {
+          return { ok: false, message: "That reservation does not belong to this guest." };
+        }
+      }
+      if (data.assignedMembershipId) {
+        const assigned = await supabaseAdmin
+          .from("restaurant_users")
+          .select("id")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", data.assignedMembershipId)
+          .maybeSingle();
+        if (!assigned.data)
+          return { ok: false, message: "That staff member is not on this property." };
+      }
+      const pricing = await supabaseAdmin
+        .from("pms_guest_service_pricing")
+        .select("amount, currency_code, active")
         .eq("restaurant_id", data.restaurantId)
-        .eq("id", data.assignedMembershipId)
+        .eq("service_type_id", data.serviceTypeId)
         .maybeSingle();
-      if (!assigned.data) return { ok: false, message: "That staff member is not on this property." };
-    }
-    const pricing = await supabaseAdmin
-      .from("pms_guest_service_pricing")
-      .select("amount, currency_code, active")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("service_type_id", data.serviceTypeId)
-      .maybeSingle();
-    const priced = pricing.data as { amount: number | string; currency_code: string; active: boolean } | null;
-    const numbered = await supabaseAdmin.rpc("next_guest_service_number", {
-      _restaurant_id: data.restaurantId,
-    });
-    const requestNumber = !numbered.error && typeof numbered.data === "string" ? numbered.data : null;
-    const notes = [data.description.trim(), data.specialInstructions?.trim()]
-      .filter(Boolean)
-      .join("\n\n");
-    const payload = {
-      restaurant_id: data.restaurantId,
-      guest_id: data.guestId,
-      reservation_id: data.reservationId,
-      service_type_id: data.serviceTypeId,
-      status: "requested",
-      notes,
-      request_number: requestNumber,
-      priority: data.priority,
-      preferred_at: data.preferredAt ?? null,
-      assigned_membership_id: data.assignedMembershipId ?? null,
-      amount: priced?.active ? Number(priced.amount) : null,
-      currency: priced?.active ? priced.currency_code : null,
-      created_by_membership_id: me.id,
-    };
-    let inserted = await supabaseAdmin.from("guest_service_history").insert(payload).select("id").maybeSingle();
-    if (inserted.error && isMissingSchemaError(inserted.error)) {
-      inserted = await supabaseAdmin
+      const priced = pricing.data as {
+        amount: number | string;
+        currency_code: string;
+        active: boolean;
+      } | null;
+      const numbered = await supabaseAdmin.rpc("next_guest_service_number", {
+        _restaurant_id: data.restaurantId,
+      });
+      const requestNumber =
+        !numbered.error && typeof numbered.data === "string" ? numbered.data : null;
+      const notes = [data.description.trim(), data.specialInstructions?.trim()]
+        .filter(Boolean)
+        .join("\n\n");
+      const payload = {
+        restaurant_id: data.restaurantId,
+        guest_id: data.guestId,
+        reservation_id: data.reservationId,
+        service_type_id: data.serviceTypeId,
+        status: "requested",
+        notes,
+        request_number: requestNumber,
+        priority: data.priority,
+        preferred_at: data.preferredAt ?? null,
+        assigned_membership_id: data.assignedMembershipId ?? null,
+        amount: priced?.active ? Number(priced.amount) : null,
+        currency: priced?.active ? priced.currency_code : null,
+        created_by_membership_id: me.id,
+      };
+      let inserted = await supabaseAdmin
         .from("guest_service_history")
-        .insert({
-          restaurant_id: data.restaurantId,
-          guest_id: data.guestId,
-          reservation_id: data.reservationId,
-          service_type_id: data.serviceTypeId,
-          status: "requested",
-          notes,
-          amount: priced?.active ? Number(priced.amount) : null,
-          currency: priced?.active ? priced.currency_code : null,
-          created_by_membership_id: me.id,
-        })
+        .insert(payload)
         .select("id")
         .maybeSingle();
-    }
-    if (inserted.error) return { ok: false, message: inserted.error.message };
-    const id = (inserted.data as { id: string }).id;
-    try {
-      await recordGuestEvent({
-        restaurantId: data.restaurantId,
-        guestId: data.guestId,
-        eventType: "service_request_created",
-        newValues: {
-          id,
-          request_number: requestNumber,
-          service_type_id: data.serviceTypeId,
-          status: "requested",
-          reservation_id: data.reservationId,
-        },
-        notes: data.description.trim(),
-        actorMembershipId: me.id,
-      });
-    } catch {
-      /* History event types land with 0089; the request row is the source of truth. */
-    }
-    return { ok: true, id };
-  });
+      if (inserted.error && isMissingSchemaError(inserted.error)) {
+        inserted = await supabaseAdmin
+          .from("guest_service_history")
+          .insert({
+            restaurant_id: data.restaurantId,
+            guest_id: data.guestId,
+            reservation_id: data.reservationId,
+            service_type_id: data.serviceTypeId,
+            status: "requested",
+            notes,
+            amount: priced?.active ? Number(priced.amount) : null,
+            currency: priced?.active ? priced.currency_code : null,
+            created_by_membership_id: me.id,
+          })
+          .select("id")
+          .maybeSingle();
+      }
+      if (inserted.error) return { ok: false, message: inserted.error.message };
+      const id = (inserted.data as { id: string }).id;
+      try {
+        await recordGuestEvent({
+          restaurantId: data.restaurantId,
+          guestId: data.guestId,
+          eventType: "service_request_created",
+          newValues: {
+            id,
+            request_number: requestNumber,
+            service_type_id: data.serviceTypeId,
+            status: "requested",
+            reservation_id: data.reservationId,
+          },
+          notes: data.description.trim(),
+          actorMembershipId: me.id,
+        });
+      } catch {
+        /* History event types land with 0089; the request row is the source of truth. */
+      }
+      return { ok: true, id };
+    },
+  );
 
 export const updateGuestServiceRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -3064,68 +3414,17 @@ export const updateGuestServiceRequest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const existing = await supabaseAdmin
-      .from("guest_service_history")
-      .select("id, status, assigned_membership_id, notes")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("guest_id", data.guestId)
-      .eq("id", data.requestId)
-      .maybeSingle();
-    if (!existing.data) return { ok: false, message: "That service request could not be found." };
-    const current = existing.data as {
-      status: string;
-      assigned_membership_id: string | null;
-      notes: string | null;
+    const updateParams: Parameters<typeof applyGuestServiceRequestUpdate>[0] = {
+      admin: supabaseAdmin,
+      restaurantId: data.restaurantId,
+      guestId: data.guestId,
+      requestId: data.requestId,
+      actorMembershipId: me.id,
     };
-    const currentStatus = isGuestServiceStatus(current.status)
-      ? (current.status as GuestServiceStatus)
-      : "requested";
-    const patch: Record<string, unknown> = {};
-    if (data.status && data.status !== currentStatus) {
-      if (!canTransitionGuestService(currentStatus, data.status)) {
-        return { ok: false, message: "That status change is not allowed." };
-      }
-      patch.status = data.status;
-      if (data.status === "completed") patch.completed_at = new Date().toISOString();
-      if (data.status === "cancelled") patch.cancelled_at = new Date().toISOString();
-    }
-    if (data.assignedMembershipId !== undefined) {
-      if (data.assignedMembershipId) {
-        const assigned = await supabaseAdmin
-          .from("restaurant_users")
-          .select("id")
-          .eq("restaurant_id", data.restaurantId)
-          .eq("id", data.assignedMembershipId)
-          .maybeSingle();
-        if (!assigned.data) return { ok: false, message: "That staff member is not on this property." };
-      }
-      patch.assigned_membership_id = data.assignedMembershipId;
-    }
-    if (data.notes !== undefined) patch.notes = data.notes;
-    if (Object.keys(patch).length === 0) return { ok: true };
-    const updated = await supabaseAdmin
-      .from("guest_service_history")
-      .update(patch)
-      .eq("restaurant_id", data.restaurantId)
-      .eq("guest_id", data.guestId)
-      .eq("id", data.requestId);
-    if (updated.error) return { ok: false, message: updated.error.message };
-    try {
-      await recordGuestEvent({
-        restaurantId: data.restaurantId,
-        guestId: data.guestId,
-        eventType: "service_request_updated",
-        previousValues: {
-          status: current.status,
-          assigned_membership_id: current.assigned_membership_id,
-        },
-        newValues: patch,
-        actorMembershipId: me.id,
-      });
-    } catch {
-      /* History event types land with 0089; the request row is the source of truth. */
-    }
-    return { ok: true };
+    if (data.status !== undefined) updateParams.status = data.status;
+    if (data.assignedMembershipId !== undefined) updateParams.assignedMembershipId = data.assignedMembershipId;
+    if (data.notes !== undefined) updateParams.notes = data.notes;
+    return applyGuestServiceRequestUpdate(updateParams);
   });
 
 export const createGuestPhotoUpload = createServerFn({ method: "POST" })
@@ -3168,7 +3467,8 @@ export const createGuestPhotoUpload = createServerFn({ method: "POST" })
     const { data: signed, error: signedError } = await supabaseAdmin.storage
       .from(ROOM_BUCKET)
       .createSignedUploadUrl(path);
-    if (signedError || !signed) return { ok: false as const, message: "Could not start the upload." };
+    if (signedError || !signed)
+      return { ok: false as const, message: "Could not start the upload." };
     return { ok: true as const, path, token: signed.token };
   });
 
@@ -3180,7 +3480,8 @@ export const saveGuestPhoto = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const prefix = `${data.restaurantId}/guests/${data.guestId}/`;
-    if (!data.path.startsWith(prefix)) throw new Error("That photo path is not valid for this guest.");
+    if (!data.path.startsWith(prefix))
+      throw new Error("That photo path is not valid for this guest.");
     const { data: before } = await context.supabase
       .from("guest_profiles")
       .select("photo_storage_path")
@@ -3328,10 +3629,18 @@ export type GuestIdentityDocumentTypeOption = {
   name: string;
   code: string;
   active: boolean;
-  issuingCountryRequired: boolean;
-  expiryDateRequired: boolean;
+  documentNumberActive?: boolean;
   documentNumberRequired: boolean;
+  issuingCountryActive?: boolean;
+  issuingCountryRequired: boolean;
+  issueDateActive?: boolean;
+  issueDateRequired?: boolean;
+  expiryDateActive?: boolean;
+  expiryDateRequired: boolean;
+  issuingAuthorityActive?: boolean;
+  issuingAuthorityRequired?: boolean;
   scanImageAllowed: boolean;
+  scanImageRequired?: boolean;
   validForProfileTypeIds: string[];
 };
 
@@ -3371,7 +3680,7 @@ async function loadIdentityDocumentTypes(
   const result = await supabaseAdmin
     .from("pms_guest_id_types")
     .select(
-      "id, name, code, active, issuing_country_required, expiry_date_required, document_number_required, scan_image_allowed, valid_for_profile_type_ids",
+      "id, name, code, active, document_number_active, document_number_required, issuing_country_active, issuing_country_required, issue_date_active, issue_date_required, expiry_date_active, expiry_date_required, issuing_authority_active, issuing_authority_required, scan_image_allowed, scan_image_required, valid_for_profile_type_ids",
     )
     .eq("restaurant_id", restaurantId)
     .order("display_order");
@@ -3379,15 +3688,42 @@ async function loadIdentityDocumentTypes(
     if (isMissingSchemaError(result.error)) return [];
     throw new Error(result.error.message);
   }
-  return ((result.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+  interface IdentityDocTypeRow {
+    id?: string | null;
+    name?: string | null;
+    code?: string | null;
+    active?: boolean | null;
+    document_number_active?: boolean | null;
+    document_number_required?: boolean | null;
+    issuing_country_active?: boolean | null;
+    issuing_country_required?: boolean | null;
+    issue_date_active?: boolean | null;
+    issue_date_required?: boolean | null;
+    expiry_date_active?: boolean | null;
+    expiry_date_required?: boolean | null;
+    issuing_authority_active?: boolean | null;
+    issuing_authority_required?: boolean | null;
+    scan_image_allowed?: boolean | null;
+    scan_image_required?: boolean | null;
+    valid_for_profile_type_ids?: unknown;
+  }
+  return ((result.data ?? []) as IdentityDocTypeRow[]).map((row) => ({
     id: String(row.id),
     name: String(row.name),
     code: String(row.code),
     active: Boolean(row.active),
-    issuingCountryRequired: Boolean(row.issuing_country_required),
-    expiryDateRequired: Boolean(row.expiry_date_required),
+    documentNumberActive: Boolean(row.document_number_active ?? true),
     documentNumberRequired: Boolean(row.document_number_required),
+    issuingCountryActive: Boolean(row.issuing_country_active ?? true),
+    issuingCountryRequired: Boolean(row.issuing_country_required),
+    issueDateActive: Boolean(row.issue_date_active ?? true),
+    issueDateRequired: Boolean(row.issue_date_required ?? false),
+    expiryDateActive: Boolean(row.expiry_date_active ?? true),
+    expiryDateRequired: Boolean(row.expiry_date_required),
+    issuingAuthorityActive: Boolean(row.issuing_authority_active ?? true),
+    issuingAuthorityRequired: Boolean(row.issuing_authority_required ?? false),
     scanImageAllowed: Boolean(row.scan_image_allowed),
+    scanImageRequired: Boolean(row.scan_image_required ?? false),
     validForProfileTypeIds: Array.isArray(row.valid_for_profile_type_ids)
       ? (row.valid_for_profile_type_ids as string[])
       : [],
@@ -3437,17 +3773,26 @@ function mapGuestDocumentRow(
   };
 }
 
-function validateDocumentFields(
+export function validateDocumentFields(
   type: GuestIdentityDocumentTypeOption,
   input: {
     documentNumber: string | null;
     issuingCountry: string | null;
+    issueDate?: string | null;
     expiryDate: string | null;
+    issuingAuthority?: string | null;
   },
 ): string | null {
-  if (type.documentNumberRequired && !input.documentNumber) return "Document number is required.";
-  if (type.issuingCountryRequired && !input.issuingCountry) return "Issuing country is required.";
-  if (type.expiryDateRequired && !input.expiryDate) return "Expiry date is required.";
+  if (type.documentNumberActive !== false && type.documentNumberRequired && !input.documentNumber)
+    return "Document number is required.";
+  if (type.issuingCountryActive !== false && type.issuingCountryRequired && !input.issuingCountry)
+    return "Issuing country is required.";
+  if (type.issueDateActive !== false && type.issueDateRequired && !input.issueDate)
+    return "Issue date is required.";
+  if (type.expiryDateActive !== false && type.expiryDateRequired && !input.expiryDate)
+    return "Expiry date is required.";
+  if (type.issuingAuthorityActive !== false && type.issuingAuthorityRequired && !input.issuingAuthority)
+    return "Issuing authority is required.";
   return null;
 }
 
@@ -3551,7 +3896,7 @@ export const listGuestDocuments = createServerFn({ method: "POST" })
   .handler(
     async ({ data, context }): Promise<{ available: boolean; documents: GuestDocument[] }> => {
       await requireGuestManager(context as never, data.restaurantId);
-      let query = context.supabase
+      const query = context.supabase
         .from("guest_documents")
         .select(GUEST_DOCUMENT_SELECT)
         .eq("restaurant_id", data.restaurantId)
@@ -3565,7 +3910,7 @@ export const listGuestDocuments = createServerFn({ method: "POST" })
           .eq("restaurant_id", data.restaurantId)
           .eq("guest_id", data.guestId)
           .order("created_at", { ascending: false });
-        rows = legacy.data;
+        rows = legacy.data as unknown as typeof rows;
         error = legacy.error;
         if (error && isMissingSchemaError(error)) return { available: false, documents: [] };
       }
@@ -3743,14 +4088,21 @@ export const saveGuestDocument = createServerFn({ method: "POST" })
           .eq("guest_id", data.guestId)
           .eq("id", data.documentId)
           .maybeSingle();
-        if (existing.error)
-          return { ok: false as const, message: existing.error.message };
-        if (!existing.data) return { ok: false as const, message: "That document could not be found." };
+        if (existing.error) return { ok: false as const, message: existing.error.message };
+        if (!existing.data)
+          return { ok: false as const, message: "That document could not be found." };
         existingTypeId = (existing.data as { id_type_id?: string | null }).id_type_id ?? null;
       }
 
       if (!data.documentId || existingTypeId !== data.idTypeId) {
-        if (!typeAllowedForNewDocument(type, profileTypeId)) {
+        const { loadGuestWorkspaceConfig } = await import("./guest-workspace-config.functions");
+        const { isDocumentTypeAllowedForProfileType } = await import("./guest-field-rules");
+        const workspaceConfig = await loadGuestWorkspaceConfig(data.restaurantId);
+        const profileType = workspaceConfig.types.find((t) => t.id === profileTypeId) ?? null;
+        if (
+          !typeAllowedForNewDocument(type, profileTypeId) ||
+          !isDocumentTypeAllowedForProfileType(type, profileType)
+        ) {
           return {
             ok: false as const,
             message: type.active
@@ -3762,11 +4114,15 @@ export const saveGuestDocument = createServerFn({ method: "POST" })
 
       const documentNumber = blankToNull(data.documentNumber);
       const issuingCountry = blankToNull(data.issuingCountry);
+      const issueDate = blankToNull(data.issueDate);
       const expiryDate = blankToNull(data.expiryDate);
+      const issuingAuthority = blankToNull(data.issuingAuthority);
       const requiredError = validateDocumentFields(type, {
         documentNumber,
         issuingCountry,
+        issueDate,
         expiryDate,
+        issuingAuthority,
       });
       if (requiredError) return { ok: false as const, message: requiredError };
 
@@ -3864,7 +4220,9 @@ export const saveGuestDocumentImage = createServerFn({ method: "POST" })
       .maybeSingle();
     if (loadError) return { ok: false as const, message: loadError.message };
     if (!row) return { ok: false as const, message: "That document could not be found." };
-    const type = types.find((item) => item.id === (row as { id_type_id?: string | null }).id_type_id);
+    const type = types.find(
+      (item) => item.id === (row as { id_type_id?: string | null }).id_type_id,
+    );
     if (type && !type.scanImageAllowed) {
       return { ok: false as const, message: "Images are not allowed for this document type." };
     }
@@ -3928,8 +4286,7 @@ export const clearGuestDocumentImage = createServerFn({ method: "POST" })
       data.side === "front"
         ? (row as { storage_path?: string | null }).storage_path
         : (row as { back_storage_path?: string | null }).back_storage_path;
-    const patch =
-      data.side === "front" ? { storage_path: null } : { back_storage_path: null };
+    const patch = data.side === "front" ? { storage_path: null } : { back_storage_path: null };
     const { error } = await context.supabase
       .from("guest_documents")
       .update(patch)
@@ -4317,6 +4674,78 @@ export const mergeGuests = createServerFn({ method: "POST" })
       }
     }
 
+    // Merge custom field values
+    const { data: survivorCustomRows } = await supabaseAdmin
+      .from("guest_custom_field_values")
+      .select("*")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.survivorId);
+    const survivorCustomMap = new Map(((survivorCustomRows ?? []) as any[]).map((r) => [r.field_id, r]));
+
+    const { data: retiredCustomRows } = await supabaseAdmin
+      .from("guest_custom_field_values")
+      .select("*")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.retiredId);
+
+    const customFieldConflicts: Array<{
+      fieldId: string;
+      survivorValue: unknown;
+      retiredValue: unknown;
+    }> = [];
+    const copiedCustomFieldIds: string[] = [];
+
+    for (const retiredRow of (retiredCustomRows ?? []) as any[]) {
+      const survivorRow = survivorCustomMap.get(retiredRow.field_id);
+      const retiredVal = retiredRow.value_json;
+      const retiredHasVal = retiredVal !== null && retiredVal !== undefined && retiredVal !== "" && !(Array.isArray(retiredVal) && retiredVal.length === 0);
+
+      if (!retiredHasVal) continue;
+
+      if (!survivorRow) {
+        // Survivor does not have this custom field: copy retired over to survivor
+        await supabaseAdmin
+          .from("guest_custom_field_values")
+          .insert({
+            restaurant_id: data.restaurantId,
+            guest_id: data.survivorId,
+            field_id: retiredRow.field_id,
+            value_json: retiredRow.value_json,
+          });
+        copiedCustomFieldIds.push(retiredRow.field_id);
+      } else {
+        const survivorVal = survivorRow.value_json;
+        const survivorHasVal = survivorVal !== null && survivorVal !== undefined && survivorVal !== "" && !(Array.isArray(survivorVal) && survivorVal.length === 0);
+
+        if (!survivorHasVal) {
+          // Survivor has empty/null value: update with retired value
+          await supabaseAdmin
+            .from("guest_custom_field_values")
+            .update({
+              value_json: retiredRow.value_json,
+            })
+            .eq("restaurant_id", data.restaurantId)
+            .eq("guest_id", data.survivorId)
+            .eq("field_id", retiredRow.field_id);
+          copiedCustomFieldIds.push(retiredRow.field_id);
+        } else if (JSON.stringify(survivorVal) !== JSON.stringify(retiredVal)) {
+          // Both have non-empty different values: conflict! Survivor keeps operational value; record conflict
+          customFieldConflicts.push({
+            fieldId: retiredRow.field_id,
+            survivorValue: survivorVal,
+            retiredValue: retiredVal,
+          });
+        }
+      }
+    }
+
+    // Scrub retired guest's custom field values so no orphaned active values remain attached to inactive profile
+    await supabaseAdmin
+      .from("guest_custom_field_values")
+      .delete()
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.retiredId);
+
     const { error: retireError } = await supabaseAdmin
       .from("guest_profiles")
       .update({
@@ -4338,6 +4767,7 @@ export const mergeGuests = createServerFn({ method: "POST" })
         survivor_id: data.survivorId,
         retired_id: data.retiredId,
         retired_name: fullName(retired.first_name, retired.last_name),
+        custom_field_conflicts: customFieldConflicts.length > 0 ? customFieldConflicts : undefined,
       },
       notes: `Merged from ${fullName(retired.first_name, retired.last_name)}`,
       actorMembershipId: me.id,
@@ -4368,6 +4798,8 @@ export const mergeGuests = createServerFn({ method: "POST" })
       movedLinkIds,
       deletedLinkIds,
       retiredStatus: retired.guest_status,
+      customFieldConflicts: customFieldConflicts.length > 0 ? customFieldConflicts : undefined,
+      copiedCustomFieldIds: copiedCustomFieldIds.length > 0 ? copiedCustomFieldIds : undefined,
     };
     const ledger = await (supabaseAdmin as unknown as { from: (table: string) => any })
       .from("guest_merge_ledger")
@@ -4488,10 +4920,7 @@ async function decorateGuestStayCatalogues(
     const commercial = row?.commercial_booking_source?.trim() || "";
     const operational = row?.source?.trim() || "";
     const sourceLabel =
-      (commercial && sourceByKey.get(commercial)) ||
-      commercial ||
-      operational ||
-      stay.sourceLabel;
+      (commercial && sourceByKey.get(commercial)) || commercial || operational || stay.sourceLabel;
     const ratePlanName = (row?.rate_plan_id && rateById.get(row.rate_plan_id)) || stay.ratePlanName;
     return { ...stay, ratePlanName, sourceLabel };
   });
@@ -4643,67 +5072,60 @@ export const listGuestStays = createServerFn({ method: "POST" })
 export const getGuestBookingDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z
-      .object({ restaurantId: idSchema, guestId: idSchema, reservationId: idSchema })
-      .parse(input),
+    z.object({ restaurantId: idSchema, guestId: idSchema, reservationId: idSchema }).parse(input),
   )
-  .handler(
-    async ({
-      data,
-      context,
-    }): Promise<{ timeline: GuestBookingHistoryEvent[] }> => {
-      await requireGuestManager(context as never, data.restaurantId);
+  .handler(async ({ data, context }): Promise<{ timeline: GuestBookingHistoryEvent[] }> => {
+    await requireGuestManager(context as never, data.restaurantId);
 
-      const { data: reservation, error } = await context.supabase
-        .from("hotel_reservations")
-        .select("id")
-        .eq("restaurant_id", data.restaurantId)
-        .eq("guest_id", data.guestId)
-        .eq("id", data.reservationId)
-        .maybeSingle();
-      if (error && isReservationRlsBlocked(error)) {
-        throw new Error(WAVE3_RESERVATION_RLS_BLOCKED);
-      }
-      if (error) throw new Error(error.message);
-      if (!reservation) throw new Error("Reservation not found for this guest.");
+    const { data: reservation, error } = await context.supabase
+      .from("hotel_reservations")
+      .select("id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", data.guestId)
+      .eq("id", data.reservationId)
+      .maybeSingle();
+    if (error && isReservationRlsBlocked(error)) {
+      throw new Error(WAVE3_RESERVATION_RLS_BLOCKED);
+    }
+    if (error) throw new Error(error.message);
+    if (!reservation) throw new Error("Reservation not found for this guest.");
 
-      let eventsResult = await context.supabase
+    let eventsResult = await context.supabase
+      .from("hotel_reservation_history")
+      .select("id, event_type, notes, created_at")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("reservation_id", data.reservationId)
+      .order("created_at", { ascending: true })
+      .limit(100);
+    if (eventsResult.error && isReservationRlsBlocked(eventsResult.error)) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      eventsResult = await supabaseAdmin
         .from("hotel_reservation_history")
         .select("id, event_type, notes, created_at")
         .eq("restaurant_id", data.restaurantId)
         .eq("reservation_id", data.reservationId)
         .order("created_at", { ascending: true })
         .limit(100);
-      if (eventsResult.error && isReservationRlsBlocked(eventsResult.error)) {
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        eventsResult = await supabaseAdmin
-          .from("hotel_reservation_history")
-          .select("id, event_type, notes, created_at")
-          .eq("restaurant_id", data.restaurantId)
-          .eq("reservation_id", data.reservationId)
-          .order("created_at", { ascending: true })
-          .limit(100);
-      }
-      if (eventsResult.error) throw new Error(eventsResult.error.message);
+    }
+    if (eventsResult.error) throw new Error(eventsResult.error.message);
 
-      const timeline: GuestBookingHistoryEvent[] = (
-        (eventsResult.data ?? []) as Array<{
-          id: string;
-          event_type: string;
-          notes: string | null;
-          created_at: string;
-        }>
-      ).map((event) => ({
-        id: event.id,
-        eventKind: event.event_type,
-        label: bookingTimelineLabel(event.event_type),
-        createdAt: event.created_at,
-        notes: event.notes,
-      }));
+    const timeline: GuestBookingHistoryEvent[] = (
+      (eventsResult.data ?? []) as Array<{
+        id: string;
+        event_type: string;
+        notes: string | null;
+        created_at: string;
+      }>
+    ).map((event) => ({
+      id: event.id,
+      eventKind: event.event_type,
+      label: bookingTimelineLabel(event.event_type),
+      createdAt: event.created_at,
+      notes: event.notes,
+    }));
 
-      return { timeline };
-    },
-  );
+    return { timeline };
+  });
 
 export const getGuestStayOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

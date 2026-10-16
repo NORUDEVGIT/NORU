@@ -266,7 +266,7 @@ describe("Guest Profile Company enrichment lock — AC-GE1-1…24", () => {
     const cashiering = readRel("./cashiering.functions.ts");
     assert.doesNotMatch(form, /import wizard|loyalty points|folio routed/i);
     assert.doesNotMatch(links, /folio routed|import guests|points widget/i);
-    assert.match(cashiering, /transfersSupported: false/);
+    assert.match(cashiering, /transfersSupported: true/);
   });
 
   it("AC-GE1-18 Group / TA forms stay thin", () => {

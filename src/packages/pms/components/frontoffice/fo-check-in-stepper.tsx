@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { Textarea } from "@/shared/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -33,14 +32,24 @@ import {
 } from "@/shared/components/ui/alert-dialog";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
-import { assignReservationRoom, listAssignableRooms } from "@/packages/pms/lib/reservations.functions";
+import {
+  assignReservationRoom,
+  listAssignableRooms,
+} from "@/packages/pms/lib/reservations.functions";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
+import { assignableListUi, formatRoomTypeLabel } from "@/packages/pms/lib/fo-room-assignment";
+import { AssignableRoomsHint } from "@/packages/pms/components/frontoffice/assignable-rooms-hint";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
+import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
+import {
+  POLISH1_PAYMENT_METHODS_HREF,
+  cashieringTenderOptions,
+  emptyPolish1Snapshot,
+} from "@/packages/pms/lib/pms-polish1-payment-admin";
 import {
   CHECK_IN_STEPS,
   CHECK_IN_STEP_META,
-  DEPOSIT_METHOD_CHIPS,
   DEPOSIT_REQUIRED_BANNER,
   ID_DOCUMENT_LABELS,
   ID_DOCUMENT_TYPES,
@@ -70,6 +79,9 @@ import {
   waiveCheckInKey,
   waiveCheckInRegistration,
 } from "@/packages/pms/lib/fo-check-in.functions";
+import { etaTiming, GUARANTEE_HOLD_UNSUPPORTED } from "@/packages/pms/lib/fo-arrival";
+import { getFrontOfficeApprovalRequirement } from "@/packages/pms/lib/fo-approvals.functions";
+import { FoAuthorizationCard } from "@/packages/pms/components/frontoffice/fo-authorization-card";
 import { cn } from "@/shared/lib/utils";
 
 function errorText(error: unknown): string {
@@ -91,6 +103,11 @@ export function FoCheckInStepper({
 }) {
   const queryClient = useQueryClient();
   const money = useMoney();
+  const set1 = usePmsSet1Foundation(restaurantId);
+  const tenders = cashieringTenderOptions({
+    available: set1.data?.polish1?.paymentMethodsAvailable ?? false,
+    methods: set1.data?.polish1?.paymentMethods ?? emptyPolish1Snapshot().paymentMethods,
+  });
   const [step, setStep] = useState<CheckInStepId>(initialStep);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -111,8 +128,9 @@ export function FoCheckInStepper({
   const [children, setChildren] = useState(stay.children);
   const [regReason, setRegReason] = useState("");
 
+  const depositKey = useRef(crypto.randomUUID());
   const [depositAmount, setDepositAmount] = useState("");
-  const [depositMethod, setDepositMethod] = useState<DepositMethodChipId>("cash");
+  const [depositMethod, setDepositMethod] = useState("cash");
   const [depositRef, setDepositRef] = useState("");
   const [depositReason, setDepositReason] = useState("");
 
@@ -120,6 +138,11 @@ export function FoCheckInStepper({
   const [keyId, setKeyId] = useState("");
   const [keyCount, setKeyCount] = useState(1);
   const [keyReason, setKeyReason] = useState("");
+
+  useEffect(() => {
+    if (!tenders.some((row) => row.code === depositMethod))
+      setDepositMethod(tenders[0]?.code ?? "");
+  }, [depositMethod, tenders]);
 
   const fetchContext = useServerFn(getCheckInContext);
   const fetchRooms = useServerFn(listAssignableRooms);
@@ -140,9 +163,26 @@ export function FoCheckInStepper({
     retry: false,
   });
   const ctx = contextQuery.data;
+  const fetchApproval = useServerFn(getFrontOfficeApprovalRequirement);
+  const approvalQuery = useQuery({
+    queryKey: ["front-office", "approval", restaurantId, "front_office.check_in.override"],
+    queryFn: () =>
+      fetchApproval({ data: { restaurantId, actionKey: "front_office.check_in.override" } }),
+    enabled: open,
+    retry: false,
+  });
+  const checkInAuth = approvalQuery.data;
 
   const roomsQuery = useQuery({
-    queryKey: ["front-office", "assignable", restaurantId, stay.id, stay.roomTypeId, stay.arrivalDate, stay.departureDate],
+    queryKey: [
+      "front-office",
+      "assignable",
+      restaurantId,
+      stay.id,
+      stay.roomTypeId,
+      stay.arrivalDate,
+      stay.departureDate,
+    ],
     queryFn: () =>
       fetchRooms({
         data: {
@@ -154,6 +194,7 @@ export function FoCheckInStepper({
         },
       }),
     enabled: open,
+    retry: false,
   });
 
   useEffect(() => {
@@ -214,15 +255,21 @@ export function FoCheckInStepper({
       roomNumber: listed.roomNumber,
       status: "available",
       housekeepingStatus: listed.housekeepingStatus,
+      maintenanceStatus: null,
     };
   }, [ctx?.room, roomId, roomsQuery.data]);
 
   const roomGate = isRoomReady(
     assignedRoom
-      ? { status: assignedRoom.status, housekeepingStatus: assignedRoom.housekeepingStatus }
+      ? {
+          status: assignedRoom.status,
+          housekeepingStatus: assignedRoom.housekeepingStatus,
+          maintenanceStatus: assignedRoom.maintenanceStatus ?? null,
+        }
       : roomId
         ? { status: "available", housekeepingStatus: null }
         : null,
+    ctx?.housekeepingPolicy,
   );
   const registrationDraft = {
     fullName,
@@ -232,7 +279,10 @@ export function FoCheckInStepper({
     idDocumentNumber: idNumber || null,
     idDocumentExpiry: idExpiry || null,
   };
-  const registrationOk = canContinueRegistration(registrationDraft, ctx?.progress.registrationWaived ?? false);
+  const registrationOk = canContinueRegistration(
+    registrationDraft,
+    ctx?.progress.registrationWaived ?? false,
+  );
   const depositOk = canContinueDeposit({
     postedAmount: ctx?.folio.postedAmount ?? 0,
     waived: ctx?.progress.depositWaived ?? false,
@@ -271,6 +321,8 @@ export function FoCheckInStepper({
     void queryClient.invalidateQueries({ queryKey: ["reservations"] });
     void queryClient.invalidateQueries({ queryKey: ["reservation"] });
     void queryClient.invalidateQueries({ queryKey: ["fo-check-in"] });
+    void queryClient.invalidateQueries({ queryKey: ["fo-arrival-qv"] });
+    void queryClient.invalidateQueries({ queryKey: ["front-office", "arrivals-desk"] });
     void queryClient.invalidateQueries({ queryKey: ["rooms-dashboard"] });
   }
 
@@ -340,9 +392,11 @@ export function FoCheckInStepper({
           amount: Number(depositAmount),
           method: depositMethod,
           reference: depositRef,
+          idempotencyKey: depositKey.current,
         },
       }),
     onSuccess: async () => {
+      depositKey.current = crypto.randomUUID();
       setDirty(false);
       setDepositAmount("");
       setDepositRef("");
@@ -404,7 +458,9 @@ export function FoCheckInStepper({
   const completeMut = useMutation({
     mutationFn: () => complete({ data: { restaurantId, reservationId: stay.id } }),
     onSuccess: (result) => {
-      toast.success(`Checked in · ${result.roomNumber ? `Room ${result.roomNumber}` : stay.roomTypeName}`);
+      toast.success(
+        `Checked in · ${result.roomNumber ? `Room ${result.roomNumber}` : stay.roomTypeName}`,
+      );
       refreshDesk();
       onOpenChange(false);
     },
@@ -449,6 +505,12 @@ export function FoCheckInStepper({
   const confirmation = ctx?.stay.confirmationNumber ?? stay.confirmationNumber;
   const dates = `${formatStayDate(stay.arrivalDate)} → ${formatStayDate(stay.departureDate)}`;
   const rooms = roomsQuery.data ?? [];
+  const roomsState = assignableListUi({
+    isPending: roomsQuery.isPending,
+    isError: roomsQuery.isError,
+    rooms: roomsQuery.data,
+  });
+  const roomTypeLabel = formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode);
 
   return (
     <>
@@ -461,7 +523,7 @@ export function FoCheckInStepper({
         <SheetContent
           side="right"
           data-testid="fo-check-in-stepper"
-          className="flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
+          className="z-[70] flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[720px]"
         >
           <SheetHeader className="shrink-0 border-b border-[#CCCCCC] px-5 py-4 text-left">
             <SheetTitle className="text-[#251605]">Check in</SheetTitle>
@@ -480,7 +542,8 @@ export function FoCheckInStepper({
                       className={cn(
                         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
                         state === "done" && "bg-[#436436]/15 text-[#436436]",
-                        state === "current" && "bg-[#C89933]/20 text-[#251605] ring-1 ring-[#C89933]",
+                        state === "current" &&
+                          "bg-[#C89933]/20 text-[#251605] ring-1 ring-[#C89933]",
                         state === "blocked" && "bg-destructive/10 text-destructive",
                         state === "locked" && "bg-[#CCCCCC]/40 text-muted-foreground",
                       )}
@@ -501,7 +564,9 @@ export function FoCheckInStepper({
               <PermissionDeniedPanel message={errorText(contextQuery.error)} />
             ) : (
               <>
-                {denyMessage ? <PermissionDeniedPanel className="mb-4" message={denyMessage} /> : null}
+                {denyMessage ? (
+                  <PermissionDeniedPanel className="mb-4" message={denyMessage} />
+                ) : null}
 
                 {step === "stay" ? (
                   <div className="space-y-4">
@@ -513,9 +578,14 @@ export function FoCheckInStepper({
                           setRoomId(v);
                           markDirty();
                         }}
+                        disabled={roomsState.status === "loading" || roomsState.status === "error"}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder={roomsQuery.isLoading ? "Loading rooms…" : "Select a room"} />
+                          <SelectValue
+                            placeholder={
+                              roomsState.status === "loading" ? "Loading rooms…" : "Select a room"
+                            }
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           {rooms.map((room) => (
@@ -526,15 +596,43 @@ export function FoCheckInStepper({
                           ))}
                         </SelectContent>
                       </Select>
+                      <AssignableRoomsHint
+                        status={roomsState.status}
+                        roomTypeLabel={roomTypeLabel}
+                        onRetry={() => void roomsQuery.refetch()}
+                        detail={roomsQuery.error instanceof Error ? roomsQuery.error.message : null}
+                      />
                     </div>
-                    {roomGate.reason ? <p className="text-sm text-destructive">{roomGate.reason}</p> : null}
+                    {roomGate.reason ? (
+                      <p className="text-sm text-destructive">{roomGate.reason}</p>
+                    ) : null}
+                    {ctx?.stay.expectedArrivalAt && ctx.checkInTime
+                      ? (() => {
+                          const timing = etaTiming({
+                            expectedArrivalAt: ctx.stay.expectedArrivalAt,
+                            checkInTime: ctx.checkInTime,
+                            timezone: ctx.timezone,
+                          });
+                          if (timing !== "early") return null;
+                          return (
+                            <p className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-3 py-2 text-sm text-[#251605]">
+                              Expected arrival is before property check-in time
+                              {ctx.earlyCheckinAllowed === false
+                                ? ". Early check-in is not allowed in Settings."
+                                : ctx.earlyCheckinNeedsApproval
+                                  ? ". Settings require approval — there is no approval inbox yet."
+                                  : "."}
+                            </p>
+                          );
+                        })()
+                      : null}
                     {ctx?.rateMissing ? (
                       <p className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-3 py-2 text-sm text-[#251605]">
                         This stay has no rate on file. You can still continue.
                       </p>
                     ) : null}
                     <p className="text-xs text-muted-foreground">
-                      {stay.roomTypeName} · {stay.adults} adult{stay.adults === 1 ? "" : "s"}
+                      {roomTypeLabel} · {stay.adults} adult{stay.adults === 1 ? "" : "s"}
                       {stay.children ? ` · ${stay.children} child` : ""}
                     </p>
                   </div>
@@ -552,20 +650,45 @@ export function FoCheckInStepper({
                         Registration waived
                       </p>
                     ) : null}
-                    <Field label="Full name">
-                      <Input value={fullName} onChange={(e) => { setFullName(e.target.value); markDirty(); }} />
+                    <Field label="Full name" required>
+                      <Input
+                        value={fullName}
+                        onChange={(e) => {
+                          setFullName(e.target.value);
+                          markDirty();
+                        }}
+                      />
                     </Field>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Field label="Phone">
-                        <Input value={phone} onChange={(e) => { setPhone(e.target.value); markDirty(); }} />
+                        <Input
+                          value={phone}
+                          onChange={(e) => {
+                            setPhone(e.target.value);
+                            markDirty();
+                          }}
+                        />
                       </Field>
                       <Field label="Email">
-                        <Input type="email" value={email} onChange={(e) => { setEmail(e.target.value); markDirty(); }} />
+                        <Input
+                          type="email"
+                          value={email}
+                          onChange={(e) => {
+                            setEmail(e.target.value);
+                            markDirty();
+                          }}
+                        />
                       </Field>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      Phone or email is required, plus ID type and number.
+                    </p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>ID type</Label>
+                        <Label>
+                          ID type
+                          <span className="text-destructive"> *</span>
+                        </Label>
                         <Select
                           value={idType}
                           onValueChange={(v) => {
@@ -585,28 +708,65 @@ export function FoCheckInStepper({
                           </SelectContent>
                         </Select>
                       </div>
-                      <Field label="ID number">
-                        <Input value={idNumber} onChange={(e) => { setIdNumber(e.target.value); markDirty(); }} />
+                      <Field label="ID number" required>
+                        <Input
+                          value={idNumber}
+                          onChange={(e) => {
+                            setIdNumber(e.target.value);
+                            markDirty();
+                          }}
+                        />
                       </Field>
                     </div>
                     <Field label="ID expiry">
-                      <Input type="date" value={idExpiry} onChange={(e) => { setIdExpiry(e.target.value); markDirty(); }} />
+                      <Input
+                        type="date"
+                        value={idExpiry}
+                        onChange={(e) => {
+                          setIdExpiry(e.target.value);
+                          markDirty();
+                        }}
+                      />
                     </Field>
                     {promptPassportExpiry(idType || null, idExpiry) ? (
                       <p className="text-xs text-[#C89933]">Passport expiry is recommended.</p>
                     ) : null}
                     <Field label="Nationality">
-                      <Input value={nationality} onChange={(e) => { setNationality(e.target.value); markDirty(); }} />
+                      <Input
+                        value={nationality}
+                        onChange={(e) => {
+                          setNationality(e.target.value);
+                          markDirty();
+                        }}
+                      />
                     </Field>
                     <Field label="Address">
-                      <Input value={addressLine1} onChange={(e) => { setAddressLine1(e.target.value); markDirty(); }} />
+                      <Input
+                        value={addressLine1}
+                        onChange={(e) => {
+                          setAddressLine1(e.target.value);
+                          markDirty();
+                        }}
+                      />
                     </Field>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Field label="City">
-                        <Input value={city} onChange={(e) => { setCity(e.target.value); markDirty(); }} />
+                        <Input
+                          value={city}
+                          onChange={(e) => {
+                            setCity(e.target.value);
+                            markDirty();
+                          }}
+                        />
                       </Field>
                       <Field label="Country">
-                        <Input value={country} onChange={(e) => { setCountry(e.target.value); markDirty(); }} />
+                        <Input
+                          value={country}
+                          onChange={(e) => {
+                            setCountry(e.target.value);
+                            markDirty();
+                          }}
+                        />
                       </Field>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -636,25 +796,22 @@ export function FoCheckInStepper({
                       </Field>
                     </div>
                     {stay.specialRequests ? (
-                      <p className="text-sm text-muted-foreground">Special requests: {stay.specialRequests}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Special requests: {stay.specialRequests}
+                      </p>
                     ) : null}
-                    <div className="space-y-2 rounded-xl border border-border p-3">
-                      <Label htmlFor="reg-waiver">Request waiver</Label>
-                      <Textarea
-                        id="reg-waiver"
-                        value={regReason}
-                        onChange={(e) => setRegReason(e.target.value)}
-                        placeholder="Supervisor reason"
+                    {ctx?.progress.registrationWaived ? null : (
+                      <FoAuthorizationCard
+                        requirement={checkInAuth}
+                        guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                        reason={regReason}
+                        onReasonChange={setRegReason}
+                        pending={waiveRegMut.isPending}
+                        confirmLabel="Waive registration"
+                        onAuthorize={() => waiveRegMut.mutate()}
+                        reasonId="reg-waiver"
                       />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!regReason.trim() || waiveRegMut.isPending}
-                        onClick={() => waiveRegMut.mutate()}
-                      >
-                        {waiveRegMut.isPending ? "Saving…" : "Request waiver"}
-                      </Button>
-                    </div>
+                    )}
                   </div>
                 ) : null}
 
@@ -664,8 +821,12 @@ export function FoCheckInStepper({
                       <FolioChip label="open" on={ctx?.folio.open ?? false} />
                       <FolioChip label="required" on />
                       <FolioChip label="already posted" on={(ctx?.folio.postedAmount ?? 0) > 0} />
-                      <FolioChip label="outstanding" on={(ctx?.folio.outstanding ?? 0) > 0 && !depositOk} />
+                      <FolioChip
+                        label="outstanding"
+                        on={(ctx?.folio.outstanding ?? 0) > 0 && !depositOk}
+                      />
                     </div>
+                    <p className="text-xs text-muted-foreground">{GUARANTEE_HOLD_UNSUPPORTED}</p>
                     {depositOk ? (
                       <p className="rounded-xl bg-[#436436]/15 px-3 py-2 text-sm font-medium text-[#436436]">
                         {ctx?.progress.depositWaived
@@ -689,53 +850,63 @@ export function FoCheckInStepper({
                             }}
                           />
                         </Field>
-                        <div className="flex flex-wrap gap-2">
-                          {DEPOSIT_METHOD_CHIPS.map((chip) => (
-                            <button
-                              key={chip.id}
-                              type="button"
-                              className={cn(
-                                "rounded-full border px-3 py-1.5 text-sm",
-                                depositMethod === chip.id
-                                  ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
-                                  : "border-[#CCCCCC] text-muted-foreground",
-                              )}
-                              onClick={() => setDepositMethod(chip.id)}
-                            >
-                              {chip.label}
-                            </button>
-                          ))}
-                        </div>
+                        {tenders.length === 0 ? (
+                          <p className="text-sm text-[#C89933]">
+                            No active payment methods. Configure them in{" "}
+                            <a href={POLISH1_PAYMENT_METHODS_HREF} className="underline">
+                              Payment methods
+                            </a>
+                            .
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {tenders.map((tender) => (
+                              <button
+                                key={tender.code}
+                                type="button"
+                                className={cn(
+                                  "rounded-full border px-3 py-1.5 text-sm",
+                                  depositMethod === tender.code
+                                    ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
+                                    : "border-[#CCCCCC] text-muted-foreground",
+                                )}
+                                onClick={() => setDepositMethod(tender.code)}
+                              >
+                                {tender.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <Field label="Reference">
-                          <Input value={depositRef} onChange={(e) => setDepositRef(e.target.value)} />
+                          <Input
+                            value={depositRef}
+                            onChange={(e) => setDepositRef(e.target.value)}
+                          />
                         </Field>
                         <Button
                           type="button"
                           className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-                          disabled={!Number(depositAmount) || postDepMut.isPending}
+                          disabled={
+                            !Number(depositAmount) || !depositMethod || postDepMut.isPending
+                          }
                           onClick={() => postDepMut.mutate()}
                         >
                           {postDepMut.isPending ? "Posting…" : "Post deposit"}
                         </Button>
                       </>
                     )}
-                    <div className="space-y-2 rounded-xl border border-border p-3">
-                      <Label htmlFor="dep-waiver">Waive deposit</Label>
-                      <Textarea
-                        id="dep-waiver"
-                        value={depositReason}
-                        onChange={(e) => setDepositReason(e.target.value)}
-                        placeholder="Supervisor reason"
+                    {ctx?.progress.depositWaived ? null : (
+                      <FoAuthorizationCard
+                        requirement={checkInAuth}
+                        guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                        reason={depositReason}
+                        onReasonChange={setDepositReason}
+                        pending={waiveDepMut.isPending}
+                        confirmLabel="Waive deposit"
+                        onAuthorize={() => waiveDepMut.mutate()}
+                        reasonId="dep-waiver"
                       />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!depositReason.trim() || waiveDepMut.isPending}
-                        onClick={() => waiveDepMut.mutate()}
-                      >
-                        {waiveDepMut.isPending ? "Saving…" : "Waive deposit"}
-                      </Button>
-                    </div>
+                    )}
                   </div>
                 ) : null}
 
@@ -768,7 +939,13 @@ export function FoCheckInStepper({
                       </Select>
                     </div>
                     <Field label="Identifier">
-                      <Input value={keyId} onChange={(e) => { setKeyId(e.target.value); markDirty(); }} />
+                      <Input
+                        value={keyId}
+                        onChange={(e) => {
+                          setKeyId(e.target.value);
+                          markDirty();
+                        }}
+                      />
                     </Field>
                     <Field label="Number of keys">
                       <Input
@@ -780,34 +957,45 @@ export function FoCheckInStepper({
                       />
                     </Field>
                     <p className="text-xs text-muted-foreground">
-                      Issued at {ctx?.progress.keyIssuedAt ? formatStayDate(ctx.progress.keyIssuedAt.slice(0, 10)) : "now"}
+                      Issued at{" "}
+                      {ctx?.progress.keyIssuedAt
+                        ? formatStayDate(ctx.progress.keyIssuedAt.slice(0, 10))
+                        : "now"}
                       {ctx?.actorName ? ` · ${ctx.actorName}` : ""}
                     </p>
-                    <div className="space-y-2 rounded-xl border border-border p-3">
-                      <Label htmlFor="key-waiver">Keys later</Label>
-                      <Textarea
-                        id="key-waiver"
-                        value={keyReason}
-                        onChange={(e) => setKeyReason(e.target.value)}
-                        placeholder="Supervisor reason"
+                    {ctx?.progress.keyWaived ? null : (
+                      <FoAuthorizationCard
+                        requirement={checkInAuth}
+                        guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                        reason={keyReason}
+                        onReasonChange={setKeyReason}
+                        pending={waiveKeyMut.isPending}
+                        confirmLabel="Keys later"
+                        onAuthorize={() => waiveKeyMut.mutate()}
+                        reasonId="key-waiver"
                       />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!keyReason.trim() || waiveKeyMut.isPending}
-                        onClick={() => waiveKeyMut.mutate()}
-                      >
-                        {waiveKeyMut.isPending ? "Saving…" : "Keys later"}
-                      </Button>
-                    </div>
+                    )}
                   </div>
                 ) : null}
 
                 {step === "complete" ? (
                   <div className="space-y-3 text-sm">
+                    <SummaryRow label="Guest" value={guestLabel} ok={registrationOk} />
+                    <SummaryRow
+                      label="Reservation"
+                      value={`${confirmation} · ${stay.status.replace("_", " ")}`}
+                      ok={stay.status === "confirmed"}
+                    />
+                    <SummaryRow label="Dates" value={dates} ok />
                     <SummaryRow
                       label="Room"
-                      value={assignedRoom ? `Room ${assignedRoom.roomNumber}` : stay.roomNumber ? `Room ${stay.roomNumber}` : "Unassigned"}
+                      value={
+                        assignedRoom
+                          ? `Room ${assignedRoom.roomNumber}${roomGate.ready ? " · ready" : ""}`
+                          : stay.roomNumber
+                            ? `Room ${stay.roomNumber}`
+                            : "Unassigned"
+                      }
                       ok={roomGate.ready}
                     />
                     <SummaryRow
@@ -831,6 +1019,11 @@ export function FoCheckInStepper({
                       value={ctx?.progress.keyWaived ? "waived" : "recorded"}
                       ok={keyOk}
                     />
+                    {!completeOk ? (
+                      <p className="text-sm text-destructive">
+                        Check-in stays disabled until every gate above is green.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </>
@@ -853,7 +1046,7 @@ export function FoCheckInStepper({
                     disabled={continueDisabled}
                     onClick={() => completeMut.mutate()}
                   >
-                    {completeMut.isPending ? "Checking in…" : "Complete check-in"}
+                    {completeMut.isPending ? "Checking in…" : "Check In"}
                   </Button>
                 ) : (
                   <Button
@@ -896,10 +1089,21 @@ export function FoCheckInStepper({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  required,
+}: {
+  label: string;
+  children: React.ReactNode;
+  required?: boolean;
+}) {
   return (
     <div className="space-y-2">
-      <Label>{label}</Label>
+      <Label>
+        {label}
+        {required ? <span className="text-destructive"> *</span> : null}
+      </Label>
       {children}
     </div>
   );
@@ -922,7 +1126,9 @@ function SummaryRow({ label, value, ok }: { label: string; value: string; ok: bo
   return (
     <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
       <span className="text-muted-foreground">{label}</span>
-      <span className={ok ? "font-medium text-[#436436]" : "font-medium text-destructive"}>{value}</span>
+      <span className={ok ? "font-medium text-[#436436]" : "font-medium text-destructive"}>
+        {value}
+      </span>
     </div>
   );
 }

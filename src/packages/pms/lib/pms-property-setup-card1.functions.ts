@@ -43,6 +43,7 @@ import {
   markStepComplete,
   markStepInProgress,
   normalizeCard1CheckinOpsForPersistence,
+  normalizeCard1StepId,
   parseBusinessDateBlockers,
   parseBusinessDateConfig,
   parseCheckinOps,
@@ -267,7 +268,17 @@ const draftSchema = z.object({
 
 const saveSchema = z.object({
   restaurantId: idSchema,
-  step: z.enum(CARD1_STEPS.map((step) => step.id) as [Card1StepId, ...Card1StepId[]]),
+  step: z.string().transform((val, ctx) => {
+    const normalized = normalizeCard1StepId(val);
+    if (!normalized) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Invalid step: ${val}`,
+      });
+      return z.NEVER;
+    }
+    return normalized;
+  }),
   mode: z.enum(["draft", "continue", "finish"]),
   draft: draftSchema,
 });
@@ -969,7 +980,7 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
         throw new Error("Opening Date is required to complete Property Identity.");
       }
       if (
-        data.step === "contacts" &&
+        data.step === "address" &&
         (!draft.emergency.name.trim() || !draft.emergency.phone.trim())
       ) {
         throw new Error("Emergency contact name and phone are required to complete Contacts.");

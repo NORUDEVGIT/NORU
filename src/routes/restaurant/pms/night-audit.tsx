@@ -3,10 +3,13 @@ import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { NightAuditWorkspace } from "@/packages/pms/components/workspaces/night-audit-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
-import { SharedModuleLinks } from "@/packages/pms/components/pms/shared-module-links";
 
 export const Route = createFileRoute("/restaurant/pms/night-audit")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>) => ({
+    ...(typeof search.tab === "string" ? { tab: search.tab } : {}),
+    ...(typeof search.run === "string" ? { run: search.run } : {}),
+  }),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
@@ -33,12 +36,23 @@ export const Route = createFileRoute("/restaurant/pms/night-audit")({
 });
 
 function NightAuditPmsRoute() {
+  const search = Route.useSearch() as { tab?: string; run?: string };
   return (
-    <RestaurantShell active="Night Audit" module="cashiering" pms pmsModule="night-audit">
-      {(m) => <div className="space-y-8">
-          <NightAuditWorkspace membership={m} />
-          <SharedModuleLinks restaurantId={m.restaurantId} modules={["accounting_finance"]} />
-        </div>}
+    <RestaurantShell
+      active="Night Audit"
+      module="cashiering"
+      pms
+      pmsModule="night-audit"
+      hidePackageRail
+      hideTopHeader
+    >
+      {(m) => (
+        <NightAuditWorkspace
+          membership={m}
+          initialTab={search.tab}
+          {...(search.run ? { initialRunId: search.run } : {})}
+        />
+      )}
     </RestaurantShell>
   );
 }

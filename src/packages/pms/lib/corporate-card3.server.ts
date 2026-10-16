@@ -9,6 +9,7 @@ export const CARD3_CORPORATE_TABS = [
   { id: "overview", label: "Overview" },
   { id: "agreements", label: "Corporate Agreements" },
   { id: "contract-rates", label: "Contract Rates" },
+  { id: "contract-types", label: "Contract Types" },
 ] as const;
 export type Card3CorporateTabId = (typeof CARD3_CORPORATE_TABS)[number]["id"];
 
@@ -64,6 +65,11 @@ export type CorporateAgreementRow = {
   currencyCode: string;
   description: string;
   active: boolean;
+  autoRenew?: boolean;
+  noticePeriodDays?: number | null;
+  signedAt?: string | null;
+  signedBy?: string | null;
+  fileStoragePath?: string | null;
 };
 
 export type ContractRateRow = {

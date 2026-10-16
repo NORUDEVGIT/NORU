@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { Textarea } from "@/shared/components/ui/textarea";
 import {
   Sheet,
   SheetContent,
@@ -28,7 +27,15 @@ import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/com
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { getFrontOfficeApprovalRequirement } from "@/packages/pms/lib/fo-approvals.functions";
+import { FoAuthorizationCard } from "@/packages/pms/components/frontoffice/fo-authorization-card";
+import { useMoney } from "@/core/state/property-format";
+import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
+import {
+  POLISH1_PAYMENT_METHODS_HREF,
+  cashieringTenderOptions,
+  emptyPolish1Snapshot,
+} from "@/packages/pms/lib/pms-polish1-payment-admin";
 import { stepRailState } from "@/packages/pms/lib/fo-check-in";
 import {
   CHECK_OUT_STEPS,
@@ -37,11 +44,8 @@ import {
   CREDIT_BLOCK_BANNER,
   EMAIL_NOT_CONFIGURED_MESSAGE,
   FOLIO_LEFT_OPEN_CHIP,
-  OVERRIDE_CREDIT_TITLE,
-  OVERRIDE_UNPAID_TITLE,
   REFUND_IN_CASHIERING_CTA,
   SETTLE_REQUIRED_BANNER,
-  SETTLEMENT_METHOD_CHIPS,
   STAY_NOT_IN_HOUSE_MESSAGE,
   canCompleteCheckOut,
   canContinueClose,
@@ -96,8 +100,9 @@ export function FoCheckOutStepper({
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [documentOpen, setDocumentOpen] = useState(false);
 
+  const payKey = useRef(crypto.randomUUID());
   const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState<SettlementMethodChipId>("cash");
+  const [payMethod, setPayMethod] = useState("cash");
   const [payRef, setPayRef] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
   const [emailTo, setEmailTo] = useState("");
@@ -117,6 +122,15 @@ export function FoCheckOutStepper({
     retry: false,
   });
   const ctx = contextQuery.data;
+  const fetchApproval = useServerFn(getFrontOfficeApprovalRequirement);
+  const approvalQuery = useQuery({
+    queryKey: ["front-office", "approval", restaurantId, "front_office.check_out.override"],
+    queryFn: () =>
+      fetchApproval({ data: { restaurantId, actionKey: "front_office.check_out.override" } }),
+    enabled: open,
+    retry: false,
+  });
+  const checkOutAuth = approvalQuery.data;
   const folio = ctx?.folio;
   const balance = folio?.balance ?? 0;
   const override = ctx?.override.recorded ?? false;
@@ -157,7 +171,15 @@ export function FoCheckOutStepper({
       });
     // Folio open is a Step B entry side-effect; refetch is owned by the query.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, step, restaurantId, stay.id, ctx?.folio.folioId, contextQuery.isLoading, contextQuery.isError]);
+  }, [
+    open,
+    step,
+    restaurantId,
+    stay.id,
+    ctx?.folio.folioId,
+    contextQuery.isLoading,
+    contextQuery.isError,
+  ]);
 
   const stayOk = canContinueStay({
     loaded: Boolean(ctx) && !contextQuery.isLoading,
@@ -207,9 +229,11 @@ export function FoCheckOutStepper({
           amount: Number(payAmount),
           method: payMethod,
           reference: payRef,
+          idempotencyKey: payKey.current,
         },
       }),
     onSuccess: async () => {
+      payKey.current = crypto.randomUUID();
       setDirty(false);
       setPayRef("");
       await contextQuery.refetch();
@@ -246,8 +270,7 @@ export function FoCheckOutStepper({
   });
 
   const emailMut = useMutation({
-    mutationFn: () =>
-      emailFn({ data: { restaurantId, reservationId: stay.id, toEmail: emailTo } }),
+    mutationFn: () => emailFn({ data: { restaurantId, reservationId: stay.id, toEmail: emailTo } }),
     onSuccess: (result) => {
       if (!result.ok) {
         toast.error(result.message);
@@ -295,7 +318,15 @@ export function FoCheckOutStepper({
 
   const remaining = outstandingAmount(balance);
   const payValue = Number(payAmount);
-  const canPostPay = paymentAmountAllowed(payValue, remaining);
+  const set1 = usePmsSet1Foundation(restaurantId);
+  const tenders = cashieringTenderOptions({
+    available: set1.data?.polish1?.paymentMethodsAvailable ?? false,
+    methods: set1.data?.polish1?.paymentMethods ?? emptyPolish1Snapshot().paymentMethods,
+  });
+  useEffect(() => {
+    if (!tenders.some((row) => row.code === payMethod)) setPayMethod(tenders[0]?.code ?? "");
+  }, [payMethod, tenders]);
+  const canPostPay = paymentAmountAllowed(payValue, remaining) && Boolean(payMethod);
   const overrideKind = overrideKindForBalance(balance);
   const continueDisabled =
     (step === "stay" && !stayOk) ||
@@ -368,7 +399,7 @@ export function FoCheckOutStepper({
         <SheetContent
           side="right"
           data-testid="fo-check-out-stepper"
-          className="flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
+          className="z-[70] flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
         >
           <SheetHeader className="shrink-0 border-b border-[#CCCCCC] px-5 py-4 text-left">
             <SheetTitle className="text-[#251605]">Check out</SheetTitle>
@@ -387,7 +418,8 @@ export function FoCheckOutStepper({
                       className={cn(
                         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
                         state === "done" && "bg-[#436436]/15 text-[#436436]",
-                        state === "current" && "bg-[#C89933]/20 text-[#251605] ring-1 ring-[#C89933]",
+                        state === "current" &&
+                          "bg-[#C89933]/20 text-[#251605] ring-1 ring-[#C89933]",
                         state === "blocked" && "bg-destructive/10 text-destructive",
                         state === "locked" && "bg-[#CCCCCC]/40 text-muted-foreground",
                       )}
@@ -408,7 +440,9 @@ export function FoCheckOutStepper({
               <PermissionDeniedPanel message={errorText(contextQuery.error)} />
             ) : (
               <>
-                {denyMessage ? <PermissionDeniedPanel className="mb-4" message={denyMessage} /> : null}
+                {denyMessage ? (
+                  <PermissionDeniedPanel className="mb-4" message={denyMessage} />
+                ) : null}
 
                 {step === "stay" ? (
                   <div className="space-y-4">
@@ -419,19 +453,27 @@ export function FoCheckOutStepper({
                     ) : null}
                     <dl className="grid grid-cols-2 gap-3 text-sm">
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guest</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Guest
+                        </dt>
                         <dd>{guestLabel}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Room</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Room
+                        </dt>
                         <dd>{stay.roomNumber ? `Room ${stay.roomNumber}` : "Unassigned"}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Stay</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Stay
+                        </dt>
                         <dd>{dates}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">Guests</dt>
+                        <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Guests
+                        </dt>
                         <dd>
                           {stay.adults} adult{stay.adults === 1 ? "" : "s"}
                           {stay.children ? ` · ${stay.children} child` : ""}
@@ -443,7 +485,9 @@ export function FoCheckOutStepper({
                       {stay.overstay ? " · Overstay" : ""}
                     </p>
                     {stay.specialRequests ? (
-                      <p className="text-sm text-muted-foreground">Special requests: {stay.specialRequests}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Special requests: {stay.specialRequests}
+                      </p>
                     ) : null}
                     {ctx?.rateMissing ? (
                       <p className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-3 py-2 text-sm text-[#251605]">
@@ -501,7 +545,8 @@ export function FoCheckOutStepper({
                   <div className="space-y-4">
                     {isFolioSettled(balance) ? (
                       <p className="rounded-xl bg-[#436436]/15 px-3 py-2 text-sm font-medium text-[#436436]">
-                        Settled{folio?.folioNumber ? ` · ${folio.folioNumber}` : ""} · {money(balance)}
+                        Settled{folio?.folioNumber ? ` · ${folio.folioNumber}` : ""} ·{" "}
+                        {money(balance)}
                       </p>
                     ) : isCreditBalance(balance) ? (
                       <>
@@ -512,7 +557,10 @@ export function FoCheckOutStepper({
                           Credit {money(Math.abs(balance))}
                           {folio?.folioNumber ? ` on ${folio.folioNumber}` : ""}.
                         </p>
-                        <Button asChild className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90">
+                        <Button
+                          asChild
+                          className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+                        >
                           <a href={cashieringRefundHref(folio?.folioNumber)}>
                             {REFUND_IN_CASHIERING_CTA}
                           </a>
@@ -536,24 +584,36 @@ export function FoCheckOutStepper({
                             }}
                           />
                         </Field>
-                        <p className="text-xs text-muted-foreground">Outstanding {money(remaining)}.</p>
-                        <div className="flex flex-wrap gap-2">
-                          {SETTLEMENT_METHOD_CHIPS.map((chip) => (
-                            <button
-                              key={chip.id}
-                              type="button"
-                              className={cn(
-                                "rounded-full border px-3 py-1.5 text-sm",
-                                payMethod === chip.id
-                                  ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
-                                  : "border-[#CCCCCC] text-muted-foreground",
-                              )}
-                              onClick={() => setPayMethod(chip.id)}
-                            >
-                              {chip.label}
-                            </button>
-                          ))}
-                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Outstanding {money(remaining)}.
+                        </p>
+                        {tenders.length === 0 ? (
+                          <p className="text-sm text-[#C89933]">
+                            No active payment methods. Configure them in{" "}
+                            <a href={POLISH1_PAYMENT_METHODS_HREF} className="underline">
+                              Payment methods
+                            </a>
+                            .
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {tenders.map((tender) => (
+                              <button
+                                key={tender.code}
+                                type="button"
+                                className={cn(
+                                  "rounded-full border px-3 py-1.5 text-sm",
+                                  payMethod === tender.code
+                                    ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
+                                    : "border-[#CCCCCC] text-muted-foreground",
+                                )}
+                                onClick={() => setPayMethod(tender.code)}
+                              >
+                                {tender.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <Field label="Reference">
                           <Input value={payRef} onChange={(e) => setPayRef(e.target.value)} />
                         </Field>
@@ -573,25 +633,16 @@ export function FoCheckOutStepper({
                         {FOLIO_LEFT_OPEN_CHIP}
                       </p>
                     ) : overrideKind ? (
-                      <div className="space-y-2 rounded-xl border border-border p-3">
-                        <Label htmlFor="checkout-override">
-                          {overrideKind === "credit" ? OVERRIDE_CREDIT_TITLE : OVERRIDE_UNPAID_TITLE}
-                        </Label>
-                        <Textarea
-                          id="checkout-override"
-                          value={overrideReason}
-                          onChange={(e) => setOverrideReason(e.target.value)}
-                          placeholder="Supervisor reason"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={!overrideReason.trim() || overrideMut.isPending}
-                          onClick={() => overrideMut.mutate()}
-                        >
-                          {overrideMut.isPending ? "Saving…" : "Record override"}
-                        </Button>
-                      </div>
+                      <FoAuthorizationCard
+                        requirement={checkOutAuth}
+                        guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                        reason={overrideReason}
+                        onReasonChange={setOverrideReason}
+                        pending={overrideMut.isPending}
+                        confirmLabel="Record override"
+                        onAuthorize={() => overrideMut.mutate()}
+                        reasonId="checkout-override"
+                      />
                     ) : null}
                   </div>
                 ) : null}
@@ -625,10 +676,20 @@ export function FoCheckOutStepper({
                     <div className="space-y-3 rounded-xl border border-border p-3">
                       <p className="text-sm font-medium text-[#251605]">Guest document</p>
                       <div className="flex flex-wrap gap-2">
-                        <Button type="button" variant="outline" disabled={!snapshot} onClick={() => setDocumentOpen((v) => !v)}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!snapshot}
+                          onClick={() => setDocumentOpen((v) => !v)}
+                        >
                           View
                         </Button>
-                        <Button type="button" variant="outline" disabled={!snapshot} onClick={printDocument}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!snapshot}
+                          onClick={printDocument}
+                        >
                           Print
                         </Button>
                         <Button
@@ -642,7 +703,9 @@ export function FoCheckOutStepper({
                         </Button>
                       </div>
                       {!ctx?.emailConfigured ? (
-                        <p className="text-xs text-muted-foreground">{EMAIL_NOT_CONFIGURED_MESSAGE}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {EMAIL_NOT_CONFIGURED_MESSAGE}
+                        </p>
                       ) : (
                         <Field label="Guest email">
                           <Input
@@ -652,7 +715,9 @@ export function FoCheckOutStepper({
                           />
                         </Field>
                       )}
-                      {documentOpen && snapshot ? <CheckoutDocumentView snapshot={snapshot} /> : null}
+                      {documentOpen && snapshot ? (
+                        <CheckoutDocumentView snapshot={snapshot} />
+                      ) : null}
                     </div>
                   </div>
                 ) : null}
@@ -660,22 +725,42 @@ export function FoCheckOutStepper({
                 {step === "complete" ? (
                   <div className="space-y-3 text-sm">
                     <SummaryRow
-                      label="Stay"
+                      label="Guest"
+                      value={ctx?.stay.guestName ?? stay.guestName}
+                      ok={stayOk}
+                    />
+                    <SummaryRow label="Reservation" value={stay.confirmationNumber} ok={stayOk} />
+                    <SummaryRow
+                      label="Room"
                       value={stay.roomNumber ? `Room ${stay.roomNumber}` : stay.roomTypeName}
                       ok={stayOk}
                     />
                     <SummaryRow
+                      label="Departure"
+                      value={formatStayDate(stay.departureDate)}
+                      ok={stayOk}
+                    />
+                    <SummaryRow
+                      label="Late checkout"
+                      value={
+                        stay.lateCheckoutGranted ? (stay.lateCheckoutUntil ?? "Granted") : "Not set"
+                      }
+                      ok
+                    />
+                    <SummaryRow
                       label="Folio"
-                      value={folio?.folioNumber ?? "required"}
+                      value={
+                        folio?.folioNumber ? `${folio.folioNumber} · ${money(balance)}` : "required"
+                      }
                       ok={folioOk}
                     />
                     <SummaryRow
-                      label="Settle"
+                      label="Settlement"
                       value={
                         override
                           ? FOLIO_LEFT_OPEN_CHIP
                           : isFolioSettled(balance)
-                            ? `Settled · ${money(balance)}`
+                            ? `Settled · ${folio?.status ?? "open"}`
                             : money(balance)
                       }
                       ok={settleOk}
@@ -713,7 +798,7 @@ export function FoCheckOutStepper({
                     disabled={continueDisabled}
                     onClick={() => completeMut.mutate()}
                   >
-                    {completeMut.isPending ? "Checking out…" : "Complete check-out"}
+                    {completeMut.isPending ? "Checking out…" : "Check Out"}
                   </Button>
                 ) : (
                   <Button
@@ -782,7 +867,9 @@ function SummaryRow({ label, value, ok }: { label: string; value: string; ok: bo
   return (
     <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
       <span className="text-muted-foreground">{label}</span>
-      <span className={ok ? "font-medium text-[#436436]" : "font-medium text-destructive"}>{value}</span>
+      <span className={ok ? "font-medium text-[#436436]" : "font-medium text-destructive"}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -792,9 +879,7 @@ function CheckoutDocumentView({ snapshot }: { snapshot: CheckOutDocumentSnapshot
     <div className="fo-check-out-document space-y-2 bg-white px-3 py-4 text-[#251605]">
       <p className="text-[10px] uppercase tracking-[0.16em] text-[#C89933]">NORU</p>
       <p className="font-display text-lg">{snapshot.propertyName}</p>
-      <p className="text-sm">
-        Guest document · Folio {snapshot.folioNumber}
-      </p>
+      <p className="text-sm">Guest document · Folio {snapshot.folioNumber}</p>
       <p className="text-sm">
         {snapshot.guestName} · {snapshot.confirmationNumber}
       </p>
@@ -806,7 +891,9 @@ function CheckoutDocumentView({ snapshot }: { snapshot: CheckOutDocumentSnapshot
         {snapshot.lines.map((line, index) => (
           <li key={`${line.description}-${index}`} className="flex justify-between gap-3">
             <span>{line.description}</span>
-            <span className="tabular-nums">{formatCheckoutMoney(line.amount, snapshot.currency)}</span>
+            <span className="tabular-nums">
+              {formatCheckoutMoney(line.amount, snapshot.currency)}
+            </span>
           </li>
         ))}
       </ul>
@@ -816,7 +903,9 @@ function CheckoutDocumentView({ snapshot }: { snapshot: CheckOutDocumentSnapshot
         Balance {formatCheckoutMoney(snapshot.balance, snapshot.currency)}
       </p>
       {snapshot.overrideOpen ? (
-        <p className="rounded-full bg-[#C89933] px-2.5 py-1 text-xs font-semibold">{FOLIO_LEFT_OPEN_CHIP}</p>
+        <p className="rounded-full bg-[#C89933] px-2.5 py-1 text-xs font-semibold">
+          {FOLIO_LEFT_OPEN_CHIP}
+        </p>
       ) : null}
     </div>
   );

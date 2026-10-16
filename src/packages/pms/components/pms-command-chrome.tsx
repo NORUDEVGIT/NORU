@@ -31,6 +31,8 @@ export function PmsCommandChrome({
   onHelpOpenChange,
   onActivity,
   activityLabel = "FO activity",
+  rightControls,
+  useDefaultControls = true,
   children,
   contentClassName = "p-3 sm:p-4",
   shellTestId = "fo-command-shell",
@@ -48,6 +50,8 @@ export function PmsCommandChrome({
   onHelpOpenChange?: (open: boolean) => void;
   onActivity?: () => void;
   activityLabel?: string;
+  rightControls?: ReactNode;
+  useDefaultControls?: boolean;
   children: ReactNode;
   contentClassName?: string;
   shellTestId?: string;
@@ -65,104 +69,109 @@ export function PmsCommandChrome({
           {nav}
           {overflow}
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <button
-              type="button"
-              data-testid="fo-guest-search"
-              onClick={onGuestSearch}
-              className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/15"
-            >
-              <Search className="size-3.5" />
-              <span className="hidden sm:inline">Guest search</span>
-            </button>
-            {notificationsComingSoon ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
+            {rightControls}
+            {useDefaultControls ? (
+              <>
+                <button
+                  type="button"
+                  data-testid="fo-guest-search"
+                  onClick={onGuestSearch}
+                  className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/15"
+                >
+                  <Search className="size-3.5" />
+                  <span className="hidden sm:inline">Guest search</span>
+                </button>
+                {notificationsComingSoon ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        data-testid="fo-notifications"
+                        className="rounded-lg p-1.5 text-white/70 hover:bg-white/10"
+                        aria-label="Notifications"
+                      >
+                        <Bell className="size-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Notifications — Coming soon</TooltipContent>
+                  </Tooltip>
+                ) : (
                   <button
                     type="button"
                     data-testid="fo-notifications"
-                    className="rounded-lg p-1.5 text-white/70 hover:bg-white/10"
+                    className="relative rounded-lg p-1.5 text-white/70 hover:bg-white/10"
                     aria-label="Notifications"
+                    onClick={onNotifications}
                   >
                     <Bell className="size-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>Notifications — Coming soon</TooltipContent>
-              </Tooltip>
-            ) : (
-              <button
-                type="button"
-                data-testid="fo-notifications"
-                className="relative rounded-lg p-1.5 text-white/70 hover:bg-white/10"
-                aria-label="Notifications"
-                onClick={onNotifications}
-              >
-                <Bell className="size-4" />
-                {notificationCount > 0 ? (
-                  <span
-                    data-testid="fo-notifications-badge"
-                    className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full px-1 text-[10px] leading-4 text-[#251605]"
-                    style={{ backgroundColor: FO_BRAND.gold }}
-                  >
-                    {notificationCount}
-                  </span>
-                ) : null}
-              </button>
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="sm"
-                  className="bg-[#C89933] font-medium text-[#251605] hover:bg-[#C89933]/90"
-                >
-                  <Plus className="size-4 sm:mr-1" />
-                  <span className="hidden sm:inline">Quick Action</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" data-testid="fo-quick-action-menu">
-                {quick.map((action) =>
-                  action.lane === "coming_soon" ? (
-                    <DropdownMenuItem
-                      key={action.id}
-                      data-testid={`fo-quick-${action.id}`}
-                      onSelect={() => onQuickAction(action.id)}
-                      className="text-muted-foreground"
-                    >
-                      {action.label}
-                      <span className="ml-auto text-[10px] uppercase tracking-wide">
-                        Coming soon
+                    {notificationCount > 0 ? (
+                      <span
+                        data-testid="fo-notifications-badge"
+                        className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full px-1 text-[10px] leading-4 text-[#251605]"
+                        style={{ backgroundColor: FO_BRAND.gold }}
+                      >
+                        {notificationCount}
                       </span>
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem
-                      key={action.id}
-                      data-testid={`fo-quick-${action.id}`}
-                      onSelect={() => onQuickAction(action.id)}
-                    >
-                      {action.label}
-                    </DropdownMenuItem>
-                  ),
+                    ) : null}
+                  </button>
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <button
-              type="button"
-              data-testid="fo-help"
-              className="rounded-lg p-1.5 text-white/70 hover:bg-white/10"
-              aria-label="Help"
-              onClick={() => onHelpOpenChange?.(true)}
-            >
-              <HelpCircle className="size-4" />
-            </button>
-            <button
-              type="button"
-              data-testid="fo-activity"
-              className="rounded-lg p-1.5 text-white/70 hover:bg-white/10"
-              aria-label={activityLabel}
-              onClick={() => onActivity?.()}
-            >
-              <History className="size-4" />
-            </button>
-            <NoruLogo size="sm" wordmarkClassName="text-white" />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      className="bg-[#C89933] font-medium text-[#251605] hover:bg-[#C89933]/90"
+                    >
+                      <Plus className="size-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Quick Action</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" data-testid="fo-quick-action-menu">
+                    {quick.map((action) =>
+                      action.lane === "coming_soon" ? (
+                        <DropdownMenuItem
+                          key={action.id}
+                          data-testid={`fo-quick-${action.id}`}
+                          onSelect={() => onQuickAction(action.id)}
+                          className="text-muted-foreground"
+                        >
+                          {action.label}
+                          <span className="ml-auto text-[10px] uppercase tracking-wide">
+                            Coming soon
+                          </span>
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          key={action.id}
+                          data-testid={`fo-quick-${action.id}`}
+                          onSelect={() => onQuickAction(action.id)}
+                        >
+                          {action.label}
+                        </DropdownMenuItem>
+                      ),
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <button
+                  type="button"
+                  data-testid="fo-help"
+                  className="rounded-lg p-1.5 text-white/70 hover:bg-white/10"
+                  aria-label="Help"
+                  onClick={() => onHelpOpenChange?.(true)}
+                >
+                  <HelpCircle className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  data-testid="fo-activity"
+                  className="rounded-lg p-1.5 text-white/70 hover:bg-white/10"
+                  aria-label={activityLabel}
+                  onClick={() => onActivity?.()}
+                >
+                  <History className="size-4" />
+                </button>
+                <NoruLogo size="sm" wordmarkClassName="text-white" />
+              </>
+            ) : null}
           </div>
         </header>
         {helpSheet}

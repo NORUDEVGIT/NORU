@@ -36,6 +36,12 @@ import {
   type CorporateAgreementRow,
   type CorporateCard3Snapshot,
 } from "@/packages/pms/lib/corporate-card3.server";
+import {
+  listPmsContractTypes,
+  savePmsContractType,
+  setPmsContractTypeActive,
+} from "@/packages/pms/lib/corporate-contracts.functions";
+import type { ContractTypeRecord } from "@/packages/pms/lib/corporate-contracts.server";
 
 const goldFocus =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933] focus-visible:ring-offset-2";
@@ -85,11 +91,17 @@ export function PmsPropertySetupCard3Corporate({
   const load = useServerFn(getCorporateCard3);
   const saveAgreement = useServerFn(saveCorporateAgreementCard3);
   const saveRate = useServerFn(saveContractRateCard3);
+  const fetchContractTypes = useServerFn(listPmsContractTypes);
+  const saveContractTypeFn = useServerFn(savePmsContractType);
+  const toggleContractTypeFn = useServerFn(setPmsContractTypeActive);
+
   const [agreementSearch, setAgreementSearch] = useState("");
   const [rateSearch, setRateSearch] = useState("");
+  const [contractTypeSearch, setContractTypeSearch] = useState("");
   const [selectedAgreementId, setSelectedAgreementId] = useState("all");
   const [agreementDraft, setAgreementDraft] = useState<CorporateAgreementRow | "new" | null>(null);
   const [rateDraft, setRateDraft] = useState<ContractRateRow | "new" | null>(null);
+  const [contractTypeDraft, setContractTypeDraft] = useState<ContractTypeRecord | "new" | null>(null);
 
   const query = useQuery({
     queryKey: ["pms-card3-corporate", restaurantId],
@@ -131,7 +143,21 @@ export function PmsPropertySetupCard3Corporate({
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["pms-card3-corporate", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["pms-contract-types", restaurantId] });
   }
+
+  const contractTypesQuery = useQuery({
+    queryKey: ["pms-contract-types", restaurantId],
+    queryFn: () => fetchContractTypes({ data: { restaurantId } }),
+  });
+  const contractTypes = useMemo(() => contractTypesQuery.data ?? [], [contractTypesQuery.data]);
+  const filteredContractTypes = useMemo(
+    () =>
+      contractTypes.filter((row) =>
+        matchesQuery(contractTypeSearch, row.code, row.name, row.description ?? ""),
+      ),
+    [contractTypes, contractTypeSearch],
+  );
 
   const agreementMutation = useMutation({
     mutationFn: (input: AgreementInput) => saveAgreement({ data: input }),
@@ -147,6 +173,17 @@ export function PmsPropertySetupCard3Corporate({
     onSuccess: () => {
       toast.success("Contract rate saved.");
       setRateDraft(null);
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const contractTypeMutation = useMutation({
+    mutationFn: (draft: { id?: string; code: string; name: string; description?: string; displayOrder: number; active: boolean }) =>
+      saveContractTypeFn({ data: { restaurantId, draft } }),
+    onSuccess: () => {
+      toast.success("Contract type saved.");
+      setContractTypeDraft(null);
       invalidate();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -260,6 +297,30 @@ export function PmsPropertySetupCard3Corporate({
             }))}
           />
 
+          <Card3ListSection
+            title="Contract types"
+            icon="facility"
+            search={contractTypeSearch}
+            onSearch={setContractTypeSearch}
+            placeholder="Search contract types"
+            canEdit={canEdit}
+            addLabel="Add contract type"
+            onAdd={() => setContractTypeDraft("new")}
+            columns={["Code", "Name", "Description", "Display order", "Status"]}
+            empty="No contract types saved yet."
+            rows={filteredContractTypes.map((row) => ({
+              id: row.id,
+              cells: [
+                row.code,
+                row.name,
+                row.description || "—",
+                String(row.displayOrder),
+                <Card3StatusDot active={row.active} />,
+              ],
+              onEdit: () => setContractTypeDraft(row),
+            }))}
+          />
+
           <AgreementSheet
             key={
               agreementDraft === "new"
@@ -286,6 +347,14 @@ export function PmsPropertySetupCard3Corporate({
             pending={rateMutation.isPending}
             onClose={() => setRateDraft(null)}
             onSave={(payload) => rateMutation.mutate({ restaurantId, ...payload })}
+          />
+          <ContractTypeSheet
+            open={contractTypeDraft !== null}
+            canEdit={canEdit}
+            value={contractTypeDraft === "new" || contractTypeDraft === null ? null : contractTypeDraft}
+            pending={contractTypeMutation.isPending}
+            onClose={() => setContractTypeDraft(null)}
+            onSave={contractTypeMutation.mutate}
           />
         </div>
       )}
@@ -622,6 +691,102 @@ function ContractRateSheet({
           />
         </div>
         <ActiveField id="rate-active" active={active} canEdit={canEdit} onChange={setActive} />
+      </div>
+    </Card3OverlapSheet>
+  );
+}
+
+function ContractTypeSheet({
+  open,
+  canEdit,
+  value,
+  pending,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  canEdit: boolean;
+  value: ContractTypeRecord | null;
+  pending: boolean;
+  onClose: () => void;
+  onSave: (payload: { id?: string; code: string; name: string; description?: string; displayOrder: number; active: boolean }) => void;
+}) {
+  const [code, setCode] = useState(value?.code ?? "");
+  const [name, setName] = useState(value?.name ?? "");
+  const [description, setDescription] = useState(value?.description ?? "");
+  const [displayOrder, setDisplayOrder] = useState(String(value?.displayOrder ?? 0));
+  const [active, setActive] = useState(value?.active ?? true);
+
+  return (
+    <Card3OverlapSheet
+      open={open}
+      onClose={onClose}
+      title={value ? "Edit contract type" : "Add contract type"}
+      description="Property-specific catalogue of contract types used by Corporate Agreements."
+      canEdit={canEdit}
+      pending={pending}
+      submitLabel="Save contract type"
+      onSubmit={() =>
+        onSave({
+          ...(value ? { id: value.id } : {}),
+          code: code.trim().toUpperCase(),
+          name: name.trim(),
+          description: description.trim() || undefined,
+          displayOrder: Number(displayOrder) || 0,
+          active,
+        })
+      }
+    >
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <Label htmlFor="type-code">Code</Label>
+          <Input
+            id="type-code"
+            value={code}
+            maxLength={30}
+            disabled={!canEdit}
+            className={goldFocus}
+            placeholder="e.g. CORP, VOLUME, CREW"
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="type-name">Name</Label>
+          <Input
+            id="type-name"
+            value={name}
+            maxLength={120}
+            disabled={!canEdit}
+            className={goldFocus}
+            placeholder="e.g. Corporate Rate Agreement"
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="type-description">Description</Label>
+          <Textarea
+            id="type-description"
+            value={description}
+            maxLength={500}
+            disabled={!canEdit}
+            className={goldFocus}
+            placeholder="Optional description of contract terms or target client type"
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="type-order">Display order</Label>
+          <Input
+            id="type-order"
+            type="number"
+            min={0}
+            value={displayOrder}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(e) => setDisplayOrder(e.target.value)}
+          />
+        </div>
+        <ActiveField id="type-active" active={active} canEdit={canEdit} onChange={setActive} />
       </div>
     </Card3OverlapSheet>
   );

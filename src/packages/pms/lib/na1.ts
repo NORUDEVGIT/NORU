@@ -19,8 +19,7 @@ export const NA1_FO_TITLE_LOCK = FO_PRIMARY_TITLE;
 export const NA1_CONFIRM_LABEL = "Confirm close";
 export const NA1_PHONE_CLOSE_COPY = "Use desktop to close";
 export const NA1_ALL_CLEAR = "All clear";
-export const NA1_NOTE_HINT =
-  "Optional note for the audit trail. This is not a waive.";
+export const NA1_NOTE_HINT = "Optional note for the audit trail. This is not a waive.";
 
 export const NA1_HAS_WAIVE = false;
 export const NA1_HAS_IGNORE = false;
@@ -47,6 +46,11 @@ export const NA1_BLOCKER_IDS = [
   "open_shift",
   "cancel_noshow_pending",
   "hk_conflict",
+  "checked_in_without_room",
+  "room_double_occupancy",
+  "closed_folio_nonzero_balance",
+  "closed_folio_post_activity",
+  "duplicate_room_charge",
 ] as const;
 
 export type NaBlockerId = (typeof NA1_BLOCKER_IDS)[number];
@@ -125,8 +129,11 @@ export const NA1_BLOCKER_META: Record<
     label: "Open shift",
     lane: "live",
     clear: [
-      { label: "Cashiering", to: "/restaurant/pms/cashiering", search: { tab: "shifts" } },
-      { label: "RM shift-close", to: "/restaurant/restaurant-management/payments" },
+      {
+        label: "Hotel cashier drawer",
+        to: "/restaurant/pms/cashiering",
+        search: { tab: "cashier-shift" },
+      },
     ],
   },
   cancel_noshow_pending: {
@@ -146,6 +153,92 @@ export const NA1_BLOCKER_META: Record<
       { label: "Housekeeping", to: "/restaurant/pms/housekeeping" },
     ],
   },
+  checked_in_without_room: {
+    label: "Checked in without a room",
+    lane: "live",
+    clear: [
+      {
+        label: "FO Exceptions / Move",
+        to: "/restaurant/pms/front-office",
+        search: { tab: "exceptions" },
+      },
+    ],
+  },
+  room_double_occupancy: {
+    label: "Double occupancy",
+    lane: "live",
+    clear: [
+      {
+        label: "FO Exceptions / Move",
+        to: "/restaurant/pms/front-office",
+        search: { tab: "exceptions" },
+      },
+    ],
+  },
+  closed_folio_nonzero_balance: {
+    label: "Closed folio not zero",
+    lane: "live",
+    clear: [
+      { label: "Cashiering", to: "/restaurant/pms/cashiering", search: { tab: "folios" } },
+    ],
+  },
+  closed_folio_post_activity: {
+    label: "Posting after folio close",
+    lane: "live",
+    clear: [
+      { label: "Cashiering", to: "/restaurant/pms/cashiering", search: { tab: "folios" } },
+    ],
+  },
+  duplicate_room_charge: {
+    label: "Duplicate room charge",
+    lane: "live",
+    clear: [
+      { label: "Cashiering", to: "/restaurant/pms/cashiering", search: { tab: "folios" } },
+    ],
+  },
+};
+
+export const NA1_STALE_BUSINESS_DATE =
+  "This run is not the current business date. Refresh Night Audit and close the current date.";
+
+/** Ledger and stay integrity counts taken from the existing audit evaluation. */
+export type NaIntegrityCounts = {
+  checkedInWithoutRoom: number;
+  doubleOccupancy: number;
+  closedFolioNonzero: number;
+  closedFolioPostActivity: number;
+  duplicateRoomCharge: number;
+};
+
+export function emptyIntegrityCounts(): NaIntegrityCounts {
+  return {
+    checkedInWithoutRoom: 0,
+    doubleOccupancy: 0,
+    closedFolioNonzero: 0,
+    closedFolioPostActivity: 0,
+    duplicateRoomCharge: 0,
+  };
+}
+
+export function integrityBlockerCounts(
+  exceptions: readonly { exceptionType: string }[],
+): NaIntegrityCounts {
+  const count = (type: string) => exceptions.filter((row) => row.exceptionType === type).length;
+  return {
+    checkedInWithoutRoom: count("checked_in_without_room"),
+    doubleOccupancy: count("room_double_occupancy"),
+    closedFolioNonzero: count("closed_folio_nonzero_balance"),
+    closedFolioPostActivity: count("closed_folio_post_activity"),
+    duplicateRoomCharge: count("duplicate_room_charge"),
+  };
+}
+
+export type NaDerivedException = {
+  exceptionType: string;
+  severity: "warning" | "blocking";
+  referenceType: string | null;
+  referenceId: string | null;
+  message: string;
 };
 
 export function canConfirmNightAudit(role: string): boolean {
@@ -170,7 +263,9 @@ export function remainingBlockerCount(rows: readonly NaBlockerRow[]): number {
  * Unavailable rows are not a fake Pass and do not count as remaining blockers.
  */
 export function canEnableConfirm(rows: readonly NaBlockerRow[]): boolean {
-  return rows.every((row) => row.state === "pass" || row.state === "na" || row.state === "unavailable");
+  return rows.every(
+    (row) => row.state === "pass" || row.state === "na" || row.state === "unavailable",
+  );
 }
 
 export function workspaceStatus(input: {
@@ -252,6 +347,7 @@ export function buildNa1Blockers(input: {
     discrepancyCount: number;
     roomUnavailableCount: number;
   };
+  integrity: NaIntegrityCounts;
 }): NaBlockerRow[] {
   const arrivals = liveRow(
     "arrivals_pending",
@@ -292,10 +388,15 @@ export function buildNa1Blockers(input: {
         input.openShift.openCount > 0 ? "block" : "pass",
         input.openShift.openCount,
         input.openShift.openCount > 0
-          ? `${input.openShift.openCount} open cashier shift(s).`
-          : "No open cashier shifts.",
+          ? `${input.openShift.openCount} open hotel cashier drawer(s).`
+          : "No open hotel cashier drawers.",
       )
-    : liveRow("open_shift", "na", 0, "This property has no cashier shifts — till close is N/A.");
+    : liveRow(
+        "open_shift",
+        "na",
+        0,
+        "This property has no hotel cashier drawers — till close is N/A.",
+      );
 
   const cancelNoShow = unavailableRow(
     "cancel_noshow_pending",
@@ -333,7 +434,126 @@ export function buildNa1Blockers(input: {
         }`,
   );
 
-  return [arrivals, overstays, unpaid, openShift, cancelNoShow, hk];
+  const checkedInWithoutRoom = countRow(
+    "checked_in_without_room",
+    input.integrity.checkedInWithoutRoom,
+    "checked-in stay(s) with no room assigned.",
+    "No checked-in stay is missing a room.",
+  );
+  const doubleOccupancy = countRow(
+    "room_double_occupancy",
+    input.integrity.doubleOccupancy,
+    "room(s) with more than one checked-in stay.",
+    "No room has two checked-in stays.",
+  );
+  const closedNonzero = countRow(
+    "closed_folio_nonzero_balance",
+    input.integrity.closedFolioNonzero,
+    "closed folio(s) with a non-zero balance.",
+    "No closed folio has a non-zero balance.",
+  );
+  const postActivity = countRow(
+    "closed_folio_post_activity",
+    input.integrity.closedFolioPostActivity,
+    "closed folio(s) with postings after close.",
+    "No posting is dated after its folio was closed.",
+  );
+  const duplicateCharge = countRow(
+    "duplicate_room_charge",
+    input.integrity.duplicateRoomCharge,
+    "stay(s) with more than one room charge.",
+    "No stay has a duplicate room charge.",
+  );
+
+  return [
+    arrivals,
+    overstays,
+    unpaid,
+    openShift,
+    cancelNoShow,
+    hk,
+    checkedInWithoutRoom,
+    doubleOccupancy,
+    closedNonzero,
+    postActivity,
+    duplicateCharge,
+  ];
+}
+
+function countRow(id: NaBlockerId, count: number, blocked: string, clear: string): NaBlockerRow {
+  return liveRow(
+    id,
+    count > 0 ? "block" : "pass",
+    count,
+    count > 0 ? `${count} ${blocked}` : clear,
+  );
+}
+
+const ARRIVAL_EXCEPTION_TYPES = ["arrival_not_processed", "pending_arrival"] as const;
+
+function rowById(rows: readonly NaBlockerRow[], id: NaBlockerId): NaBlockerRow | undefined {
+  return rows.find((row) => row.id === id);
+}
+
+function forcedBlocking(
+  source: readonly NaDerivedException[],
+  types: readonly string[],
+  fallback: NaDerivedException,
+): NaDerivedException[] {
+  const found = source.filter((row) => types.includes(row.exceptionType));
+  if (found.length === 0) return [{ ...fallback, severity: "blocking" }];
+  return found.map((row) => ({ ...row, severity: "blocking" }));
+}
+
+function synthetic(type: string, row: NaBlockerRow): NaDerivedException {
+  return {
+    exceptionType: type,
+    severity: "blocking",
+    referenceType: null,
+    referenceId: null,
+    message: row.detail,
+  };
+}
+
+/** Blocking exception rows that must be stored so SQL close matches the board. */
+export function closeBlockingExceptions(
+  rows: readonly NaBlockerRow[],
+  source: readonly NaDerivedException[],
+): NaDerivedException[] {
+  const blocking: NaDerivedException[] = [];
+  const push = (id: NaBlockerId, types: readonly string[]) => {
+    const row = rowById(rows, id);
+    if (!row || row.state !== "block") return;
+    blocking.push(...forcedBlocking(source, types, synthetic(types[0] ?? id, row)));
+  };
+
+  push("arrivals_pending", ARRIVAL_EXCEPTION_TYPES);
+  push("overstays", ["overstay"]);
+  push("unpaid_folios", ["unpaid_folio"]);
+  push("open_shift", ["open_cashier_shift"]);
+  push("hk_conflict", ["hk_conflict"]);
+  push("checked_in_without_room", ["checked_in_without_room"]);
+  push("room_double_occupancy", ["room_double_occupancy"]);
+  push("closed_folio_nonzero_balance", ["closed_folio_nonzero_balance"]);
+  push("closed_folio_post_activity", ["closed_folio_post_activity"]);
+  push("duplicate_room_charge", ["duplicate_room_charge"]);
+  return blocking;
+}
+
+/** Warnings stay warnings. Pending arrivals are not a second warning once the arrivals row owns them. */
+export function warningExceptionsForRun(
+  source: readonly NaDerivedException[],
+): NaDerivedException[] {
+  return source.filter(
+    (row) => row.severity === "warning" && row.exceptionType !== "pending_arrival",
+  );
+}
+
+export function persistedNightAuditExceptions(
+  rows: readonly NaBlockerRow[],
+  source: readonly NaDerivedException[],
+): NaDerivedException[] {
+  return [...warningExceptionsForRun(source), ...closeBlockingExceptions(rows, source)];
 }
 
 export const PHASE_6I_EXTRAS_NOT_NA1 = [

@@ -17,6 +17,12 @@ import {
   type ProfileTypeRecord,
   type ProfileTypeSnapshot,
 } from "./profile-types-card4.server";
+import { syncProfileTypeDocumentAssignments } from "./profile-type-document-sync.server";
+import {
+  isCompanyFieldCode,
+  isTravelAgencyFieldCode,
+  isIndividualGuestFieldCode,
+} from "./guest-creation-field-definitions";
 
 // Generated schema predates 0077.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,9 +49,9 @@ const saveSchema = z
     description: z.string().max(400).optional().default(""),
     icon: z.enum(PROFILE_TYPE_ICONS),
     active: z.boolean(),
-    requiredFieldIds: z.array(idSchema).max(40),
-    documentTypeIds: z.array(idSchema).max(40),
-    preferenceTypeIds: z.array(z.string().max(40)).max(40),
+    requiredFieldIds: z.array(idSchema).max(100),
+    documentTypeIds: z.array(idSchema).max(100),
+    preferenceTypeIds: z.array(z.string().max(40)).max(100),
     defaults: defaultsSchema,
   })
   .strict();
@@ -108,8 +114,12 @@ async function writeAudit(
   if (result.error) console.error("[card4-profile-types] audit", result.error.message);
 }
 
-async function seedDefaults(db: DbClient, restaurantId: string, userId: string) {
-  const payload = DEFAULT_PROFILE_TYPES.map((row) => ({
+function defaultTypePayload(
+  restaurantId: string,
+  userId: string,
+  row: (typeof DEFAULT_PROFILE_TYPES)[number],
+) {
+  return {
     restaurant_id: restaurantId,
     name: row.name,
     code: row.code,
@@ -121,9 +131,29 @@ async function seedDefaults(db: DbClient, restaurantId: string, userId: string) 
     preference_type_ids: [],
     defaults: EMPTY_PROFILE_TYPE_DEFAULTS,
     updated_by: userId,
-  }));
+  };
+}
+
+async function seedDefaults(db: DbClient, restaurantId: string, userId: string) {
+  const payload = DEFAULT_PROFILE_TYPES.map((row) => defaultTypePayload(restaurantId, userId, row));
   const result = await db.from("pms_guest_profile_types").insert(payload);
   if (result.error && result.error.code !== "23505") unavailable(result.error);
+}
+
+async function ensureMissingDefaults(
+  db: DbClient,
+  restaurantId: string,
+  userId: string,
+  existingCodes: readonly string[],
+) {
+  const have = new Set(existingCodes.map((code) => normalizeProfileTypeCode(code)));
+  const missing = DEFAULT_PROFILE_TYPES.filter((row) => !have.has(row.code));
+  if (missing.length === 0) return false;
+  const result = await db
+    .from("pms_guest_profile_types")
+    .insert(missing.map((row) => defaultTypePayload(restaurantId, userId, row)));
+  if (result.error && result.error.code !== "23505") unavailable(result.error);
+  return true;
 }
 
 async function loadSnapshot(
@@ -151,6 +181,16 @@ async function loadSnapshot(
     return loadSnapshot(db, restaurantId, userId, true, seedMissing);
   }
 
+  if (!seeded) {
+    const inserted = await ensureMissingDefaults(
+      db,
+      restaurantId,
+      userId,
+      ((typesRes.data ?? []) as Array<{ code: string }>).map((row) => row.code),
+    );
+    if (inserted) return loadSnapshot(db, restaurantId, userId, true);
+  }
+
   const docsRes = await db
     .from("pms_guest_id_types")
     .select("id, name")
@@ -161,13 +201,74 @@ async function loadSnapshot(
 
   const prefsRes = await db
     .from("pms_guest_preference_types")
-    .select("id, name")
+    .select("id, name, code, active")
     .eq("restaurant_id", restaurantId)
     .eq("active", true)
     .order("name");
-  const preferenceTypes: NamedOption[] = prefsRes.error ? [] : (prefsRes.data ?? []);
+  const preferenceTypes: NamedOption[] = prefsRes.error
+    ? []
+    : ((prefsRes.data ?? []) as Array<{ id: string; name: string }>).map((row) => ({
+        id: row.id,
+        name: row.name,
+      }));
 
-  const types = (typesRes.data ?? []).map(mapRow);
+  const activePrefList = (prefsRes.data ?? []) as Array<{ id: string; name: string; code: string; active: boolean }>;
+  const activePrefIds = activePrefList.map((p) => p.id);
+  const activePrefIdSet = new Set(activePrefIds);
+  const roomTypePref = activePrefList.find((p) => p.code === "ROOM_TYPE");
+  const ratePlanPref = activePrefList.find((p) => p.code === "RATE_PLAN");
+  const mealPlanPref = activePrefList.find((p) => p.code === "MEAL_PLAN");
+
+  for (const rawRow of (typesRes.data ?? []) as Array<Record<string, unknown>>) {
+    let rawIds: string[] = Array.isArray(rawRow.preference_type_ids)
+      ? [...(rawRow.preference_type_ids as string[])]
+      : [];
+    let changed = false;
+
+    // Prune stale/deleted preference IDs that no longer exist
+    const validIds = rawIds.filter((id) => activePrefIdSet.has(id));
+    if (validIds.length !== rawIds.length) {
+      rawIds = validIds;
+      changed = true;
+    }
+
+    // Default IND to have all active preferences if empty
+    if (rawRow.code === "IND" && rawIds.length === 0 && activePrefIds.length > 0) {
+      rawIds = [...activePrefIds];
+      changed = true;
+    } else if (rawRow.code === "IND") {
+      // Ensure ROOM_TYPE, RATE_PLAN, and MEAL_PLAN are included by default if active
+      for (const defPref of [roomTypePref, ratePlanPref, mealPlanPref]) {
+        if (defPref && !rawIds.includes(defPref.id)) {
+          rawIds.push(defPref.id);
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      rawRow.preference_type_ids = rawIds;
+      await db
+        .from("pms_guest_profile_types")
+        .update({ preference_type_ids: rawIds })
+        .eq("id", rawRow.id);
+    }
+  }
+
+  const canonicalOrder: Record<string, number> = {
+    IND: 1,
+    COM: 2,
+    TRA: 3,
+    GRP: 4,
+  };
+
+  const types = (typesRes.data ?? [])
+    .map(mapRow)
+    .sort((a, b) => {
+      const orderA = canonicalOrder[normalizeProfileTypeCode(a.code)] ?? 99;
+      const orderB = canonicalOrder[normalizeProfileTypeCode(b.code)] ?? 99;
+      return orderA - orderB;
+    });
   const lastUpdatedAt = types.reduce<string | null>((latest, row) => {
     if (!latest || row.updatedAt > latest) return row.updatedAt;
     return latest;
@@ -215,6 +316,12 @@ export const savePmsCard4ProfileType = createServerFn({ method: "POST" })
     if (errors.length > 0)
       throw new Error(errors[0]?.message ?? "Fix the profile type before saving.");
 
+    if (!data.id) {
+      throw new Error(
+        "Arbitrary profile type creation is not supported. NORU supports exactly four fixed profile types.",
+      );
+    }
+
     const payload = {
       restaurant_id: data.restaurantId,
       name,
@@ -229,35 +336,95 @@ export const savePmsCard4ProfileType = createServerFn({ method: "POST" })
       updated_by: context.userId,
     };
 
-    let id = data.id;
-    if (data.id) {
-      const result = await db
-        .from("pms_guest_profile_types")
-        .update(payload)
-        .eq("id", data.id)
-        .eq("restaurant_id", data.restaurantId)
-        .select("id")
-        .maybeSingle();
-      if (result.error?.code === "23505")
-        throw new Error("A profile type with this name or code already exists.");
-      if (result.error) unavailable(result.error);
-      id = result.data?.id;
-    } else {
-      const result = await db
-        .from("pms_guest_profile_types")
-        .insert(payload)
-        .select("id")
-        .maybeSingle();
-      if (result.error?.code === "23505")
-        throw new Error("A profile type with this name or code already exists.");
-      if (result.error) unavailable(result.error);
-      id = result.data?.id;
-    }
+    const result = await db
+      .from("pms_guest_profile_types")
+      .update(payload)
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId)
+      .select("id")
+      .maybeSingle();
+    if (result.error?.code === "23505")
+      throw new Error("A profile type with this name or code already exists.");
+    if (result.error) unavailable(result.error);
+    const id = result.data?.id;
     if (!id) throw new Error("Could not save the profile type.");
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_profile_type_saved", {
       id,
       code,
     });
+    await syncProfileTypeDocumentAssignments(
+      db,
+      data.restaurantId,
+      id,
+      data.documentTypeIds,
+      context.userId,
+    );
+    if (code === "IND" || code === "INDIVIDUAL" || name.toLowerCase().includes("individual")) {
+      const requiredSet = new Set(data.requiredFieldIds);
+      const fieldsRes = await db
+        .from("pms_guest_fields")
+        .select("id, code, required")
+        .eq("restaurant_id", data.restaurantId);
+      if (fieldsRes.data) {
+        // Only sync individual fields
+        const indFields = fieldsRes.data.filter((f) => isIndividualGuestFieldCode(f.code));
+        for (const f of indFields) {
+          const shouldBeReq = requiredSet.has(f.id);
+          if (f.required !== shouldBeReq) {
+            await db
+              .from("pms_guest_fields")
+              .update({ required: shouldBeReq, updated_by: context.userId })
+              .eq("id", f.id)
+              .eq("restaurant_id", data.restaurantId);
+          }
+        }
+      }
+    } else if (code === "COM" || code === "COMPANY" || name.toLowerCase().includes("company")) {
+      const requiredSet = new Set(data.requiredFieldIds);
+      const fieldsRes = await db
+        .from("pms_guest_fields")
+        .select("id, code, required")
+        .eq("restaurant_id", data.restaurantId);
+      if (fieldsRes.data) {
+        // Only sync company fields
+        const comFields = fieldsRes.data.filter((f) => isCompanyFieldCode(f.code));
+        for (const f of comFields) {
+          const shouldBeReq = requiredSet.has(f.id);
+          if (f.required !== shouldBeReq) {
+            await db
+              .from("pms_guest_fields")
+              .update({ required: shouldBeReq, updated_by: context.userId })
+              .eq("id", f.id)
+              .eq("restaurant_id", data.restaurantId);
+          }
+        }
+      }
+    } else if (
+      code === "TRA" ||
+      code === "TRAVEL_AGENCY" ||
+      code === "TRAVEL_AGENT" ||
+      name.toLowerCase().includes("travel")
+    ) {
+      const requiredSet = new Set(data.requiredFieldIds);
+      const fieldsRes = await db
+        .from("pms_guest_fields")
+        .select("id, code, required")
+        .eq("restaurant_id", data.restaurantId);
+      if (fieldsRes.data) {
+        // Only sync travel agency fields
+        const taFields = fieldsRes.data.filter((f) => isTravelAgencyFieldCode(f.code));
+        for (const f of taFields) {
+          const shouldBeReq = requiredSet.has(f.id);
+          if (f.required !== shouldBeReq) {
+            await db
+              .from("pms_guest_fields")
+              .update({ required: shouldBeReq, updated_by: context.userId })
+              .eq("id", f.id)
+              .eq("restaurant_id", data.restaurantId);
+          }
+        }
+      }
+    }
     const next = await loadSnapshot(db, data.restaurantId, context.userId);
     return {
       ok: true as const,
@@ -304,20 +471,16 @@ export const deletePmsCard4ProfileType = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const result = await supabaseAdmin
+    const existing = await supabaseAdmin
       .from("pms_guest_profile_types")
-      .delete()
+      .select("id, code")
       .eq("id", data.id)
-      .eq("restaurant_id", data.restaurantId);
-    if (result.error) unavailable(result.error);
-    await writeAudit(
-      supabaseAdmin,
-      data.restaurantId,
-      context.userId,
-      "pms_card4_profile_type_deleted",
-      {
-        id: data.id,
-      },
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (existing.error) unavailable(existing.error);
+    if (!existing.data) throw new Error("That profile type no longer exists.");
+    // Deletion of system types is prohibited.
+    throw new Error(
+      "System profile types cannot be deleted. Deactivate the profile type instead by setting Active = false.",
     );
-    return { ok: true as const };
   });

@@ -19,6 +19,7 @@ import {
   validateCompanyType,
 } from "./guest-profile-company";
 import {
+  AGENCY_TYPES,
   TA_ENRICHMENT_UNAVAILABLE,
   hasPaymentTermsInput,
   validateAgencyType,
@@ -435,8 +436,17 @@ async function assertCompanyWorkspace(
     snapshot.fields,
     mode,
   );
-  if (error) throw new Error(error);
-  const duplicates = await findCompanyDuplicateRows(restaurantId, input, excludeId);
+  const duplicates = await findCompanyDuplicateRows(
+    restaurantId,
+    {
+      name: input.name,
+      taxId: input.taxId ?? null,
+      businessRegistrationNumber: input.businessRegistrationNumber ?? null,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+    },
+    excludeId,
+  );
   const blocking = duplicates.find((row) => row.blocking);
   if (blocking) {
     throw new Error(`A company already exists with the same ${blocking.match.replaceAll("_", " ")}.`);
@@ -480,6 +490,8 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
         accountType: z.enum(GUEST_ACCOUNT_TYPES),
         search: z.string().max(120).optional(),
         status: z.enum(GUEST_ACCOUNT_STATUSES).optional(),
+        agencyType: z.enum(AGENCY_TYPES).optional(),
+        country: z.string().max(80).optional(),
         limit: z.number().int().min(1).max(200).optional(),
         offset: z.number().int().min(0).max(20_000).optional(),
       })
@@ -491,12 +503,27 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
     const like = term ? `%${term.replace(/[%,]/g, "")}%` : "";
     const offset = data.offset ?? 0;
     const limit = data.limit ?? 100;
-    function applyFilters(query: any, includeTrade: boolean) {
+    function applyFilters(query: any, includeTrade: boolean, includeTaFilters: boolean) {
       let next = query.eq("account_type", data.accountType).order("updated_at", { ascending: false });
       if (data.status) next = next.eq("account_status", data.status);
+      if (includeTaFilters && data.accountType === "travel_agent") {
+        if (data.agencyType) next = next.eq("agency_type", data.agencyType);
+        const country = (data.country ?? "").trim().replace(/[%,]/g, "");
+        if (country) next = next.ilike("country", `%${country}%`);
+      }
       if (term) {
         const parts = includeTrade
-          ? [`name.ilike.${like}`, `code.ilike.${like}`, `email.ilike.${like}`, `phone.ilike.${like}`, `trade_name.ilike.${like}`]
+          ? [
+              `name.ilike.${like}`,
+              `code.ilike.${like}`,
+              `email.ilike.${like}`,
+              `phone.ilike.${like}`,
+              `trade_name.ilike.${like}`,
+              `primary_contact_name.ilike.${like}`,
+              `iata_license_number.ilike.${like}`,
+              `tax_id.ilike.${like}`,
+              `business_registration_number.ilike.${like}`,
+            ]
           : [`name.ilike.${like}`, `code.ilike.${like}`, `email.ilike.${like}`, `phone.ilike.${like}`];
         if (isUuid(term)) parts.push(`id.eq.${term}`);
         const segment = uuidFirstSegment(term);
@@ -515,6 +542,7 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
         .select(MASTER_COLUMNS_TA, { count: "exact" })
         .eq("restaurant_id", data.restaurantId),
       true,
+      true,
     );
     if (result.error && isMissingSchemaError(result.error)) {
       result = await applyFilters(
@@ -523,6 +551,7 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
           .select(MASTER_COLUMNS_COMPANY, { count: "exact" })
           .eq("restaurant_id", data.restaurantId),
         true,
+        false,
       );
     }
     if (result.error && isMissingSchemaError(result.error)) {
@@ -532,6 +561,7 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
           .select(MASTER_COLUMNS, { count: "exact" })
           .eq("restaurant_id", data.restaurantId),
         false,
+        false,
       );
     }
     if (result.error && isMissingSchemaError(result.error)) {
@@ -540,6 +570,7 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
           .from("guest_account_masters")
           .select(MASTER_COLUMNS_BASE, { count: "exact" })
           .eq("restaurant_id", data.restaurantId),
+        false,
         false,
       );
     }
@@ -720,6 +751,11 @@ export const createGuestAccount = createServerFn({ method: "POST" })
     }
     if (wave4Unavailable(error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (error || !inserted) throw new Error(error?.message ?? "Could not create this account master.");
+    if (data.accountType === "group" && !columns.code) {
+      const { generateGroupCode } = await import("./guest-group-detail-workspace");
+      const code = generateGroupCode(inserted.id);
+      await db(context).from("guest_account_masters").update({ code }).eq("id", inserted.id);
+    }
     await recordGuestAccountEvent({
       restaurantId: data.restaurantId,
       masterId: inserted.id,
@@ -832,26 +868,71 @@ type LinkRow = {
   master_id: string;
   role: string;
   created_at: string;
-  guest_profiles: { first_name: string; last_name: string | null } | null;
-  guest_account_masters: { name: string; account_type: string } | null;
+  guest_profiles: {
+    first_name: string;
+    last_name: string | null;
+    email?: string | null;
+    phone?: string | null;
+    nationality?: string | null;
+    guest_status?: string | null;
+    vip_status?: boolean | null;
+  } | null;
+  guest_account_masters: {
+    name: string;
+    code?: string | null;
+    account_type: string;
+    account_status?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    payment_terms?: string | null;
+    credit_account_enabled?: boolean | null;
+    credit_limit_note?: string | null;
+    primary_contact_name?: string | null;
+  } | null;
 };
 
 const LINK_SELECT = `
   id, guest_id, master_id, role, created_at,
+  guest_profiles!guest_account_links_guest_same_property ( first_name, last_name, email, phone, nationality, guest_status, vip_status ),
+  guest_account_masters!guest_account_links_master_same_property ( name, code, account_type, account_status, email, phone, payment_terms, credit_account_enabled, credit_limit_note, primary_contact_name )
+`;
+
+const LINK_SELECT_BASIC = `
+  id, guest_id, master_id, role, created_at,
   guest_profiles!guest_account_links_guest_same_property ( first_name, last_name ),
-  guest_account_masters!guest_account_links_master_same_property ( name, account_type )
+  guest_account_masters!guest_account_links_master_same_property ( name, code, account_type, account_status, email, phone )
 `;
 
 function toLink(row: LinkRow): GuestAccountLink {
   const guest = row.guest_profiles;
   const master = row.guest_account_masters;
+  const guestName = [guest?.first_name, guest?.last_name].filter(Boolean).join(" ").trim() || "Guest";
+  const masterName = master?.name ?? "Account";
+  const masterType = (master?.account_type ?? "company") as GuestAccountType;
   return {
     id: row.id,
     guestId: row.guest_id,
-    guestName: [guest?.first_name, guest?.last_name].filter(Boolean).join(" ").trim() || "Guest",
+    guestName,
+    guestFullName: guestName,
+    guestEmail: guest?.email ?? null,
+    guestPhone: guest?.phone ?? null,
+    guestNationality: guest?.nationality ?? null,
+    guestStatus: guest?.guest_status ?? null,
+    guestVip: Boolean(guest?.vip_status),
     masterId: row.master_id,
-    masterName: master?.name ?? "Account",
-    masterType: (master?.account_type ?? "company") as GuestAccountType,
+    masterName,
+    masterType,
+    masterCode: master?.code ?? null,
+    masterStatus: master?.account_status ?? "active",
+    masterEmail: master?.email ?? null,
+    masterPhone: master?.phone ?? null,
+    paymentTerms: master?.payment_terms ?? null,
+    creditAccountEnabled: Boolean(master?.credit_account_enabled),
+    creditLimitNote: master?.credit_limit_note ?? null,
+    primaryContactName: master?.primary_contact_name ?? null,
+    accountId: row.master_id,
+    accountName: masterName,
+    accountType: masterType,
     role: row.role as GuestRelationshipRole,
     createdAt: row.created_at,
   };
@@ -880,7 +961,22 @@ export const listGuestAccountLinks = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false });
     if (data.guestId) query = query.eq("guest_id", data.guestId);
     if (data.accountId) query = query.eq("master_id", data.accountId);
-    const result = await query;
+    let result = await query;
+    if (
+      result.error &&
+      (result.error.code === "42703" ||
+        result.error.code === "PGRST204" ||
+        result.error.message?.includes("column"))
+    ) {
+      let fallbackQuery = db(context)
+        .from("guest_account_links")
+        .select(LINK_SELECT_BASIC)
+        .eq("restaurant_id", data.restaurantId)
+        .order("created_at", { ascending: false });
+      if (data.guestId) fallbackQuery = fallbackQuery.eq("guest_id", data.guestId);
+      if (data.accountId) fallbackQuery = fallbackQuery.eq("master_id", data.accountId);
+      result = await fallbackQuery;
+    }
     if (wave4Unavailable(result.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (result.error) throw new Error(result.error.message);
     return ((result.data ?? []) as unknown as LinkRow[]).map(toLink);
@@ -983,8 +1079,12 @@ export const linkGuestAccountsBulk = createServerFn({ method: "POST" })
     if (wave4Unavailable(masterError)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (masterError) throw new Error(masterError.message);
     if (!master) throw new Error("That account master could not be found.");
-    if (master.account_type !== "company" && master.account_type !== "travel_agent") {
-      throw new Error("Multi-guest link is available on Company and Travel Agent masters.");
+    if (
+      master.account_type !== "company" &&
+      master.account_type !== "travel_agent" &&
+      master.account_type !== "group"
+    ) {
+      throw new Error("Multi-guest link is available on Company, Travel Agent, and Group masters.");
     }
     const typeMismatch = assertRoleMatchesType(data.role, master.account_type as GuestAccountType);
     if (typeMismatch) throw new Error(typeMismatch);

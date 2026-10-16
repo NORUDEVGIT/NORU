@@ -256,11 +256,13 @@ export function RoomTypeImagesDialog({
   onOpenChange,
   restaurantId,
   roomType,
+  canEdit = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   restaurantId: string;
   roomType: RoomType | null;
+  canEdit?: boolean;
 }) {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -282,6 +284,7 @@ export function RoomTypeImagesDialog({
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ["room-type-images", restaurantId, roomType?.id] });
     void queryClient.invalidateQueries({ queryKey: ["room-types", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["pms-card2-room-types", restaurantId] });
   }
 
   const mutate = useMutation({
@@ -297,7 +300,7 @@ export function RoomTypeImagesDialog({
   });
 
   async function onFiles(files: FileList | null) {
-    if (!files || !roomType) return;
+    if (!canEdit || !files || !roomType) return;
     setUploading(true);
     try {
       for (const file of Array.from(files)) {
@@ -346,6 +349,7 @@ export function RoomTypeImagesDialog({
   const images = imagesQuery.data ?? [];
 
   function move(index: number, direction: -1 | 1) {
+    if (!canEdit) return;
     const next = [...images];
     const target = index + direction;
     if (target < 0 || target >= next.length) return;
@@ -373,7 +377,7 @@ export function RoomTypeImagesDialog({
             className="hidden"
             onChange={(e) => void onFiles(e.target.files)}
           />
-          <Button variant="outline" disabled={uploading} onClick={() => fileRef.current?.click()}>
+          <Button variant="outline" disabled={!canEdit || uploading} onClick={() => fileRef.current?.click()}>
             <ImagePlus className="mr-2 size-4" />
             {uploading ? "Uploading…" : "Upload images"}
           </Button>
@@ -404,16 +408,17 @@ export function RoomTypeImagesDialog({
                     {image.isCover ? "Cover" : `#${index + 1}`}
                   </span>
                   <div className="flex items-center gap-0.5">
-                    <Button size="icon" variant="ghost" aria-label="Move up" onClick={() => move(index, -1)}>
+                    <Button size="icon" variant="ghost" aria-label="Move up" disabled={!canEdit} onClick={() => move(index, -1)}>
                       <ArrowUp className="size-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" aria-label="Move down" onClick={() => move(index, 1)}>
+                    <Button size="icon" variant="ghost" aria-label="Move down" disabled={!canEdit} onClick={() => move(index, 1)}>
                       <ArrowDown className="size-4" />
                     </Button>
                     <Button
                       size="icon"
                       variant="ghost"
                       aria-label="Set as cover"
+                      disabled={!canEdit}
                       onClick={() =>
                         mutate.mutate(() =>
                           setCover({ data: { restaurantId, roomTypeId: roomType!.id, imageId: image.id } }),
@@ -426,6 +431,7 @@ export function RoomTypeImagesDialog({
                       size="icon"
                       variant="ghost"
                       aria-label="Delete image"
+                      disabled={!canEdit}
                       onClick={() =>
                         mutate.mutate(() =>
                           removeImage({ data: { restaurantId, roomTypeId: roomType!.id, imageId: image.id } }),

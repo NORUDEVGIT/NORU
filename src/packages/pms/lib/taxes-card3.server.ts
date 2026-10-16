@@ -18,13 +18,26 @@ export type FeeBasis = (typeof FEE_BASIS)[number];
 export const TAX_CALCULATIONS = ["inclusive", "exclusive"] as const;
 export type TaxCalculation = (typeof TAX_CALCULATIONS)[number];
 
-export const EXEMPTION_REASONS = ["diplomatic", "government", "nonprofit", "other"] as const;
+export const EXEMPTION_REASONS = [
+  "government",
+  "diplomatic",
+  "international_organization",
+  "nonprofit",
+  "tax_status",
+  "corporate_business",
+  "guest_status",
+  "long_stay",
+  "group_event",
+  "promotional",
+  "management",
+  "legal_regulatory",
+  "other",
+] as const;
 export type ExemptionReason = (typeof EXEMPTION_REASONS)[number];
 
 export const CARD3_TAXES_TABS = [
   { id: "overview", label: "Overview" },
   { id: "taxes", label: "Taxes" },
-  { id: "tax-groups", label: "Tax Groups" },
   { id: "service-charges", label: "Service Charges" },
   { id: "fees", label: "Fees" },
   { id: "exemptions", label: "Exemptions" },
@@ -59,10 +72,19 @@ export const TAX_CALCULATION_LABELS: Record<TaxCalculation, string> = {
   exclusive: "Exclusive",
 };
 export const EXEMPTION_REASON_LABELS: Record<ExemptionReason, string> = {
-  diplomatic: "Diplomatic",
   government: "Government",
-  nonprofit: "Nonprofit",
-  other: "Other",
+  diplomatic: "Diplomatic",
+  international_organization: "International Organization",
+  nonprofit: "Non-Profit / NGO",
+  tax_status: "Tax Status",
+  corporate_business: "Corporate / Business",
+  guest_status: "Guest Status",
+  long_stay: "Long Stay",
+  group_event: "Group / Event",
+  promotional: "Promotional",
+  management: "Management",
+  legal_regulatory: "Legal / Regulatory",
+  other: "Other / Custom",
 };
 
 export type Card3TaxesAuditRow = {
@@ -117,6 +139,7 @@ export type ExemptionRuleRow = {
   name: string;
   description: string;
   reasonCategory: ExemptionReason;
+  customReason?: string | null;
   documentationRequired: boolean;
   approvalRequired: boolean;
   active: boolean;
@@ -124,10 +147,12 @@ export type ExemptionRuleRow = {
 
 export type TaxesCard3Snapshot = {
   taxes: TaxRow[];
-  groups: TaxGroupRow[];
+  groups?: TaxGroupRow[];
   serviceCharges: ServiceChargeRow[];
   fees: FeeRow[];
   exemptionRules: ExemptionRuleRow[];
+  /** Card 3 tax group applied when posting room charges (optional). */
+  defaultRoomTaxGroupId?: string | null;
 };
 
 export type TaxesCard3Readiness = {
@@ -151,16 +176,13 @@ export function evaluateTaxesCard3Readiness(snapshot: TaxesCard3Snapshot): Taxes
   const { taxes, groups, serviceCharges, fees, exemptionRules } = snapshot;
   const hasRows =
     taxes.length > 0 ||
-    groups.length > 0 ||
+    (groups != null && groups.length > 0) ||
     serviceCharges.length > 0 ||
     fees.length > 0 ||
     exemptionRules.length > 0;
 
   const activeTaxes = taxes.filter((row) => row.active);
   if (activeTaxes.length === 0) blockers.push("Save at least one active tax.");
-
-  const mappedGroup = groups.find((row) => row.active && row.taxIds.length > 0);
-  if (!mappedGroup) blockers.push("Save an active tax group with at least one assigned tax.");
 
   if (!serviceCharges.some((row) => row.active)) blockers.push("Save at least one active service charge.");
   if (!fees.some((row) => row.active)) blockers.push("Save at least one active fee.");

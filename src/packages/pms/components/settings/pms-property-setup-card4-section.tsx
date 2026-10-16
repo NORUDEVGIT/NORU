@@ -11,6 +11,7 @@ import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-u
 import {
   Card4ProfileTypesGuide,
   PmsCard4ProfileTypes,
+  type ProfileTypeTabId,
 } from "@/packages/pms/components/settings/pms-card4-profile-types";
 import {
   Card4RequiredFieldsGuide,
@@ -36,6 +37,14 @@ import {
   Card4CompanyBusinessGuide,
   PmsCard4CompanyBusiness,
 } from "@/packages/pms/components/settings/pms-card4-company-business";
+import {
+  Card4GroupTypesGuide,
+  PmsCard4GroupTypes,
+} from "@/packages/pms/components/settings/pms-card4-group-types";
+import {
+  Card4TravelAgencyTypesGuide,
+  PmsCard4TravelAgencyTypes,
+} from "@/packages/pms/components/settings/pms-card4-travel-agency-types";
 import {
   Card4ServiceCategoriesGuide,
   PmsCard4ServiceCategories,
@@ -86,6 +95,10 @@ import {
 } from "@/packages/pms/components/settings/pms-card4-communication-defaults";
 import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-card4.functions";
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
+import { getPmsCard4GroupTypes } from "@/packages/pms/lib/group-types-card4.functions";
+import { groupTypesConfigured as groupTypesReadyFn } from "@/packages/pms/lib/group-types-card4.server";
+import { getPmsCard4TravelAgencyTypes } from "@/packages/pms/lib/travel-agency-types-card4.functions";
+import { travelAgencyTypesConfigured as travelAgencyTypesReadyFn } from "@/packages/pms/lib/travel-agency-types-card4.server";
 import { getPmsCard4ServiceCategories } from "@/packages/pms/lib/service-categories-card4.functions";
 import { serviceCategoriesConfigured } from "@/packages/pms/lib/service-categories-card4.server";
 import { getPmsCard4ServiceTypes } from "@/packages/pms/lib/service-types-card4.functions";
@@ -147,20 +160,60 @@ export function PmsPropertySetupCard4Section({
 }: {
   restaurantId: string;
   canEdit: boolean;
-  initialStep?: Card4StepId;
+  initialStep?: string;
 }) {
+  const resolvedInitialStep: Card4StepId =
+    initialStep === "company-business"
+      ? "company-business"
+      : initialStep === "group-types"
+        ? "group-types"
+        : initialStep === "travel-agency-types"
+          ? "travel-agency-types"
+          : "profile-types";
+
+  const resolvedInitialTab: ProfileTypeTabId =
+    initialStep === "required-fields"
+      ? "fields"
+      : initialStep === "identity-documents"
+        ? "documents"
+        : initialStep === "preferences"
+          ? "preferences"
+          : "general";
+
   const [mainSection, setMainSection] = useState<Card4MainSectionId>("profile-rules");
-  const [step, setStep] = useState<Card4StepId>(initialStep);
+  const [step, setStep] = useState<Card4StepId>(resolvedInitialStep);
+  const [profileTypeTab, setProfileTypeTab] = useState<ProfileTypeTabId>(resolvedInitialTab);
   const [gstStep, setGstStep] = useState<Card4GstStepId>("service-categories");
   const [notificationStep, setNotificationStep] = useState<Card4NotificationStepId>("channels");
   const [saveRequest, setSaveRequest] = useState<{ token: number; thenNext: boolean } | null>(null);
   const [saving, setSaving] = useState(false);
   const [canSave, setCanSave] = useState(false);
+
+  const navigateToStep = useCallback((targetStep: string) => {
+    if (targetStep === "required-fields") {
+      setStep("profile-types");
+      setProfileTypeTab("fields");
+      return;
+    }
+    if (targetStep === "identity-documents") {
+      setStep("profile-types");
+      setProfileTypeTab("documents");
+      return;
+    }
+    if (targetStep === "preferences") {
+      setStep("profile-types");
+      setProfileTypeTab("preferences");
+      return;
+    }
+    setStep(targetStep as Card4StepId);
+  }, []);
   const loadTypes = useServerFn(getPmsCard4ProfileTypes);
   const loadFields = useServerFn(getPmsCard4RequiredFields);
   const loadDocuments = useServerFn(getPmsCard4IdentityDocumentTypes);
   const loadPreferences = useServerFn(getPmsCard4Preferences);
   const loadCompanyBusiness = useServerFn(getPmsCard4CompanyBusiness);
+  const loadGroupTypes = useServerFn(getPmsCard4GroupTypes);
+  const loadTravelAgencyTypes = useServerFn(getPmsCard4TravelAgencyTypes);
   const loadServiceCategories = useServerFn(getPmsCard4ServiceCategories);
   const loadServiceTypes = useServerFn(getPmsCard4ServiceTypes);
   const loadServicePricing = useServerFn(getPmsCard4ServicePricing);
@@ -197,6 +250,16 @@ export function PmsPropertySetupCard4Section({
   const companyQuery = useQuery({
     queryKey: ["pms-card4-company-business", restaurantId],
     queryFn: () => loadCompanyBusiness({ data: { restaurantId } }),
+    retry: false,
+  });
+  const groupTypesQuery = useQuery({
+    queryKey: ["pms-card4-group-types", restaurantId],
+    queryFn: () => loadGroupTypes({ data: { restaurantId } }),
+    retry: false,
+  });
+  const travelAgencyTypesQuery = useQuery({
+    queryKey: ["pms-card4-travel-agency-types", restaurantId],
+    queryFn: () => loadTravelAgencyTypes({ data: { restaurantId } }),
     retry: false,
   });
   const serviceCategoriesQuery = useQuery({
@@ -277,6 +340,10 @@ export function PmsPropertySetupCard4Section({
       defaultInvalid: false,
     },
   );
+  const groupTypesReady = groupTypesReadyFn(groupTypesQuery.data?.types ?? []);
+  const travelAgencyTypesReady = travelAgencyTypesReadyFn(
+    travelAgencyTypesQuery.data?.types ?? [],
+  );
   const categoriesReady = serviceCategoriesConfigured(
     serviceCategoriesQuery.data?.categories ?? [],
   );
@@ -339,31 +406,6 @@ export function PmsPropertySetupCard4Section({
       identityDocumentsConfigured,
       preferencesReady,
     ),
-    "required-fields": evaluateCard4StepStatus(
-      "required-fields",
-      undefined,
-      profileTypesConfigured,
-      requiredFieldsConfigured,
-      identityDocumentsConfigured,
-      preferencesReady,
-    ),
-    "identity-documents": evaluateCard4StepStatus(
-      "identity-documents",
-      undefined,
-      profileTypesConfigured,
-      requiredFieldsConfigured,
-      identityDocumentsConfigured,
-      preferencesReady,
-    ),
-    preferences: evaluateCard4StepStatus(
-      "preferences",
-      undefined,
-      profileTypesConfigured,
-      requiredFieldsConfigured,
-      identityDocumentsConfigured,
-      preferencesReady,
-      companyReady,
-    ),
     "company-business": evaluateCard4StepStatus(
       "company-business",
       undefined,
@@ -372,6 +414,27 @@ export function PmsPropertySetupCard4Section({
       identityDocumentsConfigured,
       preferencesReady,
       companyReady,
+    ),
+    "group-types": evaluateCard4StepStatus(
+      "group-types",
+      undefined,
+      profileTypesConfigured,
+      requiredFieldsConfigured,
+      identityDocumentsConfigured,
+      preferencesReady,
+      companyReady,
+      groupTypesReady,
+    ),
+    "travel-agency-types": evaluateCard4StepStatus(
+      "travel-agency-types",
+      undefined,
+      profileTypesConfigured,
+      requiredFieldsConfigured,
+      identityDocumentsConfigured,
+      preferencesReady,
+      companyReady,
+      groupTypesReady,
+      travelAgencyTypesReady,
     ),
   };
   const gstStatuses: Partial<Record<Card4GstStepId, PropertySetupCardStatus>> = {
@@ -450,7 +513,8 @@ export function PmsPropertySetupCard4Section({
     requiredFieldsConfigured &&
     identityDocumentsConfigured &&
     preferencesReady &&
-    companyReady;
+    companyReady &&
+    groupTypesReady;
   const cardStatus: PropertySetupCardStatus =
     allGprComplete &&
     categoriesReady &&
@@ -471,6 +535,7 @@ export function PmsPropertySetupCard4Section({
           identityDocumentsConfigured ||
           preferencesReady ||
           companyReady ||
+          groupTypesReady ||
           categoriesReady ||
           typesReady ||
           pricingReady ||
@@ -552,10 +617,9 @@ export function PmsPropertySetupCard4Section({
     }
     if (
       step === "profile-types" ||
-      step === "required-fields" ||
-      step === "identity-documents" ||
-      step === "preferences" ||
-      step === "company-business"
+      step === "company-business" ||
+      step === "group-types" ||
+      step === "travel-agency-types"
     ) {
       requestSave(true);
       return;
@@ -565,10 +629,9 @@ export function PmsPropertySetupCard4Section({
 
   const gprLive =
     step === "profile-types" ||
-    step === "required-fields" ||
-    step === "identity-documents" ||
-    step === "preferences" ||
-    step === "company-business";
+    step === "company-business" ||
+    step === "group-types" ||
+    step === "travel-agency-types";
   const gstLive =
     gstStep === "service-categories" ||
     gstStep === "service-types" ||
@@ -684,7 +747,7 @@ export function PmsPropertySetupCard4Section({
                     if (mainSection === "guest-service-types") setGstStep(id as Card4GstStepId);
                     else if (mainSection === "notifications")
                       setNotificationStep(id as Card4NotificationStepId);
-                    else if (mainSection === "profile-rules") setStep(id as Card4StepId);
+                    else if (mainSection === "profile-rules") navigateToStep(id);
                   }}
                   steps={workspaceSteps}
                 />
@@ -750,22 +813,6 @@ export function PmsPropertySetupCard4Section({
               />
             ) : mainSection !== "profile-rules" ? null : step === "profile-types" ? (
               <Card4ProfileTypesGuide count={typesQuery.data?.types.length ?? 0} />
-            ) : step === "required-fields" ? (
-              <Card4RequiredFieldsGuide
-                count={fieldsQuery.data?.fields.length ?? 0}
-                onGoIdentityDocuments={() => setStep("identity-documents")}
-              />
-            ) : step === "identity-documents" ? (
-              <Card4IdentityDocumentsGuide
-                activeCount={
-                  documentsQuery.data?.documentTypes.filter((row) => row.active).length ?? 0
-                }
-              />
-            ) : step === "preferences" ? (
-              <Card4PreferencesGuide
-                categoryCount={preferencesQuery.data?.categories.length ?? 0}
-                typeCount={preferencesQuery.data?.types.length ?? 0}
-              />
             ) : step === "company-business" ? (
               <Card4CompanyBusinessGuide
                 typeCount={companyQuery.data?.types.length ?? 0}
@@ -776,6 +823,10 @@ export function PmsPropertySetupCard4Section({
                 settingsReady={companyReady}
                 saved={Boolean(companyQuery.data?.lastUpdatedAt)}
               />
+            ) : step === "group-types" ? (
+              <Card4GroupTypesGuide count={groupTypesQuery.data?.types.length ?? 0} />
+            ) : step === "travel-agency-types" ? (
+              <Card4TravelAgencyTypesGuide count={travelAgencyTypesQuery.data?.types.length ?? 0} />
             ) : null}
 
             {mainSection === "notifications" ? (
@@ -897,6 +948,8 @@ export function PmsPropertySetupCard4Section({
                 onSavingChange={onSavingChange}
                 saveRequest={saveRequest}
                 onSaved={onSaved}
+                initialTab={profileTypeTab}
+                onTabChange={setProfileTypeTab}
               />
             ) : step === "required-fields" ? (
               <PmsCard4RequiredFields
@@ -905,7 +958,7 @@ export function PmsPropertySetupCard4Section({
                 onSavingChange={onSavingChange}
                 saveRequest={saveRequest}
                 onSaved={onSaved}
-                onGoIdentityDocuments={() => setStep("identity-documents")}
+                onGoIdentityDocuments={() => navigateToStep("identity-documents")}
               />
             ) : step === "identity-documents" ? (
               <PmsCard4IdentityDocuments
@@ -930,7 +983,23 @@ export function PmsPropertySetupCard4Section({
                 onSavingChange={onSavingChange}
                 saveRequest={saveRequest}
                 onSaved={onSaved}
-                onGoRequiredFields={() => setStep("required-fields")}
+                onGoRequiredFields={() => navigateToStep("required-fields")}
+              />
+            ) : step === "group-types" ? (
+              <PmsCard4GroupTypes
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
+              />
+            ) : step === "travel-agency-types" ? (
+              <PmsCard4TravelAgencyTypes
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                onSavingChange={onSavingChange}
+                saveRequest={saveRequest}
+                onSaved={onSaved}
               />
             ) : (
               <div

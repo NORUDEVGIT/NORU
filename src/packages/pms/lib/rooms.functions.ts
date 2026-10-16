@@ -41,6 +41,15 @@ import {
 } from "./rooms-card2.server";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
 import { persistCard2AmenitiesReadiness } from "./rooms-amenities.functions";
+import { roomPersistencePayload } from "./room-inventory-compat";
+import {
+  PREDEFINED_ROOM_CATEGORIES,
+  PREDEFINED_ROOM_CLASSES,
+  isDuplicateClassification,
+  mergeClassificationLists,
+  mergeCustomClassifications,
+} from "./rooms-classification";
+import { parsePropertySetupStatus } from "./pms-property-setup-card1";
 
 const idSchema = z.string().uuid();
 const smokingPolicySchema = z.enum(SMOKING_POLICIES);
@@ -114,15 +123,26 @@ export async function loadCard2RoomTypesReadiness(supabase: DbClient, restaurant
     await Promise.all([
       supabase
         .from("room_types")
-        .select("id, code, standard_occupancy, max_occupancy, adult_capacity, child_capacity, infant_capacity")
+        .select(
+          "id, code, standard_occupancy, max_occupancy, adult_capacity, child_capacity, infant_capacity",
+        )
         .eq("restaurant_id", restaurantId),
-      supabase.from("room_type_beds").select("room_type_id, bed_count").eq("restaurant_id", restaurantId),
+      supabase
+        .from("room_type_beds")
+        .select("room_type_id, bed_count")
+        .eq("restaurant_id", restaurantId),
       supabase
         .from("hotel_rooms")
         .select("id, room_number, room_code, room_type_id, building_id, wing_id, floor_id")
         .eq("restaurant_id", restaurantId),
-      supabase.from("hotel_floors").select("id, building_id, wing_id").eq("restaurant_id", restaurantId),
-      supabase.from("hotel_wings").select("id, parent_building_id").eq("restaurant_id", restaurantId),
+      supabase
+        .from("hotel_floors")
+        .select("id, building_id, wing_id")
+        .eq("restaurant_id", restaurantId),
+      supabase
+        .from("hotel_wings")
+        .select("id, parent_building_id")
+        .eq("restaurant_id", restaurantId),
     ]);
   return evaluateRoomTypesRoomsReadiness({
     types: (types ?? []).map((row: any) => ({
@@ -159,7 +179,10 @@ export async function loadCard2RoomTypesReadiness(supabase: DbClient, restaurant
   });
 }
 
-export async function persistCard2RoomTypesReadiness(supabase: DbClient, restaurantId: string): Promise<void> {
+export async function persistCard2RoomTypesReadiness(
+  supabase: DbClient,
+  restaurantId: string,
+): Promise<void> {
   const [{ data: types }, { data: beds }, { data: rooms }, { data: floors }, { data: wings }] =
     await Promise.all([
       supabase
@@ -168,13 +191,22 @@ export async function persistCard2RoomTypesReadiness(supabase: DbClient, restaur
           "id, code, standard_occupancy, max_occupancy, adult_capacity, child_capacity, infant_capacity",
         )
         .eq("restaurant_id", restaurantId),
-      supabase.from("room_type_beds").select("room_type_id, bed_count").eq("restaurant_id", restaurantId),
+      supabase
+        .from("room_type_beds")
+        .select("room_type_id, bed_count")
+        .eq("restaurant_id", restaurantId),
       supabase
         .from("hotel_rooms")
         .select("id, room_number, room_code, room_type_id, building_id, wing_id, floor_id")
         .eq("restaurant_id", restaurantId),
-      supabase.from("hotel_floors").select("id, building_id, wing_id").eq("restaurant_id", restaurantId),
-      supabase.from("hotel_wings").select("id, parent_building_id").eq("restaurant_id", restaurantId),
+      supabase
+        .from("hotel_floors")
+        .select("id, building_id, wing_id")
+        .eq("restaurant_id", restaurantId),
+      supabase
+        .from("hotel_wings")
+        .select("id, parent_building_id")
+        .eq("restaurant_id", restaurantId),
     ]);
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -366,6 +398,8 @@ export interface HotelRoom {
   status: RoomStatus;
   housekeepingStatus: HkStatus | null;
   maintenanceStatus: MaintenanceStatus;
+  restrictionReason: string | null;
+  restrictionExpectedReturn: string | null;
   sellable: boolean;
   roomFeatures: string[];
   active: boolean;
@@ -405,16 +439,30 @@ export const listRoomAmenities = createServerFn({ method: "POST" })
         .select("id, name, active")
         .eq("restaurant_id", data.restaurantId)
         .order("name");
-      return (existing ?? []).map((a: { id: string; name: string; active: boolean }) => ({ id: a.id, name: a.name, active: a.active, code: "", category: "" }));
+      return (existing ?? []).map((a: { id: string; name: string; active: boolean }) => ({
+        id: a.id,
+        name: a.name,
+        active: a.active,
+        code: "",
+        category: "",
+      }));
     }
     if (withExtras.error) throw new Error(withExtras.error.message);
-    return (withExtras.data ?? []).map((a: { id: string; name: string; active: boolean; code?: string | null; category?: string | null }) => ({
-      id: a.id,
-      name: a.name,
-      active: a.active,
-      code: String(a.code ?? ""),
-      category: String(a.category ?? ""),
-    }));
+    return (withExtras.data ?? []).map(
+      (a: {
+        id: string;
+        name: string;
+        active: boolean;
+        code?: string | null;
+        category?: string | null;
+      }) => ({
+        id: a.id,
+        name: a.name,
+        active: a.active,
+        code: String(a.code ?? ""),
+        category: String(a.category ?? ""),
+      }),
+    );
   });
 
 /* ----------------------------------------------------------------- room types */
@@ -434,8 +482,8 @@ export const listRoomTypes = createServerFn({ method: "POST" })
       .order("code");
     if (!data.includeInactive) query = query.eq("active", true);
 
-    const [{ data: types }, { data: rooms }, { data: links }, { data: images }, { data: beds }] = await Promise.all(
-      [
+    const [{ data: types }, { data: rooms }, { data: links }, { data: images }, { data: beds }] =
+      await Promise.all([
         query,
         pmsDb(context.supabase)
           .from("hotel_rooms")
@@ -455,8 +503,7 @@ export const listRoomTypes = createServerFn({ method: "POST" })
           .select("id, room_type_id, bed_type, bed_size, bed_count, sort_order")
           .eq("restaurant_id", data.restaurantId)
           .order("sort_order"),
-      ],
-    );
+      ]);
 
     const counts = new Map<string, number>();
     for (const r of rooms ?? []) counts.set(r.room_type_id, (counts.get(r.room_type_id) ?? 0) + 1);
@@ -700,13 +747,15 @@ export const saveRoomType = createServerFn({ method: "POST" })
         .eq("restaurant_id", data.restaurantId)
         .eq("room_type_id", roomTypeId);
       if (allowed.length > 0) {
-        await pmsDb(context.supabase).from("room_type_amenities").insert(
-          allowed.map((amenityId: string) => ({
-            restaurant_id: data.restaurantId,
-            room_type_id: roomTypeId!,
-            amenity_id: amenityId,
-          })),
-        );
+        await pmsDb(context.supabase)
+          .from("room_type_amenities")
+          .insert(
+            allowed.map((amenityId: string) => ({
+              restaurant_id: data.restaurantId,
+              room_type_id: roomTypeId!,
+              amenity_id: amenityId,
+            })),
+          );
       }
     }
 
@@ -800,11 +849,17 @@ export const listRooms = createServerFn({ method: "POST" })
       housekeepingStatus: (HK_STATUSES as readonly string[]).includes(String(r.housekeeping_status))
         ? (r.housekeeping_status as HkStatus)
         : null,
-      maintenanceStatus: (MAINTENANCE_STATUSES as readonly string[]).includes(String(r.maintenance_status))
+      maintenanceStatus: (MAINTENANCE_STATUSES as readonly string[]).includes(
+        String(r.maintenance_status),
+      )
         ? (r.maintenance_status as MaintenanceStatus)
         : "normal",
+      restrictionReason: r.restriction_reason ?? null,
+      restrictionExpectedReturn: r.restriction_expected_return ?? null,
       sellable: r.sellable !== false,
-      roomFeatures: Array.isArray(r.room_features) ? r.room_features.map((value: unknown) => String(value)) : [],
+      roomFeatures: Array.isArray(r.room_features)
+        ? r.room_features.map((value: unknown) => String(value))
+        : [],
       active: r.active,
       notes: r.notes,
       links: linksByRoom.get(r.id) ?? [],
@@ -854,7 +909,11 @@ export const saveRoom = createServerFn({ method: "POST" })
     if (!data.id && !housekeepingPolicy.settings.manualStatusChangeAllowed) {
       effectiveHousekeepingStatus = housekeepingPolicy.settings.defaultStatus;
     }
-    if (data.id && data.housekeepingStatus && !housekeepingPolicy.settings.manualStatusChangeAllowed) {
+    if (
+      data.id &&
+      data.housekeepingStatus &&
+      !housekeepingPolicy.settings.manualStatusChangeAllowed
+    ) {
       const { data: existingRoom } = await pmsDb(context.supabase)
         .from("hotel_rooms")
         .select("housekeeping_status")
@@ -867,7 +926,8 @@ export const saveRoom = createServerFn({ method: "POST" })
           message: "Manual housekeeping status changes are disabled in Housekeeping Setup.",
         };
       }
-      effectiveHousekeepingStatus = existingRoom?.housekeeping_status ?? housekeepingPolicy.settings.defaultStatus;
+      effectiveHousekeepingStatus =
+        existingRoom?.housekeeping_status ?? housekeepingPolicy.settings.defaultStatus;
     }
 
     const { data: type } = await pmsDb(context.supabase)
@@ -917,7 +977,7 @@ export const saveRoom = createServerFn({ method: "POST" })
     let floor = blankToNull(data.floor) ?? masters.floor?.name ?? null;
     let wing = blankToNull(data.wing) ?? masters.wing?.name ?? null;
 
-    const payload = {
+    const masterDataPayload = {
       restaurant_id: data.restaurantId,
       room_type_id: data.roomTypeId,
       room_number: roomNumber,
@@ -930,7 +990,6 @@ export const saveRoom = createServerFn({ method: "POST" })
       wing_id: data.wingId ?? null,
       smoking: data.smoking,
       accessible: data.accessible,
-      status: data.status,
       housekeeping_status: effectiveHousekeepingStatus,
       maintenance_status: data.maintenanceStatus ?? "normal",
       sellable: data.sellable ?? true,
@@ -941,22 +1000,30 @@ export const saveRoom = createServerFn({ method: "POST" })
 
     let roomId = data.id ?? null;
     if (roomId) {
+      const payload = roomPersistencePayload(masterDataPayload, "update");
       const { error } = await pmsDb(context.supabase)
         .from("hotel_rooms")
         .update(payload)
         .eq("id", roomId)
         .eq("restaurant_id", data.restaurantId);
       if (error) {
-        return { ok: false as const, message: uniqueViolationMessage(error, "Could not save the room.") };
+        return {
+          ok: false as const,
+          message: uniqueViolationMessage(error, "Could not save the room."),
+        };
       }
     } else {
+      const payload = roomPersistencePayload(masterDataPayload, "create");
       const { data: created, error } = await pmsDb(context.supabase)
         .from("hotel_rooms")
         .insert({ ...payload, created_by_staff_membership_id: me.id })
         .select("id")
         .maybeSingle();
       if (error || !created) {
-        return { ok: false as const, message: uniqueViolationMessage(error, "Could not save the room.") };
+        return {
+          ok: false as const,
+          message: uniqueViolationMessage(error, "Could not save the room."),
+        };
       }
       roomId = created.id;
     }
@@ -976,7 +1043,12 @@ export const saveRoom = createServerFn({ method: "POST" })
       const allowed = new Set<string>((targets ?? []).map((row: { id: string }) => row.id));
       const linkIssue = roomLinkErrors(roomId, data.links, allowed);
       if (linkIssue) return { ok: false as const, message: linkIssue };
-      const linksWrite = await replaceRoomLinks(pmsDb(context.supabase), data.restaurantId, roomId, data.links);
+      const linksWrite = await replaceRoomLinks(
+        pmsDb(context.supabase),
+        data.restaurantId,
+        roomId,
+        data.links,
+      );
       if (!linksWrite.ok) return linksWrite;
     }
 
@@ -1087,7 +1159,10 @@ export const bulkCreateRooms = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId);
     const conflicts = batchLabelConflicts(
       generated.labels,
-      (existing ?? []).map((row: any) => ({ roomNumber: row.room_number, roomCode: row.room_code })),
+      (existing ?? []).map((row: any) => ({
+        roomNumber: row.room_number,
+        roomCode: row.room_code,
+      })),
     );
     if (conflicts.numbers.length > 0 || conflicts.codes.length > 0) {
       return {
@@ -1110,9 +1185,9 @@ export const bulkCreateRooms = createServerFn({ method: "POST" })
       wing_id: data.wingId ?? null,
       smoking: data.smoking ?? false,
       accessible: data.accessible ?? false,
-      status: data.status ?? "available",
+      status: "available",
       housekeeping_status: defaultHousekeepingStatus,
-      maintenance_status: data.maintenanceStatus ?? "normal",
+      maintenance_status: "normal",
       sellable: data.sellable ?? true,
       room_features: [] as string[],
       active: data.active ?? true,
@@ -1141,19 +1216,31 @@ export const evaluateCard2RoomTypesReadiness = createServerFn({ method: "POST" }
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
-    const [{ data: types }, { data: beds }, { data: rooms }, { data: floors }, { data: wings }] = await Promise.all([
-      pmsDb(context.supabase)
-        .from("room_types")
-        .select("id, code, standard_occupancy, max_occupancy, adult_capacity, child_capacity, infant_capacity")
-        .eq("restaurant_id", data.restaurantId),
-      pmsDb(context.supabase).from("room_type_beds").select("room_type_id, bed_count").eq("restaurant_id", data.restaurantId),
-      pmsDb(context.supabase)
-        .from("hotel_rooms")
-        .select("id, room_number, room_code, room_type_id, building_id, wing_id, floor_id")
-        .eq("restaurant_id", data.restaurantId),
-      pmsDb(context.supabase).from("hotel_floors").select("id, building_id, wing_id").eq("restaurant_id", data.restaurantId),
-      pmsDb(context.supabase).from("hotel_wings").select("id, parent_building_id").eq("restaurant_id", data.restaurantId),
-    ]);
+    const [{ data: types }, { data: beds }, { data: rooms }, { data: floors }, { data: wings }] =
+      await Promise.all([
+        pmsDb(context.supabase)
+          .from("room_types")
+          .select(
+            "id, code, standard_occupancy, max_occupancy, adult_capacity, child_capacity, infant_capacity",
+          )
+          .eq("restaurant_id", data.restaurantId),
+        pmsDb(context.supabase)
+          .from("room_type_beds")
+          .select("room_type_id, bed_count")
+          .eq("restaurant_id", data.restaurantId),
+        pmsDb(context.supabase)
+          .from("hotel_rooms")
+          .select("id, room_number, room_code, room_type_id, building_id, wing_id, floor_id")
+          .eq("restaurant_id", data.restaurantId),
+        pmsDb(context.supabase)
+          .from("hotel_floors")
+          .select("id, building_id, wing_id")
+          .eq("restaurant_id", data.restaurantId),
+        pmsDb(context.supabase)
+          .from("hotel_wings")
+          .select("id, parent_building_id")
+          .eq("restaurant_id", data.restaurantId),
+      ]);
     const readiness = evaluateRoomTypesRoomsReadiness({
       types: (types ?? []).map((row: any) => ({
         id: row.id,
@@ -1188,7 +1275,13 @@ export const evaluateCard2RoomTypesReadiness = createServerFn({ method: "POST" }
       })),
     });
     await persistCard2RoomTypesReadiness(pmsDb(context.supabase), data.restaurantId);
-    return { ...readiness, stepStatus: card2RoomTypesStepStatus(readiness.ready, (types ?? []).length > 0 || (rooms ?? []).length > 0) };
+    return {
+      ...readiness,
+      stepStatus: card2RoomTypesStepStatus(
+        readiness.ready,
+        (types ?? []).length > 0 || (rooms ?? []).length > 0,
+      ),
+    };
   });
 
 /* --------------------------------------------------------------------- images */
@@ -1206,15 +1299,25 @@ export const listRoomTypeImages = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId)
       .eq("room_type_id", data.roomTypeId)
       .order("display_order");
-    const signed = await signRoomImages((rows ?? []).map((r: { storage_path: string }) => r.storage_path));
-    return (rows ?? []).map((r: { id: string; storage_path: string; display_order: number; is_cover: boolean; alt_text: string | null }) => ({
-      id: r.id,
-      storagePath: r.storage_path,
-      url: signed.get(r.storage_path) ?? null,
-      displayOrder: r.display_order,
-      isCover: r.is_cover,
-      altText: r.alt_text,
-    }));
+    const signed = await signRoomImages(
+      (rows ?? []).map((r: { storage_path: string }) => r.storage_path),
+    );
+    return (rows ?? []).map(
+      (r: {
+        id: string;
+        storage_path: string;
+        display_order: number;
+        is_cover: boolean;
+        alt_text: string | null;
+      }) => ({
+        id: r.id,
+        storagePath: r.storage_path,
+        url: signed.get(r.storage_path) ?? null,
+        displayOrder: r.display_order,
+        isCover: r.is_cover,
+        altText: r.alt_text,
+      }),
+    );
   });
 
 /**
@@ -1288,15 +1391,17 @@ export const registerRoomTypeImage = createServerFn({ method: "POST" })
       .eq("room_type_id", data.roomTypeId);
     const count = existing?.length ?? 0;
 
-    const { error } = await pmsDb(context.supabase).from("room_type_images").insert({
-      restaurant_id: data.restaurantId,
-      room_type_id: data.roomTypeId,
-      storage_path: data.storagePath,
-      display_order: count,
-      is_cover: count === 0,
-      alt_text: blankToNull(data.altText),
-      uploaded_by_staff_membership_id: me.id,
-    });
+    const { error } = await pmsDb(context.supabase)
+      .from("room_type_images")
+      .insert({
+        restaurant_id: data.restaurantId,
+        room_type_id: data.roomTypeId,
+        storage_path: data.storagePath,
+        display_order: count,
+        is_cover: count === 0,
+        alt_text: blankToNull(data.altText),
+        uploaded_by_staff_membership_id: me.id,
+      });
     if (error) return { ok: false as const, message: "Could not save the image." };
     return { ok: true as const };
   });
@@ -1418,8 +1523,18 @@ export const getRoomsDashboard = createServerFn({ method: "POST" })
         .eq("restaurant_id", data.restaurantId),
     ]);
 
-    const all = (rooms ?? []) as { id: string; status: string; active: boolean; room_type_id: string }[];
-    const typeRows = (types ?? []) as { id: string; name: string; code: string; sellable: boolean }[];
+    const all = (rooms ?? []) as {
+      id: string;
+      status: string;
+      active: boolean;
+      room_type_id: string;
+    }[];
+    const typeRows = (types ?? []) as {
+      id: string;
+      name: string;
+      code: string;
+      sellable: boolean;
+    }[];
     const sellableTypes = new Set(typeRows.filter((t) => t.sellable).map((t) => t.id));
     const counts = new Map<string, number>();
     for (const r of all) counts.set(r.room_type_id, (counts.get(r.room_type_id) ?? 0) + 1);
@@ -1438,3 +1553,195 @@ export const getRoomsDashboard = createServerFn({ method: "POST" })
       })),
     };
   });
+
+/* ---------------------------------------------------------------------- room classifications */
+
+export type RoomClassificationsResult = {
+  categories: string[];
+  classes: string[];
+  predefinedCategories: readonly string[];
+  predefinedClasses: readonly string[];
+  customCategories: string[];
+  customClasses: string[];
+};
+
+export const listRoomClassifications = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }): Promise<RoomClassificationsResult> => {
+    await requireFrontOfficeAccess(context as never, data.restaurantId);
+
+    const [{ data: restaurant }, { data: existingTypes }] = await Promise.all([
+      pmsDb(context.supabase)
+        .from("restaurants")
+        .select("pms_property_setup_status")
+        .eq("id", data.restaurantId)
+        .maybeSingle(),
+      pmsDb(context.supabase)
+        .from("room_types")
+        .select("category, class")
+        .eq("restaurant_id", data.restaurantId),
+    ]);
+
+    const status = parsePropertySetupStatus(restaurant?.pms_property_setup_status);
+    const customCategories = status.customRoomCategories ?? [];
+    const customClasses = status.customRoomClasses ?? [];
+
+    const legacyCategories = (existingTypes ?? [])
+      .map((r: any) => String(r.category ?? "").trim())
+      .filter(Boolean);
+    const legacyClasses = (existingTypes ?? [])
+      .map((r: any) => String(r.class ?? "").trim())
+      .filter(Boolean);
+
+    const categories = mergeClassificationLists(
+      PREDEFINED_ROOM_CATEGORIES,
+      customCategories,
+      legacyCategories,
+    );
+    const classes = mergeClassificationLists(
+      PREDEFINED_ROOM_CLASSES,
+      customClasses,
+      legacyClasses,
+    );
+
+    return {
+      categories,
+      classes,
+      predefinedCategories: PREDEFINED_ROOM_CATEGORIES,
+      predefinedClasses: PREDEFINED_ROOM_CLASSES,
+      customCategories,
+      customClasses,
+    };
+  });
+
+export async function saveCustomClassificationWithRetry(
+  supabaseAdmin: any,
+  restaurantId: string,
+  kind: "category" | "class",
+  value: string,
+  maxAttempts: number = 3,
+): Promise<{ ok: true; name: string } | { ok: false; message: string }> {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { ok: false, message: `Enter a ${kind} name.` };
+  }
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // 1. Read current status & distinct room_types values
+    const [{ data: restaurant }, { data: existingTypes }] = await Promise.all([
+      supabaseAdmin
+        .from("restaurants")
+        .select("pms_property_setup_status")
+        .eq("id", restaurantId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("room_types")
+        .select(kind)
+        .eq("restaurant_id", restaurantId),
+    ]);
+
+    const currentStatus = parsePropertySetupStatus(restaurant?.pms_property_setup_status);
+    const existingList = kind === "category"
+      ? (currentStatus.customRoomCategories ?? [])
+      : (currentStatus.customRoomClasses ?? []);
+    const predefinedList = kind === "category" ? PREDEFINED_ROOM_CATEGORIES : PREDEFINED_ROOM_CLASSES;
+    const legacyList = (existingTypes ?? [])
+      .map((t: any) => String(t[kind] ?? "").trim())
+      .filter(Boolean);
+
+    // 2. Three-way case-insensitive duplicate check
+    const allKnown = [...predefinedList, ...existingList, ...legacyList];
+    if (isDuplicateClassification(allKnown, trimmed)) {
+      return {
+        ok: false,
+        message: `A room ${kind} with this name already exists.`,
+      };
+    }
+
+    // 3. Merge custom value case-insensitively
+    const updatedStatus = mergeCustomClassifications(restaurant?.pms_property_setup_status, {
+      [kind]: trimmed,
+    });
+
+    // 4. Write updated status
+    const { error: writeError } = await supabaseAdmin
+      .from("restaurants")
+      .update({ pms_property_setup_status: updatedStatus as unknown as Json })
+      .eq("id", restaurantId);
+
+    if (writeError) {
+      if (attempt < maxAttempts - 1) continue;
+      return { ok: false, message: `Could not save custom room ${kind}.` };
+    }
+
+    // 5. Re-read and verify that new item AND existing items survived
+    const { data: verifyRow } = await supabaseAdmin
+      .from("restaurants")
+      .select("pms_property_setup_status")
+      .eq("id", restaurantId)
+      .maybeSingle();
+
+    const verifiedStatus = parsePropertySetupStatus(verifyRow?.pms_property_setup_status);
+    const verifiedList = kind === "category"
+      ? (verifiedStatus.customRoomCategories ?? [])
+      : (verifiedStatus.customRoomClasses ?? []);
+
+    const hasNewItem = verifiedList.some((item) => item.toLowerCase() === trimmed.toLowerCase());
+    const preservedPriorItems = existingList.every((oldItem) =>
+      verifiedList.some((item) => item.toLowerCase() === oldItem.toLowerCase())
+    );
+
+    if (hasNewItem && preservedPriorItems) {
+      return { ok: true, name: trimmed };
+    }
+  }
+
+  return {
+    ok: false,
+    message: `Could not safely save custom room ${kind} due to concurrent updates.`,
+  };
+}
+
+export const addCustomRoomCategory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        name: z.string().trim().min(1, "Enter a category name.").max(80),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return saveCustomClassificationWithRetry(
+      supabaseAdmin,
+      data.restaurantId,
+      "category",
+      data.name,
+    );
+  });
+
+export const addCustomRoomClass = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        name: z.string().trim().min(1, "Enter a class name.").max(80),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return saveCustomClassificationWithRetry(
+      supabaseAdmin,
+      data.restaurantId,
+      "class",
+      data.name,
+    );
+  });
+

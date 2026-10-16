@@ -25,6 +25,7 @@ import {
   type CommunicationTimeFormat,
   type CommunicationTemplateCategory,
 } from "@/packages/pms/lib/communication-defaults-card4.server";
+import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
 import { CARD1_LANGUAGES } from "@/packages/pms/lib/pms-property-setup-card1";
 import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/shared/lib/property-time";
 import {
@@ -146,6 +147,7 @@ export function PmsCard4CommunicationDefaults({
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
+      await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       setDirty(false);
       toast.success("Communication defaults saved successfully.");
     },

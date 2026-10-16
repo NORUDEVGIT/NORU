@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Briefcase, Search } from "lucide-react";
+import { Building2, Briefcase, RefreshCw, Search } from "lucide-react";
 
 import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
 import { GuestTravelAgentFormDialog } from "@/packages/pms/components/guests/guest-travel-agent-form-dialog";
@@ -18,6 +18,7 @@ import { accountListItems } from "@/packages/pms/lib/guest-profile-wave4";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { cn } from "@/shared/lib/utils";
 
 const KIND_COPY: Record<
   CreateReservationMasterKind,
@@ -72,19 +73,29 @@ export function CreateReservationMasterPicker({
   canCreate,
   master,
   onMasterChange,
+  hideCreate = false,
+  compact = false,
+  disabled = false,
 }: {
   restaurantId: string;
   kind: CreateReservationMasterKind;
   canCreate: boolean;
   master: PickedReservationMaster | null;
   onMasterChange: (master: PickedReservationMaster | null) => void;
+  /** Step 3 Booking Details hides master-data create; companies/agencies are created elsewhere. */
+  hideCreate?: boolean;
+  compact?: boolean;
+  disabled?: boolean;
 }) {
   const copy = KIND_COPY[kind];
+  const showCreate = canCreate && !hideCreate;
   const fetchAccounts = useServerFn(listGuestAccounts);
   const fetchAccount = useServerFn(getGuestAccount);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const returnFocus = useRef(false);
   const Icon = kind === "company" ? Building2 : Briefcase;
 
   useEffect(() => {
@@ -95,8 +106,15 @@ export function CreateReservationMasterPicker({
     return () => window.clearTimeout(handle);
   }, [search]);
 
+  useEffect(() => {
+    if (master || !returnFocus.current) return;
+    searchInputRef.current?.focus();
+    returnFocus.current = false;
+  }, [master]);
+
+  const searchTerm = debouncedSearch.trim();
   const accountsQuery = useQuery({
-    queryKey: ["guest-accounts", restaurantId, kind, debouncedSearch, "create-reservation-picker"],
+    queryKey: ["guest-accounts", restaurantId, kind, searchTerm, "create-reservation-picker"],
     queryFn: () =>
       fetchAccounts({
         data: {
@@ -104,9 +122,10 @@ export function CreateReservationMasterPicker({
           accountType: kind,
           status: "active",
           limit: 8,
-          ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+          search: searchTerm,
         },
       }),
+    enabled: searchTerm.length > 0,
   });
 
   async function selectById(accountId: string) {
@@ -114,104 +133,168 @@ export function CreateReservationMasterPicker({
       const profile = await fetchAccount({ data: { restaurantId, accountId } });
       onMasterChange(toPickedReservationMaster(profile));
     } catch {
-      const match = accountListItems(accountsQuery.data).find((row) => row.id === accountId) ?? null;
+      const match =
+        accountListItems(accountsQuery.data).find((row) => row.id === accountId) ?? null;
       onMasterChange(match ? toPickedReservationMaster(match) : null);
     }
   }
 
   return (
-    <div className="mt-3 space-y-2" data-testid={copy.testId}>
-      <Label>{copy.label}</Label>
+    <div
+      className={cn(
+        compact ? "space-y-1" : "mt-3 space-y-2",
+        disabled && "pointer-events-none opacity-60",
+      )}
+      data-testid={copy.testId}
+    >
+      {compact && master ? null : <Label>{copy.label}</Label>}
       {master ? (
         <div
-          className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3"
+          className={cn(
+            "flex items-center gap-2",
+            compact ? "min-w-0 flex-wrap" : "flex-wrap gap-3 rounded-xl border border-border p-3",
+          )}
           data-testid={copy.selectedTestId}
         >
-          <div className="min-w-0">
-            <p className="font-medium">
+          {compact ? (
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#FBF6EE] text-[#C89933]">
+              <Icon className="size-4" aria-hidden />
+            </span>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <p className={cn("font-medium", compact && "break-words text-sm text-[#251605]")}>
               {master.name}
-              {master.code ? <span className="ml-2 text-xs text-muted-foreground">{master.code}</span> : null}
+              {master.code ? (
+                <span
+                  className={cn(
+                    "text-xs text-muted-foreground",
+                    compact ? "font-normal text-[#6B5E4E]" : "ml-2",
+                  )}
+                >
+                  {compact ? ` · ${master.code}` : master.code}
+                </span>
+              ) : null}
             </p>
-            {master.paymentTerms ? (
-              <p className="mt-1 text-xs text-muted-foreground" data-testid={copy.termsTestId}>
-                Payment terms: {master.paymentTerms}
-              </p>
-            ) : (
-              <p className="mt-1 text-xs text-muted-foreground" data-testid={copy.termsTestId}>
-                No payment terms on this master.
-              </p>
-            )}
-            <p className="mt-1 text-xs text-muted-foreground">{CREATE_RESERVATION_PAYMENT_TERMS_COPY}</p>
+            {showCreate && !compact ? (
+              <>
+                {master.paymentTerms ? (
+                  <p className="mt-1 text-xs text-muted-foreground" data-testid={copy.termsTestId}>
+                    Payment terms: {master.paymentTerms}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground" data-testid={copy.termsTestId}>
+                    No payment terms on this master.
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {CREATE_RESERVATION_PAYMENT_TERMS_COPY}
+                </p>
+              </>
+            ) : null}
           </div>
+          {compact ? (
+            <span className="shrink-0 rounded-full bg-[#FBF6EE] px-2 py-0.5 text-[10px] font-medium text-[#8A6A24]">
+              {copy.label}
+            </span>
+          ) : null}
           <Button
             variant="outline"
             size="sm"
-            className="ml-auto"
+            className={cn(
+              "ml-auto h-7",
+              compact &&
+                "h-8 shrink-0 gap-1 !rounded-[6px] !border-[#E4D3A8] bg-white px-2 text-xs font-medium text-[#8A6A24] !shadow-none hover:bg-[#FBF6EE]",
+            )}
             data-testid={copy.changeTestId}
+            disabled={disabled}
             onClick={() => {
+              returnFocus.current = true;
               onMasterChange(null);
               setSearch("");
             }}
           >
+            {compact ? <RefreshCw className="size-3" aria-hidden /> : null}
             {copy.changeLabel}
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-3">
-            <div className="relative min-w-56 flex-1">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <div className={cn(compact ? "space-y-2" : "space-y-3")}>
+          <div className="flex flex-wrap gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="pl-9"
+                ref={searchInputRef}
+                className={cn("pl-9", compact && "h-10 !rounded-[6px] !border-[#CCCCCC]")}
                 data-testid={copy.searchTestId}
                 placeholder={copy.searchPlaceholder}
                 value={search}
+                disabled={disabled}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            {canCreate ? (
-              <Button type="button" variant="outline" data-testid={copy.createTestId} onClick={() => setFormOpen(true)}>
+            {showCreate ? (
+              <Button
+                type="button"
+                variant="outline"
+                data-testid={copy.createTestId}
+                onClick={() => setFormOpen(true)}
+              >
                 <Icon className="size-4 sm:mr-2" />
                 <span className="hidden sm:inline">{copy.createLabel}</span>
               </Button>
             ) : null}
           </div>
-          <ul className="space-y-2" data-testid={copy.resultsTestId}>
-            {accountListItems(accountsQuery.data).map((row) => (
-              <li key={row.id}>
-                <button
-                  type="button"
-                  onClick={() => void selectById(row.id)}
-                  className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/40"
-                >
-                  <span className="font-medium">{row.name}</span>
-                  {row.code ? <span className="ml-2 text-xs text-muted-foreground">{row.code}</span> : null}
-                </button>
-              </li>
-            ))}
-            {accountListItems(accountsQuery.data).length === 0 ? (
-              <li className="text-sm text-muted-foreground">{copy.empty}</li>
-            ) : null}
-          </ul>
-          <p className="text-xs text-muted-foreground">{CREATE_RESERVATION_MASTER_CONFIRM_COPY}</p>
+          {searchTerm.length > 0 ? (
+            <ul className="space-y-2" data-testid={copy.resultsTestId}>
+              {accountListItems(accountsQuery.data).map((row) => (
+                <li key={row.id}>
+                  <button
+                    type="button"
+                    onClick={() => void selectById(row.id)}
+                    className="w-full rounded-xl border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/40"
+                  >
+                    <span className="font-medium">{row.name}</span>
+                    {row.code ? (
+                      <span className="ml-2 text-xs text-muted-foreground">{row.code}</span>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+              {accountsQuery.data?.length === 0 ? (
+                <li className="text-sm text-muted-foreground">
+                  {showCreate
+                    ? copy.empty
+                    : kind === "company"
+                      ? "No matching companies."
+                      : "No matching travel agencies."}
+                </li>
+              ) : null}
+            </ul>
+          ) : null}
+          {showCreate ? (
+            <p className="text-xs text-muted-foreground">
+              {CREATE_RESERVATION_MASTER_CONFIRM_COPY}
+            </p>
+          ) : null}
         </div>
       )}
 
-      {kind === "company" ? (
+      {showCreate && kind === "company" ? (
         <GuestCompanyFormDialog
           restaurantId={restaurantId}
           open={formOpen}
           onOpenChange={setFormOpen}
           onSaved={(accountId) => void selectById(accountId)}
         />
-      ) : (
+      ) : null}
+      {showCreate && kind === "travel_agent" ? (
         <GuestTravelAgentFormDialog
           restaurantId={restaurantId}
           open={formOpen}
           onOpenChange={setFormOpen}
           onSaved={(accountId) => void selectById(accountId)}
         />
-      )}
+      ) : null}
     </div>
   );
 }

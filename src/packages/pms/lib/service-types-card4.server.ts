@@ -14,6 +14,7 @@ export type ServiceTypeRecord = {
   code: string;
   description: string | null;
   active: boolean;
+  chargeableToFolio: boolean;
   displayOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -26,6 +27,7 @@ export type ServiceTypeDraft = {
   code: string;
   description: string;
   active: boolean;
+  chargeableToFolio: boolean;
   displayOrder: number;
 };
 
@@ -193,6 +195,7 @@ export function emptyServiceTypeDraft(categoryId = "", displayOrder = 1): Servic
     code: "",
     description: "",
     active: true,
+    chargeableToFolio: false,
     displayOrder,
   };
 }
