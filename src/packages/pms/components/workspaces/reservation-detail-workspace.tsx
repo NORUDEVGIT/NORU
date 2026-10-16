@@ -26,6 +26,7 @@ import {
   RoomMoveDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { stayFromReservation } from "@/packages/pms/lib/front-office-shell";
+import { frontOfficeRoomTargets } from "@/packages/pms/lib/reservation-room-units";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import {
   Select,
@@ -60,7 +61,7 @@ import { ReservationDetailNotesTab } from "@/packages/pms/components/workspaces/
 import {
   arriveInLabel,
   bookedByLabel,
-  channelLabel,
+  overviewChannelLabel,
   COMMUNICATION_DEFERRED_COPY,
   DETAIL_DASH,
   DETAIL_SIDEBAR_ITEMS,
@@ -89,7 +90,18 @@ import {
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import { reservationAmendImpact } from "@/packages/pms/lib/reservation-amend-impact";
 import { reservationHistoryChanges } from "@/packages/pms/lib/reservation-history-display";
+import {
+  groupActionGate,
+  groupCombinedSubtotal,
+  historyContextLine,
+  isGroupReservation,
+  reservationHeaderGuestLabel,
+  reservationHeaderRoomKpi,
+  resolveHistoryField,
+} from "@/packages/pms/lib/reservation-detail-group";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
+import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
+import { getReservationCreateSourceChannel } from "@/packages/pms/lib/reservation-source-channel.functions";
 import {
   PROPERTY_BUSINESS_DATE_KEY,
   usePropertyBusinessDate,
@@ -182,6 +194,8 @@ export function ReservationDetailWorkspace({
   const fetchReservation = useServerFn(getReservation);
   const fetchGuest = useServerFn(getGuest);
   const fetchCommercial = useServerFn(getReservationCommercialAttribution);
+  const fetchSet6 = useServerFn(getPmsSet6Snapshot);
+  const fetchSourceChannel = useServerFn(getReservationCreateSourceChannel);
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
   const fetchRooms = useServerFn(listAssignableRooms);
   const submitAmend = useServerFn(amendReservation);
@@ -192,6 +206,7 @@ export function ReservationDetailWorkspace({
   const [amendOpen, setAmendOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [foAction, setFoAction] = useState<FrontOfficeAction | null>(null);
+  const [foRoomTarget, setFoRoomTarget] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailWorkspaceTab>("overview");
 
   const accessQuery = useQuery({
@@ -214,6 +229,16 @@ export function ReservationDetailWorkspace({
     queryKey: ["guest", restaurantId, reservation?.guestId],
     queryFn: () => fetchGuest({ data: { restaurantId, guestId: reservation!.guestId } }),
     enabled: canManage && Boolean(reservation?.guestId),
+    retry: false,
+  });
+  const set6Query = useQuery({
+    queryKey: ["pms-set6", restaurantId, "reservation-detail-overview"],
+    queryFn: () => fetchSet6({ data: { restaurantId } }),
+    retry: false,
+  });
+  const sourceChannelQuery = useQuery({
+    queryKey: ["reservation-create-source-channel", restaurantId, "detail"],
+    queryFn: () => fetchSourceChannel({ data: { restaurantId } }),
     retry: false,
   });
   const commercialQuery = useQuery({
@@ -355,6 +380,7 @@ export function ReservationDetailWorkspace({
     ...stayFromReservation(reservation, businessDate),
     guestEmail: reservation.guestEmail,
     guaranteeMethod: reservation.guaranteeMethod,
+    roomUnits: frontOfficeRoomTargets(reservation.rooms),
   };
   const detailActions =
     actionBusinessDate === null
@@ -385,12 +411,15 @@ export function ReservationDetailWorkspace({
       case "check_out":
       case "no_show":
       case "change_room":
+        setFoRoomTarget(null);
         setFoAction(actionId);
         return;
       case "copy":
+        if (isGroupReservation(reservation)) return;
         copyMutation.mutate();
         return;
       case "edit":
+        if (isGroupReservation(reservation)) return;
         if (onEditReservation) onEditReservation();
         else setAmendOpen(true);
         return;
@@ -401,11 +430,19 @@ export function ReservationDetailWorkspace({
         return;
     }
   }
+  const groupReservation = isGroupReservation(reservation);
+  const headerRoomTotal = groupReservation
+    ? groupCombinedSubtotal(reservation)
+    : reservation.roomSubtotal;
   const detailActionBar = detailActions ? (
     <ReservationDetailActionBar
       result={detailActions}
       busy={statusMutation.isPending || copyMutation.isPending}
       onAction={runDetailAction}
+      gatedActions={{
+        copy: groupActionGate("copy", groupReservation) ?? undefined,
+        edit: groupActionGate("amend", groupReservation) ?? undefined,
+      }}
     />
   ) : null;
 
@@ -432,8 +469,12 @@ export function ReservationDetailWorkspace({
           restaurantId={restaurantId}
           stay={foStay}
           open
+          initialReservationRoomId={foRoomTarget ?? undefined}
           onOpenChange={(open) => {
-            if (!open) setFoAction(null);
+            if (!open) {
+              setFoAction(null);
+              setFoRoomTarget(null);
+            }
           }}
         />
       ) : null}
@@ -442,8 +483,12 @@ export function ReservationDetailWorkspace({
           restaurantId={restaurantId}
           stay={foStay}
           open
+          initialReservationRoomId={foRoomTarget ?? undefined}
           onOpenChange={(open) => {
-            if (!open) setFoAction(null);
+            if (!open) {
+              setFoAction(null);
+              setFoRoomTarget(null);
+            }
           }}
         />
       ) : null}
@@ -452,8 +497,12 @@ export function ReservationDetailWorkspace({
           restaurantId={restaurantId}
           stay={foStay}
           open
+          initialReservationRoomId={foRoomTarget ?? undefined}
           onOpenChange={(open) => {
-            if (!open) setFoAction(null);
+            if (!open) {
+              setFoAction(null);
+              setFoRoomTarget(null);
+            }
           }}
         />
       ) : null}
@@ -473,8 +522,12 @@ export function ReservationDetailWorkspace({
           restaurantId={restaurantId}
           stay={foStay}
           open
+          initialReservationRoomId={foRoomTarget ?? undefined}
           onOpenChange={(open) => {
-            if (!open) setFoAction(null);
+            if (!open) {
+              setFoAction(null);
+              setFoRoomTarget(null);
+            }
           }}
         />
       ) : null}
@@ -486,7 +539,6 @@ export function ReservationDetailWorkspace({
     const roomType = (availabilityQuery.data ?? []).find(
       (row) => row.roomTypeId === reservation.roomTypeId,
     );
-    const assigned = Boolean(reservation.roomId && reservation.roomNumber);
     const appliedPackages = commercialQuery.data?.packages ?? [];
     const packagesKnown = commercialQuery.isFetched && !commercialQuery.isError;
     const ratePerNight = storedRatePerNight(
@@ -496,6 +548,11 @@ export function ReservationDetailWorkspace({
     );
     const noShowName = snapshotDisplayName(reservation.noShowPolicySnapshot);
     const noShowPenalty = snapshotField(reservation.noShowPolicySnapshot, ["penalty_type"]);
+    const persistedRoomUnits = reservation.rooms ?? [];
+    const persistedGroup = reservation.reservationMode === "group" || persistedRoomUnits.length > 1;
+    const persistedActiveRooms = persistedRoomUnits.filter(
+      (unit) => unit.status !== "cancelled" && unit.status !== "no_show",
+    );
     const printData = buildPersistedReservationPrintData({
       generatedAt: formatPrintDateTime(new Date()) ?? "",
       propertyName: membership.restaurant.name,
@@ -518,7 +575,12 @@ export function ReservationDetailWorkspace({
       idDocumentNumber: guestQuery.data?.guest?.idDocumentNumber ?? null,
       bookedBy: bookedByLabel(reservation.bookerGuestId, reservation.guestId),
       bookingSource: sourceLabel(reservation.source, reservation.commercialBookingSource),
-      salesChannel: channelLabel(reservation.source, reservation.salesChannel),
+      salesChannel: overviewChannelLabel(
+        reservation.source,
+        reservation.salesChannel,
+        set6Query.data?.snapshot.salesChannels ?? [],
+        sourceChannelQuery.data?.channels ?? [],
+      ),
       marketSegment: reservation.marketSegment,
       companyName: reservation.companyName,
       travelAgentName: reservation.travelAgentName,
@@ -526,10 +588,16 @@ export function ReservationDetailWorkspace({
       arrivalDate: reservation.arrivalDate,
       departureDate: reservation.departureDate,
       nights: reservation.nights,
-      rooms: reservation.roomsRequested,
-      adults: reservation.adults,
-      children: reservation.children,
-      infants: reservation.infants,
+      rooms: persistedRoomUnits.length || reservation.roomsRequested,
+      adults: persistedGroup
+        ? persistedActiveRooms.reduce((sum, unit) => sum + unit.adults, 0)
+        : reservation.adults,
+      children: persistedGroup
+        ? persistedActiveRooms.reduce((sum, unit) => sum + unit.children, 0)
+        : reservation.children,
+      infants: persistedGroup
+        ? persistedActiveRooms.reduce((sum, unit) => sum + unit.infants, 0)
+        : reservation.infants,
       roomImageUrl: roomType?.coverUrl ?? null,
       roomName: reservation.roomTypeName,
       roomCode: reservation.roomTypeCode ?? null,
@@ -581,12 +649,35 @@ export function ReservationDetailWorkspace({
       serviceRequests: [],
       specialRequests: reservation.specialRequests,
       roomAssignment: reservation.roomNumber ? `Room ${reservation.roomNumber}` : null,
+      reservationKind: persistedGroup ? "group" : "single",
+      guestRole: persistedGroup ? "Primary Guest / Booker" : null,
+      roomRows: persistedGroup
+        ? persistedRoomUnits.map((unit) => {
+            const unitNights = nightsBetween(unit.arrivalDate, unit.departureDate);
+            const unitRate = storedRatePerNight(unit.nightlyRates, unit.roomSubtotal, unitNights);
+            return {
+              sequence: String(unit.unitSequence),
+              occupant:
+                unit.occupants.find((occupant) => occupant.isPrimary)?.name ??
+                "No primary occupant",
+              roomType: unit.roomTypeName ?? "Room type",
+              occupancy: `${unit.adults}A${unit.children ? ` · ${unit.children}C` : ""}${
+                unit.infants ? ` · ${unit.infants}I` : ""
+              }`,
+              ratePlan: unit.ratePlanName ?? "—",
+              ratePerNight: unitRate == null ? "—" : money(unitRate),
+              subtotal: unit.roomSubtotal == null ? "—" : money(unit.roomSubtotal),
+            };
+          })
+        : undefined,
     });
     const stayPanel = (
       <ReservationDetailStayTab
         restaurantId={restaurantId}
         reservation={reservation}
-        canManage={canManage && !cancelled}
+        editable={detailActions?.editable ?? false}
+        canManage={canManage}
+        timezone={timezone}
         money={money}
         coverUrl={roomType?.coverUrl ?? null}
         onBackToOverview={() => setDetailTab("overview")}
@@ -634,6 +725,10 @@ export function ReservationDetailWorkspace({
         onBackToGuest={() => setDetailTab("guest")}
         onChangeRoomType={() => setAmendOpen(true)}
         onSaved={invalidate}
+        onOperate={(action, reservationRoomId) => {
+          setFoRoomTarget(reservationRoomId);
+          setFoAction(action);
+        }}
       />
     );
     const packagesPanel = (
@@ -702,7 +797,14 @@ export function ReservationDetailWorkspace({
             <div>
               <h1 className="flex flex-wrap items-center gap-3 font-display text-2xl text-[#251605]">
                 {reservation.confirmationNumber}
-                <span className="text-lg font-normal">{reservation.guestName}</span>
+                <span className="text-lg font-normal">
+                  {reservationHeaderGuestLabel(reservation) ? (
+                    <span className="mr-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      {reservationHeaderGuestLabel(reservation)}
+                    </span>
+                  ) : null}
+                  {reservation.guestName}
+                </span>
                 <ReservationStatusBadge status={reservation.status} />
               </h1>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -758,15 +860,10 @@ export function ReservationDetailWorkspace({
               }),
             },
             { label: "Nights", value: String(reservation.nights) },
-            {
-              label: "Room",
-              value: assigned ? `Room ${reservation.roomNumber}` : "Not Assigned",
-              hint: assigned ? reservation.roomTypeName : "Not Assigned",
-            },
+            reservationHeaderRoomKpi(reservation),
             {
               label: "Total Amount",
-              value:
-                reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal),
+              value: headerRoomTotal == null ? DETAIL_DASH : money(headerRoomTotal),
             },
             {
               label: "Deposit",
@@ -836,6 +933,13 @@ export function ReservationDetailWorkspace({
                     beds: null,
                   }}
                   money={(value) => money(value)}
+                  editable={detailActions?.editable ?? false}
+                  catalogues={{
+                    sources: set6Query.data?.snapshot.sourceCodes ?? [],
+                    channels: set6Query.data?.snapshot.salesChannels ?? [],
+                    segments: set6Query.data?.snapshot.marketSegments ?? [],
+                    distributionChannels: sourceChannelQuery.data?.channels ?? [],
+                  }}
                   onEditTab={setDetailTab}
                 />
               ) : null}
@@ -854,7 +958,7 @@ export function ReservationDetailWorkspace({
                 ? deferredPanel("Linked Reservations", LINKED_DEFERRED_COPY)
                 : null}
               {detailTab === "history" ? (
-                <HistoryList history={history} dateTime={dateTime} />
+                <HistoryList history={history} dateTime={dateTime} reservation={reservation} />
               ) : null}
             </div>
           </div>
@@ -886,7 +990,13 @@ export function ReservationDetailWorkspace({
             {reservation.guestVip ? " · VIP" : ""} · {formatStayDate(reservation.arrivalDate)} →{" "}
             {formatStayDate(reservation.departureDate)} · {reservation.nights} night
             {reservation.nights === 1 ? "" : "s"}
-            {reservation.roomNumber ? ` · Room ${reservation.roomNumber}` : ""}
+            {(reservation.rooms ?? []).length > 1
+              ? ` · ${(reservation.rooms ?? [])
+                  .map((unit) => `Room ${unit.unitSequence}`)
+                  .join(", ")}`
+              : reservation.roomNumber
+                ? ` · Room ${reservation.roomNumber}`
+                : ""}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -908,13 +1018,30 @@ export function ReservationDetailWorkspace({
         <section className="rounded-2xl border border-border bg-card p-4 lg:col-span-2">
           <h2 className="font-display text-lg">Stay</h2>
           <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Field label="Room type" value={reservation.roomTypeName} />
-            <Field label="Room" value={reservation.roomNumber ?? "Unassigned"} />
+            {(reservation.rooms ?? []).length > 1 ? (
+              <Field
+                label="Rooms"
+                value={(reservation.rooms ?? [])
+                  .map((unit) => `Room ${unit.unitSequence}`)
+                  .join(", ")}
+              />
+            ) : (
+              <>
+                <Field label="Room type" value={reservation.roomTypeName} />
+                <Field label="Room" value={reservation.roomNumber ?? "Unassigned"} />
+              </>
+            )}
             <Field label="Arrival" value={formatStayDate(reservation.arrivalDate)} />
             <Field label="Departure" value={formatStayDate(reservation.departureDate)} />
             <Field
               label="Occupancy"
-              value={`${reservation.adults} adult${reservation.adults === 1 ? "" : "s"}${
+              value={`${
+                (reservation.rooms ?? []).length > 1
+                  ? (reservation.rooms ?? [])
+                      .filter((unit) => unit.status !== "cancelled" && unit.status !== "no_show")
+                      .reduce((sum, unit) => sum + unit.adults, 0)
+                  : reservation.adults
+              } adult${reservation.adults === 1 ? "" : "s"}${
                 reservation.children > 0 ? `, ${reservation.children} children` : ""
               }`}
             />
@@ -1009,7 +1136,7 @@ export function ReservationDetailWorkspace({
         onRepriced={invalidate}
       />
 
-      <HistoryList history={history} dateTime={dateTime} />
+      <HistoryList history={history} dateTime={dateTime} reservation={reservation} />
 
       {childDialogs}
     </div>
@@ -1033,9 +1160,11 @@ function Field({ label, value }: { label: string; value: string }) {
 function HistoryList({
   history,
   dateTime,
+  reservation,
 }: {
   history: ReservationHistoryEntry[];
   dateTime: (iso: string | null | undefined) => string;
+  reservation: ReservationDetail;
 }) {
   return (
     <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
@@ -1045,7 +1174,12 @@ function HistoryList({
       ) : (
         <ol className="mt-3 space-y-3">
           {history.map((entry) => {
-            const changes = reservationHistoryChanges(entry.previousValues, entry.newValues);
+            const changes = reservationHistoryChanges(
+              entry.previousValues,
+              entry.newValues,
+              (key, value) => resolveHistoryField(key, value, reservation),
+            );
+            const context = historyContextLine(entry.previousValues, entry.newValues, reservation);
             return (
               <li key={entry.id} className="rounded-xl border border-border p-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1057,6 +1191,7 @@ function HistoryList({
                     <span className="text-xs text-muted-foreground">· {entry.actorName}</span>
                   ) : null}
                 </div>
+                {context ? <p className="mt-1 text-sm text-[#251605]">{context}</p> : null}
                 {entry.notes ? (
                   <p className="mt-1 text-sm text-muted-foreground">{entry.notes}</p>
                 ) : null}
@@ -1167,10 +1302,12 @@ function ReservationDetailActionBar({
   result,
   busy,
   onAction,
+  gatedActions,
 }: {
   result: ReservationActionResult;
   busy: boolean;
   onAction: (actionId: ReservationActionId) => void;
+  gatedActions?: Partial<Record<ReservationActionId, string>>;
 }) {
   const secondary = reservationDetailSecondaryActions(result);
   const primary = result.primaryAction;
@@ -1181,7 +1318,8 @@ function ReservationDetailActionBar({
           type="button"
           size="sm"
           data-testid="reservation-detail-primary"
-          disabled={busy}
+          disabled={busy || Boolean(gatedActions?.[primary.id])}
+          title={gatedActions?.[primary.id]}
           onClick={() => onAction(primary.id)}
         >
           {reservationDetailActionLabel(primary)}
@@ -1213,11 +1351,19 @@ function ReservationDetailActionBar({
                   {divider ? <DropdownMenuSeparator /> : null}
                   <DropdownMenuItem
                     className={destructive ? "text-destructive" : undefined}
-                    disabled={busy}
+                    disabled={busy || Boolean(gatedActions?.[action.id])}
+                    title={gatedActions?.[action.id]}
                     data-testid={`reservation-detail-action-${action.id}`}
                     onClick={() => onAction(action.id)}
                   >
-                    {reservationDetailActionLabel(action)}
+                    <span className="flex flex-col items-start">
+                      <span>{reservationDetailActionLabel(action)}</span>
+                      {gatedActions?.[action.id] ? (
+                        <span className="max-w-64 text-[11px] font-normal text-muted-foreground">
+                          {gatedActions[action.id]}
+                        </span>
+                      ) : null}
+                    </span>
                   </DropdownMenuItem>
                 </Fragment>
               );

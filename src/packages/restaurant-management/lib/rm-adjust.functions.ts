@@ -303,7 +303,7 @@ async function loadAdjustCheckView(
 
 export const getAdjustCheck = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, orderId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, orderId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<AdjustCheckView> => {
     const { canDiscount, canComp } = await resolveRmAdjustCapabilities(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -315,7 +315,7 @@ type AdjustErr = { ok: false; message: string };
 
 export const applyOrderDiscount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -395,7 +395,7 @@ export const applyOrderDiscount = createServerFn({ method: "POST" })
 
 export const clearOrderDiscount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, orderId: idSchema, reason: reasonSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<AdjustOk | AdjustErr> => {
@@ -447,7 +447,7 @@ export const clearOrderDiscount = createServerFn({ method: "POST" })
 
 export const applyOrderComp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -549,7 +549,7 @@ export const applyOrderComp = createServerFn({ method: "POST" })
 
 export const completeCompedOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, orderId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, orderId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<AdjustOk | AdjustErr> => {
     try {
       const caps = await resolveRmAdjustCapabilities(context as never, data.restaurantId);
@@ -600,7 +600,7 @@ export const completeCompedOrder = createServerFn({ method: "POST" })
 
 export const getStaffRmAdjustGrant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -619,7 +619,7 @@ export const getStaffRmAdjustGrant = createServerFn({ method: "POST" })
 
 export const setStaffRmAdjustGrant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

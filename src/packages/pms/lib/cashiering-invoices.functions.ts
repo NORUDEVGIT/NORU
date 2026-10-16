@@ -154,7 +154,7 @@ export async function loadGuestFolioInvoice(
 
 export const issueGuestFolioInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -178,7 +178,7 @@ export const issueGuestFolioInvoice = createServerFn({ method: "POST" })
 
 export const reprintGuestFolioInvoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<InvoiceActionResult> => {
@@ -195,7 +195,7 @@ export const reprintGuestFolioInvoice = createServerFn({ method: "POST" })
 
 export const getGuestFolioInvoice = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<IssuedFolioInvoiceRow | null> => {

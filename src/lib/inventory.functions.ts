@@ -131,7 +131,7 @@ export const listInventoryUnits = createServerFn({ method: "POST" })
 
 export const listInventoryItems = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -201,7 +201,7 @@ export const listInventoryItems = createServerFn({ method: "POST" })
 
 export const getInventoryOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireInventoryAccess(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -306,7 +306,7 @@ async function loadMovements(
 
 export const listInventoryMovements = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -327,7 +327,7 @@ export const listInventoryMovements = createServerFn({ method: "POST" })
 
 export const createInventoryItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -409,7 +409,7 @@ export const createInventoryItem = createServerFn({ method: "POST" })
 
 export const updateInventoryItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -456,7 +456,7 @@ export const updateInventoryItem = createServerFn({ method: "POST" })
 
 export const createInventoryMovement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

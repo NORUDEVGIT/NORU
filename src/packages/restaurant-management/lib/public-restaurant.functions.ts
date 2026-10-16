@@ -35,7 +35,7 @@ export interface PublicRestaurant {
  * Reads go through the anon (RLS-bound) client, never the privileged client.
  */
 export const getPublicRestaurant = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => slugSchema.parse(input))
+  .validator((input: unknown) => slugSchema.parse(input))
   .handler(async ({ data }): Promise<PublicRestaurant | null> => {
     const { publicServerClient } = await import("./order-pricing.server");
     const { data: row, error } = await publicServerClient()

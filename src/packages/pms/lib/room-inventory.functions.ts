@@ -296,7 +296,7 @@ const availabilityReadSchema = z
 
 export const listRoomTypeInventoryAvailability = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => availabilityReadSchema.parse(input))
+  .validator((input: unknown) => availabilityReadSchema.parse(input))
   .handler(async ({ data, context }): Promise<RoomTypeInventoryAvailability[]> => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
 
@@ -342,7 +342,7 @@ export const listRoomTypeInventoryAvailability = createServerFn({ method: "POST"
 
 export const listRoomInventoryEvents = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -399,7 +399,7 @@ export const listRoomInventoryEvents = createServerFn({ method: "POST" })
 
 export const listOperationalBlocks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -573,7 +573,7 @@ export const listOperationalBlocks = createServerFn({ method: "POST" })
 
 export const createOperationalBlock = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => createBlockSchema.parse(input))
+  .validator((input: unknown) => createBlockSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ blockId: string }> => {
     const me = await requireOperationalBlockManager(context as never, data.restaurantId);
 
@@ -615,7 +615,7 @@ export const createOperationalBlock = createServerFn({ method: "POST" })
 
 export const activateOperationalBlock = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -643,7 +643,7 @@ export const activateOperationalBlock = createServerFn({ method: "POST" })
 
 export const approveOperationalBlock = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -671,7 +671,7 @@ export const approveOperationalBlock = createServerFn({ method: "POST" })
 
 export const releaseOperationalBlock = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -701,7 +701,7 @@ export const releaseOperationalBlock = createServerFn({ method: "POST" })
 
 export const cancelOperationalBlock = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -761,7 +761,7 @@ const evaluateRoomAssignmentSchema = z
 
 export const evaluateRoomAssignment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => evaluateRoomAssignmentSchema.parse(input))
+  .validator((input: unknown) => evaluateRoomAssignmentSchema.parse(input))
   .handler(async ({ data, context }): Promise<AssignmentEligibilityResult> => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
 

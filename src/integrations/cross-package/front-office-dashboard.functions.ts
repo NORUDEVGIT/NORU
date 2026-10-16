@@ -25,7 +25,7 @@ export interface FrontOfficeDashboard {
  */
 export const getFrontOfficeDashboard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, today: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<FrontOfficeDashboard> => {

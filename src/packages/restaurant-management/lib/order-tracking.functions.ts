@@ -52,7 +52,7 @@ export interface TrackedOrder {
  * sequential order numbers.
  */
 export const getTrackedOrder = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => trackSchema.parse(input))
+  .validator((input: unknown) => trackSchema.parse(input))
   .handler(async ({ data }): Promise<{ ok: true; order: TrackedOrder } | { ok: false }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { hashTrackingToken, safeEqual } = await import("./guest-order.server");

@@ -4,6 +4,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireFrontOfficeAccess } from "@/packages/pms/lib/rooms.server";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
+import { isMissingSchemaError } from "@/packages/pms/lib/pms-set2-structure";
+import { expandStayRooms } from "@/packages/pms/lib/reservation-room-units";
 
 const idSchema = z.string().uuid();
 
@@ -44,7 +46,7 @@ export const listRoomBoardOccupancy = createServerFn({
   method: "POST",
 })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -80,16 +82,69 @@ export const listRoomBoardOccupancy = createServerFn({
         throw new Error(error.message);
       }
 
+      const reservationRows = (reservations ?? []) as Array<{
+        id: string;
+        room_id: string | null;
+        arrival_date: string;
+        departure_date: string;
+        status: string;
+      }>;
+      const unitResult =
+        reservationRows.length === 0
+          ? { data: [], error: null }
+          : await context.supabase
+              .from("hotel_reservation_rooms")
+              .select(
+                "reservation_id, room_id, status, arrival_date, departure_date, unit_sequence",
+              )
+              .eq("restaurant_id", data.restaurantId)
+              .in(
+                "reservation_id",
+                reservationRows.map((row) => row.id),
+              );
+      if (unitResult.error && !isMissingSchemaError(unitResult.error)) {
+        throw new Error(unitResult.error.message);
+      }
+      const unitRows =
+        unitResult.error && isMissingSchemaError(unitResult.error)
+          ? null
+          : ((unitResult.data ?? []) as Array<{
+              reservation_id: string;
+              room_id: string | null;
+              status: string | null;
+              arrival_date: string;
+              departure_date: string;
+              unit_sequence: number;
+            }>);
+      const stayRooms = expandStayRooms(
+        reservationRows.map((row) => ({
+          id: row.id,
+          roomId: row.room_id,
+          status: row.status,
+          arrivalDate: row.arrival_date,
+          departureDate: row.departure_date,
+        })),
+        unitRows
+          ? unitRows.map((unit) => ({
+              reservationId: unit.reservation_id,
+              roomId: unit.room_id,
+              status: unit.status,
+              arrivalDate: unit.arrival_date,
+              departureDate: unit.departure_date,
+              unitSequence: unit.unit_sequence,
+            }))
+          : null,
+      );
       const byRoom = new Map<string, RoomBoardOccupancyRow>();
 
-      for (const reservation of reservations ?? []) {
-        if (!reservation.room_id) {
+      for (const reservation of stayRooms) {
+        if (!reservation.roomId) {
           continue;
         }
 
-        const roomId = reservation.room_id;
-        const arrivalDate = reservation.arrival_date;
-        const departureDate = reservation.departure_date;
+        const roomId = reservation.roomId;
+        const arrivalDate = reservation.arrivalDate;
+        const departureDate = reservation.departureDate;
 
         if (reservation.status === "checked_in") {
           const state: RoomOccupancyState =
@@ -98,7 +153,7 @@ export const listRoomBoardOccupancy = createServerFn({
           byRoom.set(roomId, {
             roomId,
             state,
-            reservationId: reservation.id,
+            reservationId: reservation.reservationId,
             arrivalDate,
             departureDate,
           });
@@ -120,7 +175,7 @@ export const listRoomBoardOccupancy = createServerFn({
           byRoom.set(roomId, {
             roomId,
             state: "reserved",
-            reservationId: reservation.id,
+            reservationId: reservation.reservationId,
             arrivalDate,
             departureDate,
           });
@@ -136,7 +191,7 @@ export const listRoomBoardOccupancy = createServerFn({
 
 export const listRoomBoardBlocks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(
     async ({ data, context }): Promise<{ businessDate: string; rows: RoomBoardBlockRow[] }> => {
       await requireFrontOfficeAccess(context as never, data.restaurantId);

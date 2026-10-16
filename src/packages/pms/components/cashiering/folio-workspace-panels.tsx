@@ -591,6 +591,11 @@ function ChargeRow({
             )}
             <div className="min-w-0 flex-1">
               <span className="block font-medium text-[#251605]">{chargeItemTitle(row)}</span>
+              {row.roomUnitLabel ? (
+                <span className="block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {row.roomUnitLabel}
+                </span>
+              ) : null}
               <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                 {source ? (
                   <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -2357,11 +2362,14 @@ export function FolioSidebar({
             ) : null}
           </div>
           <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
-            {folio.roomTypeName ? (
-              <div className="col-span-2">
-                <Field label="Room Type" value={folio.roomTypeName} />
-              </div>
-            ) : null}
+            <div className="col-span-2">
+              <Field
+                label="Room"
+                value={[folio.roomNumber ?? "Unassigned", folio.roomTypeName]
+                  .filter(Boolean)
+                  .join(" · ")}
+              />
+            </div>
             <div className="col-span-2">
               <Field
                 label="Stay"

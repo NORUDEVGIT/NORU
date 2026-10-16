@@ -24,7 +24,7 @@ const profileSchema = z.object({
  * account_type back to 'customer' for any non-service-role write.
  */
 export const registerCustomer = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => registerSchema.parse(input))
+  .validator((input: unknown) => registerSchema.parse(input))
   .handler(async ({ data }) => {
     const { publicServerClient } = await import("@/core/lib/public-client.server");
     const auth = publicServerClient();
@@ -95,7 +95,7 @@ export const getMyProfile = createServerFn({ method: "GET" })
 
 export const updateMyProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => profileSchema.parse(input))
+  .validator((input: unknown) => profileSchema.parse(input))
   .handler(async ({ data, context }) => {
     // account_type / id are never accepted from the browser.
     const { error } = await context.supabase
@@ -140,7 +140,7 @@ export const getMyOrders = createServerFn({ method: "GET" })
 
 export const getMyOrder = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ orderId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ orderId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { data: order, error } = await context.supabase
       .from("orders")

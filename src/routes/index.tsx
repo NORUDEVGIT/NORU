@@ -1,27 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/shared/components/ui/button";
-import { HomeNav } from "@/core/components/home/home-nav";
-import { HomePromoBanners } from "@/core/components/home/home-promo-banners";
-import { HomeHero } from "@/core/components/home/home-hero";
-import { HomePackages } from "@/core/components/home/home-packages";
-import { HomePartners } from "@/core/components/home/home-partners";
-import { HomeFeatures } from "@/core/components/home/home-features";
-import { HomeSteps } from "@/core/components/home/home-steps";
-import { HomeShowcase } from "@/core/components/home/home-showcase";
-import { HomeBenefits } from "@/core/components/home/home-benefits";
-import { HomeTestimonials } from "@/core/components/home/home-testimonials";
-import { HomeCaseStudies } from "@/core/components/home/home-case-studies";
-import { HomeBlog } from "@/core/components/home/home-blog";
-import { HomePricing } from "@/core/components/home/home-pricing";
-import { HomeFaq } from "@/core/components/home/home-faq";
-import { HomeCta } from "@/core/components/home/home-cta";
-import { HomeFooter } from "@/core/components/home/home-footer";
+import { NoruSite } from "@/core/components/noru-site/NoruSite";
 import { useAuth } from "@/core/state/auth-store";
 import { getMyRestaurants } from "@/core/lib/restaurant.functions";
 import { getMarketingContent } from "@/core/lib/marketing";
 import { getPublishedMarketingContent } from "@/core/lib/marketing.functions";
-import { PublicMarketingProvider } from "@/core/components/home/marketing-content-context";
+import { publicNoruSite } from "@/core/components/noru-site/data/site-defaults";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
@@ -42,6 +26,13 @@ export const Route = createFileRoute("/")({
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
       ],
+      // Fonts used by the Noru Digital Solutions public site.
+      links: [
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Noto+Sans+Ethiopic:wght@600;700;800&family=Quicksand:wght@600&display=swap",
+        },
+      ],
     };
   },
   component: PlatformHome,
@@ -49,7 +40,8 @@ export const Route = createFileRoute("/")({
 
 function PlatformHome() {
   const { marketing } = Route.useLoaderData();
-  const { session, user } = useAuth();
+  const site = publicNoruSite(marketing);
+  const { session, user, signOut } = useAuth();
   const signedIn = Boolean(session);
 
   // Privileged entry points are only shown after the backend confirms the
@@ -63,49 +55,16 @@ function PlatformHome() {
 
   const hasRestaurant = Array.isArray(restaurants.data) && restaurants.data.length > 0;
 
-  const shortcuts = signedIn ? (
-    <>
-      {hasRestaurant ? (
-        <Button
-          asChild
-          variant="ghost"
-          className="h-11 rounded-full px-4 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-        >
-          <Link to="/restaurant/restaurant-management/dashboard">Restaurant Dashboard</Link>
-        </Button>
-      ) : null}
-      <Button
-        asChild
-        variant="ghost"
-        className="h-11 rounded-full px-4 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-      >
-        <Link to="/account">My Account</Link>
-      </Button>
-    </>
-  ) : null;
-
   return (
-    <PublicMarketingProvider content={marketing}>
-      <div className="min-h-dvh overflow-x-hidden bg-background">
-        <HomeNav />
-        <main>
-          <HomePromoBanners />
-          <HomeHero shortcuts={shortcuts} />
-          <HomePackages />
-          <HomePartners />
-          <HomeFeatures />
-          <HomeSteps />
-          <HomeShowcase />
-          <HomeBenefits />
-          <HomeTestimonials />
-          <HomeCaseStudies />
-          <HomeBlog />
-          <HomePricing />
-          <HomeFaq />
-          <HomeCta />
-        </main>
-        <HomeFooter />
-      </div>
-    </PublicMarketingProvider>
+    <NoruSite
+      site={site}
+      account={{
+        signedIn,
+        dashboardHref: hasRestaurant ? "/restaurant/restaurant-management/dashboard" : undefined,
+        onSignOut: () => {
+          void signOut();
+        },
+      }}
+    />
   );
 }

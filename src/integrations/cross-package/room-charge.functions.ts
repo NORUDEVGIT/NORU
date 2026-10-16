@@ -61,7 +61,7 @@ function fullName(g: { first_name?: string | null; last_name?: string | null } |
 
 export const getOrderBilling = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, orderId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<OrderBilling> => {
@@ -154,7 +154,7 @@ export const getOrderBilling = createServerFn({ method: "POST" })
 
 export const searchChargeableStays = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, search: z.string().trim().max(60).optional().nullable() })
       .parse(input),
@@ -224,7 +224,7 @@ export const searchChargeableStays = createServerFn({ method: "POST" })
 
 export const postOrderRoomCharge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, orderId: idSchema, folioId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomChargeResult> => {
@@ -280,7 +280,7 @@ export const postOrderRoomCharge = createServerFn({ method: "POST" })
 
 export const reverseOrderRoomCharge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

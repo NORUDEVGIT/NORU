@@ -21,7 +21,7 @@ export const REVENUE_CONFIG_STALE_MS = 60_000;
 
 export const getRevenueBaseConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restaurantSchema.parse(input))
+  .validator((input: unknown) => restaurantSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -34,7 +34,7 @@ export const getRevenueBaseConfig = createServerFn({ method: "POST" })
 
 export const listRevenueRoomTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restaurantSchema.parse(input))
+  .validator((input: unknown) => restaurantSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -47,7 +47,7 @@ export const listRevenueRoomTypes = createServerFn({ method: "POST" })
 
 export const listRevenueRatePlans = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, roomTypeId: idSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -62,7 +62,7 @@ export const listRevenueRatePlans = createServerFn({ method: "POST" })
 
 export const listRevenueCatalogues = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restaurantSchema.parse(input))
+  .validator((input: unknown) => restaurantSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -71,7 +71,7 @@ export const listRevenueCatalogues = createServerFn({ method: "POST" })
 
 export const listRevenueCommercialMasters = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restaurantSchema.parse(input))
+  .validator((input: unknown) => restaurantSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -80,7 +80,7 @@ export const listRevenueCommercialMasters = createServerFn({ method: "POST" })
 
 export const listRevenuePackages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restaurantSchema.parse(input))
+  .validator((input: unknown) => restaurantSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -89,7 +89,7 @@ export const listRevenuePackages = createServerFn({ method: "POST" })
 
 export const listRevenueCorporateAgreements = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restaurantSchema.parse(input))
+  .validator((input: unknown) => restaurantSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

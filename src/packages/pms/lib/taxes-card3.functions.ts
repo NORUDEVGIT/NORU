@@ -487,7 +487,7 @@ async function requireImmutableCode(
 
 export const getTaxesCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -501,7 +501,7 @@ export const getTaxesCard3 = createServerFn({ method: "POST" })
 
 export const saveTaxCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => taxSchema.parse(input))
+  .validator((input: unknown) => taxSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     if (!amountIsValid(data.chargeType, data.amount)) {
@@ -552,7 +552,7 @@ export const saveTaxCard3 = createServerFn({ method: "POST" })
 
 export const saveTaxGroupCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => groupSchema.parse(input))
+  .validator((input: unknown) => groupSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -621,7 +621,7 @@ export const saveTaxGroupCard3 = createServerFn({ method: "POST" })
 
 export const saveServiceChargeCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => serviceSchema.parse(input))
+  .validator((input: unknown) => serviceSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     if (!amountIsValid(data.chargeType, data.amount)) {
@@ -675,7 +675,7 @@ export const saveServiceChargeCard3 = createServerFn({ method: "POST" })
 
 export const saveFeeCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => feeSchema.parse(input))
+  .validator((input: unknown) => feeSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     if (!amountIsValid(data.chargeType, data.amount)) {
@@ -712,7 +712,7 @@ export const saveFeeCard3 = createServerFn({ method: "POST" })
 
 export const saveExemptionRuleCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => exemptionSchema.parse(input))
+  .validator((input: unknown) => exemptionSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -784,7 +784,7 @@ const defaultRoomTaxGroupSchema = z.object({
 
 export const saveDefaultRoomTaxGroupCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => defaultRoomTaxGroupSchema.parse(input))
+  .validator((input: unknown) => defaultRoomTaxGroupSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);

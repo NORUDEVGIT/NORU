@@ -32,7 +32,7 @@ const stayQuerySchema = z.object({
 
 export const quoteHotelStayCommercialFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => stayQuerySchema.parse(input))
+  .validator((input: unknown) => stayQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -45,7 +45,7 @@ export const quoteHotelStayCommercialFn = createServerFn({ method: "POST" })
 
 export const listEligiblePromotionActivations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     stayQuerySchema
       .extend({
         baseRoomSubtotal: z.number().nonnegative().optional(),
@@ -73,7 +73,7 @@ export const listEligiblePromotionActivations = createServerFn({ method: "POST" 
 
 export const getReservationPromotionAttribution = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {

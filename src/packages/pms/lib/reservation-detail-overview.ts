@@ -3,11 +3,24 @@ import {
   maskGuaranteePan,
   preferenceFlagFromRequests,
   reviewDash,
+  reviewNoShowCopy,
+  reviewRefundabilityCopy,
 } from "@/packages/pms/lib/create-reservation-review";
+import { resolveGuaranteeMethodOptions } from "@/packages/pms/lib/create-reservation-phase1-section7";
+import { earlyDeparturePenaltySummary } from "@/packages/pms/lib/early-departure-policy";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 import type { ReservationStatus } from "@/packages/pms/lib/reservations.server";
 
 export const DETAIL_DASH = "—";
+export const OVERVIEW_LABEL_UNAVAILABLE = "Not available";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export type OverviewCatalogueRow = {
+  id: string;
+  code: string;
+  name: string;
+};
 export const FOLIO_DEFERRED_COPY = "Folio is not available in this workspace yet.";
 export const PACKAGES_DEFERRED_COPY = "Packages are not available in this workspace yet.";
 export const COMMUNICATION_DEFERRED_COPY = "Communication is not available in this workspace yet.";
@@ -53,6 +66,7 @@ export type DetailDepositView = {
   name: string | null;
   tenderCode: string | null;
   type: string | null;
+  reference: string | null;
 };
 
 export function parseDepositRequirementSnapshot(raw: unknown): DetailDepositView | null {
@@ -75,6 +89,7 @@ export function parseDepositRequirementSnapshot(raw: unknown): DetailDepositView
         ? row.intended_tender_code
         : null,
     type: typeof row.deposit_type === "string" && row.deposit_type.trim() ? row.deposit_type : null,
+    reference: snapshotText(row, ["payment_reference", "deposit_reference", "reference"]),
   };
 }
 
@@ -98,6 +113,94 @@ export function snapshotField(raw: unknown, keys: string[]): string | null {
     if (typeof value === "boolean") return value ? "Yes" : "No";
   }
   return null;
+}
+
+function snapshotText(row: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+export function overviewCatalogueLabel(
+  value: string | null | undefined,
+  rows: OverviewCatalogueRow[] | null | undefined,
+): string {
+  const raw = value?.trim() ?? "";
+  if (!raw) return DETAIL_DASH;
+  const match = rows?.find((row) => row.id === raw || row.code === raw);
+  const name = match?.name?.trim();
+  if (name && !UUID_RE.test(name)) return name;
+  if (UUID_RE.test(raw)) return OVERVIEW_LABEL_UNAVAILABLE;
+  return raw;
+}
+
+export function overviewBookingSourceLabel(
+  source: string | null | undefined,
+  commercialBookingSource: string | null | undefined,
+  rows: OverviewCatalogueRow[] | null | undefined,
+): string {
+  const commercial = commercialBookingSource?.trim() ?? "";
+  if (commercial) return overviewCatalogueLabel(commercial, rows);
+  if (source === "staff") return "Staff";
+  if (source === "walk_in") return "Walk-in";
+  return overviewCatalogueLabel(source, rows);
+}
+
+export function overviewChannelLabel(
+  source: string | null | undefined,
+  salesChannel: string | null | undefined,
+  rows: OverviewCatalogueRow[] | null | undefined,
+  distributionChannels?: { id: string; name: string }[] | null,
+): string {
+  const channel = salesChannel?.trim() ?? "";
+  if (channel) {
+    const distributionName = distributionChannels?.find((row) => row.id === channel)?.name?.trim();
+    if (distributionName && !UUID_RE.test(distributionName)) return distributionName;
+    return overviewCatalogueLabel(channel, rows);
+  }
+  if (source === "walk_in") return "Walk-in";
+  return DETAIL_DASH;
+}
+
+export function overviewPartyName(
+  name: string | null | undefined,
+  id: string | null | undefined,
+): string {
+  const label = name?.trim() ?? "";
+  if (label && !UUID_RE.test(label)) return label;
+  if (id?.trim()) return OVERVIEW_LABEL_UNAVAILABLE;
+  return DETAIL_DASH;
+}
+
+export function overviewPaymentLabel(value: string | null | undefined): string {
+  const raw = value?.trim() ?? "";
+  if (!raw) return DETAIL_DASH;
+  if (UUID_RE.test(raw)) return OVERVIEW_LABEL_UNAVAILABLE;
+  const match = resolveGuaranteeMethodOptions(undefined).find(
+    (option) => option.value === raw || option.label.toLowerCase() === raw.toLowerCase(),
+  );
+  if (match) return match.label;
+  if (isCardGuaranteeMethod(raw)) return "Card";
+  return raw.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+export function overviewNoShowLabel(snapshot: unknown): string | null {
+  return reviewNoShowCopy(
+    snapshotDisplayName(snapshot),
+    earlyDeparturePenaltySummary(
+      snapshotField(snapshot, ["penalty_type"]),
+      snapshotField(snapshot, ["penalty_value"]),
+    ),
+  );
+}
+
+export function overviewRefundabilityLabel(snapshot: unknown): string | null {
+  return reviewRefundabilityCopy(
+    snapshotField(snapshot, ["kind", "refundability_kind", "refundability"]),
+    snapshotDisplayName(snapshot),
+  );
 }
 
 export function arriveInLabel(arrivalDate: string, businessDate: string): string {

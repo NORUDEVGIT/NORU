@@ -380,7 +380,7 @@ async function loadStay(
 
 export const getCheckInContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckInContext> => {
@@ -468,7 +468,7 @@ export const getCheckInContext = createServerFn({ method: "POST" })
 
 export const startWalkInCheckIn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
@@ -507,7 +507,7 @@ const registrationSchema = z.object({
 
 export const saveCheckInRegistration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => registrationSchema.parse(input))
+  .validator((input: unknown) => registrationSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -634,7 +634,7 @@ export const saveCheckInRegistration = createServerFn({ method: "POST" })
 
 export const waiveCheckInRegistration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -666,7 +666,7 @@ export const waiveCheckInRegistration = createServerFn({ method: "POST" })
 
 export const ensureCheckInFolio = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckInFolioStrip> => {
@@ -690,7 +690,7 @@ export const ensureCheckInFolio = createServerFn({ method: "POST" })
 
 export const postCheckInDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -767,7 +767,7 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
 
 export const waiveCheckInDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -799,7 +799,7 @@ export const waiveCheckInDeposit = createServerFn({ method: "POST" })
 
 export const recordCheckInKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -838,7 +838,7 @@ export const recordCheckInKey = createServerFn({ method: "POST" })
 
 export const waiveCheckInKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -870,17 +870,31 @@ export const waiveCheckInKey = createServerFn({ method: "POST" })
 
 export const completeFoCheckIn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        reservationRoomId: idSchema.optional(),
+        roomId: idSchema.optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; roomNumber: string | null }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadStay(supabaseAdmin, data.restaurantId, data.reservationId);
-    if (loaded.stay.status !== "confirmed") {
+    const targetRoomId = data.reservationRoomId
+      ? (data.roomId ?? loaded.stay.roomId)
+      : loaded.stay.roomId;
+    if (data.reservationRoomId) {
+      if (loaded.stay.status !== "confirmed" && loaded.stay.status !== "checked_in") {
+        throw new Error("Only confirmed stays can be checked in.");
+      }
+    } else if (loaded.stay.status !== "confirmed") {
       throw new Error("Only confirmed stays can be checked in.");
     }
-    if (!loaded.stay.roomId) throw new Error("Assign a room before completing check-in.");
+    if (!targetRoomId) throw new Error("Assign a room before completing check-in.");
 
     const { loadGuestWorkspaceConfig } = await import("./guest-workspace-config.functions");
     const { validateGuestCheckInRequirements, resolveIndividualProfileType } =
@@ -964,7 +978,7 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
       .from("hotel_rooms")
       .select("id, room_number, status, housekeeping_status, maintenance_status")
       .eq("restaurant_id", data.restaurantId)
-      .eq("id", loaded.stay.roomId)
+      .eq("id", targetRoomId)
       .maybeSingle();
     const readinessRoom = roomRow as unknown as {
       id: string;
@@ -1023,8 +1037,9 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin.rpc("check_in_hotel_reservation", {
       _restaurant_id: data.restaurantId,
       _reservation_id: data.reservationId,
-      _room_id: loaded.stay.roomId as unknown as string,
+      _room_id: targetRoomId as unknown as string,
       _membership_id: me.id,
+      ...(data.reservationRoomId ? { _reservation_room_id: data.reservationRoomId } : {}),
     });
     if (error) throw reservationError(error.message);
 

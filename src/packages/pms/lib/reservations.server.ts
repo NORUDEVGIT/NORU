@@ -41,6 +41,12 @@ export const RESERVATION_EVENT_TYPES = [
   "repriced",
   "expected_arrival_updated",
   "late_checkout_updated",
+  "room_guest_added",
+  "room_guest_removed",
+  "room_primary_guest_changed",
+  "external_reservation_created",
+  "external_reservation_modified",
+  "external_reservation_cancelled",
 ] as const;
 export type ReservationEventType = (typeof RESERVATION_EVENT_TYPES)[number];
 
@@ -98,6 +104,25 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   RESERVATION_CANCELLED: "This reservation is cancelled. Restore it before amending.",
   INVALID_STATUS: "Invalid reservation status.",
   INVALID_TRANSITION: "That action isn't allowed for this reservation's current status.",
+  INVALID_ROOM_UNITS: "A reservation can include at most 20 rooms.",
+  INVALID_RESERVATION_MODE: "Choose a single reservation or a group reservation.",
+  SINGLE_RESERVATION_ROOM_LIMIT: "A single reservation can include only one room.",
+  GUEST_NOT_FOUND: "Guest not found for this property.",
+  ROOM_GUEST_PRIMARY_CONFLICT: "A room can have only one primary occupant.",
+  ROOM_GUEST_DUPLICATE: "That guest is already on this room.",
+  ROOM_GUEST_NOT_FOUND: "That guest is not on this room.",
+  ROOM_GUEST_PRIMARY_REQUIRED: "Choose another primary occupant before removing this guest.",
+  ROOM_GUEST_HISTORICAL:
+    "Occupants on a cancelled, checked-out, or no-show room cannot be changed.",
+  OCCUPANT_CAPACITY: "This room already has a named guest for every booked adult and child.",
+  INVALID_ROOM_GUEST_ACTION: "That room occupant action is not available.",
+  ROOM_UNIT_MASTER_MISMATCH: "The first room must match the reservation stay.",
+  OCCUPANCY_EXCEEDED: "That room type cannot hold this many guests.",
+  ROOM_TYPE_NOT_FOUND: "Room type not found for this property.",
+  MULTI_ROOM_AMEND_UNSUPPORTED:
+    "Dates, room, occupancy, and rate plan cannot be changed while this reservation has more than one room.",
+  ROOM_UNIT_REQUIRED: "Choose which room this action applies to.",
+  ROOM_UNIT_NOT_FOUND: "That room is not on this reservation.",
   ROOM_REQUIRED: "Assign a room before completing check-in.",
   REASON_REQUIRED: "A reason is required for a room move.",
   SAME_ROOM: "The guest is already in that room.",
@@ -106,6 +131,17 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   INVALID_COMPANY_MASTER: "That Company master is not valid for this property.",
   INVALID_TRAVEL_AGENT_MASTER: "That Travel Agency master is not valid for this property.",
   DUAL_COMPANY_TA_NOT_ALLOWED: "This create path cannot bind Company and Travel Agency together.",
+  PACKAGE_ALREADY_RESERVATION_SCOPED: "That package is already applied to the whole reservation.",
+  PACKAGE_ALREADY_ROOM_SCOPED: "That package is already applied to a room on this reservation.",
+  PACKAGE_CHARGE_BASIS_UNSUPPORTED: "Only a per-stay package can be applied.",
+  PACKAGE_PRICE_INVALID: "That package does not have a valid price.",
+  PACKAGE_STAY_WINDOW_MISMATCH: "That package is outside this stay.",
+  PACKAGE_ROOM_TYPE_MISMATCH: "That package does not apply to this room type.",
+  PACKAGE_RATE_PLAN_MISMATCH: "That package does not apply to this rate plan.",
+  PACKAGE_INACTIVE: "That package is not active.",
+  PACKAGE_NOT_FOUND: "Package not found for this property.",
+  PACKAGE_ACTIVATION_NOT_FOUND: "Package activation not found.",
+  PACKAGE_WRONG_PROPERTY: "That package belongs to another property.",
 };
 
 /** Generic Reservation status writer — booking-side allowlist only (DB03-B01). */

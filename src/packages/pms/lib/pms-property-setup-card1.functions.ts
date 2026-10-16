@@ -898,7 +898,7 @@ function corePatch(draft: Card1Draft): RestaurantUpdate {
 
 export const getPmsPropertySetupCard1 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -941,7 +941,7 @@ export const getPmsPropertySetupCard1 = createServerFn({ method: "POST" })
 
 export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveSchema.parse(input))
+  .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -1086,7 +1086,7 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
 
 export const createPropertyBrandImageUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1130,7 +1130,7 @@ const COMPLIANCE_KINDS = [
 
 export const createPropertyComplianceDocumentUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1164,7 +1164,7 @@ export const createPropertyComplianceDocumentUpload = createServerFn({ method: "
 
 export const deletePropertyComplianceDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, storagePath: z.string().trim().min(1).max(500) })
       .parse(input),
@@ -1195,7 +1195,7 @@ const propertyAreaSchema = z.object({
 
 export const saveCard1PropertyArea = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => propertyAreaSchema.parse(input))
+  .validator((input: unknown) => propertyAreaSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -1246,7 +1246,7 @@ export const saveCard1PropertyArea = createServerFn({ method: "POST" })
 
 export const deleteCard1PropertyArea = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {

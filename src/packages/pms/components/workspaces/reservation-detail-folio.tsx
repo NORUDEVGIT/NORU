@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -431,7 +432,14 @@ function RoomFolioCard({
                 <tr key={row.id} className="border-b border-[#F4EEE4]">
                   <td className="py-2 pr-2 text-muted-foreground">{dateTime(row.postedAt)}</td>
                   <td className="py-2 pr-2">{labelTransactionType(row.type)}</td>
-                  <td className="py-2 pr-2">{reviewDash(row.description)}</td>
+                  <td className="py-2 pr-2">
+                    {reviewDash(row.description)}
+                    {row.roomUnitLabel ? (
+                      <span className="ml-1 text-[11px] text-muted-foreground">
+                        {row.roomUnitLabel}
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="py-2 pr-2">{reviewDash(ledgerReference(row))}</td>
                   <td className="py-2 pr-2 text-right">{FOLIO_LINE_QTY_GAP}</td>
                   <td
@@ -737,134 +745,16 @@ function FolioSummaryRail({
   packagesTotal: number;
   folioBalance: number | null;
 }) {
-  const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
-  const assigned = Boolean(reservation.roomId && reservation.roomNumber);
-  const cancellation = snapshotDisplayName(reservation.cancellationPolicySnapshot);
-  const noShow = snapshotField(reservation.refundabilitySnapshot, ["no_show", "no_show_policy"]);
-  const earlyDeparture = earlyDepartureReservationLabel({
-    snapshot: reservation.earlyDeparturePolicySnapshot,
-    legacyRefundabilitySnapshot: reservation.refundabilitySnapshot,
-  });
-  const stayNightsLabel =
-    nights || nightsBetween(reservation.arrivalDate, reservation.departureDate);
   return (
-    <aside
-      className="h-fit space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="reservation-folio-summary"
-    >
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          Reservation Summary
-        </p>
-        <div className="mt-1 flex items-center gap-2">
-          <p className="font-display text-lg text-[#251605]">{reservation.confirmationNumber}</p>
-          <ReservationStatusBadge status={reservation.status} />
-        </div>
-      </div>
-      <div className="flex items-start gap-3 border-t border-[#EEE6D8] pt-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F4E9D0] text-xs font-semibold text-[#765719]">
-          {guestInitials(reservation.guestName)}
-        </div>
-        <div className="min-w-0">
-          <p className="flex items-center gap-1 font-medium text-[#251605]">
-            <UserRound className="size-3.5 text-[#B8954F]" />
-            {reservation.guestName}
-            {reservation.guestVip ? (
-              <span className="rounded-full bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-semibold text-[#765719]">
-                VIP
-              </span>
-            ) : null}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {reviewDash(reservation.guestPhone)}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {reviewDash(reservation.guestEmail)}
-          </p>
-        </div>
-      </div>
-      <SummaryBlock
-        icon={<CalendarDays className="size-3.5 text-[#B8954F]" />}
-        title="Stay Information"
-      >
-        <p>
-          {formatStayDate(reservation.arrivalDate)} → {formatStayDate(reservation.departureDate)} (
-          {stayNightsLabel} night{stayNightsLabel === 1 ? "" : "s"})
-        </p>
-        <p>
-          {reservation.adults} Adults · {reservation.children} Children ·{" "}
-          {reservation.infants == null ? DETAIL_DASH : reservation.infants} Infants
-        </p>
-        <p>Purpose: {reviewDash(reservation.purposeOfStay)}</p>
-      </SummaryBlock>
-      <SummaryBlock
-        icon={<BedDouble className="size-3.5 text-[#B8954F]" />}
-        title="Room Information"
-      >
-        <div className="flex gap-2">
-          {coverUrl ? (
-            <img src={coverUrl} alt="" className="h-12 w-16 rounded-md object-cover" />
-          ) : (
-            <div className="flex h-12 w-16 items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68]">
-              <BedDouble className="size-5" />
-            </div>
-          )}
-          <div>
-            <p className="font-medium">{reviewDash(reservation.roomTypeName)}</p>
-            <p>{assigned ? `Room ${reservation.roomNumber}` : "Not Assigned"}</p>
-            <p>{reviewDash(reservation.ratePlanName)}</p>
-          </div>
-        </div>
-      </SummaryBlock>
-      <SummaryBlock icon={<FileText className="size-3.5 text-[#B8954F]" />} title="Rate & Total">
-        <p>
-          Room Rate{" "}
-          {reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
-        </p>
-        <p>Packages {money(packagesTotal)}</p>
-        <p className="font-medium text-[#251605]">
-          Total Amount{" "}
-          {reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
-        </p>
-      </SummaryBlock>
-      <SummaryBlock icon={<Wallet className="size-3.5 text-[#B8954F]" />} title="Folio balance">
-        <p>{folioBalance == null ? DETAIL_DASH : money(folioBalance)}</p>
-      </SummaryBlock>
-      <SummaryBlock
-        icon={<CreditCard className="size-3.5 text-[#B8954F]" />}
-        title="Guarantee & Deposit"
-      >
-        <p>{reviewDash(reservation.guaranteeMethod)}</p>
-        <p>
-          Deposit {deposit?.amount == null ? DETAIL_DASH : money(deposit.amount)} ·{" "}
-          {depositStatusLabel(deposit)}
-        </p>
-      </SummaryBlock>
-      <SummaryBlock icon={<Shield className="size-3.5 text-[#B8954F]" />} title="Policies">
-        <p>Cancellation: {reviewDash(cancellation)}</p>
-        <p>No-show: {reviewDash(noShow)}</p>
-        <p>Early departure: {reviewDash(earlyDeparture)}</p>
-      </SummaryBlock>
-    </aside>
-  );
-}
-
-function SummaryBlock({
-  icon,
-  title,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="border-t border-[#EEE6D8] pt-3 text-xs text-muted-foreground">
-      <p className="mb-1 flex items-center gap-1 font-medium text-[#251605]">
-        {icon}
-        {title}
-      </p>
-      <div className="space-y-0.5">{children}</div>
-    </div>
+    <ReservationDetailSummary
+      testId="reservation-folio-summary"
+      reservation={reservation}
+      money={money}
+      coverUrl={coverUrl}
+      nights={nights}
+      packagesTotal={packagesTotal}
+      folioBalance={folioBalance}
+      showFolioBalance
+    />
   );
 }

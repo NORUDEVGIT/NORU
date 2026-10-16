@@ -171,7 +171,7 @@ async function assertMembership(
 
 export const listRestaurantOrders = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => listSchema.parse(input))
+  .validator((input: unknown) => listSchema.parse(input))
   .handler(async ({ data, context }): Promise<OrderListResult> => {
     const supabase = context.supabase;
     await assertMembership(supabase as never, context.userId, data.restaurantId);
@@ -294,7 +294,7 @@ export const listRestaurantOrders = createServerFn({ method: "GET" })
 
 export const getRestaurantOrderDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => detailSchema.parse(input))
+  .validator((input: unknown) => detailSchema.parse(input))
   .handler(async ({ data, context }): Promise<OrderDetail> => {
     const supabase = context.supabase;
     await assertMembership(supabase as never, context.userId, data.restaurantId);
@@ -395,7 +395,7 @@ const KITCHEN_NEXT: Record<string, string[]> = {
 
 export const updateKitchenOrderStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: z.string().uuid(),

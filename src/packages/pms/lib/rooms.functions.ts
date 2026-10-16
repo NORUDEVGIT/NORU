@@ -410,7 +410,7 @@ export interface HotelRoom {
 /** Rooms access is owner/manager only; the flag drives nav + UI affordances. */
 export const getRoomsAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireFrontOfficeAccess(context as never, data.restaurantId);
     return {
@@ -424,7 +424,7 @@ export const getRoomsAccess = createServerFn({ method: "POST" })
 
 export const listRoomAmenities = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RoomAmenity[]> => {
     await requireRoomManager(context as never, data.restaurantId);
 
@@ -469,7 +469,7 @@ export const listRoomAmenities = createServerFn({ method: "POST" })
 
 export const listRoomTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, includeInactive: z.boolean().optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomType[]> => {
@@ -612,7 +612,7 @@ const roomTypeInput = z.object({
 
 export const saveRoomType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => roomTypeInput.parse(input))
+  .validator((input: unknown) => roomTypeInput.parse(input))
   .handler(async ({ data, context }) => {
     // Type row then room_type_beds: sequential, fail-closed on beds (ROOM_TYPE_BEDS_SEQUENTIAL_LIMITATION).
     const me = await requireRoomManager(context as never, data.restaurantId);
@@ -765,7 +765,7 @@ export const saveRoomType = createServerFn({ method: "POST" })
 
 export const setRoomTypeActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -784,7 +784,7 @@ export const setRoomTypeActive = createServerFn({ method: "POST" })
 
 export const listRooms = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -897,7 +897,7 @@ const roomInput = z.object({
 
 export const saveRoom = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => roomInput.parse(input))
+  .validator((input: unknown) => roomInput.parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireRoomManager(context as never, data.restaurantId);
     const housekeepingPolicy = await loadCard2HousekeepingSnapshot(
@@ -1058,7 +1058,7 @@ export const saveRoom = createServerFn({ method: "POST" })
 
 export const setRoomActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1102,7 +1102,7 @@ export type BulkCreateRoomsResult = {
 
 export const bulkCreateRooms = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => bulkCreateRoomsInput.parse(input))
+  .validator((input: unknown) => bulkCreateRoomsInput.parse(input))
   .handler(async ({ data, context }): Promise<BulkCreateRoomsResult> => {
     const empty = {
       success: false,
@@ -1213,7 +1213,7 @@ export const bulkCreateRooms = createServerFn({ method: "POST" })
 
 export const evaluateCard2RoomTypesReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const [{ data: types }, { data: beds }, { data: rooms }, { data: floors }, { data: wings }] =
@@ -1288,7 +1288,7 @@ export const evaluateCard2RoomTypesReadiness = createServerFn({ method: "POST" }
 
 export const listRoomTypeImages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, roomTypeId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomTypeImage[]> => {
@@ -1326,7 +1326,7 @@ export const listRoomTypeImages = createServerFn({ method: "POST" })
  */
 export const createRoomTypeImageUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1366,7 +1366,7 @@ export const createRoomTypeImageUpload = createServerFn({ method: "POST" })
 
 export const registerRoomTypeImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1408,7 +1408,7 @@ export const registerRoomTypeImage = createServerFn({ method: "POST" })
 
 export const setRoomTypeImageCover = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, roomTypeId: idSchema, imageId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1430,7 +1430,7 @@ export const setRoomTypeImageCover = createServerFn({ method: "POST" })
 
 export const reorderRoomTypeImages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({ restaurantId: idSchema, roomTypeId: idSchema, imageIds: z.array(idSchema).max(50) })
       .parse(input),
@@ -1451,7 +1451,7 @@ export const reorderRoomTypeImages = createServerFn({ method: "POST" })
 /** Removes the metadata row and the storage object together — no orphans. */
 export const deleteRoomTypeImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, roomTypeId: idSchema, imageId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1508,7 +1508,7 @@ export interface RoomsDashboard {
 
 export const getRoomsDashboard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RoomsDashboard> => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
 
@@ -1567,7 +1567,7 @@ export type RoomClassificationsResult = {
 
 export const listRoomClassifications = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RoomClassificationsResult> => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
 
@@ -1705,7 +1705,7 @@ export async function saveCustomClassificationWithRetry(
 
 export const addCustomRoomCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1726,7 +1726,7 @@ export const addCustomRoomCategory = createServerFn({ method: "POST" })
 
 export const addCustomRoomClass = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

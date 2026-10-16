@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
+import { RoomUnitTargetSelect } from "@/packages/pms/components/frontoffice/room-unit-target-select";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
@@ -91,6 +92,8 @@ export function FoCancelNoShowStepper({
   const [feeAmount, setFeeAmount] = useState("");
   const [waiveReason, setWaiveReason] = useState("");
   const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [reservationRoomId, setReservationRoomId] = useState("");
+  const multiRoom = (stay.roomUnits?.length ?? 0) > 1;
 
   const fetchContext = useServerFn(getCancelNoShowContext);
   const ensureFolio = useServerFn(ensureCancelNoShowFolio);
@@ -131,6 +134,7 @@ export function FoCancelNoShowStepper({
     setFeeAmount("");
     setWaiveReason("");
     setLedgerOpen(false);
+    setReservationRoomId("");
   }, [open, stay.id, kind]);
 
   useEffect(() => {
@@ -238,10 +242,11 @@ export function FoCancelNoShowStepper({
   });
 
   const completeMut = useMutation({
-    mutationFn: async (): Promise<{ id: string; status: "cancelled" | "no_show" }> => {
+    mutationFn: async (): Promise<{ id: string; status: string }> => {
+      const room = multiRoom ? { reservationRoomId } : {};
       if (kind === "cancel") {
         return completeCancel({
-          data: { restaurantId, reservationId: stay.id, reason: reason.trim() },
+          data: { restaurantId, reservationId: stay.id, reason: reason.trim(), ...room },
         });
       }
       return completeNoShow({
@@ -250,11 +255,20 @@ export function FoCancelNoShowStepper({
           reservationId: stay.id,
           reason: reason.trim(),
           today: today ?? stay.arrivalDate,
+          ...room,
         },
       });
     },
     onSuccess: () => {
-      toast.success(kind === "cancel" ? "Reservation cancelled." : "Marked as no-show.");
+      toast.success(
+        kind === "cancel"
+          ? multiRoom
+            ? "That room was cancelled."
+            : "Reservation cancelled."
+          : multiRoom
+            ? "That room was marked as a no-show."
+            : "Marked as no-show.",
+      );
       refreshDesk();
       onOpenChange(false);
     },
@@ -268,6 +282,7 @@ export function FoCancelNoShowStepper({
 
   function onContinue() {
     if (step === "stay") {
+      if (multiRoom && !reservationRoomId) return;
       setStep("reason");
       return;
     }
@@ -283,6 +298,7 @@ export function FoCancelNoShowStepper({
   const payValue = Number(feeAmount);
   const canPost = feeAmountAllowed(payValue) && !posted;
   const continueDisabled =
+    (step === "stay" && multiRoom && !reservationRoomId) ||
     (step === "reason" && !reasonOk) ||
     (step === "money" && !moneyOk) ||
     (step === "confirm" && (!confirmOk || completeMut.isPending));
@@ -352,6 +368,11 @@ export function FoCancelNoShowStepper({
 
                 {step === "stay" ? (
                   <div className="space-y-4">
+                    <RoomUnitTargetSelect
+                      units={stay.roomUnits}
+                      value={reservationRoomId}
+                      onChange={setReservationRoomId}
+                    />
                     <dl className="grid grid-cols-2 gap-3 text-sm">
                       <div>
                         <dt className="text-xs uppercase tracking-wide text-muted-foreground">

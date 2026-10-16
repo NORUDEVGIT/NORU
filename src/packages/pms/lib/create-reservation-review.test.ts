@@ -47,7 +47,11 @@ describe("Create Reservation Step 4 review workspace", () => {
     assert.doesNotMatch(reviewUi, /items-start gap-3 md:grid-cols-2/);
     assert.doesNotMatch(reviewUi, /!h-fit|h-fit/);
     assert.doesNotMatch(reviewUi, /h-\[\d|min-h-\[\d/);
-    assert.doesNotMatch(reviewUi, /col-span-full|xl:col-span-3|lg:col-span-3/);
+    const singleRate = reviewUi.slice(
+      reviewUi.indexOf('testId="review-card-rate"'),
+      reviewUi.indexOf('testId="review-card-source"'),
+    );
+    assert.doesNotMatch(singleRate, /col-span-full|xl:col-span-3|lg:col-span-3/);
     assert.match(reviewUi, /title="Payment & Deposit"/);
     assert.match(reviewUi, /title="Stay Policies"/);
     assert.doesNotMatch(reviewUi, /title="Guarantee & Deposit"/);

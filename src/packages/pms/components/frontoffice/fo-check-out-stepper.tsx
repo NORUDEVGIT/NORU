@@ -24,6 +24,10 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
+import {
+  RoomUnitOccupantContext,
+  RoomUnitTargetSelect,
+} from "@/packages/pms/components/frontoffice/room-unit-target-select";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
@@ -85,11 +89,13 @@ export function FoCheckOutStepper({
   stay,
   open,
   onOpenChange,
+  initialReservationRoomId,
 }: {
   restaurantId: string;
   stay: FrontOfficeStay;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  initialReservationRoomId?: string;
 }) {
   const queryClient = useQueryClient();
   const money = useMoney();
@@ -106,6 +112,8 @@ export function FoCheckOutStepper({
   const [payRef, setPayRef] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
   const [emailTo, setEmailTo] = useState("");
+  const [reservationRoomId, setReservationRoomId] = useState("");
+  const multiRoom = (stay.roomUnits?.length ?? 0) > 1;
 
   const fetchContext = useServerFn(getCheckOutContext);
   const ensureFolio = useServerFn(ensureCheckOutFolio);
@@ -147,7 +155,8 @@ export function FoCheckOutStepper({
     setPayMethod("cash");
     setPayRef("");
     setOverrideReason("");
-  }, [open, stay.id]);
+    setReservationRoomId(multiRoom ? (initialReservationRoomId ?? "") : "");
+  }, [open, stay.id, multiRoom, initialReservationRoomId]);
 
   useEffect(() => {
     if (!ctx) return;
@@ -196,7 +205,7 @@ export function FoCheckOutStepper({
 
   const currentIndex = CHECK_OUT_STEPS.indexOf(step);
   const currentBlocked =
-    (step === "stay" && !stayOk) ||
+    (step === "stay" && (!stayOk || (multiRoom && !reservationRoomId))) ||
     (step === "folio" && !folioOk) ||
     (step === "settle" && !settleOk) ||
     (step === "close" && !closeOk) ||
@@ -282,7 +291,14 @@ export function FoCheckOutStepper({
   });
 
   const completeMut = useMutation({
-    mutationFn: () => complete({ data: { restaurantId, reservationId: stay.id } }),
+    mutationFn: () =>
+      complete({
+        data: {
+          restaurantId,
+          reservationId: stay.id,
+          ...(multiRoom ? { reservationRoomId } : {}),
+        },
+      }),
     onSuccess: (result) => {
       toast.success(
         `${ctx?.stay.guestName ?? stay.guestName} checked out${result.roomNumber ? ` · Room ${result.roomNumber}` : ""}.`,
@@ -329,7 +345,7 @@ export function FoCheckOutStepper({
   const canPostPay = paymentAmountAllowed(payValue, remaining) && Boolean(payMethod);
   const overrideKind = overrideKindForBalance(balance);
   const continueDisabled =
-    (step === "stay" && !stayOk) ||
+    (step === "stay" && (!stayOk || (multiRoom && !reservationRoomId))) ||
     (step === "folio" && !folioOk) ||
     (step === "settle" && !settleOk) ||
     (step === "close" && !closeOk) ||
@@ -446,6 +462,16 @@ export function FoCheckOutStepper({
 
                 {step === "stay" ? (
                   <div className="space-y-4">
+                    <RoomUnitTargetSelect
+                      units={stay.roomUnits}
+                      value={reservationRoomId}
+                      onChange={setReservationRoomId}
+                    />
+                    <RoomUnitOccupantContext
+                      stayGuestId={stay.guestId}
+                      units={stay.roomUnits}
+                      selectedId={reservationRoomId}
+                    />
                     {!stayOk ? (
                       <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
                         {STAY_NOT_IN_HOUSE_MESSAGE}

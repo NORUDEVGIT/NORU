@@ -6,6 +6,8 @@
  * exceptions that the night-audit functions persist against the audit run.
  */
 import { round2 } from "@/core/lib/workforce.server";
+import { isMissingSchemaError } from "./pms-set2-structure";
+import { expandStayRooms } from "./reservation-room-units";
 
 export type Severity = "warning" | "blocking";
 export type CheckStatus = "pass" | "warning" | "blocking";
@@ -245,29 +247,90 @@ export async function evaluateAudit(
   const inHouse = reservations.filter((r) => r.status === "checked_in");
   const roomExceptions: DerivedException[] = [];
   const byRoom = new Map<string, Res[]>();
+  const inHouseIds = inHouse.map((stay) => stay.id);
+  const unitResult =
+    inHouseIds.length === 0
+      ? { data: [], error: null }
+      : await admin
+          .from("hotel_reservation_rooms")
+          .select("reservation_id, room_id, status, arrival_date, departure_date, unit_sequence")
+          .eq("restaurant_id", restaurantId)
+          .in("reservation_id", inHouseIds);
+  if (unitResult.error && !isMissingSchemaError(unitResult.error)) {
+    throw new Error(unitResult.error.message);
+  }
+  const unitRows =
+    unitResult.error && isMissingSchemaError(unitResult.error)
+      ? null
+      : ((unitResult.data ?? []) as Array<{
+          reservation_id: string;
+          room_id: string | null;
+          status: string | null;
+          arrival_date: string;
+          departure_date: string;
+          unit_sequence: number;
+        }>);
+  const stayRooms = expandStayRooms(
+    inHouse.map((stay) => ({
+      id: stay.id,
+      roomId: stay.room_id,
+      status: stay.status,
+      arrivalDate: stay.arrival_date,
+      departureDate: stay.departure_date,
+    })),
+    unitRows
+      ? unitRows.map((unit) => ({
+          reservationId: unit.reservation_id,
+          roomId: unit.room_id,
+          status: unit.status,
+          arrivalDate: unit.arrival_date,
+          departureDate: unit.departure_date,
+          unitSequence: unit.unit_sequence,
+        }))
+      : null,
+  ).filter((stay) => stay.status === "checked_in");
+  const inHouseById = new Map(inHouse.map((stay) => [stay.id, stay]));
+  const occupiedRoomIdList = stayRooms
+    .map((stay) => stay.roomId)
+    .filter((id): id is string => Boolean(id));
+  const { data: occupiedRoomRows } =
+    occupiedRoomIdList.length === 0
+      ? { data: [] }
+      : await admin
+          .from("hotel_rooms")
+          .select("id, room_number, status")
+          .eq("restaurant_id", restaurantId)
+          .in("id", occupiedRoomIdList);
+  const occupiedRoomById = new Map(
+    ((occupiedRoomRows ?? []) as Array<{ id: string; room_number: string; status: string }>).map(
+      (room) => [room.id, room],
+    ),
+  );
 
-  for (const r of inHouse) {
-    if (!r.room_id) {
+  for (const stay of stayRooms) {
+    const reservation = inHouseById.get(stay.reservationId);
+    if (!reservation) continue;
+    if (!stay.roomId) {
       roomExceptions.push({
         exceptionType: "checked_in_without_room",
         severity: "blocking",
         referenceType: "reservation",
-        referenceId: r.id,
-        message: `${r.confirmation_number} is checked in without an assigned room.`,
+        referenceId: reservation.id,
+        message: `${reservation.confirmation_number} is checked in without an assigned room.`,
       });
       continue;
     }
-    byRoom.set(r.room_id, [...(byRoom.get(r.room_id) ?? []), r]);
-    if (
-      r.hotel_rooms &&
-      (r.hotel_rooms.status === "out_of_order" || r.hotel_rooms.status === "out_of_service")
-    ) {
+    byRoom.set(stay.roomId, [...(byRoom.get(stay.roomId) ?? []), reservation]);
+    const physical =
+      occupiedRoomById.get(stay.roomId) ??
+      (stay.roomId === reservation.room_id ? reservation.hotel_rooms : null);
+    if (physical && (physical.status === "out_of_order" || physical.status === "out_of_service")) {
       roomExceptions.push({
         exceptionType: "occupied_restricted_room",
         severity: "warning",
         referenceType: "reservation",
-        referenceId: r.id,
-        message: `${r.confirmation_number} occupies room ${r.hotel_rooms.room_number}, which is ${r.hotel_rooms.status.replace(/_/g, " ")}.`,
+        referenceId: reservation.id,
+        message: `${reservation.confirmation_number} occupies room ${physical.room_number}, which is ${physical.status.replace(/_/g, " ")}.`,
       });
     }
   }

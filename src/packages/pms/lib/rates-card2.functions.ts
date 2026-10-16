@@ -524,7 +524,7 @@ async function loadAudit(db: DbClient, restaurantId: string) {
 
 export const getRatesCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -538,7 +538,7 @@ export const getRatesCard2 = createServerFn({ method: "POST" })
 
 export const saveRateCategoryCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => categorySchema.parse(input))
+  .validator((input: unknown) => categorySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -596,7 +596,7 @@ export const saveRateCategoryCard2 = createServerFn({ method: "POST" })
 
 export const saveRatePlanCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => planSchema.parse(input))
+  .validator((input: unknown) => planSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -771,7 +771,7 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
 
 export const saveRateCancellationPolicyCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => cancellationSchema.parse(input))
+  .validator((input: unknown) => cancellationSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -824,7 +824,7 @@ export const saveRateCancellationPolicyCard2 = createServerFn({ method: "POST" }
 
 export const saveRateRefundabilityCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => refundabilitySchema.parse(input))
+  .validator((input: unknown) => refundabilitySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -853,7 +853,7 @@ export const saveRateRefundabilityCard2 = createServerFn({ method: "POST" })
 
 export const saveRateNoShowPolicyCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => noShowPolicySchema.parse(input))
+  .validator((input: unknown) => noShowPolicySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -904,7 +904,7 @@ export const saveRateNoShowPolicyCard2 = createServerFn({ method: "POST" })
 
 export const saveRateEarlyDeparturePolicyCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => earlyDeparturePolicySchema.parse(input))
+  .validator((input: unknown) => earlyDeparturePolicySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -939,7 +939,7 @@ export const saveRateEarlyDeparturePolicyCard2 = createServerFn({ method: "POST"
 
 export const setRateEarlyDeparturePolicyActiveCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

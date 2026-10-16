@@ -47,7 +47,7 @@ const workspaceQuerySchema = z.object({
 
 export const listCommercialChangeHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => historyQuerySchema.parse(input))
+  .validator((input: unknown) => historyQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -63,7 +63,7 @@ export const listCommercialChangeHistory = createServerFn({ method: "POST" })
 
 export const getCommercialOperationDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, operationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -78,7 +78,7 @@ export const getCommercialOperationDetail = createServerFn({ method: "POST" })
 
 export const getCommercialHistoryWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => workspaceQuerySchema.parse(input))
+  .validator((input: unknown) => workspaceQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -91,7 +91,7 @@ export const getCommercialHistoryWorkspace = createServerFn({ method: "POST" })
 
 export const getCommercialHistoryOperationDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, operationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {

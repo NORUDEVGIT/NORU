@@ -311,7 +311,7 @@ async function requireOwnedRecord(
 
 export const getBillingCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -325,7 +325,7 @@ export const getBillingCard3 = createServerFn({ method: "POST" })
 
 export const saveInvoiceSettingsCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => invoiceSettingsSchema.parse(input))
+  .validator((input: unknown) => invoiceSettingsSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -350,7 +350,7 @@ export const saveInvoiceSettingsCard3 = createServerFn({ method: "POST" })
 
 export const saveBillingRuleCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => billingRuleSchema.parse(input))
+  .validator((input: unknown) => billingRuleSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);

@@ -4,6 +4,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isPermissionDeniedMessage, stayOverlapsRange } from "../front-office-shell";
 import { getRoomTypeAvailabilityCompat } from "../room-inventory-compat";
+import { isMissingSchemaError } from "../pms-set2-structure";
+import { checkedInRoomIds, expandStayRooms } from "../reservation-room-units";
 import { addDays } from "../reservation-dates";
 import {
   nightsBetween,
@@ -250,8 +252,87 @@ async function loadOverlapReservations(
   if (error) throw new Error(error.message);
   const raw = (data ?? []) as unknown as OperationalReservationRow[];
   const truncated = raw.length > CALENDAR_RESERVATION_CAP;
+  const summaries = raw.slice(0, CALENDAR_RESERVATION_CAP).map(toReservationOperationalSummary);
+  const unitResult =
+    summaries.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from("hotel_reservation_rooms")
+          .select(
+            "reservation_id, room_id, room_type_id, status, arrival_date, departure_date, unit_sequence, adults, children, rate_plan_id, room_subtotal",
+          )
+          .eq("restaurant_id", restaurantId)
+          .in(
+            "reservation_id",
+            summaries.map((row) => row.reservationId),
+          );
+  if (unitResult.error && !isMissingSchemaError(unitResult.error)) {
+    throw new Error(unitResult.error.message);
+  }
+  const unitRows =
+    unitResult.error && isMissingSchemaError(unitResult.error)
+      ? null
+      : ((unitResult.data ?? []) as Array<{
+          reservation_id: string;
+          room_id: string | null;
+          room_type_id: string;
+          status: string | null;
+          arrival_date: string;
+          departure_date: string;
+          unit_sequence: number;
+          adults: number;
+          children: number;
+          rate_plan_id: string | null;
+          room_subtotal: number | string | null;
+        }>);
+  const rooms = expandStayRooms(
+    summaries.map((row) => ({
+      id: row.reservationId,
+      roomId: row.roomId,
+      status: row.status,
+      arrivalDate: row.arrivalDate,
+      departureDate: row.departureDate,
+    })),
+    unitRows
+      ? unitRows.map((unit) => ({
+          reservationId: unit.reservation_id,
+          roomId: unit.room_id,
+          status: unit.status,
+          arrivalDate: unit.arrival_date,
+          departureDate: unit.departure_date,
+          unitSequence: unit.unit_sequence,
+        }))
+      : null,
+  );
+  const byId = new Map(summaries.map((row) => [row.reservationId, row]));
+  const unitByKey = new Map(
+    (unitRows ?? []).map((unit) => [`${unit.reservation_id}:${unit.unit_sequence}`, unit]),
+  );
   return {
-    rows: raw.slice(0, CALENDAR_RESERVATION_CAP).map(toReservationOperationalSummary),
+    rows: rooms.flatMap((room) => {
+      const summary = byId.get(room.reservationId);
+      if (!summary) return [];
+      const unit =
+        room.unitSequence == null
+          ? null
+          : unitByKey.get(`${room.reservationId}:${room.unitSequence}`);
+      return [
+        {
+          ...summary,
+          roomId: room.roomId,
+          roomTypeId: unit?.room_type_id ?? summary.roomTypeId,
+          arrivalDate: room.arrivalDate,
+          departureDate: room.departureDate,
+          status: room.status as ReservationStatus,
+          adults: unit?.adults ?? summary.adults,
+          children: unit?.children ?? summary.children,
+          ratePlanId: unit?.rate_plan_id ?? summary.ratePlanId,
+          roomSubtotal:
+            unit?.room_subtotal == null ? summary.roomSubtotal : Number(unit.room_subtotal),
+          nights: nightsBetween(room.arrivalDate, room.departureDate),
+        },
+      ];
+    }),
     truncated,
   };
 }
@@ -319,15 +400,64 @@ async function loadOccupiedNow(
 ): Promise<Set<string>> {
   const { data, error } = await supabase
     .from("hotel_reservations")
-    .select("room_id")
+    .select("id, room_id, arrival_date, departure_date, status")
     .eq("restaurant_id", restaurantId)
-    .eq("status", "checked_in")
-    .not("room_id", "is", null);
+    .eq("status", "checked_in");
   if (error) throw new Error(error.message);
+  const stays = (data ?? []) as Array<{
+    id: string;
+    room_id: string | null;
+    arrival_date: string;
+    departure_date: string;
+    status: string;
+  }>;
+  const unitResult =
+    stays.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from("hotel_reservation_rooms")
+          .select("reservation_id, room_id, status, arrival_date, departure_date, unit_sequence")
+          .eq("restaurant_id", restaurantId)
+          .in(
+            "reservation_id",
+            stays.map((stay) => stay.id),
+          );
+  if (unitResult.error && !isMissingSchemaError(unitResult.error)) {
+    throw new Error(unitResult.error.message);
+  }
+  const units =
+    unitResult.error && isMissingSchemaError(unitResult.error)
+      ? null
+      : ((unitResult.data ?? []) as Array<{
+          reservation_id: string;
+          room_id: string | null;
+          status: string | null;
+          arrival_date: string;
+          departure_date: string;
+          unit_sequence: number;
+        }>);
   return new Set(
-    ((data ?? []) as Array<{ room_id: string | null }>)
-      .map((row) => row.room_id)
-      .filter((id): id is string => !!id),
+    checkedInRoomIds(
+      expandStayRooms(
+        stays.map((stay) => ({
+          id: stay.id,
+          roomId: stay.room_id,
+          status: stay.status,
+          arrivalDate: stay.arrival_date,
+          departureDate: stay.departure_date,
+        })),
+        units
+          ? units.map((unit) => ({
+              reservationId: unit.reservation_id,
+              roomId: unit.room_id,
+              status: unit.status,
+              arrivalDate: unit.arrival_date,
+              departureDate: unit.departure_date,
+              unitSequence: unit.unit_sequence,
+            }))
+          : null,
+      ),
+    ),
   );
 }
 
@@ -390,7 +520,7 @@ function withBarExceptions(
 
 export const getReservationCalendar = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => calendarReadInputSchema.parse(input))
+  .validator((input: unknown) => calendarReadInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<CalendarRead> => {
     await requireReservationManager(context as never, data.restaurantId);
     const generatedAt = new Date().toISOString();

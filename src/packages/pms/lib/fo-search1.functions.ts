@@ -163,7 +163,7 @@ function collectIds(rows: Array<{ id: string } | null> | null | undefined, into:
 
 export const searchFrontOfficeStays = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

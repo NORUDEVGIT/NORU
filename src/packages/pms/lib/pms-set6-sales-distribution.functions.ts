@@ -201,7 +201,7 @@ export async function loadSet6Snapshot(supabaseAdmin: Admin, restaurantId: strin
 
 export const getPmsSet6Snapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -231,7 +231,7 @@ function catalogueAvailable(snapshot: Set6Snapshot, kind: Set6CatalogueKind): bo
 
 export const savePmsSet6Catalogue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -280,7 +280,7 @@ export const savePmsSet6Catalogue = createServerFn({ method: "POST" })
 
 export const savePmsDistributionChannelPosture = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -325,7 +325,7 @@ export const savePmsDistributionChannelPosture = createServerFn({ method: "POST"
 
 export const savePmsDistributionMappingPosture = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -368,7 +368,7 @@ export const savePmsDistributionMappingPosture = createServerFn({ method: "POST"
 
 export const savePmsReportsCataloguePosture = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -419,7 +419,7 @@ export const savePmsReportsCataloguePosture = createServerFn({ method: "POST" })
 
 export const savePmsReportsScheduleAccessPosture = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -465,7 +465,7 @@ export const savePmsReportsScheduleAccessPosture = createServerFn({ method: "POS
 
 export const savePmsOfflineEnablementPosture = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -506,7 +506,7 @@ export const savePmsOfflineEnablementPosture = createServerFn({ method: "POST" }
 
 export const savePmsOfflineSyncPosture = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

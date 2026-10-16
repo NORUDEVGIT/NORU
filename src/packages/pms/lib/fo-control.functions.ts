@@ -99,7 +99,7 @@ async function loadRooms(
 
 export const getFrontOfficeExceptions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, businessDate: dateSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<FoControlSnapshot> => {

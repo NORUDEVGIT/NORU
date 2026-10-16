@@ -56,6 +56,10 @@ export function CreateReservationPoliciesGuarantee({
   ratePlanEarlyDepartureName,
   ratePlanEarlyDeparturePenalty,
   refundabilityKind,
+  depositBasisNote = null,
+  depositAmountKnown = true,
+  sharedPolicyNote = null,
+  roomPolicyRows = null,
 }: {
   guarantee: ReactNode;
   money: (value: number) => string;
@@ -71,6 +75,17 @@ export function CreateReservationPoliciesGuarantee({
   ratePlanNoShowPenalty?: string | null;
   ratePlanEarlyDepartureName?: string | null;
   ratePlanEarlyDeparturePenalty?: string | null;
+  depositBasisNote?: string | null;
+  depositAmountKnown?: boolean;
+  sharedPolicyNote?: string | null;
+  roomPolicyRows?: Array<{
+    title: string;
+    detail: string;
+    cancellation: string;
+    noShow: string;
+    earlyDeparture: string;
+    refundability: string;
+  }> | null;
 }) {
   const previewAmount = ratePlanDepositPolicy
     ? computeDepositRequirementAmount(ratePlanDepositPolicy, depositQuote)
@@ -104,7 +119,9 @@ export function CreateReservationPoliciesGuarantee({
             </span>
             <div>
               <h2 className="text-sm font-semibold text-[#251605]">Deposit</h2>
-              <p className="text-xs text-[#6B5E4E]">Based on the selected rate plan.</p>
+              <p className="text-xs text-[#6B5E4E]">
+                {depositBasisNote ?? "Based on the selected rate plan."}
+              </p>
             </div>
           </div>
 
@@ -140,7 +157,7 @@ export function CreateReservationPoliciesGuarantee({
                   <div>
                     <dt className="text-xs text-[#6B5E4E]">Deposit Amount</dt>
                     <dd className="text-lg font-semibold text-[#C89933]">
-                      {previewAmount != null ? money(previewAmount) : "—"}
+                      {depositAmountKnown && previewAmount != null ? money(previewAmount) : "—"}
                     </dd>
                     <p className="text-xs text-[#6B5E4E]">
                       {ratePlanDepositPolicy.required ? "Required deposit" : "Not required"}
@@ -171,96 +188,125 @@ export function CreateReservationPoliciesGuarantee({
           <div>
             <h2 className="text-sm font-semibold text-[#251605]">Stay Policies</h2>
             <p className="text-xs text-[#6B5E4E]">
-              Policies are inherited from the selected rate plan.
+              {roomPolicyRows
+                ? "Policies vary by room"
+                : "Policies are inherited from the selected rate plan."}
             </p>
+            {sharedPolicyNote ? (
+              <p className="text-xs text-[#8A641A]" data-testid="stay-policies-applies-all">
+                {sharedPolicyNote}
+              </p>
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <PolicySummary
-            testId="stay-policy-cancellation"
-            tone="green"
-            icon={<CalendarDays className="size-3.5" aria-hidden />}
-            title="Cancellation"
-          >
-            {cancelName || cancelDetail ? (
-              <>
-                {cancelName ? <Badge tone="green">{cancelName}</Badge> : null}
-                {cancelDetail ? <p className="text-xs text-[#251605]">{cancelDetail}</p> : null}
-                {afterDeadline ? (
-                  <p className="text-xs text-[#6B5E4E]">After deadline: {afterDeadline}</p>
-                ) : null}
-              </>
-            ) : (
-              <p className="text-xs text-[#6B5E4E]">No cancellation policy configured</p>
-            )}
-          </PolicySummary>
+        {roomPolicyRows ? (
+          <ul className="mt-3 space-y-2" data-testid="stay-policies-varied">
+            {roomPolicyRows.map((room) => (
+              <li
+                key={room.title}
+                className="rounded-[6px] border border-[#E7E0D4] px-2.5 py-2"
+                data-testid="stay-policy-room"
+              >
+                <p className="text-xs font-medium text-[#251605]">{room.title}</p>
+                <p className="text-[11px] text-[#6B5E4E]">{room.detail}</p>
+                <p className="mt-1 text-[11px] text-[#251605]">Cancellation: {room.cancellation}</p>
+                <p className="text-[11px] text-[#251605]">No-show: {room.noShow}</p>
+                <p className="text-[11px] text-[#251605]">Early Departure: {room.earlyDeparture}</p>
+                <p className="text-[11px] text-[#251605]">Refundability: {room.refundability}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <PolicySummary
+              testId="stay-policy-cancellation"
+              tone="green"
+              icon={<CalendarDays className="size-3.5" aria-hidden />}
+              title="Cancellation"
+            >
+              {cancelName || cancelDetail ? (
+                <>
+                  {cancelName ? <Badge tone="green">{cancelName}</Badge> : null}
+                  {cancelDetail ? <p className="text-xs text-[#251605]">{cancelDetail}</p> : null}
+                  {afterDeadline ? (
+                    <p className="text-xs text-[#6B5E4E]">After deadline: {afterDeadline}</p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-xs text-[#6B5E4E]">No cancellation policy configured</p>
+              )}
+            </PolicySummary>
 
-          <PolicySummary
-            testId="stay-policy-no-show"
-            tone="sand"
-            icon={<Ban className="size-3.5" aria-hidden />}
-            title="No-show"
-          >
-            {ratePlanNoShowLabel ? (
-              <>
-                <Badge tone="sand" testId="rate-plan-no-show-policy">
-                  {ratePlanNoShowLabel}
-                </Badge>
-                {ratePlanNoShowPenalty ? (
-                  <p className="text-xs text-[#251605]" data-testid="rate-plan-no-show-penalty">
-                    {ratePlanNoShowPenalty}
-                  </p>
-                ) : null}
-              </>
-            ) : (
-              <p className="text-xs text-[#6B5E4E]" data-testid="rate-plan-no-show-policy">
-                No no-show policy configured
-              </p>
-            )}
-          </PolicySummary>
+            <PolicySummary
+              testId="stay-policy-no-show"
+              tone="sand"
+              icon={<Ban className="size-3.5" aria-hidden />}
+              title="No-show"
+            >
+              {ratePlanNoShowLabel ? (
+                <>
+                  <Badge tone="sand" testId="rate-plan-no-show-policy">
+                    {ratePlanNoShowLabel}
+                  </Badge>
+                  {ratePlanNoShowPenalty ? (
+                    <p className="text-xs text-[#251605]" data-testid="rate-plan-no-show-penalty">
+                      {ratePlanNoShowPenalty}
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-xs text-[#6B5E4E]" data-testid="rate-plan-no-show-policy">
+                  No no-show policy configured
+                </p>
+              )}
+            </PolicySummary>
 
-          <PolicySummary
-            testId="stay-policy-early-departure"
-            tone="sand"
-            icon={<LogOut className="size-3.5" aria-hidden />}
-            title="Early Departure"
-          >
-            {ratePlanEarlyDepartureName ? (
-              <div data-testid="rate-plan-early-departure-policy">
-                <Badge tone="sand">{ratePlanEarlyDepartureName}</Badge>
-                {ratePlanEarlyDeparturePenalty ? (
-                  <p
-                    className="text-xs text-[#251605]"
-                    data-testid="rate-plan-early-departure-penalty"
-                  >
-                    {ratePlanEarlyDeparturePenalty}
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <p className="text-xs text-[#6B5E4E]" data-testid="rate-plan-early-departure-policy">
-                No early departure policy configured
-              </p>
-            )}
-          </PolicySummary>
+            <PolicySummary
+              testId="stay-policy-early-departure"
+              tone="sand"
+              icon={<LogOut className="size-3.5" aria-hidden />}
+              title="Early Departure"
+            >
+              {ratePlanEarlyDepartureName ? (
+                <div data-testid="rate-plan-early-departure-policy">
+                  <Badge tone="sand">{ratePlanEarlyDepartureName}</Badge>
+                  {ratePlanEarlyDeparturePenalty ? (
+                    <p
+                      className="text-xs text-[#251605]"
+                      data-testid="rate-plan-early-departure-penalty"
+                    >
+                      {ratePlanEarlyDeparturePenalty}
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <p
+                  className="text-xs text-[#6B5E4E]"
+                  data-testid="rate-plan-early-departure-policy"
+                >
+                  No early departure policy configured
+                </p>
+              )}
+            </PolicySummary>
 
-          <PolicySummary
-            testId="stay-policy-refundability"
-            tone={refundabilityNonRefundable ? "rose" : "sand"}
-            icon={<Ban className="size-3.5" aria-hidden />}
-            title="Refundability"
-          >
-            {refund ? (
-              <>
-                <Badge tone={refundabilityNonRefundable ? "rose" : "sand"}>{refund.title}</Badge>
-                {refund.detail ? <p className="text-xs text-[#6B5E4E]">{refund.detail}</p> : null}
-              </>
-            ) : (
-              <p className="text-xs text-[#6B5E4E]">No refundability configured</p>
-            )}
-          </PolicySummary>
-        </div>
+            <PolicySummary
+              testId="stay-policy-refundability"
+              tone={refundabilityNonRefundable ? "rose" : "sand"}
+              icon={<Ban className="size-3.5" aria-hidden />}
+              title="Refundability"
+            >
+              {refund ? (
+                <>
+                  <Badge tone={refundabilityNonRefundable ? "rose" : "sand"}>{refund.title}</Badge>
+                  {refund.detail ? <p className="text-xs text-[#6B5E4E]">{refund.detail}</p> : null}
+                </>
+              ) : (
+                <p className="text-xs text-[#6B5E4E]">No refundability configured</p>
+              )}
+            </PolicySummary>
+          </div>
+        )}
       </section>
     </div>
   );

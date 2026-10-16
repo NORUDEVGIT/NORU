@@ -140,6 +140,7 @@ describe("Reservation Detail Folio & Payments tab", () => {
           name: null,
           tenderCode: null,
           type: "percent",
+          reference: null,
         },
         4500,
       ),

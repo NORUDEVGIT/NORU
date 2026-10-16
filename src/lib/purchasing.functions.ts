@@ -149,7 +149,7 @@ async function staffNames(
 
 export const listPurchaseOrders = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -287,7 +287,7 @@ export const listPurchaseOrders = createServerFn({ method: "POST" })
 
 export const getPurchaseOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, purchaseOrderId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<PurchaseOrderDetail> => {
@@ -407,7 +407,7 @@ async function buildLineRows(
 
 export const savePurchaseOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -523,7 +523,7 @@ export const savePurchaseOrder = createServerFn({ method: "POST" })
 
 export const updatePurchaseOrderStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -606,7 +606,7 @@ export const updatePurchaseOrderStatus = createServerFn({ method: "POST" })
 
 export const receiveGoods = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -655,7 +655,7 @@ export const receiveGoods = createServerFn({ method: "POST" })
 /** Small procurement summary for the inventory overview dashboard. */
 export const getPurchasingSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requirePurchasingAccess(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

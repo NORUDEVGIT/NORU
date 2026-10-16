@@ -18,7 +18,7 @@ const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const getFrontOfficeRoomQuickView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -42,7 +42,7 @@ export const getFrontOfficeRoomQuickView = createServerFn({ method: "POST" })
 
 export const getFrontOfficeRoomOperationsQueue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, businessDate: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomOpsQueueItem[]> => {
@@ -58,7 +58,7 @@ export const getFrontOfficeRoomOperationsQueue = createServerFn({ method: "POST"
 
 export const getFrontOfficeRoomHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

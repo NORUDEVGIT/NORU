@@ -31,7 +31,7 @@ export function MarketingOverview() {
     <div className="space-y-5">
       <SectionCard
         title="Publish"
-        description="Draft and published documents live in Core marketing tables. Public `/` reads the published document and falls back to the honest seed if a read fails. Concurrent edits are last-write-wins."
+        description="Draft and published documents live in Core marketing tables. The public site reads the published site block and falls back to the built-in copy when that block is absent. A newer draft from someone else is kept instead of overwritten."
       >
         <dl className="grid gap-2 text-sm sm:grid-cols-2">
           <div>

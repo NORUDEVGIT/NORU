@@ -145,7 +145,7 @@ export async function loadActivePaymentMethodCodes(
 
 export const getPmsPolish1Snapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -166,7 +166,7 @@ async function requireEditor(restaurantId: string, context: { userId: string }) 
 
 export const savePmsPaymentMethod = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -214,7 +214,7 @@ export const savePmsPaymentMethod = createServerFn({ method: "POST" })
 
 export const savePmsShiftDefinition = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

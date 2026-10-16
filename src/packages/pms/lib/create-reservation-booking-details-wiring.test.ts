@@ -22,7 +22,7 @@ describe("Create reservation Booking Details wiring", () => {
     assert.doesNotMatch(details, /reservation-type-/);
     assert.doesNotMatch(details, /onRequestTypeChange\(mode\)/);
     assert.match(details, /label="Source" required/);
-    assert.match(details, /label="Channel" required/);
+    assert.match(details, /label="Channel" required=\{channelRequired\}/);
     assert.match(details, /booking-details-source/);
     assert.match(details, /booking-details-segment/);
     assert.match(details, /booking-details-external-ref/);
@@ -137,8 +137,11 @@ describe("Create reservation Booking Details wiring", () => {
 
   it("Step 2 Continue requires the existing gate plus Source and Channel", () => {
     assert.match(page, /canAdvanceFromBookingDetails/);
-    assert.match(page, /bookingSource\.trim\(\)\.length > 0/);
-    assert.match(page, /salesChannel\.trim\(\)\.length > 0/);
+    assert.match(page, /getReservationCreateSourceChannel/);
+    assert.match(page, /reservationCreateChannelForm/);
+    assert.match(page, /channelForm\?\.accepted === true/);
+    assert.match(page, /commercialSalesChannel: channelForm\.commercialSalesChannel/);
+    assert.doesNotMatch(page, /resolveSalesChannelOptions/);
     assert.doesNotMatch(page, /canAdvanceFromBookingDetails[\s\S]{0,500}specialRequests/);
     assert.doesNotMatch(details, /onArrivalChange|onDepartureChange|onNightsChange/);
   });

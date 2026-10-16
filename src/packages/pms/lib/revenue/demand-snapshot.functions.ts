@@ -13,7 +13,7 @@ import { OTB_SNAPSHOT_LOAD_ERROR, toRevenueReadError } from "./revenue-read-erro
 
 export const getRevenueOtbSnapshots = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => otbSnapshotQuerySchema.parse(input))
+  .validator((input: unknown) => otbSnapshotQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -26,7 +26,7 @@ export const getRevenueOtbSnapshots = createServerFn({ method: "POST" })
 
 export const getRevenueOtbSnapshotHistoryStart = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

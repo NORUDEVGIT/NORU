@@ -1364,7 +1364,10 @@ function StatementPrint({
             <tr key={row.id} className="border-b">
               <td className="py-1">{dateTime(row.postedAt)}</td>
               <td className="py-1">{lineTypeLabel(row)}</td>
-              <td className="py-1">{row.description}</td>
+              <td className="py-1">
+                {row.description}
+                {row.roomUnitLabel ? ` · ${row.roomUnitLabel}` : ""}
+              </td>
               <td className="py-1 text-right tabular-nums">{money(row.amount)}</td>
             </tr>
           ))}

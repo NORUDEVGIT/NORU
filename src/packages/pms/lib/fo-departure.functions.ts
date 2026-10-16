@@ -239,7 +239,7 @@ function mapDeskRow(params: {
 
 export const listFrontOfficeDeparturesDesk = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, date: dateSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ date: string; rows: FoDepartureDeskRow[] }> => {
@@ -278,7 +278,7 @@ export const listFrontOfficeDeparturesDesk = createServerFn({ method: "POST" })
 
 export const getFrontOfficeDepartureQuickView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<FoDepartureQuickView> => {

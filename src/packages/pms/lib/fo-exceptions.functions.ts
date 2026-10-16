@@ -193,7 +193,7 @@ export async function loadFoStaySignals(params: {
 
 export const listFoStaySignals = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -341,7 +341,7 @@ export async function loadFoExceptionFeeds(params: {
 
 export const listFoExceptionFeeds = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

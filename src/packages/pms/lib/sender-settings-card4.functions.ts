@@ -255,7 +255,7 @@ function nonSecretPayload(data: z.infer<typeof saveSchema>, userId: string) {
 
 export const getPmsCard4SenderSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -264,7 +264,7 @@ export const getPmsCard4SenderSettings = createServerFn({ method: "POST" })
 
 export const savePmsCard4SenderSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveSchema.parse(input))
+  .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -351,7 +351,7 @@ export const savePmsCard4SenderSettings = createServerFn({ method: "POST" })
 
 export const setPmsCard4SenderSettingsActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -404,7 +404,7 @@ export const setPmsCard4SenderSettingsActive = createServerFn({ method: "POST" }
 
 export const testPmsCard4SenderSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     saveSchema
       .omit({ id: true, active: true, providerConfig: true })
       .extend({ sessionValues: providerConfigSchema })

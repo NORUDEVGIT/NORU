@@ -356,7 +356,7 @@ async function loadGroupMembers(
 
 export const listGroupCatalogues = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -365,7 +365,7 @@ export const listGroupCatalogues = createServerFn({ method: "POST" })
 
 export const getGroupDetailWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -452,7 +452,7 @@ export const getGroupDetailWorkspace = createServerFn({ method: "POST" })
 
 export const saveGroupMaster = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -555,7 +555,7 @@ export const saveGroupMaster = createServerFn({ method: "POST" })
 
 export const setGroupStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -606,7 +606,7 @@ export const setGroupStatus = createServerFn({ method: "POST" })
 
 export const listGroupMembers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -615,7 +615,7 @@ export const listGroupMembers = createServerFn({ method: "POST" })
 
 export const addGroupMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -696,7 +696,7 @@ export const addGroupMember = createServerFn({ method: "POST" })
 
 export const createGroupMemberGuest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -738,7 +738,7 @@ export const createGroupMemberGuest = createServerFn({ method: "POST" })
 
 export const updateGroupMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -802,7 +802,7 @@ export const updateGroupMember = createServerFn({ method: "POST" })
 
 export const removeGroupMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, groupId: idSchema, linkId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -823,7 +823,7 @@ function parseMemberCsv(csv: string) {
 
 export const previewGroupMemberImport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, groupId: idSchema, filename: z.string().max(200), csv: z.string().max(1_000_000) }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -911,7 +911,7 @@ export const previewGroupMemberImport = createServerFn({ method: "POST" })
 
 export const confirmGroupMemberImport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, groupId: idSchema, filename: z.string().max(200), csv: z.string().max(1_000_000) }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -976,7 +976,7 @@ export const confirmGroupMemberImport = createServerFn({ method: "POST" })
 
 export const listGroupReservations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -986,7 +986,7 @@ export const listGroupReservations = createServerFn({ method: "POST" })
 
 export const linkReservationToGroup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1030,7 +1030,7 @@ export const linkReservationToGroup = createServerFn({ method: "POST" })
 
 export const unlinkReservationFromGroup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, groupId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1062,7 +1062,7 @@ export const unlinkReservationFromGroup = createServerFn({ method: "POST" })
 
 export const searchReservationsToLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, q: z.string().max(120).optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1101,7 +1101,7 @@ export const searchReservationsToLink = createServerFn({ method: "POST" })
 
 export const listGroupRooming = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1136,7 +1136,7 @@ export const listGroupRooming = createServerFn({ method: "POST" })
 
 export const assignGroupRoom = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1184,7 +1184,7 @@ export const assignGroupRoom = createServerFn({ method: "POST" })
 
 export const autoAssignGroupRooms = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1260,7 +1260,7 @@ export const autoAssignGroupRooms = createServerFn({ method: "POST" })
 
 export const listGroupAssignableRooms = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1275,7 +1275,7 @@ export const listGroupAssignableRooms = createServerFn({ method: "POST" })
 
 export const getGroupFinancials = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const access = guestStayAccessForRole(me.role);
@@ -1371,7 +1371,7 @@ export const getGroupFinancials = createServerFn({ method: "POST" })
 
 export const listGroupActivity = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, groupId: idSchema, limit: z.number().int().min(1).max(200).optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1409,7 +1409,7 @@ export const listGroupActivity = createServerFn({ method: "POST" })
 
 export const searchGroupPartners = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1435,7 +1435,7 @@ export const searchGroupPartners = createServerFn({ method: "POST" })
 
 export const searchGuestsForGroup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, q: z.string().max(120).optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1454,7 +1454,7 @@ export const searchGuestsForGroup = createServerFn({ method: "POST" })
 
 export const swapGroupRooms = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1555,7 +1555,7 @@ export const swapGroupRooms = createServerFn({ method: "POST" })
 
 export const bulkAssignGroupRooms = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1594,7 +1594,7 @@ export const bulkAssignGroupRooms = createServerFn({ method: "POST" })
 
 export const moveGroupCheckedInRoom = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1646,7 +1646,7 @@ export const moveGroupCheckedInRoom = createServerFn({ method: "POST" })
 
 export const duplicateGroupMaster = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1697,7 +1697,7 @@ export const duplicateGroupMaster = createServerFn({ method: "POST" })
 
 export const applyGroupTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, templateId: idSchema, name: z.string().trim().min(1).max(200) }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1752,7 +1752,7 @@ export const applyGroupTemplate = createServerFn({ method: "POST" })
 
 export const listGroupItinerary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1810,7 +1810,7 @@ export const listGroupItinerary = createServerFn({ method: "POST" })
 
 export const listGroupCommunications = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1842,7 +1842,7 @@ export const listGroupCommunications = createServerFn({ method: "POST" })
 
 export const sendGroupCommunication = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1892,7 +1892,7 @@ export const sendGroupCommunication = createServerFn({ method: "POST" })
 
 export const createGroupItineraryItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1935,7 +1935,7 @@ export const createGroupItineraryItem = createServerFn({ method: "POST" })
 
 export const updateGroupItineraryItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1984,7 +1984,7 @@ async function ensureGroupDocumentTypes(db: { from: (table: string) => any }, re
 
 export const listGroupDocuments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -2047,7 +2047,7 @@ export const listGroupDocuments = createServerFn({ method: "POST" })
 
 export const createGroupDocumentUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -2070,7 +2070,7 @@ export const createGroupDocumentUpload = createServerFn({ method: "POST" })
 
 export const saveGroupDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

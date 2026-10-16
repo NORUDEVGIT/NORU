@@ -37,7 +37,7 @@ export interface StaffModuleAccessRow {
 /** The caller's own resolved modules for this property. */
 export const getMyModuleAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<MyModuleAccess> => {
     const { resolveCallerAccess } = await import("./module-access.server");
     const access = await resolveCallerAccess(context as never, data.restaurantId);
@@ -51,7 +51,7 @@ export const getMyModuleAccess = createServerFn({ method: "POST" })
 /** Owner/manager view of one staff member's module access. */
 export const getStaffModuleAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, membershipId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ role: string; rows: StaffModuleAccessRow[] }> => {
@@ -86,7 +86,7 @@ export const getStaffModuleAccess = createServerFn({ method: "POST" })
 /** Toggle (or clear) one module override for a staff member. */
 export const setStaffModuleAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

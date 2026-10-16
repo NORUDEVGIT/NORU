@@ -69,7 +69,7 @@ const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a HH:MM ti
 
 export const createShift = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -123,7 +123,7 @@ export const createShift = createServerFn({ method: "POST" })
 
 export const cancelShift = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireManager(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -154,7 +154,7 @@ export const cancelShift = createServerFn({ method: "POST" })
 
 export const listShifts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -238,7 +238,7 @@ export const listShifts = createServerFn({ method: "POST" })
 
 export const assignTableToShift = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, shiftId: idSchema, restaurantTableId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -295,7 +295,7 @@ export const assignTableToShift = createServerFn({ method: "POST" })
 
 export const removeTableAssignment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, assignmentId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, assignmentId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireManager(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -331,7 +331,7 @@ export const removeTableAssignment = createServerFn({ method: "POST" })
 
 export const listShiftTableAssignments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<TableAssignmentRecord[]> => {
     const me = await callerMembership(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -378,7 +378,7 @@ export const listShiftTableAssignments = createServerFn({ method: "POST" })
 
 export const checkIn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await callerMembership(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -422,7 +422,7 @@ export const checkIn = createServerFn({ method: "POST" })
 
 export const checkOut = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await callerMembership(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -461,7 +461,7 @@ export const checkOut = createServerFn({ method: "POST" })
 
 export const getStaffAttendanceSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, from: dateSchema, to: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<AttendanceSummaryRow[]> => {

@@ -216,7 +216,7 @@ export async function loadGuestProfileRules(
 
 export const getPmsSet3Snapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -244,7 +244,7 @@ const mealSchema = z.object({
 
 export const savePmsMealPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => mealSchema.parse(input))
+  .validator((input: unknown) => mealSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
@@ -294,7 +294,7 @@ const packageSchema = z.object({
 
 export const savePmsPackage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => packageSchema.parse(input))
+  .validator((input: unknown) => packageSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
@@ -346,7 +346,7 @@ const guestRulesSchema = z.object({
 
 export const savePmsGuestProfileRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => guestRulesSchema.parse(input))
+  .validator((input: unknown) => guestRulesSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
@@ -391,7 +391,7 @@ const catalogueItemSchema = z.object({
 
 export const savePmsGuestIdType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => catalogueItemSchema.parse(input))
+  .validator((input: unknown) => catalogueItemSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
@@ -426,7 +426,7 @@ export const savePmsGuestIdType = createServerFn({ method: "POST" })
 
 export const savePmsGuestVipLevel = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => catalogueItemSchema.parse(input))
+  .validator((input: unknown) => catalogueItemSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
     if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);

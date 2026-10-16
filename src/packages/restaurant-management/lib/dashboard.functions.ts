@@ -83,7 +83,7 @@ function mapOrder(o: RawOrder): DashboardOrder {
 
 export const getRestaurantDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => inputSchema.parse(input))
+  .validator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data, context }): Promise<RestaurantDashboard> => {
     const supabase = context.supabase;
 

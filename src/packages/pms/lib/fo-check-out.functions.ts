@@ -351,7 +351,7 @@ function documentSnapshot(
 
 export const getCheckOutContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckOutContext> => {
@@ -380,7 +380,7 @@ export const getCheckOutContext = createServerFn({ method: "POST" })
 
 export const ensureCheckOutFolio = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckOutFolioState> => {
@@ -401,7 +401,7 @@ export const ensureCheckOutFolio = createServerFn({ method: "POST" })
 
 export const postCheckOutPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -475,7 +475,7 @@ export const postCheckOutPayment = createServerFn({ method: "POST" })
 
 export const overrideCheckOutSettlement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -547,7 +547,7 @@ export const overrideCheckOutSettlement = createServerFn({ method: "POST" })
  */
 export const closeFolioAtCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckOutFolioState> => {
@@ -586,7 +586,7 @@ export const closeFolioAtCheckout = createServerFn({ method: "POST" })
 
 export const sendCheckOutDocumentEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -646,8 +646,14 @@ export const sendCheckOutDocumentEmail = createServerFn({ method: "POST" })
 
 export const completeFoCheckOut = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        reservationRoomId: idSchema.optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; roomNumber: string | null }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
@@ -676,6 +682,7 @@ export const completeFoCheckOut = createServerFn({ method: "POST" })
       _restaurant_id: data.restaurantId,
       _reservation_id: data.reservationId,
       _membership_id: me.id,
+      ...(data.reservationRoomId ? { _reservation_room_id: data.reservationRoomId } : {}),
     });
     if (error) throw reservationError(error.message);
     const after = await loadFolioState(supabaseAdmin, data.restaurantId, data.reservationId);

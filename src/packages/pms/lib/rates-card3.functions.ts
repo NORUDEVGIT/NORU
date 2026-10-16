@@ -249,7 +249,7 @@ async function loadAudit(db: DbClient, restaurantId: string) {
 
 export const getRatesCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -263,7 +263,7 @@ export const getRatesCard3 = createServerFn({ method: "POST" })
 
 export const saveRateCategoryCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => categorySchema.parse(input))
+  .validator((input: unknown) => categorySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -293,7 +293,7 @@ export const saveRateCategoryCard3 = createServerFn({ method: "POST" })
 
 export const saveRatePlanCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => planSchema.parse(input))
+  .validator((input: unknown) => planSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
@@ -340,7 +340,7 @@ export const saveRatePlanCard3 = createServerFn({ method: "POST" })
 
 export const saveRateOverrideCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => overrideSchema.parse(input))
+  .validator((input: unknown) => overrideSchema.parse(input))
   .handler(async ({ data, context }) => {
     // Duplicate calendar writer vs rates.functions saveRateOverride. Keep until Settings adapter.
     await requireRoomManager(context as never, data.restaurantId);
@@ -386,7 +386,7 @@ const refundabilitySchema = z.object({
 
 export const saveRateRefundabilityCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => refundabilitySchema.parse(input))
+  .validator((input: unknown) => refundabilitySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);

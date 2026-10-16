@@ -42,7 +42,7 @@ export function purposeOptionsFromRows(rows: PurposeOfStayRow[] | null | undefin
 
 export const listPurposeOfStay = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<{ items: PurposeOfStayRow[]; available: boolean }> => {
     await requireReservationManager(context as never, data.restaurantId);
     const { data: rows, error } = await context.supabase
@@ -57,7 +57,7 @@ export const listPurposeOfStay = createServerFn({ method: "POST" })
 
 export const savePurposeOfStay = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

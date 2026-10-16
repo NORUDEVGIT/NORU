@@ -61,7 +61,7 @@ export interface PosContext {
 /** Everything the till needs to render: menu, currency and shift state. */
 export const getPosContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<PosContext> => {
     const me = await requirePosAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -137,7 +137,7 @@ export const getPosContext = createServerFn({ method: "POST" })
 /** Opens the cashier drawer for the signed-in till operator. */
 export const openPosShift = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, openingCash: z.number().min(0).max(1_000_000) }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true; id: string } | { ok: false; message: string }> => {
@@ -179,7 +179,7 @@ export interface PosSale {
 /** Creates the sale as a normal order so it reaches the kitchen board. */
 export const placePosSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saleSchema.parse(input))
+  .validator((input: unknown) => saleSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ ok: true; sale: PosSale } | { ok: false; message: string }> => {
     const me = await requirePosOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -246,7 +246,7 @@ export interface PosPayment {
 /** Records the payment and settles the sale. */
 export const payPosSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => paymentSchema.parse(input))
+  .validator((input: unknown) => paymentSchema.parse(input))
   .handler(
     async ({ data, context }): Promise<{ ok: true; payment: PosPayment } | { ok: false; message: string }> => {
       const me = await requirePosOperator(context as never, data.restaurantId);
@@ -463,7 +463,7 @@ export interface PosShiftCloseResult {
 /** Recomputed drawer summary for one shift. Cashiers: own only. Managers: any. */
 export const getPosShiftCashUpSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<PosCashUpSummary> => {
@@ -522,7 +522,7 @@ export const getPosShiftCashUpSummary = createServerFn({ method: "POST" })
 /** Owner/manager: every open restaurant till drawer. */
 export const listOpenCashierShifts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<OpenCashierShiftRow[]> => {
     const me = await requirePosAccess(context as never, data.restaurantId);
     if (!canCloseAnyPosShift(me.role) && !canManageCashiering(me.role)) {
@@ -559,7 +559,7 @@ export const listOpenCashierShifts = createServerFn({ method: "POST" })
 /** Owner/manager: last ~25 closed restaurant till shifts. */
 export const listRecentClosedCashierShifts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<ClosedCashierShiftRow[]> => {
     const me = await requirePosAccess(context as never, data.restaurantId);
     if (!canCloseAnyPosShift(me.role) && !canManageCashiering(me.role)) {
@@ -621,7 +621,7 @@ export const listRecentClosedCashierShifts = createServerFn({ method: "POST" })
 /** Closes a restaurant till shift after a counted cash-up. Own shift, or owner/manager. */
 export const closePosShift = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,

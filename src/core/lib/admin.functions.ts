@@ -107,7 +107,7 @@ export const listRestaurantsAdmin = createServerFn({ method: "GET" })
 
 export const getRestaurantAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await requirePlatformAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -182,7 +182,7 @@ export const getRestaurantAdmin = createServerFn({ method: "POST" })
 
 export const approveRestaurant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) =>
     transition(context, data.restaurantId, ["pending"], { approved: true, active: true }, "restaurant_approved", null, {
       approved_at: new Date().toISOString(),
@@ -194,7 +194,7 @@ export const approveRestaurant = createServerFn({ method: "POST" })
 
 export const rejectRestaurant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: z.string().uuid(), reason: z.string().trim().min(5).max(500) }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: z.string().uuid(), reason: z.string().trim().min(5).max(500) }).parse(input))
   .handler(async ({ data, context }) =>
     transition(context, data.restaurantId, ["pending"], { approved: false, active: false }, "restaurant_rejected", data.reason, {
       rejection_reason: data.reason,
@@ -203,7 +203,7 @@ export const rejectRestaurant = createServerFn({ method: "POST" })
 
 export const suspendRestaurant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: z.string().uuid(), reason: z.string().trim().min(5).max(500) }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: z.string().uuid(), reason: z.string().trim().min(5).max(500) }).parse(input))
   .handler(async ({ data, context }) =>
     transition(context, data.restaurantId, ["approved"], { approved: true, active: false }, "restaurant_suspended", data.reason, {
       suspension_reason: data.reason,
@@ -212,7 +212,7 @@ export const suspendRestaurant = createServerFn({ method: "POST" })
 
 export const reactivateRestaurant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: z.string().uuid(), reason: z.string().trim().max(500).optional().nullable() }).parse(input),
   )
   .handler(async ({ data, context }) =>

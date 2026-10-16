@@ -11,6 +11,8 @@ import { callerMembership } from "@/core/lib/workforce.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { withPmsPackage } from "./pms-package.server";
+import { isMissingSchemaError } from "./pms-set2-structure";
+import { checkedInRoomIds, expandStayRooms } from "./reservation-room-units";
 import { persistCard8Overall } from "./card8-readiness.functions";
 import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
 import {
@@ -188,10 +190,9 @@ export async function loadCard8GoliveSnapshot(
         .eq("active", true),
       db
         .from("hotel_reservations")
-        .select("room_id")
+        .select("id, room_id, arrival_date, departure_date")
         .eq("restaurant_id", restaurantId)
-        .eq("status", "checked_in")
-        .not("room_id", "is", null),
+        .eq("status", "checked_in"),
       db
         .from("hotel_reservations")
         .select("id", { count: "exact", head: true })
@@ -206,7 +207,56 @@ export async function loadCard8GoliveSnapshot(
   if (upcomingResult.error) {
     throw new Error(upcomingResult.error.message ?? "Could not load future reservations.");
   }
-  const occupiedRoomIds = new Set(occupiedRows.map((row) => String(row.room_id)));
+  const occupiedReservations = occupiedRows as Array<{
+    id: string;
+    room_id: string | null;
+    arrival_date: string;
+    departure_date: string;
+  }>;
+  const occupiedIds = occupiedReservations.map((row) => row.id);
+  const occupiedUnits =
+    occupiedIds.length === 0
+      ? { data: [], error: null }
+      : await db
+          .from("hotel_reservation_rooms")
+          .select("reservation_id, room_id, status, arrival_date, departure_date, unit_sequence")
+          .eq("restaurant_id", restaurantId)
+          .in("reservation_id", occupiedIds);
+  if (occupiedUnits.error && !isMissingSchemaError(occupiedUnits.error)) {
+    throw new Error(occupiedUnits.error.message);
+  }
+  const occupiedRoomIds = new Set(
+    checkedInRoomIds(
+      expandStayRooms(
+        occupiedReservations.map((row) => ({
+          id: row.id,
+          roomId: row.room_id,
+          status: "checked_in",
+          arrivalDate: row.arrival_date,
+          departureDate: row.departure_date,
+        })),
+        occupiedUnits.error
+          ? null
+          : (
+              (occupiedUnits.data ?? []) as Array<{
+                reservation_id: string;
+                room_id: string | null;
+                status: string | null;
+                arrival_date: string;
+                departure_date: string;
+                unit_sequence: number;
+              }>
+            ).map((unit) => ({
+              reservationId: unit.reservation_id,
+              roomId: unit.room_id,
+              status: unit.status,
+              arrivalDate: unit.arrival_date,
+              departureDate: unit.departure_date,
+              unitSequence: unit.unit_sequence,
+            })),
+      ),
+    ),
+  );
 
   return {
     plan: mapPlan(required<any | null>(planResult, "Could not load the Go-Live plan.")),
@@ -246,7 +296,7 @@ async function writeAudit(
 
 export const getCard8Golive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -264,7 +314,7 @@ export const getCard8Golive = createServerFn({ method: "POST" })
 
 export const saveCard8Golive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveSchema.parse(input))
+  .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,

@@ -202,7 +202,7 @@ async function requireOwnChannel(
 
 export const getPmsCard4CommunicationChannels = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -211,7 +211,7 @@ export const getPmsCard4CommunicationChannels = createServerFn({ method: "POST" 
 
 export const savePmsCard4CommunicationChannel = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveSchema.parse(input))
+  .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -290,7 +290,7 @@ export const savePmsCard4CommunicationChannel = createServerFn({ method: "POST" 
 
 export const setPmsCard4CommunicationChannelActive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -338,7 +338,7 @@ export const setPmsCard4CommunicationChannelActive = createServerFn({ method: "P
 
 export const testPmsCard4CommunicationChannel = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     saveSchema
       .omit({ id: true, active: true, providerConfig: true })
       .extend({ sessionValues: providerConfigSchema })

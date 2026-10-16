@@ -182,7 +182,7 @@ async function loadMovementsInRange(admin: any, restaurantId: string, fromIso: s
 
 export const getInventoryDashboard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => rangeSchema.parse(input))
+  .validator((input: unknown) => rangeSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireReportingAccess(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -322,7 +322,7 @@ export const getInventoryDashboard = createServerFn({ method: "POST" })
 
 export const getInventoryMovementAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => rangeSchema.parse(input))
+  .validator((input: unknown) => rangeSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireReportingAccess(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -404,7 +404,7 @@ function camel(category: MovementCategory): string {
 
 export const getWasteLossReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     rangeSchema.extend({ limit: z.number().int().min(1).max(200).optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -497,7 +497,7 @@ export const getWasteLossReport = createServerFn({ method: "POST" })
 
 export const getStockAttentionItems = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, limit: z.number().int().min(1).max(100).optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -537,7 +537,7 @@ export const getStockAttentionItems = createServerFn({ method: "POST" })
 
 export const getAssetAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireReportingAccess(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -610,7 +610,7 @@ const STOCK_EVENT_LABEL: Record<string, string> = {
 
 export const getRecentInventoryActivity = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, limit: z.number().int().min(1).max(50).optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<ActivityEntry[]> => {

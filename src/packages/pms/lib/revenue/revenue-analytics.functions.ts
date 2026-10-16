@@ -42,7 +42,7 @@ const commercialPerformanceQuerySchema = z.object({
 
 export const getRevenuePerformanceOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => revenuePerformanceQuerySchema.parse(input))
+  .validator((input: unknown) => revenuePerformanceQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -55,7 +55,7 @@ export const getRevenuePerformanceOverview = createServerFn({ method: "POST" })
 
 export const getCommercialPerformance = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => commercialPerformanceQuerySchema.parse(input))
+  .validator((input: unknown) => commercialPerformanceQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

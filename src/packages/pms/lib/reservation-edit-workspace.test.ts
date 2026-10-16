@@ -85,6 +85,7 @@ function reservation(overrides: Partial<ReservationDetail> = {}): ReservationDet
     lateCheckoutGranted: null,
     expectedArrivalAt: null,
     lateCheckoutUntil: null,
+    reservationMode: "single",
     ...overrides,
   };
 }

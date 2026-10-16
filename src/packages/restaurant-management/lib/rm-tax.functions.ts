@@ -35,7 +35,7 @@ const settingsSchema = z.object({
 
 export const getRestaurantTaxSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RmTaxSettings> => {
     await requireTaxManager(context as never, data.restaurantId);
     const { requireRestaurantManagement } = await import("./restaurant-package.server");
@@ -46,7 +46,7 @@ export const getRestaurantTaxSettings = createServerFn({ method: "POST" })
 
 export const saveRestaurantTaxSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => settingsSchema.parse(input))
+  .validator((input: unknown) => settingsSchema.parse(input))
   .handler(
     async ({
       data,

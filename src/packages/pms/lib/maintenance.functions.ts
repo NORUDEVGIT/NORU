@@ -245,7 +245,7 @@ export async function persistCard2MaintenanceReadiness(
 
 export const getMaintenanceRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const loaded = await loadRules(pmsDb(context.supabase), data.restaurantId);
@@ -265,7 +265,7 @@ export const getMaintenanceRules = createServerFn({ method: "POST" })
 
 export const saveMaintenanceRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveMaintenanceRulesInput.parse(input))
+  .validator((input: unknown) => saveMaintenanceRulesInput.parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     if (!isMaintenanceFrequency(data.defaultMaintenanceFrequency)) {
@@ -343,7 +343,7 @@ export const saveMaintenanceRules = createServerFn({ method: "POST" })
 
 export const getMaintenanceSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const db = pmsDb(context.supabase);
@@ -389,7 +389,7 @@ export async function loadCard2MaintenanceValidation(db: DbClient, restaurantId:
 
 export const evaluateCard2MaintenanceReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireRoomManager(context as never, data.restaurantId);
     const db = pmsDb(context.supabase);
@@ -414,7 +414,7 @@ export const evaluateCard2MaintenanceReadiness = createServerFn({ method: "POST"
 
 export const listMaintenanceDepartments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requireFrontOfficeAccess(context as never, data.restaurantId);
     const { data: rows, error } = await pmsDb(context.supabase)

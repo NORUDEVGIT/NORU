@@ -90,7 +90,7 @@ function writeError(error: unknown): never {
 
 export const getCompetitorSetupWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restaurantSchema.parse(input))
+  .validator((input: unknown) => restaurantSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -103,7 +103,7 @@ export const getCompetitorSetupWorkspace = createServerFn({ method: "POST" })
 
 export const listHotelCompetitors = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => restaurantSchema.parse(input))
+  .validator((input: unknown) => restaurantSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -112,7 +112,7 @@ export const listHotelCompetitors = createServerFn({ method: "POST" })
 
 export const getHotelCompetitor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => competitorSchema.parse(input))
+  .validator((input: unknown) => competitorSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -121,7 +121,7 @@ export const getHotelCompetitor = createServerFn({ method: "POST" })
 
 export const createHotelCompetitor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => createCompetitorSchema.parse(input))
+  .validator((input: unknown) => createCompetitorSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -134,7 +134,7 @@ export const createHotelCompetitor = createServerFn({ method: "POST" })
 
 export const updateHotelCompetitor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => updateCompetitorSchema.parse(input))
+  .validator((input: unknown) => updateCompetitorSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -147,7 +147,7 @@ export const updateHotelCompetitor = createServerFn({ method: "POST" })
 
 export const listCompetitorProviderMappings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     restaurantSchema.extend({ competitorId: idSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -158,7 +158,7 @@ export const listCompetitorProviderMappings = createServerFn({ method: "POST" })
 
 export const createCompetitorProviderMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => createProviderSchema.parse(input))
+  .validator((input: unknown) => createProviderSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -171,7 +171,7 @@ export const createCompetitorProviderMapping = createServerFn({ method: "POST" }
 
 export const updateCompetitorProviderMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => updateProviderSchema.parse(input))
+  .validator((input: unknown) => updateProviderSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -184,7 +184,7 @@ export const updateCompetitorProviderMapping = createServerFn({ method: "POST" }
 
 export const listCompetitorRoomMappings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     restaurantSchema.extend({ competitorId: idSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -195,7 +195,7 @@ export const listCompetitorRoomMappings = createServerFn({ method: "POST" })
 
 export const createCompetitorRoomMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => createRoomSchema.parse(input))
+  .validator((input: unknown) => createRoomSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -208,7 +208,7 @@ export const createCompetitorRoomMapping = createServerFn({ method: "POST" })
 
 export const updateCompetitorRoomMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => updateRoomSchema.parse(input))
+  .validator((input: unknown) => updateRoomSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

@@ -8,9 +8,9 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 // Vercel sets VERCEL=1. A dashboard NITRO_PRESET/SERVER_PRESET (e.g. cloudflare from Lovable)
 // would ignore nitro.preset below and emit the wrong output, so Production fails after vite.
-if (process.env.VERCEL) {
-  delete process.env.NITRO_PRESET;
-  delete process.env.SERVER_PRESET;
+if (process.env["VERCEL"]) {
+  delete process.env["NITRO_PRESET"];
+  delete process.env["SERVER_PRESET"];
 }
 
 export default defineConfig({
@@ -19,7 +19,16 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+
   // Pin Nitro to Vercel Build Output API (not the Cloudflare default).
   // Lovable sandbox still overrides this with LOVABLE_NITRO_PRESET.
   nitro: { preset: "vercel" },
+
+  vite: {
+    server: {
+      allowedHosts: [
+        "bubbling-unexposed-willfully.ngrok-free.dev",
+      ],
+    },
+  },
 });

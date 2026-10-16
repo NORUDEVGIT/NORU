@@ -5,7 +5,8 @@
  * supabaseAdmin only after requirePlatformAdmin in marketing.functions.ts.
  * This file is never imported from the browser bundle.
  *
- * Concurrent edits: last-write-wins. Media uploads deferred — URLs stay in JSONB.
+ * Concurrent edits: save and publish send expectedDraftUpdatedAt and keep the
+ * stored draft when it is newer. Marketing image URLs live in the site block.
  * Never reads or writes package entitlement or tenant approval tables.
  */
 
@@ -15,6 +16,8 @@ import type { Json } from "@/integrations/supabase/types";
 import {
   applyMarketingMutation,
   isMarketingContent,
+  isMarketingDraftCurrent,
+  marketingDraftConflict,
   type MarketingCmsPublishResult,
   type MarketingCmsSnapshot,
 } from "./marketing/document.ts";
@@ -47,7 +50,10 @@ export async function readPublishedMarketingContent(): Promise<MarketingContent>
     if (error || !data) return getMarketingContent();
     return getMarketingContent(asContent(data.content));
   } catch (error) {
-    console.error("[readPublishedMarketingContent]", error instanceof Error ? error.message : error);
+    console.error(
+      "[readPublishedMarketingContent]",
+      error instanceof Error ? error.message : error,
+    );
     return getMarketingContent();
   }
 }
@@ -103,19 +109,14 @@ function cloneSeed(): MarketingContent {
   return structuredClone(MARKETING_SEED);
 }
 
-export async function persistDraft(
-  adminId: string,
-  snapshot: MarketingCmsSnapshot,
-): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from("marketing_content_revisions")
-    .upsert({
-      status: "draft",
-      content: toJson(snapshot.draft),
-      updated_at: snapshot.draftUpdatedAt,
-      updated_by: adminId,
-      published_at: null,
-    });
+export async function persistDraft(adminId: string, snapshot: MarketingCmsSnapshot): Promise<void> {
+  const { error } = await supabaseAdmin.from("marketing_content_revisions").upsert({
+    status: "draft",
+    content: toJson(snapshot.draft),
+    updated_at: snapshot.draftUpdatedAt,
+    updated_by: adminId,
+    published_at: null,
+  });
   if (error) {
     console.error("[persistDraft]", error.message);
     throw new Error("We couldn't save the marketing draft. Please try again.");
@@ -127,22 +128,23 @@ export async function persistPublished(
   snapshot: MarketingCmsSnapshot,
 ): Promise<void> {
   const publishedAt = snapshot.publishedAt ?? new Date().toISOString();
-  const { error } = await supabaseAdmin
-    .from("marketing_content_revisions")
-    .upsert({
-      status: "published",
-      content: toJson(snapshot.published),
-      updated_at: publishedAt,
-      updated_by: adminId,
-      published_at: publishedAt,
-    });
+  const { error } = await supabaseAdmin.from("marketing_content_revisions").upsert({
+    status: "published",
+    content: toJson(snapshot.published),
+    updated_at: publishedAt,
+    updated_by: adminId,
+    published_at: publishedAt,
+  });
   if (error) {
     console.error("[persistPublished]", error.message);
     throw new Error("We couldn't publish marketing content. The last published document was kept.");
   }
 }
 
-export async function persistSnapshot(adminId: string, snapshot: MarketingCmsSnapshot): Promise<void> {
+export async function persistSnapshot(
+  adminId: string,
+  snapshot: MarketingCmsSnapshot,
+): Promise<void> {
   await persistDraft(adminId, snapshot);
   await persistPublished(adminId, snapshot);
 }
@@ -167,15 +169,24 @@ export async function auditMarketingAction(
 export async function saveDraftDocument(
   adminId: string,
   content: MarketingContent,
+  expectedDraftUpdatedAt: string,
 ): Promise<MarketingCmsPublishResult> {
   const current = await loadMarketingSnapshot();
+  if (!isMarketingDraftCurrent(expectedDraftUpdatedAt, current.draftUpdatedAt)) {
+    return marketingDraftConflict(current);
+  }
   const result = applyMarketingMutation({
     isAdmin: true,
     action: "saveDraft",
     draft: content,
     current,
   });
-  if (!result.ok && result.report.errors.some((error) => error.code === "admin_href" || error.code === "slug_duplicate")) {
+  if (
+    !result.ok &&
+    result.report.errors.some(
+      (error) => error.code === "admin_href" || error.code === "slug_duplicate",
+    )
+  ) {
     return result;
   }
   if (result.snapshot.draftUpdatedAt !== current.draftUpdatedAt) {
@@ -187,11 +198,13 @@ export async function saveDraftDocument(
 export async function publishDocument(
   adminId: string,
   draft: MarketingContent | undefined,
+  expectedDraftUpdatedAt: string,
 ): Promise<MarketingCmsPublishResult> {
   const current = await loadMarketingSnapshot();
-  const working: MarketingCmsSnapshot = draft
-    ? { ...current, draft }
-    : current;
+  if (!isMarketingDraftCurrent(expectedDraftUpdatedAt, current.draftUpdatedAt)) {
+    return marketingDraftConflict(current);
+  }
+  const working: MarketingCmsSnapshot = draft ? { ...current, draft } : current;
   const result = applyMarketingMutation({
     isAdmin: true,
     action: "publish",
@@ -203,7 +216,11 @@ export async function publishDocument(
   }
   try {
     if (draft) {
-      await persistDraft(adminId, { ...result.snapshot, draft, draftUpdatedAt: new Date().toISOString() });
+      await persistDraft(adminId, {
+        ...result.snapshot,
+        draft,
+        draftUpdatedAt: new Date().toISOString(),
+      });
     }
     await persistPublished(adminId, result.snapshot);
     await auditMarketingAction(adminId, "marketing_published", {
@@ -257,4 +274,3 @@ export async function resetDocumentToSeed(adminId: string): Promise<MarketingCms
   });
   return result;
 }
-

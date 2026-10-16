@@ -500,7 +500,7 @@ async function replaceMappings(
 
 export const getCard5SalesEvents = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -518,7 +518,7 @@ export const getCard5SalesEvents = createServerFn({ method: "POST" })
 
 export const saveCard5SalesCatalogue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => catalogueSchema.parse(input))
+  .validator((input: unknown) => catalogueSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -572,7 +572,7 @@ export const saveCard5SalesCatalogue = createServerFn({ method: "POST" })
 
 export const saveCard5SalesOrdered = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => orderedSchema.parse(input))
+  .validator((input: unknown) => orderedSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -661,7 +661,7 @@ export const saveCard5SalesOrdered = createServerFn({ method: "POST" })
 
 export const saveCard5FunctionSpace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => functionSpaceSchema.parse(input))
+  .validator((input: unknown) => functionSpaceSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -719,7 +719,7 @@ export const saveCard5FunctionSpace = createServerFn({ method: "POST" })
 
 export const saveCard5PackageTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => packageSchema.parse(input))
+  .validator((input: unknown) => packageSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,
@@ -799,7 +799,7 @@ export const saveCard5PackageTemplate = createServerFn({ method: "POST" })
 
 export const saveCard5ContractDefault = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => contractSchema.parse(input))
+  .validator((input: unknown) => contractSchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,

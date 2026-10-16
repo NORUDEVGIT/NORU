@@ -17,8 +17,14 @@ const marketingContentSchema = z.custom<MarketingContent>((value) => isMarketing
   message: "Invalid marketing content.",
 });
 
-const saveDraftInputSchema = z.object({ content: marketingContentSchema });
-const publishInputSchema = z.object({ content: marketingContentSchema.optional() });
+const saveDraftInputSchema = z.object({
+  content: marketingContentSchema,
+  expectedDraftUpdatedAt: z.string().min(1),
+});
+const publishInputSchema = z.object({
+  content: marketingContentSchema.optional(),
+  expectedDraftUpdatedAt: z.string().min(1),
+});
 
 /** Public — published document, or the honest seed if missing/invalid/unavailable. */
 export const getPublishedMarketingContent = createServerFn({ method: "GET" }).handler(
@@ -27,7 +33,10 @@ export const getPublishedMarketingContent = createServerFn({ method: "GET" }).ha
       const { readPublishedMarketingContent } = await import("./marketing.server");
       return await readPublishedMarketingContent();
     } catch (error) {
-      console.error("[getPublishedMarketingContent]", error instanceof Error ? error.message : error);
+      console.error(
+        "[getPublishedMarketingContent]",
+        error instanceof Error ? error.message : error,
+      );
       return getMarketingContent();
     }
   },
@@ -43,20 +52,20 @@ export const getDraftMarketingContent = createServerFn({ method: "GET" })
 
 export const saveDraftMarketingContent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => saveDraftInputSchema.parse(input))
+  .validator((input: unknown) => saveDraftInputSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requirePlatformAdmin(context);
     const { saveDraftDocument } = await import("./marketing.server");
-    return saveDraftDocument(context.userId, data.content);
+    return saveDraftDocument(context.userId, data.content, data.expectedDraftUpdatedAt);
   });
 
 export const publishMarketingContent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => publishInputSchema.parse(input ?? {}))
+  .validator((input: unknown) => publishInputSchema.parse(input ?? {}))
   .handler(async ({ data, context }) => {
     await requirePlatformAdmin(context);
     const { publishDocument } = await import("./marketing.server");
-    return publishDocument(context.userId, data.content);
+    return publishDocument(context.userId, data.content, data.expectedDraftUpdatedAt);
   });
 
 export const revertDraftMarketingContent = createServerFn({ method: "POST" })

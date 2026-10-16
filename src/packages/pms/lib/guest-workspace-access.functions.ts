@@ -58,7 +58,7 @@ export function resolveGuestWorkspaceAccess(role?: string | null): GuestWorkspac
 
 export const getGuestWorkspaceAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
