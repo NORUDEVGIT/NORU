@@ -5,6 +5,8 @@ import { Coins, FileText, Percent, Plus, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { GuestInvoiceModal } from "@/packages/pms/components/cashiering/guest-invoice-modal";
+import { FiscalInvoiceStatusBadge } from "@/packages/pms/components/cashiering/fiscal-invoice-status-badge";
+import { listInvoiceFiscalStatuses } from "@/packages/pms/lib/fiscal/fiscal.functions";
 import { listGuestInvoiceSettlementForFolio } from "@/packages/pms/lib/cashiering-guest-allocation.functions";
 import { guestSettlementLabel } from "@/packages/pms/lib/cashiering-guest-allocation";
 import { stayNights } from "@/packages/pms/lib/folio-workspace";
@@ -86,6 +88,27 @@ export function GuestInvoiceWorkspace({
     queryKey: ["guest-invoice-settlement", restaurantId, folio.id],
     queryFn: () => fetchSettlements({ data: { restaurantId, folioId: folio.id } }),
   });
+  const issuedInvoiceIds = useMemo(
+    () => folio.issuedInvoices.map((invoice) => invoice.id),
+    [folio.issuedInvoices],
+  );
+  const fetchFiscalStatuses = useServerFn(listInvoiceFiscalStatuses);
+  const fiscalQuery = useQuery({
+    queryKey: ["invoice-fiscal-status", restaurantId, "guest_invoice", issuedInvoiceIds],
+    queryFn: () =>
+      fetchFiscalStatuses({
+        data: { restaurantId, sourceType: "guest_invoice", invoiceIds: issuedInvoiceIds },
+      }),
+    enabled: issuedInvoiceIds.length > 0,
+  });
+  const fiscalByInvoice = useMemo(() => {
+    const map = new Map<
+      string,
+      { status: "registered" | "error" | "queued" | "not_registered"; error: string | null }
+    >();
+    for (const row of fiscalQuery.data ?? []) map.set(row.invoiceId, row);
+    return map;
+  }, [fiscalQuery.data]);
   const boardQuery = useQuery({
     queryKey: ["folio", restaurantId, folio.id, "invoice-board"],
     queryFn: () => fetchBoard({ data: { restaurantId, folioId: folio.id } }),
@@ -172,7 +195,8 @@ export function GuestInvoiceWorkspace({
   });
 
   useEffect(() => {
-    if (!autoStartIssue || issueStarted.current || !board || !canManage || board.legacyFolio) return;
+    if (!autoStartIssue || issueStarted.current || !board || !canManage || board.legacyFolio)
+      return;
     if (editing || board.draft) {
       issueStarted.current = true;
       if (board.draft && !editing) setEditing(true);
@@ -181,14 +205,7 @@ export function GuestInvoiceWorkspace({
     if (!workspace.invoiceSettingsAvailable || createMut.isPending) return;
     issueStarted.current = true;
     createMut.mutate();
-  }, [
-    autoStartIssue,
-    board,
-    canManage,
-    createMut,
-    editing,
-    workspace.invoiceSettingsAvailable,
-  ]);
+  }, [autoStartIssue, board, canManage, createMut, editing, workspace.invoiceSettingsAvailable]);
 
   const saveMut = useMutation({
     mutationFn: () => {
@@ -622,13 +639,14 @@ export function GuestInvoiceWorkspace({
           <p className="px-4 py-6 text-sm text-muted-foreground">No issued invoice yet.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead className={HEAD}>
                 <tr>
                   <th className="px-3 py-2 font-medium">Invoice no.</th>
                   <th className="px-3 py-2 font-medium">Issued at</th>
                   <th className="px-3 py-2 text-right font-medium">Total</th>
                   <th className="px-3 py-2 font-medium">Settlement</th>
+                  <th className="px-3 py-2 font-medium">Fiscal</th>
                   <th className="px-3 py-2 font-medium">Reprints</th>
                   <th className="px-3 py-2" />
                 </tr>
@@ -659,6 +677,16 @@ export function GuestInvoiceWorkspace({
                             )?.settlementState;
                             return state ? guestSettlementLabel(state) : "—";
                           })()}
+                    </td>
+                    <td className="px-3 py-2">
+                      {fiscalQuery.isLoading ? (
+                        "—"
+                      ) : (
+                        <FiscalInvoiceStatusBadge
+                          status={fiscalByInvoice.get(invoice.id)?.status ?? "not_registered"}
+                          error={fiscalByInvoice.get(invoice.id)?.error}
+                        />
+                      )}
                     </td>
                     <td className="px-3 py-2">{invoice.reprintCount}</td>
                     <td className="px-3 py-2 text-right">
@@ -711,6 +739,7 @@ export function GuestInvoiceWorkspace({
         onChanged={() => {
           void boardQuery.refetch();
           void settlementQuery.refetch();
+          void fiscalQuery.refetch();
           onChanged();
         }}
         onReprint={onReprint}

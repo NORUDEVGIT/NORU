@@ -15,6 +15,7 @@ import {
 } from "../cashiering.server";
 import { requireRoomManager } from "../rooms.server";
 import { loadFiscalRegistrationExchange } from "./fiscal-exchange.server.ts";
+import { fiscalInvoiceListStatus } from "./fiscal-invoice-list-status.ts";
 import { getCreditNoteFiscalState, queueCreditNoteFiscal } from "./fiscal-credit-note.server.ts";
 import {
   getCompanyCreditFiscalState,
@@ -1474,6 +1475,55 @@ async function companyAllocationInvoiceId(db: Db, restaurantId: string, allocati
   }
   return invoiceId;
 }
+
+export const listInvoiceFiscalStatuses = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        sourceType: z.enum(["guest_invoice", "account_invoice"]),
+        invoiceIds: z.array(idSchema).max(100),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    if (data.invoiceIds.length === 0) return [];
+    const db = await admin();
+    const result = await db
+      .from("fiscal_registrations")
+      .select("source_id, status, last_error_message")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("source_type", data.sourceType)
+      .eq("fiscal_document_type", "INV");
+    if (result.error) throw new FiscalError("FISCAL_NOT_ELIGIBLE", result.error.message);
+    const wanted = new Set(data.invoiceIds);
+    const grouped = new Map<string, { statuses: string[]; error: string | null }>();
+    for (const row of fiscalRecords(result.data)) {
+      const invoiceId = typeof row.source_id === "string" ? row.source_id : "";
+      const status = typeof row.status === "string" ? row.status : "";
+      if (!wanted.has(invoiceId)) continue;
+      const current = grouped.get(invoiceId) ?? { statuses: [], error: null };
+      current.statuses.push(status);
+      if (
+        (status === "FAILED" || status === "BLOCKED") &&
+        typeof row.last_error_message === "string" &&
+        row.last_error_message.trim().length > 0
+      ) {
+        current.error = row.last_error_message;
+      }
+      grouped.set(invoiceId, current);
+    }
+    return data.invoiceIds.map((invoiceId) => {
+      const row = grouped.get(invoiceId);
+      return {
+        invoiceId,
+        status: fiscalInvoiceListStatus(row?.statuses ?? []),
+        error: row?.error ?? null,
+      };
+    });
+  });
 
 export const getGuestInvoiceFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

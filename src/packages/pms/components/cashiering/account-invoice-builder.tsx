@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { listFinancialAccountOutstandingInvoices } from "@/packages/pms/lib/cashiering-account-allocation.functions";
 import { settlementStateLabel } from "@/packages/pms/lib/cashiering-account-allocation";
 import { AccountInvoiceModal } from "@/packages/pms/components/cashiering/account-invoice-modal";
+import { FiscalInvoiceStatusBadge } from "@/packages/pms/components/cashiering/fiscal-invoice-status-badge";
+import { listInvoiceFiscalStatuses } from "@/packages/pms/lib/fiscal/fiscal.functions";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
 import { mergeCashieringDocumentProperty } from "@/packages/pms/lib/cashiering-document-property";
@@ -92,6 +94,24 @@ export function AccountInvoiceWorkspace({
   });
   const board = boardQuery.data;
   const invoices = useMemo(() => invoicesQuery.data ?? [], [invoicesQuery.data]);
+  const issuedInvoiceIds = useMemo(() => invoices.map((invoice) => invoice.id), [invoices]);
+  const fetchFiscalStatuses = useServerFn(listInvoiceFiscalStatuses);
+  const fiscalQuery = useQuery({
+    queryKey: ["invoice-fiscal-status", restaurantId, "account_invoice", issuedInvoiceIds],
+    queryFn: () =>
+      fetchFiscalStatuses({
+        data: { restaurantId, sourceType: "account_invoice", invoiceIds: issuedInvoiceIds },
+      }),
+    enabled: issuedInvoiceIds.length > 0,
+  });
+  const fiscalByInvoice = useMemo(() => {
+    const map = new Map<
+      string,
+      { status: "registered" | "error" | "queued" | "not_registered"; error: string | null }
+    >();
+    for (const row of fiscalQuery.data ?? []) map.set(row.invoiceId, row);
+    return map;
+  }, [fiscalQuery.data]);
   const [editing, setEditing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
@@ -146,6 +166,7 @@ export function AccountInvoiceWorkspace({
     void boardQuery.refetch();
     void invoicesQuery.refetch();
     void settlementsQuery.refetch();
+    void fiscalQuery.refetch();
   }
 
   const createMut = useMutation({
@@ -573,7 +594,7 @@ export function AccountInvoiceWorkspace({
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[840px] text-left text-sm">
               <thead className={HEAD}>
                 <tr>
                   <th className="px-3 py-2">Invoice no.</th>
@@ -582,6 +603,7 @@ export function AccountInvoiceWorkspace({
                   <th className="px-3 py-2 text-right">Allocated</th>
                   <th className="px-3 py-2 text-right">Outstanding</th>
                   <th className="px-3 py-2">Settlement</th>
+                  <th className="px-3 py-2">Fiscal</th>
                   <th className="px-3 py-2" />
                 </tr>
               </thead>
@@ -608,6 +630,16 @@ export function AccountInvoiceWorkspace({
                       </td>
                       <td className="px-3 py-2">
                         {settlement ? settlementStateLabel(settlement.settlementState) : "Unpaid"}
+                      </td>
+                      <td className="px-3 py-2">
+                        {fiscalQuery.isLoading ? (
+                          "—"
+                        ) : (
+                          <FiscalInvoiceStatusBadge
+                            status={fiscalByInvoice.get(invoice.id)?.status ?? "not_registered"}
+                            error={fiscalByInvoice.get(invoice.id)?.error}
+                          />
+                        )}
                       </td>
                       <td className="px-3 py-2 text-right">
                         <Button
