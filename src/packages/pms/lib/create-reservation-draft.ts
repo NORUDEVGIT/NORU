@@ -1,5 +1,6 @@
 import type { AvailabilitySearchCriteria } from "@/packages/pms/lib/create-reservation-phase1-section4";
 import type { ReservationTypeMode } from "@/packages/pms/lib/create-reservation-phase1";
+import type { ReservationMode } from "@/packages/pms/lib/reservation-mode";
 
 export const CREATE_RESERVATION_DRAFT_VERSION = 1;
 const CREATE_RESERVATION_DRAFT_PREFIX = "reservation-create-draft";
@@ -32,10 +33,22 @@ export type CreateReservationDraftService = {
   description: string;
 };
 
+export type CreateReservationDraftRoomUnit = {
+  key: string;
+  roomTypeId: string;
+  adults: number;
+  children: number;
+  infants: number;
+  ratePlanId: string | null;
+  occupant: { guestId: string; fullName: string } | null;
+};
+
 export type CreateReservationDraft = {
   version: typeof CREATE_RESERVATION_DRAFT_VERSION;
   workflowStep: number;
   reservationType: ReservationTypeMode;
+  reservationMode: ReservationMode;
+  activeRoomIndex: number;
   guest: CreateReservationDraftGuest | null;
   arrival: string;
   departure: string;
@@ -43,6 +56,7 @@ export type CreateReservationDraft = {
   children: number;
   infants: number;
   roomsRequested: number;
+  extraRoomUnits: CreateReservationDraftRoomUnit[];
   roomTypeId: string;
   selectedRoomType: {
     roomTypeId: string;
@@ -114,6 +128,7 @@ export function createReservationDraftIsMeaningful(
   ) {
     return true;
   }
+  if (draft.extraRoomUnits.length > 0) return true;
   if (draft.availabilitySearchCommitted) return true;
   if (
     draft.adults !== 1 ||
@@ -128,6 +143,8 @@ export function createReservationDraftIsMeaningful(
   if (draft.relationTab !== "company") return true;
   if (draft.companyContactId || draft.travelAgentContactId || draft.billingRuleId) return true;
   if (draft.reservationType !== "individual" || draft.purposeOfStay) return true;
+  if (draft.reservationMode === "group") return true;
+  if (draft.activeRoomIndex > 0) return true;
   return false;
 }
 
@@ -160,6 +177,8 @@ export function parseCreateReservationDraft(payload: unknown): CreateReservation
       reservationType === "corporate" || reservationType === "travel_agency"
         ? reservationType
         : "individual",
+    reservationMode: record.reservationMode === "group" ? "group" : "single",
+    activeRoomIndex: clampInt(record.activeRoomIndex, 0, 19, 0),
     guest: parseGuest(record.guest),
     arrival: text(record.arrival),
     departure: text(record.departure),
@@ -167,6 +186,7 @@ export function parseCreateReservationDraft(payload: unknown): CreateReservation
     children: clampInt(record.children, 0, 20, 0),
     infants: clampInt(record.infants, 0, 20, 0),
     roomsRequested: clampInt(record.roomsRequested, 1, 20, 1),
+    extraRoomUnits: parseExtraRoomUnits(record.extraRoomUnits),
     roomTypeId: text(record.roomTypeId),
     selectedRoomType: parseRoomType(record.selectedRoomType),
     roomId: text(record.roomId) || "unassigned",
@@ -287,6 +307,40 @@ function clampInt(value: unknown, min: number, max: number, fallback: number): n
 function stringList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function parseExtraRoomUnits(value: unknown): CreateReservationDraftRoomUnit[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 19).flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const roomTypeId = text(row.roomTypeId);
+    const key = text(row.key);
+    if (!key && !roomTypeId) return [];
+    const occupant = row.occupant;
+    const occupantRow =
+      occupant && typeof occupant === "object"
+        ? (occupant as { guestId?: unknown; fullName?: unknown })
+        : null;
+    return [
+      {
+        key: key || roomTypeId,
+        roomTypeId,
+        adults: clampInt(row.adults, 1, 20, 1),
+        children: clampInt(row.children, 0, 20, 0),
+        infants: clampInt(row.infants, 0, 20, 0),
+        ratePlanId: text(row.ratePlanId) || null,
+        occupant:
+          occupantRow &&
+          typeof occupantRow.guestId === "string" &&
+          occupantRow.guestId &&
+          typeof occupantRow.fullName === "string" &&
+          occupantRow.fullName
+            ? { guestId: occupantRow.guestId, fullName: occupantRow.fullName }
+            : null,
+      },
+    ];
+  });
 }
 
 function parseGuest(value: unknown): CreateReservationDraftGuest | null {

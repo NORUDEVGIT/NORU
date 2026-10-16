@@ -12,8 +12,7 @@ import {
 import { RESERVATION_STATUSES, type ReservationStatus } from "./reservation-dates.ts";
 
 export const GUEST_BOOKINGS_TITLE = "Stays & Reservations";
-export const GUEST_BOOKINGS_COPY =
-  "Show the guest's reservation and stay history at the property.";
+export const GUEST_BOOKINGS_COPY = "Show the guest's reservation and stay history at the property.";
 export const GUEST_BOOKINGS_EMPTY = "No bookings yet";
 export const GUEST_BOOKINGS_SELECT_EMPTY = "Select a reservation to view details.";
 export const GUEST_BOOKINGS_ACTIVE_EMPTY = "No current or upcoming reservation";
@@ -38,6 +37,9 @@ export const BOOKING_TIMELINE_LABELS: Record<string, string> = {
   stay_dates_changed: "Stay Dates Changed",
   no_show: "No Show",
   repriced: "Repriced",
+  room_guest_added: "Room Guest Added",
+  room_guest_removed: "Room Guest Removed",
+  room_primary_guest_changed: "Primary Occupant Changed",
 };
 
 export type GuestBookingHistoryEvent = {
@@ -68,7 +70,9 @@ export function pickActiveBooking(stays: GuestStay[], today: string): GuestStay 
   return pickFeaturedStay(stays, today);
 }
 
-export function stayNumberForBooking(stay: Pick<GuestStay, "confirmationNumber" | "status">): string {
+export function stayNumberForBooking(
+  stay: Pick<GuestStay, "confirmationNumber" | "status">,
+): string {
   return (OCCUPIED_STAY_STATUSES as readonly string[]).includes(stay.status)
     ? stay.confirmationNumber
     : "";
@@ -170,7 +174,11 @@ export function filterGuestBookings(stays: GuestStay[], filters: GuestBookingFil
   });
 }
 
-export function paginateGuestBookings<T>(rows: T[], page: number, pageSize = GUEST_BOOKINGS_PAGE_SIZE): T[] {
+export function paginateGuestBookings<T>(
+  rows: T[],
+  page: number,
+  pageSize = GUEST_BOOKINGS_PAGE_SIZE,
+): T[] {
   const start = Math.max(0, (page - 1) * pageSize);
   return rows.slice(start, start + pageSize);
 }

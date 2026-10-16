@@ -35,7 +35,7 @@ describe("Create reservation Booking Details layout", () => {
     assert.doesNotMatch(details, /Reservation type/);
     assert.doesNotMatch(details, /reservation-type-/);
     assert.match(details, /label="Source" required/);
-    assert.match(details, /label="Channel" required/);
+    assert.match(details, /label="Channel" required=\{channelRequired\}/);
   });
 
   it("Step 2 page shell starts with booking details; no Context strip or associations card", () => {

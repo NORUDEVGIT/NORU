@@ -3,6 +3,8 @@
  * Callers must already have run requireRateManager and pass supabaseAdmin.
  */
 
+import { isMissingSchemaError } from "../pms-set2-structure";
+import { projectInventoryDemand } from "../reservation-room-units";
 import { REVENUE_STATUSES } from "../rates.server";
 import { loadRevenueProperty } from "./revenue-config.server";
 import {
@@ -48,11 +50,13 @@ async function loadRoomTypes(db: DbClient, restaurantId: string): Promise<RateCa
     .select("id, code, name")
     .eq("restaurant_id", restaurantId);
   if (result.error) throw new Error(result.error.message);
-  return ((result.data ?? []) as { id: string; code: string | null; name: string }[]).map((row) => ({
-    id: row.id,
-    code: row.code ?? "",
-    name: row.name || "Room type",
-  }));
+  return ((result.data ?? []) as { id: string; code: string | null; name: string }[]).map(
+    (row) => ({
+      id: row.id,
+      code: row.code ?? "",
+      name: row.name || "Room type",
+    }),
+  );
 }
 
 async function loadPlans(db: DbClient, restaurantId: string): Promise<RateCalendarPlan[]> {
@@ -122,7 +126,9 @@ async function loadRestrictions(
 ): Promise<CalendarRestriction[]> {
   const result = await db
     .from("hotel_rate_restrictions")
-    .select("rate_plan_id, restriction_date, min_stay, max_stay, closed_to_arrival, closed_to_departure, stop_sell, updated_at")
+    .select(
+      "rate_plan_id, restriction_date, min_stay, max_stay, closed_to_arrival, closed_to_departure, stop_sell, updated_at",
+    )
     .eq("restaurant_id", restaurantId)
     .gte("restriction_date", fromDate)
     .lte("restriction_date", toDate);
@@ -158,18 +164,52 @@ async function loadReservations(
 ): Promise<CalendarReservation[]> {
   const result = await db
     .from("hotel_reservations")
-    .select("room_type_id, arrival_date, departure_date")
+    .select("id, room_type_id, arrival_date, departure_date")
     .eq("restaurant_id", restaurantId)
     .in("status", REVENUE_STATUSES as unknown as string[])
     .lte("arrival_date", toDate)
     .gt("departure_date", fromDate);
   if (result.error) throw new Error(result.error.message);
-  return (
-    (result.data ?? []) as { room_type_id: string; arrival_date: string; departure_date: string }[]
-  ).map((row) => ({
-    roomTypeId: row.room_type_id,
-    arrivalDate: row.arrival_date,
-    departureDate: row.departure_date,
+  const reservations = (result.data ?? []) as {
+    id: string;
+    room_type_id: string;
+    arrival_date: string;
+    departure_date: string;
+  }[];
+  const unitsResult = await db
+    .from("hotel_reservation_rooms")
+    .select("reservation_id, room_type_id, arrival_date, departure_date")
+    .eq("restaurant_id", restaurantId)
+    .lte("arrival_date", toDate)
+    .gt("departure_date", fromDate);
+  if (unitsResult.error && !isMissingSchemaError(unitsResult.error)) {
+    throw new Error(unitsResult.error.message);
+  }
+  const units = unitsResult.error
+    ? []
+    : ((unitsResult.data ?? []) as {
+        reservation_id: string;
+        room_type_id: string;
+        arrival_date: string;
+        departure_date: string;
+      }[]);
+  return projectInventoryDemand(
+    reservations.map((row) => ({
+      id: row.id,
+      roomTypeId: row.room_type_id,
+      arrivalDate: row.arrival_date,
+      departureDate: row.departure_date,
+    })),
+    units.map((row) => ({
+      reservationId: row.reservation_id,
+      roomTypeId: row.room_type_id,
+      arrivalDate: row.arrival_date,
+      departureDate: row.departure_date,
+    })),
+  ).map((stay) => ({
+    roomTypeId: stay.roomTypeId,
+    arrivalDate: stay.arrivalDate,
+    departureDate: stay.departureDate,
   }));
 }
 
@@ -179,15 +219,16 @@ export async function loadRevenueRateCalendar(
 ): Promise<RateCalendarWorkspace> {
   const clamped = clampRateCalendarRange(query.fromDate, query.toDate);
 
-  const [property, rooms, roomTypes, plans, overrides, restrictions, reservations] = await Promise.all([
-    loadRevenueProperty(db, query.restaurantId, ""),
-    loadRooms(db, query.restaurantId),
-    loadRoomTypes(db, query.restaurantId),
-    loadPlans(db, query.restaurantId),
-    loadOverrides(db, query.restaurantId, clamped.fromDate, clamped.toDate),
-    loadRestrictions(db, query.restaurantId, clamped.fromDate, clamped.toDate),
-    loadReservations(db, query.restaurantId, clamped.fromDate, clamped.toDate),
-  ]);
+  const [property, rooms, roomTypes, plans, overrides, restrictions, reservations] =
+    await Promise.all([
+      loadRevenueProperty(db, query.restaurantId, ""),
+      loadRooms(db, query.restaurantId),
+      loadRoomTypes(db, query.restaurantId),
+      loadPlans(db, query.restaurantId),
+      loadOverrides(db, query.restaurantId, clamped.fromDate, clamped.toDate),
+      loadRestrictions(db, query.restaurantId, clamped.fromDate, clamped.toDate),
+      loadReservations(db, query.restaurantId, clamped.fromDate, clamped.toDate),
+    ]);
 
   return buildRateCalendarModel({
     fromDate: clamped.fromDate,

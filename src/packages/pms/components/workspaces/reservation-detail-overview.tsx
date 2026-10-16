@@ -9,21 +9,30 @@ import { maskIdNumber } from "@/packages/pms/lib/guest-profile-wave2";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import {
   bookedByLabel,
-  channelLabel,
   DETAIL_DASH,
-  depositStatusLabel,
-  detailGuaranteeCardNumber,
+  OVERVIEW_LABEL_UNAVAILABLE,
+  overviewBookingSourceLabel,
+  overviewCatalogueLabel,
+  overviewChannelLabel,
+  overviewNoShowLabel,
+  overviewPartyName,
+  overviewPaymentLabel,
+  overviewRefundabilityLabel,
   parseDepositRequirementSnapshot,
   preferenceFromStay,
   reservationTags,
   snapshotDisplayName,
   snapshotField,
-  sourceLabel,
   storedRatePerNight,
   type DetailWorkspaceTab,
+  type OverviewCatalogueRow,
   type ReservationDetailOverviewInput,
 } from "@/packages/pms/lib/reservation-detail-overview";
 import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
+import {
+  groupCombinedSubtotal,
+  groupRoomRateSections,
+} from "@/packages/pms/lib/reservation-detail-group";
 
 type GuestBits = {
   profileNumber?: string | null;
@@ -38,6 +47,8 @@ export function ReservationDetailOverviewDashboard({
   coverUrl,
   roomMeta,
   money,
+  editable,
+  catalogues,
   onEditTab,
 }: {
   reservation: ReservationDetailOverviewInput;
@@ -46,6 +57,13 @@ export function ReservationDetailOverviewDashboard({
   coverUrl: string | null;
   roomMeta: { occupancy?: string | null; beds?: string | null } | null;
   money: (value: number, currency?: string | null) => string;
+  editable: boolean;
+  catalogues: {
+    sources: OverviewCatalogueRow[];
+    channels: OverviewCatalogueRow[];
+    segments: OverviewCatalogueRow[];
+    distributionChannels?: { id: string; name: string }[];
+  };
   onEditTab: (tab: DetailWorkspaceTab) => void;
 }) {
   const dash = DETAIL_DASH;
@@ -59,36 +77,82 @@ export function ReservationDetailOverviewDashboard({
   const moneyOrDash = (value: number | null | undefined) =>
     value == null ? dash : money(value, currency);
   const assigned = Boolean(reservation.roomId && reservation.roomNumber);
+  const segment = overviewCatalogueLabel(reservation.marketSegment, catalogues.segments);
   const tags = reservationTags({
     guestVip: reservation.guestVip,
-    marketSegment: reservation.marketSegment,
+    marketSegment:
+      segment === DETAIL_DASH || segment === OVERVIEW_LABEL_UNAVAILABLE ? null : segment,
     source: reservation.source,
   });
-  const roomsCount = reservation.roomsRequested == null ? dash : String(reservation.roomsRequested);
-  const infants = reservation.infants == null ? dash : String(reservation.infants);
+  const roomUnits = reservation.rooms ?? [];
+  const groupReservation = reservation.reservationMode === "group" || roomUnits.length > 1;
+  const groupRates = groupReservation ? groupRoomRateSections(reservation) : [];
+  const activeRoomUnits = roomUnits.filter(
+    (unit) => unit.status !== "cancelled" && unit.status !== "no_show",
+  );
+  const roomsCount =
+    roomUnits.length > 0
+      ? String(roomUnits.length)
+      : reservation.roomsRequested == null
+        ? dash
+        : String(reservation.roomsRequested);
+  const adults = groupReservation
+    ? activeRoomUnits.reduce((sum, unit) => sum + unit.adults, 0)
+    : reservation.adults;
+  const children = groupReservation
+    ? activeRoomUnits.reduce((sum, unit) => sum + unit.children, 0)
+    : reservation.children;
+  const infantCount = groupReservation
+    ? activeRoomUnits.reduce((sum, unit) => sum + unit.infants, 0)
+    : reservation.infants;
+  const infants = infantCount == null ? dash : String(infantCount);
   const cancellation =
     snapshotDisplayName(reservation.cancellationPolicySnapshot) ??
     snapshotField(reservation.refundabilitySnapshot, ["cancellation", "cancellation_policy"]);
-  const noShowName = snapshotDisplayName(reservation.noShowPolicySnapshot);
-  const noShowPenalty = snapshotField(reservation.noShowPolicySnapshot, ["penalty_type"]);
-  const noShow = noShowName
-    ? noShowPenalty
-      ? `${noShowName} · ${noShowPenalty.replaceAll("_", " ")}`
-      : noShowName
-    : null;
+  const noShow = overviewNoShowLabel(reservation.noShowPolicySnapshot);
   const earlyDeparture = earlyDepartureReservationLabel({
     snapshot: reservation.earlyDeparturePolicySnapshot,
     legacyRefundabilitySnapshot: reservation.refundabilitySnapshot,
   });
+  const refundability = overviewRefundabilityLabel(reservation.refundabilitySnapshot);
+  const sourceLabel = overviewBookingSourceLabel(
+    reservation.source,
+    reservation.commercialBookingSource,
+    catalogues.sources,
+  );
+  const channel = overviewChannelLabel(
+    reservation.source,
+    reservation.salesChannel,
+    catalogues.channels,
+    catalogues.distributionChannels,
+  );
+  const ratePlan = overviewPartyName(reservation.ratePlanName, reservation.ratePlanId);
   const vipTreatment = reservation.guestVip ? "Yes" : dash;
+  const editTab = (tab: DetailWorkspaceTab) => (editable ? () => onEditTab(tab) : undefined);
+  const paymentRows: Array<[string, string]> = [
+    ["Payment Type", overviewPaymentLabel(reservation.guaranteeMethod)],
+    ["Payment Method", overviewPaymentLabel(deposit?.tenderCode ?? reservation.guaranteeMethod)],
+    ["Deposit Required", deposit?.required == null ? dash : deposit.required ? "Yes" : "No"],
+    ["Deposit Amount", moneyOrDash(deposit?.amount ?? null)],
+  ];
+  if (deposit?.reference) paymentRows.push(["Payment Reference", deposit.reference]);
 
   return (
     <div className="space-y-3" data-testid="reservation-detail-overview">
+      {groupReservation ? (
+        <div
+          className="inline-flex items-center gap-2 rounded-[6px] border border-[#CCC] bg-white px-3 py-1.5 text-xs"
+          data-testid="overview-reservation-type"
+        >
+          <span className="text-muted-foreground">Reservation Type</span>
+          <span className="font-medium text-[#251605]">Group Reservation</span>
+        </div>
+      ) : null}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <OverviewCard
-          title="Guest Information"
+          title={groupReservation ? "Primary Guest / Booker" : "Guest Information"}
           icon={<UserRound className="size-4 text-[#B8954F]" />}
-          onEdit={() => onEditTab("guest")}
+          onEdit={editTab("guest")}
           testId="overview-card-guest"
         >
           <div className="flex items-start gap-3">
@@ -125,7 +189,7 @@ export function ReservationDetailOverviewDashboard({
         <OverviewCard
           title="Stay Information"
           icon={<CalendarDays className="size-4 text-[#B8954F]" />}
-          onEdit={() => onEditTab("stay")}
+          onEdit={editTab("stay")}
           testId="overview-card-stay"
         >
           <OverviewFields
@@ -134,8 +198,8 @@ export function ReservationDetailOverviewDashboard({
               ["Departure Date", formatStayDate(reservation.departureDate)],
               ["Nights", String(reservation.nights)],
               ["Rooms", roomsCount],
-              ["Adults", String(reservation.adults)],
-              ["Children", String(reservation.children)],
+              ["Adults", String(adults)],
+              ["Children", String(children)],
               ["Infants", infants],
               ["Purpose of Stay", reviewDash(reservation.purposeOfStay)],
             ]}
@@ -145,35 +209,69 @@ export function ReservationDetailOverviewDashboard({
         <OverviewCard
           title="Room Information"
           icon={<BedDouble className="size-4 text-[#B8954F]" />}
-          onEdit={() => onEditTab("rooms")}
+          onEdit={editTab("rooms")}
           testId="overview-card-room"
         >
-          <div className="flex gap-3">
-            {coverUrl ? (
-              <img src={coverUrl} alt="" className="h-16 w-20 shrink-0 rounded-md object-cover" />
-            ) : (
-              <div className="flex h-16 w-20 shrink-0 items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68]">
-                <BedDouble className="size-6" />
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="font-medium text-[#251605]">{reviewDash(reservation.roomTypeName)}</p>
+          {groupReservation ? (
+            <div className="space-y-2" data-testid="overview-group-rooms">
               <p className="text-xs text-muted-foreground">
-                {assigned ? `Room ${reservation.roomNumber}` : "Not Assigned"}
+                {roomUnits.length} room units. Open Rooms to manage occupants and operational
+                actions.
               </p>
+              {roomUnits.map((unit) => {
+                const primary = unit.occupants.find((occupant) => occupant.isPrimary);
+                return (
+                  <div
+                    key={unit.id}
+                    className="rounded-[6px] border border-[#DDD4C5] bg-[#FBF7F1] px-2 py-1.5 text-xs"
+                  >
+                    <p className="font-medium text-[#251605]">
+                      Room {unit.unitSequence} · {unit.roomTypeName ?? "Room type"}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {primary?.name ?? "No primary occupant"} ·{" "}
+                      {unit.ratePlanName ?? "No rate plan"}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-          <OverviewFields
-            rows={[
-              ["Room Assignment", assigned ? `Room ${reservation.roomNumber}` : "Not Assigned"],
-              ["Room Type", reviewDash(reservation.roomTypeName)],
-              ["Rate Plan", reviewDash(reservation.ratePlanName ?? reservation.ratePlanId)],
-              ["Occupancy", reviewDash(roomMeta?.occupancy)],
-              ["Beds", reviewDash(roomMeta?.beds)],
-              ["Operational", reviewDash(reservation.roomOperationalStatus)],
-              ["Housekeeping", reviewDash(reservation.housekeepingStatus)],
-            ]}
-          />
+          ) : (
+            <>
+              <div className="flex gap-3">
+                {coverUrl ? (
+                  <img
+                    src={coverUrl}
+                    alt=""
+                    className="h-16 w-20 shrink-0 rounded-md object-cover"
+                  />
+                ) : (
+                  <div className="flex h-16 w-20 shrink-0 items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68]">
+                    <BedDouble className="size-6" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="font-medium text-[#251605]">
+                    {reviewDash(reservation.roomTypeName)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {assigned ? `Room ${reservation.roomNumber}` : "Not Assigned"}
+                  </p>
+                </div>
+              </div>
+              <OverviewFields
+                rows={[
+                  ["Room Assignment", assigned ? `Room ${reservation.roomNumber}` : "Not Assigned"],
+                  ["Room Type", reviewDash(reservation.roomTypeName)],
+                  ["Rate Plan", ratePlan],
+                  ["Occupancy", reviewDash(roomMeta?.occupancy)],
+                  ["Beds", reviewDash(roomMeta?.beds)],
+                  ["Operational", reviewDash(reservation.roomOperationalStatus)],
+                  ["Housekeeping", reviewDash(reservation.housekeepingStatus)],
+                ]}
+              />
+            </>
+          )}
         </OverviewCard>
       </div>
 
@@ -185,12 +283,15 @@ export function ReservationDetailOverviewDashboard({
         >
           <OverviewFields
             rows={[
-              ["Source", sourceLabel(reservation.source, reservation.commercialBookingSource)],
-              ["Channel", channelLabel(reservation.source, reservation.salesChannel)],
-              ["Market Segment", reviewDash(reservation.marketSegment)],
-              ["Company", reviewDash(reservation.companyName)],
-              ["Travel Agent", reviewDash(reservation.travelAgentName)],
-              ["Group", reviewDash(reservation.groupName)],
+              ["Source", sourceLabel],
+              ["Channel", channel],
+              ["Market Segment", segment],
+              ["Company", overviewPartyName(reservation.companyName, reservation.companyMasterId)],
+              [
+                "Travel Agent",
+                overviewPartyName(reservation.travelAgentName, reservation.travelAgentMasterId),
+              ],
+              ["Group", overviewPartyName(reservation.groupName, reservation.groupAccountMasterId)],
               ["Booked by", bookedByLabel(reservation.bookerGuestId, reservation.guestId)],
               ["Created by", reviewDash(createdBy ?? reservation.createdByName)],
             ]}
@@ -200,62 +301,73 @@ export function ReservationDetailOverviewDashboard({
         <OverviewCard
           title="Rate & Financial Summary"
           icon={<FileText className="size-4 text-[#B8954F]" />}
-          onEdit={() => onEditTab("rates")}
+          onEdit={editTab("rates")}
           testId="overview-card-rate"
         >
-          <OverviewFields
-            rows={[
-              ["Rate Plan", reviewDash(reservation.ratePlanName ?? reservation.ratePlanId)],
-              ["Rate per Night", moneyOrDash(ratePerNight)],
-              ["Nights", String(reservation.nights)],
-              ["Room Total", moneyOrDash(reservation.roomSubtotal)],
-              ["Packages", dash],
-              ["Extra Services", dash],
-              ["Taxes & Fees", dash],
-              ["Total Amount", moneyOrDash(reservation.roomSubtotal)],
-            ]}
-          />
+          {groupReservation ? (
+            <div className="space-y-2 text-sm" data-testid="overview-group-rates">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Rate Plans
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {groupRates.length} room-specific plans
+              </p>
+              {groupRates.map((section) => (
+                <div key={section.sequence} className="text-xs">
+                  <p className="font-medium text-[#251605]">
+                    Room {section.sequence} · {section.ratePlanName}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {section.uniformRate == null
+                      ? "Room-specific nightly rates"
+                      : `${money(section.uniformRate, currency)} / night`}
+                  </p>
+                </div>
+              ))}
+              <p className="font-medium text-[#251605]">
+                Combined Room Total {moneyOrDash(groupCombinedSubtotal(reservation))}
+              </p>
+            </div>
+          ) : (
+            <OverviewFields
+              rows={[
+                ["Rate Plan", ratePlan],
+                ["Rate per Night", moneyOrDash(ratePerNight)],
+                ["Nights", String(reservation.nights)],
+                ["Room Total", moneyOrDash(reservation.roomSubtotal)],
+                ["Packages", dash],
+                ["Extra Services", dash],
+                ["Taxes & Fees", dash],
+                ["Total Amount", moneyOrDash(reservation.roomSubtotal)],
+              ]}
+            />
+          )}
         </OverviewCard>
 
         <OverviewCard
-          title="Guarantee & Deposit"
+          title="Payment & Deposit"
           icon={<CreditCard className="size-4 text-[#B8954F]" />}
           testId="overview-card-guarantee"
         >
-          <OverviewFields
-            rows={[
-              ["Guarantee Type", reviewDash(reservation.guaranteeMethod)],
-              ["Card Number", detailGuaranteeCardNumber(reservation.guaranteeMethod)],
-              ["Card Holder Name", dash],
-              ["Expiry Date", dash],
-              ["Deposit Policy", reviewDash(deposit?.name)],
-              [
-                "Deposit Required",
-                deposit?.required == null ? dash : deposit.required ? "Yes" : "No",
-              ],
-              ["Deposit Amount", moneyOrDash(deposit?.amount ?? null)],
-              ["Due Date", dash],
-              ["Payment Method", reviewDash(deposit?.tenderCode ?? reservation.guaranteeMethod)],
-              ["Deposit Status", depositStatusLabel(deposit)],
-            ]}
-          />
+          <OverviewFields rows={paymentRows} />
         </OverviewCard>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <OverviewCard title="Policies" testId="overview-card-policies">
+        <OverviewCard title="Stay Policies" testId="overview-card-policies">
           <OverviewFields
             rows={[
               ["Cancellation Policy", reviewDash(cancellation)],
               ["No-Show Policy", reviewDash(noShow)],
               ["Early Departure Policy", reviewDash(earlyDeparture)],
+              ["Refundability", reviewDash(refundability)],
             ]}
           />
         </OverviewCard>
 
         <OverviewCard
           title="Special Requests & Preferences"
-          onEdit={() => onEditTab("requests")}
+          onEdit={editTab("requests")}
           testId="overview-card-requests"
         >
           <OverviewFields
@@ -272,7 +384,7 @@ export function ReservationDetailOverviewDashboard({
 
         <OverviewCard
           title="Additional Information"
-          onEdit={() => onEditTab("notes")}
+          onEdit={editTab("notes")}
           testId="overview-card-additional"
         >
           <OverviewFields

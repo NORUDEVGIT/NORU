@@ -1,4 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
+import {
+  GROUP_RATE_CHANGE_UNAVAILABLE,
+  groupCombinedSubtotal,
+  groupRoomRateSections,
+  isGroupReservation,
+} from "@/packages/pms/lib/reservation-detail-group";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -175,28 +182,36 @@ export function ReservationDetailRatesTab({
     <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-rates">
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-4">
-          <RateInformationCard
-            reservation={reservation}
-            plan={plan}
-            assigned={assigned}
-            coverUrl={coverUrl}
-            occupancyLabel={occupancyLabel}
-            perNight={perNight}
-            money={money}
-            currency={currency}
-            editable={editable}
-            onChangePlan={() => setPlanOpen(true)}
-            onApplyDiscount={() => toast.message(RATE_DISCOUNT_GAP_COPY)}
-            onAddPackage={() => toast.message(RATE_PACKAGE_ADD_GAP_COPY)}
-          />
-          <DailyRateBreakdownCard
-            rows={rows}
-            reservation={reservation}
-            money={money}
-            currency={currency}
-          />
+          {isGroupReservation(reservation) ? (
+            <GroupRoomRates reservation={reservation} money={money} />
+          ) : (
+            <>
+              <RateInformationCard
+                reservation={reservation}
+                plan={plan}
+                assigned={assigned}
+                coverUrl={coverUrl}
+                occupancyLabel={occupancyLabel}
+                perNight={perNight}
+                money={money}
+                currency={currency}
+                editable={editable}
+                onChangePlan={() => setPlanOpen(true)}
+                onApplyDiscount={() => toast.message(RATE_DISCOUNT_GAP_COPY)}
+                onAddPackage={() => toast.message(RATE_PACKAGE_ADD_GAP_COPY)}
+              />
+              <DailyRateBreakdownCard
+                rows={rows}
+                reservation={reservation}
+                money={money}
+                currency={currency}
+              />
+            </>
+          )}
           <div className="grid gap-4 lg:grid-cols-2">
-            <RatePlanDetailsCard reservation={reservation} plan={plan} />
+            {isGroupReservation(reservation) ? null : (
+              <RatePlanDetailsCard reservation={reservation} plan={plan} />
+            )}
             <DiscountsCard
               promotion={promotion}
               money={money}
@@ -281,6 +296,64 @@ export function ReservationDetailRatesTab({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function GroupRoomRates({
+  reservation,
+  money,
+}: {
+  reservation: ReservationDetail;
+  money: (value: number) => string;
+}) {
+  const sections = groupRoomRateSections(reservation);
+  const combined = groupCombinedSubtotal(reservation);
+  return (
+    <section
+      className="space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+      data-testid="rates-group-rooms"
+    >
+      <div>
+        <h2 className="font-display text-base text-[#251605]">Rate Information</h2>
+        <p className="text-xs text-muted-foreground" data-testid="rates-group-change-gated">
+          {GROUP_RATE_CHANGE_UNAVAILABLE}
+        </p>
+      </div>
+      {sections.map((section) => (
+        <div key={section.sequence} className="border-t border-[#EEE6D8] pt-3 text-sm">
+          <p className="font-medium text-[#251605]">Room {section.sequence}</p>
+          <p className="text-xs text-muted-foreground">Primary Occupant: {section.occupant}</p>
+          <p className="text-xs text-muted-foreground">Room Type: {section.roomTypeName}</p>
+          <p className="text-xs text-muted-foreground">Rate Plan: {section.ratePlanName}</p>
+          {section.nights.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">No nightly snapshot for this room.</p>
+          ) : (
+            <table className="mt-2 w-full text-left text-xs">
+              <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="py-1 pr-2">Date</th>
+                  <th className="py-1 text-right">Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {section.nights.map((night) => (
+                  <tr key={`${section.sequence}-${night.date}`}>
+                    <td className="py-1 pr-2">{formatStayDate(night.date)}</td>
+                    <td className="py-1 text-right">{money(night.rate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p className="mt-2 text-xs text-[#251605]">
+            Room Subtotal {section.subtotal == null ? DETAIL_DASH : money(section.subtotal)}
+          </p>
+        </div>
+      ))}
+      <p className="border-t border-[#EEE6D8] pt-3 text-sm font-medium text-[#251605]">
+        Combined Room Total {combined == null ? DETAIL_DASH : money(combined)}
+      </p>
+    </section>
   );
 }
 
@@ -591,6 +664,7 @@ function PackagesCard({
     chargeBasis: string;
     quantity: number;
     appliedAmount: number;
+    roomUnitLabel?: string | null;
   }>;
   catalogue: Parameters<typeof cataloguePackageById>[0];
   ratePlanId: string | null;
@@ -645,6 +719,9 @@ function PackagesCard({
                 <tr key={row.id}>
                   <td className="py-2 pr-2">
                     <p>{reviewDash(row.packageName)}</p>
+                    {row.roomUnitLabel ? (
+                      <p className="text-[11px] text-muted-foreground">{row.roomUnitLabel}</p>
+                    ) : null}
                     {inclusion ? <p className="text-[10px] text-[#5C4A2A]">{inclusion}</p> : null}
                   </td>
                   <td className="py-2 pr-2">
@@ -713,135 +790,16 @@ function RatesSummaryRail({
   coverUrl: string | null;
   nights: number;
 }) {
-  const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
-  const assigned = Boolean(reservation.roomId && reservation.roomNumber);
-  const cancellation = snapshotDisplayName(reservation.cancellationPolicySnapshot);
-  const noShow = snapshotField(reservation.refundabilitySnapshot, ["no_show", "no_show_policy"]);
-  const earlyDeparture = earlyDepartureReservationLabel({
-    snapshot: reservation.earlyDeparturePolicySnapshot,
-    legacyRefundabilitySnapshot: reservation.refundabilitySnapshot,
-  });
-  const stayNightsLabel =
-    nights || nightsBetween(reservation.arrivalDate, reservation.departureDate);
-
   return (
-    <aside
-      className="h-fit space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="reservation-rates-summary"
-    >
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          Reservation Summary
-        </p>
-        <div className="mt-1 flex items-center gap-2">
-          <p className="font-display text-lg text-[#251605]">{reservation.confirmationNumber}</p>
-          <ReservationStatusBadge status={reservation.status} />
-        </div>
-      </div>
-      <div className="flex items-start gap-3 border-t border-[#EEE6D8] pt-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F4E9D0] text-xs font-semibold text-[#765719]">
-          {guestInitials(reservation.guestName)}
-        </div>
-        <div className="min-w-0">
-          <p className="flex items-center gap-1 font-medium text-[#251605]">
-            <UserRound className="size-3.5 text-[#B8954F]" />
-            {reservation.guestName}
-            {reservation.guestVip ? (
-              <span className="rounded-full bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-semibold text-[#765719]">
-                VIP
-              </span>
-            ) : null}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {reviewDash(reservation.guestPhone)}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {reviewDash(reservation.guestEmail)}
-          </p>
-        </div>
-      </div>
-      <SummaryBlock
-        icon={<CalendarDays className="size-3.5 text-[#B8954F]" />}
-        title="Stay Information"
-      >
-        <p>
-          {formatStayDate(reservation.arrivalDate)} → {formatStayDate(reservation.departureDate)} (
-          {stayNightsLabel} night{stayNightsLabel === 1 ? "" : "s"})
-        </p>
-        <p>
-          {reservation.adults} Adults · {reservation.children} Children ·{" "}
-          {reservation.infants == null ? DETAIL_DASH : reservation.infants} Infants
-        </p>
-        <p>Purpose: {reviewDash(reservation.purposeOfStay)}</p>
-      </SummaryBlock>
-      <SummaryBlock
-        icon={<BedDouble className="size-3.5 text-[#B8954F]" />}
-        title="Room Information"
-      >
-        <div className="flex gap-2">
-          {coverUrl ? (
-            <img src={coverUrl} alt="" className="h-12 w-16 rounded-md object-cover" />
-          ) : (
-            <div className="flex h-12 w-16 items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68]">
-              <BedDouble className="size-5" />
-            </div>
-          )}
-          <div>
-            <p className="font-medium">{reviewDash(reservation.roomTypeName)}</p>
-            <p>{assigned ? `Room ${reservation.roomNumber}` : "Not Assigned"}</p>
-            <p>{reviewDash(reservation.ratePlanName)}</p>
-          </div>
-        </div>
-      </SummaryBlock>
-      <SummaryBlock icon={<FileText className="size-3.5 text-[#B8954F]" />} title="Rate & Total">
-        <p>
-          Room Rate{" "}
-          {reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
-        </p>
-        <p className="font-medium text-[#251605]">
-          Total Amount{" "}
-          {reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
-        </p>
-      </SummaryBlock>
-      <SummaryBlock
-        icon={<CreditCard className="size-3.5 text-[#B8954F]" />}
-        title="Guarantee & Deposit"
-      >
-        <p>{reviewDash(reservation.guaranteeMethod)}</p>
-        <p>
-          Deposit {deposit?.amount == null ? DETAIL_DASH : money(deposit.amount)} ·{" "}
-          {depositStatusLabel(deposit)}
-        </p>
-      </SummaryBlock>
-      <SummaryBlock icon={<Shield className="size-3.5 text-[#B8954F]" />} title="Policies">
-        <p>Cancellation: {reviewDash(cancellation)}</p>
-        <p>No-show: {reviewDash(noShow)}</p>
-        <p>Early departure: {reviewDash(earlyDeparture)}</p>
-      </SummaryBlock>
-    </aside>
+    <ReservationDetailSummary
+      testId="reservation-rates-summary"
+      reservation={reservation}
+      money={money}
+      coverUrl={coverUrl}
+      nights={nights}
+    />
   );
 }
-
-function SummaryBlock({
-  icon,
-  title,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="border-t border-[#EEE6D8] pt-3 text-xs text-muted-foreground">
-      <p className="mb-1 flex items-center gap-1 font-medium text-[#251605]">
-        {icon}
-        {title}
-      </p>
-      <div className="space-y-0.5">{children}</div>
-    </div>
-  );
-}
-
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <>

@@ -116,9 +116,11 @@ export type Database = {
         Row: {
           activated_at: string | null
           channel_type: string
+          channel_property_code: string | null
           code: string
           created_at: string
           environment: string
+          external_operations: string[]
           id: string
           integration_id: string | null
           mapping_status: string
@@ -133,9 +135,11 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           channel_type?: string
+          channel_property_code?: string | null
           code: string
           created_at?: string
           environment?: string
+          external_operations?: string[]
           id?: string
           integration_id?: string | null
           mapping_status?: string
@@ -150,9 +154,11 @@ export type Database = {
         Update: {
           activated_at?: string | null
           channel_type?: string
+          channel_property_code?: string | null
           code?: string
           created_at?: string
           environment?: string
+          external_operations?: string[]
           id?: string
           integration_id?: string | null
           mapping_status?: string
@@ -297,6 +303,7 @@ export type Database = {
           created_at: string
           external_entity_id: string | null
           external_rate_code: string | null
+          external_room_code: string | null
           id: string
           rate_plan_id: string
           restaurant_id: string
@@ -308,6 +315,7 @@ export type Database = {
           created_at?: string
           external_entity_id?: string | null
           external_rate_code?: string | null
+          external_room_code?: string | null
           id?: string
           rate_plan_id: string
           restaurant_id: string
@@ -319,6 +327,7 @@ export type Database = {
           created_at?: string
           external_entity_id?: string | null
           external_rate_code?: string | null
+          external_room_code?: string | null
           id?: string
           rate_plan_id?: string
           restaurant_id?: string
@@ -3100,6 +3109,7 @@ export type Database = {
           pms_group_block_id: string | null
           pms_group_id: string | null
           purpose_of_stay: string | null
+          reservation_mode: string
           rate_plan_id: string | null
           refundability_snapshot: Json | null
           restaurant_id: string
@@ -3157,6 +3167,7 @@ export type Database = {
           pms_group_block_id?: string | null
           pms_group_id?: string | null
           purpose_of_stay?: string | null
+          reservation_mode?: string
           rate_plan_id?: string | null
           refundability_snapshot?: Json | null
           restaurant_id: string
@@ -3214,6 +3225,7 @@ export type Database = {
           pms_group_block_id?: string | null
           pms_group_id?: string | null
           purpose_of_stay?: string | null
+          reservation_mode?: string
           rate_plan_id?: string | null
           refundability_snapshot?: Json | null
           restaurant_id?: string
@@ -6880,6 +6892,62 @@ export type Database = {
           },
         ]
       }
+      pms_distribution_sync_events: {
+        Row: {
+          attempt_count: number
+          channel: string | null
+          created_at: string
+          direction: string
+          external_booking_id: string | null
+          id: string
+          operation: string
+          provider: string
+          response_message: string | null
+          response_success: boolean | null
+          restaurant_id: string
+          retry_eligible: boolean
+          status: string
+        }
+        Insert: {
+          attempt_count?: number
+          channel?: string | null
+          created_at?: string
+          direction: string
+          external_booking_id?: string | null
+          id?: string
+          operation: string
+          provider: string
+          response_message?: string | null
+          response_success?: boolean | null
+          restaurant_id: string
+          retry_eligible?: boolean
+          status: string
+        }
+        Update: {
+          attempt_count?: number
+          channel?: string | null
+          created_at?: string
+          direction?: string
+          external_booking_id?: string | null
+          id?: string
+          operation?: string
+          provider?: string
+          response_message?: string | null
+          response_success?: boolean | null
+          restaurant_id?: string
+          retry_eligible?: boolean
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_distribution_sync_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pms_early_departure_policies: {
         Row: {
           active: boolean
@@ -7285,6 +7353,60 @@ export type Database = {
           },
           {
             foreignKeyName: "pms_exchange_rates_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_external_reservation_mappings: {
+        Row: {
+          channel: string
+          cm_booking_id: string | null
+          created_at: string
+          external_booking_id: string
+          hotel_code: string
+          id: string
+          provider: string
+          reservation_id: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          cm_booking_id?: string | null
+          created_at?: string
+          external_booking_id: string
+          hotel_code: string
+          id?: string
+          provider: string
+          reservation_id: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          cm_booking_id?: string | null
+          created_at?: string
+          external_booking_id?: string
+          hotel_code?: string
+          id?: string
+          provider?: string
+          reservation_id?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_external_reservation_mappings_reservation_same_property"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_external_reservation_mappings_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -9285,12 +9407,16 @@ export type Database = {
           id: string
           last_test_at: string | null
           last_test_result: string | null
+          last_error: string | null
+          last_validated_at: string | null
           name: string
+          partner_slug: string | null
           provider: string
           restaurant_id: string
           status: string
           updated_at: string
           webhook_path: string | null
+          external_property_code: string | null
         }
         Insert: {
           auth_method?: string | null
@@ -9304,12 +9430,16 @@ export type Database = {
           id?: string
           last_test_at?: string | null
           last_test_result?: string | null
+          last_error?: string | null
+          last_validated_at?: string | null
           name: string
+          partner_slug?: string | null
           provider: string
           restaurant_id: string
           status?: string
           updated_at?: string
           webhook_path?: string | null
+          external_property_code?: string | null
         }
         Update: {
           auth_method?: string | null
@@ -9323,12 +9453,16 @@ export type Database = {
           id?: string
           last_test_at?: string | null
           last_test_result?: string | null
+          last_error?: string | null
+          last_validated_at?: string | null
           name?: string
+          partner_slug?: string | null
           provider?: string
           restaurant_id?: string
           status?: string
           updated_at?: string
           webhook_path?: string | null
+          external_property_code?: string | null
         }
         Relationships: [
           {
@@ -14546,6 +14680,36 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_hotel_reservation_room_package: {
+        Args: {
+          _membership_id: string
+          _package_activation_id: string
+          _reservation_id: string
+          _reservation_room_id: string
+          _restaurant_id: string
+        }
+        Returns: string
+      }
+      assign_hotel_reservation_room_unit: {
+        Args: {
+          _membership_id: string
+          _reservation_id: string
+          _reservation_room_id?: string
+          _restaurant_id: string
+          _room_id: string
+        }
+        Returns: Json
+      }
+      cancel_hotel_reservation_unit: {
+        Args: {
+          _membership_id: string
+          _reason: string
+          _reservation_id: string
+          _reservation_room_id?: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
       amend_hotel_reservation: {
         Args: {
           _adults: number
@@ -14611,6 +14775,7 @@ export type Database = {
           _arrival: string
           _children: number
           _departure: string
+          _infants?: number | null
           _membership_id: string
           _notes: string
           _rate_plan_id: string
@@ -14889,6 +15054,7 @@ export type Database = {
         Args: {
           _membership_id: string
           _reservation_id: string
+          _reservation_room_id?: string
           _restaurant_id: string
           _room_id: string
         }
@@ -14941,6 +15107,7 @@ export type Database = {
         Args: {
           _membership_id: string
           _reservation_id: string
+          _reservation_room_id?: string
           _restaurant_id: string
         }
         Returns: {
@@ -15292,6 +15459,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_external_reservation_mapping: {
+        Args: {
+          _channel: string
+          _cm_booking_id?: string
+          _external_booking_id: string
+          _hotel_code: string
+          _provider: string
+          _reservation_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          channel: string
+          cm_booking_id: string | null
+          created_at: string
+          external_booking_id: string
+          hotel_code: string
+          id: string
+          provider: string
+          reservation_id: string
+          restaurant_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pms_external_reservation_mappings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_hotel_reservation: {
         Args: {
           _adults: number
@@ -15378,6 +15574,9 @@ export type Database = {
           _restaurant_id: string
           _room_id: string
           _room_type_id: string
+          _reservation_mode?: string
+          _room_guest_assignments?: Json
+          _room_units?: Json
           _rooms?: number
           _special_requests: string
           _status: string
@@ -15497,6 +15696,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      manage_reservation_room_guest: {
+        Args: {
+          _action: string
+          _guest_id: string
+          _membership_id: string
+          _reservation_id: string
+          _reservation_room_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
+      }
       is_platform_admin: { Args: never; Returns: boolean }
       is_restaurant_member: {
         Args: { _restaurant_id: string }
@@ -15507,6 +15717,7 @@ export type Database = {
           _business_date: string
           _membership_id: string
           _reservation_id: string
+          _reservation_room_id?: string
           _restaurant_id: string
         }
         Returns: {
@@ -15559,6 +15770,7 @@ export type Database = {
           _membership_id: string
           _reason: string
           _reservation_id: string
+          _reservation_room_id?: string
           _restaurant_id: string
           _room_id: string
         }

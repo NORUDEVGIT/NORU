@@ -47,8 +47,9 @@ import {
   restrictionSaveBlocked,
 } from "./pms-set4-hk-inventory";
 import { loadSet4Snapshot } from "./pms-set4-hk-inventory.functions";
-import { applyGuestServiceRequestUpdate } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
+import { checkedInRoomIds, expandStayRooms } from "./reservation-room-units";
+import { applyGuestServiceRequestUpdate } from "./guests.server";
 import {
   GUEST_SERVICE_DESCRIPTION_MAX,
   GUEST_SERVICE_STATUSES,
@@ -238,29 +239,81 @@ type RoomRow = {
   room_types: { name: string } | null;
 };
 
-/** Room ids currently held by a checked-in stay, plus the guest name. */
+/** Room ids currently held by a checked-in room unit, plus the guest name. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function occupancyMap(supabase: any, restaurantId: string) {
   const { data } = await supabase
     .from("hotel_reservations")
     .select(
-      "id, room_id, guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name )",
+      "id, room_id, arrival_date, departure_date, status, guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name )",
     )
     .eq("restaurant_id", restaurantId)
-    .eq("status", "checked_in")
-    .not("room_id", "is", null);
+    .eq("status", "checked_in");
 
-  const map = new Map<string, string>();
-  for (const row of (data ?? []) as Array<{
+  const stays = (data ?? []) as Array<{
+    id: string;
     room_id: string | null;
+    arrival_date: string;
+    departure_date: string;
+    status: string;
     guest_profiles: { first_name: string; last_name: string | null } | null;
-  }>) {
-    if (!row.room_id) continue;
-    const name =
-      [row.guest_profiles?.first_name, row.guest_profiles?.last_name]
+  }>;
+  if (stays.length === 0) return new Map();
+  const unitResult = await supabase
+    .from("hotel_reservation_rooms")
+    .select("reservation_id, room_id, status, arrival_date, departure_date, unit_sequence")
+    .eq("restaurant_id", restaurantId)
+    .in(
+      "reservation_id",
+      stays.map((stay) => stay.id),
+    );
+  const units =
+    unitResult.error && isMissingSchemaError(unitResult.error)
+      ? null
+      : ((unitResult.data ?? []) as Array<{
+          reservation_id: string;
+          room_id: string | null;
+          status: string | null;
+          arrival_date: string;
+          departure_date: string;
+          unit_sequence: number;
+        }>);
+  if (unitResult.error && !isMissingSchemaError(unitResult.error)) {
+    throw new Error(unitResult.error.message);
+  }
+  const names = new Map(
+    stays.map((stay) => [
+      stay.id,
+      [stay.guest_profiles?.first_name, stay.guest_profiles?.last_name]
         .filter(Boolean)
         .join(" ")
-        .trim() || "Guest";
-    map.set(row.room_id, name);
+        .trim() || "Guest",
+    ]),
+  );
+  const rooms = expandStayRooms(
+    stays.map((stay) => ({
+      id: stay.id,
+      roomId: stay.room_id,
+      status: stay.status,
+      arrivalDate: stay.arrival_date,
+      departureDate: stay.departure_date,
+    })),
+    units
+      ? units.map((unit) => ({
+          reservationId: unit.reservation_id,
+          roomId: unit.room_id,
+          status: unit.status,
+          arrivalDate: unit.arrival_date,
+          departureDate: unit.departure_date,
+          unitSequence: unit.unit_sequence,
+        }))
+      : null,
+  );
+  const map = new Map<string, string>();
+  for (const roomId of checkedInRoomIds(rooms)) {
+    const stay = rooms.find((room) => room.roomId === roomId && room.status === "checked_in");
+    if (!stay) continue;
+    map.set(roomId, names.get(stay.reservationId) ?? "Guest");
   }
   return map;
 }
@@ -284,6 +337,7 @@ type HkDemandOverlay = {
 
 /** FO/reservation demand for Board/QV — reads only, never copies stay rows. */
 async function loadHkDemandOverlay(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   restaurantId: string,
   today: string,
@@ -322,7 +376,7 @@ async function loadHkDemandOverlay(
     if (to) movedRooms.add(to);
   }
 
-  for (const row of (stays ?? []) as Array<{
+  const stayRows = (stays ?? []) as Array<{
     id: string;
     room_id: string | null;
     guest_id: string | null;
@@ -331,28 +385,75 @@ async function loadHkDemandOverlay(
     departure_date: string;
     expected_arrival_at: string | null;
     guest_profiles: { vip_status: boolean } | { vip_status: boolean }[] | null;
-  }>) {
-    if (!row.room_id) continue;
+  }>;
+  const demandUnits = stayRows.length
+    ? await supabase
+        .from("hotel_reservation_rooms")
+        .select("reservation_id, room_id, status, arrival_date, departure_date, unit_sequence")
+        .eq("restaurant_id", restaurantId)
+        .in(
+          "reservation_id",
+          stayRows.map((row) => row.id),
+        )
+    : { data: [], error: null };
+  const demandUnitRows =
+    demandUnits.error && isMissingSchemaError(demandUnits.error)
+      ? null
+      : ((demandUnits.data ?? []) as Array<{
+          reservation_id: string;
+          room_id: string | null;
+          status: string | null;
+          arrival_date: string;
+          departure_date: string;
+          unit_sequence: number;
+        }>);
+  if (demandUnits.error && !isMissingSchemaError(demandUnits.error)) {
+    throw new Error(demandUnits.error.message);
+  }
+  const stayById = new Map(stayRows.map((row) => [row.id, row]));
+  const demandRooms = expandStayRooms(
+    stayRows.map((row) => ({
+      id: row.id,
+      roomId: row.room_id,
+      status: row.status,
+      arrivalDate: row.arrival_date,
+      departureDate: row.departure_date,
+    })),
+    demandUnitRows
+      ? demandUnitRows.map((unit) => ({
+          reservationId: unit.reservation_id,
+          roomId: unit.room_id,
+          status: unit.status,
+          arrivalDate: unit.arrival_date,
+          departureDate: unit.departure_date,
+          unitSequence: unit.unit_sequence,
+        }))
+      : null,
+  );
+  for (const room of demandRooms) {
+    if (!room.roomId) continue;
+    const row = stayById.get(room.reservationId);
+    if (!row) continue;
     const guest = Array.isArray(row.guest_profiles) ? row.guest_profiles[0] : row.guest_profiles;
     const demand = hkDemandFromStay(
       {
-        roomId: row.room_id,
-        status: row.status,
-        arrivalDate: row.arrival_date,
-        departureDate: row.departure_date,
+        roomId: room.roomId,
+        status: room.status,
+        arrivalDate: room.arrivalDate,
+        departureDate: room.departureDate,
         expectedArrivalAt: row.expected_arrival_at,
         guestVip: Boolean(guest?.vip_status),
-        roomChangedToday: movedRooms.has(row.room_id),
+        roomChangedToday: movedRooms.has(room.roomId),
       },
       today,
       { checkInTime: property.checkInTime, timezone: property.timezone },
     );
-    const existing = overlay.get(row.room_id);
-    const preferStay = row.status === "checked_in" || !existing?.stayId;
-    overlay.set(row.room_id, {
+    const existing = overlay.get(room.roomId);
+    const preferStay = room.status === "checked_in" || !existing?.stayId;
+    overlay.set(room.roomId, {
       demand: existing ? mergeHkDemand(existing.demand, demand) : demand,
-      stayId: preferStay ? row.id : existing?.stayId ?? null,
-      guestId: preferStay ? row.guest_id : existing?.guestId ?? null,
+      stayId: preferStay ? row.id : (existing?.stayId ?? null),
+      guestId: preferStay ? row.guest_id : (existing?.guestId ?? null),
     });
   }
 
@@ -371,6 +472,7 @@ async function loadHkDemandOverlay(
   return overlay;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function staffNames(supabase: any, restaurantId: string) {
   const { data } = await supabase
     .from("restaurant_users")
@@ -456,7 +558,11 @@ export const getHousekeepingDashboard = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<HousekeepingDashboard> => {
     const me = await requireHousekeepingAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const housekeepingPolicy = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false);
+    const housekeepingPolicy = await loadCard2HousekeepingSnapshot(
+      supabaseAdmin,
+      data.restaurantId,
+      false,
+    );
 
     const { data: rooms, error } = await context.supabase
       .from("hotel_rooms")
@@ -511,7 +617,11 @@ export const listRoomRack = createServerFn({ method: "POST" })
     const me = await requireHousekeepingAccess(context as never, data.restaurantId);
     const rackScope = housekeepingScope(me.role);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const housekeepingPolicy = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false);
+    const housekeepingPolicy = await loadCard2HousekeepingSnapshot(
+      supabaseAdmin,
+      data.restaurantId,
+      false,
+    );
 
     const { data: rooms, error } = await context.supabase
       .from("hotel_rooms")
@@ -544,7 +654,9 @@ export const listRoomRack = createServerFn({ method: "POST" })
 
     const { data: tasks } = await context.supabase
       .from("housekeeping_tasks")
-      .select("id, room_id, status, task_type, priority, notes, assigned_membership_id, created_at, started_at")
+      .select(
+        "id, room_id, status, task_type, priority, notes, assigned_membership_id, created_at, started_at",
+      )
       .eq("restaurant_id", data.restaurantId)
       .in("status", ["pending", "assigned", "in_progress"]);
     const openByRoom = new Map(
@@ -729,7 +841,10 @@ export const createHousekeepingTask = createServerFn({ method: "POST" })
     });
     const priority = applyHousekeepingEventPriority(
       card2.priorities,
-      priorityEventsForHousekeepingTask(data.taskType, overlay.get(data.roomId)?.demand ?? EMPTY_HK_DEMAND),
+      priorityEventsForHousekeepingTask(
+        data.taskType,
+        overlay.get(data.roomId)?.demand ?? EMPTY_HK_DEMAND,
+      ),
       data.priority,
     );
 
@@ -817,7 +932,8 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
             (me.role === "owner" || me.role === "manager")) ||
           (policy.settings.overridePermission === "housekeeping_supervisor" &&
             (me.role === "housekeeping" || me.role === "housekeeping_supervisor"));
-        if (!allowed) throw new Error("You don't have the configured assignment override permission.");
+        if (!allowed)
+          throw new Error("You don't have the configured assignment override permission.");
         if (policy.settings.overrideReasonRequired && !blankToNull(data.notes)) {
           throw new Error("An override reason is required.");
         }
@@ -985,7 +1101,9 @@ export const inspectRoom = createServerFn({ method: "POST" })
       : await requireHousekeepingOperator(context as never, data.restaurantId);
     const room = await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
     if (room.status === "out_of_order" || room.status === "out_of_service") {
-      throw new Error("Inspectors cannot put a room out of order or inspect a restricted room. Use Inventory restrictions.");
+      throw new Error(
+        "Inspectors cannot put a room out of order or inspect a restricted room. Use Inventory restrictions.",
+      );
     }
     if (data.result === "failed" && !blankToNull(data.notes)) {
       throw new Error("Add notes describing why inspection failed.");
@@ -1372,7 +1490,16 @@ export const listHousekeepingHistory = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         roomId: idSchema.optional(),
         eventType: z.enum(HK_EVENT_TYPES).optional(),
-        eventGroup: z.enum(["cleaning", "inspection", "discrepancy", "maintenance", "restriction", "guest_request"]).optional(),
+        eventGroup: z
+          .enum([
+            "cleaning",
+            "inspection",
+            "discrepancy",
+            "maintenance",
+            "restriction",
+            "guest_request",
+          ])
+          .optional(),
         actorMembershipId: z.union([idSchema, z.literal("system")]).optional(),
         dateFrom: dateSchema.optional(),
         dateTo: dateSchema.optional(),
@@ -1385,7 +1512,9 @@ export const listHousekeepingHistory = createServerFn({ method: "POST" })
 
     let query = supabaseAdmin
       .from("housekeeping_history")
-      .select("id, room_id, event_type, previous_values, new_values, notes, actor_membership_id, created_at")
+      .select(
+        "id, room_id, event_type, previous_values, new_values, notes, actor_membership_id, created_at",
+      )
       .eq("restaurant_id", data.restaurantId)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -1421,7 +1550,9 @@ export const listHousekeepingHistory = createServerFn({ method: "POST" })
       actor_membership_id: string | null;
       created_at: string;
     }>;
-    const roomIds = Array.from(new Set(typed.map((r) => r.room_id).filter((id): id is string => Boolean(id))));
+    const roomIds = Array.from(
+      new Set(typed.map((r) => r.room_id).filter((id): id is string => Boolean(id))),
+    );
     const roomNumbers = new Map<string, string>();
     if (roomIds.length > 0) {
       const rooms = await supabaseAdmin
@@ -1460,7 +1591,7 @@ export const listHousekeepingGuestRequests = createServerFn({ method: "POST" })
     await requireHousekeepingAccess(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    let result = await supabaseAdmin
+    const result = await supabaseAdmin
       .from("guest_service_history")
       .select(
         "id, guest_id, service_type_id, status, requested_at, reservation_id, notes, request_number, priority, preferred_at, assigned_membership_id",
@@ -1490,14 +1621,19 @@ export const listHousekeepingGuestRequests = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId);
 
     const categoryCode = new Map(
-      ((categoriesRes.data ?? []) as Array<{ id: string; code: string }>).map((row) => [row.id, row.code]),
+      ((categoriesRes.data ?? []) as Array<{ id: string; code: string }>).map((row) => [
+        row.id,
+        row.code,
+      ]),
     );
     const deptById = new Map(
-      ((departmentsRes.error ? [] : (departmentsRes.data ?? [])) as Array<{
-        id: string;
-        code: string;
-        name: string;
-      }>).map((row) => [row.id, row]),
+      (
+        (departmentsRes.error ? [] : (departmentsRes.data ?? [])) as Array<{
+          id: string;
+          code: string;
+          name: string;
+        }>
+      ).map((row) => [row.id, row]),
     );
     const assignedDepts = new Map<string, Array<{ code: string; name: string }>>();
     if (!assignmentsRes.error) {
@@ -1515,7 +1651,12 @@ export const listHousekeepingGuestRequests = createServerFn({ method: "POST" })
       }
     }
     const types = (
-      (typesRes.data ?? []) as Array<{ id: string; name: string; code: string; category_id: string | null }>
+      (typesRes.data ?? []) as Array<{
+        id: string;
+        name: string;
+        code: string;
+        category_id: string | null;
+      }>
     ).map((row) => ({
       id: row.id,
       name: row.name,
@@ -1552,7 +1693,9 @@ export const listHousekeepingGuestRequests = createServerFn({ method: "POST" })
       }>
     ).filter((row) => hkTypeIds.has(row.service_type_id));
 
-    const reservationIds = [...new Set(rows.map((row) => row.reservation_id).filter(Boolean) as string[])];
+    const reservationIds = [
+      ...new Set(rows.map((row) => row.reservation_id).filter(Boolean) as string[]),
+    ];
     const stayById = new Map<string, { confirmationNumber: string; roomId: string | null }>();
     if (reservationIds.length > 0) {
       const stays = await supabaseAdmin
@@ -1565,7 +1708,10 @@ export const listHousekeepingGuestRequests = createServerFn({ method: "POST" })
         confirmation_number: string;
         room_id: string | null;
       }>) {
-        stayById.set(stay.id, { confirmationNumber: stay.confirmation_number, roomId: stay.room_id });
+        stayById.set(stay.id, {
+          confirmationNumber: stay.confirmation_number,
+          roomId: stay.room_id,
+        });
       }
     }
     const roomIds = [
@@ -1596,7 +1742,10 @@ export const listHousekeepingGuestRequests = createServerFn({ method: "POST" })
         first_name: string | null;
         last_name: string | null;
       }>) {
-        guestName.set(guest.id, [guest.first_name, guest.last_name].filter(Boolean).join(" ").trim() || "Guest");
+        guestName.set(
+          guest.id,
+          [guest.first_name, guest.last_name].filter(Boolean).join(" ").trim() || "Guest",
+        );
       }
     }
 
@@ -1701,7 +1850,7 @@ export const updateHousekeepingGuestRequest = createServerFn({ method: "POST" })
             .eq("restaurant_id", data.restaurantId)
             .in("id", deptIds)
         : { data: [] };
-    const assignedDepts = ((depts.data ?? []) as Array<{ code: string; name: string }>);
+    const assignedDepts = (depts.data ?? []) as Array<{ code: string; name: string }>;
     if (
       !isHousekeepingRoutedGuestService({
         typeCode: type.code,

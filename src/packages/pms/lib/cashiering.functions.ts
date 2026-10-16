@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { commercialSalesChannelDisplay } from "./reservation-source-channel";
 import {
   TRANSACTION_TYPES,
   assertIdempotencyKey,
@@ -23,6 +24,7 @@ import { callerMembership } from "@/core/lib/workforce.server";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 import { isMissingSchemaError } from "./pms-set2-structure";
+import { roomUnitAttributionLabel } from "./reservation-room-units";
 import { formatDepositPolicyResult, type DepositPolicyType } from "./payments-card3.server";
 import { loadGuestFolioInvoice } from "./cashiering-invoices.functions";
 import type { IssuedFolioInvoiceRow } from "./cashiering-invoices.server";
@@ -91,6 +93,8 @@ export interface FolioTransactionRow {
   quantity?: number | null;
   unitAmount?: number | null;
   chargeSnapshot?: Record<string, unknown> | null;
+  /** Set only when the ledger line names a room unit. */
+  roomUnitLabel?: string | null;
   /** Original charge behind a correction or transfer, including a charge on another folio. */
   sourceCharge?: {
     description: string;
@@ -301,9 +305,12 @@ type TxnRow = {
   quantity?: number | string | null;
   unit_amount?: number | string | null;
   charge_snapshot?: Record<string, unknown> | null;
+  reservation_room_id?: string | null;
 };
 
-function departmentNameFromSnapshot(snapshot: Record<string, unknown> | null | undefined): string | null {
+function departmentNameFromSnapshot(
+  snapshot: Record<string, unknown> | null | undefined,
+): string | null {
   const name = snapshot?.departmentName;
   return typeof name === "string" && name.trim() !== "" ? name : null;
 }
@@ -317,7 +324,8 @@ function sourceChargeFromRow(row: {
   charge_source?: string | null;
 }): NonNullable<FolioTransactionRow["sourceCharge"]> {
   const quantity = row.quantity == null || row.quantity === "" ? null : Number(row.quantity);
-  const unitAmount = row.unit_amount == null || row.unit_amount === "" ? null : Number(row.unit_amount);
+  const unitAmount =
+    row.unit_amount == null || row.unit_amount === "" ? null : Number(row.unit_amount);
   return {
     description: row.description,
     category: row.category,
@@ -495,7 +503,7 @@ export const listFolios = createServerFn({ method: "GET" })
   });
 
 const FOLIO_TXN_SELECT =
-  "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id, tax_snapshot, transfer_id, transfer_direction, charge_source, quantity, unit_amount, charge_snapshot";
+  "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id, tax_snapshot, transfer_id, transfer_direction, charge_source, quantity, unit_amount, charge_snapshot, reservation_room_id";
 const FOLIO_TXN_SELECT_BASE =
   "id, folio_id, transaction_type, category, description, amount, posted_at, reference_type, reference_id, payment_method, posted_by_membership_id, original_transaction_id";
 
@@ -521,6 +529,67 @@ async function resolveCatalogueLabel(
   if (error || !data) return UUID_PATTERN.test(raw) ? CATALOGUE_NOT_CONFIGURED : raw;
   const row = data as { name: string | null; code: string | null };
   return row.name?.trim() || row.code?.trim() || CATALOGUE_NOT_CONFIGURED;
+}
+
+async function resolveSalesChannelLabel(
+  supabaseAdmin: SupabaseAdmin,
+  restaurantId: string,
+  value: string | null | undefined,
+): Promise<string | null> {
+  const raw = value?.trim();
+  if (!raw) return null;
+  let distributionName: string | null = null;
+  if (UUID_PATTERN.test(raw)) {
+    const channel = await supabaseAdmin
+      .from("distribution_channels")
+      .select("name")
+      .eq("restaurant_id", restaurantId)
+      .eq("id", raw)
+      .maybeSingle();
+    if (!channel.error) distributionName = channel.data?.name?.trim() || null;
+  }
+  const salesLabel = await resolveCatalogueLabel(
+    supabaseAdmin,
+    restaurantId,
+    "pms_sales_channel_labels",
+    raw,
+  );
+  return commercialSalesChannelDisplay({
+    stored: raw,
+    distributionName,
+    salesLabel,
+    unresolvedUuid: CATALOGUE_NOT_CONFIGURED,
+  });
+}
+
+async function loadRoomUnitLabels(
+  supabaseAdmin: SupabaseAdmin,
+  restaurantId: string,
+  txnRows: TxnRow[],
+): Promise<Map<string, string>> {
+  const ids = [
+    ...new Set(
+      txnRows
+        .map((row) => row.reservation_room_id)
+        .filter((id): id is string => typeof id === "string" && id !== ""),
+    ),
+  ];
+  const labels = new Map<string, string>();
+  if (ids.length === 0) return labels;
+  const { data, error } = await supabaseAdmin
+    .from("hotel_reservation_rooms")
+    .select("id, unit_sequence")
+    .eq("restaurant_id", restaurantId)
+    .in("id", ids);
+  if (error) {
+    if (isMissingSchemaError(error)) return labels;
+    throw cashierError(error.message);
+  }
+  for (const row of (data ?? []) as Array<{ id: string; unit_sequence: number | string }>) {
+    const label = roomUnitAttributionLabel(Number(row.unit_sequence));
+    if (label) labels.set(row.id, label);
+  }
+  return labels;
 }
 
 async function loadGuestFolio(
@@ -593,6 +662,7 @@ async function loadGuestFolio(
   if (txnResult.error) throw cashierError(txnResult.error.message);
 
   const txnRows = (txnResult.data ?? []) as TxnRow[];
+  const roomUnitLabels = await loadRoomUnitLabels(supabaseAdmin, restaurantId, txnRows);
   const localById = new Map(txnRows.map((row) => [row.id, row]));
   const missingSourceIds = [
     ...new Set(
@@ -644,6 +714,9 @@ async function loadGuestFolio(
     quantity: t.quantity == null || t.quantity === "" ? null : Number(t.quantity),
     unitAmount: t.unit_amount == null || t.unit_amount === "" ? null : Number(t.unit_amount),
     chargeSnapshot: t.charge_snapshot ?? null,
+    roomUnitLabel: t.reservation_room_id
+      ? (roomUnitLabels.get(t.reservation_room_id) ?? null)
+      : null,
     sourceCharge: t.original_transaction_id
       ? sourceChargeFromRow(
           localById.get(t.original_transaction_id) ??
@@ -658,19 +731,19 @@ async function loadGuestFolio(
   const reservation = f.hotel_reservations;
   const [issuedInvoice, marketSegment, bookingSource, salesChannel] = await Promise.all([
     loadGuestFolioInvoice(supabaseAdmin, restaurantId, f.id),
-    resolveCatalogueLabel(supabaseAdmin, restaurantId, "pms_market_segments", reservation?.market_segment),
+    resolveCatalogueLabel(
+      supabaseAdmin,
+      restaurantId,
+      "pms_market_segments",
+      reservation?.market_segment,
+    ),
     resolveCatalogueLabel(
       supabaseAdmin,
       restaurantId,
       "pms_source_codes",
       reservation?.commercial_booking_source,
     ),
-    resolveCatalogueLabel(
-      supabaseAdmin,
-      restaurantId,
-      "pms_sales_channel_labels",
-      reservation?.commercial_sales_channel,
-    ),
+    resolveSalesChannelLabel(supabaseAdmin, restaurantId, reservation?.commercial_sales_channel),
   ]);
 
   return {
@@ -757,9 +830,7 @@ async function loadTransferCounterparts(
   }>;
   const folioIds = [
     ...new Set(
-      pairs
-        .map((row) => row.folio_id)
-        .filter((id): id is string => Boolean(id) && id !== folioId),
+      pairs.map((row) => row.folio_id).filter((id): id is string => Boolean(id) && id !== folioId),
     ),
   ];
   const accountIds = [
@@ -872,9 +943,7 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
 
     const transferIds = [
       ...new Set(
-        folio.transactions
-          .map((row) => row.transferId)
-          .filter((id): id is string => Boolean(id)),
+        folio.transactions.map((row) => row.transferId).filter((id): id is string => Boolean(id)),
       ),
     ];
     const [allocations, settings, counterparts] = await Promise.all([
@@ -1309,7 +1378,8 @@ function readChargeableService(value: unknown): ChargeableGuestService | null {
   const serviceTypeId = String(row.serviceTypeId ?? "");
   const departmentId = String(row.departmentId ?? "");
   if (!serviceTypeId || !departmentId) return null;
-  const rawUnit = row.pricingUnit == null || row.pricingUnit === "" ? null : String(row.pricingUnit);
+  const rawUnit =
+    row.pricingUnit == null || row.pricingUnit === "" ? null : String(row.pricingUnit);
   if (rawUnit && !PRICING_UNITS.includes(rawUnit as ChargePricingUnit)) return null;
   const pricingUnit = rawUnit as ChargePricingUnit | null;
   const fixed = pricingUnit == null || pricingUnit === "per_service" || pricingUnit === "per_room";
@@ -1373,15 +1443,16 @@ export const listChargeableGuestServices = createServerFn({ method: "GET" })
 /** Read-only tax preview for a guest-service charge. Price is re-derived on the server. */
 export const previewFolioServiceCharge = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { restaurantId: string; folioId: string; serviceTypeId: string; quantity: number }) =>
-    z
-      .object({
-        restaurantId: idSchema,
-        folioId: idSchema,
-        serviceTypeId: idSchema,
-        quantity: z.number().int().min(1).max(99),
-      })
-      .parse(d),
+  .inputValidator(
+    (d: { restaurantId: string; folioId: string; serviceTypeId: string; quantity: number }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          folioId: idSchema,
+          serviceTypeId: idSchema,
+          quantity: z.number().int().min(1).max(99),
+        })
+        .parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioServiceChargePreview> => {
     await requireCashierManager(context as never, data.restaurantId);
@@ -1438,7 +1509,8 @@ export const postFolioServiceCharge = createServerFn({ method: "POST" })
       _idempotency_key: idempotencyKey,
     });
     if (error) return { ok: false, message: cashierError(error.message).message };
-    const id = txn && typeof txn === "object" && "id" in txn ? String((txn as { id: string }).id) : "";
+    const id =
+      txn && typeof txn === "object" && "id" in txn ? String((txn as { id: string }).id) : "";
     if (!id) return { ok: false, message: "The charge did not post." };
     return { ok: true, id };
   });

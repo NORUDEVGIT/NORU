@@ -67,12 +67,10 @@ describe("reservation create step 2 booking details layout", () => {
   });
 
   it("shows the Source and Channel message from the existing gate", () => {
-    assert.match(page, /workflowStep === 1 && !canContinueBookingDetails && sourceChannelMissing/);
-    assert.match(page, /Source and Channel are required to continue\./);
-    assert.match(
-      page,
-      /bookingSource\.trim\(\)\.length === 0 \|\| salesChannel\.trim\(\)\.length === 0/,
-    );
+    assert.match(page, /workflowStep === 1 && !canContinueBookingDetails && sourceChannelNotice/);
+    assert.match(page, /Source is required to continue\./);
+    assert.match(page, /OTA_CHANNEL_EMPTY_MESSAGE/);
+    assert.match(page, /channelForm\?\.accepted === true/);
   });
 
   it("company mode shows contact, corporate rate, and billing only", () => {
@@ -160,8 +158,8 @@ describe("reservation create step 2 booking details layout", () => {
     assert.match(details, /Special Requests/);
     assert.match(details, /booking-details-internal-notes/);
     assert.match(page, /canAdvanceFromBookingDetails/);
-    assert.match(page, /bookingSource\.trim\(\)\.length > 0/);
-    assert.match(page, /salesChannel\.trim\(\)\.length > 0/);
+    assert.match(page, /channelForm\?\.accepted === true/);
+    assert.match(page, /reservationCreateChannelForm/);
     assert.match(page, /Continue to Policies & Payment/);
   });
 });

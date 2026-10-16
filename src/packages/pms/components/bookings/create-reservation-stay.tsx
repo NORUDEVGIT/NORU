@@ -88,6 +88,19 @@ export function StayCountInput({
   );
 }
 
+function StayReadOnlyValue({ id, value, testId }: { id: string; value: number; testId: string }) {
+  return (
+    <input
+      id={id}
+      readOnly
+      value={value}
+      data-testid={testId}
+      aria-readonly="true"
+      className="h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-[#F7F4EE] px-2 text-sm text-[#251605]"
+    />
+  );
+}
+
 function StayFieldLabel({ htmlFor, children }: { htmlFor: string; children: ReactNode }) {
   return (
     <Label htmlFor={htmlFor} className={PMS_OP_LABEL}>
@@ -108,7 +121,11 @@ export function CreateReservationStay({
   notes,
   showNotes = true,
   title = "Stay",
+  titleNote,
   rooms = 1,
+  roomsReadOnly = false,
+  occupancyReadOnly = false,
+  hideSpecialRequirement = false,
   onRoomsChange,
   requestExtras,
   actions,
@@ -133,7 +150,11 @@ export function CreateReservationStay({
   notes: string;
   showNotes?: boolean;
   title?: string;
+  titleNote?: string;
   rooms?: number;
+  roomsReadOnly?: boolean;
+  occupancyReadOnly?: boolean;
+  hideSpecialRequirement?: boolean;
   onRoomsChange?: (rooms: number) => void;
   requestExtras?: ReactNode;
   actions?: ReactNode;
@@ -164,7 +185,12 @@ export function CreateReservationStay({
           <BedDouble className="size-3.5" aria-hidden />
         </span>
         <div>
-          <h2 className="text-sm font-semibold text-[#251605]">{title}</h2>
+          <h2 className="text-sm font-semibold text-[#251605]">
+            {title}
+            {titleNote ? (
+              <span className="ml-1 text-xs font-normal text-[#6B5E4E]">{titleNote}</span>
+            ) : null}
+          </h2>
           <p className="text-xs text-[#6B5E4E]">Enter stay details to check availability.</p>
         </div>
       </div>
@@ -206,69 +232,91 @@ export function CreateReservationStay({
         </div>
         <div className="min-w-0 space-y-1">
           <StayFieldLabel htmlFor="rooms-requested">Rooms</StayFieldLabel>
-          <StayCountInput
-            id="rooms-requested"
-            className={denseControl}
-            value={rooms}
-            min={1}
-            max={20}
-            disabled={!onRoomsChange}
-            onCommit={(next) => onRoomsChange?.(next)}
-          />
+          {occupancyReadOnly ? (
+            <StayReadOnlyValue id="rooms-requested" value={rooms} testId="stay-rooms-total" />
+          ) : (
+            <StayCountInput
+              id="rooms-requested"
+              className={denseControl}
+              value={rooms}
+              min={1}
+              max={20}
+              disabled={roomsReadOnly || !onRoomsChange}
+              onCommit={(next) => onRoomsChange?.(next)}
+            />
+          )}
           {/* TODO: wire to Rooms & Inventory — room count is not on the create payload */}
         </div>
         <div className="min-w-0 space-y-1">
           <StayFieldLabel htmlFor="adults">Adults</StayFieldLabel>
-          <StayCountInput
-            id="adults"
-            data-testid="stay-adults"
-            className={denseControl}
-            value={adults}
-            min={1}
-            max={20}
-            onCommit={onAdultsChange}
-          />
+          {occupancyReadOnly ? (
+            <StayReadOnlyValue id="adults" value={adults} testId="stay-adults" />
+          ) : (
+            <StayCountInput
+              id="adults"
+              data-testid="stay-adults"
+              className={denseControl}
+              value={adults}
+              min={1}
+              max={20}
+              onCommit={onAdultsChange}
+            />
+          )}
         </div>
         <div className="min-w-0 space-y-1">
           <StayFieldLabel htmlFor="children">Children</StayFieldLabel>
-          <StayCountInput
-            id="children"
-            data-testid="stay-children"
-            className={denseControl}
-            value={children}
-            min={0}
-            max={20}
-            onCommit={onChildrenChange}
-          />
+          {occupancyReadOnly ? (
+            <StayReadOnlyValue id="children" value={children} testId="stay-children" />
+          ) : (
+            <StayCountInput
+              id="children"
+              data-testid="stay-children"
+              className={denseControl}
+              value={children}
+              min={0}
+              max={20}
+              onCommit={onChildrenChange}
+            />
+          )}
         </div>
         {onInfantsChange != null && infants != null ? (
           <div className="min-w-0 space-y-1">
             <StayFieldLabel htmlFor="infants">Infants</StayFieldLabel>
-            <StayCountInput
-              id="infants"
-              data-testid="stay-infants"
-              className={denseControl}
-              value={infants}
-              min={0}
-              max={20}
-              onCommit={onInfantsChange}
-            />
+            {occupancyReadOnly ? (
+              <StayReadOnlyValue id="infants" value={infants} testId="stay-infants" />
+            ) : (
+              <StayCountInput
+                id="infants"
+                data-testid="stay-infants"
+                className={denseControl}
+                value={infants}
+                min={0}
+                max={20}
+                onCommit={onInfantsChange}
+              />
+            )}
           </div>
         ) : null}
-        {requestExtras}
+        {requestExtras ? (
+          <div className="col-span-full grid grid-cols-1 gap-2 @min-[24rem]:grid-cols-2">
+            {requestExtras}
+          </div>
+        ) : null}
       </div>
       <div className="mt-2 grid grid-cols-1 items-end gap-2 @min-[24rem]:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="min-w-0 space-y-1">
-          <StayFieldLabel htmlFor="requests">Special Requirement</StayFieldLabel>
-          <Input
-            id="requests"
-            data-testid="stay-special-requests"
-            className={cn(stayControlClass, denseControl)}
-            placeholder="e.g. High floor, airport pickup, extra bed..."
-            value={specialRequests}
-            onChange={(e) => onSpecialRequestsChange(e.target.value)}
-          />
-        </div>
+        {hideSpecialRequirement ? null : (
+          <div className="min-w-0 space-y-1">
+            <StayFieldLabel htmlFor="requests">Special Requirement</StayFieldLabel>
+            <Input
+              id="requests"
+              data-testid="stay-special-requests"
+              className={cn(stayControlClass, denseControl)}
+              placeholder="e.g. High floor, airport pickup, extra bed..."
+              value={specialRequests}
+              onChange={(e) => onSpecialRequestsChange(e.target.value)}
+            />
+          </div>
+        )}
         {actions ? <div className="min-w-0">{actions}</div> : null}
       </div>
       {datesValid ? (

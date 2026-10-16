@@ -152,6 +152,7 @@ import { Route as RestaurantPosTransactionsIndexRouteImport } from './routes/res
 import { Route as RestaurantPosTransactionsSaleIdRouteImport } from './routes/restaurant/pos/transactions/$saleId'
 import { Route as RestaurantRestaurantManagementOrdersIndexRouteImport } from './routes/restaurant/restaurant-management/orders/index'
 import { Route as RestaurantRestaurantManagementOrdersOrderIdRouteImport } from './routes/restaurant/restaurant-management/orders/$orderId'
+import { Route as ApiPmsDistributionAiosellReservationsRouteImport } from './routes/api/pms/distribution/aiosell/reservations'
 import { Route as RestaurantBackOfficeProcurementPurchaseOrdersIndexRouteImport } from './routes/restaurant/back-office/procurement/purchase-orders/index'
 import { Route as RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRouteImport } from './routes/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId'
 import { Route as RestaurantPmsCashieringFoliosFolioIdRouteImport } from './routes/restaurant/pms/cashiering.folios.$folioId'
@@ -939,6 +940,12 @@ const RestaurantRestaurantManagementOrdersOrderIdRoute =
     path: '/restaurant/restaurant-management/orders/$orderId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPmsDistributionAiosellReservationsRoute =
+  ApiPmsDistributionAiosellReservationsRouteImport.update({
+    id: '/api/pms/distribution/aiosell/reservations',
+    path: '/api/pms/distribution/aiosell/reservations',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantBackOfficeProcurementPurchaseOrdersIndexRoute =
   RestaurantBackOfficeProcurementPurchaseOrdersIndexRouteImport.update({
     id: '/restaurant/back-office/procurement/purchase-orders/',
@@ -1110,6 +1117,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/pms/reservations/': typeof RestaurantPmsReservationsIndexRoute
   '/restaurant/pos/transactions/': typeof RestaurantPosTransactionsIndexRoute
   '/restaurant/restaurant-management/orders/': typeof RestaurantRestaurantManagementOrdersIndexRoute
+  '/api/pms/distribution/aiosell/reservations': typeof ApiPmsDistributionAiosellReservationsRoute
   '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId': typeof RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute
   '/restaurant/pms/cashiering/folios/$folioId': typeof RestaurantPmsCashieringFoliosFolioIdRoute
   '/restaurant/pms/reservations/guests/$guestId': typeof RestaurantPmsReservationsGuestsGuestIdRoute
@@ -1257,6 +1265,7 @@ export interface FileRoutesByTo {
   '/restaurant/pms/reservations': typeof RestaurantPmsReservationsIndexRoute
   '/restaurant/pos/transactions': typeof RestaurantPosTransactionsIndexRoute
   '/restaurant/restaurant-management/orders': typeof RestaurantRestaurantManagementOrdersIndexRoute
+  '/api/pms/distribution/aiosell/reservations': typeof ApiPmsDistributionAiosellReservationsRoute
   '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId': typeof RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute
   '/restaurant/pms/cashiering/folios/$folioId': typeof RestaurantPmsCashieringFoliosFolioIdRoute
   '/restaurant/pms/reservations/guests/$guestId': typeof RestaurantPmsReservationsGuestsGuestIdRoute
@@ -1407,6 +1416,7 @@ export interface FileRoutesById {
   '/restaurant/pms/reservations/': typeof RestaurantPmsReservationsIndexRoute
   '/restaurant/pos/transactions/': typeof RestaurantPosTransactionsIndexRoute
   '/restaurant/restaurant-management/orders/': typeof RestaurantRestaurantManagementOrdersIndexRoute
+  '/api/pms/distribution/aiosell/reservations': typeof ApiPmsDistributionAiosellReservationsRoute
   '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId': typeof RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute
   '/restaurant/pms/cashiering/folios/$folioId': typeof RestaurantPmsCashieringFoliosFolioIdRoute
   '/restaurant/pms/reservations/guests/$guestId': typeof RestaurantPmsReservationsGuestsGuestIdRoute
@@ -1558,6 +1568,7 @@ export interface FileRouteTypes {
     | '/restaurant/pms/reservations/'
     | '/restaurant/pos/transactions/'
     | '/restaurant/restaurant-management/orders/'
+    | '/api/pms/distribution/aiosell/reservations'
     | '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId'
     | '/restaurant/pms/cashiering/folios/$folioId'
     | '/restaurant/pms/reservations/guests/$guestId'
@@ -1705,6 +1716,7 @@ export interface FileRouteTypes {
     | '/restaurant/pms/reservations'
     | '/restaurant/pos/transactions'
     | '/restaurant/restaurant-management/orders'
+    | '/api/pms/distribution/aiosell/reservations'
     | '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId'
     | '/restaurant/pms/cashiering/folios/$folioId'
     | '/restaurant/pms/reservations/guests/$guestId'
@@ -1854,6 +1866,7 @@ export interface FileRouteTypes {
     | '/restaurant/pms/reservations/'
     | '/restaurant/pos/transactions/'
     | '/restaurant/restaurant-management/orders/'
+    | '/api/pms/distribution/aiosell/reservations'
     | '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId'
     | '/restaurant/pms/cashiering/folios/$folioId'
     | '/restaurant/pms/reservations/guests/$guestId'
@@ -1993,6 +2006,7 @@ export interface RootRouteChildren {
   RestaurantPmsReservationsIndexRoute: typeof RestaurantPmsReservationsIndexRoute
   RestaurantPosTransactionsIndexRoute: typeof RestaurantPosTransactionsIndexRoute
   RestaurantRestaurantManagementOrdersIndexRoute: typeof RestaurantRestaurantManagementOrdersIndexRoute
+  ApiPmsDistributionAiosellReservationsRoute: typeof ApiPmsDistributionAiosellReservationsRoute
   RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute: typeof RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute
   RestaurantPmsReservationsGuestsGuestIdRoute: typeof RestaurantPmsReservationsGuestsGuestIdRoute
   RestaurantBackOfficeProcurementPurchaseOrdersIndexRoute: typeof RestaurantBackOfficeProcurementPurchaseOrdersIndexRoute
@@ -3001,6 +3015,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantRestaurantManagementOrdersOrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pms/distribution/aiosell/reservations': {
+      id: '/api/pms/distribution/aiosell/reservations'
+      path: '/api/pms/distribution/aiosell/reservations'
+      fullPath: '/api/pms/distribution/aiosell/reservations'
+      preLoaderRoute: typeof ApiPmsDistributionAiosellReservationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/restaurant/back-office/procurement/purchase-orders/': {
       id: '/restaurant/back-office/procurement/purchase-orders/'
       path: '/restaurant/back-office/procurement/purchase-orders'
@@ -3247,6 +3268,8 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantPosTransactionsIndexRoute: RestaurantPosTransactionsIndexRoute,
   RestaurantRestaurantManagementOrdersIndexRoute:
     RestaurantRestaurantManagementOrdersIndexRoute,
+  ApiPmsDistributionAiosellReservationsRoute:
+    ApiPmsDistributionAiosellReservationsRoute,
   RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute:
     RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute,
   RestaurantPmsReservationsGuestsGuestIdRoute:

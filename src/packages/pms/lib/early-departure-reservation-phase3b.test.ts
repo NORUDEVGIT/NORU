@@ -257,7 +257,7 @@ describe("early departure reservation snapshot", () => {
     assert.match(policies, /data-testid="rate-plan-no-show-policy"/);
     assert.match(reservations, /no_show_policy_snapshot: write\.no_show_policy_snapshot/);
     assert.doesNotMatch(sql, /no_show_policy/);
-    assert.match(overview, /snapshotDisplayName\(reservation\.noShowPolicySnapshot\)/);
+    assert.match(overview, /overviewNoShowLabel\(reservation\.noShowPolicySnapshot\)/);
   });
 
   it("leaves cancellation unchanged", () => {

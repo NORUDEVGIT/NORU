@@ -4,6 +4,7 @@
  * Reads stored nightly_rate_snapshot values. Does not write snapshots.
  */
 
+import { projectInventoryDemand } from "../reservation-room-units";
 import { parseSnapshot, REVENUE_STATUSES } from "../rates.server";
 import { loadRevenueProperty } from "./revenue-config.server";
 import { isMissingSchemaError } from "../pms-set2-structure";
@@ -39,10 +40,7 @@ async function loadRooms(db: DbClient, restaurantId: string): Promise<DemandRoom
 }
 
 async function loadRoomTypes(db: DbClient, restaurantId: string): Promise<DemandRoomType[]> {
-  const result = await db
-    .from("room_types")
-    .select("id, name")
-    .eq("restaurant_id", restaurantId);
+  const result = await db.from("room_types").select("id, name").eq("restaurant_id", restaurantId);
   if (result.error) throw new Error(result.error.message);
   return ((result.data ?? []) as { id: string; name: string }[]).map((row) => ({
     id: row.id,
@@ -58,28 +56,69 @@ async function loadReservations(
 ): Promise<DemandReservation[]> {
   const result = await db
     .from("hotel_reservations")
-    .select("room_type_id, rate_plan_id, arrival_date, departure_date, nightly_rate_snapshot, created_at")
+    .select(
+      "id, room_type_id, rate_plan_id, arrival_date, departure_date, nightly_rate_snapshot, created_at",
+    )
     .eq("restaurant_id", restaurantId)
     .in("status", REVENUE_STATUSES as unknown as string[])
     .lte("arrival_date", toDate)
     .gt("departure_date", fromDate);
   if (result.error) throw new Error(result.error.message);
-  return (
-    (result.data ?? []) as {
-      room_type_id: string;
-      rate_plan_id: string | null;
-      arrival_date: string;
-      departure_date: string;
-      nightly_rate_snapshot: unknown;
-      created_at: string;
-    }[]
-  ).map((row) => ({
-    roomTypeId: row.room_type_id,
-    ratePlanId: row.rate_plan_id,
-    arrivalDate: row.arrival_date,
-    departureDate: row.departure_date,
-    nightly: parseSnapshot(row.nightly_rate_snapshot),
-    createdAt: row.created_at,
+  const reservations = (result.data ?? []) as {
+    id: string;
+    room_type_id: string;
+    rate_plan_id: string | null;
+    arrival_date: string;
+    departure_date: string;
+    nightly_rate_snapshot: unknown;
+    created_at: string;
+  }[];
+  const unitsResult = await db
+    .from("hotel_reservation_rooms")
+    .select(
+      "reservation_id, room_type_id, rate_plan_id, arrival_date, departure_date, nightly_rate_snapshot",
+    )
+    .eq("restaurant_id", restaurantId)
+    .lte("arrival_date", toDate)
+    .gt("departure_date", fromDate);
+  if (unitsResult.error && !isMissingSchemaError(unitsResult.error)) {
+    throw new Error(unitsResult.error.message);
+  }
+  const units = unitsResult.error
+    ? []
+    : ((unitsResult.data ?? []) as {
+        reservation_id: string;
+        room_type_id: string;
+        rate_plan_id: string | null;
+        arrival_date: string;
+        departure_date: string;
+        nightly_rate_snapshot: unknown;
+      }[]);
+  return projectInventoryDemand(
+    reservations.map((row) => ({
+      id: row.id,
+      roomTypeId: row.room_type_id,
+      arrivalDate: row.arrival_date,
+      departureDate: row.departure_date,
+      ratePlanId: row.rate_plan_id,
+      nightly: row.nightly_rate_snapshot,
+      createdAt: row.created_at,
+    })),
+    units.map((row) => ({
+      reservationId: row.reservation_id,
+      roomTypeId: row.room_type_id,
+      arrivalDate: row.arrival_date,
+      departureDate: row.departure_date,
+      ratePlanId: row.rate_plan_id,
+      nightly: row.nightly_rate_snapshot,
+    })),
+  ).map((stay) => ({
+    roomTypeId: stay.roomTypeId,
+    ratePlanId: stay.ratePlanId,
+    arrivalDate: stay.arrivalDate,
+    departureDate: stay.departureDate,
+    nightly: parseSnapshot(stay.nightly),
+    createdAt: stay.createdAt ?? "",
   }));
 }
 
@@ -127,13 +166,18 @@ async function loadRestrictions(
     .gte("restriction_date", fromDate)
     .lte("restriction_date", toDate);
   if (result.error) throw new Error(result.error.message);
-  return ((result.data ?? []) as { rate_plan_id: string; restriction_date: string }[]).map((row) => ({
-    ratePlanId: row.rate_plan_id,
-    date: row.restriction_date,
-  }));
+  return ((result.data ?? []) as { rate_plan_id: string; restriction_date: string }[]).map(
+    (row) => ({
+      ratePlanId: row.rate_plan_id,
+      date: row.restriction_date,
+    }),
+  );
 }
 
-async function loadSnapshotHistoryStart(db: DbClient, restaurantId: string): Promise<string | null> {
+async function loadSnapshotHistoryStart(
+  db: DbClient,
+  restaurantId: string,
+): Promise<string | null> {
   const result = await db
     .from("hotel_revenue_otb_snapshots")
     .select("as_of_business_date")

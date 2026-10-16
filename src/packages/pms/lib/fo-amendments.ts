@@ -19,7 +19,8 @@ export const CATALOGUE_EMPTY_HINT = "No catalogue items — enter a service manu
 export const NO_GUESTS_FOUND = "No guests found";
 export const NAMED_PARTY_EXCEEDED =
   "Primary guest plus named companions would exceed this room type's maximum occupancy.";
-export const SERVICE_ZERO_NO_POST = "Amount 0 is recorded on the stay only — nothing is posted to the folio.";
+export const SERVICE_ZERO_NO_POST =
+  "Amount 0 is recorded on the stay only — nothing is posted to the folio.";
 export const CHILD_AGE_YEARS = 18;
 
 export const SPECIAL_REQUEST_CATEGORIES = ["bed", "diet", "accessibility", "other"] as const;
@@ -56,7 +57,11 @@ export function occupancyExceeded(adults: number, children: number, maxOccupancy
   return occupancyTotal(adults, children) > maxOccupancy;
 }
 
-export function occupancyBlockMessage(adults: number, children: number, maxOccupancy: number): string | null {
+export function occupancyBlockMessage(
+  adults: number,
+  children: number,
+  maxOccupancy: number,
+): string | null {
   if (!occupancyExceeded(adults, children, maxOccupancy)) return null;
   return `${OCCUPANCY_EXCEEDED} (${occupancyTotal(adults, children)} of ${maxOccupancy}).`;
 }
@@ -66,7 +71,10 @@ export function namedPartyExceeded(companionCount: number, maxOccupancy: number)
   return 1 + Math.max(0, companionCount) > maxOccupancy;
 }
 
-export function namedPartyBlockMessage(companionCount: number, maxOccupancy: number): string | null {
+export function namedPartyBlockMessage(
+  companionCount: number,
+  maxOccupancy: number,
+): string | null {
   if (!namedPartyExceeded(companionCount, maxOccupancy)) return null;
   return `${NAMED_PARTY_EXCEEDED} (${1 + Math.max(0, companionCount)} of ${maxOccupancy}).`;
 }
@@ -80,12 +88,17 @@ export function companionTypeFromDob(
   const dob = (dateOfBirth ?? "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
   const asOfRaw = (asOfDate ?? "").slice(0, 10);
-  const asOf = /^\d{4}-\d{2}-\d{2}$/.test(asOfRaw) ? asOfRaw : new Date().toISOString().slice(0, 10);
+  const asOf = /^\d{4}-\d{2}-\d{2}$/.test(asOfRaw)
+    ? asOfRaw
+    : new Date().toISOString().slice(0, 10);
   const [y, m, d] = dob.split("-").map(Number);
   const [ay, am, ad] = asOf.split("-").map(Number);
   if (![y, m, d, ay, am, ad].every((n) => Number.isInteger(n))) return null;
   let age = (ay as number) - (y as number);
-  if ((am as number) < (m as number) || ((am as number) === (m as number) && (ad as number) < (d as number))) {
+  if (
+    (am as number) < (m as number) ||
+    ((am as number) === (m as number) && (ad as number) < (d as number))
+  ) {
     age -= 1;
   }
   if (age < 0 || age > 130) return null;
@@ -103,7 +116,11 @@ export function formatCompanionParty(names: Array<string | null | undefined>): s
   return cleaned.length ? cleaned.join(", ") : "—";
 }
 
-export function guestSearchEmpty(input: { search: string; results: readonly unknown[]; loading?: boolean }): boolean {
+export function guestSearchEmpty(input: {
+  search: string;
+  results: readonly unknown[];
+  loading?: boolean;
+}): boolean {
   return input.search.trim().length > 0 && !input.loading && input.results.length === 0;
 }
 
@@ -139,12 +156,15 @@ export function rateImpact(input: {
   if (!hasPersistedRate(input)) {
     return { kind: "unavailable", label: RATE_IMPACT_UNAVAILABLE };
   }
-  const previous = input.roomSubtotal != null && Number.isFinite(input.roomSubtotal) ? input.roomSubtotal : null;
+  const previous =
+    input.roomSubtotal != null && Number.isFinite(input.roomSubtotal) ? input.roomSubtotal : null;
   const nightly = (input.nightlyRates ?? []).find((n) => Number.isFinite(n.rate) && n.rate > 0);
   const prev = previous ?? nightly?.rate ?? null;
   if (prev == null) return { kind: "unavailable", label: RATE_IMPACT_UNAVAILABLE };
   const next =
-    input.nextRoomSubtotal != null && Number.isFinite(input.nextRoomSubtotal) ? input.nextRoomSubtotal : null;
+    input.nextRoomSubtotal != null && Number.isFinite(input.nextRoomSubtotal)
+      ? input.nextRoomSubtotal
+      : null;
   return { kind: "available", previous: prev, next };
 }
 
@@ -169,10 +189,12 @@ export function isRoomStatusAssignable(status: string | null | undefined): boole
   return status === "available";
 }
 
-export function upgradeRoomBlocked(room: {
-  status: string | null;
-  housekeepingStatus?: string | null;
-} | null): { blocked: boolean; reason: string | null } {
+export function upgradeRoomBlocked(
+  room: {
+    status: string | null;
+    housekeepingStatus?: string | null;
+  } | null,
+): { blocked: boolean; reason: string | null } {
   if (!room || !room.status) {
     return { blocked: true, reason: "Select an available room of the new type." };
   }
@@ -198,7 +220,10 @@ export function canConfirmUpgrade(input: {
 }): boolean {
   const typeOk = !!input.targetRoomTypeId && input.targetRoomTypeId !== input.currentRoomTypeId;
   const roomOk = !input.roomRequired || (!!input.targetRoomId && !input.roomBlocked);
-  return canConfirmAmend({ formValid: typeOk && roomOk && !input.roomBlocked, reasonOk: isReasonComplete(input.reason) });
+  return canConfirmAmend({
+    formValid: typeOk && roomOk && !input.roomBlocked,
+    reasonOk: isReasonComplete(input.reason),
+  });
 }
 
 export function canConfirmGuests(input: {
@@ -211,7 +236,11 @@ export function canConfirmGuests(input: {
   pendingDetach?: boolean;
   hasOccupancyChange?: boolean;
 }): boolean {
-  const countsOk = Number.isInteger(input.adults) && input.adults >= 1 && Number.isInteger(input.children) && input.children >= 0;
+  const countsOk =
+    Number.isInteger(input.adults) &&
+    input.adults >= 1 &&
+    Number.isInteger(input.children) &&
+    input.children >= 0;
   const occupancyOk = !occupancyExceeded(input.adults, input.children, input.maxOccupancy);
   const nextCount = nextCompanionCount({
     currentCount: input.companionCount ?? 0,
@@ -226,7 +255,12 @@ export function canConfirmGuests(input: {
   });
 }
 
-export function canConfirmService(input: { name: string; amount: number; quantity: number; reason: string }): boolean {
+export function canConfirmService(input: {
+  name: string;
+  amount: number;
+  quantity: number;
+  reason: string;
+}): boolean {
   const qtyOk = Number.isInteger(input.quantity) && input.quantity >= 1;
   return canConfirmAmend({
     formValid: input.name.trim().length > 0 && serviceAmountAllowed(input.amount) && qtyOk,
@@ -260,9 +294,13 @@ function errorMessage(error: unknown): string {
 export function isMissingSchemaError(error: unknown, token: string): boolean {
   const msg = errorMessage(error);
   const code =
-    typeof error === "object" && error && "code" in error ? String((error as { code?: string }).code ?? "") : "";
+    typeof error === "object" && error && "code" in error
+      ? String((error as { code?: string }).code ?? "")
+      : "";
   if (code === "42P01" || code === "42703") return true;
-  return new RegExp(token, "i").test(msg) && /does not exist|schema cache|could not find/i.test(msg);
+  return (
+    new RegExp(token, "i").test(msg) && /does not exist|schema cache|could not find/i.test(msg)
+  );
 }
 
 export function guestRequestPersistError(error: unknown): Error {
@@ -276,14 +314,18 @@ export function specialRequestCategoryError(error: unknown): Error {
   if (isMissingSchemaError(error, "special_request_category")) {
     return new Error(SPECIAL_REQUEST_CATEGORY_UNAVAILABLE);
   }
-  return error instanceof Error ? error : new Error(errorMessage(error) || "Special request failed.");
+  return error instanceof Error
+    ? error
+    : new Error(errorMessage(error) || "Special request failed.");
 }
 
 export function companionsPersistError(error: unknown): Error {
   if (isMissingSchemaError(error, "fo_stay_companions")) {
     return new Error(COMPANIONS_UNAVAILABLE);
   }
-  return error instanceof Error ? error : new Error(errorMessage(error) || "Companion update failed.");
+  return error instanceof Error
+    ? error
+    : new Error(errorMessage(error) || "Companion update failed.");
 }
 
 export function isCatalogueUnreadable(error: unknown): boolean {
@@ -319,6 +361,9 @@ export const AMENDMENT_EVENT_LABELS: Record<string, string> = {
   repriced: "Repriced",
   expected_arrival_updated: "Expected arrival updated",
   late_checkout_updated: "Late checkout updated",
+  room_guest_added: "Room guest added",
+  room_guest_removed: "Room guest removed",
+  room_primary_guest_changed: "Primary occupant changed",
 };
 
 export function amendmentEventLabel(eventType: string): string {

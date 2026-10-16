@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Check, Search } from "lucide-react";
 import { keepPreviousData, useMutation, useQuery, useQueries } from "@tanstack/react-query";
@@ -10,7 +10,16 @@ import {
 } from "@/packages/pms/components/bookings/create-reservation-room-type";
 import { CreateReservationRate } from "@/packages/pms/components/bookings/create-reservation-rate";
 import { CreateReservationRoomAssignment } from "@/packages/pms/components/bookings/create-reservation-room-assignment";
+import {
+  type ExtraRoomDraft,
+  type ExtraRoomQuote,
+} from "@/packages/pms/components/bookings/create-reservation-extra-rooms";
+import {
+  CreateReservationRoomingList,
+  type RoomingRateLabel,
+} from "@/packages/pms/components/bookings/create-reservation-rooming-list";
 import { CreateReservationPackages } from "@/packages/pms/components/bookings/create-reservation-packages";
+import { CreateReservationRoomingSummary } from "@/packages/pms/components/bookings/create-reservation-rooming-summary";
 import { CreateReservationGuarantee } from "@/packages/pms/components/bookings/create-reservation-guarantee";
 import {
   CreateReservationPoliciesGuarantee,
@@ -83,6 +92,8 @@ import {
   type RoomTypeAvailability,
 } from "@/packages/pms/lib/reservations.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
+import { createReservationRoomUnitPayload } from "@/packages/pms/lib/reservation-room-units";
+import type { ReservationMode } from "@/packages/pms/lib/reservation-mode";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { quoteStay } from "@/packages/pms/lib/rates.functions";
 import { listRoomTypes } from "@/packages/pms/lib/rooms.functions";
@@ -90,6 +101,7 @@ import { getCurrencyCard3 } from "@/packages/pms/lib/currency-card3.functions";
 import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
 import { getPmsSet3Snapshot } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
 import { getPmsPolish1Snapshot } from "@/packages/pms/lib/pms-polish1-payment-admin.functions";
+import { getGroup } from "@/packages/pms/lib/groups.functions";
 import { getPaymentsCard3 } from "@/packages/pms/lib/payments-card3.functions";
 import { getMealsCard3 } from "@/packages/pms/lib/meals-card3.functions";
 import {
@@ -98,6 +110,17 @@ import {
   selectedCreatePackageRows,
 } from "@/packages/pms/lib/reservation-detail-packages";
 import { listEligiblePackageActivations } from "@/packages/pms/lib/revenue/commercial-package.functions";
+import {
+  compactRoomOccupancy,
+  groupDepositPresentation,
+  groupRoomTotal,
+  packageBookingNote,
+  roomingSummary,
+  roomPolicyFromLabels,
+  sharedPolicyNote,
+  stayPoliciesAreShared,
+  type RoomPolicyValues,
+} from "@/packages/pms/lib/create-reservation-group-step23";
 import {
   computeDepositRequirementAmount,
   noShowPenaltySummary,
@@ -128,17 +151,18 @@ import {
   mastersForCreateMode,
   pickPrefillMasterId,
   createReservationPrefillRoles,
-  resolveBookingSourceOptions,
   resolveMarketSegmentOptions,
   toPickedReservationMaster,
   canAdvanceFromGuestStayAvailability,
   type PickedReservationMaster,
   type ReservationTypeMode,
 } from "@/packages/pms/lib/create-reservation-phase1";
+import { canAdvanceFromBookingDetails } from "@/packages/pms/lib/create-reservation-step3";
+import { getReservationCreateSourceChannel } from "@/packages/pms/lib/reservation-source-channel.functions";
 import {
-  canAdvanceFromBookingDetails,
-  resolveSalesChannelOptions,
-} from "@/packages/pms/lib/create-reservation-step3";
+  OTA_CHANNEL_EMPTY_MESSAGE,
+  reservationCreateChannelForm,
+} from "@/packages/pms/lib/reservation-source-channel";
 import {
   availabilitySearchIsCurrent,
   CREATE_RESERVATION_AVAILABILITY_IDLE,
@@ -152,9 +176,25 @@ import {
   canCreateUnpricedPending,
   canSubmitCreateReservation,
   fromNightlyRate,
+  rateCopyFromQuote,
   resolveCreatePricingState,
   shouldClearStaleRatePlan,
 } from "@/packages/pms/lib/create-reservation-phase1-section5";
+import {
+  activateRoom,
+  addGroupRoom,
+  applyActiveRoomSelection,
+  applyRoomOccupancy,
+  assignExtraOccupant,
+  removeGroupRoom,
+  buildGroupRoomGuestAssignments,
+  confirmSingleDowngrade,
+  formatRoomOccupancy,
+  groupStayTotals,
+  groupStep1Issue,
+  selectReservationMode,
+  type Step1RoomingState,
+} from "@/packages/pms/lib/create-reservation-rooming";
 import {
   CREATE_RESERVATION_ROOM_STALE_DATE_WARN,
   CREATE_RESERVATION_ROOM_TYPE_CHANGE_WARN,
@@ -241,9 +281,11 @@ export function CreateReservationPage({
   const fetchServiceWorkspace = useServerFn(listGuestServiceWorkspace);
   const submitServiceRequest = useServerFn(createGuestServiceRequest);
   const fetchSet6 = useServerFn(getPmsSet6Snapshot);
+  const fetchSourceChannel = useServerFn(getReservationCreateSourceChannel);
   const fetchSet3 = useServerFn(getPmsSet3Snapshot);
   const fetchPolish1 = useServerFn(getPmsPolish1Snapshot);
   const fetchPaymentsCard3 = useServerFn(getPaymentsCard3);
+  const fetchGroup = useServerFn(getGroup);
   const fetchGuestLinks = useServerFn(listGuestAccountLinks);
   const fetchGuestAccount = useServerFn(getGuestAccount);
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
@@ -255,6 +297,9 @@ export function CreateReservationPage({
   const fetchMealsCard3 = useServerFn(getMealsCard3);
   const fetchEligiblePackages = useServerFn(listEligiblePackageActivations);
   const [reservationType, setReservationType] = useState<ReservationTypeMode>("individual");
+  const [reservationMode, setReservationMode] = useState<ReservationMode>("single");
+  const [activeRoomIndex, setActiveRoomIndex] = useState(0);
+  const [pendingSingleMode, setPendingSingleMode] = useState(false);
   const [pendingType, setPendingType] = useState<ReservationTypeMode | null>(null);
   const [bookingSource, setBookingSource] = useState("");
   const [marketSegment, setMarketSegment] = useState("");
@@ -272,6 +317,8 @@ export function CreateReservationPage({
   const [children, setChildren] = useState(0);
   const [infants, setInfants] = useState(0);
   const [roomsRequested, setRoomsRequested] = useState(1);
+  const [extraRoomUnits, setExtraRoomUnits] = useState<ExtraRoomDraft[]>([]);
+  const [extraRoomQuotes, setExtraRoomQuotes] = useState<Record<string, ExtraRoomQuote | null>>({});
   const [roomTypeId, setRoomTypeId] = useState("");
   const [selectedRoomType, setSelectedRoomType] = useState<SelectedRoomTypeMeta | null>(null);
   const [roomId, setRoomId] = useState(UNASSIGNED);
@@ -478,9 +525,37 @@ export function CreateReservationPage({
     enabled: canManage,
     retry: false,
   });
-  const sourceOptions = resolveBookingSourceOptions(set6Query.data?.snapshot.sourceCodes);
+  const sourceChannelQuery = useQuery({
+    queryKey: ["reservation-create-source-channel", restaurantId],
+    queryFn: () => fetchSourceChannel({ data: { restaurantId } }),
+    enabled: canManage,
+    retry: false,
+  });
+  const channelForm = sourceChannelQuery.data
+    ? reservationCreateChannelForm({
+        sources: sourceChannelQuery.data.sources,
+        channels: sourceChannelQuery.data.channels,
+        bookingSource,
+        salesChannel,
+      })
+    : null;
+  const sourceOptions = (channelForm?.sourceOptions ?? []).map((row) => ({
+    value: row.value,
+    label: row.label,
+    origin:
+      sourceChannelQuery.data?.sources.find((source) => source.id === row.value)?.origin ??
+      ("default" as const),
+  }));
+  const salesChannelOptions = (channelForm?.channelOptions ?? []).map((row) => ({
+    value: row.value,
+    label: row.label,
+    origin: "set6" as const,
+  }));
   const segmentOptions = resolveMarketSegmentOptions(set6Query.data?.snapshot.marketSegments);
-  const salesChannelOptions = resolveSalesChannelOptions(set6Query.data?.snapshot.salesChannels);
+  useEffect(() => {
+    if (!channelForm || channelForm.salesChannel === salesChannel) return;
+    setSalesChannel(channelForm.salesChannel);
+  }, [channelForm, salesChannel]);
 
   const polish1Query = useQuery({
     queryKey: ["pms-polish1-snapshot", restaurantId, "create-reservation-guarantee"],
@@ -492,6 +567,12 @@ export function CreateReservationPage({
     queryKey: ["pms-payments-card3", restaurantId, "create-reservation-deposit-hint"],
     queryFn: () => fetchPaymentsCard3({ data: { restaurantId } }),
     enabled: canManage,
+    retry: false,
+  });
+  const linkedGroupQuery = useQuery({
+    queryKey: ["pms-group", restaurantId, linkedGroupId],
+    queryFn: () => fetchGroup({ data: { restaurantId, groupId: linkedGroupId! } }),
+    enabled: canManage && Boolean(linkedGroupId),
     retry: false,
   });
   const guaranteeOptions = resolveGuaranteeMethodOptions(polish1Query.data?.snapshot);
@@ -591,13 +672,21 @@ export function CreateReservationPage({
     setRatePlanId("");
   }
 
+  const groupMode = reservationMode === "group";
+  const activeExtra =
+    groupMode && activeRoomIndex > 0 ? (extraRoomUnits[activeRoomIndex - 1] ?? null) : null;
+  const quoteAdults = activeExtra?.adults ?? adults;
+  const quoteChildren = activeExtra?.children ?? children;
+  const quoteInfants = activeExtra?.infants ?? infants;
+  const activeRoomTypeId = activeExtra ? activeExtra.roomTypeId : roomTypeId;
+  const activeRatePlanId = activeExtra ? (activeExtra.ratePlanId ?? "") : ratePlanId;
   const availabilityDraft: AvailabilitySearchCriteria = {
     arrival,
     departure,
-    rooms: roomsRequested,
-    adults,
-    children,
-    infants,
+    rooms: 1,
+    adults: quoteAdults,
+    children: quoteChildren,
+    infants: quoteInfants,
     roomTypePreference: searchRoomTypeFilter,
     ratePreference,
   };
@@ -623,7 +712,7 @@ export function CreateReservationPage({
       roomTypeId,
       arrival,
       departure,
-      roomsRequested,
+      1,
       adults,
       children,
       infants,
@@ -636,7 +725,7 @@ export function CreateReservationPage({
           roomTypeId,
           arrival,
           departure,
-          rooms: roomsRequested,
+          rooms: 1,
           adults,
           children,
           infants,
@@ -671,10 +760,10 @@ export function CreateReservationPage({
         row.roomTypeId,
         arrival,
         departure,
-        roomsRequested,
-        adults,
-        children,
-        infants,
+        1,
+        quoteAdults,
+        quoteChildren,
+        quoteInfants,
         quoteCurrency,
       ],
       queryFn: () =>
@@ -684,10 +773,10 @@ export function CreateReservationPage({
             roomTypeId: row.roomTypeId,
             arrival,
             departure,
-            rooms: roomsRequested,
-            adults,
-            children,
-            infants,
+            rooms: 1,
+            adults: quoteAdults,
+            children: quoteChildren,
+            infants: quoteInfants,
             quoteCurrency: quoteCurrency || null,
           },
         }),
@@ -897,9 +986,180 @@ export function CreateReservationPage({
     travelAgentMaster?.id ?? null,
   );
 
+  const roomUnitPayload = useMemo(
+    () =>
+      createReservationRoomUnitPayload({
+        roomTypeId,
+        adults,
+        children,
+        infants,
+        ratePlanId: ratePlanId || null,
+        roomsRequested,
+        extraUnits:
+          reservationMode === "group"
+            ? extraRoomUnits.map((unit) => ({
+                roomTypeId: unit.roomTypeId,
+                adults: unit.adults,
+                children: unit.children,
+                infants: unit.infants,
+                ratePlanId: unit.ratePlanId,
+              }))
+            : [],
+      }),
+    [
+      adults,
+      children,
+      extraRoomUnits,
+      infants,
+      ratePlanId,
+      reservationMode,
+      roomTypeId,
+      roomsRequested,
+    ],
+  );
+  const rememberExtraRoomQuote = useCallback((key: string, quote: ExtraRoomQuote | null) => {
+    setExtraRoomQuotes((current) => {
+      const previous = current[key] ?? null;
+      if (
+        previous?.typeName === quote?.typeName &&
+        previous?.ratePlan === quote?.ratePlan &&
+        previous?.total === quote?.total &&
+        previous?.nightly === quote?.nightly &&
+        previous?.subtotal === quote?.subtotal &&
+        previous?.policy?.cancellation === quote?.policy?.cancellation &&
+        previous?.policy?.noShow === quote?.policy?.noShow &&
+        previous?.policy?.earlyDeparture === quote?.policy?.earlyDeparture &&
+        previous?.policy?.refundability === quote?.policy?.refundability &&
+        previous?.policy?.depositName === quote?.policy?.depositName &&
+        previous?.policy?.depositType === quote?.policy?.depositType &&
+        previous?.policy?.depositValue === quote?.policy?.depositValue &&
+        previous?.policy?.depositRequired === quote?.policy?.depositRequired
+      ) {
+        return current;
+      }
+      return { ...current, [key]: quote };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!groupMode) return;
+    setAvailabilitySearchCommitted((current) => {
+      if (!current) return current;
+      if (current.arrival !== arrival || current.departure !== departure) return current;
+      if (
+        current.rooms === 1 &&
+        current.adults === quoteAdults &&
+        current.children === quoteChildren &&
+        current.infants === quoteInfants
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        rooms: 1,
+        adults: quoteAdults,
+        children: quoteChildren,
+        infants: quoteInfants,
+      };
+    });
+  }, [arrival, departure, groupMode, quoteAdults, quoteChildren, quoteInfants]);
+
+  useEffect(() => {
+    if (!activeExtra?.key || !activeExtra.roomTypeId || !activeExtra.ratePlanId) return;
+    const rows = availabilityQuery.data ?? [];
+    const index = rows.findIndex((row) => row.roomTypeId === activeExtra.roomTypeId);
+    const quote = catalogQuoteQueries[index]?.data?.find(
+      (row) => row.plan.id === activeExtra.ratePlanId,
+    );
+    if (!quote) return;
+    const copy = rateCopyFromQuote(quote, money);
+    const deposit = (paymentsCard3Query.data?.snapshot.depositPolicies ?? []).find(
+      (row) => row.id === quote.depositPolicyId,
+    );
+    rememberExtraRoomQuote(activeExtra.key, {
+      typeName: rows[index]?.name ?? "Room",
+      ratePlan: copy.ratePlanLabel,
+      total: copy.totalAmount,
+      nightly: copy.ratePerNight,
+      subtotal: quote.quote?.subtotal ?? null,
+      nightlyRates: quote.quote?.nightly.map((night) => night.rate) ?? [],
+      policy: roomPolicyFromLabels({
+        cancellationName: quote.plan.cancellationName,
+        cancellationLabel: quote.cancellationLabel,
+        noShowName: quote.noShowPolicyName,
+        noShowPenalty: noShowPenaltySummary(
+          quote.noShowPenaltyType,
+          quote.noShowPenaltyValue,
+          quote.quote?.currency || quote.plan.currency,
+        ),
+        earlyDepartureName: quote.earlyDeparturePolicyName,
+        earlyDeparturePenalty: earlyDeparturePenaltySummary(
+          quote.earlyDeparturePenaltyType,
+          quote.earlyDeparturePenaltyValue,
+        ),
+        refundabilityKind: quote.refundabilityKind,
+        refundabilityLabel: quote.refundabilityLabel,
+        depositName: deposit?.name || quote.depositPolicyName,
+        depositType: deposit?.depositType ?? null,
+        depositValue: deposit?.depositValue ?? null,
+        depositRequired: deposit?.required ?? null,
+      }),
+    });
+  }, [
+    activeExtra?.key,
+    activeExtra?.ratePlanId,
+    activeExtra?.roomTypeId,
+    availabilityQuery.data,
+    catalogQuoteQueries,
+    money,
+    paymentsCard3Query.data?.snapshot.depositPolicies,
+    rememberExtraRoomQuote,
+  ]);
+
+  function currentRooming(): Step1RoomingState {
+    return {
+      reservationMode,
+      activeRoomIndex,
+      guestId: guest?.id ?? null,
+      arrival,
+      departure,
+      room1: {
+        roomTypeId,
+        adults,
+        children,
+        infants,
+        ratePlanId: ratePlanId || null,
+      },
+      extras: extraRoomUnits.map((unit) => ({
+        key: unit.key,
+        roomTypeId: unit.roomTypeId,
+        adults: unit.adults,
+        children: unit.children,
+        infants: unit.infants,
+        ratePlanId: unit.ratePlanId,
+        occupant: unit.occupant ?? null,
+      })),
+    };
+  }
+
+  function commitRooming(next: Step1RoomingState) {
+    setReservationMode(next.reservationMode);
+    setActiveRoomIndex(next.activeRoomIndex);
+    setAdults(next.room1.adults);
+    setChildren(next.room1.children);
+    setInfants(next.room1.infants);
+    setRoomTypeId(next.room1.roomTypeId);
+    setRatePlanId(next.room1.ratePlanId ?? "");
+    setExtraRoomUnits(next.extras);
+    setRoomsRequested(1);
+  }
+
   const create = useMutation({
-    mutationFn: (nextStatus: "pending" | "confirmed") =>
-      submitReservation({
+    mutationFn: (nextStatus: "pending" | "confirmed") => {
+      if (!channelForm?.accepted) {
+        throw new Error(channelForm?.message ?? "Source is required to continue.");
+      }
+      return submitReservation({
         data: {
           restaurantId,
           guestId: guest?.id ?? "",
@@ -910,7 +1170,8 @@ export function CreateReservationPage({
           adults,
           children,
           infants,
-          rooms: roomsRequested,
+          rooms: roomUnitPayload.rooms,
+          roomUnits: roomUnitPayload.roomUnits ?? undefined,
           quoteCurrency: null,
           specialRequests: specialRequests.trim() || null,
           notes: notes.trim() || null,
@@ -919,15 +1180,21 @@ export function CreateReservationPage({
           companyMasterId: boundMasters.companyMasterId,
           travelAgentMasterId: boundMasters.travelAgentMasterId,
           groupAccountMasterId: groupMaster?.id ?? (initialGroupMasterId || null),
-          commercialBookingSource: bookingSource.trim() || null,
+          commercialBookingSource: channelForm.commercialBookingSource,
           marketSegment: marketSegment.trim() || null,
           externalReference: externalReference.trim() || null,
           guaranteeMethod: guaranteeMethod.trim() || null,
           requireGuarantee: nextStatus === "confirmed",
           reservationType,
+          ...(reservationMode === "group"
+            ? {
+                reservationMode: "group" as const,
+                roomGuestAssignments: buildGroupRoomGuestAssignments(currentRooming()),
+              }
+            : {}),
           pmsGroupId: linkedGroupId,
           pmsGroupBlockId: linkedBlockId,
-          commercialSalesChannel: salesChannel.trim() || null,
+          commercialSalesChannel: channelForm.commercialSalesChannel,
           purposeOfStay: purposeOfStay.trim() || null,
           billingRuleId: billingRuleId || null,
           companyContactId: companyContactId || null,
@@ -944,7 +1211,8 @@ export function CreateReservationPage({
             guaranteeMethod,
           }),
         },
-      }),
+      });
+    },
     onSuccess: async (result, nextStatus) => {
       draftClosed.current = true;
       if (accessQuery.data?.membershipId) {
@@ -1022,6 +1290,8 @@ export function CreateReservationPage({
       version: 1,
       workflowStep,
       reservationType,
+      reservationMode,
+      activeRoomIndex,
       guest,
       arrival,
       departure,
@@ -1029,6 +1299,15 @@ export function CreateReservationPage({
       children,
       infants,
       roomsRequested,
+      extraRoomUnits: extraRoomUnits.map((unit) => ({
+        key: unit.key,
+        roomTypeId: unit.roomTypeId,
+        adults: unit.adults,
+        children: unit.children,
+        infants: unit.infants,
+        ratePlanId: unit.ratePlanId,
+        occupant: unit.occupant ?? null,
+      })),
       roomTypeId,
       selectedRoomType,
       roomId,
@@ -1066,6 +1345,7 @@ export function CreateReservationPage({
     [
       adults,
       arrival,
+      activeRoomIndex,
       availabilitySearchCommitted,
       billingRuleId,
       bookingSource,
@@ -1074,6 +1354,7 @@ export function CreateReservationPage({
       companyMaster,
       companyOverride,
       departure,
+      extraRoomUnits,
       externalReference,
       groupMaster,
       groupOverride,
@@ -1090,6 +1371,7 @@ export function CreateReservationPage({
       ratePlanId,
       ratePreference,
       relationTab,
+      reservationMode,
       reservationType,
       roomId,
       roomTypeId,
@@ -1120,13 +1402,20 @@ export function CreateReservationPage({
     if (stored) {
       setWorkflowStep(stored.workflowStep);
       setReservationType(stored.reservationType);
+      setReservationMode(stored.reservationMode);
       setGuest(stored.guest as typeof guest);
       setArrival(stored.arrival || today);
       setDeparture(stored.departure || addDays(today, 1));
       setAdults(stored.adults);
       setChildren(stored.children);
       setInfants(stored.infants);
-      setRoomsRequested(stored.roomsRequested);
+      setRoomsRequested(1);
+      setExtraRoomUnits(stored.reservationMode === "group" ? stored.extraRoomUnits : []);
+      setActiveRoomIndex(
+        stored.reservationMode === "group"
+          ? Math.min(stored.activeRoomIndex, stored.extraRoomUnits.length)
+          : 0,
+      );
       setRoomTypeId(stored.roomTypeId);
       setSelectedRoomType(stored.selectedRoomType);
       setRoomId(stored.roomId || UNASSIGNED);
@@ -1272,10 +1561,42 @@ export function CreateReservationPage({
         ratePlanId: selectedQuote.quote.ratePlanId,
       }
     : null;
+  const groupIssue = groupMode
+    ? groupStep1Issue({
+        hasGuest: !!guest,
+        datesValid,
+        canCreateUnpriced,
+        room1: {
+          roomTypeId,
+          adults,
+          children,
+          infants,
+          ratePlanId: ratePlanId || null,
+          maxOccupancy: selectedType?.maxOccupancy ?? selectedRoomType?.maxOccupancy,
+          available:
+            availabilitySearchActive && roomTypeId ? (selectedType?.available ?? 0) : undefined,
+        },
+        extras: extraRoomUnits.map((unit) => {
+          const row = availability.find((entry) => entry.roomTypeId === unit.roomTypeId);
+          return {
+            roomTypeId: unit.roomTypeId,
+            adults: unit.adults,
+            children: unit.children,
+            infants: unit.infants,
+            ratePlanId: unit.ratePlanId,
+            occupantGuestId: unit.occupant?.guestId ?? null,
+            maxOccupancy: row?.maxOccupancy,
+            available:
+              availabilitySearchActive && unit.roomTypeId ? (row?.available ?? 0) : undefined,
+          };
+        }),
+      })
+    : null;
   const canContinueGuestStayAvailability =
     availabilitySearchActive &&
     (!searchRoomTypeFilter || roomTypeId === searchRoomTypeFilter) &&
     (!ratePreference || ratePlanId === ratePreference) &&
+    !groupIssue &&
     canAdvanceFromGuestStayAvailability({
       datesValid,
       hasGuest: !!guest,
@@ -1295,18 +1616,30 @@ export function CreateReservationPage({
       submitted: detailsQuoteIdentity,
       quoted: quotedIdentity,
     }) &&
-    bookingSource.trim().length > 0 &&
-    salesChannel.trim().length > 0;
-  const sourceChannelMissing =
-    bookingSource.trim().length === 0 || salesChannel.trim().length === 0;
+    channelForm?.accepted === true &&
+    !sourceChannelQuery.isError;
+  const sourceChannelNotice = sourceChannelQuery.isError
+    ? "Source and channel options could not be loaded."
+    : !bookingSource.trim()
+      ? "Source is required to continue."
+      : (channelForm?.message ?? null);
+  const extraRoomsComplete =
+    reservationMode !== "group" ||
+    extraRoomUnits.every((unit) => unit.roomTypeId.trim().length > 0 && !!unit.occupant?.guestId);
   const canSubmit =
     occupancyOk &&
+    !groupIssue &&
+    extraRoomsComplete &&
+    channelForm?.accepted === true &&
     canSubmitCreateReservation({
       ...submitInput,
       status: "pending",
     });
   const canSubmitConfirm =
     occupancyOk &&
+    !groupIssue &&
+    extraRoomsComplete &&
+    channelForm?.accepted === true &&
     canSubmitConfirmReservation({
       ...submitInput,
       hasGuarantee: !!guaranteeMethod,
@@ -1375,18 +1708,51 @@ export function CreateReservationPage({
   }
 
   function selectRoomType(type: RoomTypeAvailability) {
+    if (activeExtra) {
+      commitRooming(
+        applyActiveRoomSelection(currentRooming(), {
+          roomTypeId: type.roomTypeId,
+          ratePlanId: null,
+        }),
+      );
+      return;
+    }
     applyRoomType(type);
     setRatePlanId("");
   }
 
   function selectRoomAndRate(type: RoomTypeAvailability, planId: string) {
+    if (activeExtra) {
+      commitRooming(
+        applyActiveRoomSelection(currentRooming(), {
+          roomTypeId: type.roomTypeId,
+          ratePlanId: planId,
+        }),
+      );
+      return;
+    }
     if (type.roomTypeId !== roomTypeId) applyRoomType(type);
     setRatePlanId(planId);
   }
 
+  function requestReservationMode(next: ReservationMode) {
+    const result = selectReservationMode(currentRooming(), next);
+    if (result.status === "confirm") {
+      setPendingSingleMode(true);
+      return;
+    }
+    if (result.status === "applied") commitRooming(result.state);
+  }
+
+  function confirmGroupToSingle() {
+    commitRooming(confirmSingleDowngrade(currentRooming()));
+    setExtraRoomQuotes({});
+    setPendingSingleMode(false);
+  }
+
   function quotesForRoomType(id: string) {
     const rows =
-      id === roomTypeId
+      !activeExtra && id === roomTypeId
         ? quotes
         : (catalogQuoteQueries[availability.findIndex((row) => row.roomTypeId === id)]?.data ?? []);
     if (!ratePreference) return rows;
@@ -1394,14 +1760,14 @@ export function CreateReservationPage({
   }
 
   function quotesLoadingForRoomType(id: string) {
-    if (id === roomTypeId) return quotesQuery.isLoading || quotesQuery.isFetching;
+    if (!activeExtra && id === roomTypeId) return quotesQuery.isLoading || quotesQuery.isFetching;
     const index = availability.findIndex((row) => row.roomTypeId === id);
     const query = catalogQuoteQueries[index];
     return Boolean(query?.isLoading || query?.isFetching);
   }
 
   function quotesErrorForRoomType(id: string) {
-    if (id === roomTypeId) return quotesQuery.isError;
+    if (!activeExtra && id === roomTypeId) return quotesQuery.isError;
     const index = availability.findIndex((row) => row.roomTypeId === id);
     return Boolean(catalogQuoteQueries[index]?.isError);
   }
@@ -1598,17 +1964,21 @@ export function CreateReservationPage({
     </>
   );
 
+  const stayTotals = groupStayTotals(currentRooming());
   const staySection = (
     <CreateReservationStay
       title="Stay Information"
+      titleNote={groupMode ? "(applies to all rooms)" : undefined}
+      hideSpecialRequirement={groupMode}
       arrival={arrival}
       departure={departure}
       nights={nights}
       datesValid={datesValid}
-      adults={adults}
-      children={children}
-      rooms={roomsRequested}
-      onRoomsChange={setRoomsRequested}
+      adults={groupMode ? stayTotals.adults : adults}
+      children={groupMode ? stayTotals.children : children}
+      rooms={groupMode ? stayTotals.rooms : 1}
+      roomsReadOnly
+      occupancyReadOnly={groupMode}
       requestExtras={preferenceExtras}
       actions={
         <Button
@@ -1625,7 +1995,7 @@ export function CreateReservationPage({
       specialRequests={specialRequests}
       notes={notes}
       occupancyWarn={
-        selectedMeta ? (
+        groupMode ? null : selectedMeta ? (
           <OccupancySoftWarn
             adults={adults}
             childCount={children}
@@ -1639,7 +2009,7 @@ export function CreateReservationPage({
       onNightsChange={handleNightsChange}
       onAdultsChange={setAdults}
       onChildrenChange={setChildren}
-      infants={infants}
+      infants={groupMode ? stayTotals.infants : infants}
       onInfantsChange={setInfants}
       onSpecialRequestsChange={setSpecialRequests}
       onNotesChange={setNotes}
@@ -1647,63 +2017,97 @@ export function CreateReservationPage({
     />
   );
 
-  const roomsAndRates = (
-    <CreateReservationRoomType
-      datesValid={datesValid}
-      loading={availabilityQuery.isLoading || availabilityQuery.isFetching}
-      availability={availability}
-      statusMessage={availabilityStatusMessage}
-      roomTypeId={roomTypeId}
-      adults={adults}
-      childCount={children}
-      selectedMaxOccupancy={selectedMeta?.maxOccupancy}
-      catalog={roomTypeCatalog}
-      filterRoomTypeId={searchRoomTypeFilter}
-      currencyCode={displayCurrencyCode}
-      currencyName={selectedCurrencyName}
-      currencyOptions={currencyOptions}
-      onCurrencyChange={setQuoteCurrency}
-      onSelect={selectRoomType}
-      ratePlanOptions={ratePreferenceOptions}
-      selectedPlanId={ratePlanId}
-      renderRates={(type) => (
-        <CreateReservationRate
-          datesValid={datesValid}
-          roomTypeId={type.roomTypeId}
-          loading={quotesLoadingForRoomType(type.roomTypeId)}
-          error={quotesErrorForRoomType(type.roomTypeId)}
-          quotes={quotesForRoomType(type.roomTypeId)}
-          ratePlanId={type.roomTypeId === roomTypeId ? ratePlanId : ""}
-          canCreateUnpriced={canCreateUnpriced}
-          money={money}
-          nights={nights}
-          onSelect={(planId) => {
-            if (!planId) {
-              setRatePlanId("");
-              return;
-            }
-            selectRoomAndRate(type, planId);
-          }}
-        />
-      )}
-      headerSummary={
-        datesValid ? (
-          <p className="mt-1 text-xs text-muted-foreground" data-testid="availability-stay-summary">
-            {formatStayDate(arrival)} → {formatStayDate(departure)} · {nights}{" "}
-            {nights === 1 ? "night" : "nights"} · {roomsRequested}{" "}
-            {roomsRequested === 1 ? "room" : "rooms"} · {adults} {adults === 1 ? "adult" : "adults"}{" "}
-            · {children} {children === 1 ? "child" : "children"}
-          </p>
-        ) : null
-      }
-      onModifySearch={() => {
-        document.getElementById("create-reservation-stay-information")?.scrollIntoView({
-          behavior: "smooth",
-          block: "nearest",
-        });
-      }}
-    />
-  );
+  const roomsAndRates = (() => {
+    const ratePlanId = activeRatePlanId;
+    return (
+      <CreateReservationRoomType
+        datesValid={datesValid}
+        loading={availabilityQuery.isLoading || availabilityQuery.isFetching}
+        availability={availability}
+        statusMessage={availabilityStatusMessage}
+        roomTypeId={activeRoomTypeId}
+        adults={quoteAdults}
+        childCount={quoteChildren}
+        selectedMaxOccupancy={
+          (activeExtra
+            ? availability.find((row) => row.roomTypeId === activeExtra.roomTypeId)?.maxOccupancy
+            : selectedMeta?.maxOccupancy) ?? selectedMeta?.maxOccupancy
+        }
+        catalog={roomTypeCatalog}
+        filterRoomTypeId={searchRoomTypeFilter}
+        currencyCode={displayCurrencyCode}
+        currencyName={selectedCurrencyName}
+        currencyOptions={currencyOptions}
+        onCurrencyChange={setQuoteCurrency}
+        onSelect={selectRoomType}
+        ratePlanOptions={ratePreferenceOptions}
+        selectedPlanId={ratePlanId}
+        renderRates={(type) => (
+          <CreateReservationRate
+            datesValid={datesValid}
+            roomTypeId={type.roomTypeId}
+            loading={quotesLoadingForRoomType(type.roomTypeId)}
+            error={quotesErrorForRoomType(type.roomTypeId)}
+            quotes={quotesForRoomType(type.roomTypeId)}
+            ratePlanId={type.roomTypeId === activeRoomTypeId ? activeRatePlanId : ""}
+            canCreateUnpriced={canCreateUnpriced}
+            money={money}
+            nights={nights}
+            onSelect={(planId) => {
+              if (!planId) {
+                if (activeExtra) {
+                  commitRooming(
+                    applyActiveRoomSelection(currentRooming(), {
+                      roomTypeId: activeExtra.roomTypeId,
+                      ratePlanId: null,
+                    }),
+                  );
+                } else setRatePlanId("");
+                return;
+              }
+              selectRoomAndRate(type, planId);
+            }}
+          />
+        )}
+        headerSummary={
+          datesValid ? (
+            <p
+              className="mt-1 text-xs text-muted-foreground"
+              data-testid="availability-stay-summary"
+            >
+              {groupMode ? (
+                <>
+                  Editing{" "}
+                  <span className="font-medium text-[#C89933]">Room {activeRoomIndex + 1}</span>
+                  {" · "}
+                  {activeExtra?.occupant?.fullName || guest?.fullName || "No guest"}
+                  {" · "}
+                  {quoteAdults} {quoteAdults === 1 ? "Adult" : "Adults"} · {quoteChildren}{" "}
+                  {quoteChildren === 1 ? "Child" : "Children"} · {quoteInfants}{" "}
+                  {quoteInfants === 1 ? "Infant" : "Infants"}
+                </>
+              ) : (
+                <>
+                  {formatStayDate(arrival)} → {formatStayDate(departure)} · {nights}{" "}
+                  {nights === 1 ? "night" : "nights"} · 1 room · {quoteAdults}{" "}
+                  {quoteAdults === 1 ? "adult" : "adults"} · {quoteChildren}{" "}
+                  {quoteChildren === 1 ? "child" : "children"}
+                </>
+              )}
+            </p>
+          ) : null
+        }
+        activeRoomLabel={groupMode ? `Room ${activeRoomIndex + 1}` : null}
+        modifySearchLabel={groupMode ? `Edit Room ${activeRoomIndex + 1} Criteria` : undefined}
+        onModifySearch={() => {
+          document.getElementById("create-reservation-stay-information")?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          });
+        }}
+      />
+    );
+  })();
 
   const noSuitableAvailability =
     availabilitySearchActive &&
@@ -1711,6 +2115,105 @@ export function CreateReservationPage({
     !availabilityQuery.isLoading &&
     !availabilityQuery.isFetching &&
     availability.every((row) => row.available <= 0);
+
+  const room1Policy: RoomPolicyValues | null = selectedQuote
+    ? roomPolicyFromLabels({
+        cancellationName: selectedQuote.plan.cancellationName,
+        cancellationLabel: selectedQuote.cancellationLabel,
+        noShowName: selectedQuote.noShowPolicyName,
+        noShowPenalty: noShowPenaltySummary(
+          selectedQuote.noShowPenaltyType,
+          selectedQuote.noShowPenaltyValue,
+          selectedQuote.quote?.currency || selectedQuote.plan.currency,
+        ),
+        earlyDepartureName: selectedQuote.earlyDeparturePolicyName,
+        earlyDeparturePenalty: earlyDeparturePenaltySummary(
+          selectedQuote.earlyDeparturePenaltyType,
+          selectedQuote.earlyDeparturePenaltyValue,
+        ),
+        refundabilityKind: selectedQuote.refundabilityKind,
+        refundabilityLabel: selectedQuote.refundabilityLabel,
+        depositName: ratePlanDepositPolicy?.name || selectedQuote.depositPolicyName,
+        depositType: ratePlanDepositPolicy?.depositType ?? null,
+        depositValue: ratePlanDepositPolicy?.depositValue ?? null,
+        depositRequired: ratePlanDepositPolicy?.required ?? null,
+      })
+    : null;
+  const groupPolicyRooms: Array<RoomPolicyValues | null> = groupMode
+    ? [room1Policy, ...extraRoomUnits.map((unit) => extraRoomQuotes[unit.key]?.policy ?? null)]
+    : [];
+  const groupPoliciesShared = !groupMode || stayPoliciesAreShared(groupPolicyRooms);
+  const groupDeposit = groupMode
+    ? groupDepositPresentation({
+        policies: groupPolicyRooms,
+        currency: selectedQuote?.quote?.currency ?? null,
+        rooms: [
+          {
+            subtotal: selectedQuote?.quote?.subtotal ?? null,
+            nightlyRates: selectedQuote?.quote?.nightly.map((night) => night.rate) ?? [],
+          },
+          ...extraRoomUnits.map((unit) => ({
+            subtotal: extraRoomQuotes[unit.key]?.subtotal ?? null,
+            nightlyRates: extraRoomQuotes[unit.key]?.nightlyRates ?? [],
+          })),
+        ],
+      })
+    : null;
+  const groupSummary = groupMode
+    ? roomingSummary([
+        {
+          occupantName: guest?.fullName ?? null,
+          roomTypeName: selectedMeta?.name || stickyRoomTypeLabel(selectedMeta),
+          ratePlanName: selectedQuote?.plan.name || selectedQuote?.plan.code || "",
+          adults,
+          children,
+          infants,
+        },
+        ...extraRoomUnits.map((unit) => ({
+          occupantName: unit.occupant?.fullName ?? null,
+          roomTypeName: extraRoomQuotes[unit.key]?.typeName || "",
+          ratePlanName: extraRoomQuotes[unit.key]?.ratePlan || "",
+          adults: unit.adults,
+          children: unit.children,
+          infants: unit.infants,
+        })),
+      ])
+    : null;
+  const groupPackageNote = packageBookingNote({
+    group: groupMode,
+    rooms: [
+      { roomTypeId, ratePlanId: ratePlanId || null },
+      ...extraRoomUnits.map((unit) => ({
+        roomTypeId: unit.roomTypeId,
+        ratePlanId: unit.ratePlanId,
+      })),
+    ],
+  });
+
+  const stepPolicyRooms =
+    groupMode && !groupPoliciesShared
+      ? groupPolicyRooms.map((policy, index) => {
+          const extra = index === 0 ? null : extraRoomUnits[index - 1];
+          const occupant =
+            index === 0 ? (guest?.fullName ?? null) : (extra?.occupant?.fullName ?? null);
+          const roomTypeName =
+            index === 0
+              ? selectedMeta?.name || stickyRoomTypeLabel(selectedMeta)
+              : extraRoomQuotes[extra?.key ?? ""]?.typeName || "Not selected";
+          const ratePlanName =
+            index === 0
+              ? selectedQuote?.plan.name || selectedQuote?.plan.code || "Not selected"
+              : extraRoomQuotes[extra?.key ?? ""]?.ratePlan || "Not selected";
+          return {
+            title: `Room ${index + 1} · ${occupant?.trim() || "No guest"}`,
+            detail: `${roomTypeName} · ${ratePlanName}`,
+            cancellation: policy?.cancellation ?? "—",
+            noShow: policy?.noShow ?? "—",
+            earlyDeparture: policy?.earlyDeparture ?? "—",
+            refundability: policy?.refundability ?? "—",
+          };
+        })
+      : null;
 
   const policiesSection = (
     <CreateReservationPoliciesGuarantee
@@ -1772,16 +2275,62 @@ export function CreateReservationPage({
         selectedQuote?.earlyDeparturePenaltyValue,
       )}
       depositQuote={
-        selectedQuote?.quote
-          ? {
-              subtotal: selectedQuote.quote.subtotal,
-              nightly: selectedQuote.quote.nightly,
-              currency: selectedQuote.quote.currency,
-            }
-          : null
+        groupDeposit
+          ? groupDeposit.quote
+          : selectedQuote?.quote
+            ? {
+                subtotal: selectedQuote.quote.subtotal,
+                nightly: selectedQuote.quote.nightly,
+                currency: selectedQuote.quote.currency,
+              }
+            : null
       }
+      depositBasisNote={groupDeposit?.note ?? null}
+      depositAmountKnown={groupDeposit ? groupDeposit.amountKnown : true}
+      sharedPolicyNote={
+        groupMode && groupPoliciesShared ? sharedPolicyNote(1 + extraRoomUnits.length) : null
+      }
+      roomPolicyRows={stepPolicyRooms}
     />
   );
+
+  const groupReviewRooms = groupMode
+    ? [
+        {
+          sequence: 1,
+          occupantName: guest?.fullName?.trim() || "No guest",
+          roomTypeName: selectedMeta?.name || stickyRoomTypeLabel(selectedMeta),
+          occupancy: compactRoomOccupancy(adults, children, infants),
+          ratePlanName: selectedQuote?.plan.name || selectedQuote?.plan.code || "Not selected",
+          ratePerNight:
+            pricingState.kind === "priced" && fromNightlyRate(pricingState.quote) != null
+              ? money(fromNightlyRate(pricingState.quote)!)
+              : "—",
+          subtotal: selectedQuote?.quote?.subtotal ?? null,
+          subtotalLabel:
+            selectedQuote?.quote?.subtotal == null ? "—" : money(selectedQuote.quote.subtotal),
+        },
+        ...extraRoomUnits.map((unit, index) => {
+          const quote = extraRoomQuotes[unit.key];
+          return {
+            sequence: index + 2,
+            occupantName: unit.occupant?.fullName?.trim() || "No guest",
+            roomTypeName: quote?.typeName || "Not selected",
+            occupancy: compactRoomOccupancy(unit.adults, unit.children, unit.infants),
+            ratePlanName: quote?.ratePlan || "Not selected",
+            ratePerNight: quote?.nightly || "—",
+            subtotal: quote?.subtotal ?? null,
+            subtotalLabel: quote?.subtotal == null ? "—" : money(quote.subtotal),
+          };
+        }),
+      ]
+    : null;
+  const groupReviewTotal = groupReviewRooms
+    ? groupRoomTotal(groupReviewRooms.map((row) => row.subtotal))
+    : null;
+  const linkedGroupRecord = linkedGroupQuery.data?.group ?? null;
+  const linkedBlockRecord =
+    linkedGroupQuery.data?.blocks?.find((block) => block.id === linkedBlockId) ?? null;
 
   const reviewSection = (
     <CreateReservationReview
@@ -1799,10 +2348,36 @@ export function CreateReservationPage({
       arrivalLabel={datesValid ? formatStayDate(arrival) : "—"}
       departureLabel={datesValid ? formatStayDate(departure) : "—"}
       nights={nights}
-      rooms={roomsRequested}
-      adults={adults}
-      children={children}
-      infants={infants}
+      rooms={groupMode ? stayTotals.rooms : (roomUnitPayload.roomUnits?.length ?? roomsRequested)}
+      roomLines={
+        roomUnitPayload.roomUnits && roomUnitPayload.roomUnits.length > 1
+          ? [
+              {
+                label: "Room 1",
+                typeName: selectedMeta?.name || stickyRoomTypeLabel(selectedMeta),
+                occupancy: `${adults} adults, ${children} children, ${infants} infants`,
+                ratePlan:
+                  pricingState.kind === "priced"
+                    ? pricingState.quote.ratePlanName || pricingState.quote.ratePlanCode
+                    : (selectedQuote?.plan.name ?? "—"),
+                total: pricingState.kind === "priced" ? money(pricingState.quote.subtotal) : "—",
+              },
+              ...extraRoomUnits.map((unit, index) => {
+                const quote = extraRoomQuotes[unit.key];
+                return {
+                  label: `Room ${index + 2}`,
+                  typeName: quote?.typeName || "Room",
+                  occupancy: `${unit.adults} adults, ${unit.children} children, ${unit.infants} infants`,
+                  ratePlan: quote?.ratePlan || "—",
+                  total: quote?.total || "—",
+                };
+              }),
+            ]
+          : undefined
+      }
+      adults={groupMode ? stayTotals.adults : adults}
+      children={groupMode ? stayTotals.children : children}
+      infants={groupMode ? stayTotals.infants : infants}
       purposeOfStay={purposeOfStay.trim() || null}
       coverUrl={catalogRow?.coverUrl ?? null}
       roomName={selectedMeta?.name || stickyRoomTypeLabel(selectedMeta)}
@@ -1829,9 +2404,7 @@ export function CreateReservationPage({
       bookingSource={
         sourceOptions.find((row) => row.value === bookingSource)?.label ?? bookingSource
       }
-      salesChannel={
-        salesChannelOptions.find((row) => row.value === salesChannel)?.label ?? salesChannel
-      }
+      salesChannel={channelForm?.reviewChannel ?? ""}
       marketSegment={
         segmentOptions.find((row) => row.value === marketSegment)?.label ?? marketSegment
       }
@@ -1843,21 +2416,25 @@ export function CreateReservationPage({
         ratePlanDepositPolicy == null ? "—" : ratePlanDepositPolicy.required ? "Yes" : "No"
       }
       depositAmount={
-        ratePlanDepositPolicy
-          ? (() => {
-              const amount = computeDepositRequirementAmount(
-                ratePlanDepositPolicy,
-                selectedQuote?.quote
-                  ? {
-                      subtotal: selectedQuote.quote.subtotal,
-                      nightly: selectedQuote.quote.nightly,
-                      currency: selectedQuote.quote.currency,
-                    }
-                  : null,
-              );
-              return amount > 0 ? money(amount) : "—";
-            })()
-          : "—"
+        groupMode
+          ? groupDeposit?.amountKnown && ratePlanDepositPolicy
+            ? money(computeDepositRequirementAmount(ratePlanDepositPolicy, groupDeposit.quote))
+            : "—"
+          : ratePlanDepositPolicy
+            ? (() => {
+                const amount = computeDepositRequirementAmount(
+                  ratePlanDepositPolicy,
+                  selectedQuote?.quote
+                    ? {
+                        subtotal: selectedQuote.quote.subtotal,
+                        nightly: selectedQuote.quote.nightly,
+                        currency: selectedQuote.quote.currency,
+                      }
+                    : null,
+                );
+                return amount > 0 ? money(amount) : "—";
+              })()
+            : "—"
       }
       depositDueDate={step4Policies.depositDueDate.trim() || null}
       depositPaymentMethod={
@@ -1902,6 +2479,43 @@ export function CreateReservationPage({
       propertyPhone={membership.restaurant.phone}
       propertyEmail={membership.restaurant.email}
       onEdit={setWorkflowStep}
+      reservationKind={groupMode ? "group" : "single"}
+      groupRooming={
+        groupReviewRooms
+          ? {
+              rows: groupReviewRooms.map((row) => ({
+                sequence: row.sequence,
+                occupantName: row.occupantName,
+                roomTypeName: row.roomTypeName,
+                occupancy: row.occupancy,
+                ratePlanName: row.ratePlanName,
+                ratePerNight: row.ratePerNight,
+                subtotal: row.subtotalLabel,
+              })),
+              totalLabel:
+                groupReviewTotal?.complete && groupReviewTotal.total != null
+                  ? money(groupReviewTotal.total)
+                  : null,
+              incomplete: !groupReviewTotal?.complete,
+            }
+          : null
+      }
+      linkedGroup={
+        groupMode && linkedGroupRecord
+          ? {
+              name: linkedGroupRecord.name,
+              code: linkedGroupRecord.code,
+              block: linkedBlockRecord?.roomTypeName ?? null,
+            }
+          : null
+      }
+      depositNote={groupMode ? (groupDeposit?.note ?? null) : null}
+      sharedPolicyNote={
+        groupMode && groupPoliciesShared ? sharedPolicyNote(stayTotals.rooms) : null
+      }
+      policyRooms={stepPolicyRooms}
+      leadGuestPreferences={groupMode}
+      packageScopeNote={groupMode ? "Booking-level package" : null}
       savedPreferences={savedPreferenceRows}
       selectedServiceRequests={selectedServiceRequests}
       selectedPackages={selectedCreatePackages.map((card) => ({
@@ -1915,6 +2529,37 @@ export function CreateReservationPage({
     />
   );
 
+  function roomRateLabel(
+    typeId: string,
+    typeName: string | null,
+    liveQuote: Parameters<typeof rateCopyFromQuote>[0],
+    stored: ExtraRoomQuote | null,
+  ): RoomingRateLabel {
+    const details = typeId ? roomTypeCatalog[typeId] : null;
+    const roomTags = [details?.bedType, details?.roomView].filter((tag): tag is string =>
+      Boolean(tag?.trim()),
+    );
+    const ratePlanTag = liveQuote?.plan.description?.trim() || null;
+    if (liveQuote) {
+      const copy = rateCopyFromQuote(liveQuote, money);
+      return {
+        roomTypeName: typeName || stored?.typeName || "",
+        ratePlanName: copy.ratePlanLabel === "—" ? "" : copy.ratePlanLabel,
+        nightlyLabel: copy.ratePerNight === "—" ? null : copy.ratePerNight,
+        roomTags,
+        ratePlanTag: ratePlanTag && ratePlanTag.length <= 40 ? ratePlanTag : null,
+      };
+    }
+    const availabilityName = availability.find((row) => row.roomTypeId === typeId)?.name ?? "";
+    const storedType = stored?.typeName && stored.typeName !== "Room" ? stored.typeName : "";
+    return {
+      roomTypeName: typeName || availabilityName || storedType,
+      ratePlanName: stored?.ratePlan && stored.ratePlan !== "—" ? stored.ratePlan : "",
+      nightlyLabel: stored?.nightly && stored.nightly !== "—" ? stored.nightly : null,
+      roomTags,
+    };
+  }
+
   const guestStayAvailabilitySection = (
     <CreateReservationGuest
       restaurantId={restaurantId}
@@ -1922,16 +2567,96 @@ export function CreateReservationPage({
       guest={guest}
       onGuestChange={setGuest}
       listEnabled={workflowStep === 0}
+      selectedPanelTitle={groupMode ? "Primary Guest / Booker" : "Selected Guest"}
     >
       <div
         className="min-w-0 space-y-3"
         data-testid="create-reservation-step-guest-stay-availability"
       >
+        <div className="flex flex-wrap items-center gap-2" data-testid="reservation-type-selector">
+          <span className="text-sm text-[#6B5E4E]">Reservation Type</span>
+          <div className="inline-flex rounded-[6px] border border-[#CCCCCC] bg-white p-0.5">
+            <button
+              type="button"
+              data-testid="reservation-mode-single"
+              aria-pressed={reservationMode === "single"}
+              className={cn(
+                "rounded-[6px] px-2.5 py-1 text-xs font-medium",
+                reservationMode === "single" ? "bg-[#C89933] text-[#251605]" : "text-[#6B5E4E]",
+              )}
+              onClick={() => requestReservationMode("single")}
+            >
+              Single Reservation
+            </button>
+            <button
+              type="button"
+              data-testid="reservation-mode-group"
+              aria-pressed={reservationMode === "group"}
+              className={cn(
+                "rounded-[6px] px-2.5 py-1 text-xs font-medium",
+                reservationMode === "group" ? "bg-[#C89933] text-[#251605]" : "text-[#6B5E4E]",
+              )}
+              onClick={() => requestReservationMode("group")}
+            >
+              Group Reservation
+            </button>
+          </div>
+        </div>
         <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1.3fr)]">
           <CreateReservationGuestSearch />
           <CreateReservationGuestSelected />
           <div className="h-full min-w-0 md:col-span-2 lg:col-span-1">{staySection}</div>
         </div>
+        {reservationMode === "group" ? (
+          <CreateReservationRoomingList
+            restaurantId={restaurantId}
+            canCreateGuest={guestAccessQuery.data?.canManage ?? false}
+            leadGuestName={guest?.fullName ?? null}
+            room1Adults={adults}
+            room1Children={children}
+            room1Infants={infants}
+            room1Rate={roomRateLabel(roomTypeId, selectedMeta?.name ?? null, selectedQuote, null)}
+            extras={extraRoomUnits}
+            extraRates={Object.fromEntries(
+              extraRoomUnits.map((unit) => [
+                unit.key,
+                roomRateLabel(
+                  unit.roomTypeId,
+                  availability.find((row) => row.roomTypeId === unit.roomTypeId)?.name ?? null,
+                  unit.key === activeExtra?.key
+                    ? (quotesForRoomType(unit.roomTypeId).find(
+                        (row) => row.plan.id === unit.ratePlanId,
+                      ) ?? null)
+                    : null,
+                  extraRoomQuotes[unit.key] ?? null,
+                ),
+              ]),
+            )}
+            activeRoomIndex={activeRoomIndex}
+            onActivate={(index) =>
+              setActiveRoomIndex(activateRoom(currentRooming(), index).activeRoomIndex)
+            }
+            onAdd={() => commitRooming(addGroupRoom(currentRooming(), crypto.randomUUID()))}
+            onRemove={(key) => {
+              commitRooming(removeGroupRoom(currentRooming(), key));
+              setExtraRoomQuotes((current) => {
+                const next = { ...current };
+                delete next[key];
+                return next;
+              });
+            }}
+            onRoom1Occupancy={(patch) =>
+              commitRooming(applyRoomOccupancy(currentRooming(), 0, patch))
+            }
+            onExtraOccupancy={(key, patch) => {
+              const index = extraRoomUnits.findIndex((unit) => unit.key === key) + 1;
+              commitRooming(applyRoomOccupancy(currentRooming(), index, patch));
+            }}
+            onExtraOccupant={(key, occupant) =>
+              commitRooming(assignExtraOccupant(currentRooming(), key, occupant))
+            }
+          />
+        ) : null}
         {availabilitySearchCommitted != null ? (
           <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
             <div className="min-w-0 space-y-3">
@@ -1952,26 +2677,59 @@ export function CreateReservationPage({
               ) : null}
               {noSuitableAvailability ? <CreateReservationAlternatives /> : null}
             </div>
-            <CreateReservationSelectedRoom
-              selectedRoomType={selectedMeta}
-              available={selectedType?.available ?? null}
-              coverUrl={catalogRow?.coverUrl ?? selectedType?.coverUrl ?? null}
-              catalog={catalogRow}
-              selectedQuote={selectedQuote}
-              nights={nights}
-              money={money}
-              statusMessage={
-                availabilitySearchCommitted != null && !availabilitySearchActive
-                  ? CREATE_RESERVATION_AVAILABILITY_STALE
-                  : null
-              }
-              onChange={() => {
-                document.getElementById("create-reservation-availability")?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "nearest",
-                });
-              }}
-            />
+            {(() => {
+              const panelAvailability = activeExtra
+                ? (availability.find((row) => row.roomTypeId === activeExtra.roomTypeId) ?? null)
+                : selectedType;
+              const selectedMeta = panelAvailability
+                ? {
+                    roomTypeId: panelAvailability.roomTypeId,
+                    name: panelAvailability.name,
+                    code: panelAvailability.code,
+                    maxOccupancy: panelAvailability.maxOccupancy,
+                    adultCapacity: panelAvailability.adultCapacity,
+                    childCapacity: panelAvailability.childCapacity,
+                  }
+                : activeExtra
+                  ? null
+                  : selectedRoomType?.roomTypeId === roomTypeId
+                    ? selectedRoomType
+                    : null;
+              const selectedQuote = activeExtra
+                ? (quotesForRoomType(activeExtra.roomTypeId).find(
+                    (row) => row.plan.id === (activeExtra.ratePlanId ?? ""),
+                  ) ?? null)
+                : (quotes.find((row) => row.plan.id === ratePlanId) ?? null);
+              const catalogRow = selectedMeta?.roomTypeId
+                ? (roomTypeCatalog[selectedMeta.roomTypeId] ?? null)
+                : null;
+              return (
+                <CreateReservationSelectedRoom
+                  selectedRoomType={selectedMeta}
+                  available={panelAvailability?.available ?? null}
+                  coverUrl={catalogRow?.coverUrl ?? panelAvailability?.coverUrl ?? null}
+                  catalog={catalogRow}
+                  selectedQuote={selectedQuote}
+                  nights={nights}
+                  money={money}
+                  roomSequenceLabel={groupMode ? `Room ${activeRoomIndex + 1}` : null}
+                  occupancyLabel={
+                    groupMode ? formatRoomOccupancy(quoteAdults, quoteChildren, quoteInfants) : null
+                  }
+                  statusMessage={
+                    availabilitySearchCommitted != null && !availabilitySearchActive
+                      ? CREATE_RESERVATION_AVAILABILITY_STALE
+                      : null
+                  }
+                  onChange={() => {
+                    document.getElementById("create-reservation-availability")?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "nearest",
+                    });
+                  }}
+                />
+              );
+            })()}
           </div>
         ) : null}
       </div>
@@ -1980,6 +2738,13 @@ export function CreateReservationPage({
 
   const bookingDetailsSection = (
     <div data-testid="create-reservation-booking-details-step">
+      {groupSummary ? (
+        <CreateReservationRoomingSummary
+          headline={groupSummary.headline}
+          lines={groupSummary.lines}
+          onEditStep1={() => setWorkflowStep(0)}
+        />
+      ) : null}
       <CreateReservationBookingDetails
         restaurantId={restaurantId}
         canCreateMaster={guestAccessQuery.data?.canManage ?? false}
@@ -2001,9 +2766,14 @@ export function CreateReservationPage({
         onTravelAgentMasterChange={handleTravelAgentMasterChange}
         linkedGroupId={linkedGroupId}
         linkedBlockId={linkedBlockId}
-        salesChannel={salesChannel}
+        salesChannel={channelForm?.salesChannel ?? ""}
         onSalesChannelChange={setSalesChannel}
         salesChannelOptions={salesChannelOptions}
+        channelEnabled={channelForm?.channelEnabled ?? false}
+        channelRequired={channelForm?.channelRequired ?? false}
+        channelEmptyMessage={
+          channelForm?.message === OTA_CHANNEL_EMPTY_MESSAGE ? channelForm.message : null
+        }
         purposeOfStay={purposeOfStay}
         onPurposeOfStayChange={setPurposeOfStay}
         billingRuleId={billingRuleId}
@@ -2017,6 +2787,9 @@ export function CreateReservationPage({
           setLinkedGroupId(groupId);
           setLinkedBlockId(blockId);
         }}
+        showAdHocGroupNote={groupMode}
+        showLinkedGroupCaption={groupMode && Boolean(linkedGroupId)}
+        leadGuestPreferences={groupMode}
         ratePlanId={ratePlanId}
         roomTypeId={roomTypeId}
         ratePlanLabel={
@@ -2064,6 +2837,7 @@ export function CreateReservationPage({
             merchandiseCards={createPackageMerchandiseCards}
             merchandiseCurrency={displayCurrencyCode || propertyCurrencyCode}
             money={money}
+            bookingScopeNote={groupPackageNote}
             selectedActivationIds={packageActivationIds}
             onToggleActivation={(activationId) =>
               setPackageActivationIds((current) =>
@@ -2090,6 +2864,26 @@ export function CreateReservationPage({
   ];
   const currentStep = CREATE_WORKFLOW_STEPS[workflowStep] ?? CREATE_WORKFLOW_STEPS[0];
   const mainContent = stepSections[workflowStep];
+
+  const singleModeWarn = (
+    <AlertDialog
+      open={pendingSingleMode}
+      onOpenChange={(open) => !open && setPendingSingleMode(false)}
+    >
+      <AlertDialogContent className="z-[70]" data-testid="group-to-single-confirm">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Switch to a single reservation?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Room 1 stays. The other rooms and their occupants will be removed.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep group reservation</AlertDialogCancel>
+          <AlertDialogAction onClick={confirmGroupToSingle}>Use Room 1 only</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 
   const typeWarn = (
     <AlertDialog open={pendingType !== null} onOpenChange={(open) => !open && setPendingType(null)}>
@@ -2178,9 +2972,14 @@ export function CreateReservationPage({
         </div>
         {workflowStep < CREATE_WORKFLOW_STEPS.length - 1 ? (
           <div className="flex flex-wrap items-center justify-end gap-3">
-            {workflowStep === 1 && !canContinueBookingDetails && sourceChannelMissing ? (
+            {workflowStep === 0 && groupIssue ? (
+              <p className="text-xs text-[#9B3A3A]" data-testid="group-step1-issue">
+                {groupIssue}
+              </p>
+            ) : null}
+            {workflowStep === 1 && !canContinueBookingDetails && sourceChannelNotice ? (
               <p className="text-xs text-[#9B3A3A]" data-testid="source-channel-required">
-                Source and Channel are required to continue.
+                {sourceChannelNotice}
               </p>
             ) : null}
             <Button
@@ -2199,6 +2998,7 @@ export function CreateReservationPage({
         )}
       </div>
       {typeWarn}
+      {singleModeWarn}
       {discardWarn}
     </div>
   );

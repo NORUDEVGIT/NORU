@@ -324,8 +324,11 @@ describe("reservation deposit and no-show snapshots", () => {
   });
 
   it("shows reservation detail from the stored snapshots", () => {
-    assert.match(overview, /snapshotDisplayName\(reservation\.noShowPolicySnapshot\)/);
-    assert.match(overview, /\["Deposit Policy", reviewDash\(deposit\?\.name\)\]/);
+    assert.match(overview, /overviewNoShowLabel\(reservation\.noShowPolicySnapshot\)/);
+    assert.match(
+      overview,
+      /parseDepositRequirementSnapshot\(reservation\.depositRequirementSnapshot\)/,
+    );
     assert.doesNotMatch(overview, /snapshotField\(reservation\.refundabilitySnapshot, \["no_show"/);
     assert.match(reservations, /no_show_policy_id, no_show_policy_snapshot/);
   });

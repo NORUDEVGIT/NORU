@@ -213,17 +213,9 @@ function KpiCard({
   );
 }
 
-export function FolioKpiRow({
-  summary,
-  money,
-}: {
-  summary: FolioFinancialSummary;
-  money: Money;
-}) {
+export function FolioKpiRow({ summary, money }: { summary: FolioFinancialSummary; money: Money }) {
   const balance = BALANCE_META[balanceTone(summary.currentBalance)];
-  const netAdjustments = roundFolioMoney(
-    summary.adjustments - summary.discounts + summary.refunds,
-  );
+  const netAdjustments = roundFolioMoney(summary.adjustments - summary.discounts + summary.refunds);
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" data-testid="folio-kpis">
       <KpiCard
@@ -307,13 +299,24 @@ function SectionCard({
 
 function Th({ children, right }: { children?: ReactNode; right?: boolean }) {
   return (
-    <th className={cn("whitespace-nowrap px-3 py-2.5 font-medium", right ? "text-right" : "text-left")}>
+    <th
+      className={cn(
+        "whitespace-nowrap px-3 py-2.5 font-medium",
+        right ? "text-right" : "text-left",
+      )}
+    >
       {children}
     </th>
   );
 }
 
-function TableScroll({ children, minWidth = "min-w-[760px]" }: { children: ReactNode; minWidth?: string }) {
+function TableScroll({
+  children,
+  minWidth = "min-w-[760px]",
+}: {
+  children: ReactNode;
+  minWidth?: string;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className={cn("w-full text-sm", minWidth)}>{children}</table>
@@ -364,7 +367,10 @@ function legalCorrections(
   return out;
 }
 
-const CORRECTION_ITEM: Record<CorrectionType, { label: string; icon: LucideIcon; className: string }> = {
+const CORRECTION_ITEM: Record<
+  CorrectionType,
+  { label: string; icon: LucideIcon; className: string }
+> = {
   adjustment: { label: "Post Adjustment", icon: SlidersHorizontal, className: "text-amber-700" },
   discount: { label: "Apply Discount", icon: Tag, className: "text-purple-700" },
   refund: { label: "Refund", icon: Undo2, className: "text-destructive" },
@@ -483,12 +489,19 @@ function ChargeRow({
       <td className={cn("px-3 py-2", child ? "pl-7 text-muted-foreground" : "font-medium")}>
         {child ? (
           <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden className="text-muted-foreground/70">↳</span>
+            <span aria-hidden className="text-muted-foreground/70">
+              ↳
+            </span>
             {row.description}
           </span>
         ) : (
           <span className="block">
             <span className="block">{chargeItemTitle(row)}</span>
+            {row.roomUnitLabel ? (
+              <span className="block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {row.roomUnitLabel}
+              </span>
+            ) : null}
             {source ? (
               <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                 {source}
@@ -771,7 +784,9 @@ function DepositTotals({
           return (
             <div key={item.label} className="px-4 py-3">
               <div className="flex items-center gap-1.5">
-                <span className={cn("flex size-5 items-center justify-center rounded-md", item.tint)}>
+                <span
+                  className={cn("flex size-5 items-center justify-center rounded-md", item.tint)}
+                >
                   <Icon className="size-3" />
                 </span>
                 <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -959,8 +974,8 @@ export function PaymentsDepositsTab({
                       <td className="whitespace-nowrap px-3 py-2">
                         <div className="flex flex-wrap gap-1">
                           {workspace.canManage &&
-                            workspace.folio.status === "open" &&
-                            line.available > 0.009 ? (
+                          workspace.folio.status === "open" &&
+                          line.available > 0.009 ? (
                             <Button
                               size="sm"
                               variant="outline"
@@ -1122,8 +1137,9 @@ export function TransfersTab({
       ? `${other.accountName}${other.accountNumber ? ` · ${other.accountNumber}` : ""}`
       : (other?.folioNumber ?? "—");
     const parentLine =
-      lines.find((line) => line.sourceCharge && !isTaxOrServiceCategory(line.sourceCharge.category)) ??
-      lines[0];
+      lines.find(
+        (line) => line.sourceCharge && !isTaxOrServiceCategory(line.sourceCharge.category),
+      ) ?? lines[0];
     const source = parentLine.sourceCharge;
     const charge = source?.description ?? parentLine.sourceDescription ?? parentLine.description;
     const detail = [
@@ -1162,37 +1178,37 @@ export function TransfersTab({
       ) : (
         <TableScroll>
           <thead className={TABLE_HEAD}>
-              <tr>
-                <Th>Date</Th>
-                <Th>From</Th>
-                <Th>To</Th>
-                <Th>Charge / Description</Th>
-                <Th right>Amount</Th>
-                <Th>Posted by</Th>
-                <Th>Reason</Th>
+            <tr>
+              <Th>Date</Th>
+              <Th>From</Th>
+              <Th>To</Th>
+              <Th>Charge / Description</Th>
+              <Th right>Amount</Th>
+              <Th>Posted by</Th>
+              <Th>Reason</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((entry) => (
+              <tr key={entry.id} className={TABLE_ROW}>
+                <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
+                  {dateTime(entry.postedAt)}
+                </td>
+                <td className="px-3 py-2">{entry.from}</td>
+                <td className="px-3 py-2">{entry.to}</td>
+                <td className="px-3 py-2 text-xs">
+                  <span className="block font-medium text-foreground">{entry.charge}</span>
+                  {entry.detail ? (
+                    <span className="text-muted-foreground">{entry.detail}</span>
+                  ) : null}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">
+                  {money(entry.amount)}
+                </td>
+                <td className="px-3 py-2 text-xs text-muted-foreground">{entry.postedBy ?? "—"}</td>
+                <td className="px-3 py-2 text-xs">{entry.reason}</td>
               </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.id} className={TABLE_ROW}>
-                  <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
-                    {dateTime(entry.postedAt)}
-                  </td>
-                  <td className="px-3 py-2">{entry.from}</td>
-                  <td className="px-3 py-2">{entry.to}</td>
-                  <td className="px-3 py-2 text-xs">
-                    <span className="block font-medium text-foreground">{entry.charge}</span>
-                    {entry.detail ? (
-                      <span className="text-muted-foreground">{entry.detail}</span>
-                    ) : null}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums">
-                    {money(entry.amount)}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{entry.postedBy ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs">{entry.reason}</td>
-                </tr>
-              ))}
+            ))}
           </tbody>
         </TableScroll>
       )}
@@ -1345,15 +1361,7 @@ function SidebarCard({
   );
 }
 
-function SummaryLine({
-  label,
-  value,
-  muted,
-}: {
-  label: string;
-  value: string;
-  muted?: boolean;
-}) {
+function SummaryLine({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 text-sm">
       <span className="text-muted-foreground">{label}</span>
@@ -1367,7 +1375,9 @@ function SummaryLine({
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
       <p className="truncate text-sm font-medium">{value}</p>
     </div>
   );
@@ -1410,12 +1420,20 @@ export function FolioSidebar({
         <div className="space-y-1.5 px-4 py-3">
           <SummaryLine label="Net Charges" value={money(s.netCharges)} />
           <SummaryLine label="Tax" value={money(s.tax)} muted={s.tax === 0} />
-          <SummaryLine label="Service Charge" value={money(s.serviceCharge)} muted={s.serviceCharge === 0} />
+          <SummaryLine
+            label="Service Charge"
+            value={money(s.serviceCharge)}
+            muted={s.serviceCharge === 0}
+          />
         </div>
         <div className="space-y-1.5 border-t border-[#E8E1D7]/80 px-4 py-3">
           <SummaryLine label="Payments" value={signed(-s.payments)} muted={s.payments === 0} />
           <SummaryLine label="Deposits" value={signed(-s.deposits)} muted={s.deposits === 0} />
-          <SummaryLine label="Adjustments" value={signed(s.adjustments)} muted={s.adjustments === 0} />
+          <SummaryLine
+            label="Adjustments"
+            value={signed(s.adjustments)}
+            muted={s.adjustments === 0}
+          />
           <SummaryLine label="Discounts" value={signed(-s.discounts)} muted={s.discounts === 0} />
           <SummaryLine label="Refunds" value={money(s.refunds)} muted={s.refunds === 0} />
           {transfers !== 0 ? <SummaryLine label="Transfers" value={signed(transfers)} /> : null}
@@ -1443,7 +1461,9 @@ export function FolioSidebar({
           <div className="min-w-0">
             <p className="flex items-center gap-2 truncate font-medium">
               {folio.guestName}
-              {folio.guestVip ? <InventoryStatusBadge tone="warning">VIP</InventoryStatusBadge> : null}
+              {folio.guestVip ? (
+                <InventoryStatusBadge tone="warning">VIP</InventoryStatusBadge>
+              ) : null}
             </p>
             <p className="text-[11px] text-muted-foreground">Guest Profile</p>
           </div>
@@ -1488,7 +1508,9 @@ export function FolioSidebar({
             <div className="col-span-2">
               <Field
                 label="Room"
-                value={[folio.roomNumber ?? "Unassigned", folio.roomTypeName].filter(Boolean).join(" · ")}
+                value={[folio.roomNumber ?? "Unassigned", folio.roomTypeName]
+                  .filter(Boolean)
+                  .join(" · ")}
               />
             </div>
             <div className="col-span-2">
@@ -1502,7 +1524,10 @@ export function FolioSidebar({
               />
             </div>
             <div className="col-span-2">
-              <Field label="Rate Plan" value={folio.ratePlanName ?? folio.ratePlanCode ?? "Not configured"} />
+              <Field
+                label="Rate Plan"
+                value={folio.ratePlanName ?? folio.ratePlanCode ?? "Not configured"}
+              />
             </div>
             <Field label="Market Segment" value={folio.marketSegment ?? "Not configured"} />
             <Field label="Booking Source" value={folio.bookingSource ?? "Not configured"} />
@@ -1528,7 +1553,9 @@ export function FolioSidebar({
             <div className="min-w-0 flex-1">
               <p className="text-[11px] text-muted-foreground">Invoice</p>
               <p className="truncate text-sm font-semibold">{invoice.issuedNumber}</p>
-              <p className="text-[11px] text-muted-foreground">Issued {dateTime(invoice.issuedAt)}</p>
+              <p className="text-[11px] text-muted-foreground">
+                Issued {dateTime(invoice.issuedAt)}
+              </p>
               <button type="button" className={cn(LINK_ACTION, "mt-1.5")} onClick={onViewInvoice}>
                 View Invoice <ArrowRight className="size-3" />
               </button>
@@ -1595,9 +1622,7 @@ export function TransactionDetailDialog({
 }) {
   const linked = row ? rows.filter((other) => other.originalTransactionId === row.id) : [];
   const snapshot = row?.taxSnapshot as
-    | { code?: string; name?: string; calculation?: string; amount?: number }
-    | null
-    | undefined;
+    { code?: string; name?: string; calculation?: string; amount?: number } | null | undefined;
   return (
     <Dialog open={row !== null} onOpenChange={(o) => (o ? null : onClose())}>
       <DialogContent>
@@ -1615,7 +1640,10 @@ export function TransactionDetailDialog({
             <DetailRow label="Category" value={labelTransactionCategory(row.category)} />
             <DetailRow label="Department" value={row.departmentName?.trim() || "—"} />
             <DetailRow label="Quantity" value={row.quantity == null ? "—" : String(row.quantity)} />
-            <DetailRow label="Unit price" value={row.unitAmount == null ? "—" : money(row.unitAmount)} />
+            <DetailRow
+              label="Unit price"
+              value={row.unitAmount == null ? "—" : money(row.unitAmount)}
+            />
             {row.paymentMethod ? (
               <DetailRow label="Method" value={methodLabel(row.paymentMethod)} />
             ) : null}
@@ -1647,7 +1675,6 @@ export function TransactionDetailDialog({
     </Dialog>
   );
 }
-
 
 export function ApplyDepositDialog({
   restaurantId,
@@ -1687,7 +1714,8 @@ export function ApplyDepositDialog({
       const value = Number(amount);
       if (!selected) throw new Error("Choose a deposit.");
       if (!chargeId) throw new Error("Choose a charge.");
-      if (!Number.isFinite(value) || value <= 0) throw new Error("Enter an amount greater than zero.");
+      if (!Number.isFinite(value) || value <= 0)
+        throw new Error("Enter an amount greater than zero.");
       if (value > selected.available + 0.001)
         throw new Error("Amount cannot exceed the available deposit.");
       return allocate({
@@ -1804,7 +1832,8 @@ export function WriteOffDialog({
   const mutation = useMutation({
     mutationFn: async () => {
       const value = Number(amount);
-      if (!Number.isFinite(value) || value <= 0) throw new Error("Enter an amount greater than zero.");
+      if (!Number.isFinite(value) || value <= 0)
+        throw new Error("Enter an amount greater than zero.");
       if (value > balance + 0.001) throw new Error("A write-off cannot exceed the balance.");
       if (!reason.trim()) throw new Error("Enter a reason.");
       return post({

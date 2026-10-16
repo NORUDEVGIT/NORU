@@ -1,19 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import {
-  BedDouble,
-  CalendarDays,
-  CreditCard,
-  FileText,
-  Plus,
-  Shield,
-  UserRound,
-} from "lucide-react";
+import { BedDouble, CalendarDays, CreditCard, FileText, Shield, UserRound } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
@@ -29,13 +21,22 @@ import {
   ReservationStatusBadge,
 } from "@/packages/pms/components/bookings/reservation-bits";
 import { guestInitials, reviewDash } from "@/packages/pms/lib/create-reservation-review";
-import { resolveMarketSegmentOptions } from "@/packages/pms/lib/create-reservation-phase1";
-import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
+import { getFrontOfficeApprovalRequirement } from "@/packages/pms/lib/fo-approvals.functions";
+import {
+  setExpectedArrivalTime,
+  setLateCheckout,
+} from "@/packages/pms/lib/arrivals-departures.functions";
 import {
   listPurposeOfStay,
   purposeOptionsFromRows,
 } from "@/packages/pms/lib/purpose-of-stay.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
+import {
+  GROUP_AMEND_UNAVAILABLE,
+  GROUP_OCCUPANCY_NOTE,
+  groupOccupancyTotals,
+  isGroupReservation,
+} from "@/packages/pms/lib/reservation-detail-group";
 import {
   DETAIL_DASH,
   depositStatusLabel,
@@ -46,21 +47,19 @@ import {
 import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
 import {
   buildStayDraft,
-  nextStayExtension,
-  requestStatusLabel,
-  stayExtensionNights,
+  clockFromInstant,
   STAY_NOTES_MAX,
-  STAY_OCCASION_OPTIONS,
-  STAY_PICKUP_OPTIONS,
+  stayAmendmentCopy,
+  stayClockForInput,
+  stayInstantFromClock,
   stayNights,
-  stayRangeOk,
   type ReservationStayDraft,
 } from "@/packages/pms/lib/reservation-detail-stay";
+import type { StayAmendmentResult } from "@/packages/pms/lib/reservation-stay-amendment";
 import {
   amendReservation,
   type ReservationDetail,
 } from "@/packages/pms/lib/reservations.functions";
-import { cn } from "@/shared/lib/utils";
 
 const FIELD =
   "h-8 w-full rounded-md border border-[#DDD4C5] bg-white px-2 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#F7F2EA]";
@@ -68,7 +67,9 @@ const FIELD =
 export function ReservationDetailStayTab({
   restaurantId,
   reservation,
+  editable,
   canManage,
+  timezone,
   money,
   coverUrl,
   onBackToOverview,
@@ -76,88 +77,501 @@ export function ReservationDetailStayTab({
 }: {
   restaurantId: string;
   reservation: ReservationDetail;
+  editable: boolean;
   canManage: boolean;
+  timezone: string;
   money: (value: number) => string;
   coverUrl: string | null;
   onBackToOverview: () => void;
   onSaved: () => void;
 }) {
   const fetchPurpose = useServerFn(listPurposeOfStay);
-  const fetchSet6 = useServerFn(getPmsSet6Snapshot);
   const submitAmend = useServerFn(amendReservation);
+  const submitArrival = useServerFn(setExpectedArrivalTime);
+  const submitLateCheckout = useServerFn(setLateCheckout);
+  const fetchApproval = useServerFn(getFrontOfficeApprovalRequirement);
   const [draft, setDraft] = useState<ReservationStayDraft>(() => buildStayDraft(reservation));
+  const [amendArrival, setAmendArrival] = useState(reservation.arrivalDate);
+  const [amendDeparture, setAmendDeparture] = useState(reservation.departureDate);
+  const [extendDeparture, setExtendDeparture] = useState("");
+  const [arrivalClock, setArrivalClock] = useState(() =>
+    stayClockForInput(reservation.expectedArrivalAt, timezone),
+  );
+  const [lateClock, setLateClock] = useState(() =>
+    stayClockForInput(reservation.lateCheckoutUntil, timezone),
+  );
+  const [lateNote, setLateNote] = useState("");
+  const [impact, setImpact] = useState<StayAmendmentResult | null>(null);
 
   useEffect(() => {
     setDraft(buildStayDraft(reservation));
-  }, [reservation]);
+    setAmendArrival(reservation.arrivalDate);
+    setAmendDeparture(reservation.departureDate);
+    setExtendDeparture("");
+    setArrivalClock(stayClockForInput(reservation.expectedArrivalAt, timezone));
+    setLateClock(stayClockForInput(reservation.lateCheckoutUntil, timezone));
+  }, [reservation, timezone]);
 
   const purposeQuery = useQuery({
     queryKey: ["pms-purpose-of-stay", restaurantId, "reservation-detail-stay"],
     queryFn: () => fetchPurpose({ data: { restaurantId } }),
     retry: false,
-  });
-  const set6Query = useQuery({
-    queryKey: ["pms-set6", restaurantId, "reservation-detail-stay"],
-    queryFn: () => fetchSet6({ data: { restaurantId } }),
-    retry: false,
+    enabled: editable,
   });
 
   const purposeOptions = purposeOptionsFromRows(purposeQuery.data?.items);
-  const segmentOptions = resolveMarketSegmentOptions(set6Query.data?.snapshot.marketSegments);
-  const nights = stayNights(draft.arrival, draft.departure);
-  const rangeOk = stayRangeOk(draft.arrival, draft.departure);
+  const nights = stayNights(reservation.arrivalDate, reservation.departureDate);
+  const groupStay = isGroupReservation(reservation);
+  const groupOccupancy = groupOccupancyTotals(reservation);
+  const arrivalTime = clockFromInstant(reservation.expectedArrivalAt);
+  const lateCheckoutTime = clockFromInstant(reservation.lateCheckoutUntil);
 
   function patch(next: Partial<ReservationStayDraft>) {
     setDraft((current) => ({ ...current, ...next }));
   }
 
+  const etaWritable =
+    canManage && (reservation.status === "pending" || reservation.status === "confirmed");
+  const lateWritable = canManage && reservation.status === "checked_in";
+  const lateApproval = useQuery({
+    queryKey: ["front-office", "approval", restaurantId, "late_checkout.authorize", reservation.id],
+    queryFn: () => fetchApproval({ data: { restaurantId, actionKey: "late_checkout.authorize" } }),
+    enabled: lateWritable,
+    retry: false,
+  });
+
+  function stayPayload(arrival: string, departure: string) {
+    return {
+      restaurantId,
+      reservationId: reservation.id,
+      guestId: reservation.guestId,
+      roomTypeId: reservation.roomTypeId,
+      roomId: reservation.roomId,
+      arrival,
+      departure,
+      adults: groupStay ? reservation.adults : draft.adults,
+      children: groupStay ? reservation.children : draft.children,
+      infants: groupStay ? reservation.infants : draft.infants,
+      notes: draft.stayNotes,
+      specialRequests: reservation.specialRequests,
+      ratePlanId: reservation.ratePlanId,
+      purposeOfStay: draft.purposeOfStay || null,
+      arrivalTransport: draft.arrivalTransport || null,
+      pickupNote: draft.pickupNote || null,
+    };
+  }
+
   const save = useMutation({
     mutationFn: () =>
-      submitAmend({
-        data: {
-          restaurantId,
-          reservationId: reservation.id,
-          guestId: reservation.guestId,
-          roomTypeId: reservation.roomTypeId,
-          roomId: reservation.roomId,
-          arrival: draft.arrival,
-          departure: draft.departure,
-          adults: draft.adults,
-          children: draft.children,
-          notes: draft.stayNotes,
-          specialRequests: reservation.specialRequests,
-          ratePlanId: reservation.ratePlanId,
-          marketSegment: draft.marketSegment || null,
-        },
-      }),
-    onSuccess: () => {
-      toast.success("Stay updated.");
+      submitAmend({ data: stayPayload(reservation.arrivalDate, reservation.departureDate) }),
+    onSuccess: (result) => {
+      setImpact(result.amendment);
+      toast.success(
+        result.amendment ? "Stay updated. Review the room subtotal change." : "Stay updated.",
+      );
       onSaved();
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const cancelled = reservation.status === "cancelled";
-  const editable = canManage && !cancelled;
+  const amendDates = useMutation({
+    mutationFn: () => submitAmend({ data: stayPayload(amendArrival, amendDeparture) }),
+    onSuccess: (result) => {
+      setImpact(result.amendment);
+      toast.success("Stay dates amended.");
+      onSaved();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const extendStay = useMutation({
+    mutationFn: () => submitAmend({ data: stayPayload(reservation.arrivalDate, extendDeparture) }),
+    onSuccess: (result) => {
+      setImpact(result.amendment);
+      toast.success("Stay extended.");
+      onSaved();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const saveArrival = useMutation({
+    mutationFn: (expectedArrivalAt: string | null) =>
+      submitArrival({
+        data: { restaurantId, reservationId: reservation.id, expectedArrivalAt },
+      }),
+    onSuccess: () => {
+      toast.success("Expected arrival updated.");
+      onSaved();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const saveLateCheckout = useMutation({
+    mutationFn: (granted: boolean) =>
+      submitLateCheckout({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          granted,
+          until: granted
+            ? stayInstantFromClock(reservation.departureDate, lateClock, timezone)
+            : null,
+          note: lateNote || null,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Late checkout updated.");
+      onSaved();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-stay">
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-4">
-          <StayInformationCard
-            draft={draft}
-            patch={patch}
-            nights={nights}
-            rangeOk={rangeOk}
-            editable={editable}
-            purposeOptions={purposeOptions}
-            segmentOptions={segmentOptions}
-          />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <StayExtensionsCard draft={draft} patch={patch} editable={editable} />
-            <EarlyLateCard draft={draft} patch={patch} editable={editable} />
-          </div>
-          <StayNotesCard draft={draft} patch={patch} editable={editable} />
+          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+            <h2 className="flex items-center gap-2 font-display text-base text-[#251605]">
+              <CalendarDays className="size-4 text-[#B8954F]" />
+              Stay Information
+            </h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Dates stay fixed until a stay amendment reprices the reservation. Occupancy, purpose,
+              and internal notes can be saved when this stay is editable.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <StayField label="Arrival Date" htmlFor="stay-arrival">
+                <Input
+                  id="stay-arrival"
+                  type="date"
+                  className={FIELD}
+                  value={reservation.arrivalDate}
+                  readOnly
+                  disabled
+                />
+              </StayField>
+              <StayField label="Departure Date" htmlFor="stay-departure">
+                <Input
+                  id="stay-departure"
+                  type="date"
+                  className={FIELD}
+                  value={reservation.departureDate}
+                  readOnly
+                  disabled
+                />
+              </StayField>
+              <StayField label="Nights">
+                <Input className={FIELD} value={String(nights)} disabled />
+              </StayField>
+              {groupStay ? (
+                <StayField label="Rooms">
+                  <Input className={FIELD} value={String(groupOccupancy.rooms)} disabled readOnly />
+                </StayField>
+              ) : null}
+              <StayField label="Adults *">
+                <Input
+                  type="number"
+                  min={1}
+                  className={FIELD}
+                  value={groupStay ? groupOccupancy.adults : draft.adults}
+                  disabled={groupStay || !editable}
+                  readOnly={groupStay}
+                  onChange={(e) => patch({ adults: Math.max(1, Number(e.target.value) || 1) })}
+                />
+              </StayField>
+              <StayField label="Children">
+                <Input
+                  type="number"
+                  min={0}
+                  className={FIELD}
+                  value={groupStay ? groupOccupancy.children : draft.children}
+                  disabled={groupStay || !editable}
+                  readOnly={groupStay}
+                  onChange={(e) => patch({ children: Math.max(0, Number(e.target.value) || 0) })}
+                />
+              </StayField>
+              <StayField label="Infants">
+                <Input
+                  type="number"
+                  min={0}
+                  className={FIELD}
+                  value={groupStay ? groupOccupancy.infants : draft.infants}
+                  disabled={groupStay || !editable}
+                  readOnly={groupStay}
+                  onChange={(e) => patch({ infants: Math.max(0, Number(e.target.value) || 0) })}
+                />
+              </StayField>
+              <StayField label="Purpose of Stay">
+                <Select
+                  value={draft.purposeOfStay || "none"}
+                  onValueChange={(value) => patch({ purposeOfStay: value === "none" ? "" : value })}
+                  disabled={!editable}
+                >
+                  <SelectTrigger className={FIELD}>
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">—</SelectItem>
+                    {draft.purposeOfStay &&
+                    !purposeOptions.some((option) => option.value === draft.purposeOfStay) ? (
+                      <SelectItem value={draft.purposeOfStay}>{draft.purposeOfStay}</SelectItem>
+                    ) : null}
+                    {purposeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </StayField>
+              <StayField label="Expected Arrival">
+                <Input className={FIELD} value={arrivalTime || DETAIL_DASH} disabled />
+              </StayField>
+              <StayField label="Late Checkout">
+                <Input
+                  className={FIELD}
+                  value={
+                    reservation.lateCheckoutGranted ? lateCheckoutTime || "Granted" : "Not granted"
+                  }
+                  disabled
+                />
+              </StayField>
+            </div>
+            {groupStay ? (
+              <p className="mt-3 text-xs text-muted-foreground" data-testid="stay-group-occupancy">
+                {GROUP_OCCUPANCY_NOTE}
+              </p>
+            ) : null}
+          </section>
+          {impact ? (
+            <p
+              className="rounded-md border border-[#E7D7B1] bg-[#FBF6EC] px-3 py-2 text-sm text-[#251605]"
+              data-testid="stay-amendment-result"
+            >
+              {stayAmendmentCopy(impact, money)}
+            </p>
+          ) : null}
+          {groupStay ? (
+            <p
+              className="rounded-md border border-[#E7D7B1] bg-[#FBF6EC] px-3 py-2 text-xs text-[#251605]"
+              data-testid="stay-group-amend-unavailable"
+            >
+              {GROUP_AMEND_UNAVAILABLE}
+            </p>
+          ) : (
+            <>
+              <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+                <h2 className="font-display text-base text-[#251605]">Amend dates</h2>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  This saves a new arrival and departure, reprices one room, and shows the room
+                  subtotal returned by the server.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <StayField label="New arrival" htmlFor="amend-arrival">
+                    <Input
+                      id="amend-arrival"
+                      type="date"
+                      className={FIELD}
+                      value={amendArrival}
+                      disabled={!editable || amendDates.isPending}
+                      onChange={(event) => setAmendArrival(event.target.value)}
+                    />
+                  </StayField>
+                  <StayField label="New departure" htmlFor="amend-departure">
+                    <Input
+                      id="amend-departure"
+                      type="date"
+                      className={FIELD}
+                      value={amendDeparture}
+                      disabled={!editable || amendDates.isPending}
+                      onChange={(event) => setAmendDeparture(event.target.value)}
+                    />
+                  </StayField>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="mt-3"
+                  disabled={!editable || amendDates.isPending}
+                  onClick={() => amendDates.mutate()}
+                >
+                  {amendDates.isPending ? "Amending…" : "Amend dates"}
+                </Button>
+              </section>
+              <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+                <h2 className="font-display text-base text-[#251605]">Extend Stay</h2>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Moves only the departure date. If the assigned room is already booked for the
+                  extra nights, use Change Room. This does not move the guest or create another
+                  reservation.
+                </p>
+                <StayField label="New departure" htmlFor="extend-departure">
+                  <Input
+                    id="extend-departure"
+                    type="date"
+                    className={FIELD}
+                    value={extendDeparture}
+                    min={reservation.departureDate}
+                    disabled={!editable || extendStay.isPending}
+                    onChange={(event) => setExtendDeparture(event.target.value)}
+                  />
+                </StayField>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="mt-3"
+                  disabled={
+                    !editable ||
+                    !extendDeparture ||
+                    extendDeparture <= reservation.departureDate ||
+                    extendStay.isPending
+                  }
+                  onClick={() => extendStay.mutate()}
+                >
+                  {extendStay.isPending ? "Extending…" : "Extend Stay"}
+                </Button>
+              </section>
+            </>
+          )}
+          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+            <h2 className="font-display text-base text-[#251605]">Expected arrival</h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Saved on the arrival date for pending and confirmed stays. Current time:{" "}
+              {arrivalTime || "not set"}.
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <StayField label="Time" htmlFor="stay-eta">
+                <Input
+                  id="stay-eta"
+                  type="time"
+                  className={FIELD}
+                  value={arrivalClock}
+                  disabled={!etaWritable || saveArrival.isPending}
+                  onChange={(event) => setArrivalClock(event.target.value)}
+                />
+              </StayField>
+              <Button
+                type="button"
+                size="sm"
+                disabled={!etaWritable || !arrivalClock || saveArrival.isPending}
+                onClick={() =>
+                  saveArrival.mutate(
+                    stayInstantFromClock(reservation.arrivalDate, arrivalClock, timezone),
+                  )
+                }
+              >
+                Save expected arrival
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!etaWritable || saveArrival.isPending}
+                onClick={() => saveArrival.mutate(null)}
+              >
+                Clear
+              </Button>
+            </div>
+          </section>
+          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+            <h2 className="font-display text-base text-[#251605]">Late checkout</h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              In-house stays only. The departure date stays {reservation.departureDate}. Current:{" "}
+              {reservation.lateCheckoutGranted ? lateCheckoutTime || "Granted" : "Not granted"}.
+            </p>
+            {lateApproval.data?.policyNeedsApproval ? (
+              <p className="mb-2 text-xs text-[#765719]">
+                Property policy requires owner or manager approval for late checkout.
+              </p>
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <StayField label="Until" htmlFor="stay-late">
+                <Input
+                  id="stay-late"
+                  type="time"
+                  className={FIELD}
+                  value={lateClock}
+                  disabled={!lateWritable || saveLateCheckout.isPending}
+                  onChange={(event) => setLateClock(event.target.value)}
+                />
+              </StayField>
+              <StayField label="Note" htmlFor="stay-late-note">
+                <Input
+                  id="stay-late-note"
+                  className={FIELD}
+                  value={lateNote}
+                  maxLength={500}
+                  disabled={!lateWritable || saveLateCheckout.isPending}
+                  onChange={(event) => setLateNote(event.target.value)}
+                />
+              </StayField>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={!lateWritable || !lateClock || saveLateCheckout.isPending}
+                onClick={() => saveLateCheckout.mutate(true)}
+              >
+                Grant late checkout
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!lateWritable || saveLateCheckout.isPending}
+                onClick={() => saveLateCheckout.mutate(false)}
+              >
+                Clear late checkout
+              </Button>
+            </div>
+          </section>
+          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+            <h2 className="font-display text-base text-[#251605]">Arrival transport</h2>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Flight or other transport text stored on this reservation.
+            </p>
+            <Input
+              id="stay-transport"
+              className={FIELD}
+              maxLength={200}
+              disabled={!editable}
+              value={draft.arrivalTransport}
+              onChange={(event) => patch({ arrivalTransport: event.target.value })}
+            />
+          </section>
+          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+            <h2 className="font-display text-base text-[#251605]">Pickup note</h2>
+            <p className="mb-2 text-xs text-muted-foreground">
+              A note on the reservation. This does not create a pickup request or a service order.
+            </p>
+            <Input
+              id="stay-pickup"
+              className={FIELD}
+              maxLength={200}
+              disabled={!editable}
+              value={draft.pickupNote}
+              onChange={(event) => patch({ pickupNote: event.target.value })}
+            />
+          </section>
+          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+            <h2 className="font-display text-base text-[#251605]">Internal Notes</h2>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Same internal notes as the Notes tab. Visible to hotel staff.
+            </p>
+            <Textarea
+              id="stay-notes"
+              maxLength={STAY_NOTES_MAX}
+              disabled={!editable}
+              value={draft.stayNotes}
+              onChange={(e) => patch({ stayNotes: e.target.value.slice(0, STAY_NOTES_MAX) })}
+              placeholder="Add internal notes here…"
+              className="min-h-24"
+            />
+            <p className="mt-1 text-right text-[11px] text-muted-foreground">
+              {draft.stayNotes.length}/{STAY_NOTES_MAX}
+            </p>
+          </section>
         </div>
         <StaySummaryRail
           reservation={reservation}
@@ -174,7 +588,7 @@ export function ReservationDetailStayTab({
           <Button
             type="button"
             size="sm"
-            disabled={!editable || !rangeOk || save.isPending}
+            disabled={!editable || save.isPending}
             onClick={() => save.mutate()}
           >
             {save.isPending ? "Saving…" : "Save Changes"}
@@ -183,6 +597,7 @@ export function ReservationDetailStayTab({
             type="button"
             variant="outline"
             size="sm"
+            disabled={!editable}
             onClick={() => setDraft(buildStayDraft(reservation))}
           >
             Cancel
@@ -190,411 +605,6 @@ export function ReservationDetailStayTab({
         </div>
       </div>
     </div>
-  );
-}
-
-function StayInformationCard({
-  draft,
-  patch,
-  nights,
-  rangeOk,
-  editable,
-  purposeOptions,
-  segmentOptions,
-}: {
-  draft: ReservationStayDraft;
-  patch: (next: Partial<ReservationStayDraft>) => void;
-  nights: number;
-  rangeOk: boolean;
-  editable: boolean;
-  purposeOptions: Array<{ value: string; label: string }>;
-  segmentOptions: Array<{ value: string; label: string }>;
-}) {
-  return (
-    <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-      <h2 className="flex items-center gap-2 font-display text-base text-[#251605]">
-        <CalendarDays className="size-4 text-[#B8954F]" />
-        Stay Information
-      </h2>
-      <p className="mb-3 text-xs text-muted-foreground">
-        View and manage the stay details for this reservation.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StayField label="Arrival Date *" htmlFor="stay-arrival">
-          <Input
-            id="stay-arrival"
-            type="date"
-            className={FIELD}
-            value={draft.arrival}
-            disabled={!editable}
-            onChange={(e) => patch({ arrival: e.target.value })}
-          />
-        </StayField>
-        <StayField label="Departure Date *" htmlFor="stay-departure">
-          <Input
-            id="stay-departure"
-            type="date"
-            className={FIELD}
-            value={draft.departure}
-            disabled={!editable}
-            onChange={(e) => patch({ departure: e.target.value })}
-          />
-        </StayField>
-        <StayField label="Nights">
-          <Input className={FIELD} value={String(nights)} disabled />
-        </StayField>
-        <StayField label="Rooms">
-          <Select
-            value={String(draft.rooms)}
-            onValueChange={(value) => patch({ rooms: Number(value) })}
-            disabled={!editable}
-          >
-            <SelectTrigger className={FIELD}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[1, 2, 3, 4, 5].map((count) => (
-                <SelectItem key={count} value={String(count)}>
-                  {count}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </StayField>
-        <StayField label="Adults *">
-          <Input
-            type="number"
-            min={1}
-            className={FIELD}
-            value={draft.adults}
-            disabled={!editable}
-            onChange={(e) => patch({ adults: Math.max(1, Number(e.target.value) || 1) })}
-          />
-        </StayField>
-        <StayField label="Children">
-          <Input
-            type="number"
-            min={0}
-            className={FIELD}
-            value={draft.children}
-            disabled={!editable}
-            onChange={(e) => patch({ children: Math.max(0, Number(e.target.value) || 0) })}
-          />
-        </StayField>
-        <StayField label="Infants">
-          <Input
-            type="number"
-            min={0}
-            className={FIELD}
-            value={draft.infants}
-            disabled={!editable}
-            onChange={(e) => patch({ infants: Math.max(0, Number(e.target.value) || 0) })}
-          />
-        </StayField>
-        <StayField label="Purpose of Stay">
-          <Select
-            value={draft.purposeOfStay || "none"}
-            onValueChange={(value) => patch({ purposeOfStay: value === "none" ? "" : value })}
-            disabled={!editable}
-          >
-            <SelectTrigger className={FIELD}>
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">—</SelectItem>
-              {purposeOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </StayField>
-        <StayField label="Market Segment">
-          <Select
-            value={draft.marketSegment || "none"}
-            onValueChange={(value) => patch({ marketSegment: value === "none" ? "" : value })}
-            disabled={!editable}
-          >
-            <SelectTrigger className={FIELD}>
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">—</SelectItem>
-              {segmentOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </StayField>
-        <StayField label="Special Occasion (Optional)">
-          <Select
-            value={draft.specialOccasion || "none"}
-            onValueChange={(value) => patch({ specialOccasion: value === "none" ? "" : value })}
-            disabled={!editable}
-          >
-            <SelectTrigger className={FIELD}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STAY_OCCASION_OPTIONS.map((option) => (
-                <SelectItem key={option.value || "none"} value={option.value || "none"}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </StayField>
-        <StayField label="Expected Arrival Time" htmlFor="stay-eta">
-          <Input
-            id="stay-eta"
-            type="time"
-            className={FIELD}
-            value={draft.expectedArrivalTime}
-            disabled={!editable}
-            onChange={(e) => patch({ expectedArrivalTime: e.target.value })}
-          />
-        </StayField>
-        <StayField label="Expected Departure Time" htmlFor="stay-etd">
-          <Input
-            id="stay-etd"
-            type="time"
-            className={FIELD}
-            value={draft.expectedDepartureTime}
-            disabled={!editable}
-            onChange={(e) => patch({ expectedDepartureTime: e.target.value })}
-          />
-        </StayField>
-        <StayField label="Flight / Transport Details (Optional)" htmlFor="stay-transport">
-          <Input
-            id="stay-transport"
-            className={FIELD}
-            placeholder="e.g. ET302, 22 Sep, 11:30"
-            value={draft.transportDetails}
-            disabled={!editable}
-            onChange={(e) => patch({ transportDetails: e.target.value })}
-          />
-        </StayField>
-        <StayField label="Pickup Service">
-          <Select
-            value={draft.pickupService}
-            onValueChange={(value) => patch({ pickupService: value })}
-            disabled={!editable}
-          >
-            <SelectTrigger className={FIELD}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STAY_PICKUP_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </StayField>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-4">
-        <StayCheck
-          label="Flexible Dates (± 3 days)"
-          checked={draft.flexibleDates}
-          disabled={!editable}
-          onChange={(checked) => patch({ flexibleDates: checked })}
-        />
-        <StayCheck
-          label="Allow early check-in (subject to availability)"
-          checked={draft.allowEarlyCheckIn}
-          disabled={!editable}
-          onChange={(checked) => patch({ allowEarlyCheckIn: checked })}
-        />
-        <StayCheck
-          label="Allow late check-out (subject to availability)"
-          checked={draft.allowLateCheckOut}
-          disabled={!editable}
-          onChange={(checked) => patch({ allowLateCheckOut: checked })}
-        />
-      </div>
-      {!rangeOk ? (
-        <p className="mt-2 text-xs text-destructive">Departure must be after arrival.</p>
-      ) : null}
-    </section>
-  );
-}
-
-function StayExtensionsCard({
-  draft,
-  patch,
-  editable,
-}: {
-  draft: ReservationStayDraft;
-  patch: (next: Partial<ReservationStayDraft>) => void;
-  editable: boolean;
-}) {
-  return (
-    <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="font-display text-base text-[#251605]">Stay Extensions</h2>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!editable}
-          onClick={() =>
-            patch({ extensions: [...draft.extensions, nextStayExtension(draft.departure)] })
-          }
-        >
-          <Plus className="size-3.5" />
-          Add Extension
-        </Button>
-      </div>
-      {draft.extensions.length === 0 ? (
-        <div
-          className="rounded-lg border border-dashed border-[#DDD4C5] px-4 py-8 text-center"
-          data-testid="stay-extensions-empty"
-        >
-          <p className="text-sm font-medium text-[#251605]">No extensions</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            This reservation has no extensions yet.
-          </p>
-        </div>
-      ) : (
-        <table className="w-full text-sm">
-          <thead className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="pb-2">From</th>
-              <th className="pb-2">To</th>
-              <th className="pb-2">Nights</th>
-              <th className="pb-2">Status</th>
-              <th className="pb-2">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {draft.extensions.map((row) => (
-              <tr key={row.id} className="border-t border-[#EEE6D8]">
-                <td className="py-2">{formatStayDate(row.from)}</td>
-                <td className="py-2">{formatStayDate(row.to)}</td>
-                <td className="py-2">{stayExtensionNights(row.from, row.to)}</td>
-                <td className="py-2 text-muted-foreground">Unsaved</td>
-                <td className="py-2">
-                  <button
-                    type="button"
-                    className="text-xs text-destructive hover:underline"
-                    onClick={() =>
-                      patch({
-                        extensions: draft.extensions.filter((item) => item.id !== row.id),
-                      })
-                    }
-                  >
-                    Remove
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </section>
-  );
-}
-
-function EarlyLateCard({
-  draft,
-  patch,
-  editable,
-}: {
-  draft: ReservationStayDraft;
-  patch: (next: Partial<ReservationStayDraft>) => void;
-  editable: boolean;
-}) {
-  return (
-    <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-      <h2 className="mb-3 font-display text-base text-[#251605]">Early Arrival / Late Departure</h2>
-      <div className="space-y-3">
-        <StayCheck
-          label="Early Arrival Request"
-          checked={draft.earlyArrivalRequested}
-          disabled={!editable}
-          onChange={(checked) => patch({ earlyArrivalRequested: checked })}
-        />
-        <div className="grid grid-cols-2 gap-3 pl-6">
-          <StayField label="Requested Time" htmlFor="stay-early-time">
-            <Input
-              id="stay-early-time"
-              type="time"
-              className={FIELD}
-              value={draft.expectedArrivalTime}
-              disabled={!editable || !draft.earlyArrivalRequested}
-              onChange={(e) => patch({ expectedArrivalTime: e.target.value })}
-            />
-          </StayField>
-          <StayField label="Status">
-            <Input
-              className={FIELD}
-              disabled
-              value={requestStatusLabel(draft.earlyArrivalRequested)}
-            />
-          </StayField>
-        </div>
-        <StayCheck
-          label="Late Departure Request"
-          checked={draft.lateDepartureRequested}
-          disabled={!editable}
-          onChange={(checked) => patch({ lateDepartureRequested: checked })}
-        />
-        <div className="grid grid-cols-2 gap-3 pl-6">
-          <StayField label="Requested Time" htmlFor="stay-late-time">
-            <Input
-              id="stay-late-time"
-              type="time"
-              className={FIELD}
-              value={draft.expectedDepartureTime}
-              disabled={!editable || !draft.lateDepartureRequested}
-              onChange={(e) => patch({ expectedDepartureTime: e.target.value })}
-            />
-          </StayField>
-          <StayField label="Status">
-            <Input
-              className={FIELD}
-              disabled
-              value={requestStatusLabel(draft.lateDepartureRequested)}
-            />
-          </StayField>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function StayNotesCard({
-  draft,
-  patch,
-  editable,
-}: {
-  draft: ReservationStayDraft;
-  patch: (next: Partial<ReservationStayDraft>) => void;
-  editable: boolean;
-}) {
-  return (
-    <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-      <h2 className="font-display text-base text-[#251605]">Stay Notes</h2>
-      <p className="mb-2 text-xs text-muted-foreground">
-        Add notes related to the guest stay (visible to hotel staff).
-      </p>
-      <Textarea
-        id="stay-notes"
-        maxLength={STAY_NOTES_MAX}
-        disabled={!editable}
-        value={draft.stayNotes}
-        onChange={(e) => patch({ stayNotes: e.target.value.slice(0, STAY_NOTES_MAX) })}
-        placeholder="Add stay notes here…"
-        className="min-h-24"
-      />
-      <p className="mt-1 text-right text-[11px] text-muted-foreground">
-        {draft.stayNotes.length}/{STAY_NOTES_MAX}
-      </p>
-    </section>
   );
 }
 
@@ -609,135 +619,16 @@ function StaySummaryRail({
   coverUrl: string | null;
   nights: number;
 }) {
-  const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
-  const assigned = Boolean(reservation.roomId && reservation.roomNumber);
-  const cancellation = snapshotDisplayName(reservation.cancellationPolicySnapshot);
-  const noShow = snapshotField(reservation.refundabilitySnapshot, ["no_show", "no_show_policy"]);
-  const earlyDeparture = earlyDepartureReservationLabel({
-    snapshot: reservation.earlyDeparturePolicySnapshot,
-    legacyRefundabilitySnapshot: reservation.refundabilitySnapshot,
-  });
-  const stayNightsLabel =
-    nights || nightsBetween(reservation.arrivalDate, reservation.departureDate);
-
   return (
-    <aside
-      className="h-fit space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="reservation-stay-summary"
-    >
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          Reservation Summary
-        </p>
-        <div className="mt-1 flex items-center gap-2">
-          <p className="font-display text-lg text-[#251605]">{reservation.confirmationNumber}</p>
-          <ReservationStatusBadge status={reservation.status} />
-        </div>
-      </div>
-      <div className="flex items-start gap-3 border-t border-[#EEE6D8] pt-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F4E9D0] text-xs font-semibold text-[#765719]">
-          {guestInitials(reservation.guestName)}
-        </div>
-        <div className="min-w-0">
-          <p className="flex items-center gap-1 font-medium text-[#251605]">
-            <UserRound className="size-3.5 text-[#B8954F]" />
-            {reservation.guestName}
-            {reservation.guestVip ? (
-              <span className="rounded-full bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-semibold text-[#765719]">
-                VIP
-              </span>
-            ) : null}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {reviewDash(reservation.guestPhone)}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {reviewDash(reservation.guestEmail)}
-          </p>
-        </div>
-      </div>
-      <SummaryBlock
-        icon={<CalendarDays className="size-3.5 text-[#B8954F]" />}
-        title="Stay Information"
-      >
-        <p>
-          {formatStayDate(reservation.arrivalDate)} → {formatStayDate(reservation.departureDate)} (
-          {stayNightsLabel} night{stayNightsLabel === 1 ? "" : "s"})
-        </p>
-        <p>
-          {reservation.adults} Adults · {reservation.children} Children ·{" "}
-          {reservation.infants == null ? DETAIL_DASH : reservation.infants} Infants
-        </p>
-        <p>Purpose: {reviewDash(reservation.purposeOfStay)}</p>
-      </SummaryBlock>
-      <SummaryBlock
-        icon={<BedDouble className="size-3.5 text-[#B8954F]" />}
-        title="Room Information"
-      >
-        <div className="flex gap-2">
-          {coverUrl ? (
-            <img src={coverUrl} alt="" className="h-12 w-16 rounded-md object-cover" />
-          ) : (
-            <div className="flex h-12 w-16 items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68]">
-              <BedDouble className="size-5" />
-            </div>
-          )}
-          <div>
-            <p className="font-medium">{reviewDash(reservation.roomTypeName)}</p>
-            <p>{assigned ? `Room ${reservation.roomNumber}` : "Not Assigned"}</p>
-            <p>{reviewDash(reservation.ratePlanName)}</p>
-          </div>
-        </div>
-      </SummaryBlock>
-      <SummaryBlock icon={<FileText className="size-3.5 text-[#B8954F]" />} title="Rate & Total">
-        <p>
-          Room Rate{" "}
-          {reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
-        </p>
-        <p className="font-medium text-[#251605]">
-          Total Amount{" "}
-          {reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
-        </p>
-      </SummaryBlock>
-      <SummaryBlock
-        icon={<CreditCard className="size-3.5 text-[#B8954F]" />}
-        title="Guarantee & Deposit"
-      >
-        <p>{reviewDash(reservation.guaranteeMethod)}</p>
-        <p>
-          Deposit {deposit?.amount == null ? DETAIL_DASH : money(deposit.amount)} ·{" "}
-          {depositStatusLabel(deposit)}
-        </p>
-      </SummaryBlock>
-      <SummaryBlock icon={<Shield className="size-3.5 text-[#B8954F]" />} title="Policies">
-        <p>Cancellation: {reviewDash(cancellation)}</p>
-        <p>No-show: {reviewDash(noShow)}</p>
-        <p>Early departure: {reviewDash(earlyDeparture)}</p>
-      </SummaryBlock>
-    </aside>
+    <ReservationDetailSummary
+      testId="reservation-stay-summary"
+      reservation={reservation}
+      money={money}
+      coverUrl={coverUrl}
+      nights={nights}
+    />
   );
 }
-
-function SummaryBlock({
-  icon,
-  title,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="border-t border-[#EEE6D8] pt-3 text-xs text-muted-foreground">
-      <p className="mb-1 flex items-center gap-1 font-medium text-[#251605]">
-        {icon}
-        {title}
-      </p>
-      <div className="space-y-0.5">{children}</div>
-    </div>
-  );
-}
-
 function StayField({
   label,
   htmlFor,
@@ -754,30 +645,5 @@ function StayField({
       </Label>
       {children}
     </div>
-  );
-}
-
-function StayCheck({
-  label,
-  checked,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label
-      className={cn("flex items-center gap-2 text-sm text-[#251605]", disabled && "opacity-60")}
-    >
-      <Checkbox
-        checked={checked}
-        disabled={disabled}
-        onCheckedChange={(value) => onChange(value === true)}
-      />
-      {label}
-    </label>
   );
 }

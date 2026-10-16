@@ -352,7 +352,6 @@ function FolioWorkspaceBody({
       adjustment: caps.canAdjust,
     };
     if (allowed[initialAction]) openEntry(initialAction);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialAction, caps]);
 
   function selectTab(next: FolioWorkspaceTabId) {
@@ -1025,6 +1024,11 @@ function HistoryList({
                       <span className="text-muted-foreground">↳ </span>
                     ) : null}
                     {row.description}
+                    {row.roomUnitLabel ? (
+                      <span className="ml-1 text-[11px] text-muted-foreground">
+                        {row.roomUnitLabel}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 text-xs">
                     {row.paymentMethod ? methodLabel(row.paymentMethod) : "—"}

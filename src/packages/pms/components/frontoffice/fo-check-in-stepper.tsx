@@ -39,6 +39,10 @@ import {
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { assignableListUi, formatRoomTypeLabel } from "@/packages/pms/lib/fo-room-assignment";
 import { AssignableRoomsHint } from "@/packages/pms/components/frontoffice/assignable-rooms-hint";
+import {
+  RoomUnitOccupantContext,
+  RoomUnitTargetSelect,
+} from "@/packages/pms/components/frontoffice/room-unit-target-select";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
 import { useMoney } from "@/core/state/property-format";
 import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
@@ -94,12 +98,14 @@ export function FoCheckInStepper({
   open,
   onOpenChange,
   initialStep = "stay",
+  initialReservationRoomId,
 }: {
   restaurantId: string;
   stay: FrontOfficeStay;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initialStep?: CheckInStepId;
+  initialReservationRoomId?: string;
 }) {
   const queryClient = useQueryClient();
   const money = useMoney();
@@ -114,6 +120,12 @@ export function FoCheckInStepper({
   const [denyMessage, setDenyMessage] = useState<string | null>(null);
 
   const [roomId, setRoomId] = useState(stay.roomId ?? "");
+  const [reservationRoomId, setReservationRoomId] = useState("");
+  const multiRoom = (stay.roomUnits?.length ?? 0) > 1;
+  const selectedUnit = stay.roomUnits?.find((unit) => unit.id === reservationRoomId) ?? null;
+  const targetRoomTypeId = selectedUnit?.roomTypeId ?? stay.roomTypeId;
+  const targetArrival = selectedUnit?.arrivalDate ?? stay.arrivalDate;
+  const targetDeparture = selectedUnit?.departureDate ?? stay.departureDate;
   const [fullName, setFullName] = useState(stay.guestName);
   const [phone, setPhone] = useState(stay.guestPhone ?? "");
   const [email, setEmail] = useState("");
@@ -179,21 +191,22 @@ export function FoCheckInStepper({
       "assignable",
       restaurantId,
       stay.id,
-      stay.roomTypeId,
-      stay.arrivalDate,
-      stay.departureDate,
+      targetRoomTypeId,
+      targetArrival,
+      targetDeparture,
+      reservationRoomId,
     ],
     queryFn: () =>
       fetchRooms({
         data: {
           restaurantId,
-          roomTypeId: stay.roomTypeId,
-          arrival: stay.arrivalDate,
-          departure: stay.departureDate,
+          roomTypeId: targetRoomTypeId,
+          arrival: targetArrival,
+          departure: targetDeparture,
           excludeReservationId: stay.id,
         },
       }),
-    enabled: open,
+    enabled: open && (!multiRoom || Boolean(reservationRoomId)),
     retry: false,
   });
 
@@ -203,7 +216,8 @@ export function FoCheckInStepper({
     setConfirmCancel(false);
     setDirty(false);
     setDenyMessage(null);
-    setRoomId(stay.roomId ?? "");
+    setReservationRoomId(multiRoom ? (initialReservationRoomId ?? "") : "");
+    setRoomId(multiRoom ? "" : (stay.roomId ?? ""));
     setAdults(stay.adults);
     setChildren(stay.children);
     setRegReason("");
@@ -212,7 +226,23 @@ export function FoCheckInStepper({
     setDepositRef("");
     setDepositReason("");
     setKeyReason("");
-  }, [open, initialStep, stay.id, stay.roomId, stay.adults, stay.children]);
+  }, [
+    open,
+    initialStep,
+    initialReservationRoomId,
+    stay.id,
+    stay.roomId,
+    stay.adults,
+    stay.children,
+    multiRoom,
+  ]);
+
+  const selectedUnitId = selectedUnit?.id ?? "";
+  const selectedUnitRoomId = selectedUnit?.roomId ?? "";
+  useEffect(() => {
+    if (!multiRoom || !selectedUnitId) return;
+    setRoomId(selectedUnitRoomId);
+  }, [multiRoom, selectedUnitId, selectedUnitRoomId]);
 
   useEffect(() => {
     if (!ctx) return;
@@ -228,11 +258,11 @@ export function FoCheckInStepper({
     setCountry(ctx.guest.country ?? "");
     setAdults(ctx.stay.adults);
     setChildren(ctx.stay.children);
-    if (ctx.stay.roomId) setRoomId(ctx.stay.roomId);
+    if (!multiRoom && ctx.stay.roomId) setRoomId(ctx.stay.roomId);
     if (ctx.progress.keyAccessType) setKeyType(ctx.progress.keyAccessType as KeyAccessType);
     if (ctx.progress.keyIdentifier) setKeyId(ctx.progress.keyIdentifier);
     if (ctx.progress.keyCount) setKeyCount(ctx.progress.keyCount);
-  }, [ctx, stay.guestName]);
+  }, [ctx, stay.guestName, multiRoom]);
 
   useEffect(() => {
     if (!open || step !== "deposit") return;
@@ -329,8 +359,18 @@ export function FoCheckInStepper({
   const assignMut = useMutation({
     mutationFn: async () => {
       if (!roomId) throw new Error("Assign a room before continuing.");
-      if (roomId !== (ctx?.stay.roomId ?? stay.roomId)) {
-        await assign({ data: { restaurantId, reservationId: stay.id, roomId } });
+      const currentRoomId = multiRoom
+        ? (selectedUnit?.roomId ?? null)
+        : (ctx?.stay.roomId ?? stay.roomId);
+      if (roomId !== currentRoomId) {
+        await assign({
+          data: {
+            restaurantId,
+            reservationId: stay.id,
+            roomId,
+            ...(multiRoom ? { reservationRoomId } : {}),
+          },
+        });
       }
     },
     onSuccess: async () => {
@@ -456,7 +496,14 @@ export function FoCheckInStepper({
   });
 
   const completeMut = useMutation({
-    mutationFn: () => complete({ data: { restaurantId, reservationId: stay.id } }),
+    mutationFn: () =>
+      complete({
+        data: {
+          restaurantId,
+          reservationId: stay.id,
+          ...(multiRoom ? { reservationRoomId, roomId } : {}),
+        },
+      }),
     onSuccess: (result) => {
       toast.success(
         `Checked in · ${result.roomNumber ? `Room ${result.roomNumber}` : stay.roomTypeName}`,
@@ -495,7 +542,8 @@ export function FoCheckInStepper({
   }
 
   const continueDisabled =
-    (step === "stay" && (!roomGate.ready || assignMut.isPending)) ||
+    (step === "stay" &&
+      (!roomGate.ready || assignMut.isPending || (multiRoom && !reservationRoomId))) ||
     (step === "registration" && (!registrationOk || saveRegMut.isPending)) ||
     (step === "deposit" && !depositOk) ||
     (step === "key" && ((!keyOk && !ctx?.progress.keyWaived) || saveKeyMut.isPending)) ||
@@ -570,6 +618,24 @@ export function FoCheckInStepper({
 
                 {step === "stay" ? (
                   <div className="space-y-4">
+                    <RoomUnitTargetSelect
+                      units={stay.roomUnits}
+                      value={reservationRoomId}
+                      onChange={(id) => {
+                        setReservationRoomId(id);
+                        markDirty();
+                      }}
+                    />
+                    <RoomUnitOccupantContext
+                      stayGuestId={stay.guestId}
+                      units={stay.roomUnits}
+                      selectedId={reservationRoomId}
+                    />
+                    {multiRoom ? (
+                      <p className="text-xs text-[#6B5E4E]">
+                        Registration stays on the Primary Guest / Booker.
+                      </p>
+                    ) : null}
                     <div className="space-y-2">
                       <Label>Room</Label>
                       <Select
@@ -578,7 +644,11 @@ export function FoCheckInStepper({
                           setRoomId(v);
                           markDirty();
                         }}
-                        disabled={roomsState.status === "loading" || roomsState.status === "error"}
+                        disabled={
+                          roomsState.status === "loading" ||
+                          roomsState.status === "error" ||
+                          (multiRoom && !reservationRoomId)
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue
