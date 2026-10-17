@@ -16,16 +16,13 @@ import { RevenueDataQualityAlert } from "./revenue-data-quality-alert";
 import { RevenueKpiDetail } from "./revenue-kpi-detail";
 import { RevenueSegmentBreakdown } from "./revenue-segment-breakdown";
 import { RevenueSourceBreakdown } from "./revenue-source-breakdown";
-import { RevenueTrendView } from "./revenue-trend-view";
-import { CommercialPerformanceSection } from "./commercial-performance-section";
+import { RevenueOverviewTab } from "./revenue-overview-tab";
 
 const VALID_ANALYTICS_TABS: RevenueAnalyticsTab[] = [
   "overview",
   "kpis",
   "segments",
   "sources",
-  "trends",
-  "commercial",
 ];
 
 function parseAnalyticsTab(tab?: string): RevenueAnalyticsTab {
@@ -53,11 +50,15 @@ export function RevenuePerformanceView({
   context,
   access,
   analyticsTab,
+  marketSegments,
+  bookingSources,
 }: {
   restaurantId: string;
   context: RevenueContext;
   access: RevenueAccess;
   analyticsTab?: string | undefined;
+  marketSegments?: Array<{ id: string; name: string; code?: string }>;
+  bookingSources?: Array<{ id: string; name: string; code?: string }>;
 }) {
   const navigate = useNavigate();
   const fetchOverview = useServerFn(getRevenuePerformanceOverview);
@@ -155,25 +156,22 @@ export function RevenuePerformanceView({
   return (
     <div className="space-y-4">
       {/* Workspace Header & Sub-Tabs */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between border-b border-[#E8E1D7] pb-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#E8E1D7] pb-3">
         <div>
-          <h2 className="font-display text-xl font-semibold tracking-tight text-foreground">
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-[#251605]">
             Revenue Performance
           </h2>
-          <p className="text-xs text-muted-foreground">
-            Operational stay-date yield, KPI detail, and commercial attribution.
-          </p>
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex flex-wrap rounded-md border border-[#E8E1D7] bg-white p-0.5">
+        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-[#E8E1D7] bg-[#F7F4EE]/60 p-1">
           <button
             type="button"
             onClick={() => setTab("overview")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${
+            className={`h-8 rounded-lg px-3.5 text-xs font-semibold transition-all ${
               activeTab === "overview"
-                ? "bg-[#F7F4EE] text-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-white text-[#251605] shadow-xs border border-[#E8E1D7]"
+                : "text-[#756A5B] hover:text-[#251605] hover:bg-white/50"
             }`}
           >
             Overview
@@ -181,10 +179,10 @@ export function RevenuePerformanceView({
           <button
             type="button"
             onClick={() => setTab("kpis")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${
+            className={`h-8 rounded-lg px-3.5 text-xs font-semibold transition-all ${
               activeTab === "kpis"
-                ? "bg-[#F7F4EE] text-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-white text-[#251605] shadow-xs border border-[#E8E1D7]"
+                : "text-[#756A5B] hover:text-[#251605] hover:bg-white/50"
             }`}
           >
             KPI Detail
@@ -192,10 +190,10 @@ export function RevenuePerformanceView({
           <button
             type="button"
             onClick={() => setTab("segments")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${
+            className={`h-8 rounded-lg px-3.5 text-xs font-semibold transition-all ${
               activeTab === "segments"
-                ? "bg-[#F7F4EE] text-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-white text-[#251605] shadow-xs border border-[#E8E1D7]"
+                : "text-[#756A5B] hover:text-[#251605] hover:bg-white/50"
             }`}
           >
             Segments
@@ -203,35 +201,13 @@ export function RevenuePerformanceView({
           <button
             type="button"
             onClick={() => setTab("sources")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${
+            className={`h-8 rounded-lg px-3.5 text-xs font-semibold transition-all ${
               activeTab === "sources"
-                ? "bg-[#F7F4EE] text-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-white text-[#251605] shadow-xs border border-[#E8E1D7]"
+                : "text-[#756A5B] hover:text-[#251605] hover:bg-white/50"
             }`}
           >
             Sources
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("trends")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${
-              activeTab === "trends"
-                ? "bg-[#F7F4EE] text-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Trends
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("commercial")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${
-              activeTab === "commercial"
-                ? "bg-[#F7F4EE] text-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Commercial
           </button>
         </div>
       </div>
@@ -248,13 +224,12 @@ export function RevenuePerformanceView({
 
           {/* Tab Content */}
           {activeTab === "overview" && (
-            <div className="space-y-4">
-              <RevenueTrendView overview={overview} formatCurrency={formatCurrency} />
-              <div className="grid gap-4 lg:grid-cols-2">
-                <RevenueSegmentBreakdown overview={overview} formatCurrency={formatCurrency} />
-                <RevenueSourceBreakdown overview={overview} formatCurrency={formatCurrency} />
-              </div>
-            </div>
+            <RevenueOverviewTab
+              overview={overview}
+              formatCurrency={formatCurrency}
+              marketSegments={marketSegments}
+              bookingSources={bookingSources}
+            />
           )}
 
           {activeTab === "kpis" && (
@@ -262,22 +237,18 @@ export function RevenuePerformanceView({
           )}
 
           {activeTab === "segments" && (
-            <RevenueSegmentBreakdown overview={overview} formatCurrency={formatCurrency} />
+            <RevenueSegmentBreakdown
+              overview={overview}
+              formatCurrency={formatCurrency}
+              marketSegments={marketSegments}
+            />
           )}
 
           {activeTab === "sources" && (
-            <RevenueSourceBreakdown overview={overview} formatCurrency={formatCurrency} />
-          )}
-
-          {activeTab === "trends" && (
-            <RevenueTrendView overview={overview} formatCurrency={formatCurrency} />
-          )}
-
-          {activeTab === "commercial" && (
-            <CommercialPerformanceSection
-              restaurantId={restaurantId}
-              context={context}
+            <RevenueSourceBreakdown
+              overview={overview}
               formatCurrency={formatCurrency}
+              bookingSources={bookingSources}
             />
           )}
         </div>

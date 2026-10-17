@@ -305,9 +305,20 @@ export function computeRevenuePerformanceOverview(options: {
   activeRooms: Array<{ id: string; room_type_id: string }>;
   roomTypes: Array<{ id: string; name: string }>;
   ratePlans: Array<{ id: string; code: string; name: string }>;
+  marketSegments?: Array<{ id: string; code?: string; name: string }>;
+  bookingSources?: Array<{ id: string; code?: string; name: string }>;
   propertyCurrency: string;
 }): RevenuePerformanceOverview {
-  const { query, reservations, activeRooms, roomTypes, ratePlans, propertyCurrency } = options;
+  const {
+    query,
+    reservations,
+    activeRooms,
+    roomTypes,
+    ratePlans,
+    marketSegments,
+    bookingSources,
+    propertyCurrency,
+  } = options;
 
   // Reject unsupported sales channel filter
   if (query.salesChannelId) {
@@ -330,6 +341,20 @@ export function computeRevenuePerformanceOverview(options: {
   const ratePlanMap = new Map<string, { code: string; name: string }>(
     ratePlans.map((p) => [p.id, { code: p.code || "PLAN", name: p.name || "Rate Plan" }]),
   );
+  const segmentNameMap = new Map<string, string>();
+  for (const s of marketSegments ?? []) {
+    if (s.name) {
+      segmentNameMap.set(s.id, s.name);
+      if (s.code) segmentNameMap.set(s.code, s.name);
+    }
+  }
+  const sourceNameMap = new Map<string, string>();
+  for (const s of bookingSources ?? []) {
+    if (s.name) {
+      sourceNameMap.set(s.id, s.name);
+      if (s.code) sourceNameMap.set(s.code, s.name);
+    }
+  }
 
   // Check whether non-inventory dimension filter is applied
   const hasNonInventoryFilter = Boolean(
@@ -462,9 +487,13 @@ export function computeRevenuePerformanceOverview(options: {
       });
     }
     if (!segmentBuckets.has(segmentKey)) {
+      const segLabel =
+        segmentKey !== "unassigned"
+          ? segmentNameMap.get(segmentKey) || segmentKey
+          : "Unassigned / Legacy";
       segmentBuckets.set(segmentKey, {
         id: segmentKey,
-        label: segmentKey !== "unassigned" ? segmentKey : "Unassigned / Legacy",
+        label: segLabel,
         sold: 0,
         revenue: 0,
         priced: 0,
@@ -472,9 +501,13 @@ export function computeRevenuePerformanceOverview(options: {
       });
     }
     if (!sourceBuckets.has(sourceKey)) {
+      const srcLabel =
+        sourceKey !== "unassigned"
+          ? sourceNameMap.get(sourceKey) || sourceKey
+          : "Unassigned / Legacy";
       sourceBuckets.set(sourceKey, {
         id: sourceKey,
-        label: sourceKey !== "unassigned" ? sourceKey : "Unassigned / Legacy",
+        label: srcLabel,
         sold: 0,
         revenue: 0,
         priced: 0,

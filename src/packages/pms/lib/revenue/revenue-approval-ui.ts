@@ -168,6 +168,10 @@ export function revenueApprovalActorsQueryKey(restaurantId: string) {
   return [REVENUE_APPROVAL_ACTORS_QUERY_KEY, restaurantId];
 }
 
+export function revenueApprovalMetricsQueryKey(restaurantId: string, membershipId?: string) {
+  return [REVENUE_APPROVAL_QUERY_KEY, restaurantId, "metrics", membershipId ?? "all"];
+}
+
 export function invalidateRevenueApprovals(queryClient: QueryClient, restaurantId?: string) {
   void queryClient.invalidateQueries({
     queryKey: restaurantId

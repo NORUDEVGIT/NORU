@@ -51,12 +51,16 @@ export async function loadRevenuePerformanceOverview(
   const activeRooms = (roomsRes.data ?? []) as Array<{ id: string; room_type_id: string }>;
 
   // Masters
-  const [typesRes, plansRes] = await Promise.all([
+  const [typesRes, plansRes, segmentsRes, sourcesRes] = await Promise.all([
     db.from("room_types").select("id, name").eq("restaurant_id", query.restaurantId),
     db.from("hotel_rate_plans").select("id, code, name").eq("restaurant_id", query.restaurantId),
+    db.from("pms_market_segments").select("id, code, name").eq("restaurant_id", query.restaurantId),
+    db.from("pms_source_codes").select("id, code, name").eq("restaurant_id", query.restaurantId),
   ]);
   const roomTypes = (typesRes.data ?? []) as Array<{ id: string; name: string }>;
   const ratePlans = (plansRes.data ?? []) as Array<{ id: string; code: string; name: string }>;
+  const marketSegments = (segmentsRes.data ?? []) as Array<{ id: string; code?: string; name: string }>;
+  const bookingSources = (sourcesRes.data ?? []) as Array<{ id: string; code?: string; name: string }>;
 
   // Fetch reservations in range
   let resQuery = db
@@ -116,6 +120,8 @@ export async function loadRevenuePerformanceOverview(
     activeRooms,
     roomTypes,
     ratePlans,
+    marketSegments,
+    bookingSources,
     propertyCurrency,
   });
 }

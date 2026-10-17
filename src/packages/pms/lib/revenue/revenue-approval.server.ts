@@ -505,6 +505,42 @@ export async function listRevenueApprovalRequests(
   };
 }
 
+export async function getRevenueApprovalMetrics(
+  db: DbClient,
+  restaurantId: string,
+  membershipId?: string | undefined,
+): Promise<{
+  pending: number;
+  mine: number;
+  approved: number;
+  rejectedOrStale: number;
+  total: number;
+}> {
+  const result = await db
+    .from("hotel_revenue_approval_requests")
+    .select("status, requested_by")
+    .eq("restaurant_id", restaurantId);
+  if (result.error) throw rateError(result.error.message);
+  const rows = (result.data ?? []) as Array<{ status: string; requested_by: string }>;
+  let pending = 0;
+  let mine = 0;
+  let approved = 0;
+  let rejectedOrStale = 0;
+  for (const row of rows) {
+    if (row.status === "pending") pending++;
+    if (membershipId && row.requested_by === membershipId) mine++;
+    if (row.status === "approved") approved++;
+    if (row.status === "rejected" || row.status === "stale") rejectedOrStale++;
+  }
+  return {
+    pending,
+    mine,
+    approved,
+    rejectedOrStale,
+    total: rows.length,
+  };
+}
+
 export async function getRevenueApprovalRequestDetail(
   db: DbClient,
   input: { restaurantId: string; approvalRequestId: string },
