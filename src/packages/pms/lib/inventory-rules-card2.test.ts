@@ -164,8 +164,14 @@ describe("Card 2 Phase 4 inventory readiness", () => {
       rules: { ...defaultInventoryRules(), overbookingAllowed: true, maximumOverbooking: 2 },
     });
     assert.equal(overbook.ready, true);
-    assert.equal(overbook.configuredButNotOperational, true);
-    assert.ok(OVERBOOKING_CAPACITY_NOTE.includes("capacity enforcement remains unchanged"));
+    assert.equal(overbook.configuredButNotOperational, false);
+    assert.ok(OVERBOOKING_CAPACITY_NOTE.includes("rounded down"));
+    const legacy = evaluateCard2InventoryReadiness({
+      persisted: true,
+      rules: { ...defaultInventoryRules(), overbookingAllowed: true },
+    });
+    assert.equal(legacy.ready, true);
+    assert.equal(legacy.configuredButNotOperational, false);
   });
 
   it("never marks the whole Card 2 complete from inventory-rules readiness", () => {

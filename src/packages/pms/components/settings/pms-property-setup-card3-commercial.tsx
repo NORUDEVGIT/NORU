@@ -317,16 +317,12 @@ export function PmsPropertySetupCard3Commercial({
                     <dd>{snapshot.overbooking.overbookingAllowed ? "Yes" : "No"}</dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">Maximum overbooking</dt>
-                    <dd>{snapshot.overbooking.maximumOverbooking ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Percentage limit</dt>
-                    <dd>{snapshot.overbooking.percentageLimit ?? "—"}</dd>
+                    <dt className="text-muted-foreground">Room-type allowances</dt>
+                    <dd>Configured on each room type</dd>
                   </div>
                   <div>
                     <dt className="text-muted-foreground">Manager approval required</dt>
-                    <dd>{snapshot.overbooking.managerApprovalRequired ? "Yes" : "No"}</dd>
+                    <dd>Yes. Owner or manager only.</dd>
                   </div>
                   <div>
                     <dt className="text-muted-foreground">Reason required</dt>

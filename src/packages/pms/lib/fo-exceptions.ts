@@ -332,6 +332,13 @@ export function deriveExceptionRows(input: {
   demandStays?: OverbookStayLike[];
   discrepancies?: ExceptionDiscrepancyLike[];
   canResolveDiscrepancy?: boolean;
+  /** Canonical property/date shortages. When present, the local demand heuristic is not used. */
+  canonicalOverbooking?: Array<{
+    date: string;
+    roomTypeId: string;
+    roomTypeName: string;
+    shortage: number;
+  }>;
 }): { rows: ExceptionRow[]; comingSoon: ComingSoonException[] } {
   const money = input.moneyByStay ?? {};
   const roomById = new Map(input.rooms.map((room) => [room.id, room]));
@@ -440,7 +447,9 @@ export function deriveExceptionRows(input: {
     });
   }
 
-  if (overbookingLane === "live") {
+  if (input.canonicalOverbooking) {
+    rows.push(...canonicalOverbookingRows(input.canonicalOverbooking));
+  } else if (overbookingLane === "live") {
     rows.push(...deriveOverbookingRows(input.demandStays ?? [], input.rooms, input.businessDate));
   }
 
@@ -454,6 +463,34 @@ export function deriveExceptionRows(input: {
     rows,
     comingSoon: comingSoonExceptionTypes(input.folioLane, feedComingSoon(overbookingLane, discrepancyLane)),
   };
+}
+
+function canonicalOverbookingRows(
+  nights: Array<{ date: string; roomTypeId: string; roomTypeName: string; shortage: number }>,
+): ExceptionRow[] {
+  return nights
+    .filter((night) => night.shortage > 0)
+    .map((night) => ({
+      id: `overbooking:${night.date}:${night.roomTypeId}`,
+      type: "overbooking" as const,
+      label: "Overbooked",
+      severity: "high" as const,
+      reason: `${night.roomTypeName} overbooked +${night.shortage}`,
+      stayId: null,
+      guestName: "",
+      confirmationNumber: "",
+      roomNumber: null,
+      arrivalDate: night.date,
+      departureDate: night.date,
+      ageDays: null,
+      primaryCta: CTA.open_rack,
+      secondary: "none" as const,
+      waived: false,
+      roomTypeId: night.roomTypeId,
+      roomTypeName: night.roomTypeName,
+      focusDate: night.date,
+      secondaryCta: null,
+    }));
 }
 
 function deriveOverbookingRows(

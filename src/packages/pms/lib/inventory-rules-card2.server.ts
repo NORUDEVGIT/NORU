@@ -30,7 +30,13 @@ export const INVENTORY_IMPACTS = [
 export type InventoryImpact = (typeof INVENTORY_IMPACTS)[number];
 
 export const OVERBOOKING_CAPACITY_NOTE =
-  "Overbooking policy is configured, but reservation capacity enforcement remains unchanged.";
+  "Each room type has its own nightly allowance. When both a maximum and a percentage are set, the smaller limit is used. Percentage is calculated from that room type's physical sellable capacity and rounded down.";
+
+export const OVERBOOKING_FUTURE_LIMITS_NOTE =
+  "Coming later — date-specific overbooking limits are not operational yet.";
+
+export const OVERBOOKING_AUTHORIZATION_NOTE =
+  "Owner or Manager authorization and a reason are always required. Receptionists cannot overbook.";
 
 export const MOVE_DEPENDENT_KEYS = [
   "roomTypeChangeAllowed",
@@ -203,6 +209,12 @@ export function normalizeInventoryRules(draft: InventoryRulesDraft): InventoryRu
     next.overridePermissionRequired = false;
     next.overbookingReasonRequired = false;
     next.overbookingAlertEnabled = false;
+  } else {
+    next.roomTypeLimitEnabled = false;
+    next.dateBasedLimitEnabled = false;
+    next.managerApprovalRequired = true;
+    next.overridePermissionRequired = true;
+    next.overbookingReasonRequired = true;
   }
   return next;
 }
@@ -268,7 +280,6 @@ export function inventoryRulesErrors(draft: InventoryRulesDraft): string[] {
       errors.push("Percentage limit must be empty or a number between 0 and 100.");
     }
   }
-
   if (!Array.isArray(draft.blockTypes)) {
     errors.push("Block-type policy must include all nine supported types.");
     return errors;
@@ -302,7 +313,7 @@ export function evaluateCard2InventoryReadiness(input: {
   persisted: boolean;
   rules: InventoryRulesDraft;
 }): InventoryReadiness {
-  const configuredButNotOperational = Boolean(input.rules.overbookingAllowed);
+  const configuredButNotOperational = false;
   if (!input.persisted) {
     return {
       ready: false,

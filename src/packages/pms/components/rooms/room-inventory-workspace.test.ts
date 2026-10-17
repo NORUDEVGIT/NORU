@@ -108,7 +108,7 @@ describe("Room & Inventory workspace", () => {
     expect(availability).toContain("Available Tonight");
     expect(availability).toContain("Occupied Tonight");
     expect(availability).toContain("Blocked Inventory");
-    expect(availability).toContain("Overbooking Allowance");
+    expect(availability).toContain("Allowances stay off this physical grid");
     expect(availability).toContain("Availability Matrix");
     expect(availability).toContain("Reserved / Demand");
     expect(availability).toContain("lg:grid-cols-[minmax(0,1fr)_360px]");
@@ -200,12 +200,13 @@ describe("Room & Inventory workspace", () => {
     expect(rules).not.toContain("query.data.sellableStatusRequired");
   });
 
-  it("keeps overbooking configuration separate from operational allowance", () => {
+  it("keeps overbooking configuration separate from the operational board", () => {
     expect(workspace).toContain("<RoomOverbookingView restaurantId={restaurantId} />");
     expect(rules).toContain("OVERBOOKING_CAPACITY_NOTE");
-    expect(rules).toContain("Operational allowance");
-    expect(rules).toContain("Stop-sell fallback");
-    expect(rules).toContain("Not configured");
+    expect(rules).toContain("getOverbookingBoard");
+    expect(rules).toContain("Allowed overbooking");
+    expect(rules).toContain("Consumed overbooking");
+    expect(rules).not.toContain("Stop-sell fallback");
   });
 
   it("scopes maintenance authorization failures to the maintenance view", () => {

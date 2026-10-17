@@ -677,6 +677,9 @@ export function ReservationDetailWorkspace({
         reservation={reservation}
         editable={detailActions?.editable ?? false}
         canManage={canManage}
+        canOverbook={
+          accessQuery.data?.role === "owner" || accessQuery.data?.role === "manager"
+        }
         timezone={timezone}
         money={money}
         coverUrl={roomType?.coverUrl ?? null}

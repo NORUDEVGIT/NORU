@@ -7,6 +7,7 @@ import { loadCard2HousekeepingSnapshot } from "../housekeeping-card2.functions";
 import type { HousekeepingReadinessPolicy } from "../housekeeping-card2.server";
 import {
   deriveExceptionRows,
+  OVERBOOKING_HORIZON_DAYS,
   type ExceptionRow,
   type FolioSignalLane,
   type StayMoneySignal,
@@ -21,6 +22,7 @@ import {
 } from "../frontoffice.functions";
 import { canManageHousekeeping } from "../housekeeping.server";
 import { addDays } from "../reservation-dates";
+import { loadOverbookingNights, overbookingShortageRows } from "../overbooking.functions";
 import {
   requireReservationManager,
   RESERVATION_STATUSES,
@@ -742,6 +744,12 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
     ]);
 
     const folioLane: FolioSignalLane = signals.folioLane;
+    const overbookingNights = await loadOverbookingNights(
+      supabaseAdmin as never,
+      data.restaurantId,
+      businessDate,
+      addDays(businessDate, OVERBOOKING_HORIZON_DAYS - 1),
+    );
     const fo = deriveExceptionRows({
       arrivals,
       inHouse,
@@ -756,6 +764,7 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
       moneyByStay: signals.byStay,
       businessDate,
       overbookingLane: feeds.overbookingLane,
+      canonicalOverbooking: overbookingShortageRows(overbookingNights),
       discrepancyLane: feeds.discrepancyLane,
       demandStays: feeds.demandStays,
       discrepancies: feeds.discrepancies,

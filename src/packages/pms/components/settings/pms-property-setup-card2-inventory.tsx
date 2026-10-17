@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import {
@@ -22,7 +21,9 @@ import {
 import {
   INVENTORY_BLOCK_TYPES,
   INVENTORY_IMPACTS,
+  OVERBOOKING_AUTHORIZATION_NOTE,
   OVERBOOKING_CAPACITY_NOTE,
+  OVERBOOKING_FUTURE_LIMITS_NOTE,
   card2InventoryStepStatus,
   defaultInventoryRules,
   inventoryRulesErrors,
@@ -31,6 +32,7 @@ import {
   type InventoryRulesDraft,
 } from "@/packages/pms/lib/inventory-rules-card2.server";
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
+import { RoomTypeOverbookingEditor } from "@/packages/pms/components/settings/room-type-overbooking-editor";
 
 const BLOCK_LABELS: Record<(typeof INVENTORY_BLOCK_TYPES)[number], string> = {
   temporary: "Temporary",
@@ -699,12 +701,12 @@ export function PmsPropertySetupCard2Inventory({
       <SectionCard
         number={5}
         title="Overbooking Rules"
-        description="Store the property's overbooking policy without creating a separate booking engine."
+        description="The property switch turns overbooking on. Each room type has its own allowance. This does not add rooms to ordinary availability."
         testId="pms-card2-inventory-overbooking"
       >
         <PolicyToggle
           label="Overbooking Allowed"
-          help="This enables policy configuration only; it does not activate live oversell."
+          help="Allows an owner or manager to explicitly overbook. Normal bookings still stop at physical availability."
           checked={draft.overbookingAllowed}
           disabled={!canEdit}
           onChange={(value) => patch({ overbookingAllowed: value })}
@@ -718,96 +720,43 @@ export function PmsPropertySetupCard2Inventory({
               role="status"
             >
               <p>{OVERBOOKING_CAPACITY_NOTE}</p>
-              <p className="mt-1">
-                Room-type and date-based limits are stored as policy settings and are not yet applied to live capacity.
-              </p>
+              <p className="mt-1">{OVERBOOKING_AUTHORIZATION_NOTE}</p>
+              <p className="mt-1">{OVERBOOKING_FUTURE_LIMITS_NOTE}</p>
             </div>
 
+            <RoomTypeOverbookingEditor restaurantId={restaurantId} canEdit={canEdit} />
+
             <div className="grid gap-3 md:grid-cols-2">
-              <Field label="Maximum Overbooking">
-                <Input
-                  type="number"
-                  min={0}
-                  step={1}
-                  disabled={!canEdit}
-                  value={draft.maximumOverbooking ?? ""}
-                  onChange={(event) =>
-                    patch({
-                      maximumOverbooking:
-                        event.target.value === ""
-                          ? null
-                          : Number(event.target.value),
-                    })
-                  }
-                  aria-label="Maximum overbooking"
-                />
-              </Field>
-
-              <Field label="Percentage Limit">
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.01}
-                  disabled={!canEdit}
-                  value={draft.percentageLimit ?? ""}
-                  onChange={(event) =>
-                    patch({
-                      percentageLimit:
-                        event.target.value === ""
-                          ? null
-                          : Number(event.target.value),
-                    })
-                  }
-                  aria-label="Percentage limit"
-                />
-              </Field>
-
-              <PolicyToggle
-                label="Room-Type Limit Enabled"
-                help="Stores the policy flag for room-type limits."
-                checked={draft.roomTypeLimitEnabled}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ roomTypeLimitEnabled: value })
-                }
-              />
-
               <PolicyToggle
                 label="Date-Based Limit Enabled"
-                help="Stores the policy flag for date-based limits."
-                checked={draft.dateBasedLimitEnabled}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ dateBasedLimitEnabled: value })
-                }
+                help={OVERBOOKING_FUTURE_LIMITS_NOTE}
+                checked={false}
+                disabled
+                onChange={() => undefined}
               />
 
               <PolicyToggle
                 label="Manager Approval Required"
-                checked={draft.managerApprovalRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ managerApprovalRequired: value })
-                }
+                help="Locked on. Only an owner or manager can confirm an overbooking."
+                checked
+                disabled
+                onChange={() => undefined}
               />
 
               <PolicyToggle
                 label="Override Permission Required"
-                checked={draft.overridePermissionRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ overridePermissionRequired: value })
-                }
+                help="Locked on. There is no separate override permission in V1."
+                checked
+                disabled
+                onChange={() => undefined}
               />
 
               <PolicyToggle
                 label="Overbooking Reason Required"
-                checked={draft.overbookingReasonRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ overbookingReasonRequired: value })
-                }
+                help="Locked on. Every overbooking confirmation stores a reason."
+                checked
+                disabled
+                onChange={() => undefined}
               />
 
               <PolicyToggle
@@ -853,21 +802,6 @@ function RuleGroup({
     <div>
       <h3 className="text-sm font-semibold text-[#251605]">{title}</h3>
       <div className="mt-2 grid gap-3 md:grid-cols-2">{children}</div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div>
-      <Label className="text-[#251605]">{label}</Label>
-      <div className="mt-1">{children}</div>
     </div>
   );
 }

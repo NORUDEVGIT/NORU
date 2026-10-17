@@ -69,6 +69,7 @@ export function ReservationDetailStayTab({
   reservation,
   editable,
   canManage,
+  canOverbook = false,
   timezone,
   money,
   coverUrl,
@@ -79,6 +80,7 @@ export function ReservationDetailStayTab({
   reservation: ReservationDetail;
   editable: boolean;
   canManage: boolean;
+  canOverbook?: boolean;
   timezone: string;
   money: (value: number) => string;
   coverUrl: string | null;
@@ -102,6 +104,8 @@ export function ReservationDetailStayTab({
   );
   const [lateNote, setLateNote] = useState("");
   const [impact, setImpact] = useState<StayAmendmentResult | null>(null);
+  const [overbookReason, setOverbookReason] = useState("");
+  const [overbookOffer, setOverbookOffer] = useState<null | "dates" | "extend">(null);
 
   useEffect(() => {
     setDraft(buildStayDraft(reservation));
@@ -140,7 +144,7 @@ export function ReservationDetailStayTab({
     retry: false,
   });
 
-  function stayPayload(arrival: string, departure: string) {
+  function stayPayload(arrival: string, departure: string, overbook?: { reason: string }) {
     return {
       restaurantId,
       reservationId: reservation.id,
@@ -158,6 +162,9 @@ export function ReservationDetailStayTab({
       purposeOfStay: draft.purposeOfStay || null,
       arrivalTransport: draft.arrivalTransport || null,
       pickupNote: draft.pickupNote || null,
+      ...(overbook
+        ? { overbookingRequested: true as const, overbookingReason: overbook.reason }
+        : {}),
     };
   }
 
@@ -174,24 +181,48 @@ export function ReservationDetailStayTab({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  function reportStayError(error: Error, kind: "dates" | "extend") {
+    if (error.message.includes("No rooms of that type are available")) {
+      if (canOverbook) {
+        setOverbookOffer(kind);
+        return;
+      }
+      toast.error("No physical availability. Overbooking requires Owner or Manager authorization.");
+      return;
+    }
+    toast.error(error.message);
+  }
+
   const amendDates = useMutation({
-    mutationFn: () => submitAmend({ data: stayPayload(amendArrival, amendDeparture) }),
+    mutationFn: (reason?: string) =>
+      submitAmend({
+        data: stayPayload(amendArrival, amendDeparture, reason ? { reason } : undefined),
+      }),
     onSuccess: (result) => {
+      setOverbookOffer(null);
       setImpact(result.amendment);
       toast.success("Stay dates amended.");
       onSaved();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => reportStayError(error, "dates"),
   });
 
   const extendStay = useMutation({
-    mutationFn: () => submitAmend({ data: stayPayload(reservation.arrivalDate, extendDeparture) }),
+    mutationFn: (reason?: string) =>
+      submitAmend({
+        data: stayPayload(
+          reservation.arrivalDate,
+          extendDeparture,
+          reason ? { reason } : undefined,
+        ),
+      }),
     onSuccess: (result) => {
+      setOverbookOffer(null);
       setImpact(result.amendment);
       toast.success("Stay extended.");
       onSaved();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => reportStayError(error, "extend"),
   });
 
   const saveArrival = useMutation({
@@ -393,10 +424,18 @@ export function ReservationDetailStayTab({
                   size="sm"
                   className="mt-3"
                   disabled={!editable || amendDates.isPending}
-                  onClick={() => amendDates.mutate()}
+                  onClick={() => amendDates.mutate(undefined)}
                 >
                   {amendDates.isPending ? "Amending…" : "Amend dates"}
                 </Button>
+                {overbookOffer === "dates" && canOverbook ? (
+                  <OverbookAmendReason
+                    reason={overbookReason}
+                    pending={amendDates.isPending}
+                    onReason={setOverbookReason}
+                    onConfirm={() => amendDates.mutate(overbookReason.trim())}
+                  />
+                ) : null}
               </section>
               <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
                 <h2 className="font-display text-base text-[#251605]">Extend Stay</h2>
@@ -426,10 +465,18 @@ export function ReservationDetailStayTab({
                     extendDeparture <= reservation.departureDate ||
                     extendStay.isPending
                   }
-                  onClick={() => extendStay.mutate()}
+                  onClick={() => extendStay.mutate(undefined)}
                 >
                   {extendStay.isPending ? "Extending…" : "Extend Stay"}
                 </Button>
+                {overbookOffer === "extend" && canOverbook ? (
+                  <OverbookAmendReason
+                    reason={overbookReason}
+                    pending={extendStay.isPending}
+                    onReason={setOverbookReason}
+                    onConfirm={() => extendStay.mutate(overbookReason.trim())}
+                  />
+                ) : null}
               </section>
             </>
           )}
@@ -604,6 +651,41 @@ export function ReservationDetailStayTab({
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function OverbookAmendReason({
+  reason,
+  pending,
+  onReason,
+  onConfirm,
+}: {
+  reason: string;
+  pending: boolean;
+  onReason: (value: string) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-[#251605]">
+      <p>This change exceeds physical inventory.</p>
+      <label className="mt-2 block text-xs">
+        Reason *
+        <textarea
+          className="mt-1 w-full rounded-md border border-[#E5DED4] bg-white p-2"
+          value={reason}
+          onChange={(event) => onReason(event.target.value)}
+        />
+      </label>
+      <Button
+        type="button"
+        size="sm"
+        className="mt-2"
+        disabled={pending || reason.trim().length === 0}
+        onClick={onConfirm}
+      >
+        Confirm overbooking
+      </Button>
     </div>
   );
 }

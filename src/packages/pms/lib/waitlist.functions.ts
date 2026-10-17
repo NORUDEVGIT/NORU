@@ -690,7 +690,15 @@ export const respondWaitlistOffer = createServerFn({ method: "POST" })
 export const convertWaitlist = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
-    z.object({ restaurantId: idSchema, requestId: idSchema, offerId: idSchema.optional() }).parse(input),
+    z
+      .object({
+        restaurantId: idSchema,
+        requestId: idSchema,
+        offerId: idSchema.optional(),
+        overbookingRequested: z.boolean().optional(),
+        overbookingReason: z.string().trim().max(500).nullable().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const me = await requireWaitlistWriter(context as never, data.restaurantId);
@@ -725,6 +733,8 @@ export const convertWaitlist = createServerFn({ method: "POST" })
         notes: request.notes,
         ratePlanId: accepted.rate_plan_id,
         status: "pending",
+        overbookingRequested: data.overbookingRequested,
+        overbookingReason: data.overbookingReason,
       },
     });
     const linked = await db(supabaseAdmin)

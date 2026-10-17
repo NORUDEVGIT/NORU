@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   CreateReservationRoomType,
   OccupancySoftWarn,
+  OverbookingDecision,
 } from "@/packages/pms/components/bookings/create-reservation-room-type";
 import { CreateReservationRate } from "@/packages/pms/components/bookings/create-reservation-rate";
 import { CreateReservationRoomAssignment } from "@/packages/pms/components/bookings/create-reservation-room-assignment";
@@ -91,7 +92,8 @@ import {
   listAssignableRooms,
   type RoomTypeAvailability,
 } from "@/packages/pms/lib/reservations.functions";
-import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
+import { addDays, nightsBetween } from "@/packages/pms/lib/reservation-dates";
+import { getOverbookingBoard } from "@/packages/pms/lib/overbooking.functions";
 import { createReservationRoomUnitPayload } from "@/packages/pms/lib/reservation-room-units";
 import type { ReservationMode } from "@/packages/pms/lib/reservation-mode";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -320,6 +322,8 @@ export function CreateReservationPage({
   const [extraRoomUnits, setExtraRoomUnits] = useState<ExtraRoomDraft[]>([]);
   const [extraRoomQuotes, setExtraRoomQuotes] = useState<Record<string, ExtraRoomQuote | null>>({});
   const [roomTypeId, setRoomTypeId] = useState("");
+  const [overbookingReason, setOverbookingReason] = useState("");
+  const [overbookingArmed, setOverbookingArmed] = useState(false);
   const [selectedRoomType, setSelectedRoomType] = useState<SelectedRoomTypeMeta | null>(null);
   const [roomId, setRoomId] = useState(UNASSIGNED);
   const [selectedAssignedRoom, setSelectedAssignedRoom] = useState<AssignedRoomView | null>(null);
@@ -1154,6 +1158,45 @@ export function CreateReservationPage({
     setRoomsRequested(1);
   }
 
+  const availability = availabilitySearchActive ? (availabilityQuery.data ?? []) : [];
+  const selectedType = availability.find((row) => row.roomTypeId === roomTypeId);
+  const requestedRoomsForType = (typeId: string) => {
+    if (!roomUnitPayload.roomUnits) return typeId === roomTypeId ? 1 : 0;
+    return roomUnitPayload.roomUnits.filter((unit) => unit.roomTypeId === typeId).length;
+  };
+  const overbookShortage = availability.reduce(
+    (sum, row) => sum + Math.max(0, requestedRoomsForType(row.roomTypeId) - row.available),
+    0,
+  );
+  const shortRoomTypes = availability.filter(
+    (row) => requestedRoomsForType(row.roomTypeId) > row.available,
+  );
+  const canAuthorizeOverbook = actorRole === "owner" || actorRole === "manager";
+  const overbookReady =
+    overbookShortage > 0 &&
+    canAuthorizeOverbook &&
+    overbookingArmed &&
+    overbookingReason.trim().length > 0;
+  const loadOverbookingBoard = useServerFn(getOverbookingBoard);
+  const overbookBoardQuery = useQuery({
+    queryKey: ["create-overbooking-board", restaurantId, arrival, departure],
+    enabled: canAuthorizeOverbook && overbookShortage > 0 && datesValid,
+    queryFn: () =>
+      loadOverbookingBoard({
+        data: { restaurantId, start: arrival, end: addDays(departure, -1) },
+      }),
+  });
+  function tightestOverbookingFor(typeId: string) {
+    const rows = (overbookBoardQuery.data?.nights ?? []).flatMap((night) => {
+      const row = night.roomTypes.find((type) => type.roomTypeId === typeId);
+      return row ? [row] : [];
+    });
+    return rows.reduce<(typeof rows)[number] | null>(
+      (best, row) => (!best || row.overbookingRemaining < best.overbookingRemaining ? row : best),
+      null,
+    );
+  }
+
   const create = useMutation({
     mutationFn: (nextStatus: "pending" | "confirmed") => {
       if (!channelForm?.accepted) {
@@ -1210,6 +1253,9 @@ export function CreateReservationPage({
             selected: step4Policies.depositPaymentMethod,
             guaranteeMethod,
           }),
+          ...(overbookReady
+            ? { overbookingRequested: true, overbookingReason: overbookingReason.trim() }
+            : {}),
         },
       });
     },
@@ -1520,8 +1566,6 @@ export function CreateReservationPage({
     );
   }
 
-  const availability = availabilitySearchActive ? (availabilityQuery.data ?? []) : [];
-  const selectedType = availability.find((a) => a.roomTypeId === roomTypeId);
   const rooms = roomsQuery.data ?? [];
   const submitInput = {
     hasGuest: !!guest,
@@ -1566,6 +1610,7 @@ export function CreateReservationPage({
         hasGuest: !!guest,
         datesValid,
         canCreateUnpriced,
+        allowPhysicalShortage: overbookReady,
         room1: {
           roomTypeId,
           adults,
@@ -1604,7 +1649,11 @@ export function CreateReservationPage({
       occupancyOk,
       priced,
       canCreateUnpriced,
-      available: selectedType?.available ?? 0,
+      available: overbookReady
+        ? Math.max(selectedType?.available ?? 0, 1)
+        : overbookShortage > 0
+          ? 0
+          : (selectedType?.available ?? 0),
     });
   const canContinueBookingDetails =
     canAdvanceFromBookingDetails({
@@ -1626,6 +1675,11 @@ export function CreateReservationPage({
   const extraRoomsComplete =
     reservationMode !== "group" ||
     extraRoomUnits.every((unit) => unit.roomTypeId.trim().length > 0 && !!unit.occupant?.guestId);
+  const gateAvailable = overbookReady
+    ? Math.max(submitInput.available, 1)
+    : overbookShortage > 0
+      ? 0
+      : submitInput.available;
   const canSubmit =
     occupancyOk &&
     !groupIssue &&
@@ -1633,6 +1687,7 @@ export function CreateReservationPage({
     channelForm?.accepted === true &&
     canSubmitCreateReservation({
       ...submitInput,
+      available: gateAvailable,
       status: "pending",
     });
   const canSubmitConfirm =
@@ -1642,6 +1697,7 @@ export function CreateReservationPage({
     channelForm?.accepted === true &&
     canSubmitConfirmReservation({
       ...submitInput,
+      available: gateAvailable,
       hasGuarantee: !!guaranteeMethod,
       hasSource: !!bookingSource,
       hasSegment: !!marketSegment,
@@ -1840,7 +1896,9 @@ export function CreateReservationPage({
         >
           {create.isPending && status === "pending"
             ? "Creating…"
-            : CREATE_RESERVATION_PENDING_LABEL}
+            : overbookReady
+              ? "Save overbooked request"
+              : CREATE_RESERVATION_PENDING_LABEL}
         </Button>
         <Button
           disabled={!canSubmitConfirm || create.isPending}
@@ -1852,7 +1910,9 @@ export function CreateReservationPage({
         >
           {create.isPending && status === "confirmed"
             ? "Creating…"
-            : CREATE_RESERVATION_CONFIRM_LABEL}
+            : overbookReady
+              ? "Confirm overbooking"
+              : CREATE_RESERVATION_CONFIRM_LABEL}
         </Button>
       </div>
       {embedded ? null : onCancel ? (
@@ -2099,6 +2159,7 @@ export function CreateReservationPage({
         }
         activeRoomLabel={groupMode ? `Room ${activeRoomIndex + 1}` : null}
         modifySearchLabel={groupMode ? `Edit Room ${activeRoomIndex + 1} Criteria` : undefined}
+        allowExhaustedSelection={actorRole === "owner" || actorRole === "manager"}
         onModifySearch={() => {
           document.getElementById("create-reservation-stay-information")?.scrollIntoView({
             behavior: "smooth",
@@ -2661,6 +2722,27 @@ export function CreateReservationPage({
           <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
             <div className="min-w-0 space-y-3">
               {roomsAndRates}
+              {shortRoomTypes.map((row, index) => {
+                const tightest = tightestOverbookingFor(row.roomTypeId);
+                return (
+                  <OverbookingDecision
+                    key={row.roomTypeId}
+                    role={actorRole}
+                    roomName={row.name}
+                    requestedRooms={requestedRoomsForType(row.roomTypeId)}
+                    physicalAvailable={row.available}
+                    shortage={requestedRoomsForType(row.roomTypeId) - row.available}
+                    allowance={tightest?.overbookingAllowance ?? null}
+                    consumed={tightest?.overbookingConsumed ?? null}
+                    remaining={tightest?.overbookingRemaining ?? null}
+                    showControls={index === 0}
+                    reason={overbookingReason}
+                    armed={overbookingArmed}
+                    onReason={setOverbookingReason}
+                    onArm={setOverbookingArmed}
+                  />
+                );
+              })}
               {availabilitySearchActive && availability.length === 0 ? (
                 <CreateReservationRate
                   datesValid={datesValid}

@@ -285,10 +285,6 @@ export function RoomInventoryAvailabilityView({
     (sum, row) => sum + (row.nightly[0] ? nightlyBlocked(row.nightly[0]) : 0),
     0,
   );
-  const overbookingAllowance = scopedTonightRows.reduce(
-    (sum, row) => sum + row.overbookingAllowance,
-    0,
-  );
   const scopedRoomIds = useMemo(
     () =>
       new Set(
@@ -375,7 +371,6 @@ export function RoomInventoryAvailabilityView({
             availableTonight={tonightAvailable}
             occupiedTonight={occupiedTonight}
             blockedInventory={tonightBlocked}
-            overbookingAllowance={overbookingAllowance}
           />
 
           <AvailabilityFilters
@@ -519,13 +514,11 @@ function AvailabilityKpis({
   availableTonight,
   occupiedTonight,
   blockedInventory,
-  overbookingAllowance,
 }: {
   physicalCapacity: number;
   availableTonight: number;
   occupiedTonight: number;
   blockedInventory: number;
-  overbookingAllowance: number;
 }) {
   const cards = [
     {
@@ -557,9 +550,9 @@ function AvailabilityKpis({
       tone: "text-red-700 bg-red-50",
     },
     {
-      label: "Overbooking Allowance",
-      value: overbookingAllowance,
-      detail: percent(overbookingAllowance, physicalCapacity),
+      label: "Overbooking",
+      value: "Room types",
+      detail: "Allowances stay off this physical grid",
       icon: Layers3,
       tone: "text-[#8B651D] bg-[#F8F1E5]",
     },
@@ -1243,7 +1236,7 @@ function InventoryTab({ selectedRow, selectedNight }: AvailabilityDetailPanelPro
     ["Quantity hold applied", selectedNight.quantityHoldApplied],
     ["Room-type hold", selectedNight.typeHold ? "Yes" : "No"],
     ["Available", selectedNight.available],
-    ["Overbooking allowance", selectedRow.overbookingAllowance],
+    ["Overbooking", "Room-type allowance is not added here"],
   ];
   return (
     <section>

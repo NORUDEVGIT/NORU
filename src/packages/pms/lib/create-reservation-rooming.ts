@@ -270,6 +270,7 @@ export function groupStep1Issue(input: {
   hasGuest: boolean;
   datesValid: boolean;
   canCreateUnpriced: boolean;
+  allowPhysicalShortage?: boolean;
   room1: Step1RoomStay & { maxOccupancy?: number; available?: number };
   extras: Array<
     Step1RoomStay & { occupantGuestId: string | null; maxOccupancy?: number; available?: number }
@@ -287,7 +288,7 @@ export function groupStep1Issue(input: {
     const occupancy = occupancySoftWarn(room.adults, room.children, room.maxOccupancy);
     if (occupancy) return `${label}: ${occupancy}`;
     if (!room.roomTypeId.trim()) return `Choose a room type for ${label}.`;
-    if (room.available != null && room.available <= 0) {
+    if (room.available != null && room.available <= 0 && !input.allowPhysicalShortage) {
       return `${label} is not available for these dates.`;
     }
     if (!input.canCreateUnpriced && !room.ratePlanId) return `Choose a rate for ${label}.`;

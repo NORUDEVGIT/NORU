@@ -1174,6 +1174,8 @@ const stayInputSchema = z.object({
     )
     .max(20)
     .optional(),
+  overbookingRequested: z.boolean().optional(),
+  overbookingReason: z.string().trim().max(500).nullable().optional(),
 });
 
 export const createReservation = createServerFn({ method: "POST" })
@@ -1402,20 +1404,32 @@ export const createReservation = createServerFn({ method: "POST" })
       };
       const hasCommercialSelection =
         Boolean(data.promotionActivationId) || (data.packageActivationIds?.length ?? 0) > 0;
-      const { data: created, error } = hasCommercialSelection
-        ? await (
-            supabaseAdmin as never as {
-              rpc: (
-                name: string,
-                args: Record<string, unknown>,
-              ) => Promise<{ data: unknown; error: { message: string } | null }>;
-            }
-          ).rpc("create_hotel_reservation_priced_commercial", {
+      if (data.overbookingRequested) {
+        if (me.role !== "owner" && me.role !== "manager") {
+          throw reservationError("OVERBOOKING_APPROVAL_REQUIRED");
+        }
+        if (!data.overbookingReason) throw reservationError("OVERBOOKING_REASON_REQUIRED");
+      }
+      const overbookingRpc = supabaseAdmin as never as {
+        rpc: (
+          name: string,
+          args: Record<string, unknown>,
+        ) => Promise<{ data: unknown; error: { message: string } | null }>;
+      };
+      const { data: created, error } = data.overbookingRequested
+        ? await overbookingRpc.rpc("create_hotel_reservation_overbooking", {
             ...pricedArgs,
+            _overbooking_reason: data.overbookingReason,
             _promotion_activation_id: data.promotionActivationId ?? null,
             _package_activation_ids: data.packageActivationIds ?? null,
           })
-        : await supabaseAdmin.rpc("create_hotel_reservation_priced", pricedArgs);
+        : hasCommercialSelection
+          ? await overbookingRpc.rpc("create_hotel_reservation_priced_commercial", {
+              ...pricedArgs,
+              _promotion_activation_id: data.promotionActivationId ?? null,
+              _package_activation_ids: data.packageActivationIds ?? null,
+            })
+          : await supabaseAdmin.rpc("create_hotel_reservation_priced", pricedArgs);
       if (error) throw rateError(reservationError(error.message).message);
 
       const row = created as unknown as {
@@ -1663,7 +1677,13 @@ export const amendReservation = createServerFn({ method: "POST" })
           excludeReservationId: data.reservationId,
         });
       }
-      const { data: updated, error } = await supabaseAdmin.rpc("amend_hotel_reservation_priced", {
+      if (data.overbookingRequested) {
+        if (me.role !== "owner" && me.role !== "manager") {
+          throw reservationError("OVERBOOKING_APPROVAL_REQUIRED");
+        }
+        if (!data.overbookingReason) throw reservationError("OVERBOOKING_REASON_REQUIRED");
+      }
+      const amendArgs = {
         _restaurant_id: data.restaurantId,
         _reservation_id: data.reservationId,
         _room_type_id: data.roomTypeId,
@@ -1677,7 +1697,20 @@ export const amendReservation = createServerFn({ method: "POST" })
         _rate_plan_id: (data.ratePlanId ?? null) as unknown as string,
         _membership_id: me.id,
         _infants: data.infants ?? null,
-      });
+      };
+      const { data: updated, error } = data.overbookingRequested
+        ? await (
+            supabaseAdmin as never as {
+              rpc: (
+                name: string,
+                args: Record<string, unknown>,
+              ) => Promise<{ data: unknown; error: { message: string } | null }>;
+            }
+          ).rpc("amend_hotel_reservation_overbooking", {
+            ...amendArgs,
+            _overbooking_reason: data.overbookingReason,
+          })
+        : await supabaseAdmin.rpc("amend_hotel_reservation_priced", amendArgs);
       if (error) throw rateError(reservationError(error.message).message);
 
       const nextGuestId = data.guestId !== existing.guest_id ? data.guestId : null;

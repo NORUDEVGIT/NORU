@@ -16,7 +16,9 @@ import { toast } from "sonner";
 
 import {
   INVENTORY_IMPACTS,
+  OVERBOOKING_AUTHORIZATION_NOTE,
   OVERBOOKING_CAPACITY_NOTE,
+  OVERBOOKING_FUTURE_LIMITS_NOTE,
   defaultInventoryRules,
   normalizeInventoryRules,
   type InventoryImpact,
@@ -26,6 +28,7 @@ import {
   getInventoryRules,
   saveInventoryRules,
 } from "@/packages/pms/lib/inventory-rules.functions";
+import { getOverbookingBoard } from "@/packages/pms/lib/overbooking.functions";
 import { evaluateRoomAssignment } from "@/packages/pms/lib/room-inventory.functions";
 import {
   getRoomsAccess,
@@ -581,7 +584,7 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
               icon={Ban}
               label="Overbooking config"
               value={rules.overbookingAllowed ? "On" : "Off"}
-              detail="Does not expand inventory"
+              detail="Master switch. Numbers are set per room type"
               tone="bg-amber-50 text-amber-700"
             />
             <Kpi
@@ -900,28 +903,20 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
 }
 
 export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) {
-  const { draft, setDraft, canConfigure, query, save, pending } = useInventoryPolicy(restaurantId);
-  const rules = draft;
+  const { query } = useInventoryPolicy(restaurantId);
+  const loadBoard = useServerFn(getOverbookingBoard);
+  const [night, setNight] = useState(() => new Date().toISOString().slice(0, 10));
+  const board = useQuery({
+    queryKey: ["overbooking-board", restaurantId, night],
+    queryFn: () => loadBoard({ data: { restaurantId, start: night, end: night } }),
+  });
+  const summary = board.data?.nights[0];
   return (
     <div className="space-y-3">
       <InventoryViewHeader
         title="Overbooking"
-        description="Configure stored overbooking policy. Operational inventory allowance remains 0 in v1."
-        action={
-          <div className="flex flex-wrap gap-2">
-            <SettingsLink />
-            {canConfigure ? (
-              <Button
-                size="sm"
-                className="bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
-                disabled={pending || query.isLoading}
-                onClick={() => save()}
-              >
-                Save overbooking policy
-              </Button>
-            ) : null}
-          </div>
-        }
+        description="Operational room-type overbooking for the selected night. Allowances are configured in Property Setup."
+        action={<SettingsLink label="Configure in Property Setup" />}
       />
 
       {query.isLoading ? (
@@ -937,34 +932,30 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             <Kpi
               icon={Gauge}
-              label="Operational allowance"
-              value={0}
-              detail="Canonical availability"
+              label="Physical available"
+              value={summary?.physicalAvailable ?? "—"}
+              detail={summary ? `Capacity ${summary.physicalCapacity}` : "Canonical board"}
               tone="bg-emerald-50 text-emerald-700"
             />
             <Kpi
               icon={ShieldAlert}
-              label="Configured policy"
-              value={rules.overbookingAllowed ? "Enabled" : "Off"}
-              detail={
-                query.data?.overbooking.configuredButNotOperational
-                  ? "Configured, not operational"
-                  : "Not used to expand inventory"
-              }
+              label="Overbooking"
+              value={summary?.propertyOverbookingEnabled ? "Enabled" : "Off"}
+              detail="Property master switch"
               tone="bg-amber-50 text-amber-700"
             />
             <Kpi
               icon={Layers3}
-              label="Maximum overbooking"
-              value={rules.maximumOverbooking ?? "—"}
-              detail="Stored cap only"
+              label="Total overbooked rooms"
+              value={summary?.totalOverbookedRooms ?? "—"}
+              detail="Informational sum of room-type shortages"
               tone="bg-blue-50 text-blue-700"
             />
             <Kpi
               icon={Ban}
-              label="Stop-sell fallback"
-              value="Not configured"
-              detail="No overbooking fallback action"
+              label="Room types overbooked"
+              value={summary?.roomTypesOverbooked ?? "—"}
+              detail="Each room type keeps its own allowance"
               tone="bg-zinc-100 text-zinc-700"
             />
           </div>
@@ -974,106 +965,96 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
               Overbooking controls
             </h3>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Saves through the same Card 2 <code>saveInventoryRules</code> path. Nightly cap,
-              numeric approval threshold, and stop-sell fallback are not in the schema.
+              The numbers come from the room-type calculation the reservation transaction uses.
+              Allowances are edited in Property Setup.
             </p>
             <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950">
-              {OVERBOOKING_CAPACITY_NOTE} Operational allowance stays 0. Availability math is not
-              changed in this workspace.
+              {OVERBOOKING_CAPACITY_NOTE} {OVERBOOKING_AUTHORIZATION_NOTE}{" "}
+              {OVERBOOKING_FUTURE_LIMITS_NOTE}
+            </div>
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <label className="text-[11px] text-muted-foreground">
+                Night
+                <Input
+                  type="date"
+                  className="mt-1"
+                  value={night}
+                  onChange={(event) => setNight(event.target.value)}
+                />
+              </label>
+              {summary?.alertEnabled && summary.totalOverbookedRooms > 0 ? (
+                <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-950">
+                  {summary.roomTypesOverbooked} room type
+                  {summary.roomTypesOverbooked === 1 ? " is" : "s are"} currently overbooked
+                  {summary.roomTypes
+                    .filter((type) => type.shortage > 0)
+                    .map((type) => ` · ${type.roomTypeName} +${type.shortage}`)
+                    .join("")}
+                  .
+                </p>
+              ) : null}
+            </div>
+            <div className="mt-3 grid gap-2 text-[12px] sm:grid-cols-3">
+              <p>Physical capacity: {summary?.physicalCapacity ?? "—"}</p>
+              <p>Confirmed demand: {summary?.confirmedDemand ?? "—"}</p>
+              <p>Physical available: {summary?.physicalAvailable ?? "—"}</p>
+            </div>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-left text-[12px]">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="py-1 pr-3 font-medium">Room type</th>
+                    <th className="py-1 pr-3 font-medium">Physical capacity</th>
+                    <th className="py-1 pr-3 font-medium">Demand</th>
+                    <th className="py-1 pr-3 font-medium">Physical available</th>
+                    <th className="py-1 pr-3 font-medium">Allowed overbooking</th>
+                    <th className="py-1 pr-3 font-medium">Consumed overbooking</th>
+                    <th className="py-1 pr-3 font-medium">Remaining</th>
+                    <th className="py-1 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(summary?.roomTypes ?? []).map((type) => (
+                    <tr key={type.roomTypeId} className="border-b border-[#F0EBE3]">
+                      <td className="py-1 pr-3">{type.roomTypeName}</td>
+                      <td className="py-1 pr-3">{type.physicalCapacity}</td>
+                      <td className="py-1 pr-3">{type.demand}</td>
+                      <td className="py-1 pr-3">{type.physicalAvailable}</td>
+                      <td className="py-1 pr-3">{type.overbookingAllowance}</td>
+                      <td className="py-1 pr-3">{type.overbookingConsumed}</td>
+                      <td className="py-1 pr-3">{type.overbookingRemaining}</td>
+                      <td className="py-1">
+                        {!type.overbookingEnabled
+                          ? "Overbooking disabled"
+                          : type.overbookingRemaining === 0 && type.overbookingAllowance > 0
+                            ? "Limit reached"
+                            : type.overbookingAllowance > 0
+                              ? "Available for override"
+                              : "No allowance"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <PolicySwitch
-                label="Overbooking allowed"
-                help="Policy configuration only; it does not activate live oversell."
-                tone="config"
-                checked={rules.overbookingAllowed}
-                disabled={!canConfigure}
-                onChange={(overbookingAllowed) => setDraft({ overbookingAllowed })}
-              />
-              {rules.overbookingAllowed ? (
-                <>
-                  <Field label="Maximum overbooking">
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
-                      disabled={!canConfigure}
-                      value={rules.maximumOverbooking ?? ""}
-                      onChange={(event) =>
-                        setDraft({
-                          maximumOverbooking:
-                            event.target.value === "" ? null : Number(event.target.value),
-                        })
-                      }
-                    />
-                  </Field>
-                  <Field label="Percentage limit">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.01}
-                      disabled={!canConfigure}
-                      value={rules.percentageLimit ?? ""}
-                      onChange={(event) =>
-                        setDraft({
-                          percentageLimit:
-                            event.target.value === "" ? null : Number(event.target.value),
-                        })
-                      }
-                    />
-                  </Field>
-                  <PolicySwitch
-                    label="Room-type limit enabled"
-                    help="Forward-compatible flag. No per-type allowance table exists."
-                    tone="config"
-                    checked={rules.roomTypeLimitEnabled}
-                    disabled={!canConfigure}
-                    onChange={(roomTypeLimitEnabled) => setDraft({ roomTypeLimitEnabled })}
-                  />
-                  <PolicySwitch
-                    label="Date-based limit enabled"
-                    help="Forward-compatible flag. No date-based overbooking table exists."
-                    tone="config"
-                    checked={rules.dateBasedLimitEnabled}
-                    disabled={!canConfigure}
-                    onChange={(dateBasedLimitEnabled) => setDraft({ dateBasedLimitEnabled })}
-                  />
-                  <PolicySwitch
-                    label="Manager approval required"
-                    tone="config"
-                    checked={rules.managerApprovalRequired}
-                    disabled={!canConfigure}
-                    onChange={(managerApprovalRequired) => setDraft({ managerApprovalRequired })}
-                  />
-                  <PolicySwitch
-                    label="Override permission required"
-                    tone="config"
-                    checked={rules.overridePermissionRequired}
-                    disabled={!canConfigure}
-                    onChange={(overridePermissionRequired) =>
-                      setDraft({ overridePermissionRequired })
-                    }
-                  />
-                  <PolicySwitch
-                    label="Overbooking reason required"
-                    tone="config"
-                    checked={rules.overbookingReasonRequired}
-                    disabled={!canConfigure}
-                    onChange={(overbookingReasonRequired) =>
-                      setDraft({ overbookingReasonRequired })
-                    }
-                  />
-                  <PolicySwitch
-                    label="Overbooking alert enabled"
-                    tone="config"
-                    checked={rules.overbookingAlertEnabled}
-                    disabled={!canConfigure}
-                    onChange={(overbookingAlertEnabled) => setDraft({ overbookingAlertEnabled })}
-                  />
-                </>
-              ) : null}
+            <div className="mt-4">
+              <h4 className="text-[12px] font-medium" style={{ color: INK }}>
+                Room type rules
+              </h4>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Allowances are edited on each room type in Property Setup. This list is the saved
+                configuration, not a shared pool.
+              </p>
+              <ul className="mt-2 space-y-1 text-[12px]">
+                {(summary?.roomTypes ?? []).map((type) => (
+                  <li key={type.roomTypeId}>
+                    {type.roomTypeName} · {type.overbookingEnabled ? "Enabled" : "Disabled"}
+                    {type.maximumOverbooking != null ? ` · Max ${type.maximumOverbooking}` : ""}
+                    {type.percentageLimit != null ? ` · ${type.percentageLimit}%` : ""}
+                  </li>
+                ))}
+              </ul>
             </div>
           </section>
         </>
@@ -1212,7 +1193,7 @@ function PolicySwitch({
   help?: string;
   checked: boolean;
   disabled: boolean;
-  tone: "enforced" | "config";
+  tone: "enforced" | "config" | "future";
   onChange: (value: boolean) => void;
 }) {
   return (
@@ -1223,7 +1204,7 @@ function PolicySwitch({
             {label}
           </p>
           <InventoryStatusBadge tone={tone === "enforced" ? "info" : "warning"}>
-            {tone === "enforced" ? "Enforced" : "Config only"}
+            {tone === "enforced" ? "Enforced" : tone === "future" ? "Coming later" : "Config only"}
           </InventoryStatusBadge>
         </div>
         {help ? <p className="mt-0.5 text-[10px] text-muted-foreground">{help}</p> : null}
