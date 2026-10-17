@@ -490,7 +490,7 @@ describe("P8-STEP-02 & P8-STEP-02B Revenue Performance Read Models", () => {
     const promoActivations = [
       {
         id: "promo-act-1",
-        hotel_commercial_promotions: { name: "Early Summer 15%" },
+        promotion_name: "Early Summer 15%",
       },
     ];
 
@@ -506,7 +506,7 @@ describe("P8-STEP-02 & P8-STEP-02B Revenue Performance Read Models", () => {
     const packageActivations = [
       {
         id: "pkg-act-1",
-        hotel_commercial_packages: { name: "Champagne & Breakfast" },
+        package_name: "Champagne & Breakfast",
       },
     ];
 

@@ -849,8 +849,8 @@ export function computeCommercialPerformance(options: {
     applied_amount: number | string;
     quantity: number | string;
   }>;
-  promoActivations: Array<{ id: string; hotel_commercial_promotions?: { name: string } | null }>;
-  packageActivations: Array<{ id: string; hotel_commercial_packages?: { name: string } | null }>;
+  promoActivations: Array<{ id: string; promotion_name: string }>;
+  packageActivations: Array<{ id: string; package_name: string }>;
 }): CommercialPerformance {
   const {
     restaurantId,
@@ -884,12 +884,12 @@ export function computeCommercialPerformance(options: {
 
   const promoActToName = new Map<string, string>();
   for (const act of promoActivations) {
-    promoActToName.set(act.id, act.hotel_commercial_promotions?.name || "Promotion");
+    promoActToName.set(act.id, act.promotion_name || "Promotion");
   }
 
   const pkgActToName = new Map<string, string>();
   for (const act of packageActivations) {
-    pkgActToName.set(act.id, act.hotel_commercial_packages?.name || "Package");
+    pkgActToName.set(act.id, act.package_name || "Package");
   }
 
   // Aggregate promotions

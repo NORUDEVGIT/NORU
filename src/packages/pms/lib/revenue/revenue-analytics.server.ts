@@ -198,17 +198,19 @@ export async function loadCommercialPerformance(
       .select("reservation_id, package_activation_id, applied_amount, quantity")
       .in("reservation_id", resIds),
     db
-      .from("hotel_commercial_promotion_activations")
-      .select("id, hotel_commercial_promotions ( name )")
+      .from("hotel_promotion_activations")
+      .select("id, promotion_name")
       .eq("restaurant_id", input.restaurantId),
     db
-      .from("hotel_commercial_package_activations")
-      .select("id, hotel_commercial_packages ( name )")
+      .from("hotel_package_activations")
+      .select("id, package_name")
       .eq("restaurant_id", input.restaurantId),
   ]);
 
   if (promoAttRes.error) throw rateError(promoAttRes.error.message);
   if (pkgAttRes.error) throw rateError(pkgAttRes.error.message);
+  if (promoActRes.error) throw rateError(promoActRes.error.message);
+  if (pkgActRes.error) throw rateError(pkgActRes.error.message);
 
   return computeCommercialPerformance({
     restaurantId: input.restaurantId,

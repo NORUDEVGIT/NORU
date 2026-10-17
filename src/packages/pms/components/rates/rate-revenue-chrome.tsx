@@ -19,7 +19,7 @@ export function RateRevenueChrome({
       membership={membership}
       activeModule="Rate & Revenue"
       onRoomSearch={() => undefined}
-      searchPlaceholder="Search rates…"
+      showSearch={false}
       helpLabel="Rate & Revenue operational workspace"
       shellTestId="rate-revenue-command-shell"
     >

@@ -37,6 +37,7 @@ export function RoomInventoryChrome({
   searchPlaceholder = "Search room…",
   searchTestId,
   initialSearch = "",
+  showSearch = true,
   helpLabel = "Room & Inventory operational workspace",
   onHelpClick,
   overflowItems = [],
@@ -51,6 +52,7 @@ export function RoomInventoryChrome({
   searchPlaceholder?: string;
   searchTestId?: string;
   initialSearch?: string;
+  showSearch?: boolean;
   helpLabel?: string;
   onHelpClick?: () => void;
   overflowItems?: Array<{ label: string; onSelect: () => void; testId?: string }>;
@@ -148,22 +150,24 @@ export function RoomInventoryChrome({
               })}
             </span>
           </div>
-          <form onSubmit={submitSearch} className="hidden lg:block">
-            <label className="flex h-8 w-52 items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-2.5 text-white/75 focus-within:border-[#C89933]/70">
-              <Search className="size-3.5 shrink-0" />
-              <input
-                data-testid={searchTestId}
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  onSearchChange?.(event.target.value);
-                }}
-                placeholder={searchPlaceholder}
-                aria-label={searchPlaceholder}
-                className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/45"
-              />
-            </label>
-          </form>
+          {showSearch ? (
+            <form onSubmit={submitSearch} className="hidden lg:block">
+              <label className="flex h-8 w-52 items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-2.5 text-white/75 focus-within:border-[#C89933]/70">
+                <Search className="size-3.5 shrink-0" />
+                <input
+                  data-testid={searchTestId}
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    onSearchChange?.(event.target.value);
+                  }}
+                  placeholder={searchPlaceholder}
+                  aria-label={searchPlaceholder}
+                  className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/45"
+                />
+              </label>
+            </form>
+          ) : null}
           <Tooltip>
             <TooltipTrigger asChild>
               <button

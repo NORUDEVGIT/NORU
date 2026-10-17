@@ -185,6 +185,8 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     const chrome = readRel("../components/rates/rate-revenue-chrome.tsx");
     assert.match(chrome, /RoomInventoryChrome/);
     assert.match(chrome, /activeModule="Rate & Revenue"/);
+    assert.match(chrome, /showSearch=\{false\}/);
+    assert.doesNotMatch(chrome, /searchPlaceholder="Search rates…"/);
     assert.doesNotMatch(chrome, /restaurant-management\/dashboard/);
     assert.doesNotMatch(chrome, /Configuration · Rates/);
   });
