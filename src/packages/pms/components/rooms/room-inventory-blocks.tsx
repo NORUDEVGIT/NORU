@@ -448,23 +448,23 @@ export function RoomInventoryBlocksView({ restaurantId }: { restaurantId: string
     <div className="space-y-3">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Room & Inventory
           </p>
-          <h2 className="mt-0.5 font-display text-xl font-semibold" style={{ color: INK }}>
+          <h2 className="mt-0.5 font-display text-2xl font-bold" style={{ color: INK }}>
             Inventory Blocks
           </h2>
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Manage operational holds, approvals, activation, release, and cancellation.
           </p>
         </div>
         <Button
           size="sm"
-          className="bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
+          className="h-9 px-3.5 bg-[#C89933] text-xs font-semibold text-[#251605] hover:bg-[#B5882D]"
           disabled={managerDenied}
           onClick={openCreate}
         >
-          <Plus className="mr-1.5 size-3.5" />
+          <Plus className="mr-1.5 size-4" />
           Create Block
         </Button>
       </div>
@@ -514,22 +514,22 @@ export function RoomInventoryBlocksView({ restaurantId }: { restaurantId: string
         />
       ) : (
         <section className="overflow-hidden rounded-lg border border-[#E5DED4] bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-[#E5DED4] px-3 py-2">
-            <h3 className="text-[11px] font-semibold" style={{ color: INK }}>
+          <div className="flex items-center justify-between border-b border-[#E5DED4] px-4 py-3">
+            <h3 className="text-sm font-bold" style={{ color: INK }}>
               Blocks ({filteredBlocks.length})
             </h3>
             <Button
               size="sm"
-              className="h-7 bg-[#C89933] text-[9px] text-[#251605] hover:bg-[#B5882D]"
+              className="h-8 bg-[#C89933] px-3 text-xs font-semibold text-[#251605] hover:bg-[#B5882D]"
               onClick={openCreate}
             >
-              <Plus className="mr-1 size-3" />
+              <Plus className="mr-1.5 size-3.5" />
               New Block
             </Button>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1280px] text-left text-[10px]">
-              <thead className="border-b border-[#E5DED4] bg-[#F8F5F0] text-[9px] uppercase tracking-wide text-muted-foreground">
+            <table className="w-full min-w-[1280px] text-left text-xs">
+              <thead className="border-b border-[#E5DED4] bg-[#F8F5F0] text-xs font-bold uppercase tracking-wider text-[#5C5346]">
                 <tr>
                   <th className="w-10 px-3 py-2">
                     <Checkbox
@@ -716,23 +716,23 @@ function BlocksKpis({
     },
   ];
   return (
-    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
       {items.map((item) => {
         const Icon = item.icon;
         return (
           <div
             key={item.label}
-            className="flex min-h-16 items-center gap-2.5 rounded-lg border border-[#EAE4DB] bg-white px-3 py-2 shadow-sm"
+            className="flex min-h-[72px] items-center gap-3 rounded-lg border border-[#EAE4DB] bg-white px-3.5 py-2.5 shadow-sm"
           >
-            <span className={`grid size-8 shrink-0 place-items-center rounded-full ${item.tone}`}>
-              <Icon className="size-4" />
+            <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${item.tone}`}>
+              <Icon className="size-4.5" />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-[9px] text-muted-foreground">{item.label}</p>
-              <p className="text-lg font-semibold leading-5" style={{ color: INK }}>
+              <p className="truncate text-xs font-medium text-[#756A5B]">{item.label}</p>
+              <p className="text-2xl font-bold leading-tight" style={{ color: INK }}>
                 {item.value}
               </p>
-              <p className="truncate text-[8px] text-muted-foreground">{item.detail}</p>
+              <p className="truncate text-xs text-[#8C8071]">{item.detail}</p>
             </div>
           </div>
         );
@@ -779,8 +779,8 @@ function BlocksFilters({
   onClear: () => void;
 }) {
   return (
-    <section className="rounded-lg border border-[#E5DED4] bg-white p-2 shadow-sm">
-      <div className="grid items-end gap-2 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1.5fr_1.5fr_auto]">
+    <section className="rounded-lg border border-[#E5DED4] bg-white p-3 shadow-sm">
+      <div className="grid items-end gap-2.5 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1.5fr_1.5fr_auto]">
         <CompactSelect
           label="Block Type"
           value={blockType}
@@ -820,14 +820,14 @@ function BlocksFilters({
           onChange={onBuilding}
           options={[["all", "All Buildings"], ...buildings.map((value) => [value, value])]}
         />
-        <label className="grid gap-1 text-[9px] font-medium text-[#5F554B]">
+        <label className="grid gap-1 text-xs font-semibold text-[#5F554B]">
           Date Range
-          <span className="flex h-8 items-center rounded-md border border-[#DED7CD] px-1">
+          <span className="flex h-9 items-center rounded-md border border-[#DED7CD] bg-white px-2">
             <input
               type="date"
               value={fromDate}
               onChange={(event) => onFromDate(event.target.value)}
-              className="min-w-0 flex-1 bg-transparent px-1 text-[9px] outline-none"
+              className="min-w-0 flex-1 bg-transparent px-1 text-xs text-[#251605] outline-none"
             />
             <span className="text-muted-foreground">–</span>
             <input
@@ -835,20 +835,20 @@ function BlocksFilters({
               min={fromDate || undefined}
               value={toDate}
               onChange={(event) => onToDate(event.target.value)}
-              className="min-w-0 flex-1 bg-transparent px-1 text-[9px] outline-none"
+              className="min-w-0 flex-1 bg-transparent px-1 text-xs text-[#251605] outline-none"
             />
           </span>
         </label>
-        <label className="grid gap-1 text-[9px] font-medium text-[#5F554B]">
+        <label className="grid gap-1 text-xs font-semibold text-[#5F554B]">
           Search
           <Input
             value={search}
             onChange={(event) => onSearch(event.target.value)}
             placeholder="Reason, target, block ID, creator…"
-            className="h-8 text-[10px]"
+            className="h-9 text-xs text-[#251605]"
           />
         </label>
-        <Button variant="outline" size="sm" className="h-8 text-[9px]" onClick={onClear}>
+        <Button variant="outline" size="sm" className="h-9 px-3.5 text-xs font-medium" onClick={onClear}>
           Clear
         </Button>
       </div>
@@ -868,12 +868,12 @@ function CompactSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid gap-1 text-[9px] font-medium text-[#5F554B]">
+    <label className="grid gap-1 text-xs font-semibold text-[#5F554B]">
       {label}
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-8 rounded-md border border-[#DED7CD] bg-white px-2 text-[10px] outline-none focus:border-[#C89933]"
+        className="h-9 rounded-md border border-[#DED7CD] bg-white px-2.5 text-xs text-[#251605] outline-none focus:border-[#C89933]"
       >
         {options.map(([id, name]) => (
           <option key={`${id}-${name}`} value={id}>
@@ -925,31 +925,31 @@ function BlockTableRow({
         : "Required";
   return (
     <tr
-      className="cursor-pointer border-b border-[#EEE8E0] last:border-0 hover:bg-[#FBF9F5]"
+      className="cursor-pointer border-b border-[#EEE8E0] last:border-0 hover:bg-[#FAF8F4] transition-colors"
       onClick={onDetails}
     >
-      <td className="px-3 py-2.5" onClick={(event) => event.stopPropagation()}>
+      <td className="px-3.5 py-3" onClick={(event) => event.stopPropagation()}>
         <Checkbox
           checked={selected}
           onCheckedChange={(checked) => onSelected(checked === true)}
           aria-label={`Select ${blockCode(block)}`}
         />
       </td>
-      <td className="px-3 py-2.5 font-mono text-[9px] font-semibold">{blockCode(block)}</td>
-      <td className="max-w-44 px-3 py-2.5">
-        <p className="truncate font-medium">{target}</p>
-        <p className="text-[8px] text-muted-foreground">{titleCase(block.targetKind)}</p>
+      <td className="px-3.5 py-3 font-mono text-xs font-bold text-[#251605]">{blockCode(block)}</td>
+      <td className="max-w-52 px-3.5 py-3">
+        <p className="truncate text-xs font-bold text-[#251605]">{target}</p>
+        <p className="text-[11px] text-muted-foreground">{titleCase(block.targetKind)}</p>
       </td>
-      <td className="px-3 py-2.5">
-        <span className="inline-flex rounded-full bg-[#F3EFE8] px-2 py-0.5 text-[8px] font-medium text-[#5F492D]">
+      <td className="px-3.5 py-3">
+        <span className="inline-flex rounded-full bg-[#F3EFE8] px-2.5 py-1 text-xs font-medium text-[#5F492D]">
           {titleCase(block.blockType)}
         </span>
       </td>
-      <td className="whitespace-nowrap px-3 py-2.5">{dateLabel(block.startDate)}</td>
-      <td className="whitespace-nowrap px-3 py-2.5">{dateLabel(block.endDate)}</td>
-      <td className="px-3 py-2.5">
+      <td className="whitespace-nowrap px-3.5 py-3 text-xs font-medium text-[#3D352B]">{dateLabel(block.startDate)}</td>
+      <td className="whitespace-nowrap px-3.5 py-3 text-xs font-medium text-[#3D352B]">{dateLabel(block.endDate)}</td>
+      <td className="px-3.5 py-3">
         {block.inventoryImpact === "remove_from_inventory" ? (
-          <p className="font-medium">
+          <p className="text-xs font-semibold text-[#251605]">
             {block.targetKind === "quantity"
               ? `-${block.quantity ?? 0} rooms`
               : block.targetKind === "room"
@@ -957,10 +957,10 @@ function BlockTableRow({
                 : "Full room type"}
           </p>
         ) : (
-          <p className="font-medium">{titleCase(block.inventoryImpact)}</p>
+          <p className="text-xs font-semibold text-[#251605]">{titleCase(block.inventoryImpact)}</p>
         )}
       </td>
-      <td className="px-3 py-2.5">
+      <td className="px-3.5 py-3">
         <StatusPill
           label={approval}
           tone={
@@ -968,16 +968,16 @@ function BlockTableRow({
           }
         />
       </td>
-      <td className="px-3 py-2.5" title={block.createdByMembershipId}>
+      <td className="px-3.5 py-3 font-mono text-xs text-muted-foreground" title={block.createdByMembershipId}>
         {shortReference(block.createdByMembershipId)}
       </td>
-      <td className="px-3 py-2.5">
+      <td className="px-3.5 py-3">
         <BlockStatus status={block.status} />
       </td>
-      <td className="px-3 py-2.5" onClick={(event) => event.stopPropagation()}>
+      <td className="px-3.5 py-3" onClick={(event) => event.stopPropagation()}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost" className="size-7" aria-label="Block actions">
+            <Button size="icon" variant="ghost" className="size-8" aria-label="Block actions">
               <Ellipsis className="size-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -1034,7 +1034,7 @@ function StatusPill({
     danger: "bg-red-100 text-red-800",
   };
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-[8px] font-medium ${tones[tone]}`}>
+    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${tones[tone]}`}>
       {label}
     </span>
   );
@@ -1074,40 +1074,40 @@ function BlocksPagination({
   onPageSize: (size: number) => void;
 }) {
   return (
-    <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E5DED4] px-3 py-2">
-      <p className="text-[9px] text-muted-foreground">
+    <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E5DED4] px-4 py-3">
+      <p className="text-xs text-muted-foreground">
         Showing {total === 0 ? 0 : start + 1}–{end} of {total} matching blocks
         {loadedTotal >= 500 ? " (first 500 loaded)" : ""}
       </p>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-[9px]"
+          className="h-8 px-3 text-xs font-medium"
           disabled={page <= 1}
           onClick={() => onPage(page - 1)}
         >
-          <ChevronLeft className="mr-1 size-3" />
+          <ChevronLeft className="mr-1 size-3.5" />
           Previous
         </Button>
-        <span className="grid size-7 place-items-center rounded bg-[#C89933] text-[9px] font-semibold text-[#251605]">
+        <span className="grid size-8 place-items-center rounded bg-[#C89933] text-xs font-bold text-[#251605]">
           {page}
         </span>
-        <span className="px-1 text-[9px] text-muted-foreground">of {pageCount}</span>
+        <span className="px-1 text-xs text-muted-foreground">of {pageCount}</span>
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-[9px]"
+          className="h-8 px-3 text-xs font-medium"
           disabled={page >= pageCount}
           onClick={() => onPage(page + 1)}
         >
           Next
-          <ChevronRight className="ml-1 size-3" />
+          <ChevronRight className="ml-1 size-3.5" />
         </Button>
         <select
           value={pageSize}
           onChange={(event) => onPageSize(Number(event.target.value))}
-          className="ml-2 h-7 rounded border border-[#DED7CD] bg-white px-2 text-[9px]"
+          className="ml-2 h-8 rounded border border-[#DED7CD] bg-white px-2.5 text-xs font-medium text-[#251605]"
           aria-label="Rows per page"
         >
           {[10, 25, 50].map((size) => (
@@ -1476,23 +1476,23 @@ function BlockDetailDrawer({
   ];
   return (
     <Sheet open={Boolean(block)} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg">
-        <SheetHeader className="border-b border-[#E5DED4] px-5 py-4 text-left">
-          <SheetTitle className="font-display text-xl" style={{ color: INK }}>
+      <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg md:max-w-xl">
+        <SheetHeader className="border-b border-[#E5DED4] px-6 py-4 text-left">
+          <SheetTitle className="font-display text-2xl font-bold" style={{ color: INK }}>
             {blockCode(block)}
           </SheetTitle>
-          <SheetDescription>Operational inventory block details and lifecycle.</SheetDescription>
+          <SheetDescription className="text-xs text-muted-foreground">Operational inventory block details and lifecycle.</SheetDescription>
         </SheetHeader>
-        <div className="px-5 py-4">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="font-medium">{target}</p>
+        <div className="px-6 py-4">
+          <div className="mb-4 flex items-center justify-between rounded-lg border border-[#EDE7DF] bg-[#FAF8F5] p-3.5">
+            <p className="text-sm font-bold text-[#251605]">{target}</p>
             <BlockStatus status={block.status} />
           </div>
           <dl className="divide-y divide-[#EEE8E0]">
             {values.map(([label, value]) => (
-              <div key={label} className="grid grid-cols-[120px_1fr] gap-3 py-2 text-[10px]">
+              <div key={label} className="grid grid-cols-[140px_1fr] gap-3 py-2.5 text-xs">
                 <dt className="text-muted-foreground">{label}</dt>
-                <dd className="break-words font-medium">{value ?? "—"}</dd>
+                <dd className="break-words font-semibold text-[#251605]">{value ?? "—"}</dd>
               </div>
             ))}
           </dl>

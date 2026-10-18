@@ -1,7 +1,8 @@
 /**
  * AIOS-05 inbound Aiosell reservation webhook rules.
  * OTA nightly sellRate is stored as given. This module does not reprice,
- * post Cashiering, decrypt cards, or keep the raw webhook body.
+ * decrypt cards, or keep the raw webhook body. The folio mirror posts the
+ * room price, and a channel payment when pah is false.
  */
 import { timingSafeEqual } from "node:crypto";
 
@@ -205,8 +206,15 @@ export type ExternalReservationMemory = {
   }[];
   snapshots: StoredSnapshot[];
   history: { reservationId: string; eventType: string; channel: string; bookingId: string }[];
-  transactions: unknown[];
+  transactions: ChannelFolioLine[];
   availabilityWrites: unknown[];
+};
+
+export type ChannelFolioLine = {
+  reservationId: string;
+  type: "charge" | "payment";
+  amount: number;
+  referenceType: "reservation_room_charge" | "external_prepaid";
 };
 
 export function createExternalReservationMemory(): ExternalReservationMemory {
@@ -419,6 +427,39 @@ function writeRooms(
   reservation.nightlyRateSnapshot = first?.nights ?? [];
 }
 
+function postChannelFolio(memory: ExternalReservationMemory, reservation: StoredReservation) {
+  const snapshot = memory.snapshots.find((row) => row.reservationId === reservation.id);
+  const hasCharge = memory.transactions.some(
+    (line) =>
+      line.reservationId === reservation.id && line.referenceType === "reservation_room_charge",
+  );
+  if (!hasCharge && reservation.roomSubtotal > 0) {
+    memory.transactions.push({
+      reservationId: reservation.id,
+      type: "charge",
+      amount: reservation.roomSubtotal,
+      referenceType: "reservation_room_charge",
+    });
+  }
+  const hasPayment = memory.transactions.some(
+    (line) => line.reservationId === reservation.id && line.referenceType === "external_prepaid",
+  );
+  if (snapshot?.pah === false && !hasPayment) {
+    const charge = memory.transactions.find(
+      (line) =>
+        line.reservationId === reservation.id && line.referenceType === "reservation_room_charge",
+    );
+    if (charge && charge.amount > 0) {
+      memory.transactions.push({
+        reservationId: reservation.id,
+        type: "payment",
+        amount: charge.amount,
+        referenceType: "external_prepaid",
+      });
+    }
+  }
+}
+
 function writeSnapshot(
   memory: ExternalReservationMemory,
   reservationId: string,
@@ -505,6 +546,7 @@ export function applyExternalReservationMemory(
       reservationId: reservation.id,
     });
     writeSnapshot(memory, reservation.id, command);
+    postChannelFolio(memory, reservation);
     memory.history.push({
       reservationId: reservation.id,
       eventType: "external_reservation_created",
@@ -597,6 +639,7 @@ export function applyExternalReservationMemory(
   writeRooms(memory, reservation, command.rooms, lead);
   if (command.cmBookingId) identity.cmBookingId = command.cmBookingId;
   writeSnapshot(memory, reservation.id, command);
+  postChannelFolio(memory, reservation);
   memory.history.push({
     reservationId: reservation.id,
     eventType: "external_reservation_modified",

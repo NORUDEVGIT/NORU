@@ -368,9 +368,7 @@ export function RoomInventoryCalendarView({
   function selectCell(row: RoomTypeInventoryAvailability, date: string) {
     setSelectedTypeId(row.roomTypeId);
     setSelectedDate(date);
-    if (window.matchMedia("(max-width: 1023px)").matches) {
-      setMobileSummaryOpen(true);
-    }
+    setMobileSummaryOpen(true);
   }
 
   const panelProps = {
@@ -397,8 +395,9 @@ export function RoomInventoryCalendarView({
 
   return (
     <div className="-mx-3 -mt-2 lg:-mx-5">
-      <div className="grid min-h-[calc(100vh-178px)] grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_390px]">
-        <main className="min-w-0 border-r border-[#E5DED4] bg-[#FAF8F5] px-3 py-3 lg:px-4">
+      {/* lg:grid-cols-[minmax(0,1fr)_360px] */}
+      <div className="w-full">
+        <main className="w-full min-w-0 bg-[#FAF8F5] px-3 py-3 lg:px-5 space-y-4">
           <CalendarControls
             building={building}
             buildings={buildings}
@@ -421,7 +420,7 @@ export function RoomInventoryCalendarView({
           />
           <CalendarLegend />
 
-          <section className="mt-3 overflow-hidden rounded-lg border border-[#E5DED4] bg-white shadow-sm">
+          <section className="overflow-hidden rounded-lg border border-[#E5DED4] bg-white shadow-sm">
             {loading ? (
               <InventoryState state="loading" />
             ) : availabilityQuery.isError ? (
@@ -450,21 +449,15 @@ export function RoomInventoryCalendarView({
               />
             )}
           </section>
-          <p className="mt-2 text-[9px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Building groups show where each room type exists. Availability remains the canonical
             property-wide room-type value; room types spanning buildings are grouped separately.
           </p>
         </main>
-
-        <aside className="hidden bg-white lg:block">
-          <div className="sticky top-0 max-h-[calc(100vh-96px)] overflow-y-auto">
-            <CalendarSummaryPanel {...panelProps} />
-          </div>
-        </aside>
       </div>
 
       <Sheet open={mobileSummaryOpen} onOpenChange={setMobileSummaryOpen}>
-        <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-md lg:hidden">
+        <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg md:max-w-xl">
           <SheetHeader className="sr-only">
             <SheetTitle>Calendar inventory summary</SheetTitle>
             <SheetDescription>Selected room type and date calendar details.</SheetDescription>
@@ -508,8 +501,8 @@ function CalendarControls({
   onRefresh: () => void;
 }) {
   return (
-    <section className="rounded-lg border border-[#E5DED4] bg-white p-2 shadow-sm">
-      <div className="grid items-end gap-2 md:grid-cols-2 xl:grid-cols-[1fr_1fr_auto_minmax(210px,1.35fr)_auto_auto_1fr_auto]">
+    <section className="rounded-lg border border-[#E5DED4] bg-white p-3 shadow-sm">
+      <div className="grid items-end gap-2.5 md:grid-cols-2 xl:grid-cols-[1fr_1fr_auto_minmax(210px,1.35fr)_auto_auto_1fr_auto]">
         <CompactSelect
           label="Building"
           value={building}
@@ -525,31 +518,31 @@ function CalendarControls({
         <Button
           size="icon"
           variant="outline"
-          className="size-8"
+          className="size-9"
           aria-label="Previous month"
           onClick={onPrevious}
         >
-          <ChevronLeft className="size-3.5" />
+          <ChevronLeft className="size-4" />
         </Button>
-        <label className="grid gap-1 text-[9px] font-medium text-[#5F554B]">
+        <label className="grid gap-1 text-xs font-semibold text-[#5F554B]">
           Period
           <input
             type="month"
             value={periodStart.slice(0, 7)}
             onChange={(event) => onPeriod(event.target.value)}
-            className="h-8 rounded-md border border-[#DED7CD] bg-white px-2 text-[10px] outline-none focus:border-[#C89933]"
+            className="h-9 rounded-md border border-[#DED7CD] bg-white px-3 text-xs text-[#251605] outline-none focus:border-[#C89933]"
           />
         </label>
         <Button
           size="icon"
           variant="outline"
-          className="size-8"
+          className="size-9"
           aria-label="Next month"
           onClick={onNext}
         >
-          <ChevronRight className="size-3.5" />
+          <ChevronRight className="size-4" />
         </Button>
-        <Button size="sm" variant="outline" className="h-8 text-[10px]" onClick={onToday}>
+        <Button size="sm" variant="outline" className="h-9 px-3.5 text-xs font-medium" onClick={onToday}>
           Today
         </Button>
         <CompactSelect
@@ -563,20 +556,20 @@ function CalendarControls({
           <Button
             size="icon"
             variant="outline"
-            className="size-8"
+            className="size-9"
             aria-label="More calendar actions"
             onClick={onMore}
           >
             <Ellipsis className="size-4" />
           </Button>
           {moreOpen ? (
-            <div className="absolute right-0 top-9 z-30 w-36 rounded-md border border-[#DED7CD] bg-white p-1 shadow-lg">
+            <div className="absolute right-0 top-10 z-30 w-44 rounded-md border border-[#DED7CD] bg-white p-1.5 shadow-lg">
               <button
                 type="button"
-                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[10px] hover:bg-muted"
+                className="flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-xs font-medium text-[#251605] hover:bg-muted"
                 onClick={onRefresh}
               >
-                <RefreshCw className="size-3" />
+                <RefreshCw className="size-3.5" />
                 Refresh calendar
               </button>
             </div>
@@ -601,13 +594,13 @@ function CompactSelect({
   disabled?: boolean;
 }) {
   return (
-    <label className="grid gap-1 text-[9px] font-medium text-[#5F554B]">
+    <label className="grid gap-1 text-xs font-semibold text-[#5F554B]">
       {label}
       <select
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-8 rounded-md border border-[#DED7CD] bg-white px-2 text-[10px] outline-none focus:border-[#C89933] disabled:bg-[#F7F4EF]"
+        className="h-9 rounded-md border border-[#DED7CD] bg-white px-2.5 text-xs text-[#251605] outline-none focus:border-[#C89933] disabled:bg-[#F7F4EF]"
       >
         {options.map(([id, name]) => (
           <option key={`${id}-${name}`} value={id}>
@@ -633,15 +626,15 @@ function CalendarLegend() {
     ],
   ];
   return (
-    <section className="mt-3 grid grid-cols-2 gap-2 rounded-lg border border-[#E5DED4] bg-white px-3 py-2 shadow-sm sm:grid-cols-3 xl:grid-cols-6">
+    <section className="grid grid-cols-2 gap-3 rounded-lg border border-[#E5DED4] bg-white p-3 shadow-sm sm:grid-cols-3 xl:grid-cols-6">
       {items.map(([label, detail, color]) => (
-        <div key={label} className="flex items-center gap-2">
-          <span className={`size-3 shrink-0 rounded-full ${color}`} />
+        <div key={label} className="flex items-center gap-2.5">
+          <span className={`size-3.5 shrink-0 rounded-full ${color}`} />
           <div>
-            <p className="text-[9px] font-medium" style={{ color: INK }}>
+            <p className="text-xs font-bold" style={{ color: INK }}>
               {label}
             </p>
-            <p className="text-[8px] text-muted-foreground">{detail}</p>
+            <p className="text-[11px] text-muted-foreground">{detail}</p>
           </div>
         </div>
       ))}
@@ -670,18 +663,18 @@ function CalendarMatrix({
 }) {
   return (
     <div className="max-h-[calc(100vh-310px)] overflow-auto">
-      <table className="min-w-max border-collapse text-[9px]">
+      <table className="min-w-max border-collapse text-xs">
         <thead className="sticky top-0 z-30 bg-white">
           <tr className="border-b border-[#DDD5CA]">
-            <th className="sticky left-0 z-40 w-40 min-w-40 bg-white px-2 py-2 text-left font-semibold">
+            <th className="sticky left-0 z-40 w-48 min-w-48 bg-white px-3 py-2.5 text-left text-xs font-bold text-[#251605]">
               Room Type
             </th>
-            <th className="sticky left-40 z-40 w-16 min-w-16 bg-white px-1 py-2 text-center font-semibold">
+            <th className="sticky left-48 z-40 w-24 min-w-24 bg-white px-2 py-2.5 text-center text-xs font-bold text-[#251605]">
               Total Rooms
             </th>
             <th
               colSpan={dates.length}
-              className="border-l border-[#E8E1D7] px-2 py-2 text-left text-[10px] font-semibold"
+              className="border-l border-[#E8E1D7] px-3 py-2.5 text-left text-sm font-bold"
               style={{ color: INK }}
             >
               {monthLabel(dates[0] ?? businessDate)}
@@ -689,14 +682,14 @@ function CalendarMatrix({
           </tr>
           <tr className="border-b border-[#DDD5CA]">
             <th className="sticky left-0 z-40 bg-white" />
-            <th className="sticky left-40 z-40 bg-white" />
+            <th className="sticky left-48 z-40 bg-white" />
             {dates.map((date) => {
               const parsed = new Date(`${date}T00:00:00Z`);
               const weekend = parsed.getUTCDay() === 0 || parsed.getUTCDay() === 6;
               return (
                 <th
                   key={date}
-                  className={`min-w-9 border-l border-[#EEE8E0] px-1 py-1.5 text-center ${
+                  className={`min-w-10 border-l border-[#EEE8E0] px-1.5 py-2 text-center ${
                     date === selectedDate
                       ? "bg-[#FBF1DA]"
                       : date === businessDate
@@ -704,8 +697,8 @@ function CalendarMatrix({
                         : "bg-white"
                   } ${weekend ? "text-[#7D5E27]" : "text-muted-foreground"}`}
                 >
-                  <span className="block text-[9px] font-semibold">{parsed.getUTCDate()}</span>
-                  <span className="block text-[7px] font-normal">
+                  <span className="block text-xs font-bold">{parsed.getUTCDate()}</span>
+                  <span className="block text-[10px] font-medium">
                     {parsed.toLocaleDateString(undefined, { weekday: "short", timeZone: "UTC" })}
                   </span>
                 </th>
@@ -756,15 +749,15 @@ function CalendarGroupRows({
     <>
       <tr className="border-y border-[#DDD5CA] bg-[#F7F3ED]">
         <td
-          className="sticky left-0 z-20 bg-[#F7F3ED] px-2 py-1.5 font-semibold"
+          className="sticky left-0 z-20 w-48 min-w-48 bg-[#F7F3ED] px-3 py-2 text-xs font-bold"
           style={{ color: INK }}
         >
-          <span className="flex items-center gap-1">
-            <ChevronDown className="size-3" />
+          <span className="flex items-center gap-1.5">
+            <ChevronDown className="size-3.5" />
             {group.name}
           </span>
         </td>
-        <td className="sticky left-40 z-20 bg-[#F7F3ED] px-1 py-1.5 text-center font-semibold">
+        <td className="sticky left-48 z-20 w-24 min-w-24 bg-[#F7F3ED] px-2 py-2 text-center text-xs font-bold text-[#251605]">
           {group.roomCount}
         </td>
         <td colSpan={dates.length} className="bg-[#F7F3ED]" />
@@ -777,8 +770,8 @@ function CalendarGroupRows({
             <td
               role="button"
               tabIndex={0}
-              className={`sticky left-0 z-20 cursor-pointer bg-white px-5 py-2 font-medium ${
-                selectedTypeId === row.roomTypeId ? "border-l-[3px] border-l-[#C89933]" : ""
+              className={`sticky left-0 z-20 w-48 min-w-48 cursor-pointer bg-white px-4 py-2.5 text-xs font-semibold text-[#251605] ${
+                selectedTypeId === row.roomTypeId ? "border-l-[3px] border-l-[#C89933] bg-[#FFFCF5]" : ""
               }`}
               onClick={() => onSelect(row, selectedDate)}
               onKeyDown={(event) => {
@@ -791,7 +784,7 @@ function CalendarGroupRows({
               {row.name}
             </td>
             <td
-              className="sticky left-40 z-20 bg-white px-1 py-2 text-center"
+              className="sticky left-48 z-20 w-24 min-w-24 bg-white px-2 py-2.5 text-center text-xs font-medium text-[#5C5346]"
               title={`Canonical sellable pool: ${row.physicalCapacity}`}
             >
               {typeRooms.length}
@@ -839,24 +832,24 @@ function CalendarCell({
   onSelect: (row: RoomTypeInventoryAvailability, date: string) => void;
 }) {
   if (!night) {
-    return <td className="border-l border-[#EEE8E0] bg-zinc-50 px-1 py-2 text-center">—</td>;
+    return <td className="border-l border-[#EEE8E0] bg-zinc-50 px-1 py-2 text-center text-xs text-muted-foreground">—</td>;
   }
   const state = cellState({ night, date, businessDate, rooms, blocks });
   const colors: Record<CalendarState, string> = {
-    healthy: "bg-emerald-100/80 text-emerald-900",
-    low: "bg-amber-100 text-amber-900",
-    full: "bg-red-100 text-red-800",
-    blocked: "bg-violet-100 text-violet-900",
-    restricted: "bg-zinc-300 text-zinc-800",
+    healthy: "bg-emerald-100/80 text-emerald-900 font-semibold",
+    low: "bg-amber-100 text-amber-900 font-semibold",
+    full: "bg-red-100 text-red-800 font-bold",
+    blocked: "bg-violet-100 text-violet-900 font-semibold",
+    restricted: "bg-zinc-300 text-zinc-800 font-semibold",
     contains_restricted:
-      "bg-[repeating-linear-gradient(135deg,#E4E4E7_0_4px,#FAFAFA_4px_8px)] text-zinc-800",
+      "bg-[repeating-linear-gradient(135deg,#E4E4E7_0_4px,#FAFAFA_4px_8px)] text-zinc-800 font-semibold",
   };
   return (
     <td
       role="button"
       tabIndex={0}
       aria-label={`${row.name}, ${compactDate(date)}, ${night.available} available, ${titleCase(state)}`}
-      className={`cursor-pointer border-l border-[#EEE8E0] px-1 py-2 text-center font-medium ${colors[state]} ${
+      className={`cursor-pointer border-l border-[#EEE8E0] px-1 py-2 text-center text-xs ${colors[state]} ${
         selected ? "ring-2 ring-inset ring-[#C89933]" : ""
       } ${date === businessDate && !selected ? "border-t-2 border-t-[#C89933]" : ""}`}
       onClick={() => onSelect(row, date)}
@@ -918,27 +911,27 @@ function CalendarSummaryPanel({
 }: CalendarSummaryPanelProps) {
   const affectedCount = restrictions.length + blocks.length;
   return (
-    <div className="min-h-full bg-white p-3">
-      <header className="border-b border-[#E8E1D7] pb-3">
+    <div className="min-h-full bg-white p-4">
+      <header className="border-b border-[#E8E1D7] pb-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-display text-lg font-semibold" style={{ color: INK }}>
+            <h2 className="font-display text-xl font-bold" style={{ color: INK }}>
               {compactDate(selectedDate)}
             </h2>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">{propertyName}</p>
-            <p className="text-[9px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">{propertyName}</p>
+            <p className="text-xs font-medium text-[#5C5346]">
               {selectedBuilding}
               {selectedRow ? ` · ${selectedRow.name}` : ""}
             </p>
           </div>
-          <span className="rounded-full bg-[#F4EFE7] px-2 py-1 text-[9px] font-medium">
+          <span className="rounded-full bg-[#F4EFE7] px-2.5 py-1 text-xs font-semibold text-[#5F492D]">
             1 night
           </span>
         </div>
       </header>
 
-      <section className="border-b border-[#E8E1D7] py-3">
-        <h3 className="text-[10px] font-semibold" style={{ color: INK }}>
+      <section className="border-b border-[#E8E1D7] py-4">
+        <h3 className="text-xs font-bold" style={{ color: INK }}>
           Inventory Summary
         </h3>
         <dl className="mt-2 divide-y divide-[#EEE8E0]">
@@ -976,38 +969,38 @@ function CalendarSummaryPanel({
             value={summary.blocked}
             percentage={percent(summary.blocked, summary.physical)}
           />
-          <div className="mt-1 flex items-center justify-between rounded bg-emerald-50 px-2 py-2 text-[10px] text-emerald-900">
-            <dt className="font-medium">Remaining Available</dt>
-            <dd className="flex items-center gap-3 font-semibold">
-              <span>{summary.available}</span>
+          <div className="mt-2 flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
+            <dt className="font-semibold">Remaining Available</dt>
+            <dd className="flex items-center gap-3 font-bold">
+              <span className="text-sm">{summary.available}</span>
               <span>{percent(summary.available, summary.physical)}</span>
             </dd>
           </div>
         </dl>
         {selectedNight ? (
-          <p className="mt-2 text-[8px] text-muted-foreground">
+          <p className="mt-2 text-[11px] text-muted-foreground">
             Values map directly to canonical nightly availability for the selected date.
           </p>
         ) : null}
       </section>
 
-      <section className="py-3">
+      <section className="py-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-[10px] font-semibold" style={{ color: INK }}>
+          <h3 className="text-xs font-bold" style={{ color: INK }}>
             Operational Notes
           </h3>
           {affectedCount > 0 ? (
-            <span className="text-[8px] text-muted-foreground">{affectedCount} items</span>
+            <span className="text-xs text-muted-foreground">{affectedCount} items</span>
           ) : null}
         </div>
-        <div className="mt-2 space-y-2">
+        <div className="mt-2.5 space-y-2.5">
           {restrictions.map((note) => (
             <RestrictionCard key={note.id} note={note} />
           ))}
           {blocksLoading ? (
-            <p className="py-3 text-center text-[9px] text-muted-foreground">Loading blocks…</p>
+            <p className="py-4 text-center text-xs text-muted-foreground">Loading blocks…</p>
           ) : blocksError ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-[9px] text-amber-800">
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
               Block details require owner or manager access. Canonical cell availability remains
               available.
             </div>
@@ -1015,12 +1008,12 @@ function CalendarSummaryPanel({
             blocks.map((block) => <BlockNote key={block.id} block={block} />)
           )}
           {!blocksLoading && !blocksError && blocks.length === 0 && restrictions.length === 0 ? (
-            <p className="py-4 text-center text-[9px] text-muted-foreground">
+            <p className="py-5 text-center text-xs text-muted-foreground">
               No current restrictions or operational blocks affect this selection.
             </p>
           ) : null}
           {selectedDate !== businessDate && restrictions.length === 0 ? (
-            <p className="text-[8px] leading-4 text-muted-foreground">
+            <p className="text-[11px] leading-4 text-muted-foreground">
               Room-level OOO/OOS status is only available for the property business date; it is not
               reconstructed for future dates.
             </p>
@@ -1028,18 +1021,18 @@ function CalendarSummaryPanel({
         </div>
       </section>
 
-      <footer className="grid grid-cols-2 gap-2 border-t border-[#E8E1D7] pt-3">
+      <footer className="grid grid-cols-2 gap-2.5 border-t border-[#E8E1D7] pt-4">
         <Button
           variant="outline"
           size="sm"
-          className="h-8 text-[9px]"
+          className="h-9 text-xs font-medium"
           onClick={onViewAffectedRooms}
         >
-          <BedDouble className="mr-1.5 size-3" />
+          <BedDouble className="mr-1.5 size-3.5" />
           View Affected Rooms
         </Button>
-        <Button variant="outline" size="sm" className="h-8 text-[9px]" onClick={onEditBlocks}>
-          <ExternalLink className="mr-1.5 size-3" />
+        <Button variant="outline" size="sm" className="h-9 text-xs font-medium" onClick={onEditBlocks}>
+          <ExternalLink className="mr-1.5 size-3.5" />
           Edit Blocks
         </Button>
       </footer>
@@ -1059,15 +1052,15 @@ function SummaryLine({
   hint?: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5 text-[9px]">
+    <div className="flex items-center justify-between gap-3 py-2 text-xs">
       <dt className="text-muted-foreground">
         {label}
-        {hint ? <span className="ml-1 text-[7px]">({hint})</span> : null}
+        {hint ? <span className="ml-1 text-[10px]">({hint})</span> : null}
       </dt>
-      <dd className="flex items-center gap-3 font-medium">
+      <dd className="flex items-center gap-3 font-semibold text-[#251605]">
         <span>{value}</span>
         {percentage ? (
-          <span className="min-w-8 text-right text-muted-foreground">{percentage}</span>
+          <span className="min-w-10 text-right text-xs font-normal text-muted-foreground">{percentage}</span>
         ) : null}
       </dd>
     </div>
@@ -1077,20 +1070,20 @@ function SummaryLine({
 function RestrictionCard({ note }: { note: RestrictionNote }) {
   const Icon = note.type === "maintenance" ? Hammer : CircleSlash2;
   return (
-    <article className="rounded-md border border-[#E8E1D7] p-2.5">
-      <div className="flex gap-2">
+    <article className="rounded-lg border border-[#E8E1D7] p-3">
+      <div className="flex gap-2.5">
         <Icon
-          className={`mt-0.5 size-3.5 shrink-0 ${
+          className={`mt-0.5 size-4 shrink-0 ${
             note.type === "maintenance" ? "text-amber-700" : "text-zinc-600"
           }`}
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-[9px] font-semibold">{note.target}</p>
-            <span className="whitespace-nowrap text-[7px] text-muted-foreground">{note.dates}</span>
+            <p className="text-xs font-bold text-[#251605]">{note.target}</p>
+            <span className="whitespace-nowrap text-[10px] text-muted-foreground">{note.dates}</span>
           </div>
-          <p className="text-[8px] font-medium text-muted-foreground">{titleCase(note.type)}</p>
-          <p className="mt-1 text-[8px] leading-3.5 text-muted-foreground">{note.impact}</p>
+          <p className="text-xs font-medium text-muted-foreground">{titleCase(note.type)}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{note.impact}</p>
         </div>
       </div>
     </article>
@@ -1099,17 +1092,17 @@ function RestrictionCard({ note }: { note: RestrictionNote }) {
 
 function BlockNote({ block }: { block: OperationalInventoryBlock }) {
   return (
-    <article className="rounded-md border border-violet-200 bg-violet-50/50 p-2.5">
-      <div className="flex gap-2">
-        <Layers3 className="mt-0.5 size-3.5 shrink-0 text-violet-700" />
+    <article className="rounded-lg border border-violet-200 bg-violet-50/50 p-3">
+      <div className="flex gap-2.5">
+        <Layers3 className="mt-0.5 size-4 shrink-0 text-violet-700" />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-[9px] font-semibold">{titleCase(block.blockType)}</p>
-            <span className="whitespace-nowrap text-[7px] text-muted-foreground">
+            <p className="text-xs font-bold text-[#251605]">{titleCase(block.blockType)}</p>
+            <span className="whitespace-nowrap text-[10px] text-muted-foreground">
               {dateLabel(block.startDate)} – {dateLabel(block.endDate)}
             </span>
           </div>
-          <p className="text-[8px] font-medium text-violet-800">
+          <p className="text-xs font-medium text-violet-800">
             {block.targetKind === "quantity"
               ? `${block.quantity ?? 0} rooms`
               : block.targetKind === "room"
@@ -1117,7 +1110,7 @@ function BlockNote({ block }: { block: OperationalInventoryBlock }) {
                 : "Room-type target"}{" "}
             · {titleCase(block.inventoryImpact)}
           </p>
-          <p className="mt-1 text-[8px] leading-3.5 text-muted-foreground">{block.reason}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{block.reason}</p>
         </div>
       </div>
     </article>

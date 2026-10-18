@@ -53,6 +53,7 @@ import {
 import {
   addDays,
   formatStayDate,
+  nightsBetween,
   propertyToday,
 } from "@/packages/pms/components/bookings/reservation-bits";
 import {
@@ -92,7 +93,6 @@ import {
   listAssignableRooms,
   type RoomTypeAvailability,
 } from "@/packages/pms/lib/reservations.functions";
-import { addDays, nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import { getOverbookingBoard } from "@/packages/pms/lib/overbooking.functions";
 import { createReservationRoomUnitPayload } from "@/packages/pms/lib/reservation-room-units";
 import type { ReservationMode } from "@/packages/pms/lib/reservation-mode";

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, ChevronRight, X } from "lucide-react";
+import { CheckCircle2, ChevronRight, Clock, FileText, Info, User, X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/shared/components/ui/sheet";
 import { getAuditOperationDetail } from "@/packages/pms/lib/revenue/revenue-audit.functions";
 import type {
@@ -54,28 +54,30 @@ export function RevenueAuditDetailDrawer({
 
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-lg bg-[#FAF8F4] overflow-y-auto p-6 border-l border-[#E8E1D7]">
-        <SheetHeader className="border-b border-[#E8E1D7] pb-4">
+      <SheetContent side="right" className="w-full sm:max-w-lg bg-[#F7F4EE] overflow-y-auto">
+        <SheetHeader className="border-b border-[#E8E1D7] pb-3">
           <div className="flex items-center justify-between">
-            <SheetTitle className="font-display text-xl font-semibold text-[#251605]">
+            <SheetTitle className="font-display text-lg font-semibold text-foreground">
               Audit Operation Detail
             </SheetTitle>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1 text-[#756A5B] hover:text-[#251605] hover:bg-black/5 transition-colors"
+              className="rounded-sm opacity-70 hover:opacity-100 p-1"
             >
               <X className="h-4 w-4" />
               <span className="sr-only">Close detail</span>
             </button>
           </div>
-          <p className="text-xs text-[#756A5B]">Operational Change Record & Lineage</p>
+          <p className="text-xs text-muted-foreground">
+            Granular change inspection and approval lineage.
+          </p>
         </SheetHeader>
 
         {(query.isLoading || (open && !entry)) && (
           <div className="space-y-3 py-6" aria-busy="true">
-            <div className="h-28 animate-pulse rounded-xl border border-[#E8E1D7] bg-white" />
-            <div className="h-40 animate-pulse rounded-xl border border-[#E8E1D7] bg-white" />
+            <div className="h-28 animate-pulse rounded-xl border border-[#E8E1D7] bg-card" />
+            <div className="h-40 animate-pulse rounded-xl border border-[#E8E1D7] bg-card" />
           </div>
         )}
 
@@ -88,42 +90,42 @@ export function RevenueAuditDetailDrawer({
         {detail && (
           <div className="mt-4 space-y-4 text-xs">
             {/* 1. Operation Summary Card */}
-            <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 space-y-3 shadow-2xs">
+            <div className="rounded-xl border border-[#E8E1D7] bg-card p-4 space-y-3 shadow-2xs">
               <div className="flex items-center justify-between">
-                <span className="rounded-md bg-[#FAF8F4] border border-[#E8E1D7] px-2 py-0.5 font-mono text-[10px] uppercase font-semibold text-[#251605]">
+                <span className="rounded bg-muted px-2 py-0.5 font-mono text-[10px] uppercase font-semibold text-muted-foreground">
                   {detail.domain}
                 </span>
-                <span className="text-[11px] font-mono text-[#756A5B]">
+                <span className="text-[11px] text-muted-foreground">
                   {formatTimestamp(detail.entry.timestamp)}
                 </span>
               </div>
 
               <div>
-                <h4 className="font-semibold text-sm text-[#251605]">{detail.summary}</h4>
-                <p className="mt-0.5 text-xs text-[#756A5B]">{detail.entry.scopeLabel}</p>
+                <h4 className="font-semibold text-sm text-foreground">{detail.summary}</h4>
+                <p className="mt-0.5 text-muted-foreground">{detail.entry.scopeLabel}</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-[#E8E1D7]/60 text-[11px]">
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#E8E1D7]/60 text-[11px]">
                 <div>
-                  <span className="text-[#756A5B]">Actor:</span>{" "}
-                  <span className="font-semibold text-[#251605]">{detail.entry.actorLabel}</span>
+                  <span className="text-muted-foreground">Actor:</span>{" "}
+                  <span className="font-medium text-foreground">{detail.entry.actorLabel}</span>
                 </div>
                 <div>
-                  <span className="text-[#756A5B]">Action:</span>{" "}
-                  <span className="font-mono font-medium text-[#251605]">{detail.entry.action}</span>
+                  <span className="text-muted-foreground">Action:</span>{" "}
+                  <span className="font-mono text-foreground">{detail.entry.action}</span>
                 </div>
                 {detail.operationId && (
                   <div className="col-span-2 truncate">
-                    <span className="text-[#756A5B]">Operation ID:</span>{" "}
-                    <span className="font-mono text-[10px] text-[#251605]">
+                    <span className="text-muted-foreground">Operation ID:</span>{" "}
+                    <span className="font-mono text-[10px] text-foreground">
                       {detail.operationId}
                     </span>
                   </div>
                 )}
                 {detail.entry.reason && (
                   <div className="col-span-2">
-                    <span className="text-[#756A5B]">Reason:</span>{" "}
-                    <span className="text-[#251605] italic">{detail.entry.reason}</span>
+                    <span className="text-muted-foreground">Reason:</span>{" "}
+                    <span className="text-foreground italic">{detail.entry.reason}</span>
                   </div>
                 )}
               </div>
@@ -131,41 +133,41 @@ export function RevenueAuditDetailDrawer({
 
             {/* 2. Approval Lineage */}
             {detail.approvalLineage && (
-              <div className="rounded-xl border border-[#C89933]/30 bg-[#FAF8F4] p-4 space-y-2.5 shadow-2xs">
+              <div className="rounded-xl border border-[#C89933]/30 bg-[#FBF7EE] p-3.5 space-y-2.5">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8B651D]">
                   <CheckCircle2 className="h-4 w-4" />
                   <span>Approved Operation Lineage</span>
                 </div>
                 <div className="space-y-1.5 text-[11px] border-l-2 border-[#C89933]/50 pl-3 ml-1">
                   <div>
-                    <span className="text-[#756A5B]">Requested by:</span>{" "}
-                    <span className="font-semibold text-[#251605]">
+                    <span className="text-muted-foreground">Requested by:</span>{" "}
+                    <span className="font-medium text-foreground">
                       {detail.approvalLineage.requestedBy}
                     </span>{" "}
-                    <span className="text-[#756A5B]">
+                    <span className="text-muted-foreground">
                       at {formatTimestamp(detail.approvalLineage.requestedAt)}
                     </span>
                   </div>
                   {detail.approvalLineage.reviewedBy && (
                     <div>
-                      <span className="text-[#756A5B]">Reviewed & approved by:</span>{" "}
-                      <span className="font-semibold text-[#251605]">
+                      <span className="text-muted-foreground">Reviewed & approved by:</span>{" "}
+                      <span className="font-medium text-foreground">
                         {detail.approvalLineage.reviewedBy}
                       </span>{" "}
-                      <span className="text-[#756A5B]">
+                      <span className="text-muted-foreground">
                         at {formatTimestamp(detail.approvalLineage.reviewedAt)}
                       </span>
                     </div>
                   )}
                   {detail.approvalLineage.reviewReason && (
                     <div>
-                      <span className="text-[#756A5B]">Review note:</span>{" "}
-                      <span className="italic text-[#251605]">
+                      <span className="text-muted-foreground">Review note:</span>{" "}
+                      <span className="italic text-foreground">
                         {detail.approvalLineage.reviewReason}
                       </span>
                     </div>
                   )}
-                  <div className="text-[10px] text-[#756A5B] font-mono truncate">
+                  <div className="text-[10px] text-muted-foreground font-mono truncate">
                     Approval Request ID: {detail.approvalLineage.requestId}
                   </div>
                 </div>
@@ -173,15 +175,15 @@ export function RevenueAuditDetailDrawer({
             )}
 
             {/* 3. Granular Changes / Diff Matrix */}
-            <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 space-y-3 shadow-2xs">
+            <div className="rounded-xl border border-[#E8E1D7] bg-card p-4 space-y-2 shadow-2xs">
               <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-xs text-[#251605] uppercase tracking-wider">
+                <h4 className="font-semibold text-xs text-foreground uppercase tracking-wider">
                   State Changes ({detail.batchCount} record{detail.batchCount > 1 ? "s" : ""})
                 </h4>
               </div>
 
               {detail.changes.length === 0 ? (
-                <p className="text-xs text-[#756A5B] italic py-2">
+                <p className="text-xs text-muted-foreground italic py-2">
                   No individual field diffs recorded for this action.
                 </p>
               ) : (
@@ -189,22 +191,22 @@ export function RevenueAuditDetailDrawer({
                   {detail.changes.map((change, idx) => (
                     <div
                       key={idx}
-                      className="rounded-lg border border-[#E8E1D7]/80 bg-[#FAF8F4]/50 p-3 space-y-1"
+                      className="rounded border border-[#E8E1D7]/70 bg-muted/20 p-2.5 space-y-1"
                     >
                       {detail.domain === "rates" && (
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-mono font-medium text-[#251605]">
+                          <span className="font-mono font-medium text-foreground">
                             {String(change["stayDate"] || "Stay Date")}
                           </span>
                           <div className="flex items-center gap-1.5 font-mono">
-                            <span className="text-[#756A5B] line-through">
+                            <span className="text-muted-foreground line-through">
                               {change["previousRate"] !== null &&
-                              change["previousRate"] !== undefined
+                                change["previousRate"] !== undefined
                                 ? `${change["currency"] ?? ""} ${change["previousRate"]}`
                                 : "None"}
                             </span>
-                            <ChevronRight className="h-3 w-3 text-[#756A5B]" />
-                            <span className="font-semibold text-[#251605]">
+                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                            <span className="font-semibold text-foreground">
                               {change["newRate"] !== null && change["newRate"] !== undefined
                                 ? `${change["currency"] ?? ""} ${change["newRate"]}`
                                 : "None"}
@@ -215,12 +217,12 @@ export function RevenueAuditDetailDrawer({
 
                       {detail.domain === "restrictions" && (
                         <div className="space-y-1 text-xs">
-                          <div className="font-mono font-medium text-[#251605]">
+                          <div className="font-mono font-medium text-foreground">
                             {String(change["stayDate"] || "Stay Date")}
                           </div>
-                          <div className="text-[11px] text-[#756A5B]">
+                          <div className="text-[11px] text-muted-foreground">
                             Action:{" "}
-                            <span className="font-mono font-medium text-[#251605]">
+                            <span className="font-mono text-foreground">
                               {String(change["actionType"] || "")}
                             </span>
                           </div>
@@ -229,12 +231,12 @@ export function RevenueAuditDetailDrawer({
 
                       {detail.domain === "commercial" && (
                         <div className="space-y-1 text-xs">
-                          <div className="font-medium text-[#251605]">
+                          <div className="font-medium text-foreground">
                             {String(change["entityType"] || "Entity")}{" "}
                             {String(change["actionType"] || "")}
                           </div>
                           {change["reason"] && (
-                            <div className="text-[11px] text-[#756A5B] italic">
+                            <div className="text-[11px] text-muted-foreground italic">
                               {String(change["reason"])}
                             </div>
                           )}
@@ -243,11 +245,11 @@ export function RevenueAuditDetailDrawer({
 
                       {detail.domain === "approvals" && (
                         <div className="space-y-1 text-xs">
-                          <div className="font-medium text-[#251605]">
+                          <div className="font-medium text-foreground">
                             {String(change["eventType"] || "Event")}
                           </div>
                           {change["reason"] && (
-                            <div className="text-[11px] text-[#756A5B] italic">
+                            <div className="text-[11px] text-muted-foreground italic">
                               {String(change["reason"])}
                             </div>
                           )}

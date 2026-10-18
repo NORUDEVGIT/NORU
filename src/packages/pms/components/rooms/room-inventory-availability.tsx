@@ -310,9 +310,7 @@ export function RoomInventoryAvailabilityView({
   function selectCell(roomTypeId: string, date: string) {
     setSelectedTypeId(roomTypeId);
     setSelectedDate(date);
-    if (window.matchMedia("(max-width: 1023px)").matches) {
-      setMobileDetailsOpen(true);
-    }
+    setMobileDetailsOpen(true);
   }
 
   function setRange(days: number) {
@@ -364,8 +362,9 @@ export function RoomInventoryAvailabilityView({
 
   return (
     <div className="-mx-3 -mt-2 lg:-mx-5">
-      <div className="grid min-h-[calc(100vh-178px)] grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_390px]">
-        <main className="min-w-0 border-r border-[#E5DED4] bg-[#FAF8F5] px-3 py-3 lg:px-4">
+      {/* lg:grid-cols-[minmax(0,1fr)_360px] */}
+      <div className="w-full">
+        <main className="w-full min-w-0 bg-[#FAF8F5] px-3 py-3 lg:px-5 space-y-4">
           <AvailabilityKpis
             physicalCapacity={tonightCapacity}
             availableTonight={tonightAvailable}
@@ -401,18 +400,18 @@ export function RoomInventoryAvailabilityView({
             onAdvanced={() => setAdvancedOpen((current) => !current)}
           />
 
-          <section className="mt-3 overflow-hidden rounded-lg border border-[#E5DED4] bg-white shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5DED4] px-3 py-2">
+          <section className="overflow-hidden rounded-lg border border-[#E5DED4] bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5DED4] px-4 py-3">
               <div>
-                <h2 className="text-sm font-semibold" style={{ color: INK }}>
+                <h2 className="text-base font-bold" style={{ color: INK }}>
                   Availability Matrix
                 </h2>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Canonical nightly inventory · {dateLabel(arrival)} –{" "}
                   {dateLabel(addDays(departure, -1))}
                 </p>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 {[7, 14, 30].map((days) => (
                   <Button
                     key={days}
@@ -420,8 +419,8 @@ export function RoomInventoryAvailabilityView({
                     variant={dateSpan(arrival, departure) === days ? "default" : "ghost"}
                     className={
                       dateSpan(arrival, departure) === days
-                        ? "h-7 bg-[#B88423] px-3 text-[10px] hover:bg-[#9F711A]"
-                        : "h-7 px-3 text-[10px]"
+                        ? "h-8 bg-[#B88423] px-3.5 text-xs font-semibold text-white hover:bg-[#9F711A]"
+                        : "h-8 px-3.5 text-xs font-medium text-[#4A3E31]"
                     }
                     onClick={() => setRange(days)}
                   >
@@ -431,32 +430,32 @@ export function RoomInventoryAvailabilityView({
                 <Button
                   size="icon"
                   variant="outline"
-                  className="ml-2 size-7"
+                  className="ml-2 size-8"
                   aria-label="Previous period"
                   onClick={() => moveRange(-1)}
                 >
-                  <ChevronLeft className="size-3.5" />
+                  <ChevronLeft className="size-4" />
                 </Button>
                 <Button
                   size="icon"
                   variant="outline"
-                  className="size-7"
+                  className="size-8"
                   aria-label="Next period"
                   onClick={() => moveRange(1)}
                 >
-                  <ChevronRight className="size-3.5" />
+                  <ChevronRight className="size-4" />
                 </Button>
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="ml-1 size-7"
+                  className="ml-1 size-8"
                   aria-label="Refresh availability"
                   onClick={() => {
                     void availabilityQuery.refetch();
                     void tonightQuery.refetch();
                   }}
                 >
-                  <RefreshCw className="size-3.5" />
+                  <RefreshCw className="size-4" />
                 </Button>
               </div>
             </div>
@@ -488,16 +487,10 @@ export function RoomInventoryAvailabilityView({
             )}
           </section>
         </main>
-
-        <aside className="hidden bg-white lg:block">
-          <div className="sticky top-0 max-h-[calc(100vh-96px)] overflow-y-auto">
-            <AvailabilityDetailPanel {...panelProps} />
-          </div>
-        </aside>
       </div>
 
       <Sheet open={mobileDetailsOpen} onOpenChange={setMobileDetailsOpen}>
-        <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-md lg:hidden">
+        <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg md:max-w-xl">
           <SheetHeader className="sr-only">
             <SheetTitle>Availability details</SheetTitle>
             <SheetDescription>Selected room type and date inventory details.</SheetDescription>
@@ -558,23 +551,23 @@ function AvailabilityKpis({
     },
   ];
   return (
-    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
       {cards.map((card) => {
         const Icon = card.icon;
         return (
           <div
             key={card.label}
-            className="flex min-h-16 items-center gap-2.5 rounded-lg border border-[#EAE4DB] bg-white px-3 py-2 shadow-sm"
+            className="flex min-h-[72px] items-center gap-3 rounded-lg border border-[#EAE4DB] bg-white px-3.5 py-2.5 shadow-sm"
           >
-            <span className={`grid size-8 shrink-0 place-items-center rounded-full ${card.tone}`}>
-              <Icon className="size-4" />
+            <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${card.tone}`}>
+              <Icon className="size-4.5" />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-[9px] text-muted-foreground">{card.label}</p>
-              <p className="text-lg font-semibold leading-5" style={{ color: INK }}>
+              <p className="truncate text-xs font-medium text-[#756A5B]">{card.label}</p>
+              <p className="text-2xl font-bold leading-tight" style={{ color: INK }}>
                 {card.value}
               </p>
-              <p className="truncate text-[9px] text-muted-foreground">{card.detail}</p>
+              <p className="truncate text-xs text-[#8C8071]">{card.detail}</p>
             </div>
           </div>
         );
@@ -623,8 +616,8 @@ function AvailabilityFilters({
   onAdvanced: () => void;
 }) {
   return (
-    <section className="mt-3 rounded-lg border border-[#E5DED4] bg-white p-2 shadow-sm">
-      <div className="grid items-end gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.45fr_1fr_1.1fr_auto_auto]">
+    <section className="rounded-lg border border-[#E5DED4] bg-white p-3 shadow-sm">
+      <div className="grid items-end gap-2.5 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.45fr_1fr_1.1fr_auto_auto]">
         <CompactSelect
           label="Building"
           value={building}
@@ -640,14 +633,14 @@ function AvailabilityFilters({
             ...roomTypes.map((row) => [row.roomTypeId, row.name]),
           ]}
         />
-        <label className="grid gap-1 text-[9px] font-medium text-[#5F554B]">
+        <label className="grid gap-1 text-xs font-semibold text-[#5F554B]">
           Date Range
-          <span className="flex h-8 items-center rounded-md border border-[#DED7CD] bg-white px-1">
+          <span className="flex h-9 items-center rounded-md border border-[#DED7CD] bg-white px-2">
             <input
               type="date"
               value={arrival}
               onChange={(event) => onArrival(event.target.value)}
-              className="min-w-0 flex-1 bg-transparent px-1 text-[10px] outline-none"
+              className="min-w-0 flex-1 bg-transparent px-1 text-xs text-[#251605] outline-none"
             />
             <span className="text-muted-foreground">–</span>
             <input
@@ -655,7 +648,7 @@ function AvailabilityFilters({
               min={addDays(arrival, 1)}
               value={departure}
               onChange={(event) => onDeparture(event.target.value)}
-              className="min-w-0 flex-1 bg-transparent px-1 text-[10px] outline-none"
+              className="min-w-0 flex-1 bg-transparent px-1 text-xs text-[#251605] outline-none"
             />
           </span>
         </label>
@@ -678,21 +671,21 @@ function AvailabilityFilters({
             ["blocked", "Blocked"],
           ]}
         />
-        <Button variant="outline" size="sm" className="h-8 text-[10px]" onClick={onClear}>
+        <Button variant="outline" size="sm" className="h-9 px-3.5 text-xs font-medium" onClick={onClear}>
           Clear
         </Button>
         <Button
           size="sm"
-          className="h-8 bg-[#D3A13B] text-[10px] text-[#251605] hover:bg-[#BE8D2D]"
+          className="h-9 bg-[#D3A13B] px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#BE8D2D]"
           onClick={onAdvanced}
         >
-          <Filter className="mr-1.5 size-3" />
+          <Filter className="mr-1.5 size-3.5" />
           Filters
         </Button>
       </div>
       {advancedOpen ? (
-        <div className="mt-2 flex items-end gap-2 border-t border-[#EEE8E0] pt-2">
-          <div className="w-48">
+        <div className="mt-3 flex items-end gap-3 border-t border-[#EEE8E0] pt-3">
+          <div className="w-56">
             <CompactSelect
               label="Floor (room types present)"
               value={floor}
@@ -700,7 +693,7 @@ function AvailabilityFilters({
               options={[["all", "All Floors"], ...floors.map((value) => [value, value])]}
             />
           </div>
-          <p className="pb-1 text-[9px] text-muted-foreground">
+          <p className="pb-1 text-xs text-muted-foreground">
             Location filters control which room types appear; canonical availability remains
             property-wide.
           </p>
@@ -724,13 +717,13 @@ function CompactSelect({
   disabled?: boolean;
 }) {
   return (
-    <label className="grid gap-1 text-[9px] font-medium text-[#5F554B]">
+    <label className="grid gap-1 text-xs font-semibold text-[#5F554B]">
       {label}
       <select
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-8 rounded-md border border-[#DED7CD] bg-white px-2 text-[10px] outline-none focus:border-[#C89933] disabled:bg-[#F7F4EF] disabled:text-muted-foreground"
+        className="h-9 rounded-md border border-[#DED7CD] bg-white px-2.5 text-xs text-[#251605] outline-none focus:border-[#C89933] disabled:bg-[#F7F4EF] disabled:text-muted-foreground"
       >
         {options.map(([id, name]) => (
           <option key={`${id}-${name}`} value={id}>
@@ -760,23 +753,23 @@ function AvailabilityMatrix({
   const typeById = new Map(roomTypes.map((type) => [type.id, type]));
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-max border-collapse text-[10px]">
+      <table className="w-full min-w-max border-collapse text-xs">
         <thead>
           <tr className="border-b border-[#E5DED4]">
-            <th className="sticky left-0 z-20 min-w-40 bg-white px-3 py-2 text-left font-semibold">
+            <th className="sticky left-0 z-20 min-w-48 w-48 bg-white px-3.5 py-3 text-left font-bold text-[#251605]">
               Room Type
-              <span className="block text-[8px] font-normal text-muted-foreground">
+              <span className="block text-[11px] font-normal text-muted-foreground">
                 Total Rooms
               </span>
             </th>
-            <th className="sticky left-40 z-20 min-w-20 bg-[#FAF8F5] px-2 py-2 text-left text-[9px] font-medium text-muted-foreground">
+            <th className="sticky left-48 z-20 min-w-28 w-28 bg-[#FAF8F5] px-3 py-3 text-left text-xs font-semibold text-muted-foreground">
               Measure
             </th>
             {dates.map((date) => (
               <th
                 key={date}
-                className={`min-w-20 border-l border-[#EEE8E0] px-2 py-2 text-center font-medium ${
-                  date === selectedDate ? "bg-[#FBF1DA]" : "bg-white"
+                className={`min-w-24 border-l border-[#EEE8E0] px-3 py-3 text-center text-xs font-bold ${
+                  date === selectedDate ? "bg-[#FBF1DA] text-[#6F4C0F]" : "bg-white text-[#251605]"
                 }`}
               >
                 {shortDate(date)}
@@ -836,7 +829,7 @@ function RoomTypeMatrixRows({
               rowSpan={3}
               role="button"
               tabIndex={0}
-              className={`sticky left-0 z-10 w-40 cursor-pointer border-r border-[#EEE8E0] bg-white px-2 py-2 align-middle ${
+              className={`sticky left-0 z-10 min-w-48 w-48 cursor-pointer border-r border-[#EEE8E0] bg-white px-3 py-2.5 align-middle ${
                 selected ? "border-l-[3px] border-l-[#C89933]" : ""
               }`}
               onClick={() => onSelect(row.roomTypeId, selectedDate)}
@@ -847,23 +840,23 @@ function RoomTypeMatrixRows({
                 }
               }}
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 {type?.coverUrl ? (
                   <img
                     src={type.coverUrl}
                     alt={type.name}
-                    className="size-9 rounded object-cover"
+                    className="size-10 rounded-md object-cover"
                   />
                 ) : (
-                  <span className="grid size-9 place-items-center rounded bg-[#F3EEE7] text-[#8B7355]">
-                    <BedDouble className="size-4" />
+                  <span className="grid size-10 place-items-center rounded-md bg-[#F3EEE7] text-[#8B7355]">
+                    <BedDouble className="size-5" />
                   </span>
                 )}
-                <div>
-                  <p className="font-semibold" style={{ color: INK }}>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold" style={{ color: INK }}>
                     {row.name}
                   </p>
-                  <p className="text-[8px] text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground">
                     {type?.roomCount ?? row.physicalCapacity} rooms
                   </p>
                 </div>
@@ -871,7 +864,7 @@ function RoomTypeMatrixRows({
             </td>
           ) : null}
           <td
-            className={`sticky left-40 z-10 px-2 py-1.5 font-medium ${
+            className={`sticky left-48 z-10 min-w-28 w-28 px-3 py-2 text-xs font-semibold ${
               measure === "sellable"
                 ? "bg-[#FAF8F5] text-[#655D54]"
                 : measure === "demand"
@@ -916,7 +909,7 @@ function MatrixCell({
 }) {
   if (!night) {
     return (
-      <td className="border-l border-[#EEE8E0] px-2 py-1.5 text-center text-muted-foreground">—</td>
+      <td className="border-l border-[#EEE8E0] px-3 py-2 text-center text-xs text-muted-foreground">—</td>
     );
   }
   const demand = nightlyDemand(night);
@@ -932,18 +925,18 @@ function MatrixCell({
   const stateClass =
     measure !== "available"
       ? measure === "demand" && blocked > 0
-        ? "bg-violet-50/70"
-        : ""
+        ? "bg-violet-50/70 font-semibold"
+        : "font-semibold"
       : night.available === 0
-        ? "bg-red-50 text-red-700 font-semibold"
+        ? "bg-red-50 text-red-700 font-bold"
         : availabilityRatio <= 0.2
-          ? "bg-amber-50 text-amber-800 font-semibold"
-          : "bg-emerald-50/70 text-emerald-800 font-semibold";
+          ? "bg-amber-50 text-amber-800 font-bold"
+          : "bg-emerald-50/70 text-emerald-800 font-bold";
   return (
     <td
       role="button"
       tabIndex={0}
-      className={`cursor-pointer border-l border-[#EEE8E0] px-2 py-1.5 text-center hover:ring-1 hover:ring-inset hover:ring-[#C89933] ${stateClass} ${
+      className={`cursor-pointer border-l border-[#EEE8E0] px-3 py-2 text-center text-xs hover:ring-1 hover:ring-inset hover:ring-[#C89933] ${stateClass} ${
         selected ? "ring-2 ring-inset ring-[#C89933]" : ""
       }`}
       onClick={onClick}
@@ -970,17 +963,17 @@ function MatrixTotals({ rows, dates }: { rows: RoomTypeInventoryAvailability[]; 
           {index === 0 ? (
             <td
               rowSpan={3}
-              className="sticky left-0 z-10 bg-[#F7F3ED] px-3 py-2 font-semibold"
+              className="sticky left-0 z-10 min-w-48 w-48 bg-[#F7F3ED] px-3.5 py-2.5 text-xs font-bold"
               style={{ color: INK }}
             >
               Total
-              <span className="block text-[8px] font-normal text-muted-foreground">
+              <span className="block text-[11px] font-normal text-muted-foreground">
                 {rows.reduce((sum, row) => sum + row.physicalCapacity, 0)} rooms
               </span>
             </td>
           ) : null}
           <td
-            className={`sticky left-40 z-10 px-2 py-1.5 font-semibold ${
+            className={`sticky left-48 z-10 min-w-28 w-28 px-3 py-2 text-xs font-bold ${
               measure === "available" ? "bg-emerald-100/70 text-emerald-900" : "bg-[#F7F3ED]"
             }`}
           >
@@ -1001,7 +994,7 @@ function MatrixTotals({ rows, dates }: { rows: RoomTypeInventoryAvailability[]; 
             return (
               <td
                 key={date}
-                className={`border-l border-[#E4DDD3] px-2 py-1.5 text-center font-semibold ${
+                className={`border-l border-[#E4DDD3] px-3 py-2 text-center text-xs font-bold ${
                   measure === "available"
                     ? value === 0
                       ? "bg-red-100 text-red-800"
@@ -1044,7 +1037,7 @@ function AvailabilityDetailPanel(props: AvailabilityDetailPanelProps) {
     props;
   if (!selectedRow || !selectedNight) {
     return (
-      <div className="p-5">
+      <div className="p-6">
         <InventoryState
           state="empty"
           title="Select inventory"
@@ -1056,34 +1049,34 @@ function AvailabilityDetailPanel(props: AvailabilityDetailPanelProps) {
   const selectedIndex = dates.indexOf(selectedDate);
   return (
     <div className="min-h-full bg-white">
-      <div className="flex items-center gap-3 border-b border-[#E8E1D7] p-3">
+      <div className="flex items-center gap-3.5 border-b border-[#E8E1D7] p-4">
         {selectedType?.coverUrl ? (
           <img
             src={selectedType.coverUrl}
             alt={selectedType.name}
-            className="size-14 rounded-md object-cover"
+            className="size-14 rounded-lg object-cover"
           />
         ) : (
-          <span className="grid size-14 place-items-center rounded-md bg-[#F2ECE4] text-[#8B7355]">
+          <span className="grid size-14 place-items-center rounded-lg bg-[#F2ECE4] text-[#8B7355]">
             <BedDouble className="size-6" />
           </span>
         )}
         <div className="min-w-0 flex-1">
-          <h2 className="truncate font-display text-lg font-semibold" style={{ color: INK }}>
+          <h2 className="truncate font-display text-xl font-bold" style={{ color: INK }}>
             {selectedRow.name}
           </h2>
-          <p className="text-[10px] text-muted-foreground">
-            {selectedType?.roomCount ?? selectedRow.physicalCapacity} rooms
+          <p className="text-xs text-muted-foreground">
+            {selectedType?.roomCount ?? selectedRow.physicalCapacity} rooms total
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-4 border-b border-[#E8E1D7] px-2">
+      <div className="grid grid-cols-4 border-b border-[#E8E1D7] px-3">
         {(["overview", "inventory", "blocks", "history"] as const).map((item) => (
           <button
             key={item}
             type="button"
             onClick={() => onTab(item)}
-            className={`border-b-2 px-1 py-2.5 text-[10px] font-medium capitalize ${
+            className={`border-b-2 px-1 py-3 text-xs font-semibold capitalize ${
               tab === item
                 ? "border-[#C89933] text-[#6F4C0F]"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -1093,32 +1086,32 @@ function AvailabilityDetailPanel(props: AvailabilityDetailPanelProps) {
           </button>
         ))}
       </div>
-      <div className="p-3">
-        <div className="mb-3 flex items-center justify-between">
+      <div className="p-4">
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-[#EDE7DF] bg-[#FAF8F5] p-3">
           <div>
-            <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Selected Date
             </p>
-            <p className="mt-0.5 text-[11px] font-medium">{shortDate(selectedDate)}</p>
+            <p className="mt-0.5 text-sm font-bold text-[#251605]">{shortDate(selectedDate)}</p>
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1.5">
             <Button
               size="icon"
               variant="outline"
-              className="size-7"
+              className="size-8"
               disabled={selectedIndex <= 0}
               onClick={() => onDate(dates[selectedIndex - 1] ?? selectedDate)}
             >
-              <ChevronLeft className="size-3" />
+              <ChevronLeft className="size-4" />
             </Button>
             <Button
               size="icon"
               variant="outline"
-              className="size-7"
+              className="size-8"
               disabled={selectedIndex < 0 || selectedIndex >= dates.length - 1}
               onClick={() => onDate(dates[selectedIndex + 1] ?? selectedDate)}
             >
-              <ChevronRight className="size-3" />
+              <ChevronRight className="size-4" />
             </Button>
           </div>
         </div>
@@ -1173,35 +1166,35 @@ function OverviewTab({
     selectedRow.limitingDate != null &&
     selectedRow.nightly.some((night) => night.date === selectedRow.limitingDate);
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <section>
-        <h3 className="text-[10px] font-semibold" style={{ color: INK }}>
+        <h3 className="text-xs font-bold" style={{ color: INK }}>
           Key Figures
         </h3>
-        <dl className="mt-1 divide-y divide-[#EEE8E0]">
+        <dl className="mt-2 divide-y divide-[#EEE8E0]">
           {figures.map(([label, value]) => (
-            <div key={label} className="flex justify-between gap-3 py-1.5 text-[10px]">
+            <div key={label} className="flex justify-between gap-3 py-2 text-xs">
               <dt className="text-muted-foreground">{label}</dt>
-              <dd className="font-medium">{value}</dd>
+              <dd className="font-semibold text-[#251605]">{value}</dd>
             </div>
           ))}
         </dl>
         {!businessDateSelected ? (
-          <p className="mt-1 text-[9px] text-muted-foreground">
+          <p className="mt-2 text-[11px] text-muted-foreground">
             OOO, OOS, and occupied-room counts are only available for the property business date.
           </p>
         ) : null}
       </section>
       {limitingDateInRange ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-red-800">
-          <div className="flex gap-2">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3.5 text-red-800">
+          <div className="flex gap-2.5">
             <CircleSlash2 className="mt-0.5 size-4 shrink-0" />
             <div>
-              <p className="text-[10px] font-semibold">Limiting Date</p>
-              <p className="mt-1 text-[10px] leading-4">
+              <p className="text-xs font-bold">Limiting Date</p>
+              <p className="mt-1 text-xs leading-5">
                 {dateLabel(selectedRow.limitingDate)} is the limiting date for {selectedRow.name}.
               </p>
-              <p className="mt-1 text-[9px] leading-4 text-red-700">
+              <p className="mt-1 text-[11px] leading-4 text-red-700">
                 This is the canonical stay-limiting night returned by room-type availability.
               </p>
             </div>
@@ -1209,12 +1202,12 @@ function OverviewTab({
         </div>
       ) : null}
       {nightlyBlocked(selectedNight) > 0 ? (
-        <div className="rounded-md border border-violet-200 bg-violet-50 p-3">
-          <div className="flex gap-2">
+        <div className="rounded-lg border border-violet-200 bg-violet-50 p-3.5">
+          <div className="flex gap-2.5">
             <Boxes className="mt-0.5 size-4 shrink-0 text-violet-700" />
             <div>
-              <p className="text-[10px] font-semibold text-violet-900">Inventory hold impact</p>
-              <p className="mt-1 text-[9px] leading-4 text-violet-800">
+              <p className="text-xs font-bold text-violet-900">Inventory hold impact</p>
+              <p className="mt-1 text-xs leading-5 text-violet-800">
                 {nightlyBlocked(selectedNight)} room
                 {nightlyBlocked(selectedNight) === 1 ? "" : "s"} removed by canonical nightly holds.
               </p>
@@ -1240,14 +1233,14 @@ function InventoryTab({ selectedRow, selectedNight }: AvailabilityDetailPanelPro
   ];
   return (
     <section>
-      <h3 className="text-[10px] font-semibold" style={{ color: INK }}>
+      <h3 className="text-xs font-bold" style={{ color: INK }}>
         Canonical Nightly Inventory
       </h3>
-      <dl className="mt-1 divide-y divide-[#EEE8E0]">
+      <dl className="mt-2 divide-y divide-[#EEE8E0]">
         {values.map(([label, value]) => (
-          <div key={label} className="flex justify-between gap-3 py-2 text-[10px]">
+          <div key={label} className="flex justify-between gap-3 py-2 text-xs">
             <dt className="text-muted-foreground">{label}</dt>
-            <dd className="font-medium">{value}</dd>
+            <dd className="font-semibold text-[#251605]">{value}</dd>
           </div>
         ))}
       </dl>
@@ -1266,31 +1259,31 @@ function BlocksTab({
   return (
     <section>
       <div className="flex items-center justify-between">
-        <h3 className="text-[10px] font-semibold" style={{ color: INK }}>
+        <h3 className="text-xs font-bold" style={{ color: INK }}>
           Relevant Operational Blocks
         </h3>
-        <Button size="sm" variant="ghost" className="h-7 text-[9px]" onClick={onOpenBlocks}>
+        <Button size="sm" variant="ghost" className="h-8 text-xs font-medium text-[#7D5E27]" onClick={onOpenBlocks}>
           View All Blocks
         </Button>
       </div>
       {blocksLoading ? (
-        <p className="py-5 text-center text-[10px] text-muted-foreground">Loading blocks…</p>
+        <p className="py-5 text-center text-xs text-muted-foreground">Loading blocks…</p>
       ) : blocksError ? (
-        <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-[10px] text-amber-800">
+        <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
           Block details require owner or manager access.
         </div>
       ) : blocks.length === 0 ? (
-        <p className="py-5 text-center text-[10px] text-muted-foreground">
+        <p className="py-5 text-center text-xs text-muted-foreground">
           No operational blocks overlap this room type and date.
         </p>
       ) : (
-        <div className="mt-2 space-y-2">
+        <div className="mt-2.5 space-y-2.5">
           {blocks.map((block) => (
-            <article key={block.id} className="rounded-md border border-[#E8E1D7] p-2.5">
+            <article key={block.id} className="rounded-lg border border-[#E8E1D7] p-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-[10px] font-semibold">{titleCase(block.blockType)}</p>
-                  <p className="text-[9px] text-muted-foreground">
+                  <p className="text-xs font-bold text-[#251605]">{titleCase(block.blockType)}</p>
+                  <p className="text-[11px] text-muted-foreground">
                     {block.roomId
                       ? `Room ${roomById.get(block.roomId) ?? "target"}`
                       : block.targetKind === "quantity"
@@ -1298,19 +1291,19 @@ function BlocksTab({
                         : "Entire room type"}
                   </p>
                 </div>
-                <span className="rounded-full bg-[#F3EEE7] px-2 py-0.5 text-[8px] font-medium">
+                <span className="rounded-full bg-[#F3EEE7] px-2.5 py-0.5 text-[10px] font-semibold text-[#5F492D]">
                   {titleCase(block.status)}
                 </span>
               </div>
-              <dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-[9px]">
+              <dl className="mt-2.5 grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
                 <dt className="text-muted-foreground">Dates</dt>
-                <dd className="text-right">
+                <dd className="text-right font-medium">
                   {dateLabel(block.startDate)} – {dateLabel(block.endDate)}
                 </dd>
                 <dt className="text-muted-foreground">Impact</dt>
-                <dd className="text-right">{titleCase(block.inventoryImpact)}</dd>
+                <dd className="text-right font-medium">{titleCase(block.inventoryImpact)}</dd>
               </dl>
-              <p className="mt-2 border-t border-[#EEE8E0] pt-2 text-[9px]">{block.reason}</p>
+              <p className="mt-2.5 border-t border-[#EEE8E0] pt-2 text-xs text-[#5C5346]">{block.reason}</p>
             </article>
           ))}
         </div>
@@ -1322,39 +1315,39 @@ function BlocksTab({
 function HistoryTab({ history, historyLoading }: AvailabilityDetailPanelProps) {
   return (
     <section>
-      <h3 className="text-[10px] font-semibold" style={{ color: INK }}>
+      <h3 className="text-xs font-bold" style={{ color: INK }}>
         Inventory History
       </h3>
       {historyLoading ? (
-        <p className="py-5 text-center text-[10px] text-muted-foreground">Loading history…</p>
+        <p className="py-5 text-center text-xs text-muted-foreground">Loading history…</p>
       ) : history.length === 0 ? (
-        <p className="py-5 text-center text-[10px] text-muted-foreground">
+        <p className="py-5 text-center text-xs text-muted-foreground">
           No room or relevant block events were found for this room type.
         </p>
       ) : (
-        <div className="mt-2 space-y-2">
+        <div className="mt-2.5 space-y-2.5">
           {history.map((event) => {
             const before = safeJsonPreview(event.previousValues);
             const after = safeJsonPreview(event.newValues);
             return (
-              <article key={event.id} className="border-l-2 border-[#C89933] pl-3">
+              <article key={event.id} className="border-l-2 border-[#C89933] pl-3 py-1">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-[10px] font-semibold">{titleCase(event.eventType)}</p>
-                  <time className="whitespace-nowrap text-[8px] text-muted-foreground">
+                  <p className="text-xs font-bold text-[#251605]">{titleCase(event.eventType)}</p>
+                  <time className="whitespace-nowrap text-[10px] text-muted-foreground">
                     {new Date(event.createdAt).toLocaleString()}
                   </time>
                 </div>
                 {event.roomNumber ? (
-                  <p className="text-[9px] text-muted-foreground">Room {event.roomNumber}</p>
+                  <p className="text-xs text-muted-foreground">Room {event.roomNumber}</p>
                 ) : null}
                 {before ? (
-                  <p className="mt-1 text-[9px] text-muted-foreground">Before: {before}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Before: {before}</p>
                 ) : null}
                 {after ? (
-                  <p className="mt-1 text-[9px] text-muted-foreground">After: {after}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">After: {after}</p>
                 ) : null}
-                {event.notes ? <p className="mt-1 text-[9px]">{event.notes}</p> : null}
-                <p className="mt-1 truncate text-[8px] text-muted-foreground">
+                {event.notes ? <p className="mt-1 text-xs text-[#3D352B]">{event.notes}</p> : null}
+                <p className="mt-1 truncate text-[10px] text-muted-foreground">
                   Actor {event.actorMembershipId}
                 </p>
               </article>
