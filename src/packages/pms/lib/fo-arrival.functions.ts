@@ -23,6 +23,7 @@ import {
   type RoomInventoryState,
 } from "./reservation-workspace/arrivals-departures";
 import {
+  checkInPaymentGate,
   depositOkFromSignals,
   etaTiming,
   foArrivalActionHints,
@@ -232,11 +233,13 @@ function mapDeskRow(params: {
     phone: params.stay.guestPhone,
     email: params.stay.guestEmail,
   });
-  const depositOk = depositOkFromSignals({
-    postedAmount: params.signal?.depositPosted ?? 0,
-    waived: params.signal?.depositWaived === true,
-    requiredAmount: params.settings.depositRequired && params.settings.depositValue ? params.settings.depositValue : null,
-  });
+  const depositOk = depositOkFromSignals(
+    checkInPaymentGate({
+      folioLane: params.folioLane,
+      signal: params.signal,
+      waived: params.signal?.depositWaived === true,
+    }),
+  );
   const timing = etaTiming({
     expectedArrivalAt: params.stay.expectedArrivalAt ?? null,
     checkInTime: params.settings.checkInTime,
@@ -443,12 +446,15 @@ export const getFrontOfficeArrivalQuickView = createServerFn({ method: "POST" })
     const signal = signals.byStay[stay.id];
     const financial = financialFromSignal(signals.folioLane, signal);
     const depositWaived = progressRow?.deposit_waived === true || signal?.depositWaived === true;
-    const postedAmount = Number(progressRow?.deposit_amount ?? signal?.depositPosted ?? 0) || (signal?.depositPosted ?? 0);
-    const depositOk = depositOkFromSignals({
-      postedAmount,
-      waived: depositWaived,
-      requiredAmount: settings.depositRequired && settings.depositValue ? settings.depositValue : null,
-    });
+    const depositPosted =
+      Number(progressRow?.deposit_amount ?? signal?.depositPosted ?? 0) || (signal?.depositPosted ?? 0);
+    const depositOk = depositOkFromSignals(
+      checkInPaymentGate({
+        folioLane: signals.folioLane,
+        signal,
+        waived: depositWaived,
+      }),
+    );
     const timing = etaTiming({
       expectedArrivalAt: stay.expectedArrivalAt ?? null,
       checkInTime: settings.checkInTime,
@@ -519,7 +525,7 @@ export const getFrontOfficeArrivalQuickView = createServerFn({ method: "POST" })
         lane: signals.folioLane,
         depositRequired: settings.depositRequired,
         depositRequiredAmount: settings.depositRequired ? settings.depositValue : null,
-        depositPosted: postedAmount,
+        depositPosted,
         depositWaived,
         depositMethod: (progressRow?.deposit_method as string | null) ?? null,
         outstanding: outstandingBalance(signal),

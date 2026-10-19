@@ -29,17 +29,24 @@ import { diffFields, recordGuestEvent } from "./guests.server";
 import {
   ID_DOCUMENT_TYPES,
   KEY_ACCESS_TYPES,
-  canCompleteCheckIn,
-  canContinueKey,
-  canContinueRegistration,
   isDepositSatisfied,
-  isRoomReady,
   mapCashierShiftError,
+  netDepositTowardRequirement,
+  paymentOutstanding,
+  projectCheckInDepositReadiness,
+  snapshotRequiredAmount,
+  type CheckInDepositReadiness,
   type IdDocumentType,
   type RegistrationDraft,
 } from "./fo-check-in";
 import type { FrontOfficeStay } from "./frontoffice.functions";
 import { nightsBetween } from "./reservation-dates";
+import {
+  loadCheckInUnitTarget,
+  loadUnitProgress,
+  writeCheckInUnitProgress,
+} from "./fo-check-in-unit.functions";
+import { commitCheckInUnitWaiver } from "./fo-check-in-waiver.functions";
 import { guestCreateBlocked } from "./pms-set3-rates-guest";
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
@@ -79,7 +86,8 @@ export type CheckInFolioStrip = {
   folioId: string | null;
   folioNumber: string | null;
   open: boolean;
-  required: true;
+  required: boolean;
+  requiredAmount: number | null;
   postedAmount: number;
   postedMethod: string | null;
   outstanding: number;
@@ -178,12 +186,6 @@ function toProgress(row: ProgressDb | null): CheckInProgressRow {
   };
 }
 
-function requireSupervisor(role: string): void {
-  if (!(MANAGE_ROLES as readonly string[]).includes(role)) {
-    throw new Error("You don't have permission to waive check-in requirements.");
-  }
-}
-
 function splitName(fullName: string): { firstName: string; lastName: string | null } {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { firstName: "", lastName: null };
@@ -216,6 +218,7 @@ async function actorDisplayName(
   return name || profile?.email || "Staff member";
 }
 
+/** Reservation-scoped cache. Unit check-in reads use selectCheckInUnitProgress. */
 async function loadProgress(
   supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
   restaurantId: string,
@@ -267,6 +270,29 @@ async function loadFolioStrip(
   reservationId: string,
   waived: boolean,
 ): Promise<CheckInFolioStrip> {
+  const { data: stay } = await supabaseAdmin
+    .from("hotel_reservations")
+    .select("deposit_requirement_snapshot")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", reservationId)
+    .maybeSingle();
+  const requiredAmount = snapshotRequiredAmount(stay?.deposit_requirement_snapshot);
+
+  const empty = (postedAmount: number): CheckInFolioStrip => {
+    const satisfied = isDepositSatisfied({ postedAmount, waived, requiredAmount });
+    return {
+      folioId: null,
+      folioNumber: null,
+      open: false,
+      required: requiredAmount != null && requiredAmount > 0,
+      requiredAmount,
+      postedAmount,
+      postedMethod: null,
+      outstanding: satisfied ? 0 : paymentOutstanding(postedAmount, requiredAmount),
+      satisfied,
+    };
+  };
+
   const { data: folio } = await supabaseAdmin
     .from("guest_folios")
     .select("id, folio_number, status")
@@ -274,41 +300,43 @@ async function loadFolioStrip(
     .eq("reservation_id", reservationId)
     .maybeSingle();
 
-  if (!folio) {
-    return {
-      folioId: null,
-      folioNumber: null,
-      open: false,
-      required: true,
-      postedAmount: 0,
-      postedMethod: null,
-      outstanding: waived ? 0 : 1,
-      satisfied: waived,
-    };
-  }
+  if (!folio) return empty(0);
 
   const { data: txns } = await supabaseAdmin
     .from("folio_transactions")
-    .select("id, amount, payment_method, transaction_type")
+    .select("id, amount, payment_method, transaction_type, original_transaction_id")
     .eq("restaurant_id", restaurantId)
     .eq("folio_id", folio.id)
-    .eq("transaction_type", "deposit");
+    .in("transaction_type", ["deposit", "refund"]);
 
-  let postedAmount = 0;
-  let postedMethod: string | null = null;
-  for (const t of (txns ?? []) as { amount: number | string; payment_method: string | null }[]) {
-    postedAmount += Math.abs(Number(t.amount));
-    if (!postedMethod && t.payment_method) postedMethod = t.payment_method;
-  }
-  const satisfied = isDepositSatisfied({ postedAmount, waived });
+  const lines = (txns ?? []) as {
+    id: string;
+    amount: number | string;
+    payment_method: string | null;
+    transaction_type: string;
+    original_transaction_id: string | null;
+  }[];
+  const postedAmount = netDepositTowardRequirement(
+    lines.map((line) => ({
+      id: line.id,
+      type: line.transaction_type,
+      amount: Number(line.amount),
+      originalTransactionId: line.original_transaction_id,
+    })),
+  );
+  const postedMethod =
+    lines.find((line) => line.transaction_type === "deposit" && line.payment_method)
+      ?.payment_method ?? null;
+  const satisfied = isDepositSatisfied({ postedAmount, waived, requiredAmount });
   return {
     folioId: folio.id,
     folioNumber: folio.folio_number,
     open: folio.status === "open",
-    required: true,
+    required: requiredAmount != null && requiredAmount > 0,
+    requiredAmount,
     postedAmount,
     postedMethod,
-    outstanding: satisfied ? 0 : Math.max(0, 1 - postedAmount),
+    outstanding: satisfied ? 0 : paymentOutstanding(postedAmount, requiredAmount),
     satisfied,
   };
 }
@@ -632,36 +660,118 @@ export const saveCheckInRegistration = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const waiverInput = {
+  restaurantId: idSchema,
+  reservationId: idSchema,
+  reservationRoomId: idSchema.optional(),
+  reason: z.string().trim().min(1).max(500),
+};
+
 export const waiveCheckInRegistration = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object(waiverInput).parse(input))
+  .handler(async ({ data, context }): Promise<{ ok: true }> => {
+    await commitCheckInUnitWaiver({
+      restaurantId: data.restaurantId,
+      reservationId: data.reservationId,
+      ...(data.reservationRoomId ? { reservationRoomId: data.reservationRoomId } : {}),
+      requirement: "registration",
+      reason: data.reason,
+      context,
+    });
+    return { ok: true };
+  });
+
+export const getCheckInDepositReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
         reservationId: idSchema,
-        reason: z.string().trim().min(1).max(500),
+        reservationRoomId: idSchema.optional(),
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ ok: true }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
-    requireSupervisor(me.role);
+  .handler(async ({ data, context }): Promise<CheckInDepositReadiness> => {
+    await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await patchProgress(supabaseAdmin, data.restaurantId, data.reservationId, {
-      registration_waived: true,
-      registration_waiver_reason: data.reason,
-      registration_waived_by: me.id,
-      registration_waived_at: new Date().toISOString(),
+    const { data: stay, error: stayError } = await supabaseAdmin
+      .from("hotel_reservations")
+      .select(
+        "deposit_requirement_snapshot, guarantee_method, currency, company_master_id, group_account_master_id",
+      )
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.reservationId)
+      .maybeSingle();
+    if (stayError) throw new Error(stayError.message);
+    if (!stay) throw new Error("Reservation not found for this property.");
+
+    const { data: folio, error: folioError } = await supabaseAdmin
+      .from("guest_folios")
+      .select("id, status, currency")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("reservation_id", data.reservationId)
+      .maybeSingle();
+    if (folioError) throw new Error(folioError.message);
+
+    const lines: Array<{
+      id: string;
+      type: string;
+      amount: number;
+      originalTransactionId: string | null;
+    }> = [];
+    if (folio) {
+      const { data: txns, error: txnError } = await supabaseAdmin
+        .from("folio_transactions")
+        .select("id, amount, transaction_type, original_transaction_id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("folio_id", folio.id)
+        .in("transaction_type", ["deposit", "refund"]);
+      if (txnError) throw new Error(txnError.message);
+      for (const line of txns ?? []) {
+        lines.push({
+          id: line.id,
+          type: line.transaction_type,
+          amount: Number(line.amount),
+          originalTransactionId: line.original_transaction_id,
+        });
+      }
+    }
+
+    let waived = false;
+    try {
+      const target = await loadCheckInUnitTarget({
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        ...(data.reservationRoomId ? { reservationRoomId: data.reservationRoomId } : {}),
+      });
+      const progress = await loadUnitProgress(
+        supabaseAdmin,
+        data.restaurantId,
+        data.reservationId,
+        {
+          reservationRoomId: target.reservationRoomId,
+          unitCount: target.unitCount,
+        },
+      );
+      waived = progress.depositWaived;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!message.includes("Choose which room")) throw error;
+    }
+
+    return projectCheckInDepositReadiness({
+      folioId: folio?.id ?? null,
+      folioStatus: folio?.status ?? null,
+      currency: folio?.currency ?? stay.currency,
+      requiredAmount: snapshotRequiredAmount(stay.deposit_requirement_snapshot),
+      lines,
+      waived,
+      guaranteeMethod: stay.guarantee_method,
+      companyMasterId: stay.company_master_id,
+      groupAccountMasterId: stay.group_account_master_id,
     });
-    await recordReservationEvent({
-      restaurantId: data.restaurantId,
-      reservationId: data.reservationId,
-      eventType: "amended",
-      newValues: { registration_waived: true, reason: data.reason },
-      notes: "Registration waived.",
-      actorMembershipId: me.id,
-    });
-    return { ok: true };
   });
 
 export const ensureCheckInFolio = createServerFn({ method: "POST" })
@@ -695,6 +805,7 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         reservationId: idSchema,
+        reservationRoomId: idSchema.optional(),
         amount: z.number().positive(),
         method: z.string().trim().min(1).max(40),
         reference: z.string().max(80).optional().nullable(),
@@ -705,6 +816,11 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<CheckInFolioStrip> => {
     await requireReservationManager(context as never, data.restaurantId);
     const me = await requireCashierOperator(context as never, data.restaurantId);
+    const target = await loadCheckInUnitTarget({
+      restaurantId: data.restaurantId,
+      reservationId: data.reservationId,
+      ...(data.reservationRoomId ? { reservationRoomId: data.reservationRoomId } : {}),
+    });
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const opened = await supabaseAdmin.rpc("open_folio_for_reservation", {
@@ -724,6 +840,7 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
     const description = reference
       ? `Check-in deposit (${tender.stored}) · ${reference}`
       : `Check-in deposit (${tender.stored})`;
+    const amount = Math.round(data.amount * 100) / 100;
 
     let txnId: string;
     try {
@@ -733,7 +850,7 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
         type: "deposit",
         category: "deposit",
         description,
-        amount: Math.round(data.amount * 100) / 100,
+        amount,
         membershipId: me.id,
         paymentMethod: tender.stored,
         idempotencyKey: data.idempotencyKey,
@@ -743,20 +860,38 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
       throw new Error(mapCashierShiftError((error as Error).message));
     }
 
-    await patchProgress(supabaseAdmin, data.restaurantId, data.reservationId, {
-      deposit_transaction_id: txnId,
-      deposit_amount: Math.round(data.amount * 100) / 100,
-      deposit_method: ledgerMethod,
-    });
+    try {
+      await writeCheckInUnitProgress({
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        reservationRoomId: target.reservationRoomId,
+        patch: {
+          deposit_transaction_id: txnId,
+          deposit_amount: amount,
+          deposit_method: tender.stored,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Check-in progress was not updated.";
+      throw new Error(`Deposit ${txnId} was posted. ${message}`);
+    }
     await recordReservationEvent({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
       eventType: "amended",
-      newValues: { deposit_transaction_id: txnId, amount: data.amount, method: ledgerMethod },
+      newValues: {
+        deposit_transaction_id: txnId,
+        amount,
+        method: tender.stored,
+        reservation_room_id: target.reservationRoomId,
+      },
       notes: "Check-in deposit posted to folio.",
       actorMembershipId: me.id,
     });
-    const progress = await loadProgress(supabaseAdmin, data.restaurantId, data.reservationId);
+    const progress = await loadUnitProgress(supabaseAdmin, data.restaurantId, data.reservationId, {
+      reservationRoomId: target.reservationRoomId,
+      unitCount: target.unitCount,
+    });
     return loadFolioStrip(
       supabaseAdmin,
       data.restaurantId,
@@ -767,32 +902,15 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
 
 export const waiveCheckInDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) =>
-    z
-      .object({
-        restaurantId: idSchema,
-        reservationId: idSchema,
-        reason: z.string().trim().min(1).max(500),
-      })
-      .parse(input),
-  )
+  .validator((input: unknown) => z.object(waiverInput).parse(input))
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
-    requireSupervisor(me.role);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await patchProgress(supabaseAdmin, data.restaurantId, data.reservationId, {
-      deposit_waived: true,
-      deposit_waiver_reason: data.reason,
-      deposit_waived_by: me.id,
-      deposit_waived_at: new Date().toISOString(),
-    });
-    await recordReservationEvent({
+    await commitCheckInUnitWaiver({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
-      eventType: "amended",
-      newValues: { deposit_waived: true, reason: data.reason },
-      notes: "Check-in deposit waived.",
-      actorMembershipId: me.id,
+      ...(data.reservationRoomId ? { reservationRoomId: data.reservationRoomId } : {}),
+      requirement: "deposit",
+      reason: data.reason,
+      context,
     });
     return { ok: true };
   });
@@ -838,32 +956,15 @@ export const recordCheckInKey = createServerFn({ method: "POST" })
 
 export const waiveCheckInKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) =>
-    z
-      .object({
-        restaurantId: idSchema,
-        reservationId: idSchema,
-        reason: z.string().trim().min(1).max(500),
-      })
-      .parse(input),
-  )
+  .validator((input: unknown) => z.object(waiverInput).parse(input))
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
-    requireSupervisor(me.role);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await patchProgress(supabaseAdmin, data.restaurantId, data.reservationId, {
-      key_waived: true,
-      key_waiver_reason: data.reason,
-      key_waived_by: me.id,
-      key_waived_at: new Date().toISOString(),
-    });
-    await recordReservationEvent({
+    await commitCheckInUnitWaiver({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
-      eventType: "amended",
-      newValues: { key_waived: true, reason: data.reason },
-      notes: "Keys later — check-in key waived.",
-      actorMembershipId: me.id,
+      ...(data.reservationRoomId ? { reservationRoomId: data.reservationRoomId } : {}),
+      requirement: "key",
+      reason: data.reason,
+      context,
     });
     return { ok: true };
   });
@@ -876,179 +977,72 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         reservationId: idSchema,
         reservationRoomId: idSchema.optional(),
-        roomId: idSchema.optional(),
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ id: string; roomNumber: string | null }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const loaded = await loadStay(supabaseAdmin, data.restaurantId, data.reservationId);
-    const targetRoomId = data.reservationRoomId
-      ? (data.roomId ?? loaded.stay.roomId)
-      : loaded.stay.roomId;
-    if (data.reservationRoomId) {
-      if (loaded.stay.status !== "confirmed" && loaded.stay.status !== "checked_in") {
-        throw new Error("Only confirmed stays can be checked in.");
-      }
-    } else if (loaded.stay.status !== "confirmed") {
-      throw new Error("Only confirmed stays can be checked in.");
-    }
-    if (!targetRoomId) throw new Error("Assign a room before completing check-in.");
-
-    const { loadGuestWorkspaceConfig } = await import("./guest-workspace-config.functions");
-    const { validateGuestCheckInRequirements, resolveIndividualProfileType } =
-      await import("./guest-field-rules");
-    const workspaceConfig = await loadGuestWorkspaceConfig(data.restaurantId);
-    const individualType = resolveIndividualProfileType(workspaceConfig);
-
-    const { data: guestProfile } = await supabaseAdmin
-      .from("guest_profiles")
-      .select("*")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("id", loaded.guestId)
-      .maybeSingle();
-
-    const { data: guestDocuments } = await supabaseAdmin
-      .from("guest_documents")
-      .select("id, id_type_id, kind, document_number, issuing_country, expiry_date, file_path")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("guest_id", loaded.guestId);
-
-    const checkInDocs = (guestDocuments ?? []).map(
-      (doc: {
-        id: string;
-        id_type_id: string;
-        kind: string;
-        document_number: string | null;
-        issuing_country: string | null;
-        expiry_date: string | null;
-        file_path: string | null;
-      }) => ({
-        id: doc.id,
-        typeId: doc.id_type_id,
-        kind: doc.kind,
-        documentNumberMasked: doc.document_number,
-        issuingCountry: doc.issuing_country,
-        expiryDate: doc.expiry_date,
-        status: "valid" as const,
-        hasImage: Boolean(doc.file_path),
-        filePath: doc.file_path,
-      }),
-    );
-
-    const { data: propRow } = await supabaseAdmin
-      .from("restaurants")
-      .select("timezone, business_date")
-      .eq("id", data.restaurantId)
-      .maybeSingle();
-    const { resolvePropertyBusinessDate } = await import("./reservation-workspace/business-date");
-    const today = resolvePropertyBusinessDate(
-      (propRow as { business_date?: string | null } | null)?.business_date ?? null,
-      (propRow as { timezone?: string } | null)?.timezone ?? "UTC",
-    );
-
-    const { data: customFieldRows } = await supabaseAdmin
-      .from("guest_custom_field_values")
-      .select("field_id, value_json")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("guest_id", loaded.guestId);
-    const customValues: Record<string, unknown> = {};
-    if (customFieldRows) {
-      for (const row of customFieldRows as Array<{ field_id: string; value_json: unknown }>) {
-        customValues[row.field_id] = row.value_json;
-      }
-    }
-
-    const checkInValidation = validateGuestCheckInRequirements({
-      guest: guestProfile,
-      documents: checkInDocs,
-      config: workspaceConfig,
-      profileType: individualType,
-      today,
-      customFieldValues: customValues,
-    });
-    if (!checkInValidation.valid) {
-      throw new Error(
-        `Check-in blocked by guest requirements: ${checkInValidation.errors.join("; ")}`,
-      );
-    }
-
-    const { data: roomRow } = await supabaseAdmin
-      .from("hotel_rooms")
-      .select("id, room_number, status, housekeeping_status, maintenance_status")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("id", targetRoomId)
-      .maybeSingle();
-    const readinessRoom = roomRow as unknown as {
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{
       id: string;
-      room_number: string;
-      status: string;
-      housekeeping_status: string;
-      maintenance_status: string | null;
-    } | null;
-    const housekeeping = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
-    const readiness = isRoomReady(
-      readinessRoom
-        ? {
-            status: readinessRoom.status,
-            housekeepingStatus: readinessRoom.housekeeping_status,
-            maintenanceStatus: readinessRoom.maintenance_status,
-          }
-        : null,
-      housekeeping.settings,
-    );
-    if (!readiness.ready) throw new Error(readiness.reason ?? "The assigned room is not ready.");
+      reservationRoomId: string | null;
+      roomNumber: string | null;
+      outcome: "completed" | "checked_in_stamp_pending";
+    }> => {
+      const me = await requireReservationManager(context as never, data.restaurantId);
+      const target = await loadCheckInUnitTarget({
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        ...(data.reservationRoomId ? { reservationRoomId: data.reservationRoomId } : {}),
+      });
+      const { getCheckInReadiness } = await import("./fo-check-in-readiness.functions");
+      const readiness = await getCheckInReadiness({
+        data: {
+          restaurantId: data.restaurantId,
+          reservationId: data.reservationId,
+          ...(data.reservationRoomId ? { reservationRoomId: data.reservationRoomId } : {}),
+        },
+        context,
+      });
+      if (readiness.blockers.length > 0) {
+        throw new Error(
+          `Check-in blocked: ${readiness.blockers.map((item) => item.message).join(" ")}`,
+        );
+      }
+      if (!target.roomId) throw new Error("Assign a room before completing check-in.");
 
-    const progress = await loadProgress(supabaseAdmin, data.restaurantId, data.reservationId);
-    const folio = await loadFolioStrip(
-      supabaseAdmin,
-      data.restaurantId,
-      data.reservationId,
-      progress.depositWaived,
-    );
-    const snap = progress.registrationSnapshot;
-    const registrationOk = canContinueRegistration(
-      snap ?? {
-        fullName: "",
-        phone: null,
-        email: null,
-        idDocumentType: null,
-        idDocumentNumber: null,
-      },
-      progress.registrationWaived,
-    );
-    const depositOk = isDepositSatisfied({
-      postedAmount: folio.postedAmount,
-      waived: progress.depositWaived,
-    });
-    const keyOk = canContinueKey({
-      accessType: progress.keyAccessType,
-      identifier: progress.keyIdentifier,
-      waived: progress.keyWaived,
-    });
-    if (!canCompleteCheckIn({ roomReady: readiness.ready, registrationOk, depositOk, keyOk })) {
-      if (!registrationOk) throw new Error("Complete registration or request a waiver.");
-      if (!depositOk) throw new Error("Deposit required before check-in can finish.");
-      if (!keyOk) throw new Error("Record a key or waive keys for later.");
-      throw new Error("Check-in cannot finish until every step is complete.");
-    }
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { error } = await supabaseAdmin.rpc("check_in_hotel_reservation", {
-      _restaurant_id: data.restaurantId,
-      _reservation_id: data.reservationId,
-      _room_id: targetRoomId as unknown as string,
-      _membership_id: me.id,
-      ...(data.reservationRoomId ? { _reservation_room_id: data.reservationRoomId } : {}),
-    });
-    if (error) throw reservationError(error.message);
+      const { error } = await supabaseAdmin.rpc("check_in_hotel_reservation", {
+        _restaurant_id: data.restaurantId,
+        _reservation_id: data.reservationId,
+        _room_id: target.roomId,
+        _membership_id: me.id,
+        ...(target.reservationRoomId ? { _reservation_room_id: target.reservationRoomId } : {}),
+      });
+      if (error) throw reservationError(error.message);
 
-    await patchProgress(supabaseAdmin, data.restaurantId, data.reservationId, {
-      walk_in_incomplete: false,
-      completed_at: new Date().toISOString(),
-    });
-    return {
-      id: data.reservationId,
-      roomNumber: readinessRoom?.room_number ?? loaded.stay.roomNumber,
-    };
-  });
+      try {
+        await writeCheckInUnitProgress({
+          restaurantId: data.restaurantId,
+          reservationId: data.reservationId,
+          reservationRoomId: target.reservationRoomId,
+          patch: { walk_in_incomplete: false, completed_at: new Date().toISOString() },
+        });
+      } catch {
+        return {
+          id: data.reservationId,
+          reservationRoomId: target.reservationRoomId,
+          roomNumber: target.roomNumber,
+          outcome: "checked_in_stamp_pending",
+        };
+      }
+      return {
+        id: data.reservationId,
+        reservationRoomId: target.reservationRoomId,
+        roomNumber: target.roomNumber,
+        outcome: "completed",
+      };
+    },
+  );

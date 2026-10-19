@@ -46,11 +46,13 @@ import {
 import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
 import {
   depositPaidFromLedger,
+  depositRemainder,
+  folioLineQuantity,
+  folioRunningBalances,
+  guestDepositCreditFromLedger,
   FOLIO_BILLING_EDIT_GAP_COPY,
   FOLIO_ADD_FOLIO_GAP_COPY,
   FOLIO_INVOICE_GAP_COPY,
-  FOLIO_LINE_BALANCE_GAP,
-  FOLIO_LINE_QTY_GAP,
   FOLIO_MISSING_COPY,
   FOLIO_NOTES_GAP_COPY,
   FOLIO_NOTES_MAX,
@@ -68,6 +70,7 @@ import {
   getCashieringCorrectionNotice,
   getDefaultDepositPolicy,
   getFolio,
+  getReservationDepositRemainder,
   getReservationFolio,
   type FolioDetail,
 } from "@/packages/pms/lib/cashiering.functions";
@@ -79,6 +82,8 @@ export function ReservationDetailFolioTab({
   reservation,
   canManage,
   money,
+  paymentReceived = null,
+  guestDeposit = null,
   coverUrl,
   onBackToPackages,
 }: {
@@ -86,6 +91,8 @@ export function ReservationDetailFolioTab({
   reservation: ReservationDetail;
   canManage: boolean;
   money: (value: number) => string;
+  paymentReceived?: number | null;
+  guestDeposit?: number | null;
   coverUrl: string | null;
   onBackToPackages: () => void;
 }) {
@@ -94,6 +101,7 @@ export function ReservationDetailFolioTab({
   const fetchAccess = useServerFn(getCashieringAccess);
   const fetchReservationFolio = useServerFn(getReservationFolio);
   const fetchFolio = useServerFn(getFolio);
+  const fetchRemainder = useServerFn(getReservationDepositRemainder);
   const fetchDepositPolicy = useServerFn(getDefaultDepositPolicy);
   const fetchCorrectionNotice = useServerFn(getCashieringCorrectionNotice);
   const [notes, setNotes] = useState("");
@@ -112,6 +120,11 @@ export function ReservationDetailFolioTab({
   const previewQuery = useQuery({
     queryKey: ["reservation-folio", restaurantId, reservation.id],
     queryFn: () => fetchReservationFolio({ data: { restaurantId, reservationId: reservation.id } }),
+    retry: false,
+  });
+  const remainderQuery = useQuery({
+    queryKey: ["reservation-deposit-remainder", restaurantId, reservation.id],
+    queryFn: () => fetchRemainder({ data: { restaurantId, reservationId: reservation.id } }),
     retry: false,
   });
   const folioQuery = useQuery({
@@ -243,13 +256,20 @@ export function ReservationDetailFolioTab({
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
-            <DepositInfoCard reservation={reservation} summary={summary} money={money} />
+            <DepositInfoCard
+              reservation={reservation}
+              summary={summary}
+              money={money}
+              applied={remainderQuery.data?.applied ?? null}
+            />
             <BillingRoutingCard reservation={reservation} editable={editable} />
             <FolioNotesCard value={notes} editable={editable} onChange={setNotes} />
           </div>
         </div>
         <FolioSummaryRail
           reservation={reservation}
+          paymentReceived={paymentReceived}
+          guestDeposit={guestDeposit}
           money={money}
           coverUrl={coverUrl}
           nights={nights}
@@ -339,6 +359,7 @@ function RoomFolioCard({
   onClose: () => void;
 }) {
   const rows = folio?.transactions ?? [];
+  const balances = folioRunningBalances(rows);
   return (
     <section
       className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
@@ -441,13 +462,15 @@ function RoomFolioCard({
                     ) : null}
                   </td>
                   <td className="py-2 pr-2">{reviewDash(ledgerReference(row))}</td>
-                  <td className="py-2 pr-2 text-right">{FOLIO_LINE_QTY_GAP}</td>
+                  <td className="py-2 pr-2 text-right">{folioLineQuantity(row.quantity)}</td>
                   <td
                     className={`py-2 pr-2 text-right ${row.amount < 0 ? "text-emerald-700" : ""}`}
                   >
                     {money(row.amount)}
                   </td>
-                  <td className="py-2 pr-2 text-right">{FOLIO_LINE_BALANCE_GAP}</td>
+                  <td className="py-2 pr-2 text-right">
+                    {balances.has(row.id) ? money(balances.get(row.id) ?? 0) : DETAIL_DASH}
+                  </td>
                   <td className="py-2 pr-2">{reviewDash(row.postedBy)}</td>
                   <td className="py-2">
                     {folio ? (
@@ -615,13 +638,17 @@ function DepositInfoCard({
   reservation,
   summary,
   money,
+  applied,
 }: {
   reservation: ReservationDetail;
   summary: ReturnType<typeof folioLedgerSummary>;
   money: (value: number) => string;
+  applied: number | null;
 }) {
   const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
   const paid = depositPaidFromLedger(summary);
+  const guestDepositCredit = guestDepositCreditFromLedger(summary);
+  const remainder = depositRemainder({ credit: guestDepositCredit, applied });
   const due = snapshotDueDate(reservation.depositRequirementSnapshot);
   return (
     <section
@@ -639,6 +666,18 @@ function DepositInfoCard({
           }
         />
         <InfoRow label="Paid Amount" value={paid == null ? DETAIL_DASH : money(paid)} />
+        <InfoRow
+          label="Guest deposit credit"
+          value={guestDepositCredit == null ? DETAIL_DASH : money(guestDepositCredit)}
+        />
+        <InfoRow
+          label="Applied"
+          value={remainder.applied == null ? DETAIL_DASH : money(remainder.applied)}
+        />
+        <InfoRow
+          label="Refundable"
+          value={remainder.refundable == null ? DETAIL_DASH : money(remainder.refundable)}
+        />
         <InfoRow label="Due Date" value={due ? formatStayDate(due) : DETAIL_DASH} />
         <InfoRow label="Status" value={folioDepositStatus(deposit, paid)} />
       </dl>
@@ -737,6 +776,8 @@ function FolioSummaryRail({
   nights,
   packagesTotal,
   folioBalance,
+  paymentReceived,
+  guestDeposit,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -744,6 +785,8 @@ function FolioSummaryRail({
   nights: number;
   packagesTotal: number;
   folioBalance: number | null;
+  paymentReceived: number | null;
+  guestDeposit: number | null;
 }) {
   return (
     <ReservationDetailSummary
@@ -754,6 +797,8 @@ function FolioSummaryRail({
       nights={nights}
       packagesTotal={packagesTotal}
       folioBalance={folioBalance}
+      paymentReceived={paymentReceived}
+      guestDeposit={guestDeposit}
       showFolioBalance
     />
   );

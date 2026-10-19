@@ -1,10 +1,21 @@
 import { Ban, CalendarDays, CircleDollarSign, Info, LogOut } from "lucide-react";
 import type { ReactNode } from "react";
 
+import type { GuaranteeMethodOption } from "@/packages/pms/lib/create-reservation-phase1-section7";
 import {
   computeDepositRequirementAmount,
   type DepositComputeQuote,
 } from "@/packages/pms/lib/create-reservation-step4";
+import { PMS_OP_INPUT, PMS_OP_SELECT_TRIGGER } from "@/packages/pms/lib/pms-operational-surface";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import {
   DEPOSIT_POLICY_TYPE_LABELS,
   type DepositPolicyCard3Row,
@@ -24,6 +35,12 @@ export type CreateReservationPoliciesState = {
   cardHolderName: string;
   cardNumber: string;
   cardExpiry: string;
+  paymentReceivedAmount: string;
+  paymentReceivedTender: string;
+  paymentReceivedReference: string;
+  guestDepositAmount: string;
+  guestDepositTender: string;
+  guestDepositReference: string;
 };
 
 export const EMPTY_CREATE_RESERVATION_POLICIES: CreateReservationPoliciesState = {
@@ -39,6 +56,12 @@ export const EMPTY_CREATE_RESERVATION_POLICIES: CreateReservationPoliciesState =
   cardHolderName: "",
   cardNumber: "",
   cardExpiry: "",
+  paymentReceivedAmount: "",
+  paymentReceivedTender: "",
+  paymentReceivedReference: "",
+  guestDepositAmount: "",
+  guestDepositTender: "",
+  guestDepositReference: "",
 };
 
 export function CreateReservationPoliciesGuarantee({
@@ -60,6 +83,19 @@ export function CreateReservationPoliciesGuarantee({
   depositAmountKnown = true,
   sharedPolicyNote = null,
   roomPolicyRows = null,
+  tenderOptions,
+  paymentReceivedAmount,
+  paymentReceivedTender,
+  paymentReceivedReference,
+  guestDepositAmount,
+  guestDepositTender,
+  guestDepositReference,
+  onPaymentReceivedAmountChange,
+  onPaymentReceivedTenderChange,
+  onPaymentReceivedReferenceChange,
+  onGuestDepositAmountChange,
+  onGuestDepositTenderChange,
+  onGuestDepositReferenceChange,
 }: {
   guarantee: ReactNode;
   money: (value: number) => string;
@@ -78,6 +114,19 @@ export function CreateReservationPoliciesGuarantee({
   depositBasisNote?: string | null;
   depositAmountKnown?: boolean;
   sharedPolicyNote?: string | null;
+  tenderOptions: GuaranteeMethodOption[];
+  paymentReceivedAmount: string;
+  paymentReceivedTender: string;
+  paymentReceivedReference: string;
+  guestDepositAmount: string;
+  guestDepositTender: string;
+  guestDepositReference: string;
+  onPaymentReceivedAmountChange: (value: string) => void;
+  onPaymentReceivedTenderChange: (value: string) => void;
+  onPaymentReceivedReferenceChange: (value: string) => void;
+  onGuestDepositAmountChange: (value: string) => void;
+  onGuestDepositTenderChange: (value: string) => void;
+  onGuestDepositReferenceChange: (value: string) => void;
   roomPolicyRows?: Array<{
     title: string;
     detail: string;
@@ -172,8 +221,33 @@ export function CreateReservationPoliciesGuarantee({
 
           <p className="mt-3 flex items-start gap-1.5 text-xs text-[#6B5E4E]">
             <Info className="mt-0.5 size-3.5 shrink-0 text-[#C89933]" aria-hidden />
-            Collected separately.
+            Collected separately. The amount above is the requirement, not money received.
           </p>
+
+          <ReceiptFields
+            title="Payment received"
+            testId="payment-received"
+            hint="Optional. Posts to the folio as a reservation payment."
+            amount={paymentReceivedAmount}
+            tender={paymentReceivedTender}
+            reference={paymentReceivedReference}
+            options={tenderOptions}
+            onAmountChange={onPaymentReceivedAmountChange}
+            onTenderChange={onPaymentReceivedTenderChange}
+            onReferenceChange={onPaymentReceivedReferenceChange}
+          />
+          <ReceiptFields
+            title="Guest deposit"
+            testId="guest-deposit"
+            hint="Optional extra credit. It does not pay the reservation requirement."
+            amount={guestDepositAmount}
+            tender={guestDepositTender}
+            reference={guestDepositReference}
+            options={tenderOptions}
+            onAmountChange={onGuestDepositAmountChange}
+            onTenderChange={onGuestDepositTenderChange}
+            onReferenceChange={onGuestDepositReferenceChange}
+          />
         </section>
       </div>
 
@@ -308,6 +382,97 @@ export function CreateReservationPoliciesGuarantee({
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+const RECEIPT_NONE = "__none__";
+const RECEIPT_MENU = "z-[80] max-h-60 rounded-[6px] border-[#CCCCCC] bg-white text-sm text-[#251605]";
+
+function ReceiptFields({
+  title,
+  testId,
+  hint,
+  amount,
+  tender,
+  reference,
+  options,
+  onAmountChange,
+  onTenderChange,
+  onReferenceChange,
+}: {
+  title: string;
+  testId: string;
+  hint: string;
+  amount: string;
+  tender: string;
+  reference: string;
+  options: GuaranteeMethodOption[];
+  onAmountChange: (value: string) => void;
+  onTenderChange: (value: string) => void;
+  onReferenceChange: (value: string) => void;
+}) {
+  return (
+    <div className="mt-3 space-y-2 border-t border-[#E7E0D6] pt-3" data-testid={testId}>
+      <div>
+        <h3 className="text-sm font-semibold text-[#251605]">{title}</h3>
+        <p className="text-xs text-[#6B5E4E]">{hint}</p>
+      </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="space-y-1">
+          <Label htmlFor={`${testId}-amount`} className="text-xs font-medium text-[#6B5E4E]">
+            Amount
+          </Label>
+          <Input
+            id={`${testId}-amount`}
+            className={PMS_OP_INPUT}
+            inputMode="decimal"
+            value={amount}
+            onChange={(event) => onAmountChange(event.target.value)}
+            aria-label={`${title} amount`}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${testId}-tender`} className="text-xs font-medium text-[#6B5E4E]">
+            Tender
+          </Label>
+          <Select
+            value={tender || RECEIPT_NONE}
+            onValueChange={(value) => onTenderChange(value === RECEIPT_NONE ? "" : value)}
+          >
+            <SelectTrigger
+              id={`${testId}-tender`}
+              className={PMS_OP_SELECT_TRIGGER}
+              aria-label={`${title} tender`}
+            >
+              <SelectValue placeholder="—" />
+            </SelectTrigger>
+            <SelectContent className={RECEIPT_MENU}>
+              <SelectItem value={RECEIPT_NONE}>—</SelectItem>
+              {options
+                .filter((option) => option.value && option.value !== "same_as_guarantee")
+                .map((option) => (
+                  <SelectItem key={`${testId}-${option.origin}-${option.value}`} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`${testId}-reference`} className="text-xs font-medium text-[#6B5E4E]">
+            Reference
+          </Label>
+          <Input
+            id={`${testId}-reference`}
+            className={PMS_OP_INPUT}
+            value={reference}
+            maxLength={80}
+            onChange={(event) => onReferenceChange(event.target.value)}
+            aria-label={`${title} reference`}
+          />
+        </div>
+      </div>
     </div>
   );
 }

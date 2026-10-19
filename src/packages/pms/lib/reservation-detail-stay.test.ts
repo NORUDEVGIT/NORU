@@ -84,7 +84,7 @@ const base = {
 describe("Reservation Detail Stay tab", () => {
   it("follows the shared editable result and saves only safe stay fields", () => {
     expect(workspace).toContain("<ReservationDetailStayTab");
-    expect(workspace).toContain("editable={detailActions?.editable ?? false}");
+    expect(workspace).toContain("editable={(detailActions?.editable ?? false) && stayMutable}");
     expect(stayUi).toContain("Internal Notes");
     expect(stayUi).toContain("Save Changes");
     expect(stayUi).toContain("amendReservation");

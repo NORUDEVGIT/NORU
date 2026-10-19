@@ -721,3 +721,14 @@ policy-protected — no storage cleanup performed.
 
 Secrets: no hardcoded project URLs, service-role keys or secret keys in source;
 only publishable-key prefix checks in the generated client files.
+
+## Check-in registration agreement
+
+Property Setup owns `pms_registration_agreement_versions`: the label, the text
+that was shown, and which version is active. A text change is a new version.
+The label and body freeze once a check-in instance points at that version.
+
+Front Office owns `fo_checkin_agreement_instances`: the signed instance for one
+reservation unit (null unit id only when the stay has no units). Guest Profile
+is only the guest id on that row. A signed row is immutable. Re-sign inserts a
+new row. Profile consent columns and email signature columns are not this record.

@@ -56,6 +56,8 @@ describe("Reservation Detail Requests & Preferences tab", () => {
     expect(workspace).not.toContain('detailTab === "requests" || detailTab === "notes"');
     expect(requestsUi).toContain("listGuestServiceWorkspace");
     expect(requestsUi).toContain("createGuestServiceRequest");
+    expect(requestsUi).toContain("priority: draftPriority");
+    expect(requestsUi).toContain("preferredAt:");
     expect(requestsUi).toContain("updateGuestServiceRequest");
     expect(requestsUi).toContain("guestProfilePreferenceChips");
     expect(requestsUi).toContain('search={{ card: "preferences" }}');

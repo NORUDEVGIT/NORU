@@ -5,6 +5,7 @@
  * payment_issue signals, housekeeping discrepancies and assigned OOO/OOS.
  * Never invents counts. Folio permission denied is Unavailable, not Coming soon.
  */
+import { netPaymentTowardRequirement, snapshotRequiredAmount } from "./fo-check-in.ts";
 import {
   deriveExceptionRows,
   isOpenDiscrepancyStatus,
@@ -118,6 +119,20 @@ async function loadUnpaidCount(
     }
   }
 
+  if (ids.length > 0) {
+    const { data: requirementRows } = await admin
+      .from("hotel_reservations")
+      .select("id, deposit_requirement_snapshot")
+      .eq("restaurant_id", restaurantId)
+      .in("id", ids);
+    for (const stay of (requirementRows ?? []) as Array<{
+      id: string;
+      deposit_requirement_snapshot: unknown;
+    }>) {
+      ensure(stay.id).paymentRequired = snapshotRequiredAmount(stay.deposit_requirement_snapshot);
+    }
+  }
+
   const { data: folios, error: folioError } = await admin
     .from("guest_folios")
     .select("id, folio_number, reservation_id")
@@ -131,17 +146,23 @@ async function loadUnpaidCount(
   const folioIds = folioList.map((folio) => folio.id);
   const amounts = new Map<string, number[]>();
   const deposits = new Map<string, number>();
+  const paymentLines = new Map<
+    string,
+    Array<{ id: string; type: string; amount: number; originalTransactionId: string | null }>
+  >();
   if (folioIds.length > 0) {
     const { data: txns, error: txnError } = await admin
       .from("folio_transactions")
-      .select("folio_id, amount, transaction_type")
+      .select("id, folio_id, amount, transaction_type, original_transaction_id")
       .eq("restaurant_id", restaurantId)
       .in("folio_id", folioIds);
     if (txnError) throw new Error(txnError.message);
     for (const t of (txns ?? []) as Array<{
+      id: string;
       folio_id: string;
       amount: number | string;
       transaction_type: string;
+      original_transaction_id: string | null;
     }>) {
       const bucket = amounts.get(t.folio_id) ?? [];
       bucket.push(Number(t.amount));
@@ -149,6 +170,14 @@ async function loadUnpaidCount(
       if (t.transaction_type === "deposit") {
         deposits.set(t.folio_id, (deposits.get(t.folio_id) ?? 0) + Math.abs(Number(t.amount)));
       }
+      const lines = paymentLines.get(t.folio_id) ?? [];
+      lines.push({
+        id: t.id,
+        type: t.transaction_type,
+        amount: Number(t.amount),
+        originalTransactionId: t.original_transaction_id,
+      });
+      paymentLines.set(t.folio_id, lines);
     }
   }
 
@@ -166,6 +195,7 @@ async function loadUnpaidCount(
     signal.balance = round2(charges - credits);
     const posted = deposits.get(folio.id);
     if (posted != null) signal.depositPosted = posted;
+    signal.paymentPosted = netPaymentTowardRequirement(paymentLines.get(folio.id) ?? []);
   }
 
   const arrivals = stays.filter((stay) => stay.status === "pending" || stay.status === "confirmed");

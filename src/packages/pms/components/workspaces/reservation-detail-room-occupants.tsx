@@ -1,19 +1,17 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import {
   CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS,
   CREATE_RESERVATION_GUEST_SEARCH_LIMIT,
 } from "@/packages/pms/lib/create-reservation-phase1";
 import { guestListItems, listGuests } from "@/packages/pms/lib/guests.functions";
 import { manageReservationRoomGuest } from "@/packages/pms/lib/reservations.functions";
+import { roomMenuLabel, type RoomMenuAction } from "@/packages/pms/lib/reservation-lifecycle";
 import {
   ROOM_OCCUPANT_IDENTITY_NOTE,
-  ROOM_PRIMARY_REMOVAL_NOTE,
   additionalRoomOccupants,
   primaryRoomOccupant,
   roomDisplayName,
@@ -35,12 +33,22 @@ export function ReservationRoomOccupants({
   canManage,
   onChanged,
   onOperate,
+  selectedUnitId,
+  onSelectUnit,
+  money,
+  roomActionsFor,
+  onRoomAction,
 }: {
   restaurantId: string;
   reservation: ReservationDetail;
   canManage: boolean;
   onChanged: () => void;
   onOperate?: (action: RoomOperationAction, reservationRoomId: string) => void;
+  selectedUnitId?: string;
+  onSelectUnit?: (reservationRoomId: string) => void;
+  money?: (value: number) => string;
+  roomActionsFor?: (unit: ReservationRoomUnit) => RoomMenuAction[];
+  onRoomAction?: (action: RoomMenuAction, unit: ReservationRoomUnit) => void;
 }) {
   const units = reservation.rooms ?? [];
   const [addingRoomId, setAddingRoomId] = useState<string | null>(null);
@@ -72,7 +80,7 @@ export function ReservationRoomOccupants({
 
   return (
     <section
-      className="rounded-[6px] border border-[#CCC] bg-white p-3"
+      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
       data-testid="reservation-room-occupants"
     >
       <div className="mb-2">
@@ -97,6 +105,15 @@ export function ReservationRoomOccupants({
               mutation.mutate({ reservationRoomId: unit.id, guestId, action })
             }
             onOperate={onOperate}
+            selected={selectedUnitId === unit.id}
+            onSelect={onSelectUnit ? () => onSelectUnit(unit.id) : undefined}
+            subtotalLabel={
+              unit.roomSubtotal == null
+                ? "—"
+                : (money?.(unit.roomSubtotal) ?? String(unit.roomSubtotal))
+            }
+            roomActions={roomActionsFor?.(unit) ?? []}
+            onRoomAction={onRoomAction ? (action) => onRoomAction(action, unit) : undefined}
           />
         ))}
       </div>
@@ -115,6 +132,11 @@ function RoomOccupantCard({
   onCancelAdd,
   onChoose,
   onOperate,
+  selected = false,
+  onSelect,
+  subtotalLabel = "—",
+  roomActions = [],
+  onRoomAction,
 }: {
   restaurantId: string;
   reservation: ReservationDetail;
@@ -126,6 +148,11 @@ function RoomOccupantCard({
   onCancelAdd: () => void;
   onChoose: (guestId: string, action: "add" | "remove" | "set_primary") => void;
   onOperate?: (action: RoomOperationAction, reservationRoomId: string) => void;
+  selected?: boolean;
+  onSelect?: () => void;
+  subtotalLabel?: string;
+  roomActions?: RoomMenuAction[];
+  onRoomAction?: (action: RoomMenuAction) => void;
 }) {
   const mutable = canManage && roomOccupantsMutable(unit.status);
   const primary = primaryRoomOccupant(unit.occupants);
@@ -144,8 +171,10 @@ function RoomOccupantCard({
 
   return (
     <article
-      className="rounded-[6px] border border-[#CCC] bg-[#FBF7F1] p-2"
+      className={`rounded-xl border bg-[#FBF8F2] p-3 ${selected ? "border-[#251605]" : "border-[#E8DFD0]"}`}
       data-testid={`room-unit-${unit.unitSequence}`}
+      data-room-unit-operation={unit.id}
+      onClick={onSelect}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <p className="text-xs font-semibold text-[#251605]">Room {unit.unitSequence}</p>
@@ -174,6 +203,12 @@ function RoomOccupantCard({
           <dt className="text-[#6B5E4E]">Rate Plan</dt>
           <dd className="text-[#251605]">{ratePlan || "—"}</dd>
         </div>
+        <div>
+          <dt className="text-[#6B5E4E]">Subtotal</dt>
+          <dd className="text-[#251605]" data-testid={`room-subtotal-${unit.unitSequence}`}>
+            {subtotalLabel}
+          </dd>
+        </div>
       </dl>
       <div className="mt-2 space-y-1" data-testid={`room-occupants-${unit.unitSequence}`}>
         <OccupantRow
@@ -181,10 +216,10 @@ function RoomOccupantCard({
           name={primary?.name ?? "No primary occupant"}
           guestId={primary?.guestId ?? null}
           primary
-          mutable={mutable && Boolean(primary)}
-          canRemove={mutable && Boolean(primary) && additional.length === 0}
           pending={pending}
-          onRemove={primary ? () => onChoose(primary.guestId, "remove") : undefined}
+          onRemove={
+            mutable && primary?.guestId ? () => onChoose(primary.guestId, "remove") : undefined
+          }
         />
         {additional.map((occupant) => (
           <OccupantRow
@@ -193,17 +228,12 @@ function RoomOccupantCard({
             name={occupant.name}
             guestId={occupant.guestId}
             primary={false}
-            mutable={mutable}
-            canRemove={mutable}
             pending={pending}
-            onMakePrimary={() => onChoose(occupant.guestId, "set_primary")}
-            onRemove={() => onChoose(occupant.guestId, "remove")}
+            onMakePrimary={mutable ? () => onChoose(occupant.guestId, "set_primary") : undefined}
+            onRemove={mutable ? () => onChoose(occupant.guestId, "remove") : undefined}
           />
         ))}
       </div>
-      {mutable && additional.length > 0 && primary ? (
-        <p className="mt-1 text-[11px] text-[#6B5E4E]">{ROOM_PRIMARY_REMOVAL_NOTE}</p>
-      ) : null}
       <div className="mt-2 flex flex-wrap gap-1">
         {mutable ? (
           <Button
@@ -213,29 +243,50 @@ function RoomOccupantCard({
             className="h-7 text-xs"
             data-testid={`add-guest-${unit.unitSequence}`}
             disabled={atCapacity || pending}
-            onClick={onAdd}
+            onClick={(event) => {
+              event.stopPropagation();
+              onAdd();
+            }}
           >
             Add Guest
           </Button>
         ) : null}
         {canManage && onOperate
-          ? operations.map((action) => (
+          ? operations
+              .filter((action) => action === "check_in")
+              .map((action) => (
+                <Button
+                  key={action}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  data-testid={`room-action-${action}-${unit.unitSequence}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOperate(action, unit.id);
+                  }}
+                >
+                  Check In
+                </Button>
+              ))
+          : null}
+        {onRoomAction
+          ? roomActions.map((action) => (
               <Button
                 key={action}
                 type="button"
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs"
-                data-testid={`room-action-${action}-${unit.unitSequence}`}
-                onClick={() => onOperate(action, unit.id)}
+                data-testid={`room-menu-${action}-${unit.unitSequence}`}
+                disabled={pending}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onRoomAction(action);
+                }}
               >
-                {action === "assign_room"
-                  ? "Assign Room"
-                  : action === "change_room"
-                    ? "Change Room"
-                    : action === "check_in"
-                      ? "Check In"
-                      : "Check Out"}
+                {roomMenuLabel(action)}
               </Button>
             ))
           : null}
@@ -272,8 +323,6 @@ function OccupantRow({
   name,
   guestId,
   primary,
-  mutable,
-  canRemove,
   pending,
   onMakePrimary,
   onRemove,
@@ -282,8 +331,6 @@ function OccupantRow({
   name: string;
   guestId: string | null;
   primary: boolean;
-  mutable: boolean;
-  canRemove: boolean;
   pending: boolean;
   onMakePrimary?: () => void;
   onRemove?: () => void;
@@ -307,16 +354,7 @@ function OccupantRow({
           Additional
         </span>
       ) : null}
-      {guestId ? (
-        <Link
-          to="/restaurant/pms/guests/$guestId"
-          params={{ guestId }}
-          className="text-[11px] font-medium text-[#6B5E4E] underline-offset-2 hover:underline"
-        >
-          View Guest
-        </Link>
-      ) : null}
-      {mutable && onMakePrimary ? (
+      {onMakePrimary ? (
         <button
           type="button"
           className="text-[11px] font-medium text-[#251605] underline-offset-2 hover:underline disabled:opacity-50"
@@ -327,15 +365,18 @@ function OccupantRow({
           Change Primary
         </button>
       ) : null}
-      {canRemove && onRemove ? (
+      {onRemove && guestId ? (
         <button
           type="button"
           className="text-[11px] font-medium text-[#251605] underline-offset-2 hover:underline disabled:opacity-50"
-          data-testid={`remove-guest-${sequence}`}
+          data-testid={`remove-guest-${sequence}-${guestId}`}
           disabled={pending}
-          onClick={onRemove}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove();
+          }}
         >
-          Remove Guest
+          Remove
         </button>
       ) : null}
     </div>
@@ -360,7 +401,6 @@ function AddGuestSearch({
   const fetchGuests = useServerFn(listGuests);
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
-  const [formOpen, setFormOpen] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(
@@ -413,29 +453,9 @@ function AddGuestSearch({
           ))}
         </ul>
       ) : null}
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs"
-          onClick={() => setFormOpen(true)}
-        >
-          Create Guest
-        </Button>
-        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-      <GuestFormDialog
-        restaurantId={restaurantId}
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        onSaved={(guestId) => {
-          setFormOpen(false);
-          onSelect(guestId);
-        }}
-      />
+      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={onCancel}>
+        Cancel
+      </Button>
     </div>
   );
 }

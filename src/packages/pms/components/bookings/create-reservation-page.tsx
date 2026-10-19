@@ -127,6 +127,7 @@ import {
   quotedNonRefundable,
   resolveDepositTenderCode,
 } from "@/packages/pms/lib/create-reservation-step4";
+import { parseCreateReceiptInput } from "@/packages/pms/lib/reservation-create-money";
 import {
   clearCreateReservationDraft,
   createReservationDraftIsMeaningful,
@@ -1159,6 +1160,18 @@ export function CreateReservationPage({
       if (!channelForm?.accepted) {
         throw new Error(channelForm?.message ?? "Source is required to continue.");
       }
+      const paymentReceived = parseCreateReceiptInput({
+        amount: step4Policies.paymentReceivedAmount,
+        tender: step4Policies.paymentReceivedTender,
+        reference: step4Policies.paymentReceivedReference,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      const guestDeposit = parseCreateReceiptInput({
+        amount: step4Policies.guestDepositAmount,
+        tender: step4Policies.guestDepositTender,
+        reference: step4Policies.guestDepositReference,
+        idempotencyKey: crypto.randomUUID(),
+      });
       return submitReservation({
         data: {
           restaurantId,
@@ -1210,10 +1223,20 @@ export function CreateReservationPage({
             selected: step4Policies.depositPaymentMethod,
             guaranteeMethod,
           }),
+          paymentReceivedAmount: paymentReceived.amount,
+          paymentReceivedTender: paymentReceived.tender,
+          paymentReceivedReference: paymentReceived.reference,
+          paymentReceivedIdempotencyKey: paymentReceived.idempotencyKey,
+          guestDepositAmount: guestDeposit.amount,
+          guestDepositTender: guestDeposit.tender,
+          guestDepositReference: guestDeposit.reference,
+          guestDepositIdempotencyKey: guestDeposit.idempotencyKey,
         },
       });
     },
     onSuccess: async (result, nextStatus) => {
+      if (result.paymentError) toast.error(result.paymentError);
+      if (result.guestDepositError) toast.error(result.guestDepositError);
       draftClosed.current = true;
       if (accessQuery.data?.membershipId) {
         clearCreateReservationDraft(restaurantId, accessQuery.data.membershipId);
@@ -2291,6 +2314,31 @@ export function CreateReservationPage({
         groupMode && groupPoliciesShared ? sharedPolicyNote(1 + extraRoomUnits.length) : null
       }
       roomPolicyRows={stepPolicyRooms}
+      tenderOptions={guaranteeOptions}
+      paymentReceivedAmount={step4Policies.paymentReceivedAmount}
+      paymentReceivedTender={step4Policies.paymentReceivedTender}
+      paymentReceivedReference={step4Policies.paymentReceivedReference}
+      guestDepositAmount={step4Policies.guestDepositAmount}
+      guestDepositTender={step4Policies.guestDepositTender}
+      guestDepositReference={step4Policies.guestDepositReference}
+      onPaymentReceivedAmountChange={(value) =>
+        setStep4Policies((current) => ({ ...current, paymentReceivedAmount: value }))
+      }
+      onPaymentReceivedTenderChange={(value) =>
+        setStep4Policies((current) => ({ ...current, paymentReceivedTender: value }))
+      }
+      onPaymentReceivedReferenceChange={(value) =>
+        setStep4Policies((current) => ({ ...current, paymentReceivedReference: value }))
+      }
+      onGuestDepositAmountChange={(value) =>
+        setStep4Policies((current) => ({ ...current, guestDepositAmount: value }))
+      }
+      onGuestDepositTenderChange={(value) =>
+        setStep4Policies((current) => ({ ...current, guestDepositTender: value }))
+      }
+      onGuestDepositReferenceChange={(value) =>
+        setStep4Policies((current) => ({ ...current, guestDepositReference: value }))
+      }
     />
   );
 

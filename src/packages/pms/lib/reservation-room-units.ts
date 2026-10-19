@@ -73,12 +73,17 @@ export type ReservationRoomUnit = ReservationRoomUnitValues & {
   roomTypeName?: string | null;
   roomNumber?: string | null;
   ratePlanName?: string | null;
+  assignmentNotes?: string | null;
 };
 
 export type ReservationRoomOccupant = {
   guestId: string;
   name: string;
   isPrimary: boolean;
+  phone?: string | null;
+  gender?: string | null;
+  idDocumentNumber?: string | null;
+  notes?: string | null;
 };
 
 export type ReservationRoomOccupantSource = {
@@ -86,6 +91,10 @@ export type ReservationRoomOccupantSource = {
   guestId: string;
   name: string;
   isPrimary: boolean;
+  phone?: string | null;
+  gender?: string | null;
+  idDocumentNumber?: string | null;
+  notes?: string | null;
 };
 
 function moneyNumber(value: unknown): number | null {
@@ -323,6 +332,12 @@ export function attachRoomOccupants(
         guestId: occupant.guestId,
         name: occupant.name,
         isPrimary: occupant.isPrimary,
+        ...(occupant.phone !== undefined ? { phone: occupant.phone } : {}),
+        ...(occupant.gender !== undefined ? { gender: occupant.gender } : {}),
+        ...(occupant.idDocumentNumber !== undefined
+          ? { idDocumentNumber: occupant.idDocumentNumber }
+          : {}),
+        ...(occupant.notes !== undefined ? { notes: occupant.notes } : {}),
       }))
       .sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary)),
   }));

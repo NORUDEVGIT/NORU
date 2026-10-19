@@ -50,7 +50,7 @@ describe("Reservation Detail Overview-first", () => {
   });
 
   it("renders KPI strip, left sidebar, and nine Overview cards", () => {
-    expect(workspace).toContain("depositStatusLabel");
+    expect(workspace).toContain("No deposit received");
     expect(workspace).toContain("ReservationDetailKpiStrip");
     expect(workspace).toContain("reservation-detail-sidebar");
     expect(overviewUi).toContain("reservation-detail-kpi");
@@ -151,7 +151,7 @@ describe("Reservation Detail Overview editability and labels", () => {
     expect(overviewEditable("checked_out", "2026-10-01", "2026-10-04")).toBe(false);
     expect(overviewEditable("cancelled", "2026-10-14", "2026-10-16")).toBe(false);
     expect(overviewEditable("no_show", "2026-10-10", "2026-10-12")).toBe(false);
-    expect(workspace).toContain("editable={detailActions?.editable ?? false}");
+    expect(workspace).toContain("editable={(detailActions?.editable ?? false) && stayMutable}");
     expect(workspace).toContain("getReservationActions(");
     for (const tab of ["guest", "stay", "rooms", "rates", "requests", "notes"]) {
       expect(overviewUi).toContain(`editTab("${tab}")`);

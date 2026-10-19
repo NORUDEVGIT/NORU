@@ -1,10 +1,10 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import {
   GROUP_PACKAGE_NOTE,
   isGroupReservation,
 } from "@/packages/pms/lib/reservation-detail-group";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
@@ -57,14 +57,18 @@ import {
   emptyPackageFilters,
   filterAvailablePackages,
   packageInclusionLabel,
-  PACKAGE_BIND_GAP_COPY,
   PACKAGE_NOTES_GAP_COPY,
   PACKAGE_NOTES_MAX,
   uniquePackageFilterOptions,
   type PackageFilters,
 } from "@/packages/pms/lib/reservation-detail-packages";
 import { parsePackageChargeBasis } from "@/packages/pms/lib/meals-card3.server";
-import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
+import { stayRoomUnitId } from "@/packages/pms/lib/reservation-detail-guest";
+import { releaseReservationRoomPackage } from "@/packages/pms/lib/reservation-detail-controls.functions";
+import {
+  applyReservationRoomPackage,
+  type ReservationDetail,
+} from "@/packages/pms/lib/reservations.functions";
 import {
   getReservationCommercialAttribution,
   listEligiblePackageActivations,
@@ -79,6 +83,8 @@ export function ReservationDetailPackagesTab({
   reservation,
   canManage,
   money,
+  paymentReceived = null,
+  guestDeposit = null,
   coverUrl,
   onBackToRates,
 }: {
@@ -86,14 +92,27 @@ export function ReservationDetailPackagesTab({
   reservation: ReservationDetail;
   canManage: boolean;
   money: (value: number) => string;
+  paymentReceived?: number | null;
+  guestDeposit?: number | null;
   coverUrl: string | null;
   onBackToRates: () => void;
 }) {
   const fetchCatalogue = useServerFn(getMealsCard3);
   const fetchEligible = useServerFn(listEligiblePackageActivations);
   const fetchCommercial = useServerFn(getReservationCommercialAttribution);
+  const submitApply = useServerFn(applyReservationRoomPackage);
+  const submitRelease = useServerFn(releaseReservationRoomPackage);
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<PackageFilters>(emptyPackageFilters);
   const [notes, setNotes] = useState("");
+  const [unitId, setUnitId] = useState(stayRoomUnitId(reservation) ?? "");
+  useEffect(() => {
+    setUnitId((current) =>
+      (reservation.rooms ?? []).some((unit) => unit.id === current)
+        ? current
+        : (stayRoomUnitId(reservation) ?? ""),
+    );
+  }, [reservation]);
   const cancelled = reservation.status === "cancelled";
   const editable = canManage && !cancelled;
   const currency = reservation.currency?.trim() || "ETB";
@@ -154,9 +173,41 @@ export function ReservationDetailPackagesTab({
   const visible = filterAvailablePackages(cards, filters);
   const appliedTotal = appliedPackagesTotal(applied);
 
-  function refuseBind() {
-    toast.message(PACKAGE_BIND_GAP_COPY);
-  }
+  const bindPackage = useMutation({
+    mutationFn: (activationId: string) => {
+      const roomId = unitId || stayRoomUnitId(reservation);
+      if (!roomId) throw new Error("This stay has no room unit for a package.");
+      return submitApply({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          reservationRoomId: roomId,
+          packageActivationId: activationId,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Package applied to this room.");
+      void queryClient.invalidateQueries({
+        queryKey: ["reservation-commercial", restaurantId, reservation.id],
+      });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const releasePackage = useMutation({
+    mutationFn: (packageRowId: string) =>
+      submitRelease({
+        data: { restaurantId, reservationId: reservation.id, packageRowId },
+      }),
+    onSuccess: () => {
+      toast.success("Package removed from this room.");
+      void queryClient.invalidateQueries({
+        queryKey: ["reservation-commercial", restaurantId, reservation.id],
+      });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-packages">
@@ -167,6 +218,23 @@ export function ReservationDetailPackagesTab({
             <p className="text-xs text-muted-foreground">
               Add or manage packages and special offers to enhance the guest stay.
             </p>
+            {(reservation.rooms ?? []).length > 1 ? (
+              <label className="mt-3 block text-xs text-muted-foreground">
+                Room unit
+                <select
+                  className={`${FIELD} mt-1`}
+                  value={unitId}
+                  onChange={(event) => setUnitId(event.target.value)}
+                >
+                  {(reservation.rooms ?? []).map((unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      Room {unit.unitSequence}
+                      {unit.roomNumber ? ` · ${unit.roomNumber}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {isGroupReservation(reservation) ? (
               <p
                 className="mt-2 text-xs text-muted-foreground"
@@ -186,9 +254,9 @@ export function ReservationDetailPackagesTab({
             departure={reservation.departureDate}
             total={appliedTotal}
             editable={editable}
-            onAdd={refuseBind}
-            onEdit={refuseBind}
-            onRemove={refuseBind}
+            onAdd={() => toast.message("Choose a package from the list below.")}
+            onEdit={() => toast.message("Package quantity stays on the applied row.")}
+            onRemove={(row) => releasePackage.mutate(row.id)}
           />
           {!reservation.ratePlanId ? (
             <p
@@ -206,12 +274,20 @@ export function ReservationDetailPackagesTab({
             currency={currency}
             editable={editable}
             onFilters={setFilters}
-            onAdd={refuseBind}
+            onAdd={(card) => {
+              if (!card.activationId) {
+                toast.error("That package is not eligible for this stay.");
+                return;
+              }
+              bindPackage.mutate(card.activationId);
+            }}
           />
           <PackageNotesCard value={notes} editable={editable} onChange={setNotes} />
         </div>
         <PackagesSummaryRail
           reservation={reservation}
+          paymentReceived={paymentReceived}
+          guestDeposit={guestDeposit}
           money={money}
           coverUrl={coverUrl}
           nights={nights}
@@ -284,7 +360,7 @@ function AppliedPackagesCard({
   editable: boolean;
   onAdd: () => void;
   onEdit: () => void;
-  onRemove: () => void;
+  onRemove: (row: { id: string }) => void;
 }) {
   return (
     <section
@@ -304,7 +380,6 @@ function AppliedPackagesCard({
           data-testid="applied-packages-empty"
         >
           No packages attached to this reservation.
-          <p className="mt-1 text-xs">{PACKAGE_BIND_GAP_COPY}</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -373,7 +448,7 @@ function AppliedPackagesCard({
                           size="icon"
                           variant="ghost"
                           disabled={!editable}
-                          onClick={onRemove}
+                          onClick={() => onRemove(row)}
                           aria-label="Remove package"
                         >
                           <Trash2 className="size-3.5" />
@@ -415,7 +490,7 @@ function AvailablePackagesCard({
   currency: string;
   editable: boolean;
   onFilters: (next: PackageFilters) => void;
-  onAdd: () => void;
+  onAdd: (card: ReturnType<typeof filterAvailablePackages>[number]) => void;
 }) {
   function patch(next: Partial<PackageFilters>) {
     onFilters({ ...filters, ...next });
@@ -474,8 +549,14 @@ function AvailablePackagesCard({
           currency={currency}
           money={money}
           emptyCopy="No active packages match this stay."
-          renderFooter={() => (
-            <Button type="button" size="sm" variant="outline" disabled={!editable} onClick={onAdd}>
+          renderFooter={(card) => (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!editable}
+              onClick={() => onAdd(card)}
+            >
               Add Package
             </Button>
           )}
@@ -557,12 +638,16 @@ function PackagesSummaryRail({
   coverUrl,
   nights,
   packagesTotal,
+  paymentReceived,
+  guestDeposit,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
   coverUrl: string | null;
   nights: number;
   packagesTotal: number;
+  paymentReceived: number | null;
+  guestDeposit: number | null;
 }) {
   return (
     <ReservationDetailSummary
@@ -572,6 +657,8 @@ function PackagesSummaryRail({
       coverUrl={coverUrl}
       nights={nights}
       packagesTotal={packagesTotal}
+      paymentReceived={paymentReceived}
+      guestDeposit={guestDeposit}
     />
   );
 }

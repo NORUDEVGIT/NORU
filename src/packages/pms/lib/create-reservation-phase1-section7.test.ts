@@ -415,7 +415,7 @@ describe("Create Reservation Phase 1 Section 7 lock — AC-CR7-1…24", () => {
     assert.match(confirmation, /email and SMS are not sent/);
   });
 
-  it("AC-CR7-11 No create-time deposit cashiering", () => {
+  it("AC-CR7-11 guarantee label does not post; an explicit amount does", () => {
     const page =
       readRel("../components/bookings/create-reservation-page.tsx") +
       readRel("../../../routes/restaurant/bookings/new.tsx");
@@ -425,8 +425,18 @@ describe("Create Reservation Phase 1 Section 7 lock — AC-CR7-1…24", () => {
       createStart,
       functions.indexOf("export const amendReservation"),
     );
-    assert.doesNotMatch(page, /createDeposit|postDeposit|openFolio|payment capture/i);
-    assert.doesNotMatch(createFn, /createDeposit|folio_post|captureCard/);
+    const helpers = readRel("./create-reservation-phase1-section7.ts");
+    assert.doesNotMatch(page, /createDeposit|postDeposit|openFolio|payment capture|captureCard/i);
+    assert.doesNotMatch(createFn, /createDeposit|captureCard/);
+    assert.match(createFn, /postCreateReservationMoney/);
+    assert.match(createFn, /paymentReceivedAmount/);
+    assert.match(createFn, /guestDepositAmount/);
+    assert.match(functions, /open_folio_for_reservation/);
+    assert.match(functions, /type: "payment"/);
+    assert.match(functions, /type: "deposit"/);
+    assert.match(functions, /createMoneyNeedsFolio/);
+    assert.match(helpers, /explicit received payment or guest deposit/);
+    assert.doesNotMatch(functions, /captureCard/);
     const checkin = readRel("./fo-check-in.ts");
     assert.match(checkin, /deposit|Policy A|check-in/i);
   });

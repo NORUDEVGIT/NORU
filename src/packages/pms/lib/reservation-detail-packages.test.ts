@@ -230,7 +230,9 @@ describe("Reservation Detail Packages tab", () => {
   });
 
   it("does not persist attach/remove or package notes", () => {
-    expect(packagesUi).toContain("PACKAGE_BIND_GAP_COPY");
+    expect(packagesUi).toContain("applyReservationRoomPackage");
+    expect(packagesUi).toContain("releaseReservationRoomPackage");
+    expect(packagesUi).not.toContain("PACKAGE_BIND_GAP_COPY");
     expect(packagesUi).toContain("PACKAGE_NOTES_GAP_COPY");
     expect(packagesUi).toContain("applied-packages-empty");
     expect(packagesUi).toContain("ReservationPackageMerchandiseGrid");

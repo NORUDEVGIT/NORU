@@ -100,10 +100,12 @@ describe("GROUP-RES-06 room occupant operations", () => {
     expect(rooms).toContain("data-testid={`additional-occupant-${sequence}`}");
     expect(rooms).toContain("data-testid={`add-guest-${unit.unitSequence}`}");
     expect(rooms).toContain("data-testid={`change-primary-${sequence}`}");
-    expect(rooms).toContain("data-testid={`remove-guest-${sequence}`}");
+    expect(rooms).not.toContain("View Guest");
+    expect(rooms).not.toContain("Remove Guest");
     expect(rooms).toContain("data-testid={`room-occupants-locked-${unit.unitSequence}`}");
     expect(rooms).toContain("listGuests");
-    expect(rooms).toContain("GuestFormDialog");
+    expect(rooms).not.toContain("GuestFormDialog");
+    expect(rooms).toContain("data-testid={`remove-guest-${sequence}-${guestId}`}");
     expect(rooms).toContain("ROOM_OCCUPANT_IDENTITY_NOTE");
     expect(rooms).toContain("{guest.fullName}");
     expect(rooms).not.toContain(">{guest.id}<");

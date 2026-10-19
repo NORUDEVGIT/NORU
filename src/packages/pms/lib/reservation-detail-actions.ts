@@ -1,3 +1,4 @@
+import { isUnarrivedPastStay } from "@/packages/pms/lib/reservation-lifecycle";
 import { deskActionHints } from "@/packages/pms/lib/reservation-workspace/desk.server";
 import { isDeskNoShowEligible } from "@/packages/pms/lib/reservation-noshow-workspace";
 import {
@@ -26,6 +27,11 @@ export function reservationDetailActionInput(input: {
   role: string;
 }): ReservationActionInput {
   const desk = deskActionHints({ status: input.status, roomId: input.roomId });
+  const pastUnarrived = isUnarrivedPastStay({
+    status: input.status,
+    arrivalDate: input.arrivalDate,
+    businessDate: input.businessDate,
+  });
   return {
     status: input.status,
     businessDate: input.businessDate,
@@ -34,12 +40,12 @@ export function reservationDetailActionInput(input: {
     roomAssigned: input.roomId !== null,
     role: input.role,
     actionHints: {
-      canEdit: true,
-      canAssignRoom: desk.canAssignRoom,
+      canEdit: !pastUnarrived,
+      canAssignRoom: desk.canAssignRoom && !pastUnarrived,
       canChangeRoom: true,
-      canConfirm: desk.canConfirm,
+      canConfirm: desk.canConfirm && !pastUnarrived,
       canCancel: desk.canCancel,
-      canCheckIn: desk.canCheckIn,
+      canCheckIn: desk.canCheckIn && !pastUnarrived,
       canCheckOut: desk.canCheckOut,
       canNoShow: isDeskNoShowEligible(input.status, input.arrivalDate, input.businessDate),
       canReactivate:
