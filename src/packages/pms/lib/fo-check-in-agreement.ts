@@ -2,10 +2,34 @@ import type { CheckInGuestSource } from "./fo-check-in-unit";
 
 export type CheckInAgreementAcknowledgement = Record<string, boolean>;
 
+export type CheckInAgreementSectionView = {
+  id: string;
+  title: string;
+  description: string;
+  displayOrder: number;
+};
+
+export type CheckInAgreementAcknowledgementView = {
+  id: string;
+  title: string;
+  statement: string;
+  required: boolean;
+  displayOrder: number;
+};
+
 export type CheckInAgreementVersion = {
   id: string;
   label: string;
   body: string;
+  /** True when the row has only the original body and no structured snapshot. */
+  legacy?: boolean;
+  title?: string | null;
+  intro?: string | null;
+  leadIn?: string | null;
+  acknowledgementTitle?: string | null;
+  acknowledgementIntro?: string | null;
+  sections?: CheckInAgreementSectionView[];
+  acknowledgements?: CheckInAgreementAcknowledgementView[];
 };
 
 export type CheckInAgreementSignature = {

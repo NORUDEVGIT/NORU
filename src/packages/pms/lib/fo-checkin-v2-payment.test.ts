@@ -245,8 +245,7 @@ describe("check-in v2 payment", () => {
   it("advances Continue to the Step 4 shell", () => {
     assert.match(workspace, /fo-ci-v2-continue-agreement/);
     assert.match(workspace, /setStep\("agreement_signature"\)/);
-    assert.match(workspace, /fo-ci-v2-step-placeholder-/);
-    assert.match(workspace, /This step is not available yet/);
+    assert.match(workspace, /FoCheckInV2Agreement/);
   });
 
   it("does not implement agreement or signature", () => {
@@ -257,8 +256,8 @@ describe("check-in v2 payment", () => {
     assert.doesNotMatch(workspace, /captureCheckInAgreementSignature|saveCheckInAgreement/);
   });
 
-  it("does not implement Complete Check-In", () => {
+  it("does not implement Complete Check-In from payment", () => {
     assert.doesNotMatch(payment, /completeFoCheckIn|Complete Check-In/);
-    assert.doesNotMatch(workspace, /completeFoCheckIn|Complete Check-In/);
+    assert.match(workspace, /FoCheckInV2Review/);
   });
 });

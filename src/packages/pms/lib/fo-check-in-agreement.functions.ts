@@ -18,6 +18,12 @@ import {
   type CheckInAgreementSignature,
   type CheckInAgreementVersion,
 } from "@/packages/pms/lib/fo-check-in-agreement";
+import {
+  asGuestAgreementAcknowledgements,
+  asGuestAgreementSections,
+  missingRequiredAcknowledgements,
+  projectCheckInAgreementContent,
+} from "@/packages/pms/lib/guest-agreement-config";
 import { loadCheckInUnitTarget } from "@/packages/pms/lib/fo-check-in-unit.functions";
 import {
   recordReservationEvent,
@@ -100,13 +106,26 @@ async function loadActiveVersion(
 ): Promise<CheckInAgreementVersion | null> {
   const { data, error } = await db
     .from("pms_registration_agreement_versions")
-    .select("id, version_label, body")
+    .select(
+      "id, version_label, body, title, intro, lead_in, acknowledgement_title, acknowledgement_intro, agreement_sections, acknowledgements",
+    )
     .eq("restaurant_id", restaurantId)
     .eq("active", true)
     .maybeSingle();
   if (error) throw reservationError(error.message);
   if (!data) return null;
-  return { id: data.id, label: data.version_label, body: data.body };
+  return projectCheckInAgreementContent({
+    id: data.id,
+    label: data.version_label,
+    body: data.body,
+    title: data.title ?? null,
+    intro: data.intro ?? null,
+    leadIn: data.lead_in ?? null,
+    acknowledgementTitle: data.acknowledgement_title ?? null,
+    acknowledgementIntro: data.acknowledgement_intro ?? null,
+    sections: asGuestAgreementSections(data.agreement_sections),
+    acknowledgements: asGuestAgreementAcknowledgements(data.acknowledgements),
+  });
 }
 
 function scopeUnit(query: UntypedDb, reservationRoomId: string | null): UntypedDb {
@@ -258,6 +277,8 @@ export const saveCheckInAgreement = createServerFn({ method: "POST" })
     if (version.id !== data.agreementVersionId)
       throw reservationError("AGREEMENT_VERSION_MISMATCH");
     const acknowledgements = copyAcknowledgements(data.acknowledgements);
+    const missing = missingRequiredAcknowledgements(version.acknowledgements, acknowledgements);
+    if (missing.length > 0) throw reservationError("AGREEMENT_ACK_REQUIRED");
     const rows = await loadInstanceRows(
       db,
       data.restaurantId,

@@ -6,12 +6,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { isKeyRecorded, isRegistrationComplete, isRoomReady } from "@/packages/pms/lib/fo-check-in";
+import { isKeyRecorded, isRoomReady } from "@/packages/pms/lib/fo-check-in";
 import { getCheckInAgreement } from "@/packages/pms/lib/fo-check-in-agreement.functions";
 import { getCheckInDepositReadiness } from "@/packages/pms/lib/fo-check-in.functions";
 import { checkInIdentityVerification } from "@/packages/pms/lib/fo-check-in-registration";
 import {
   evaluateCheckInReadiness,
+  registrationSnapshotIsComplete,
+  rethrowReadinessReadError,
+  withAssignedRoom,
   type CheckInReadiness,
   type CheckInReadinessFacts,
 } from "@/packages/pms/lib/fo-check-in-readiness";
@@ -32,14 +35,6 @@ import { requireReservationManager } from "@/packages/pms/lib/reservations.serve
 import { getAssignmentEligibilityCompat } from "@/packages/pms/lib/room-inventory-compat";
 
 const idSchema = z.string().uuid();
-
-const blankRegistration = {
-  fullName: "",
-  phone: null,
-  email: null,
-  idDocumentType: null,
-  idDocumentNumber: null,
-};
 
 function unitRequiredResult(): CheckInReadiness {
   return evaluateCheckInReadiness({
@@ -139,7 +134,7 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
       )
       .eq("restaurant_id", data.restaurantId)
       .eq("guest_id", target.primaryGuestId);
-    if (documentError) throw new Error(documentError.message);
+    rethrowReadinessReadError(documentError);
     const documents = (guestDocuments ?? []).map((doc) => ({
       id: doc.id,
       typeId: doc.id_type_id,
@@ -192,15 +187,12 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
       types: workspaceConfig.identityDocumentTypes,
     });
 
-    let roomEligible: boolean | null = null;
-    let roomReady: boolean | null = null;
-    let roomReadyReason: string | null = null;
-    if (target.roomId) {
+    const assignedRoom = await withAssignedRoom(target.roomId, async (roomId) => {
       const eligibility = await getAssignmentEligibilityCompat(
         supabaseAdmin,
         {
           restaurantId: data.restaurantId,
-          roomId: target.roomId,
+          roomId,
           roomTypeId: target.roomTypeId,
           arrival: target.arrivalDate,
           departure: target.departureDate,
@@ -217,29 +209,31 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
           preferenceReasons: [],
         }),
       );
-      roomEligible = eligibility.eligible;
-      if (eligibility.eligible) {
-        const { data: roomRow } = await supabaseAdmin
-          .from("hotel_rooms")
-          .select("id, status, housekeeping_status, maintenance_status")
-          .eq("restaurant_id", data.restaurantId)
-          .eq("id", target.roomId)
-          .maybeSingle();
-        const housekeeping = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
-        const readiness = isRoomReady(
-          roomRow
-            ? {
-                status: roomRow.status,
-                housekeepingStatus: roomRow.housekeeping_status,
-                maintenanceStatus: roomRow.maintenance_status,
-              }
-            : null,
-          housekeeping.settings,
-        );
-        roomReady = readiness.ready;
-        roomReadyReason = readiness.reason;
+      if (!eligibility.eligible) {
+        return { eligible: false, ready: null, reason: null };
       }
-    }
+      const { data: roomRow } = await supabaseAdmin
+        .from("hotel_rooms")
+        .select("id, status, housekeeping_status, maintenance_status")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", roomId)
+        .maybeSingle();
+      const housekeeping = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
+      const readiness = isRoomReady(
+        roomRow
+          ? {
+              status: roomRow.status,
+              housekeepingStatus: roomRow.housekeeping_status,
+              maintenanceStatus: roomRow.maintenance_status,
+            }
+          : null,
+        housekeeping.settings,
+      );
+      return { eligible: true, ready: readiness.ready, reason: readiness.reason };
+    });
+    const roomEligible = assignedRoom?.eligible ?? null;
+    const roomReady = assignedRoom?.ready ?? null;
+    const roomReadyReason = assignedRoom?.reason ?? null;
 
     const { data: stay } = await supabaseAdmin
       .from("hotel_reservations")
@@ -262,9 +256,7 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
         status: target.status,
         roomId: target.roomId,
       },
-      registrationComplete: isRegistrationComplete(
-        progress.registrationSnapshot ?? blankRegistration,
-      ),
+      registrationComplete: registrationSnapshotIsComplete(progress.registrationSnapshot),
       registrationWaived: progress.registrationWaived,
       registrationWaiverReason: progress.registrationWaiverReason,
       registrationWaivedBy: progress.registrationWaivedBy,

@@ -1,7 +1,11 @@
 import {
   DEPOSIT_REQUIRED_BANNER,
   GUARANTEE_UNRULED,
+  ID_DOCUMENT_TYPES,
   REGISTRATION_INCOMPLETE_BANNER,
+  isRegistrationComplete,
+  type IdDocumentType,
+  type RegistrationDraft,
 } from "@/packages/pms/lib/fo-check-in";
 import type { CheckInGuestSource } from "@/packages/pms/lib/fo-check-in-unit";
 
@@ -143,6 +147,61 @@ function emptyResult(): CheckInReadiness {
     overrides: [],
     canCheckIn: false,
   };
+}
+
+const LEGACY_ID_TYPES = new Set<string>(ID_DOCUMENT_TYPES);
+
+function snapshotText(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function legacyRegistrationDraft(record: Record<string, unknown>): RegistrationDraft {
+  const idType = snapshotText(record.idDocumentType);
+  return {
+    fullName: snapshotText(record.fullName),
+    phone: snapshotText(record.phone) || null,
+    email: snapshotText(record.email) || null,
+    idDocumentType: LEGACY_ID_TYPES.has(idType) ? (idType as IdDocumentType) : null,
+    idDocumentNumber: snapshotText(record.idDocumentNumber) || null,
+  };
+}
+
+/**
+ * Registration completeness for the readiness read.
+ * A missing or partial snapshot is incomplete. It is not a read failure.
+ * Check-in v2 stores `{ guestId, guestSource, fields }` and does not carry
+ * the legacy draft's identity columns. Identity stays on the document rules.
+ */
+export function registrationSnapshotIsComplete(snapshot: unknown): boolean {
+  if (!snapshot || typeof snapshot !== "object") return false;
+  const record = snapshot as Record<string, unknown>;
+  if ("fullName" in record || "idDocumentType" in record || "idDocumentNumber" in record) {
+    return isRegistrationComplete(legacyRegistrationDraft(record));
+  }
+  const fields = record.fields;
+  if (!fields || typeof fields !== "object") return false;
+  const profile = fields as Record<string, unknown>;
+  const name = `${snapshotText(profile.first_name)} ${snapshotText(profile.last_name)}`.trim();
+  const phone = snapshotText(profile.phone).trim();
+  const email = snapshotText(profile.email).trim();
+  return name.length > 0 && (phone.length > 0 || email.length > 0);
+}
+
+/**
+ * Room eligibility and housekeeping run only for a real assigned room id.
+ * A missing room is a readiness blocker, not an input to the room evaluator.
+ */
+export async function withAssignedRoom<T>(
+  roomId: string | null | undefined,
+  evaluate: (roomId: string) => Promise<T>,
+): Promise<T | null> {
+  if (typeof roomId !== "string" || roomId.length === 0) return null;
+  return evaluate(roomId);
+}
+
+/** Database and query failures stay exceptions. Business blockers do not. */
+export function rethrowReadinessReadError(error: { message: string } | null | undefined): void {
+  if (error) throw new Error(error.message);
 }
 
 /**

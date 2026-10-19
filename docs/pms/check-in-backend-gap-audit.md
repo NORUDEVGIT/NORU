@@ -1458,3 +1458,23 @@ Production build: PASS (`npm run build`).
 Backend changes: NONE
 
 Known remaining work: Step 5 — Review & Check-In
+
+## Guest Agreement configuration
+
+Backend only. Guest Services still has no configuration screen. Check-in Step 4 continues to read `getCheckInAgreement` and keeps the existing instance, unit, and `drawn` signature path.
+
+Schema: `0171_guest_agreement_configuration.sql` in both `supabase/migrations` and `drizzle/migrations`. The same file is in both lanes. It was not applied. It adds nullable `title`, `intro`, `lead_in`, `acknowledgement_title`, `acknowledgement_intro`, `agreement_sections`, `acknowledgements`, `resolved_check_in_time`, `resolved_check_out_time`, `published_at`, and `published_by` on `pms_registration_agreement_versions`. One open draft per property is the partial unique index where `published_at` is null. Existing rows with no sections are stamped `published_at = created_at` and are not rewritten. A version referenced by `fo_checkin_agreement_instances` cannot change its wording or resolved times. `active` can still change so a later publish can retire it.
+
+Defaults: one unpublished draft (`active = false`, label `1`) for a property that has zero version rows. Seven sections (`displayOrder` 10–70) and four required acknowledgements (`displayOrder` 10–40). Templates stay unresolved until publish. The insert is `WHERE NOT EXISTS`. The same seed runs from `getGuestAgreementConfiguration` and from `registerRestaurant` after the restaurant row exists. Neither path updates a property that already has a version.
+
+Property Setup fields reused: `restaurants.check_in_time` and `restaurants.check_out_time`, formatted with `normalizeClock` (`HH:MM`). No new time columns. Supported tokens are `{{check_in_time}}` and `{{check_out_time}}`. An unknown token, or a known token whose property time is empty, fails publish. Resolution writes `resolvedDescription` and the rendered `body` on that version only. A later change to Property Setup does not rewrite an older snapshot.
+
+Versioning: `createGuestAgreementVersion` copies the chosen, active, or latest package into a new draft and does not update the source. `updateGuestAgreementDraft` replaces wording, enabled, order, added, and removed sections and acknowledgements only while `published_at` is null. `publishGuestAgreementVersion` resolves placeholders, stores the snapshot and rendered body, sets `published_at`, activates that row, and sets the previous active row inactive. `publishCheckInAgreementVersion` is unchanged.
+
+Acknowledgements: Check-in returns enabled sections and enabled acknowledgements ordered by `displayOrder`, with the required flag taken from the snapshot. Disabled items are omitted and are not required. A legacy row with `body` and null sections returns `legacy: true` and the original body. `saveCheckInAgreement` still stores `Record<string, boolean>`. For a structured version, every enabled required acknowledgement id must be true. Instance columns are unchanged.
+
+Services: `getGuestAgreementConfiguration`, `createGuestAgreementVersion`, `updateGuestAgreementDraft`, `publishGuestAgreementVersion` in `src/packages/pms/lib/guest-agreement.functions.ts`. Owner or manager only. Receptionist calls fail on the server. Audit rows in `restaurant_staff_audit_log` store the action, version id, and actor, not the full body.
+
+Focused tests: `src/packages/pms/lib/guest-agreement-config.test.ts` — 40 passed. Existing B04 `fo-check-in-agreement.test.ts` — 6 passed.
+
+Known remaining work: Guest Services → Guest Agreement configuration UI. Migration `0171` is written and not applied.

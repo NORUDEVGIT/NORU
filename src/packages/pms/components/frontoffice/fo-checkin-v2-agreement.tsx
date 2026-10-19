@@ -1,6 +1,7 @@
 /**
  * Check-In Step 4. Rendered inside the shared workspace sheet.
- * Agreement text comes from getCheckInAgreement. Signing uses captureCheckInAgreementSignature.
+ * Agreement text and acknowledgements come from getCheckInAgreement.
+ * Signing uses saveCheckInAgreement, then captureCheckInAgreementSignature.
  */
 import {
   forwardRef,
@@ -14,28 +15,43 @@ import {
 } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, ShieldAlert } from "lucide-react";
+import { CheckCircle2, Eraser, Maximize2, PenLine, Printer, ShieldAlert } from "lucide-react";
 
+import { useAuth } from "@/core/state/auth-store";
+import { getMyRestaurants } from "@/core/lib/restaurant.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import {
+  AgreementContent,
+  AgreementPrintLayer,
+  FullAgreementDialog,
+} from "@/packages/pms/components/frontoffice/fo-checkin-v2-agreement-document";
 import {
   beginCheckInAgreementResign,
   captureCheckInAgreementSignature,
   getCheckInAgreement,
   saveCheckInAgreement,
 } from "@/packages/pms/lib/fo-check-in-agreement.functions";
-import type { CheckInAgreementRead } from "@/packages/pms/lib/fo-check-in-agreement";
+import type {
+  CheckInAgreementAcknowledgementView,
+  CheckInAgreementRead,
+} from "@/packages/pms/lib/fo-check-in-agreement";
 import type { CheckInUnitRead } from "@/packages/pms/lib/fo-check-in-unit.functions";
 import {
   acknowledgementsMatch,
-  acknowledgementsReady,
+  agreementAcknowledgementItems,
   agreementAcknowledgementLabel,
   agreementAcknowledgementState,
   agreementCanContinue,
   agreementFailureCopy,
+  agreementMissingRequired,
   agreementSignaturePath,
+  agreementSignReady,
+  agreementStaffReference,
   agreementVersionIsStale,
+  agreementVersionLabel,
   buildCheckInAgreementSummary,
+  formatAgreementTimestamp,
   signatureHasInk,
   type CheckInAgreementSummary,
 } from "@/packages/pms/lib/fo-checkin-v2-agreement-model";
@@ -45,6 +61,13 @@ import { cn } from "@/shared/lib/utils";
 
 export type CheckInAgreementHandle = {
   sign: () => Promise<boolean>;
+  save: () => Promise<boolean>;
+};
+
+export type CheckInAgreementActions = {
+  canSign: boolean;
+  canSave: boolean;
+  busy: boolean;
 };
 
 export const FoCheckInV2Agreement = forwardRef<
@@ -54,14 +77,28 @@ export const FoCheckInV2Agreement = forwardRef<
     reservationId: string;
     reservationRoomId: string | null;
     unit: CheckInUnitRead;
+    confirmationNumber: string | null;
     onReady: (signed: boolean) => void;
     onSummary: (summary: CheckInAgreementSummary) => void;
+    onActions: (actions: CheckInAgreementActions) => void;
     onRefresh: () => void;
   }
 >(function FoCheckInV2Agreement(
-  { restaurantId, reservationId, reservationRoomId, unit, onReady, onSummary, onRefresh },
+  {
+    restaurantId,
+    reservationId,
+    reservationRoomId,
+    unit,
+    confirmationNumber,
+    onReady,
+    onSummary,
+    onActions,
+    onRefresh,
+  },
   ref,
 ) {
+  const { user } = useAuth();
+  const fetchRestaurants = useServerFn(getMyRestaurants);
   const fetchAgreement = useServerFn(getCheckInAgreement);
   const saveAgreement = useServerFn(saveCheckInAgreement);
   const captureSignature = useServerFn(captureCheckInAgreementSignature);
@@ -70,10 +107,24 @@ export const FoCheckInV2Agreement = forwardRef<
   const previewUrl = useRef<string | null>(null);
   const [flags, setFlags] = useState<Record<string, boolean>>({});
   const [seedKey, setSeedKey] = useState("");
+  const [padKey, setPadKey] = useState("");
   const [ink, setInk] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [signing, setSigning] = useState(false);
+  const [fullView, setFullView] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const signRef = useRef<() => Promise<boolean>>(async () => false);
+  const saveRef = useRef<() => Promise<boolean>>(async () => false);
+
+  const membershipQuery = useQuery({
+    queryKey: ["my-restaurants", user?.id],
+    queryFn: () => fetchRestaurants(),
+    enabled: Boolean(user?.id),
+    retry: false,
+  });
+  const propertyName =
+    membershipQuery.data?.find((row) => row.restaurantId === restaurantId)?.restaurant.name ?? null;
 
   const agreementQuery = useQuery({
     queryKey: ["fo-ci-v2-agreement", restaurantId, reservationId, reservationRoomId],
@@ -93,14 +144,48 @@ export const FoCheckInV2Agreement = forwardRef<
     agreement?.version && !agreement.blocker && (!agreement.signed || agreement.draft),
   );
   const readOnly = Boolean(agreement?.signed && !agreement.draft);
-  const savedFlags = useMemo(
-    () => (agreement ? agreementAcknowledgementState(agreement) : {}),
-    [agreement],
-  );
   const summary = useMemo(
     () => buildCheckInAgreementSummary(agreement, unit.primaryGuestName),
     [agreement, unit.primaryGuestName],
   );
+  const configured = useMemo(() => agreementAcknowledgementItems(agreement), [agreement]);
+  const items = useMemo<CheckInAgreementAcknowledgementView[]>(
+    () =>
+      configured.length > 0
+        ? configured
+        : Object.keys(flags).map((key, index) => ({
+            id: key,
+            title: "",
+            statement: agreementAcknowledgementLabel(key),
+            required: true,
+            displayOrder: index,
+          })),
+    [configured, flags],
+  );
+  const canSign = agreementSignReady({
+    read: agreement,
+    flags,
+    strokes: ink ? 1 : 0,
+    guestMatches,
+  });
+  const canSave = editable && guestMatches && Object.keys(flags).length > 0;
+
+  const signedRecord = agreement?.signed && !agreement.draft ? agreement.signed : null;
+  const storedSignatureQuery = useQuery({
+    queryKey: ["fo-ci-v2-agreement-signature", restaurantId, reservationId, signedRecord?.id],
+    queryFn: async () => {
+      if (!signedRecord) return null;
+      const path = agreementSignaturePath(restaurantId, reservationId, signedRecord.id);
+      const { data, error } = await supabase.storage
+        .from("property-images")
+        .createSignedUrl(path, 600);
+      return error ? null : data.signedUrl;
+    },
+    enabled: Boolean(signedRecord?.hasSignature) && !preview,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  const signatureImage = preview ?? storedSignatureQuery.data ?? null;
 
   useEffect(() => {
     onReady(agreementCanContinue(agreement));
@@ -111,21 +196,40 @@ export const FoCheckInV2Agreement = forwardRef<
   }, [onSummary, summary]);
 
   useEffect(() => {
+    onActions({ canSign, canSave, busy: signing });
+  }, [canSign, canSave, signing, onActions]);
+
+  useEffect(() => {
     if (!agreement) return;
-    const nextKey = `${agreement.reservationRoomId ?? "legacy"}:${agreement.guestId}:${agreement.version?.id ?? "none"}:${agreement.draft?.id ?? ""}:${agreement.signed?.id ?? ""}`;
+    const unitKey = `${agreement.reservationRoomId ?? "legacy"}:${agreement.guestId}:${agreement.version?.id ?? "none"}:${agreement.signed?.id ?? ""}`;
+    const nextKey = `${unitKey}:${agreement.draft?.id ?? ""}`;
     if (nextKey === seedKey) return;
     setSeedKey(nextKey);
     setFlags(agreementAcknowledgementState(agreement));
-    setInk(false);
     setFormError(null);
-    padRef.current?.clear();
-  }, [agreement, seedKey]);
+    if (unitKey !== padKey) {
+      setPadKey(unitKey);
+      setInk(false);
+      padRef.current?.clear();
+    }
+  }, [agreement, seedKey, padKey]);
 
   useEffect(() => {
     return () => {
       if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!printing) return;
+    const done = () => setPrinting(false);
+    window.addEventListener("afterprint", done);
+    const timer = window.setTimeout(() => window.print(), 80);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("afterprint", done);
+    };
+  }, [printing]);
 
   function target() {
     return {
@@ -135,20 +239,23 @@ export const FoCheckInV2Agreement = forwardRef<
     };
   }
 
+  async function persistAcknowledgements(): Promise<CheckInAgreementRead | null> {
+    if (!agreement?.version) throw new Error("AGREEMENT_REQUIRED");
+    await saveAgreement({
+      data: {
+        ...target(),
+        agreementVersionId: agreement.version.id,
+        acknowledgements: flags,
+      },
+    });
+    const refreshed = await agreementQuery.refetch();
+    return refreshed.data ?? null;
+  }
+
   const saveMut = useMutation({
-    mutationFn: () => {
-      if (!agreement?.version) throw new Error("AGREEMENT_REQUIRED");
-      return saveAgreement({
-        data: {
-          ...target(),
-          agreementVersionId: agreement.version.id,
-          acknowledgements: flags,
-        },
-      });
-    },
-    onSuccess: async () => {
+    mutationFn: persistAcknowledgements,
+    onSuccess: () => {
       setFormError(null);
-      await agreementQuery.refetch();
       onRefresh();
     },
     onError: async (error) => {
@@ -170,6 +277,7 @@ export const FoCheckInV2Agreement = forwardRef<
     },
     onSuccess: async () => {
       setFormError(null);
+      setPreview(null);
       await agreementQuery.refetch();
       onRefresh();
     },
@@ -179,19 +287,32 @@ export const FoCheckInV2Agreement = forwardRef<
     },
   });
 
+  function save(): Promise<boolean> {
+    if (!canSave) return Promise.resolve(false);
+    return saveMut.mutateAsync().then(
+      () => true,
+      () => false,
+    );
+  }
+
+  async function uploadSignature(blob: Blob, draftId: string): Promise<string | null> {
+    const options = { contentType: "image/png", upsert: false };
+    const storagePath = agreementSignaturePath(restaurantId, reservationId, draftId);
+    const uploaded = await supabase.storage
+      .from("property-images")
+      .upload(storagePath, blob, options);
+    if (!uploaded.error) return storagePath;
+    if (!/exists|duplicate/i.test(uploaded.error.message)) return null;
+    const retryPath = agreementSignaturePath(restaurantId, reservationId, crypto.randomUUID());
+    const retried = await supabase.storage.from("property-images").upload(retryPath, blob, options);
+    return retried.error ? null : retryPath;
+  }
+
   async function sign(): Promise<boolean> {
     if (!agreement?.version || agreement.blocker || !guestMatches) return false;
     if (agreement.signed && !agreement.draft) return false;
-    if (!agreement.draft) {
-      setFormError("Save the acknowledgements before signing.");
-      return false;
-    }
-    if (!acknowledgementsMatch(flags, agreement.draft.acknowledgements)) {
-      setFormError("Save the acknowledgements before signing.");
-      return false;
-    }
-    if (!acknowledgementsReady(flags)) {
-      setFormError("Confirm each acknowledgement before signing.");
+    if (agreementMissingRequired(agreement, flags).length > 0) {
+      setFormError("Confirm each required acknowledgement before signing.");
       return false;
     }
     if (!signatureHasInk(padRef.current?.strokeCount() ?? 0) || !ink) {
@@ -203,40 +324,61 @@ export const FoCheckInV2Agreement = forwardRef<
       setFormError("Draw a signature before signing.");
       return false;
     }
-    const storagePath = agreementSignaturePath(restaurantId, reservationId, crypto.randomUUID());
-    const uploaded = await supabase.storage.from("property-images").upload(storagePath, blob, {
-      contentType: "image/png",
-      upsert: false,
-    });
-    if (uploaded.error) {
-      setFormError("The signature could not be uploaded. Try again.");
-      return false;
-    }
+    const versionId = agreement.version.id;
+    setSigning(true);
     try {
-      await captureSignature({
-        data: {
-          ...target(),
-          agreementVersionId: agreement.version.id,
-          storagePath,
-          method: "drawn",
-        },
-      });
-    } catch (error) {
-      setFormError(agreementFailureCopy(error));
-      if (agreementVersionIsStale(error)) await agreementQuery.refetch();
-      return false;
+      let draftId = agreement.draft?.id ?? null;
+      if (!agreement.draft || !acknowledgementsMatch(flags, agreement.draft.acknowledgements)) {
+        try {
+          draftId = (await persistAcknowledgements())?.draft?.id ?? null;
+        } catch (error) {
+          setFormError(agreementFailureCopy(error));
+          if (agreementVersionIsStale(error)) await agreementQuery.refetch();
+          return false;
+        }
+      }
+      if (!draftId) {
+        setFormError("Save the acknowledgements before signing.");
+        return false;
+      }
+      const storagePath = await uploadSignature(blob, draftId);
+      if (!storagePath) {
+        setFormError("The signature could not be uploaded. Try again.");
+        return false;
+      }
+      try {
+        await captureSignature({
+          data: {
+            ...target(),
+            agreementVersionId: versionId,
+            storagePath,
+            method: "drawn",
+          },
+        });
+      } catch (error) {
+        setFormError(agreementFailureCopy(error));
+        if (agreementVersionIsStale(error)) await agreementQuery.refetch();
+        return false;
+      }
+      if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+      previewUrl.current = URL.createObjectURL(blob);
+      setPreview(previewUrl.current);
+      setFormError(null);
+      await agreementQuery.refetch();
+      onRefresh();
+      return true;
+    } finally {
+      setSigning(false);
     }
-    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
-    previewUrl.current = URL.createObjectURL(blob);
-    setPreview(previewUrl.current);
-    setFormError(null);
-    await agreementQuery.refetch();
-    onRefresh();
-    return true;
   }
 
   signRef.current = sign;
-  useImperativeHandle(ref, () => ({ sign: () => signRef.current() }), []);
+  saveRef.current = save;
+  useImperativeHandle(
+    ref,
+    () => ({ sign: () => signRef.current(), save: () => saveRef.current() }),
+    [],
+  );
 
   if (agreementQuery.isLoading) {
     return (
@@ -285,7 +427,7 @@ export const FoCheckInV2Agreement = forwardRef<
         data-testid="fo-ci-v2-agreement-required"
       >
         <div className="flex items-start gap-2">
-          <ShieldAlert className="mt-0.5 size-4 text-red-700" />
+          <ShieldAlert className="mt-0.5 size-4 text-red-700" aria-hidden="true" />
           <div>
             <p className="text-sm font-semibold text-red-800">AGREEMENT_REQUIRED</p>
             <p className="mt-1 text-sm text-[#251605]">
@@ -300,168 +442,278 @@ export const FoCheckInV2Agreement = forwardRef<
   const version = agreement.version;
   const booker = agreement.guestSource === "booker";
   const showPad = editable && guestMatches;
+  const versionText = agreementVersionLabel(version);
+  const shownFlags = readOnly ? (agreement.signed?.acknowledgements ?? flags) : flags;
 
   return (
     <div
-      className="space-y-4"
+      className="min-w-0 space-y-4"
       data-testid="fo-ci-v2-agreement"
       data-guest-id={agreement.guestId}
       data-reservation-room-id={agreement.reservationRoomId ?? ""}
+      data-version-id={version.id}
     >
-      <Section title="Registration Agreement" testId="fo-ci-v2-agreement-header">
-        <p
-          className="text-base font-semibold text-[#251605]"
-          data-testid="fo-ci-v2-agreement-version"
-        >
-          {version.label}
-        </p>
-        <p className="text-xs text-[#6B5E4E]">Version {version.id}</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          <Fact label="Guest" testId="fo-ci-v2-agreement-guest">
-            {unit.primaryGuestName}
-            {booker ? (
-              <span
-                className="ml-2 rounded-full bg-[#C89933]/15 px-2 py-0.5 text-[10px] font-medium text-[#8B6914]"
-                data-testid="fo-ci-v2-agreement-relationship"
-              >
-                Booker
-              </span>
-            ) : null}
-          </Fact>
-          <Fact label="Room" testId="fo-ci-v2-agreement-room">
-            {unit.roomNumber ? `Room ${unit.roomNumber}` : "No room assigned"}
-          </Fact>
-          <Fact label="Stay" testId="fo-ci-v2-agreement-stay">
-            {formatStayDate(unit.arrivalDate)} {"\u2192"} {formatStayDate(unit.departureDate)}
-          </Fact>
-        </div>
+      <div
+        className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-[#DDD4C5] bg-white px-4 py-3 shadow-sm"
+        data-testid="fo-ci-v2-agreement-header"
+      >
+        <Fact label="Guest" testId="fo-ci-v2-agreement-guest">
+          {unit.primaryGuestName}
+          {booker ? (
+            <span
+              className="ml-2 rounded-full bg-[#C89933]/15 px-2 py-0.5 text-[10px] font-medium text-[#8B6914]"
+              data-testid="fo-ci-v2-agreement-relationship"
+            >
+              Booker
+            </span>
+          ) : null}
+        </Fact>
+        <Fact label="Room" testId="fo-ci-v2-agreement-room">
+          {unit.roomNumber ? `Room ${unit.roomNumber}` : "No room assigned"}
+        </Fact>
+        <Fact label="Stay" testId="fo-ci-v2-agreement-stay">
+          {formatStayDate(unit.arrivalDate)} {"\u2192"} {formatStayDate(unit.departureDate)}
+        </Fact>
+        <Fact label="Agreement" testId="fo-ci-v2-agreement-version">
+          {versionText}
+        </Fact>
         {!guestMatches ? (
-          <p className="mt-3 text-sm text-red-800" data-testid="fo-ci-v2-agreement-guest-mismatch">
+          <p
+            className="basis-full text-sm text-red-800"
+            role="alert"
+            data-testid="fo-ci-v2-agreement-guest-mismatch"
+          >
             This agreement is not for the guest on the selected room.
           </p>
         ) : null}
-      </Section>
+      </div>
 
-      <Section title="Agreement" testId="fo-ci-v2-agreement-document">
-        <div
-          className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-lg border border-[#E8DFD0] bg-[#FBF7F1] p-4 text-sm leading-6 text-[#251605]"
-          data-testid="fo-ci-v2-agreement-body"
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        <section
+          className="min-w-0 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+          data-testid="fo-ci-v2-agreement-document"
+          aria-labelledby="fo-ci-v2-agreement-heading"
         >
-          {version.body}
-        </div>
-      </Section>
-
-      <Section title="Acknowledgements" testId="fo-ci-v2-acknowledgements">
-        <ul className="space-y-2">
-          {Object.entries(readOnly ? (agreement.signed?.acknowledgements ?? flags) : flags).map(
-            ([key, value]) => (
-              <li key={key}>
-                <label
-                  className="flex cursor-pointer items-start gap-2 text-sm text-[#251605]"
-                  htmlFor={`fo-ci-v2-ack-${key}`}
-                >
-                  <input
-                    id={`fo-ci-v2-ack-${key}`}
-                    type="checkbox"
-                    className="mt-1 size-4 accent-[#C89933]"
-                    checked={value === true}
-                    disabled={readOnly || !guestMatches}
-                    onChange={(event) =>
-                      setFlags((current) => ({ ...current, [key]: event.target.checked }))
-                    }
-                    data-testid={`fo-ci-v2-ack-${key}`}
-                  />
-                  <span>{agreementAcknowledgementLabel(key)}</span>
-                </label>
-              </li>
-            ),
-          )}
-        </ul>
-        {editable && guestMatches ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3 h-9"
-            disabled={saveMut.isPending || Object.keys(flags).length === 0}
-            onClick={() => saveMut.mutate()}
-            data-testid="fo-ci-v2-save-acknowledgements"
-          >
-            {saveMut.isPending ? "Saving…" : "Save acknowledgements"}
-          </Button>
-        ) : null}
-      </Section>
-
-      {agreement.signed ? (
-        <SignedRecord
-          agreement={agreement}
-          guestName={unit.primaryGuestName}
-          roomNumber={unit.roomNumber}
-          preview={preview}
-        />
-      ) : null}
-
-      {showPad ? (
-        <Section title="Signature" testId="fo-ci-v2-signature">
-          <p className="text-sm text-[#251605]">
-            Signer: <span data-testid="fo-ci-v2-signature-signer">{unit.primaryGuestName}</span>
-          </p>
-          <p className="mt-1 text-xs text-[#6B5E4E]" id="fo-ci-v2-signature-help">
-            Draw the signature with a mouse or finger. The method is drawn.
-          </p>
-          <SignaturePad ref={padRef} onInkChange={setInk} />
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10"
-              onClick={() => {
-                padRef.current?.clear();
-                setInk(false);
-              }}
-              data-testid="fo-ci-v2-signature-clear"
-            >
-              Clear
-            </Button>
-            <Button
-              type="button"
-              className="h-10 bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-              onClick={() => void sign()}
-              data-testid="fo-ci-v2-sign-agreement"
-            >
-              Sign Agreement
-            </Button>
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3
+                id="fo-ci-v2-agreement-heading"
+                className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]"
+              >
+                Guest Agreement
+              </h3>
+              <p
+                className="mt-1 text-base font-bold text-[#251605]"
+                data-testid="fo-ci-v2-agreement-title"
+              >
+                {version.title || "Registration Agreement"}
+              </p>
+              <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-agreement-version-label">
+                {versionText}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={() => setFullView(true)}
+                aria-label="View full agreement"
+                data-testid="fo-ci-v2-agreement-view-full"
+              >
+                <Maximize2 className="mr-1.5 size-3.5" aria-hidden="true" />
+                View Full Agreement
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={() => setPrinting(true)}
+                aria-label="Print agreement"
+                data-testid="fo-ci-v2-agreement-print"
+              >
+                <Printer className="mr-1.5 size-3.5" aria-hidden="true" />
+                Print Agreement
+              </Button>
+            </div>
           </div>
-        </Section>
-      ) : null}
+          <AgreementContent read={agreement} version={version} variant="panel" />
+        </section>
 
-      {readOnly && guestMatches ? (
-        <div className="rounded-xl border border-[#E8DFD0] bg-white p-4">
-          <p className="text-sm text-[#6B5E4E]">
-            Create New Signature adds a new agreement instance for this room. The signed record
-            stays unchanged.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-3 h-10"
-            disabled={
-              resignMut.isPending ||
-              Object.keys(agreement.signed?.acknowledgements ?? {}).length === 0
-            }
-            onClick={() => resignMut.mutate()}
-            data-testid="fo-ci-v2-new-signature"
+        <div className="min-w-0 space-y-4">
+          <section
+            className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+            data-testid="fo-ci-v2-acknowledgements"
+            aria-labelledby="fo-ci-v2-ack-heading"
           >
-            {resignMut.isPending ? "Starting…" : "Create New Signature"}
-          </Button>
+            <h3
+              id="fo-ci-v2-ack-heading"
+              className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]"
+            >
+              Guest Acknowledgement
+            </h3>
+            {version.acknowledgementIntro ? (
+              <p className="mt-1 text-sm text-[#251605]">{version.acknowledgementIntro}</p>
+            ) : null}
+            <ul className="mt-3 space-y-3">
+              {items.map((item) => {
+                const id = `fo-ci-v2-ack-${item.id}`;
+                return (
+                  <li key={item.id}>
+                    <label
+                      className={cn(
+                        "flex items-start gap-3 rounded-lg border border-[#E8DFD0] px-3 py-2.5 text-sm text-[#251605]",
+                        readOnly || !guestMatches
+                          ? "bg-[#FBF7F1]"
+                          : "cursor-pointer hover:bg-[#FBF7F1]",
+                      )}
+                      htmlFor={id}
+                    >
+                      <input
+                        id={id}
+                        type="checkbox"
+                        className="mt-0.5 size-4 shrink-0 accent-[#C89933]"
+                        checked={shownFlags[item.id] === true}
+                        disabled={readOnly || !guestMatches}
+                        aria-required={item.required}
+                        onChange={(event) =>
+                          setFlags((current) => ({ ...current, [item.id]: event.target.checked }))
+                        }
+                        data-testid={id}
+                        data-required={item.required ? "true" : "false"}
+                      />
+                      <span className="min-w-0">
+                        {item.title ? (
+                          <span className="block text-xs font-semibold text-[#6B5E4E]">
+                            {item.title}
+                          </span>
+                        ) : null}
+                        <span className="block whitespace-pre-wrap">{item.statement}</span>
+                        {item.required ? (
+                          <span
+                            className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-[#8B6914]"
+                            data-testid={`${id}-required`}
+                          >
+                            Required
+                          </span>
+                        ) : (
+                          <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-[#6B5E4E]">
+                            Optional
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          {signedRecord ? (
+            <SignedRecord
+              agreement={agreement}
+              guestName={unit.primaryGuestName}
+              signatureImage={signatureImage}
+              canResign={guestMatches}
+              resignPending={resignMut.isPending}
+              onResign={() => resignMut.mutate()}
+            />
+          ) : showPad ? (
+            <section
+              className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+              data-testid="fo-ci-v2-signature"
+              aria-labelledby="fo-ci-v2-signature-heading"
+            >
+              <h3
+                id="fo-ci-v2-signature-heading"
+                className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]"
+              >
+                Guest Signature <span aria-hidden="true">*</span>
+                <span className="sr-only">(required)</span>
+              </h3>
+              <p className="mt-1 text-sm text-[#251605]" id="fo-ci-v2-signature-help">
+                Please provide your signature to acknowledge and accept the above terms.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 border-[#C89933] bg-[#C89933]/10"
+                  aria-pressed="true"
+                  onClick={() => padRef.current?.focus()}
+                  data-testid="fo-ci-v2-signature-draw"
+                >
+                  <PenLine className="mr-1.5 size-3.5" aria-hidden="true" />
+                  Draw Signature
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  disabled={!ink}
+                  onClick={() => {
+                    padRef.current?.clear();
+                    setInk(false);
+                  }}
+                  data-testid="fo-ci-v2-signature-clear"
+                >
+                  <Eraser className="mr-1.5 size-3.5" aria-hidden="true" />
+                  Clear
+                </Button>
+              </div>
+              <SignaturePad ref={padRef} onInkChange={setInk} />
+              <p className="mt-2 text-sm text-[#251605]">
+                Signer: <span data-testid="fo-ci-v2-signature-signer">{unit.primaryGuestName}</span>
+              </p>
+              {!canSign ? (
+                <p className="mt-1 text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-signature-gate">
+                  {agreementMissingRequired(agreement, flags).length > 0
+                    ? "Accept each required acknowledgement, then draw the signature."
+                    : "Draw the signature to enable Sign Agreement."}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
         </div>
-      ) : null}
+      </div>
 
       {formError ? (
-        <p className="text-sm text-red-800" data-testid="fo-ci-v2-agreement-error-message">
+        <p
+          className="text-sm text-red-800"
+          role="alert"
+          data-testid="fo-ci-v2-agreement-error-message"
+        >
           {formError}
         </p>
       ) : null}
+
+      <FullAgreementDialog
+        open={fullView}
+        onOpenChange={setFullView}
+        read={agreement}
+        version={version}
+        items={items}
+        flags={shownFlags}
+      />
+      <AgreementPrintLayer
+        active={printing}
+        read={agreement}
+        version={version}
+        items={items}
+        signatureUrl={signatureImage}
+        context={{
+          propertyName,
+          guestName: unit.primaryGuestName,
+          confirmationNumber,
+          roomNumber: unit.roomNumber,
+          arrivalDate: unit.arrivalDate,
+          departureDate: unit.departureDate,
+        }}
+      />
     </div>
   );
 });
@@ -469,13 +721,17 @@ export const FoCheckInV2Agreement = forwardRef<
 function SignedRecord({
   agreement,
   guestName,
-  roomNumber,
-  preview,
+  signatureImage,
+  canResign,
+  resignPending,
+  onResign,
 }: {
   agreement: CheckInAgreementRead;
   guestName: string;
-  roomNumber: string | null;
-  preview: string | null;
+  signatureImage: string | null;
+  canResign: boolean;
+  resignPending: boolean;
+  onResign: () => void;
 }) {
   const signed = agreement.signed;
   if (!signed) return null;
@@ -483,30 +739,50 @@ function SignedRecord({
     <section
       className="rounded-xl border border-[#436436]/30 bg-[#436436]/10 p-4"
       data-testid="fo-ci-v2-agreement-signed"
+      aria-label="Registration Agreement Signed"
     >
       <div className="flex items-center gap-2 text-sm font-semibold text-[#436436]">
-        <CheckCircle2 className="size-4" />
-        Registration Agreement Signed
+        <CheckCircle2 className="size-4" aria-hidden="true" />
+        Agreement Signed
       </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <Fact label="Signed by">{guestName}</Fact>
-        <Fact label="Agreement">{agreement.version?.label ?? signed.agreementVersionId}</Fact>
-        <Fact label="Signed at" testId="fo-ci-v2-agreement-signed-at">
-          {signed.signedAt}
-        </Fact>
-        <Fact label="Recorded by" testId="fo-ci-v2-agreement-recorded-by">
-          {signed.capturedBy}
-        </Fact>
-        <Fact label="Room">{roomNumber ? `Room ${roomNumber}` : "No room assigned"}</Fact>
-      </div>
-      {preview ? (
+      {signatureImage ? (
         <img
-          src={preview}
-          alt="Signature preview"
-          className="mt-3 max-h-24 rounded-md border border-[#E8DFD0] bg-white"
+          src={signatureImage}
+          alt={`Signature of ${guestName}`}
+          className="mt-3 max-h-28 w-full rounded-md border border-[#E8DFD0] bg-white object-contain"
+          data-testid="fo-ci-v2-agreement-signature-image"
         />
       ) : signed.hasSignature ? (
         <p className="mt-3 text-xs text-[#436436]">Signature recorded</p>
+      ) : null}
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Fact label="Signed on" testId="fo-ci-v2-agreement-signed-at">
+          {formatAgreementTimestamp(signed.signedAt)}
+        </Fact>
+        <Fact label="Signed by">{guestName}</Fact>
+        <Fact label="Recorded by" testId="fo-ci-v2-agreement-recorded-by">
+          {agreementStaffReference(signed.capturedBy)}
+        </Fact>
+        <Fact label="Agreement">{agreementVersionLabel(agreement.version)}</Fact>
+      </div>
+      {canResign ? (
+        <div className="mt-4 border-t border-[#436436]/20 pt-3">
+          <p className="text-xs text-[#6B5E4E]">
+            Create New Signature adds a new agreement instance for this room. The signed record
+            stays unchanged.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2 h-8"
+            disabled={resignPending || Object.keys(signed.acknowledgements).length === 0}
+            onClick={onResign}
+            data-testid="fo-ci-v2-new-signature"
+          >
+            {resignPending ? "Starting…" : "Create New Signature"}
+          </Button>
+        </div>
       ) : null}
     </section>
   );
@@ -514,6 +790,7 @@ function SignedRecord({
 
 type SignaturePadHandle = {
   clear: () => void;
+  focus: () => void;
   toBlob: () => Promise<Blob | null>;
   strokeCount: () => number;
 };
@@ -559,6 +836,7 @@ const SignaturePad = forwardRef<SignaturePadHandle, { onInkChange: (hasInk: bool
 
     useImperativeHandle(ref, () => ({
       clear,
+      focus: () => canvasRef.current?.focus(),
       strokeCount: () => strokes.current,
       toBlob: () =>
         new Promise((resolve) => {
@@ -575,10 +853,13 @@ const SignaturePad = forwardRef<SignaturePadHandle, { onInkChange: (hasInk: bool
       <canvas
         ref={canvasRef}
         width={900}
-        height={280}
-        className="mt-3 h-44 w-full touch-none rounded-xl border border-[#DDD4C5] bg-white"
-        aria-label="Signature. Draw with a mouse or finger."
+        height={300}
+        tabIndex={0}
+        role="img"
+        className="mt-3 h-48 w-full touch-none rounded-xl border-2 border-dashed border-[#DDD4C5] bg-white focus:outline-none focus-visible:border-[#C89933]"
+        aria-label="Signature area. Draw the guest signature with a mouse, pen, or finger."
         aria-describedby="fo-ci-v2-signature-help"
+        aria-required="true"
         data-testid="fo-ci-v2-signature-pad"
         onPointerDown={(event) => {
           const ctx = context();
@@ -624,7 +905,7 @@ function Fact({
   testId?: string;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">{label}</p>
       <p
         className="text-sm font-medium text-[#251605]"
@@ -633,25 +914,5 @@ function Fact({
         {children}
       </p>
     </div>
-  );
-}
-
-function Section({
-  title,
-  testId,
-  children,
-}: {
-  title: string;
-  testId: string;
-  children: ReactNode;
-}) {
-  return (
-    <section
-      className={cn("rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm")}
-      data-testid={testId}
-    >
-      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">{title}</h3>
-      {children}
-    </section>
   );
 }
