@@ -14,7 +14,6 @@ import {
   MoreHorizontal,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   UserRound,
 } from "lucide-react";
 
@@ -75,7 +74,9 @@ export function RoomsDashboardTab({
   commandSearch?: string;
   canConfigure?: boolean;
   onInspectAssignment?: (room: Pick<HotelRoom, "id" | "roomTypeId">) => void;
-  onOpenBlocks?: (room: Pick<HotelRoom, "id" | "roomTypeId">) => void;
+  onOpenBlocks?: (
+    room: Pick<HotelRoom, "id" | "roomTypeId" | "roomNumber" | "roomTypeName">,
+  ) => void;
 }) {
   const fetchDashboard = useServerFn(getRoomsDashboard);
   const fetchRooms = useServerFn(listRooms);
@@ -96,7 +97,6 @@ export function RoomsDashboardTab({
   const [maintenance, setMaintenance] = useState("all");
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
-  const [showLocationNav, setShowLocationNav] = useState(false);
   const [page, setPage] = useState(1);
   const [restrictionTarget, setRestrictionTarget] = useState<{
     room: HotelRoom;
@@ -400,7 +400,6 @@ export function RoomsDashboardTab({
           setPage(1);
         }}
         onClear={clearFilters}
-        onToggleLocations={() => setShowLocationNav((current) => !current)}
       />
 
       {blocksQuery.isError ? (
@@ -410,7 +409,7 @@ export function RoomsDashboardTab({
       ) : null}
 
       <div className="grid min-h-[580px] gap-3 xl:grid-cols-[190px_minmax(0,1fr)_380px]">
-        <div className={`${showLocationNav ? "block" : "hidden"} xl:block`}>
+        <div className="hidden xl:block">
           <LocationNavigator
             locations={locations}
             building={building}
@@ -669,21 +668,21 @@ function KpiRow({
     },
   ];
   return (
-    <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+    <section className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
       {cards.map((card) => (
         <div
           key={card.label}
-          className="flex items-center gap-3 rounded-xl border border-[#E8E1D7] bg-card px-3 py-3 shadow-sm"
+          className="flex items-center gap-3 rounded-xl border border-[#E8E1D7] bg-white px-3.5 py-3 shadow-xs"
         >
           <span
             className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${card.tone}`}
           >
-            <card.icon className="size-4" />
+            <card.icon className="size-4.5" />
           </span>
-          <div>
-            <p className="text-[10px] font-medium text-muted-foreground">{card.label}</p>
-            <p className="text-xl font-semibold leading-6">{card.value}</p>
-            <p className="text-[10px] text-muted-foreground">{card.detail}</p>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-medium text-[#756A5B]">{card.label}</p>
+            <p className="text-2xl font-bold leading-tight text-[#251605]">{card.value}</p>
+            <p className="truncate text-xs text-[#8C8071]">{card.detail}</p>
           </div>
         </div>
       ))}
@@ -712,7 +711,6 @@ function FilterBand({
   onHousekeeping,
   onMaintenance,
   onClear,
-  onToggleLocations,
 }: {
   rooms: HotelRoom[];
   roomTypes: RoomType[];
@@ -732,7 +730,6 @@ function FilterBand({
   onHousekeeping: (value: string) => void;
   onMaintenance: (value: string) => void;
   onClear: () => void;
-  onToggleLocations: () => void;
 }) {
   const floors = Array.from(
     new Set(
@@ -744,8 +741,8 @@ function FilterBand({
     ),
   ).sort(naturalCompare);
   return (
-    <section className="rounded-xl border border-[#E8E1D7] bg-card p-3 shadow-sm">
-      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[repeat(6,minmax(105px,1fr))_minmax(220px,1.5fr)_auto]">
+    <section className="rounded-xl border border-[#E8E1D7] bg-white p-3.5 shadow-xs">
+      <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-[repeat(6,minmax(105px,1fr))_minmax(220px,1.5fr)_auto]">
         <FilterSelect
           label="Building"
           value={building}
@@ -802,10 +799,10 @@ function FilterBand({
             ["inspection", "Inspection"],
           ]}
         />
-        <label className="grid gap-1 text-[10px] font-medium text-muted-foreground">
+        <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
           Search
-          <div className="flex h-9 items-center gap-2 rounded-lg border border-input bg-background px-2.5">
-            <Search className="size-3.5" />
+          <div className="flex h-9 items-center gap-2 rounded-lg border border-[#DED7CD] bg-white px-2.5 focus-within:border-[#C89933]">
+            <Search className="size-3.5 text-muted-foreground" />
             <input
               id="room-board-search"
               value={search}
@@ -815,17 +812,9 @@ function FilterBand({
             />
           </div>
         </label>
-        <div className="flex items-end gap-2">
-          <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={onClear}>
+        <div className="flex items-end">
+          <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-semibold text-[#756A5B] hover:text-[#251605]" onClick={onClear}>
             Clear
-          </Button>
-          <Button
-            size="sm"
-            className="h-9 bg-[#D5A62B] text-[#332303] hover:bg-[#C89933]"
-            onClick={onToggleLocations}
-          >
-            <SlidersHorizontal className="mr-2 size-3.5" />
-            Filters
           </Button>
         </div>
       </div>
@@ -845,12 +834,12 @@ function FilterSelect({
   options: string[][];
 }) {
   return (
-    <label className="grid gap-1 text-[10px] font-medium text-muted-foreground">
+    <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
       {label}
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-9 min-w-0 rounded-lg border border-input bg-background px-2 text-xs text-foreground"
+        className="h-9 min-w-0 rounded-lg border border-[#DED7CD] bg-white px-2.5 text-xs font-medium text-[#251605] outline-none focus:border-[#C89933]"
       >
         {options.map(([id, name]) => (
           <option key={id} value={id}>
@@ -879,43 +868,43 @@ function LocationNavigator({
 }) {
   return (
     <nav
-      className="h-full rounded-xl border border-[#E5DED2] bg-card p-2 shadow-sm"
+      className="h-full rounded-xl border border-[#E5DED2] bg-white p-2.5 shadow-xs"
       aria-label="Room locations"
     >
       <button
         type="button"
         onClick={() => onBuilding("all")}
-        className={`w-full rounded-lg px-2.5 py-2 text-left text-xs font-medium ${building === "all" ? "bg-[#F1DDA7] text-[#5D4208]" : "hover:bg-muted"}`}
+        className={`w-full rounded-lg px-3 py-2 text-left text-xs font-bold transition-colors ${building === "all" ? "bg-[#F1DDA7] text-[#5D4208]" : "hover:bg-muted text-[#251605]"}`}
       >
-        <span className="flex justify-between">
+        <span className="flex justify-between items-center">
           <span>All Buildings</span>
-          <span>{totalRooms}</span>
+          <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold text-[#5D4208]">{totalRooms}</span>
         </span>
       </button>
-      <div className="mt-2 space-y-1">
+      <div className="mt-2.5 space-y-1">
         {locations.map((location) => (
           <div key={location.name}>
             <button
               type="button"
               onClick={() => onBuilding(location.name)}
-              className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs font-medium ${building === location.name ? "bg-[#F1DDA7] text-[#5D4208]" : "hover:bg-muted"}`}
+              className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-bold transition-colors ${building === location.name ? "bg-[#F1DDA7] text-[#5D4208]" : "hover:bg-muted text-[#251605]"}`}
             >
-              <span>{location.name}</span>
+              <span className="truncate">{location.name}</span>
               <ChevronRight
                 className={`size-3.5 transition-transform ${building === location.name ? "rotate-90" : ""}`}
               />
             </button>
             {building === location.name ? (
-              <div className="mt-1 space-y-0.5 pl-2">
+              <div className="mt-1 space-y-0.5 pl-2.5">
                 {location.floors.map(([floorName, count]) => (
                   <button
                     key={floorName}
                     type="button"
                     onClick={() => onFloor(location.name, floorName)}
-                    className={`flex w-full justify-between rounded-md px-2 py-1.5 text-[11px] ${floor === floorName ? "bg-[#FFF3D1] font-medium text-[#5D4208]" : "text-muted-foreground hover:bg-muted"}`}
+                    className={`flex w-full justify-between items-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${floor === floorName ? "bg-[#FFF3D1] font-bold text-[#5D4208]" : "text-muted-foreground hover:bg-muted"}`}
                   >
                     <span>{floorName === "Unassigned" ? floorName : `Floor ${floorName}`}</span>
-                    <span>{count}</span>
+                    <span className="text-xs">{count}</span>
                   </button>
                 ))}
               </div>
@@ -951,12 +940,12 @@ function RoomCard({
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") onSelect();
       }}
-      className={`min-w-0 cursor-pointer rounded-lg border p-2.5 transition-shadow hover:shadow-sm ${selected ? selectedRoomClasses(state) : "border-[#E7E1D8] bg-card"}`}
+      className={`min-w-0 cursor-pointer rounded-xl border p-3 transition-all hover:shadow-xs ${selected ? selectedRoomClasses(state) : "border-[#E7E1D8] bg-white"}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold leading-4">{room.roomNumber}</p>
-          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+        <div className="min-w-0">
+          <p className="text-base font-bold text-[#251605] leading-tight">{room.roomNumber}</p>
+          <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
             {room.roomTypeName || "No room type"}
           </p>
         </div>
@@ -965,24 +954,24 @@ function RoomCard({
             <button
               type="button"
               onClick={(event) => event.stopPropagation()}
-              className="rounded p-1 text-muted-foreground hover:bg-muted"
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"
               aria-label={`Actions for room ${room.roomNumber}`}
             >
-              <MoreHorizontal className="size-3.5" />
+              <MoreHorizontal className="size-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={onSelect}>View details</DropdownMenuItem>
-            <DropdownMenuItem onSelect={onInspect}>Inspect assignment</DropdownMenuItem>
+          <DropdownMenuContent align="end" className="text-xs">
+            <DropdownMenuItem onSelect={onSelect} className="text-xs font-medium">View details</DropdownMenuItem>
+            <DropdownMenuItem onSelect={onInspect} className="text-xs font-medium">Inspect assignment</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
       <span
-        className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${roomStateClasses(state)}`}
+        className={`mt-2.5 inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${roomStateClasses(state)}`}
       >
         {ROOM_STATE_LABELS[state]}
       </span>
-      <div className="mt-2.5 border-t border-border/70 pt-2 text-[10px]">
+      <div className="mt-3 border-t border-border/70 pt-2.5 text-xs space-y-1">
         <StatusLine
           label="HK"
           value={room.housekeepingStatus?.replaceAll("_", " ") ?? "N/A"}
@@ -1004,10 +993,10 @@ function RoomCard({
 
 function StatusLine({ label, value, good }: { label: string; value: string; good: boolean }) {
   return (
-    <p className="mt-1 flex items-center gap-1.5 text-muted-foreground">
-      <span className={`size-1.5 rounded-full ${good ? "bg-emerald-600" : "bg-amber-500"}`} />
-      <span className="w-9">{label}</span>
-      <span className="truncate capitalize text-foreground">{value}</span>
+    <p className="flex items-center gap-2 text-xs text-muted-foreground">
+      <span className={`size-2 shrink-0 rounded-full ${good ? "bg-emerald-600" : "bg-amber-500"}`} />
+      <span className="w-10 font-medium text-muted-foreground">{label}</span>
+      <span className="truncate capitalize font-semibold text-[#251605]">{value}</span>
     </p>
   );
 }
@@ -1037,7 +1026,7 @@ function RoomList({
     <div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] text-left text-xs">
-          <thead className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-wide text-muted-foreground">
+          <thead className="border-b border-[#E5DED4] bg-[#F8F5F0] text-xs font-bold uppercase tracking-wider text-[#5C5346]">
             <tr>
               {[
                 "Room",
@@ -1049,57 +1038,57 @@ function RoomList({
                 "Assignment",
                 "Actions",
               ].map((heading) => (
-                <th key={heading} className="px-3 py-2.5 font-semibold">
+                <th key={heading} className="px-3.5 py-2.5 font-bold">
                   {heading}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-[#EEE8E0] bg-white">
             {rooms.map((room) => {
               const occupancy = occupancyByRoom.get(room.id);
               const state = roomBoardPrimaryState(room, occupancy, blockByRoom.get(room.id));
               return (
-                <tr key={room.id} className="border-b border-border/70 hover:bg-muted/20">
-                  <td className="px-3 py-3">
-                    <button className="font-semibold" onClick={() => onSelect(room)}>
+                <tr key={room.id} className="hover:bg-[#FAF8F5]/60 transition-colors">
+                  <td className="px-3.5 py-3">
+                    <button className="text-xs font-bold text-[#251605] hover:underline" onClick={() => onSelect(room)}>
                       {room.roomNumber}
                     </button>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {room.floor ? `Floor ${room.floor}` : (room.building ?? "—")}
                     </p>
                   </td>
-                  <td className="px-3 py-3">
-                    {room.roomTypeName}
-                    <p className="text-[10px] text-muted-foreground">{room.roomTypeCode}</p>
+                  <td className="px-3.5 py-3">
+                    <span className="font-semibold text-[#251605]">{room.roomTypeName}</span>
+                    <p className="text-xs text-muted-foreground">{room.roomTypeCode}</p>
                   </td>
-                  <td className="px-3 py-3 capitalize">{occupancy?.state ?? "Vacant"}</td>
-                  <td className="px-3 py-3 capitalize">{room.housekeepingStatus ?? "N/A"}</td>
-                  <td className="px-3 py-3 capitalize">
+                  <td className="px-3.5 py-3 capitalize font-medium">{occupancy?.state ?? "Vacant"}</td>
+                  <td className="px-3.5 py-3 capitalize font-medium">{room.housekeepingStatus ?? "N/A"}</td>
+                  <td className="px-3.5 py-3 capitalize font-medium">
                     {room.maintenanceStatus.replaceAll("_", " ")}
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3.5 py-3">
                     <span
-                      className={`rounded-full border px-2 py-1 text-[10px] ${roomStateClasses(state)}`}
+                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${roomStateClasses(state)}`}
                     >
                       {ROOM_STATE_LABELS[state]}
                     </span>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3.5 py-3">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-7 text-[10px]"
+                      className="h-8 px-3 text-xs font-medium"
                       onClick={() => onInspect(room)}
                     >
                       Inspect
                     </Button>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3.5 py-3">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-[10px]"
+                      className="h-8 px-3 text-xs font-medium"
                       onClick={() => onSelect(room)}
                     >
                       Details
@@ -1111,8 +1100,8 @@ function RoomList({
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between border-t border-border px-3 py-2.5">
-        <p className="text-[10px] text-muted-foreground">
+      <div className="flex items-center justify-between border-t border-[#E5DED4] px-4 py-3 bg-white">
+        <p className="text-xs text-muted-foreground">
           Showing {totalRooms === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–
           {Math.min(page * PAGE_SIZE, totalRooms)} of {totalRooms} rooms
         </p>
@@ -1120,19 +1109,19 @@ function RoomList({
           <Button
             variant="outline"
             size="sm"
-            className="h-7 text-[10px]"
+            className="h-8 px-3 text-xs font-medium"
             disabled={page <= 1}
             onClick={() => onPage(page - 1)}
           >
             Previous
           </Button>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-xs font-medium text-muted-foreground">
             Page {page} of {totalPages}
           </span>
           <Button
             variant="outline"
             size="sm"
-            className="h-7 text-[10px]"
+            className="h-8 px-3 text-xs font-medium"
             disabled={page >= totalPages}
             onClick={() => onPage(page + 1)}
           >

@@ -33,7 +33,13 @@ import {
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { InventoryState } from "./room-inventory-shared";
-import { addDays, dateLabel, nightlyBlocked, nightlyDemand } from "./room-inventory-utils";
+import {
+  activeRoomBlocksOn,
+  addDays,
+  dateLabel,
+  nightlyBlocked,
+  nightlyDemand,
+} from "./room-inventory-utils";
 
 type CalendarState = "healthy" | "low" | "full" | "blocked" | "restricted" | "contains_restricted";
 
@@ -292,14 +298,20 @@ export function RoomInventoryCalendarView({
     return night ? [{ row, night }] : [];
   });
   const summary = dateRows.reduce(
-    (total, item) => ({
-      physical: total.physical + item.night.physicalCapacity,
-      demand: total.demand + nightlyDemand(item.night),
-      pinned: total.pinned + item.night.pinnedRoomClaims,
-      unrepresented: total.unrepresented + item.night.unrepresentedReservationDemand,
-      blocked: total.blocked + nightlyBlocked(item.night),
-      available: total.available + item.night.available,
-    }),
+    (total, item) => {
+      const roomBlocks = Math.min(
+        activeRoomBlocksOn(blocksQuery.data ?? [], item.row.roomTypeId, effectiveSelectedDate),
+        item.night.pinnedRoomClaims,
+      );
+      return {
+        physical: total.physical + item.night.physicalCapacity,
+        demand: total.demand + nightlyDemand(item.night) - roomBlocks,
+        pinned: total.pinned + item.night.pinnedRoomClaims - roomBlocks,
+        unrepresented: total.unrepresented + item.night.unrepresentedReservationDemand,
+        blocked: total.blocked + nightlyBlocked(item.night) + roomBlocks,
+        available: total.available + item.night.available,
+      };
+    },
     { physical: 0, demand: 0, pinned: 0, unrepresented: 0, blocked: 0, available: 0 },
   );
   const dateVisibleRooms = rooms.filter((room) =>
@@ -383,6 +395,7 @@ export function RoomInventoryCalendarView({
     outOfOrder,
     outOfService,
     blocks: selectedBlocks,
+    roomNumbers: new Map(rooms.map((room) => [room.id, room.roomNumber])),
     blocksLoading: blocksQuery.isLoading,
     blocksError: blocksQuery.isError,
     restrictions: restrictionNotes,
@@ -884,6 +897,7 @@ interface CalendarSummaryPanelProps {
   outOfOrder: number | null;
   outOfService: number | null;
   blocks: OperationalInventoryBlock[];
+  roomNumbers: Map<string, string>;
   blocksLoading: boolean;
   blocksError: boolean;
   restrictions: RestrictionNote[];
@@ -903,6 +917,7 @@ function CalendarSummaryPanel({
   outOfOrder,
   outOfService,
   blocks,
+  roomNumbers,
   blocksLoading,
   blocksError,
   restrictions,
@@ -1005,7 +1020,18 @@ function CalendarSummaryPanel({
               available.
             </div>
           ) : (
-            blocks.map((block) => <BlockNote key={block.id} block={block} />)
+            blocks.map((block) => (
+              <BlockNote
+                key={block.id}
+                block={block}
+                roomNumber={
+                  block.roomId
+                    ? (roomNumbers.get(block.roomId) ?? null)
+                    : null
+                }
+                roomTypeName={selectedRow?.name ?? null}
+              />
+            ))
           )}
           {!blocksLoading && !blocksError && blocks.length === 0 && restrictions.length === 0 ? (
             <p className="py-5 text-center text-xs text-muted-foreground">
@@ -1090,27 +1116,79 @@ function RestrictionCard({ note }: { note: RestrictionNote }) {
   );
 }
 
-function BlockNote({ block }: { block: OperationalInventoryBlock }) {
+const IMPACT_DESCRIPTIONS: Record<string, string> = {
+  remove_from_inventory: "Removed from sellable inventory. It cannot be booked or assigned.",
+  assignment_only: "Still counted as sellable, but it cannot be assigned to a stay.",
+  warning_only: "Still sellable and assignable. Staff see a warning when assigning it.",
+  no_inventory_impact: "Recorded for reference only. Inventory is unchanged.",
+};
+
+function blockTarget(
+  block: OperationalInventoryBlock,
+  roomNumber: string | null,
+  roomTypeName: string | null,
+): string {
+  const typeName = roomTypeName ?? "room type";
+  if (block.targetKind === "room") {
+    return roomNumber ? `Room ${roomNumber} (${typeName})` : `One ${typeName} room`;
+  }
+  if (block.targetKind === "quantity") {
+    const count = block.quantity ?? 0;
+    return `${count} ${typeName} room${count === 1 ? "" : "s"}`;
+  }
+  return `All ${typeName} rooms`;
+}
+
+function blockNights(block: OperationalInventoryBlock): number {
+  return Math.max(
+    0,
+    Math.round(
+      (new Date(`${block.endDate}T00:00:00Z`).valueOf() -
+        new Date(`${block.startDate}T00:00:00Z`).valueOf()) /
+        86_400_000,
+    ),
+  );
+}
+
+function BlockNote({
+  block,
+  roomNumber,
+  roomTypeName,
+}: {
+  block: OperationalInventoryBlock;
+  roomNumber: string | null;
+  roomTypeName: string | null;
+}) {
+  const nights = blockNights(block);
   return (
     <article className="rounded-lg border border-violet-200 bg-violet-50/50 p-3">
       <div className="flex gap-2.5">
         <Layers3 className="mt-0.5 size-4 shrink-0 text-violet-700" />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-xs font-bold text-[#251605]">{titleCase(block.blockType)}</p>
-            <span className="whitespace-nowrap text-[10px] text-muted-foreground">
-              {dateLabel(block.startDate)} – {dateLabel(block.endDate)}
+            <p className="text-xs font-bold text-[#251605]">
+              {blockTarget(block, roomNumber, roomTypeName)}
+            </p>
+            <span className="whitespace-nowrap rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-800">
+              {titleCase(block.status)}
             </span>
           </div>
-          <p className="text-xs font-medium text-violet-800">
-            {block.targetKind === "quantity"
-              ? `${block.quantity ?? 0} rooms`
-              : block.targetKind === "room"
-                ? "Room target"
-                : "Room-type target"}{" "}
-            · {titleCase(block.inventoryImpact)}
+          <p className="text-xs text-[#5F554B]">
+            {titleCase(block.blockType)} block · {dateLabel(block.startDate)} to{" "}
+            {dateLabel(block.endDate)} ({nights} night{nights === 1 ? "" : "s"}, released on
+            the morning of {dateLabel(block.endDate)})
           </p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{block.reason}</p>
+          <p className="text-xs font-medium text-violet-800">
+            {IMPACT_DESCRIPTIONS[block.inventoryImpact] ?? titleCase(block.inventoryImpact)}
+          </p>
+          <p className="text-xs leading-5 text-[#251605]">
+            <span className="font-medium">Reason:</span> {block.reason}
+          </p>
+          {block.notes ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              <span className="font-medium">Notes:</span> {block.notes}
+            </p>
+          ) : null}
         </div>
       </div>
     </article>

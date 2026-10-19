@@ -16,6 +16,7 @@ import {
   SettingsSetupProgressPanel,
 } from "@/packages/pms/components/settings/pms-settings-dashboard";
 
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { Set1SectionView } from "@/packages/pms/components/settings/pms-set1-section";
@@ -295,12 +296,37 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
               Configure your hotel's identity, rooms, rates, guest rules, operations and controls.
             </p>
           </div>
-          <Link
-            to={SET1_PMS_BACK_HREF}
-            className="text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            PMS
-          </Link>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (typeof window === "undefined") return;
+                const search = new URLSearchParams(window.location.search);
+                const returnTo = search.get("returnTo") || search.get("from");
+                if (returnTo) {
+                  window.location.href = returnTo;
+                  return;
+                }
+                if (window.history.length > 1 && document.referrer && document.referrer.includes("/restaurant/")) {
+                  window.history.back();
+                  return;
+                }
+                window.location.href = "/restaurant/pms/room-inventory";
+              }}
+              className="h-8 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs"
+            >
+              <ArrowLeft className="size-3.5" />
+              Back to previous page
+            </Button>
+            <Link
+              to={SET1_PMS_BACK_HREF}
+              className="text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              PMS
+            </Link>
+          </div>
         </div>
       )}
 
@@ -353,9 +379,34 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
         <PmsPropertySetupCard8Section restaurantId={restaurantId} canEdit={canEdit} />
       ) : section ? (
         <div className="space-y-4">
-          <Button variant="outline" size="sm" asChild>
-            <a href={SET1_HUB_HREF}>Back to Settings</a>
-          </Button>
+          <div className="flex items-center gap-2.5">
+            <Button variant="outline" size="sm" asChild className="h-8 text-xs font-semibold">
+              <a href={SET1_HUB_HREF}>Back to Settings</a>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (typeof window === "undefined") return;
+                const search = new URLSearchParams(window.location.search);
+                const returnTo = search.get("returnTo") || search.get("from");
+                if (returnTo) {
+                  window.location.href = returnTo;
+                  return;
+                }
+                if (window.history.length > 1 && document.referrer && document.referrer.includes("/restaurant/")) {
+                  window.history.back();
+                  return;
+                }
+                window.location.href = "/restaurant/pms/room-inventory";
+              }}
+              className="h-8 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs"
+            >
+              <ArrowLeft className="size-3.5" />
+              Back to previous page
+            </Button>
+          </div>
           {(SET2_LIVE_HASHES as readonly string[]).includes(section) ? (
             section === "structure" ? (
               <Set2StructureSection

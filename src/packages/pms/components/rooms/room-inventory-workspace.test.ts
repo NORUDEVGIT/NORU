@@ -114,6 +114,8 @@ describe("Room & Inventory workspace", () => {
     expect(availability).toContain("lg:grid-cols-[minmax(0,1fr)_360px]");
     expect(availability).toContain("View All Blocks");
     expect(workspace).toContain('onOpenBlocks={() => selectView("blocks")}');
+    expect(workspace).toContain("openBlockForRoom");
+    expect(workspace).toContain("createPrefill={blockPrefill}");
   });
 
   it("renders the approved monthly inventory calendar and summary panel", () => {

@@ -197,7 +197,7 @@ export function RoomTypeFormDialog({
             {amenities.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No catalogue items yet. Add them in{" "}
-                <a href="/restaurant/settings#rooms" className="font-medium text-[#C89933]">
+                <a href="/restaurant/settings?returnTo=/restaurant/pms/room-inventory#rooms" className="font-medium text-[#C89933]">
                   Settings · Rooms &amp; amenities
                 </a>
                 . Attach stays here.

@@ -13,6 +13,7 @@ import {
   Ellipsis,
   Eye,
   Layers3,
+  LockKeyhole,
   Plus,
   ShieldCheck,
 } from "lucide-react";
@@ -138,7 +139,20 @@ function initialForm(businessDate: string): BlockForm {
   };
 }
 
-export function RoomInventoryBlocksView({ restaurantId }: { restaurantId: string }) {
+export type RoomBlockCreatePrefill = {
+  roomId: string;
+  roomTypeId: string;
+  roomNumber: string;
+  roomTypeName: string;
+};
+
+export function RoomInventoryBlocksView({
+  restaurantId,
+  createPrefill = null,
+}: {
+  restaurantId: string;
+  createPrefill?: RoomBlockCreatePrefill | null;
+}) {
   const loadBusinessDate = useServerFn(getPropertyBusinessDate);
   const loadBlocks = useServerFn(listOperationalBlocks);
   const loadRooms = useServerFn(listRooms);
@@ -179,7 +193,11 @@ export function RoomInventoryBlocksView({ restaurantId }: { restaurantId: string
     if (!businessDateQuery.data) return;
     setForm((current) => {
       if (current.startDate !== today() || current.endDate !== addDays(today(), 1)) return current;
-      return initialForm(businessDateQuery.data.businessDate);
+      return {
+        ...current,
+        startDate: businessDateQuery.data.businessDate,
+        endDate: addDays(businessDateQuery.data.businessDate, 1),
+      };
     });
   }, [businessDateQuery.data]);
 
@@ -218,10 +236,37 @@ export function RoomInventoryBlocksView({ restaurantId }: { restaurantId: string
   );
   const rules = rulesQuery.data?.rules.blockTypes ?? [];
   const enabledRules = rules.filter((rule) => rule.enabled);
+
+  useEffect(() => {
+    if (!createPrefill) return;
+    setForm({
+      ...initialForm(businessDate),
+      targetKind: "room",
+      targetId: createPrefill.roomId,
+      blockType: enabledRules[0]?.blockType ?? "temporary",
+    });
+    setSearch(createPrefill.roomNumber);
+    setDetailBlock(null);
+    setCreateOpen(true);
+    // Reopen only when Room Board selects a room. Rule loading must not wipe the form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createPrefill]);
+
+  useEffect(() => {
+    if (!createPrefill || enabledRules.length === 0) return;
+    setForm((current) => {
+      if (current.targetKind !== "room" || current.targetId !== createPrefill.roomId) return current;
+      if (enabledRules.some((rule) => rule.blockType === current.blockType)) return current;
+      return { ...current, blockType: enabledRules[0]?.blockType ?? current.blockType };
+    });
+  }, [createPrefill, enabledRules]);
   const selectedRule = enabledRules.find((rule) => rule.blockType === form.blockType) ?? null;
   const selectedRoom = form.targetKind === "room" ? roomById.get(form.targetId) : null;
   const previewRoomTypeId =
-    form.targetKind === "room" ? selectedRoom?.roomTypeId : form.targetId || undefined;
+    form.targetKind === "room"
+      ? (selectedRoom?.roomTypeId ??
+        (createPrefill?.roomId === form.targetId ? createPrefill.roomTypeId : undefined))
+      : form.targetId || undefined;
 
   const previewQuery = useQuery({
     queryKey: [
@@ -350,7 +395,11 @@ export function RoomInventoryBlocksView({ restaurantId }: { restaurantId: string
     ) => {
       if (action.kind === "create") {
         const room = form.targetKind === "room" ? roomById.get(form.targetId) : null;
-        const roomTypeId = form.targetKind === "room" ? room?.roomTypeId : form.targetId;
+        const roomTypeId =
+          form.targetKind === "room"
+            ? (room?.roomTypeId ??
+              (createPrefill?.roomId === form.targetId ? createPrefill.roomTypeId : undefined))
+            : form.targetId;
         if (!roomTypeId) throw new Error("Choose a room or room type target.");
         if (form.endDate <= form.startDate) throw new Error("End date must be after start date.");
         if (form.targetKind === "quantity" && Number(form.quantity) < 1) {
@@ -614,6 +663,14 @@ export function RoomInventoryBlocksView({ restaurantId }: { restaurantId: string
         open={createOpen}
         form={form}
         rooms={rooms}
+        pinnedRoom={
+          createPrefill
+            ? {
+                id: createPrefill.roomId,
+                label: `Room ${createPrefill.roomNumber} · ${createPrefill.roomTypeName}`,
+              }
+            : null
+        }
         roomTypes={roomTypes}
         rules={enabledRules}
         selectedRule={selectedRule}
@@ -1125,6 +1182,7 @@ function CreateBlockDrawer({
   open,
   form,
   rooms,
+  pinnedRoom = null,
   roomTypes,
   rules,
   selectedRule,
@@ -1139,6 +1197,7 @@ function CreateBlockDrawer({
   open: boolean;
   form: BlockForm;
   rooms: HotelRoom[];
+  pinnedRoom?: { id: string; label: string } | null;
   roomTypes: RoomType[];
   rules: Array<{
     blockType: string;
@@ -1184,109 +1243,167 @@ function CreateBlockDrawer({
       : "—";
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-[420px]">
-        <SheetHeader className="border-b border-[#E5DED4] px-5 py-4 text-left">
-          <SheetTitle className="font-display text-xl" style={{ color: INK }}>
-            Create New Block
-          </SheetTitle>
-          <SheetDescription>Create an inventory block for operational purposes.</SheetDescription>
-        </SheetHeader>
-        <div className="space-y-4 px-5 py-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <DrawerSelect
-              label="Block Type *"
-              value={form.blockType}
-              onChange={(value) => onForm({ ...form, blockType: value })}
-              options={
-                rules.length > 0
-                  ? rules.map((rule) => [rule.blockType, titleCase(rule.blockType)])
-                  : [["", "No enabled block types"]]
-              }
-            />
-            <DrawerSelect
-              label="Target Level *"
-              value={form.targetKind}
-              onChange={(value) =>
-                onForm({
-                  ...form,
-                  targetKind: value as OperationalBlockTargetKind,
-                  targetId: "",
-                })
-              }
-              options={[
-                ["room", "Room"],
-                ["room_type", "Room Type"],
-                ["quantity", "Quantity of Room Type"],
-              ]}
-            />
-            {form.targetKind === "room" ? (
-              <DrawerSelect
-                label="Room *"
-                value={form.targetId}
-                onChange={(value) => onForm({ ...form, targetId: value })}
-                options={[
-                  ["", "Select room"],
-                  ...rooms.map((room) => [room.id, `${room.roomNumber} · ${room.roomTypeName}`]),
-                ]}
-              />
-            ) : (
-              <DrawerSelect
-                label="Room Type *"
-                value={form.targetId}
-                onChange={(value) => onForm({ ...form, targetId: value })}
-                options={[
-                  ["", "Select room type"],
-                  ...roomTypes.map((roomType) => [roomType.id, roomType.name]),
-                ]}
-              />
-            )}
-            {form.targetKind === "quantity" ? (
-              <DrawerInput
-                label="Quantity *"
-                type="number"
-                min="1"
-                value={form.quantity}
-                onChange={(value) => onForm({ ...form, quantity: value })}
-              />
-            ) : null}
-            <DrawerInput
-              label="Start Date *"
-              type="date"
-              value={form.startDate}
-              onChange={(value) =>
-                onForm({
-                  ...form,
-                  startDate: value,
-                  endDate: form.endDate <= value ? addDays(value, 1) : form.endDate,
-                })
-              }
-            />
-            <DrawerInput
-              label="End Date *"
-              type="date"
-              min={addDays(form.startDate, 1)}
-              value={form.endDate}
-              onChange={(value) => onForm({ ...form, endDate: value })}
-            />
+      <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg md:max-w-xl">
+        <SheetHeader className="border-b border-[#E5DED4] px-6 py-4 text-left">
+          <div className="flex items-center gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-50 text-[#C89933] border border-amber-200/60 shadow-2xs">
+              <LockKeyhole className="size-4.5" />
+            </span>
+            <div>
+              <SheetTitle className="font-display text-xl font-bold" style={{ color: INK }}>
+                Create New Block
+              </SheetTitle>
+              <SheetDescription className="text-xs text-muted-foreground mt-0.5">
+                Create an inventory block for operational purposes.
+              </SheetDescription>
+            </div>
           </div>
-          <DrawerInput
-            label="Reason *"
-            value={form.reason}
-            onChange={(value) => onForm({ ...form, reason: value })}
-          />
-          <label className="grid gap-1 text-[10px] font-medium text-[#5F554B]">
-            Notes
-            <textarea
-              value={form.notes}
-              onChange={(event) => onForm({ ...form, notes: event.target.value })}
-              rows={3}
-              className="rounded-md border border-[#DED7CD] bg-white px-3 py-2 text-sm outline-none focus:border-[#C89933]"
-            />
-          </label>
+        </SheetHeader>
+        <div className="space-y-5 px-6 py-5">
+          {pinnedRoom && form.targetKind === "room" ? (
+            <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-950">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-amber-100/90 text-amber-900 font-semibold">
+                  <LockKeyhole className="size-3.5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-bold text-amber-950 truncate">{pinnedRoom.label}</p>
+                  <p className="text-[11px] text-amber-800">Blocking this specific room</p>
+                </div>
+              </div>
+              <span className="shrink-0 text-[11px] font-semibold text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded-md">
+                Pinned Room
+              </span>
+            </div>
+          ) : null}
 
-          <section className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5] p-3">
+          <div className="rounded-xl border border-[#EDE7DF] bg-[#FAF8F5]/60 p-4 space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
+              Block Configuration
+            </h4>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <DrawerSelect
+                label="Block Type *"
+                value={form.blockType}
+                onChange={(value) => onForm({ ...form, blockType: value })}
+                options={
+                  rules.length > 0
+                    ? rules.map((rule) => [rule.blockType, titleCase(rule.blockType)])
+                    : [["", "No enabled block types"]]
+                }
+              />
+              <DrawerSelect
+                label="Target Level *"
+                value={form.targetKind}
+                onChange={(value) =>
+                  onForm({
+                    ...form,
+                    targetKind: value as OperationalBlockTargetKind,
+                    targetId: "",
+                  })
+                }
+                options={[
+                  ["room", "Room"],
+                  ["room_type", "Room Type"],
+                  ["quantity", "Quantity of Room Type"],
+                ]}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[#EDE7DF] bg-white p-4 space-y-4 shadow-2xs">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
+              Target & Dates
+            </h4>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                {form.targetKind === "room" ? (
+                  <DrawerSelect
+                    label="Room *"
+                    value={form.targetId}
+                    onChange={(value) => onForm({ ...form, targetId: value })}
+                    options={[
+                      ["", "Select room"],
+                      ...(pinnedRoom && !rooms.some((room) => room.id === pinnedRoom.id)
+                        ? [[pinnedRoom.id, pinnedRoom.label] as [string, string]]
+                        : []),
+                      ...rooms.map(
+                        (room) =>
+                          [room.id, `${room.roomNumber} · ${room.roomTypeName}`] as [string, string],
+                      ),
+                    ]}
+                  />
+                ) : (
+                  <DrawerSelect
+                    label="Room Type *"
+                    value={form.targetId}
+                    onChange={(value) => onForm({ ...form, targetId: value })}
+                    options={[
+                      ["", "Select room type"],
+                      ...roomTypes.map((roomType) => [roomType.id, roomType.name]),
+                    ]}
+                  />
+                )}
+              </div>
+
+              {form.targetKind === "quantity" ? (
+                <div className="sm:col-span-2">
+                  <DrawerInput
+                    label="Quantity *"
+                    type="number"
+                    min="1"
+                    value={form.quantity}
+                    onChange={(value) => onForm({ ...form, quantity: value })}
+                  />
+                </div>
+              ) : null}
+
+              <DrawerInput
+                label="Start Date *"
+                type="date"
+                value={form.startDate}
+                onChange={(value) =>
+                  onForm({
+                    ...form,
+                    startDate: value,
+                    endDate: form.endDate <= value ? addDays(value, 1) : form.endDate,
+                  })
+                }
+              />
+              <DrawerInput
+                label="End Date *"
+                type="date"
+                min={addDays(form.startDate, 1)}
+                value={form.endDate}
+                onChange={(value) => onForm({ ...form, endDate: value })}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[#EDE7DF] bg-white p-4 space-y-3.5 shadow-2xs">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
+              Reason & Notes
+            </h4>
+            <DrawerInput
+              label="Reason *"
+              value={form.reason}
+              onChange={(value) => onForm({ ...form, reason: value })}
+            />
+            <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
+              Notes
+              <textarea
+                value={form.notes}
+                onChange={(event) => onForm({ ...form, notes: event.target.value })}
+                rows={3}
+                placeholder="Optional notes or operational context for staff..."
+                className="rounded-lg border border-[#DED7CD] bg-white px-3 py-2 text-xs outline-none focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]/20 resize-none transition-all"
+              />
+            </label>
+          </div>
+
+          <section className="rounded-xl border border-[#E5DED4] bg-[#FAF8F5] p-4.5 shadow-2xs">
             <div className="flex items-center justify-between">
-              <h3 className="text-[11px] font-semibold" style={{ color: INK }}>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
                 Inventory Impact Preview
               </h3>
               {selectedRule ? (
@@ -1297,11 +1414,11 @@ function CreateBlockDrawer({
               ) : null}
             </div>
             {previewLoading ? (
-              <p className="py-5 text-center text-[10px] text-muted-foreground">
+              <p className="py-6 text-center text-xs text-muted-foreground">
                 Loading canonical availability…
               </p>
             ) : selectedType && previewAvailability != null ? (
-              <dl className="mt-2 divide-y divide-[#E8E1D7] text-[10px]">
+              <dl className="mt-3 divide-y divide-[#E8E1D7] text-xs">
                 <PreviewLine label="Room Type" value={selectedType.name} />
                 <PreviewLine
                   label="Rooms to Block"
@@ -1327,34 +1444,45 @@ function CreateBlockDrawer({
                 <PreviewLine label="Impact" value={impactPercent} />
               </dl>
             ) : (
-              <p className="py-5 text-center text-[10px] text-muted-foreground">
+              <p className="py-6 text-center text-xs text-muted-foreground">
                 Select a target and valid dates to preview canonical availability.
               </p>
             )}
             {selectedRule ? (
-              <p className="mt-2 text-[9px] leading-4 text-muted-foreground">
+              <p className="mt-3 text-xs leading-5 text-muted-foreground border-t border-[#E8E1D7] pt-2.5">
                 Approval and impact come from Card 2 rules.{" "}
-                {selectedRule.approvalRequired
-                  ? "This block type requires approval."
-                  : "Approval is not required."}
+                <span className="font-semibold text-[#251605]">
+                  {selectedRule.approvalRequired
+                    ? "This block type requires approval."
+                    : "Approval is not required."}
+                </span>
               </p>
             ) : (
-              <p className="mt-2 text-[9px] leading-4 text-amber-700">
+              <p className="mt-3 text-xs leading-5 text-amber-800 bg-amber-50 border border-amber-200 p-2.5 rounded-lg">
                 No Card 2 block type is enabled. Enable a configured type before creating a block.
               </p>
             )}
           </section>
         </div>
-        <SheetFooter className="sticky bottom-0 border-t border-[#E5DED4] bg-white px-5 py-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <SheetFooter className="sticky bottom-0 z-10 border-t border-[#E5DED4] bg-white/95 backdrop-blur-sm px-6 py-3.5 flex sm:flex-row items-center justify-end gap-2.5 shadow-xs">
+          <Button
+            variant="outline"
+            className="h-9 px-4 text-xs font-semibold"
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
-          <Button variant="outline" disabled={!ready || pending} onClick={() => onCreate("create")}>
+          <Button
+            variant="outline"
+            className="h-9 px-4 text-xs font-semibold"
+            disabled={!ready || pending}
+            onClick={() => onCreate("create")}
+          >
             {selectedRule?.approvalRequired ? "Submit for Approval" : "Create Block"}
           </Button>
           {selectedRule && !selectedRule.approvalRequired ? (
             <Button
-              className="bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
+              className="h-9 px-4 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B5882D] shadow-xs"
               disabled={!ready || pending}
               onClick={() => onCreate("create_activate")}
             >
@@ -1379,12 +1507,12 @@ function DrawerSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid gap-1 text-[10px] font-medium text-[#5F554B]">
+    <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
       {label}
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-9 rounded-md border border-[#DED7CD] bg-white px-3 text-sm outline-none focus:border-[#C89933]"
+        className="h-9 rounded-lg border border-[#DED7CD] bg-white px-3 text-xs font-medium text-[#251605] outline-none focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]/20 transition-all"
       >
         {options.map(([id, name]) => (
           <option key={`${id}-${name}`} value={id}>
@@ -1410,14 +1538,14 @@ function DrawerInput({
   min?: string;
 }) {
   return (
-    <label className="grid gap-1 text-[10px] font-medium text-[#5F554B]">
+    <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
       {label}
       <Input
         type={type}
         min={min}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-9"
+        className="h-9 text-xs rounded-lg border-[#DED7CD] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]/20"
       />
     </label>
   );
@@ -1425,9 +1553,9 @@ function DrawerInput({
 
 function PreviewLine({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium">{value}</dd>
+    <div className="flex items-center justify-between gap-3 py-2 text-xs">
+      <dt className="text-muted-foreground font-medium">{label}</dt>
+      <dd className="font-bold text-[#251605]">{value}</dd>
     </div>
   );
 }
@@ -1478,25 +1606,53 @@ function BlockDetailDrawer({
     <Sheet open={Boolean(block)} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg md:max-w-xl">
         <SheetHeader className="border-b border-[#E5DED4] px-6 py-4 text-left">
-          <SheetTitle className="font-display text-2xl font-bold" style={{ color: INK }}>
-            {blockCode(block)}
-          </SheetTitle>
-          <SheetDescription className="text-xs text-muted-foreground">Operational inventory block details and lifecycle.</SheetDescription>
+          <div className="flex items-center gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-zinc-100 text-[#251605] border border-zinc-200 shadow-2xs">
+              <Boxes className="size-4.5" />
+            </span>
+            <div>
+              <SheetTitle className="font-display text-2xl font-bold" style={{ color: INK }}>
+                {blockCode(block)}
+              </SheetTitle>
+              <SheetDescription className="text-xs text-muted-foreground mt-0.5">
+                Operational inventory block details and lifecycle.
+              </SheetDescription>
+            </div>
+          </div>
         </SheetHeader>
-        <div className="px-6 py-4">
-          <div className="mb-4 flex items-center justify-between rounded-lg border border-[#EDE7DF] bg-[#FAF8F5] p-3.5">
-            <p className="text-sm font-bold text-[#251605]">{target}</p>
+        <div className="px-6 py-5 space-y-4">
+          <div className="flex items-center justify-between rounded-xl border border-[#EDE7DF] bg-[#FAF8F5] p-4 shadow-2xs">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Target Entity
+              </p>
+              <p className="text-sm font-bold text-[#251605] mt-0.5">{target}</p>
+            </div>
             <BlockStatus status={block.status} />
           </div>
-          <dl className="divide-y divide-[#EEE8E0]">
-            {values.map(([label, value]) => (
-              <div key={label} className="grid grid-cols-[140px_1fr] gap-3 py-2.5 text-xs">
-                <dt className="text-muted-foreground">{label}</dt>
-                <dd className="break-words font-semibold text-[#251605]">{value ?? "—"}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="rounded-xl border border-[#EDE7DF] bg-white p-4 shadow-2xs">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#5C5346] mb-2">
+              Block Lifecycle & Properties
+            </h4>
+            <dl className="divide-y divide-[#EEE8E0]">
+              {values.map(([label, value]) => (
+                <div key={label} className="grid grid-cols-[140px_1fr] gap-3 py-2.5 text-xs">
+                  <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+                  <dd className="break-words text-xs font-bold text-[#251605]">{value ?? "—"}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
         </div>
+        <SheetFooter className="sticky bottom-0 z-10 border-t border-[#E5DED4] bg-white/95 backdrop-blur-sm px-6 py-3.5 flex sm:flex-row items-center justify-end">
+          <Button
+            variant="outline"
+            className="h-9 px-4 text-xs font-semibold"
+            onClick={() => onOpenChange(false)}
+          >
+            Close
+          </Button>
+        </SheetFooter>
       </SheetContent>
     </Sheet>
   );
@@ -1520,30 +1676,34 @@ function ActionConfirmation({
   const releasing = action?.kind === "release";
   return (
     <Dialog open={Boolean(action)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{releasing ? "Release block" : "Cancel block"}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-base font-bold text-[#251605]">
+            {releasing ? "Release block" : "Cancel block"}
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground leading-5">
             {releasing
               ? "Releasing restores inventory according to canonical block policy. A reason is required."
               : "Cancelling is permanent and is only valid for draft or pending blocks."}
           </DialogDescription>
         </DialogHeader>
-        <label className="grid gap-1 text-[10px] font-medium text-muted-foreground">
+        <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B] py-2">
           {releasing ? "Release reason *" : "Cancellation notes"}
           <textarea
             value={note}
             onChange={(event) => onNote(event.target.value)}
             rows={3}
-            className="rounded-md border border-input bg-background px-3 py-2 text-sm outline-none"
+            placeholder={releasing ? "Enter reason for releasing block..." : "Enter cancellation notes..."}
+            className="rounded-lg border border-[#DED7CD] bg-white px-3 py-2 text-xs outline-none focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]/20 resize-none"
           />
         </label>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" className="h-9 px-4 text-xs font-semibold" onClick={onClose}>
             Keep Block
           </Button>
           <Button
             variant="destructive"
+            className="h-9 px-4 text-xs font-semibold"
             disabled={pending || (releasing && !note.trim())}
             onClick={onConfirm}
           >

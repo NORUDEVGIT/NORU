@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronDown } from "lucide-react";
 
+import type { RoomBlockCreatePrefill } from "@/packages/pms/components/rooms/room-inventory-blocks";
 import { RoomsDashboardTab } from "@/packages/pms/components/rooms/rooms-dashboard";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 import {
@@ -263,6 +264,7 @@ export function RoomsWorkspace({
   const [assignmentPrefill, setAssignmentPrefill] = useState<AssignmentInspectionPrefill | null>(
     null,
   );
+  const [blockPrefill, setBlockPrefill] = useState<RoomBlockCreatePrefill | null>(null);
 
   useEffect(() => {
     setView(normalizeInitialView(initialTab));
@@ -297,7 +299,24 @@ export function RoomsWorkspace({
   }
 
   function selectView(nextView: RoomInventoryView) {
+    setBlockPrefill(null);
     setView(nextView);
+    setMoreOpen(false);
+  }
+
+  function openBlockForRoom(room: {
+    id: string;
+    roomTypeId: string;
+    roomNumber: string;
+    roomTypeName: string;
+  }) {
+    setBlockPrefill({
+      roomId: room.id,
+      roomTypeId: room.roomTypeId,
+      roomNumber: room.roomNumber,
+      roomTypeName: room.roomTypeName,
+    });
+    setView("blocks");
     setMoreOpen(false);
   }
 
@@ -317,7 +336,7 @@ export function RoomsWorkspace({
             onInspectAssignment={(room) =>
               inspectAssignment({ roomId: room.id, roomTypeId: room.roomTypeId })
             }
-            onOpenBlocks={() => selectView("blocks")}
+            onOpenBlocks={(room) => openBlockForRoom(room)}
           />
         );
       case "availability":
@@ -340,7 +359,9 @@ export function RoomsWorkspace({
           />
         );
       case "blocks":
-        return <RoomInventoryBlocksView restaurantId={restaurantId} />;
+        return (
+          <RoomInventoryBlocksView restaurantId={restaurantId} createPrefill={blockPrefill} />
+        );
       case "assignment-eligibility":
         return (
           <RoomAssignmentEligibilityView restaurantId={restaurantId} prefill={assignmentPrefill} />

@@ -49,7 +49,8 @@ export interface AssignmentInspectionPrefill {
 }
 
 const INK = "#251605";
-const PROPERTY_SETUP_HREF = "/restaurant/settings#rooms-inventory";
+const PROPERTY_SETUP_HREF =
+  "/restaurant/settings?returnTo=/restaurant/pms/room-inventory#rooms-inventory";
 
 const IMPACT_LABELS: Record<InventoryImpact, string> = {
   remove_from_inventory: "Remove from inventory",
@@ -170,25 +171,25 @@ export function RoomAssignmentEligibilityView({
   );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <InventoryViewHeader
         title="Assignment Eligibility"
         description="Inspect canonical eligibility for a specific room and stay. Evaluation runs only when you inspect."
       />
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-        <section className="rounded-lg border border-[#E5DED4] bg-white p-4 shadow-sm">
-          <h3 className="text-[13px] font-semibold" style={{ color: INK }}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="rounded-lg border border-[#E5DED4] bg-white p-5 shadow-xs">
+          <h3 className="text-base font-bold" style={{ color: INK }}>
             Stay and requirements
           </h3>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             Canonical inputs only. Guest preference is a caller flag, not a guest-profile lookup.
           </p>
           {roomsQuery.isLoading ? (
-            <div className="mt-4">
+            <div className="mt-5">
               <InventoryState state="loading" />
             </div>
           ) : (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <Field label="Candidate room">
                 <select
                   value={input.roomId}
@@ -200,7 +201,7 @@ export function RoomAssignmentEligibilityView({
                       roomTypeId: selected?.roomTypeId ?? "",
                     });
                   }}
-                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-3 text-sm outline-none focus:border-[#C89933]"
+                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-3 text-xs outline-none focus:border-[#C89933]"
                 >
                   <option value="">Select room</option>
                   {rooms.map((item) => (
@@ -213,7 +214,7 @@ export function RoomAssignmentEligibilityView({
               <Field label="Room type">
                 <input
                   readOnly
-                  className="h-9 rounded-md border border-[#DED7CD] bg-[#FAF8F5] px-3 text-sm"
+                  className="h-9 rounded-md border border-[#DED7CD] bg-[#FAF8F5] px-3 text-xs text-[#251605]"
                   value={room?.roomTypeName ?? roomType?.name ?? ""}
                 />
               </Field>
@@ -255,7 +256,7 @@ export function RoomAssignmentEligibilityView({
               />
               <Field label="Preferred building">
                 <select
-                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-3 text-sm outline-none focus:border-[#C89933]"
+                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-3 text-xs outline-none focus:border-[#C89933]"
                   value={input.preferredBuildingId}
                   onChange={(event) =>
                     setInput({ ...input, preferredBuildingId: event.target.value })
@@ -271,7 +272,7 @@ export function RoomAssignmentEligibilityView({
               </Field>
               <Field label="Preferred floor">
                 <select
-                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-3 text-sm outline-none focus:border-[#C89933]"
+                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-3 text-xs outline-none focus:border-[#C89933]"
                   value={input.preferredFloorId}
                   onChange={(event) => setInput({ ...input, preferredFloorId: event.target.value })}
                 >
@@ -283,7 +284,7 @@ export function RoomAssignmentEligibilityView({
                   ))}
                 </select>
               </Field>
-              <div className="space-y-2 sm:col-span-2">
+              <div className="space-y-2.5 sm:col-span-2 pt-1">
                 <CheckRow
                   label="Accessible room required"
                   checked={input.accessibleRequired}
@@ -307,9 +308,9 @@ export function RoomAssignmentEligibilityView({
                   onChange={(forCheckIn) => setInput({ ...input, forCheckIn })}
                 />
               </div>
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-2 pt-2">
                 <Button
-                  className="bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
+                  className="h-9 px-4 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
                   disabled={
                     !input.roomId ||
                     !input.roomTypeId ||
@@ -326,17 +327,17 @@ export function RoomAssignmentEligibilityView({
           )}
         </section>
 
-        <aside className="rounded-lg border border-[#E5DED4] bg-white shadow-sm lg:sticky lg:top-3">
-          <div className="border-b border-[#E5DED4] px-4 py-3">
-            <h3 className="text-[13px] font-semibold" style={{ color: INK }}>
+        <aside className="h-fit rounded-lg border border-[#E5DED4] bg-white shadow-xs lg:sticky lg:top-3">
+          <div className="border-b border-[#E5DED4] px-5 py-4">
+            <h3 className="text-base font-bold" style={{ color: INK }}>
               Candidate result
             </h3>
-            <p className="text-[10px] text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Blockers and warnings come from the canonical evaluator. Room facts below are
               read-only context.
             </p>
           </div>
-          <div className="space-y-4 p-4">
+          <div className="space-y-4 p-5">
             {!mutation.data && !mutation.isError ? (
               <InventoryState
                 state="empty"
@@ -352,10 +353,10 @@ export function RoomAssignmentEligibilityView({
               />
             ) : mutation.data ? (
               <>
-                <div className="flex items-center justify-between rounded-lg border border-[#E5DED4] px-3 py-3">
+                <div className="flex items-center justify-between rounded-lg border border-[#E5DED4] bg-[#FAF8F5]/60 p-3.5">
                   <div>
-                    <p className="text-[10px] text-muted-foreground">Eligibility</p>
-                    <p className="text-lg font-semibold" style={{ color: INK }}>
+                    <p className="text-xs font-medium text-muted-foreground">Eligibility</p>
+                    <p className="text-xl font-bold" style={{ color: INK }}>
                       {mutation.data.eligible ? "Eligible" : "Blocked"}
                     </p>
                   </div>
@@ -364,7 +365,7 @@ export function RoomAssignmentEligibilityView({
                   </InventoryStatusBadge>
                 </div>
                 {mutation.data.source === "legacy" ? (
-                  <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-900">
+                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900 leading-5">
                     Legacy evaluation returned a boolean only. Structured blockers and warnings are
                     not available until the canonical assignment RPC is present.
                   </p>
@@ -381,21 +382,21 @@ export function RoomAssignmentEligibilityView({
                   empty="No warnings returned."
                   tone="warning"
                 />
-                <div>
-                  <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5]/60 p-3.5">
+                  <p className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
                     Preference score
                   </p>
-                  <p className="mt-1 text-2xl font-semibold" style={{ color: INK }}>
+                  <p className="mt-1 text-2xl font-extrabold" style={{ color: INK }}>
                     {mutation.data.preferenceScore}
                   </p>
                   {mutation.data.preferenceReasons.length ? (
-                    <ul className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+                    <ul className="mt-2 space-y-1 text-xs text-[#5F554B]">
                       {mutation.data.preferenceReasons.map((reason) => (
                         <li key={reason}>• {preferenceReasonLabel(reason)}</li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-1 text-[11px] text-muted-foreground">No preference matches.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">No preference matches.</p>
                   )}
                 </div>
               </>
@@ -417,7 +418,7 @@ function RoomContextCard({
 }) {
   if (!room) {
     return (
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground leading-5">
         Select a room to show operational context. This panel does not recalculate eligibility.
       </p>
     );
@@ -442,15 +443,15 @@ function RoomContextCard({
     ["Beds", beds],
   ];
   return (
-    <section className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5] p-3">
-      <h4 className="text-[11px] font-semibold" style={{ color: INK }}>
+    <section className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5] p-3.5">
+      <h4 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
         Room context
       </h4>
-      <dl className="mt-2 divide-y divide-[#E8E1D7] text-[10px]">
+      <dl className="mt-2.5 divide-y divide-[#E8E1D7] text-xs">
         {rows.map(([label, value]) => (
           <div key={label} className="flex items-start justify-between gap-3 py-1.5">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="text-right font-medium">{value}</dd>
+            <dt className="text-muted-foreground font-medium">{label}</dt>
+            <dd className="text-right font-semibold text-[#251605]">{value}</dd>
           </div>
         ))}
       </dl>
@@ -471,12 +472,12 @@ function ResultNotes({
 }) {
   return (
     <div>
-      <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
         {title}
       </p>
       <div className="mt-2 space-y-2">
         {items.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground">{empty}</p>
+          <p className="text-xs text-muted-foreground">{empty}</p>
         ) : (
           items.map((item, index) => {
             const code = typeof item.code === "string" ? item.code : `ITEM_${index + 1}`;
@@ -487,18 +488,18 @@ function ResultNotes({
             return (
               <div
                 key={`${code}-${index}`}
-                className={`rounded-md border px-3 py-2 ${
+                className={`rounded-lg border px-3 py-2.5 ${
                   tone === "danger" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"
                 }`}
               >
-                <p className="text-[12px] font-medium" style={{ color: INK }}>
+                <p className="text-xs font-bold" style={{ color: INK }}>
                   {eligibilityCodeLabel(code)}
                 </p>
                 {typeof item.message === "string" ? (
-                  <p className="mt-0.5 text-[10px] text-muted-foreground">{item.message}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground leading-5">{item.message}</p>
                 ) : null}
                 {extras.length ? (
-                  <p className="mt-1 text-[10px] text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {extras
                       .map(([key, value]) => `${titleCase(key)}: ${String(value)}`)
                       .join(" · ")}
@@ -534,17 +535,17 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
   ].filter(Boolean).length;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <InventoryViewHeader
         title="Inventory Rules"
         description="Canonical Card 2 inventory policy. This view reuses Property Setup persistence; it does not create a second authority."
         action={
-          <div className="flex flex-wrap gap-2">
-            <SettingsLink />
+          <div className="flex flex-wrap items-center gap-2">
+            <SettingsLink step="inventory-rules" />
             {canConfigure ? (
               <Button
                 size="sm"
-                className="bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
+                className="h-9 px-4 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
                 disabled={pending || query.isLoading}
                 onClick={() => save()}
               >
@@ -565,7 +566,7 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
             <Kpi
               icon={SlidersHorizontal}
               label="Enforced assignment flags"
@@ -604,13 +605,13 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
           </div>
 
           {!canConfigure ? (
-            <p className="rounded-md border border-[#E5DED4] bg-[#FAF8F5] px-3 py-2 text-[11px] text-muted-foreground">
+            <p className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5] px-4 py-3 text-xs text-muted-foreground leading-5">
               Owner or manager access is required to change inventory rules. Front Office can
               inspect policy only.
             </p>
           ) : null}
 
-          <div className="grid gap-3 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2">
             <RulePanel
               title="Inventory and availability"
               description="Flags that affect or are stored for sellable inventory. Config-only flags do not change canonical availability math."
@@ -779,21 +780,21 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
               title="Block-type inventory behavior"
               description="Enabled types, approval, and impact are copied onto new operational blocks. Changing impact here does not rewrite existing blocks."
             >
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[520px] text-left text-[10px]">
-                  <thead className="text-[9px] uppercase tracking-wide text-muted-foreground">
+              <div className="overflow-x-auto rounded-lg border border-[#E5DED4]">
+                <table className="w-full min-w-[540px] text-left text-xs">
+                  <thead className="bg-[#F7F4EE] border-b border-[#E5DED4] text-xs font-bold uppercase tracking-wider text-[#5C5346]">
                     <tr>
-                      <th className="px-1 py-1.5">Type</th>
-                      <th className="px-1 py-1.5">Enabled</th>
-                      <th className="px-1 py-1.5">Approval</th>
-                      <th className="px-1 py-1.5">Inventory impact</th>
+                      <th className="px-3.5 py-2.5">Type</th>
+                      <th className="px-3.5 py-2.5">Enabled</th>
+                      <th className="px-3.5 py-2.5">Approval</th>
+                      <th className="px-3.5 py-2.5">Inventory impact</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-[#EEE8E0] bg-white">
                     {rules.blockTypes.map((row) => (
-                      <tr key={row.blockType} className="border-t border-[#EEE8E0]">
-                        <td className="px-1 py-2 font-medium">{titleCase(row.blockType)}</td>
-                        <td className="px-1 py-2">
+                      <tr key={row.blockType} className="hover:bg-[#FAF8F5]/60 transition-colors">
+                        <td className="px-3.5 py-3 font-bold text-[#251605]">{titleCase(row.blockType)}</td>
+                        <td className="px-3.5 py-3">
                           <Switch
                             checked={row.enabled}
                             disabled={!canConfigure}
@@ -809,7 +810,7 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
                             }
                           />
                         </td>
-                        <td className="px-1 py-2">
+                        <td className="px-3.5 py-3">
                           <Switch
                             checked={row.approvalRequired}
                             disabled={!canConfigure || !row.enabled}
@@ -825,7 +826,7 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
                             }
                           />
                         </td>
-                        <td className="px-1 py-2">
+                        <td className="px-3.5 py-3">
                           <select
                             disabled={!canConfigure || !row.enabled}
                             value={row.inventoryImpact}
@@ -841,7 +842,7 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
                                 ),
                               })
                             }
-                            className="h-8 w-full rounded border border-[#DED7CD] bg-white px-2 text-[10px]"
+                            className="h-9 w-full rounded-md border border-[#DED7CD] bg-white px-2.5 text-xs font-medium outline-none focus:border-[#C89933]"
                           >
                             {INVENTORY_IMPACTS.map((impact) => (
                               <option key={impact} value={impact}>
@@ -861,39 +862,42 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
               title="Operational restriction ownership"
               description="Housekeeping readiness thresholds, OOO/OOS gates, and room-type sellable flags stay in Property Setup."
             >
-              <p className="text-[11px] leading-5 text-muted-foreground">
+              <p className="text-xs leading-5 text-muted-foreground">
                 Housekeeping settings, maintenance status rules, and per-type sellable inventory are
                 not duplicated here. Default sellable source, minimum sellable inventory,
                 auto-release blocks, and release windows are not configured in this product.
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <SettingsLink label="Open Property Setup" />
+              <div className="mt-3.5 flex flex-wrap gap-2">
+                <SettingsLink label="Configure Housekeeping Rules" step="housekeeping" />
+                <SettingsLink label="Configure Maintenance Rules" step="maintenance" />
               </div>
-              <PolicySwitch
-                label="Housekeeping readiness required (inventory flag)"
-                help="Stored on inventory rules. Canonical eligibility uses require housekeeping readiness plus Card 2 HK settings."
-                tone="config"
-                checked={rules.housekeepingReadinessRequired}
-                disabled={!canConfigure}
-                onChange={(housekeepingReadinessRequired) =>
-                  setDraft({ housekeepingReadinessRequired })
-                }
-              />
-              <PolicySwitch
-                label="Maintenance clear required (inventory flag)"
-                help="Stored on inventory rules. Canonical eligibility uses require maintenance availability plus maintenance status rules."
-                tone="config"
-                checked={rules.maintenanceClearRequired}
-                disabled={!canConfigure}
-                onChange={(maintenanceClearRequired) => setDraft({ maintenanceClearRequired })}
-              />
-              <PolicySwitch
-                label="Room move allowed"
-                tone="config"
-                checked={rules.roomMoveAllowed}
-                disabled={!canConfigure}
-                onChange={(roomMoveAllowed) => setDraft({ roomMoveAllowed })}
-              />
+              <div className="pt-1 space-y-2.5">
+                <PolicySwitch
+                  label="Housekeeping readiness required (inventory flag)"
+                  help="Stored on inventory rules. Canonical eligibility uses require housekeeping readiness plus Card 2 HK settings."
+                  tone="config"
+                  checked={rules.housekeepingReadinessRequired}
+                  disabled={!canConfigure}
+                  onChange={(housekeepingReadinessRequired) =>
+                    setDraft({ housekeepingReadinessRequired })
+                  }
+                />
+                <PolicySwitch
+                  label="Maintenance clear required (inventory flag)"
+                  help="Stored on inventory rules. Canonical eligibility uses require maintenance availability plus maintenance status rules."
+                  tone="config"
+                  checked={rules.maintenanceClearRequired}
+                  disabled={!canConfigure}
+                  onChange={(maintenanceClearRequired) => setDraft({ maintenanceClearRequired })}
+                />
+                <PolicySwitch
+                  label="Room move allowed"
+                  tone="config"
+                  checked={rules.roomMoveAllowed}
+                  disabled={!canConfigure}
+                  onChange={(roomMoveAllowed) => setDraft({ roomMoveAllowed })}
+                />
+              </div>
             </RulePanel>
           </div>
         </>
@@ -912,11 +916,11 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
   });
   const summary = board.data?.nights[0];
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <InventoryViewHeader
         title="Overbooking"
         description="Operational room-type overbooking for the selected night. Allowances are configured in Property Setup."
-        action={<SettingsLink label="Configure in Property Setup" />}
+        action={<SettingsLink label="Configure in Property Setup" step="inventory-rules" section="overbooking" />}
       />
 
       {query.isLoading ? (
@@ -929,7 +933,7 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Kpi
               icon={Gauge}
               label="Physical available"
@@ -960,30 +964,26 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
             />
           </div>
 
-          <section className="rounded-lg border border-[#E5DED4] bg-white p-4 shadow-sm">
-            <h3 className="text-[13px] font-semibold" style={{ color: INK }}>
+          <section className="rounded-lg border border-[#E5DED4] bg-white p-5 shadow-xs">
+            <h3 className="text-base font-bold" style={{ color: INK }}>
               Overbooking controls
             </h3>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground leading-5">
               The numbers come from the room-type calculation the reservation transaction uses.
               Allowances are edited in Property Setup.
             </p>
-            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950">
-              {OVERBOOKING_CAPACITY_NOTE} {OVERBOOKING_AUTHORIZATION_NOTE}{" "}
-              {OVERBOOKING_FUTURE_LIMITS_NOTE}
-            </div>
-            <div className="mt-3 flex flex-wrap items-end gap-3">
-              <label className="text-[11px] text-muted-foreground">
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <label className="text-xs font-semibold text-[#5F554B]">
                 Night
                 <Input
                   type="date"
-                  className="mt-1"
+                  className="mt-1 h-9 text-xs"
                   value={night}
                   onChange={(event) => setNight(event.target.value)}
                 />
               </label>
               {summary?.alertEnabled && summary.totalOverbookedRooms > 0 ? (
-                <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-950">
+                <p className="rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-medium text-amber-950 leading-5">
                   {summary.roomTypesOverbooked} room type
                   {summary.roomTypesOverbooked === 1 ? " is" : "s are"} currently overbooked
                   {summary.roomTypes
@@ -994,43 +994,62 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
                 </p>
               ) : null}
             </div>
-            <div className="mt-3 grid gap-2 text-[12px] sm:grid-cols-3">
-              <p>Physical capacity: {summary?.physicalCapacity ?? "—"}</p>
-              <p>Confirmed demand: {summary?.confirmedDemand ?? "—"}</p>
-              <p>Physical available: {summary?.physicalAvailable ?? "—"}</p>
+            <div className="mt-4 grid gap-3 text-xs sm:grid-cols-3">
+              <div className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5] p-3">
+                <span className="text-muted-foreground">Physical capacity: </span>
+                <span className="font-bold text-[#251605]">{summary?.physicalCapacity ?? "—"}</span>
+              </div>
+              <div className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5] p-3">
+                <span className="text-muted-foreground">Confirmed demand: </span>
+                <span className="font-bold text-[#251605]">{summary?.confirmedDemand ?? "—"}</span>
+              </div>
+              <div className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5] p-3">
+                <span className="text-muted-foreground">Physical available: </span>
+                <span className="font-bold text-[#251605]">{summary?.physicalAvailable ?? "—"}</span>
+              </div>
             </div>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-left text-[12px]">
-                <thead>
-                  <tr className="border-b text-muted-foreground">
-                    <th className="py-1 pr-3 font-medium">Room type</th>
-                    <th className="py-1 pr-3 font-medium">Physical capacity</th>
-                    <th className="py-1 pr-3 font-medium">Demand</th>
-                    <th className="py-1 pr-3 font-medium">Physical available</th>
-                    <th className="py-1 pr-3 font-medium">Allowed overbooking</th>
-                    <th className="py-1 pr-3 font-medium">Consumed overbooking</th>
-                    <th className="py-1 pr-3 font-medium">Remaining</th>
-                    <th className="py-1 font-medium">Status</th>
+            <div className="mt-4 overflow-x-auto rounded-lg border border-[#E5DED4]">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#F7F4EE] border-b border-[#E5DED4] text-xs font-bold uppercase tracking-wider text-[#5C5346]">
+                  <tr>
+                    <th className="px-3.5 py-2.5">Room type</th>
+                    <th className="px-3.5 py-2.5">Physical capacity</th>
+                    <th className="px-3.5 py-2.5">Demand</th>
+                    <th className="px-3.5 py-2.5">Physical available</th>
+                    <th className="px-3.5 py-2.5">Allowed overbooking</th>
+                    <th className="px-3.5 py-2.5">Consumed overbooking</th>
+                    <th className="px-3.5 py-2.5">Remaining</th>
+                    <th className="px-3.5 py-2.5">Status</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[#F0EBE3] bg-white">
                   {(summary?.roomTypes ?? []).map((type) => (
-                    <tr key={type.roomTypeId} className="border-b border-[#F0EBE3]">
-                      <td className="py-1 pr-3">{type.roomTypeName}</td>
-                      <td className="py-1 pr-3">{type.physicalCapacity}</td>
-                      <td className="py-1 pr-3">{type.demand}</td>
-                      <td className="py-1 pr-3">{type.physicalAvailable}</td>
-                      <td className="py-1 pr-3">{type.overbookingAllowance}</td>
-                      <td className="py-1 pr-3">{type.overbookingConsumed}</td>
-                      <td className="py-1 pr-3">{type.overbookingRemaining}</td>
-                      <td className="py-1">
-                        {!type.overbookingEnabled
-                          ? "Overbooking disabled"
-                          : type.overbookingRemaining === 0 && type.overbookingAllowance > 0
-                            ? "Limit reached"
-                            : type.overbookingAllowance > 0
-                              ? "Available for override"
-                              : "No allowance"}
+                    <tr key={type.roomTypeId} className="hover:bg-[#FAF8F5]/60 transition-colors">
+                      <td className="px-3.5 py-3 font-bold text-[#251605]">{type.roomTypeName}</td>
+                      <td className="px-3.5 py-3 font-medium text-[#251605]">{type.physicalCapacity}</td>
+                      <td className="px-3.5 py-3 font-medium text-[#251605]">{type.demand}</td>
+                      <td className="px-3.5 py-3 font-medium text-[#251605]">{type.physicalAvailable}</td>
+                      <td className="px-3.5 py-3 font-medium text-[#251605]">{type.overbookingAllowance}</td>
+                      <td className="px-3.5 py-3 font-medium text-[#251605]">{type.overbookingConsumed}</td>
+                      <td className="px-3.5 py-3 font-medium text-[#251605]">{type.overbookingRemaining}</td>
+                      <td className="px-3.5 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                          !type.overbookingEnabled
+                            ? "bg-zinc-100 text-zinc-600"
+                            : type.overbookingRemaining === 0 && type.overbookingAllowance > 0
+                              ? "bg-red-100 text-red-700"
+                              : type.overbookingAllowance > 0
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-zinc-100 text-zinc-600"
+                        }`}>
+                          {!type.overbookingEnabled
+                            ? "Overbooking disabled"
+                            : type.overbookingRemaining === 0 && type.overbookingAllowance > 0
+                              ? "Limit reached"
+                              : type.overbookingAllowance > 0
+                                ? "Available for override"
+                                : "No allowance"}
+                        </span>
                       </td>
                     </tr>
                   ))}
@@ -1038,20 +1057,23 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
               </table>
             </div>
 
-            <div className="mt-4">
-              <h4 className="text-[12px] font-medium" style={{ color: INK }}>
+            <div className="mt-5 rounded-lg border border-[#E5DED4] bg-[#FAF8F5] p-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
                 Room type rules
               </h4>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground leading-5">
                 Allowances are edited on each room type in Property Setup. This list is the saved
                 configuration, not a shared pool.
               </p>
-              <ul className="mt-2 space-y-1 text-[12px]">
+              <ul className="mt-3 divide-y divide-[#E8E1D7] text-xs">
                 {(summary?.roomTypes ?? []).map((type) => (
-                  <li key={type.roomTypeId}>
-                    {type.roomTypeName} · {type.overbookingEnabled ? "Enabled" : "Disabled"}
-                    {type.maximumOverbooking != null ? ` · Max ${type.maximumOverbooking}` : ""}
-                    {type.percentageLimit != null ? ` · ${type.percentageLimit}%` : ""}
+                  <li key={type.roomTypeId} className="py-2 flex items-center justify-between">
+                    <span className="font-bold text-[#251605]">{type.roomTypeName}</span>
+                    <span className="text-muted-foreground font-medium">
+                      {type.overbookingEnabled ? "Enabled" : "Disabled"}
+                      {type.maximumOverbooking != null ? ` · Max ${type.maximumOverbooking}` : ""}
+                      {type.percentageLimit != null ? ` · ${type.percentageLimit}%` : ""}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -1146,16 +1168,16 @@ function Kpi({
   tone: string;
 }) {
   return (
-    <div className="flex min-h-16 items-center gap-2.5 rounded-lg border border-[#EAE4DB] bg-white px-3 py-2 shadow-sm">
-      <span className={`grid size-8 shrink-0 place-items-center rounded-full ${tone}`}>
-        <Icon className="size-4" />
+    <div className="flex min-h-[76px] items-center gap-3 rounded-lg border border-[#EAE4DB] bg-white p-3.5 shadow-xs">
+      <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${tone}`}>
+        <Icon className="size-4.5" />
       </span>
       <div className="min-w-0">
-        <p className="truncate text-[9px] text-muted-foreground">{label}</p>
-        <p className="text-lg font-semibold leading-5" style={{ color: INK }}>
+        <p className="truncate text-xs font-medium text-[#756A5B]">{label}</p>
+        <p className="text-xl font-bold leading-tight" style={{ color: INK }}>
           {value}
         </p>
-        <p className="truncate text-[8px] text-muted-foreground">{detail}</p>
+        <p className="truncate text-[11px] text-[#8C8071]">{detail}</p>
       </div>
     </div>
   );
@@ -1171,12 +1193,12 @@ function RulePanel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-[#E5DED4] bg-white p-4 shadow-sm">
-      <h3 className="text-[13px] font-semibold" style={{ color: INK }}>
+    <section className="rounded-lg border border-[#E5DED4] bg-white p-5 shadow-xs">
+      <h3 className="text-base font-bold" style={{ color: INK }}>
         {title}
       </h3>
-      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{description}</p>
-      <div className="mt-3 space-y-2">{children}</div>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+      <div className="mt-4 space-y-2.5">{children}</div>
     </section>
   );
 }
@@ -1197,17 +1219,17 @@ function PolicySwitch({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-md border border-[#EEE8E0] px-3 py-2">
+    <div className="flex items-start justify-between gap-3 rounded-lg border border-[#EEE8E0] bg-[#FAF8F5]/40 px-3.5 py-3 hover:bg-[#FAF8F5] transition-colors">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[12px] font-medium" style={{ color: INK }}>
+          <p className="text-xs font-bold" style={{ color: INK }}>
             {label}
           </p>
           <InventoryStatusBadge tone={tone === "enforced" ? "info" : "warning"}>
             {tone === "enforced" ? "Enforced" : tone === "future" ? "Coming later" : "Config only"}
           </InventoryStatusBadge>
         </div>
-        {help ? <p className="mt-0.5 text-[10px] text-muted-foreground">{help}</p> : null}
+        {help ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{help}</p> : null}
       </div>
       <Switch
         checked={checked}
@@ -1219,10 +1241,20 @@ function PolicySwitch({
   );
 }
 
-function SettingsLink({ label = "Manage in Property Setup" }: { label?: string }) {
+function SettingsLink({
+  label = "Manage in Property Setup",
+  step = "inventory-rules",
+  section,
+}: {
+  label?: string;
+  step?: "room-types" | "amenities" | "housekeeping" | "inventory-rules" | "maintenance" | "rates-pricing";
+  section?: string;
+}) {
+  const sectionParam = section ? `&section=${encodeURIComponent(section)}` : "";
+  const href = `/restaurant/settings?card2Step=${step}${sectionParam}&returnTo=/restaurant/pms/room-inventory#rooms-inventory`;
   return (
-    <Button asChild variant="outline" size="sm">
-      <a href={PROPERTY_SETUP_HREF}>
+    <Button asChild variant="outline" size="sm" className="h-9 px-3 text-xs font-medium">
+      <a href={href}>
         {label} <ExternalLink className="ml-2 size-4" />
       </a>
     </Button>
@@ -1231,7 +1263,7 @@ function SettingsLink({ label = "Manage in Property Setup" }: { label?: string }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="grid gap-1 text-[10px] font-medium text-[#5F554B]">
+    <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
       {label}
       {children}
     </label>
@@ -1254,7 +1286,7 @@ function TextInput({
   return (
     <Field label={label}>
       <Input
-        className="h-9"
+        className="h-9 text-xs"
         type={type}
         min={min}
         value={value}
@@ -1274,12 +1306,12 @@ function CheckRow({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex items-center gap-2 text-[12px]">
+    <label className="flex items-center gap-2.5 text-xs font-medium text-[#251605] cursor-pointer">
       <input
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="size-3.5 accent-[#C89933]"
+        className="size-4 rounded accent-[#C89933] cursor-pointer"
       />
       {label}
     </label>
