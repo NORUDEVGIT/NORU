@@ -51,6 +51,7 @@ import {
 } from "@/packages/pms/lib/revenue/revenue-read-error";
 import { BulkRestrictionDefineStep } from "../bulk-restriction/bulk-restriction-define-step";
 import { BulkRestrictionPanel } from "../bulk-restriction/bulk-restriction-panel";
+import { BulkRestrictionScopeStep } from "../bulk-restriction/bulk-restriction-scope-step";
 import type { BulkRestrictionStep } from "../bulk-restriction/bulk-restriction-progress";
 import {
   RestrictionDetailDrawer,
@@ -108,7 +109,7 @@ export function RestrictionCalendarView({
 
   // Embedded Bulk Restriction Workflow State
   const [bulkDrawerOpen, setBulkDrawerOpen] = useState(false);
-  const [bulkStep, setBulkStep] = useState<BulkRestrictionStep>(2);
+  const [bulkStep, setBulkStep] = useState<BulkRestrictionStep>(1);
   const [operationType, setOperationType] = useState<"SET_FIELDS" | "CLEAR_ALL">("SET_FIELDS");
   const [patch, setPatch] = useState<RestrictionTriStatePatch>(emptyTriStatePatch);
   const [reason, setReason] = useState("");
@@ -201,6 +202,17 @@ export function RestrictionCalendarView({
     }
     return selected;
   }, [selected, calendar]);
+
+  const calendarRoomTypes = useMemo(() => {
+    if (!calendar) return [];
+    return calendar.groups.map((group) => ({
+      id: group.roomType.id,
+      code: group.roomType.code,
+      name: group.roomType.name,
+      active: true,
+      sellable: true,
+    }));
+  }, [calendar]);
 
   const allPlansInCalendar = useMemo(() => {
     if (!calendar) return [];
@@ -343,6 +355,16 @@ export function RestrictionCalendarView({
     setSubmittedRequest(null);
   }
 
+  function openBulkDrawer(selectAllWhenEmpty = false) {
+    if (selectAllWhenEmpty && selectedPlanIds.length === 0 && allPlansInCalendar.length > 0) {
+      setSelectedPlanIds(allPlansInCalendar.map((plan) => plan.id));
+    }
+    setSelected(null);
+    setSelectedRowPlanId(null);
+    setBulkStep(1);
+    setBulkDrawerOpen(true);
+  }
+
   const pageCount = filteredCalendar
     ? Math.max(1, Math.ceil(filteredCalendar.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE))
     : 1;
@@ -367,7 +389,29 @@ export function RestrictionCalendarView({
     </div>
   );
 
-  let bulkDrawerBody = (
+  let bulkDrawerBody =
+    bulkStep === 1 ? (
+      <BulkRestrictionScopeStep
+        fromDate={context.fromDate}
+        toDate={context.toDate}
+        roomTypeIds={calendarRoomTypes
+          .filter((roomType) => selectedPlans.some((plan) => plan.roomTypeId === roomType.id))
+          .map((roomType) => roomType.id)}
+        planIds={selectedPlanIds}
+        roomTypes={calendarRoomTypes}
+        ratePlans={allPlansInCalendar}
+        expansion={expansion}
+        showSelectionDetails
+        idPrefix="restriction-calendar-bulk"
+        onChange={(patch) => {
+          if (patch.fromDate != null || patch.toDate != null) {
+            onRangeChange(patch.fromDate ?? context.fromDate, patch.toDate ?? context.toDate);
+          }
+          if (patch.planIds) setSelectedPlanIds(patch.planIds);
+          resetBulkState();
+        }}
+      />
+    ) : (
     <div className="space-y-4">
       {scopeSummaryCard}
       <BulkRestrictionDefineStep
@@ -386,7 +430,7 @@ export function RestrictionCalendarView({
       />
       {bulkError ? <p className="text-xs font-medium text-[#6B4A0A]">{bulkError}</p> : null}
     </div>
-  );
+    );
 
   if (bulkStep === 3) {
     bulkDrawerBody = (
@@ -434,19 +478,37 @@ export function RestrictionCalendarView({
           className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#FAF6F0]"
           onClick={() => {
             setBulkDrawerOpen(false);
-            setBulkStep(2);
+            setBulkStep(1);
             resetBulkState();
           }}
         >
           Cancel
         </button>
-        {bulkStep > 2 ? (
+        {bulkStep === 2 ? (
+          <button
+            type="button"
+            className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#FAF6F0]"
+            onClick={() => setBulkStep(1)}
+          >
+            Back to Selection
+          </button>
+        ) : bulkStep > 2 ? (
           <button
             type="button"
             className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#FAF6F0]"
             onClick={() => setBulkStep((current) => (current - 1) as BulkRestrictionStep)}
           >
             Back
+          </button>
+        ) : null}
+        {bulkStep === 1 ? (
+          <button
+            type="button"
+            className="inline-flex h-9 items-center rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#B5882D] disabled:opacity-50"
+            disabled={!expansion.ok || selectedPlans.length === 0}
+            onClick={() => setBulkStep(2)}
+          >
+            Continue to Restriction Rules
           </button>
         ) : null}
         {bulkStep === 2 ? (
@@ -490,19 +552,7 @@ export function RestrictionCalendarView({
         canViewRestrictions={access.canViewRestrictions}
         selectedCount={selectedPlanIds.length}
         onRangeChange={onRangeChange}
-        onBulkTrigger={() => {
-          const nextPlanIds =
-            selectedPlanIds.length > 0
-              ? selectedPlanIds
-              : allPlansInCalendar.map((plan) => plan.id);
-          if (selectedPlanIds.length === 0 && nextPlanIds.length > 0) {
-            setSelectedPlanIds(nextPlanIds);
-          }
-          setSelected(null);
-          setSelectedRowPlanId(null);
-          setBulkStep(2);
-          setBulkDrawerOpen(true);
-        }}
+        onBulkTrigger={() => openBulkDrawer(true)}
       />
 
       {selectedPlanIds.length > 0 ? (
@@ -540,12 +590,7 @@ export function RestrictionCalendarView({
             <button
               type="button"
               disabled={!expansion.ok}
-              onClick={() => {
-                setSelected(null);
-                setSelectedRowPlanId(null);
-                setBulkStep(2);
-                setBulkDrawerOpen(true);
-              }}
+              onClick={() => openBulkDrawer()}
               className="inline-flex h-8 items-center rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm hover:bg-[#B5882D] disabled:opacity-50"
             >
               Continue to Restriction Rules ({selectedPlanIds.length})

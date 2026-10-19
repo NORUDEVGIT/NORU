@@ -13,7 +13,7 @@ import {
 import { cn } from "@/shared/lib/utils";
 
 export function InventoryViewHeader({
-  eyebrow = "Room & Inventory",
+  eyebrow,
   title,
   description,
   action,
@@ -24,13 +24,15 @@ export function InventoryViewHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {eyebrow}
-        </p>
-        <h2 className="mt-1 font-display text-2xl font-semibold tracking-tight">{title}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        {eyebrow ? (
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            {eyebrow}
+          </p>
+        ) : null}
+        <h2 className="font-display text-xl font-semibold tracking-tight text-foreground">{title}</h2>
+        {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
       </div>
       {action}
     </div>

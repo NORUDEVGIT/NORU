@@ -201,9 +201,12 @@ describe("Rate & Revenue Phase 1 Prompt 4 — Settings adapters & context", () =
     assert.match(route, /search=\{search\}/);
 
     assert.doesNotMatch(bar, /Add /);
-    assert.match(bar, /CARD3_HREF/);
+    assert.match(bar, /CARD2_HREF/);
     assert.match(bar, /SET1_HUB_HREF/);
-    assert.equal(contextFieldsForView(REVENUE_DEFAULT_VIEW).includes("dateRange"), true);
+    assert.deepEqual(
+      [...contextFieldsForView(REVENUE_DEFAULT_VIEW)],
+      ["dateRange", "roomType", "ratePlan"],
+    );
     assert.deepEqual([...contextFieldsForView("rate-plans-reference")], ["roomType"]);
     assert.deepEqual([...contextFieldsForView("rate-calendar")], ["dateRange", "roomType", "ratePlan"]);
   });

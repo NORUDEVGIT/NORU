@@ -279,9 +279,7 @@ export function BulkRestrictionView({
 
   function openWorkflowDrawer() {
     if (!expansion.ok) return;
-    if (step === 1) {
-      setStep(2);
-    }
+    setStep(1);
     setDrawerOpen(true);
   }
 
@@ -305,7 +303,21 @@ export function BulkRestrictionView({
     </div>
   );
 
-  let drawerBody = (
+  let drawerBody =
+    step === 1 ? (
+      <BulkRestrictionScopeStep
+        fromDate={fromDate}
+        toDate={toDate}
+        roomTypeIds={roomTypeIds}
+        planIds={planIds}
+        roomTypes={roomTypes}
+        ratePlans={ratePlans}
+        expansion={expansion}
+        onChange={updateScope}
+        showSelectionDetails
+        idPrefix="restriction-drawer"
+      />
+    ) : (
     <div className="space-y-4">
       {scopeSummaryCard}
       <BulkRestrictionDefineStep
@@ -326,7 +338,7 @@ export function BulkRestrictionView({
       />
       {error ? <p className="text-xs font-medium text-[#6B4A0A]">{error}</p> : null}
     </div>
-  );
+    );
 
   if (step === 3) {
     drawerBody = (
@@ -376,10 +388,7 @@ export function BulkRestrictionView({
           <button
             type="button"
             className={secondaryButton()}
-            onClick={() => {
-              setStep(1);
-              setDrawerOpen(false);
-            }}
+            onClick={() => setStep(1)}
           >
             Back to Selection
           </button>
@@ -390,6 +399,16 @@ export function BulkRestrictionView({
             onClick={() => setStep((current) => (current - 1) as BulkRestrictionStep)}
           >
             Back
+          </button>
+        ) : null}
+        {step === 1 ? (
+          <button
+            type="button"
+            className={goldButton()}
+            disabled={!expansion.ok || selectedPlans.length === 0}
+            onClick={() => setStep(2)}
+          >
+            Continue to Restriction Rules
           </button>
         ) : null}
         {step === 2 ? (
@@ -465,7 +484,7 @@ export function BulkRestrictionView({
             disabled={!expansion.ok}
             onClick={openWorkflowDrawer}
           >
-            {step > 1 ? "Resume Restriction Rules" : "Continue to Restriction Rules"}
+            Review Selected Scope
           </button>
         </div>
       </div>
@@ -559,7 +578,7 @@ export function BulkRestrictionView({
               setPreview(null);
               setError(null);
               setSuccess(false);
-              setStep(2);
+              setStep(1);
               setDrawerOpen(true);
             }}
             onSelectRow={(row, roomType) => {
@@ -570,14 +589,14 @@ export function BulkRestrictionView({
               setPreview(null);
               setError(null);
               setSuccess(false);
-              setStep(2);
+              setStep(1);
               setDrawerOpen(true);
             }}
           />
         </div>
       ) : null}
 
-      {/* On-Demand Right-Side Workflow Drawer (Steps 2–4) */}
+      {/* On-Demand Right-Side Workflow Drawer (Steps 1–4) */}
       <BulkRestrictionPanel
         open={drawerOpen}
         step={step}

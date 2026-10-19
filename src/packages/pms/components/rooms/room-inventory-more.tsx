@@ -45,7 +45,6 @@ import {
   InventoryMetric,
   InventoryState,
   InventoryStatusBadge,
-  InventoryViewHeader,
   PmsSelect,
 } from "./room-inventory-shared";
 import { dateLabel } from "./room-inventory-utils";
@@ -83,11 +82,7 @@ export function RoomFloorPlanView({ restaurantId }: { restaurantId: string }) {
     new Set((query.data ?? []).map((room) => room.floor).filter(Boolean)),
   ) as string[];
   return (
-    <div className="space-y-5">
-      <InventoryViewHeader
-        title="Floor Plan"
-        description="Operational room state arranged by building and floor."
-      />
+    <div className="space-y-4">
       <div className="flex flex-wrap gap-3 rounded-2xl border border-border bg-card p-4">
         <FilterSelect
           label="Building"
@@ -455,32 +450,31 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
 
   return (
     <div className="space-y-4">
-      <InventoryViewHeader
-        title="Maintenance"
-        description="Log a room issue and move it from open, to in progress, to completed. Completing a request updates that room's maintenance condition."
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              className="h-9 gap-1.5 bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#B5882D] shadow-xs"
-              onClick={() => setCreateOpen(true)}
-            >
-              <Plus className="size-3.5" />
-              Log request
-            </Button>
-            <Button
-              asChild
-              size="sm"
-              variant="outline"
-              className="h-9 gap-1.5 border-[#D6CDBF] bg-white text-xs font-semibold text-[#251605] hover:bg-[#FAF8F5] shadow-xs"
-            >
-              <a href="/restaurant/pms/maintenance?tab=maintenance&returnTo=/restaurant/pms/room-inventory%3Ftab%3Dmaintenance">
-                Open Maintenance <ArrowRight className="size-3.5" />
-              </a>
-            </Button>
-          </div>
-        }
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-0.5">
+        <p className="text-xs text-muted-foreground">
+          Room maintenance requests and work orders across your property.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            className="h-9 gap-1.5 bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#B5882D] shadow-xs"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="size-3.5" />
+            Log request
+          </Button>
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="h-9 gap-1.5 border-[#D6CDBF] bg-white text-xs font-semibold text-[#251605] hover:bg-[#FAF8F5] shadow-xs"
+          >
+            <a href="/restaurant/pms/maintenance?tab=maintenance&returnTo=/restaurant/pms/room-inventory%3Ftab%3Dmaintenance">
+              Open Maintenance <ArrowRight className="size-3.5" />
+            </a>
+          </Button>
+        </div>
+      </div>
 
       <MaintenanceKpis
         total={kpiCounts.total}
@@ -1061,11 +1055,10 @@ function MaintenanceDetail({
 
 export function RoomBulkOperationsView({ onOpenBlocks }: { onOpenBlocks: () => void }) {
   return (
-    <div className="space-y-5">
-      <InventoryViewHeader
-        title="Bulk Operations"
-        description="Controlled operational actions across multiple rooms."
-      />
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Controlled operational actions across multiple rooms.
+      </p>
       <div className="grid gap-4 md:grid-cols-2">
         <ActionCard
           icon={Layers3}
@@ -1100,17 +1093,16 @@ export function RoomSnapshotView({ restaurantId }: { restaurantId: string }) {
   });
   const data = query.data;
   return (
-    <div className="space-y-5">
-      <InventoryViewHeader
-        title="Daily Snapshot"
-        description="Point-in-time operational room capacity and readiness."
-        action={
-          <Button variant="outline" size="sm" onClick={() => query.refetch()}>
-            <RefreshCw className="mr-2 size-4" />
-            Refresh
-          </Button>
-        }
-      />
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-0.5">
+        <p className="text-xs text-muted-foreground">
+          Point-in-time operational room capacity and readiness.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => query.refetch()}>
+          <RefreshCw className="mr-2 size-4" />
+          Refresh
+        </Button>
+      </div>
       {query.isLoading ? (
         <InventoryState state="loading" />
       ) : query.isError || !data ? (
@@ -1238,11 +1230,7 @@ export function RoomHistoryAuditView({ restaurantId }: { restaurantId: string })
   }
 
   return (
-    <div className="space-y-5">
-      <InventoryViewHeader
-        title="History & Audit"
-        description="Immutable operational room and inventory events."
-      />
+    <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
         <input
           className="h-9 w-full max-w-sm rounded-lg border border-input bg-background px-3 text-sm"
@@ -1388,11 +1376,10 @@ export function RoomReportsView({
   onOpenBlocks: () => void;
 }) {
   return (
-    <div className="space-y-5">
-      <InventoryViewHeader
-        title="Reports"
-        description="Operational reporting surfaces backed by current workspace data."
-      />
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Operational reporting surfaces backed by current workspace data.
+      </p>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <ReportCard
           title="Room Status Report"
@@ -1424,11 +1411,7 @@ export function RoomReportsView({
 
 export function RoomOfflineSyncView() {
   return (
-    <div className="space-y-5">
-      <InventoryViewHeader
-        title="Offline & Sync"
-        description="Operational continuity and synchronization status."
-      />
+    <div className="space-y-4">
       <section className="rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
         <CloudOff className="mx-auto size-8 text-muted-foreground" />
         <h3 className="mt-4 font-semibold">Offline operation is not configured</h3>

@@ -265,9 +265,7 @@ export function BulkRateChangeView({
 
   function openWorkflowDrawer() {
     if (!expansion.ok) return;
-    if (step === 1) {
-      setStep(2);
-    }
+    setStep(1);
     setDrawerOpen(true);
   }
 
@@ -290,28 +288,42 @@ export function BulkRateChangeView({
     </div>
   );
 
-  let drawerBody = (
-    <div className="space-y-4">
-      {scopeSummaryCard}
-      <BulkDefineStep
-        action={action}
-        value={value}
-        sourceDate={sourceDate}
-        reason={reason}
-        selectedPlans={selectedPlans}
-        onChange={(patch) => {
-          if (patch.action) setAction(patch.action);
-          if (patch.value != null) setValue(patch.value);
-          if (patch.sourceDate != null) setSourceDate(patch.sourceDate);
-          if (patch.reason != null) setReason(patch.reason);
-          setPreview(null);
-          setError(null);
-          setSuccess(false);
-        }}
+  let drawerBody =
+    step === 1 ? (
+      <BulkScopeStep
+        fromDate={fromDate}
+        toDate={toDate}
+        roomTypeIds={roomTypeIds}
+        planIds={planIds}
+        roomTypes={roomTypes}
+        ratePlans={ratePlans}
+        expansion={expansion}
+        onChange={updateScope}
+        showSelectionDetails
+        idPrefix="bulk-drawer"
       />
-      {error ? <p className="text-xs font-medium text-[#6B4A0A]">{error}</p> : null}
-    </div>
-  );
+    ) : (
+      <div className="space-y-4">
+        {scopeSummaryCard}
+        <BulkDefineStep
+          action={action}
+          value={value}
+          sourceDate={sourceDate}
+          reason={reason}
+          selectedPlans={selectedPlans}
+          onChange={(patch) => {
+            if (patch.action) setAction(patch.action);
+            if (patch.value != null) setValue(patch.value);
+            if (patch.sourceDate != null) setSourceDate(patch.sourceDate);
+            if (patch.reason != null) setReason(patch.reason);
+            setPreview(null);
+            setError(null);
+            setSuccess(false);
+          }}
+        />
+        {error ? <p className="text-xs font-medium text-[#6B4A0A]">{error}</p> : null}
+      </div>
+    );
 
   if (step === 3) {
     drawerBody = (
@@ -360,10 +372,7 @@ export function BulkRateChangeView({
           <button
             type="button"
             className={secondaryButton()}
-            onClick={() => {
-              setStep(1);
-              setDrawerOpen(false);
-            }}
+            onClick={() => setStep(1)}
           >
             Back to Selection
           </button>
@@ -374,6 +383,16 @@ export function BulkRateChangeView({
             onClick={() => setStep((current) => (current - 1) as BulkWizardStep)}
           >
             Back
+          </button>
+        ) : null}
+        {step === 1 ? (
+          <button
+            type="button"
+            className={goldButton()}
+            disabled={!expansion.ok || selectedPlans.length === 0}
+            onClick={() => setStep(2)}
+          >
+            Continue to Set Rate
           </button>
         ) : null}
         {step === 2 ? (
@@ -451,7 +470,7 @@ export function BulkRateChangeView({
             disabled={!expansion.ok}
             onClick={openWorkflowDrawer}
           >
-            {step > 1 ? "Resume Bulk Rate Change" : "Set Rate for Selected Scope"}
+            Review Selected Scope
           </button>
         </div>
       </div>
@@ -546,7 +565,7 @@ export function BulkRateChangeView({
               setPreview(null);
               setError(null);
               setSuccess(false);
-              setStep(2);
+              setStep(1);
               setDrawerOpen(true);
             }}
             onSelectRow={(row, roomType) => {
@@ -560,14 +579,14 @@ export function BulkRateChangeView({
               setPreview(null);
               setError(null);
               setSuccess(false);
-              setStep(2);
+              setStep(1);
               setDrawerOpen(true);
             }}
           />
         </div>
       ) : null}
 
-      {/* On-Demand Right-Side Workflow Drawer (Steps 2–4) */}
+      {/* On-Demand Right-Side Workflow Drawer (Steps 1–4) */}
       <BulkRateChangePanel
         open={drawerOpen}
         step={step}

@@ -47,7 +47,6 @@ import { cn } from "@/shared/lib/utils";
 import {
   InventoryState,
   InventoryStatusBadge,
-  InventoryViewHeader,
   PmsSelect,
 } from "./room-inventory-shared";
 import { addDays, eligibilityCodeLabel, preferenceReasonLabel } from "./room-inventory-utils";
@@ -181,10 +180,6 @@ export function RoomAssignmentEligibilityView({
 
   return (
     <div className="space-y-4">
-      <InventoryViewHeader
-        title="Assignment Eligibility"
-        description="Verify stay requirements, check-in readiness, and operational eligibility for candidate rooms."
-      />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px]">
         <section className="rounded-xl border border-[#E5DED4] bg-white p-5 shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-[#E5DED4]/80 pb-3">
@@ -664,25 +659,24 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
 
   return (
     <div className="space-y-4">
-      <InventoryViewHeader
-        title="Inventory Rules"
-        description="Canonical Card 2 inventory policy. This view reuses Property Setup persistence; it does not create a second authority."
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <SettingsLink step="inventory-rules" />
-            {canConfigure ? (
-              <Button
-                size="sm"
-                className="h-9 px-4 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
-                disabled={pending || query.isLoading}
-                onClick={() => save()}
-              >
-                Save rules
-              </Button>
-            ) : null}
-          </div>
-        }
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-0.5">
+        <p className="text-xs text-muted-foreground">
+          Canonical inventory rules and block-type behaviors configured in Property Setup.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <SettingsLink step="inventory-rules" />
+          {canConfigure ? (
+            <Button
+              size="sm"
+              className="h-9 px-4 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
+              disabled={pending || query.isLoading}
+              onClick={() => save()}
+            >
+              Save rules
+            </Button>
+          ) : null}
+        </div>
+      </div>
 
       {query.isLoading ? (
         <InventoryState state="loading" />
@@ -942,11 +936,12 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
   const summary = board.data?.nights[0];
   return (
     <div className="space-y-4">
-      <InventoryViewHeader
-        title="Overbooking"
-        description="Operational room-type overbooking for the selected night. Allowances are configured in Property Setup."
-        action={<SettingsLink label="Configure in Property Setup" step="inventory-rules" section="overbooking" />}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-0.5">
+        <p className="text-xs text-muted-foreground">
+          Operational room-type overbooking for the selected night. Allowances are configured in Property Setup.
+        </p>
+        <SettingsLink label="Configure in Property Setup" step="inventory-rules" section="overbooking" />
+      </div>
 
       {query.isLoading ? (
         <InventoryState state="loading" />

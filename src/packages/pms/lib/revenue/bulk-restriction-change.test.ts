@@ -390,9 +390,12 @@ describe("RR-P3-03 — wiring, apply and no fake product", () => {
     assert.doesNotMatch(view, /xl:grid-cols-\[minmax\(0,1fr\)_380px\]/);
     assert.doesNotMatch(panel, /<aside/);
     assert.match(panel, /<Sheet/);
+    assert.match(view, /setStep\(1\);\s*setDrawerOpen\(true\)/);
+    assert.match(view, /showSelectionDetails/);
     assert.match(view, /Continue to Restriction Rules/);
     assert.match(view, /Review Restriction Changes/);
     assert.match(view, /Back to Selection/);
+    assert.match(scope, /Customize selection/);
     assert.match(view, /onSelectRow/);
     assert.match(scope, /cursor-pointer/);
     assert.match(scope, /focus-within:ring-2/);

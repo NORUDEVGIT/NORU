@@ -393,7 +393,15 @@ export function RatesWorkspace({
           />
         );
       case "rate-history":
-        return <RateHistoryView restaurantId={restaurantId} context={context} />;
+        return (
+          <RateHistoryView
+            restaurantId={restaurantId}
+            context={context}
+            roomTypes={roomTypes}
+            ratePlans={ratePlans}
+            onContextChange={updateContext}
+          />
+        );
       case "restrictions":
         return (
           <RestrictionCalendarView
@@ -733,6 +741,7 @@ export function RatesWorkspace({
         <main className="space-y-4 p-4 sm:p-5 lg:p-6">
           {requestedView !== "rate-plans-reference" &&
           requestedView !== "bulk-rate-change" &&
+          requestedView !== "rate-history" &&
           requestedView !== "apply-restriction" &&
           requestedView !== "restriction-history" &&
           requestedView !== "promotions" &&

@@ -46,6 +46,7 @@ import {
 import { useMoney } from "@/core/state/property-format";
 import { BulkDefineStep } from "../bulk-rate-change/bulk-define-step";
 import { BulkRateChangePanel } from "../bulk-rate-change/bulk-rate-change-panel";
+import { BulkScopeStep } from "../bulk-rate-change/bulk-scope-step";
 import type { BulkWizardStep } from "../bulk-rate-change/bulk-wizard-progress";
 import { BulkConfirmApply } from "../impact-review/bulk-confirm-apply";
 import { BulkReviewPanel } from "../impact-review/bulk-review-panel";
@@ -101,7 +102,7 @@ export function RateCalendarView({
 
   // Embedded Bulk Rate Change Workflow State
   const [bulkDrawerOpen, setBulkDrawerOpen] = useState(false);
-  const [bulkStep, setBulkStep] = useState<BulkWizardStep>(2);
+  const [bulkStep, setBulkStep] = useState<BulkWizardStep>(1);
   const [action, setAction] = useState<RateChangeRule["type"]>("SET_RATE");
   const [value, setValue] = useState("");
   const [sourceDate, setSourceDate] = useState("");
@@ -177,6 +178,17 @@ export function RateCalendarView({
     }
     return { plan: null, roomType: null, cells: [] };
   }, [selected, query.data]);
+
+  const calendarRoomTypes = useMemo(() => {
+    if (!query.data) return [];
+    return query.data.groups.map((group) => ({
+      id: group.roomType.id,
+      code: group.roomType.code,
+      name: group.roomType.name,
+      active: true,
+      sellable: true,
+    }));
+  }, [query.data]);
 
   const allPlansInCalendar = useMemo(() => {
     if (!query.data) return [];
@@ -319,6 +331,16 @@ export function RateCalendarView({
     setSubmittedRequest(null);
   }
 
+  function openBulkDrawer(selectAllWhenEmpty = false) {
+    if (selectAllWhenEmpty && selectedPlanIds.length === 0 && allPlansInCalendar.length > 0) {
+      setSelectedPlanIds(allPlansInCalendar.map((plan) => plan.id));
+    }
+    setSelected(null);
+    setSelectedRowPlanId(null);
+    setBulkStep(1);
+    setBulkDrawerOpen(true);
+  }
+
   const pageCount = filteredCalendar
     ? Math.max(1, Math.ceil(filteredCalendar.groupCount / RATE_CALENDAR_GROUP_PAGE_SIZE))
     : 1;
@@ -342,7 +364,29 @@ export function RateCalendarView({
     </div>
   );
 
-  let bulkDrawerBody = (
+  let bulkDrawerBody =
+    bulkStep === 1 ? (
+      <BulkScopeStep
+        fromDate={context.fromDate}
+        toDate={context.toDate}
+        roomTypeIds={calendarRoomTypes
+          .filter((roomType) => selectedPlans.some((plan) => plan.roomTypeId === roomType.id))
+          .map((roomType) => roomType.id)}
+        planIds={selectedPlanIds}
+        roomTypes={calendarRoomTypes}
+        ratePlans={allPlansInCalendar}
+        expansion={expansion}
+        showSelectionDetails
+        idPrefix="calendar-bulk"
+        onChange={(patch) => {
+          if (patch.fromDate != null || patch.toDate != null) {
+            onRangeChange(patch.fromDate ?? context.fromDate, patch.toDate ?? context.toDate);
+          }
+          if (patch.planIds) setSelectedPlanIds(patch.planIds);
+          resetBulkState();
+        }}
+      />
+    ) : (
     <div className="space-y-4">
       {scopeSummaryCard}
       <BulkDefineStep
@@ -361,7 +405,7 @@ export function RateCalendarView({
       />
       {bulkError ? <p className="text-xs font-medium text-[#6B4A0A]">{bulkError}</p> : null}
     </div>
-  );
+    );
 
   if (bulkStep === 3) {
     bulkDrawerBody = (
@@ -408,19 +452,37 @@ export function RateCalendarView({
           className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#FAF6F0]"
           onClick={() => {
             setBulkDrawerOpen(false);
-            setBulkStep(2);
+            setBulkStep(1);
             resetBulkState();
           }}
         >
           Cancel
         </button>
-        {bulkStep > 2 ? (
+        {bulkStep === 2 ? (
+          <button
+            type="button"
+            className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#FAF6F0]"
+            onClick={() => setBulkStep(1)}
+          >
+            Back to Selection
+          </button>
+        ) : bulkStep > 2 ? (
           <button
             type="button"
             className="inline-flex h-9 items-center rounded-lg border border-[#DED7CD] bg-white px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#FAF6F0]"
             onClick={() => setBulkStep((current) => (current - 1) as BulkWizardStep)}
           >
             Back
+          </button>
+        ) : null}
+        {bulkStep === 1 ? (
+          <button
+            type="button"
+            className="inline-flex h-9 items-center rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#B5882D] disabled:opacity-50"
+            disabled={!expansion.ok || selectedPlans.length === 0}
+            onClick={() => setBulkStep(2)}
+          >
+            Continue to Set Rate
           </button>
         ) : null}
         {bulkStep === 2 ? (
@@ -466,19 +528,7 @@ export function RateCalendarView({
         canViewRates={access.canViewRates}
         selectedCount={selectedPlanIds.length}
         onRangeChange={onRangeChange}
-        onBulkTrigger={() => {
-          const nextPlanIds =
-            selectedPlanIds.length > 0
-              ? selectedPlanIds
-              : allPlansInCalendar.map((plan) => plan.id);
-          if (selectedPlanIds.length === 0 && nextPlanIds.length > 0) {
-            setSelectedPlanIds(nextPlanIds);
-          }
-          setSelected(null);
-          setSelectedRowPlanId(null);
-          setBulkStep(2);
-          setBulkDrawerOpen(true);
-        }}
+        onBulkTrigger={() => openBulkDrawer(true)}
       />
 
       {selectedPlanIds.length > 0 ? (
@@ -516,12 +566,7 @@ export function RateCalendarView({
             <button
               type="button"
               disabled={!expansion.ok}
-              onClick={() => {
-                setSelected(null);
-                setSelectedRowPlanId(null);
-                setBulkStep(2);
-                setBulkDrawerOpen(true);
-              }}
+              onClick={() => openBulkDrawer()}
               className="inline-flex h-8 items-center rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm hover:bg-[#B5882D] disabled:opacity-50"
             >
               Set Rate for Selected Scope ({selectedPlanIds.length})

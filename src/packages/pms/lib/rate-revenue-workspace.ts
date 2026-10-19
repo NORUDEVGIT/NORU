@@ -90,7 +90,7 @@ export const REVENUE_VIEW_DEFINITIONS: RevenueViewDefinition[] = [
     section: "revenue-control",
     description: "Operational occupancy, ADR and RevPAR from reservation pricing snapshots.",
     implemented: true,
-    contextFields: ["dateRange", "roomType", "ratePlan", "segment", "source", "channel"],
+    contextFields: ["dateRange", "roomType", "ratePlan"],
   },
   {
     id: "rate-plans-reference",

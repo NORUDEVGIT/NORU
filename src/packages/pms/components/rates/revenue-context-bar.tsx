@@ -54,9 +54,10 @@ function FilterSelect({
   options: Array<{ id: string; label: string }>;
   status?: "loading" | "error" | "success";
 }) {
+  const fieldClass = "grid min-w-44 flex-1 gap-1.5 text-xs font-semibold text-[#5A4833]";
   if (status === "loading") {
     return (
-      <label className="grid min-w-44 flex-1 gap-1.5 text-xs font-semibold text-[#5A4833]">
+      <label className={fieldClass}>
         {label}
         <p className="flex h-10 w-full items-center text-sm text-muted-foreground">Loading…</p>
       </label>
@@ -66,7 +67,7 @@ function FilterSelect({
     return null;
   }
   return (
-    <label className="grid min-w-44 flex-1 gap-1.5 text-xs font-semibold text-[#5A4833]">
+    <label className={fieldClass}>
       {label}
       {options.length === 0 ? (
         <p className="flex h-10 items-center text-xs font-normal text-muted-foreground">
@@ -174,7 +175,7 @@ export function RevenueContextBar({
       onRemove: () => onChange({ ratePlanId: null }),
     });
   }
-  if (context.marketSegmentId) {
+  if (fields.includes("segment") && context.marketSegmentId) {
     const ms = marketSegments.find((r) => r.id === context.marketSegmentId);
     activeChips.push({
       id: "segment",
@@ -182,7 +183,7 @@ export function RevenueContextBar({
       onRemove: () => onChange({ marketSegmentId: null }),
     });
   }
-  if (context.commercialSourceId) {
+  if (fields.includes("source") && context.commercialSourceId) {
     const bs = bookingSources.find((r) => r.id === context.commercialSourceId);
     activeChips.push({
       id: "source",
@@ -190,7 +191,7 @@ export function RevenueContextBar({
       onRemove: () => onChange({ commercialSourceId: null }),
     });
   }
-  if (context.salesChannelId) {
+  if (fields.includes("channel") && context.salesChannelId) {
     const sc = salesChannels.find((r) => r.id === context.salesChannelId);
     activeChips.push({
       id: "channel",
@@ -199,14 +200,26 @@ export function RevenueContextBar({
     });
   }
 
+  const singleLine =
+    !onSearchChange &&
+    !fields.includes("segment") &&
+    !fields.includes("source") &&
+    !fields.includes("channel");
+
   return (
     <section className="rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-sm">
-      <div className="flex flex-wrap items-end gap-3.5">
+      <div
+        className={
+          singleLine
+            ? "flex flex-nowrap items-end gap-3 overflow-x-auto"
+            : "flex flex-wrap items-end gap-3.5"
+        }
+      >
         {fields.includes("dateRange") ? (
           <>
             <label
               htmlFor="revenue-from"
-              className="grid gap-1.5 text-xs font-semibold text-[#5A4833]"
+              className="grid shrink-0 gap-1.5 text-xs font-semibold text-[#5A4833]"
             >
               From
               <Input
@@ -222,7 +235,7 @@ export function RevenueContextBar({
             </label>
             <label
               htmlFor="revenue-to"
-              className="grid gap-1.5 text-xs font-semibold text-[#5A4833]"
+              className="grid shrink-0 gap-1.5 text-xs font-semibold text-[#5A4833]"
             >
               To
               <Input
@@ -344,7 +357,7 @@ export function RevenueContextBar({
           />
         ) : null}
 
-        <div className="ml-auto flex items-end gap-2">
+        <div className="ml-auto flex shrink-0 items-end gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -379,14 +392,14 @@ export function RevenueContextBar({
             {activeChips.length > 0 ? ` (${activeChips.length})` : ""}
           </Button>
         </div>
-
-        {coreConfigStatus === "error" ? (
-          <p className="w-full text-sm text-destructive">{REVENUE_CONFIG_LOAD_ERROR}</p>
-        ) : null}
-        {cataloguesError ? (
-          <p className="w-full text-sm text-destructive">{cataloguesError}</p>
-        ) : null}
       </div>
+
+      {coreConfigStatus === "error" ? (
+        <p className="mt-2 text-sm text-destructive">{REVENUE_CONFIG_LOAD_ERROR}</p>
+      ) : null}
+      {cataloguesError ? (
+        <p className="mt-2 text-sm text-destructive">{cataloguesError}</p>
+      ) : null}
 
       {filtersExpanded && fields.includes("dateRange") ? (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#EFE9DF] pt-2.5 text-xs text-[#5A4833]">

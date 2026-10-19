@@ -22,6 +22,8 @@ export function BulkRestrictionScopeStep({
   ratePlans,
   expansion,
   onChange,
+  showSelectionDetails = false,
+  idPrefix = "bulk-restriction",
 }: {
   fromDate: string;
   toDate: string;
@@ -36,6 +38,8 @@ export function BulkRestrictionScopeStep({
     roomTypeIds?: string[];
     planIds?: string[];
   }) => void;
+  showSelectionDetails?: boolean;
+  idPrefix?: string;
 }) {
   const [draftFrom, setDraftFrom] = useState(fromDate);
   const [draftTo, setDraftTo] = useState(toDate);
@@ -48,6 +52,17 @@ export function BulkRestrictionScopeStep({
   const allPlanIds = ratePlans.map((plan) => plan.id);
   const allChecked = allPlanIds.length > 0 && allPlanIds.every((id) => planIds.includes(id));
 
+  function applyPlanSelection(nextPlanIds: string[]) {
+    const nextRoomTypeIds = Array.from(
+      new Set(
+        ratePlans
+          .filter((plan) => nextPlanIds.includes(plan.id))
+          .map((plan) => plan.roomTypeId),
+      ),
+    );
+    onChange({ roomTypeIds: nextRoomTypeIds, planIds: nextPlanIds });
+  }
+
   return (
     <section className="space-y-2.5 rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-sm">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -55,13 +70,13 @@ export function BulkRestrictionScopeStep({
           <div className="flex flex-wrap items-end gap-2.5">
             <div>
               <Label
-                htmlFor="bulk-restriction-from"
+                htmlFor={`${idPrefix}-from`}
                 className="text-xs font-semibold text-[#5A4833]"
               >
                 From
               </Label>
               <Input
-                id="bulk-restriction-from"
+                id={`${idPrefix}-from`}
                 type="date"
                 value={draftFrom}
                 onChange={(event) => {
@@ -72,11 +87,11 @@ export function BulkRestrictionScopeStep({
               />
             </div>
             <div>
-              <Label htmlFor="bulk-restriction-to" className="text-xs font-semibold text-[#5A4833]">
+              <Label htmlFor={`${idPrefix}-to`} className="text-xs font-semibold text-[#5A4833]">
                 To
               </Label>
               <Input
-                id="bulk-restriction-to"
+                id={`${idPrefix}-to`}
                 type="date"
                 value={draftTo}
                 onChange={(event) => {
@@ -119,12 +134,7 @@ export function BulkRestrictionScopeStep({
               <input
                 type="checkbox"
                 checked={allChecked}
-                onChange={() =>
-                  onChange({
-                    roomTypeIds: allChecked ? [] : roomTypes.map((rt) => rt.id),
-                    planIds: allChecked ? [] : allPlanIds,
-                  })
-                }
+                onChange={() => applyPlanSelection(allChecked ? [] : allPlanIds)}
                 className="size-4 shrink-0 cursor-pointer accent-[#C89933]"
               />
               <span>Select all plans in grid ({ratePlans.length})</span>
@@ -140,6 +150,79 @@ export function BulkRestrictionScopeStep({
           ) : null}
         </div>
       </div>
+
+      {showSelectionDetails && ratePlans.length > 0 ? (
+        <div className="space-y-2 border-t border-[#EFE9DF] pt-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8A641A]">
+              Customize selection
+            </p>
+            <p className="mt-0.5 text-xs text-[#756A5B]">
+              Review the preselected scope and uncheck anything that should not change.
+            </p>
+          </div>
+          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+            {roomTypes.map((roomType) => {
+              const roomPlans = ratePlans.filter((plan) => plan.roomTypeId === roomType.id);
+              if (roomPlans.length === 0) return null;
+              const roomPlanIds = roomPlans.map((plan) => plan.id);
+              const roomChecked = roomPlanIds.every((id) => planIds.includes(id));
+              const roomPartiallyChecked =
+                !roomChecked && roomPlanIds.some((id) => planIds.includes(id));
+              return (
+                <div
+                  key={roomType.id}
+                  className="rounded-lg border border-[#E4DDD3] bg-[#FAF8F5] p-3"
+                >
+                  <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-[#251605]">
+                    <input
+                      type="checkbox"
+                      checked={roomChecked}
+                      ref={(node) => {
+                        if (node) node.indeterminate = roomPartiallyChecked;
+                      }}
+                      onChange={() => {
+                        const nextPlanIds = roomChecked
+                          ? planIds.filter((id) => !roomPlanIds.includes(id))
+                          : Array.from(new Set([...planIds, ...roomPlanIds]));
+                        applyPlanSelection(nextPlanIds);
+                      }}
+                      className="size-4 shrink-0 cursor-pointer accent-[#C89933]"
+                    />
+                    <span>{roomType.name}</span>
+                    <span className="ml-auto text-xs font-medium text-[#756A5B]">
+                      {roomPlanIds.filter((id) => planIds.includes(id)).length}/{roomPlans.length}
+                    </span>
+                  </label>
+                  <div className="mt-2 grid gap-1.5 pl-6 sm:grid-cols-2">
+                    {roomPlans.map((plan) => (
+                      <label
+                        key={plan.id}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-[#5A4833] hover:bg-white"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={planIds.includes(plan.id)}
+                          onChange={() => {
+                            const nextPlanIds = planIds.includes(plan.id)
+                              ? planIds.filter((id) => id !== plan.id)
+                              : [...planIds, plan.id];
+                            applyPlanSelection(nextPlanIds);
+                          }}
+                          className="size-3.5 shrink-0 cursor-pointer accent-[#C89933]"
+                        />
+                        <span className="truncate">
+                          {plan.code} — {plan.name}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <div className="border-t border-[#EFE9DF] pt-2">
         {expansion.ok ? (
