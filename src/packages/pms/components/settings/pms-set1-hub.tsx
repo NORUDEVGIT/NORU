@@ -313,6 +313,10 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                   window.history.back();
                   return;
                 }
+                if (document.referrer && document.referrer.includes("/restaurant/pms/rates-revenue")) {
+                  window.location.href = "/restaurant/pms/rates-revenue";
+                  return;
+                }
                 window.location.href = "/restaurant/pms/room-inventory";
               }}
               className="h-8 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs"
@@ -397,6 +401,10 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                 }
                 if (window.history.length > 1 && document.referrer && document.referrer.includes("/restaurant/")) {
                   window.history.back();
+                  return;
+                }
+                if (document.referrer && document.referrer.includes("/restaurant/pms/rates-revenue")) {
+                  window.location.href = "/restaurant/pms/rates-revenue";
                   return;
                 }
                 window.location.href = "/restaurant/pms/room-inventory";

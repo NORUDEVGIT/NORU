@@ -15,7 +15,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 
-import { CARD3_PACKAGES_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
+import { CARD3_PACKAGES_HREF, withReturnTo } from "@/packages/pms/lib/pms-property-setup-card3";
 import { CommercialActivationWorkflow } from "../commercial-activation/commercial-activation-workflow";
 import { PACKAGE_TYPES, PACKAGE_TYPE_LABELS } from "@/packages/pms/lib/pms-set3-rates-guest";
 import { getPackagesWorkspace } from "@/packages/pms/lib/revenue/commercial-packages.functions";
@@ -238,7 +238,10 @@ export function PackagesView({
               Activate Package
             </button>
           ) : null}
-          <a href={CARD3_PACKAGES_HREF} className={commercialOutlineButton()}>
+          <a
+            href={withReturnTo(CARD3_PACKAGES_HREF, "/restaurant/pms/rates-revenue?view=packages")}
+            className={commercialOutlineButton()}
+          >
             Configure in Property Setup
           </a>
           {onNavigateView ? (
@@ -739,7 +742,9 @@ function PackageRowMenu({
       <DropdownMenuContent align="end" className="min-w-48">
         <DropdownMenuItem onClick={onView}>View Details</DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <a href={CARD3_PACKAGES_HREF}>Configure in Property Setup</a>
+          <a href={withReturnTo(CARD3_PACKAGES_HREF, "/restaurant/pms/rates-revenue?view=packages")}>
+            Configure in Property Setup
+          </a>
         </DropdownMenuItem>
         {onNavigateView ? (
           <DropdownMenuItem onClick={() => onNavigateView("commercial-history")}>

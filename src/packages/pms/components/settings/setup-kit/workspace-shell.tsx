@@ -22,6 +22,10 @@ function handleBackToPrevious() {
     window.history.back();
     return;
   }
+  if (document.referrer && document.referrer.includes("/restaurant/pms/rates-revenue")) {
+    window.location.href = "/restaurant/pms/rates-revenue";
+    return;
+  }
   window.location.href = "/restaurant/pms/room-inventory";
 }
 

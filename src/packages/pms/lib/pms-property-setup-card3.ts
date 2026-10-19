@@ -5,7 +5,9 @@
  * No persistence, APIs, schema, or financial business logic.
  */
 
-import { SET1_HUB_HREF } from "./pms-set1-foundation.ts";
+import { SET1_HUB_HREF, withReturnTo } from "./pms-set1-foundation.ts";
+
+export { withReturnTo };
 
 export const CARD3_TITLE = "Financial & Commercial";
 export const CARD3_WORKSPACE_TITLE = "Financial & Commercial";

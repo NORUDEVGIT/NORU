@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { CARD2_HREF, CARD2_RATES_HREF } from "@/packages/pms/lib/pms-property-setup-card2";
-import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { SET1_HUB_HREF, withReturnTo } from "@/packages/pms/lib/pms-set1-foundation";
 import { addUtcDays } from "@/packages/pms/lib/revenue/revenue-context";
 import type {
   RevenueContext,
@@ -28,8 +28,15 @@ import { REVENUE_CONFIG_LOAD_ERROR } from "@/packages/pms/lib/revenue/revenue-re
 const ALL = "all";
 
 function SetupLink({ href, children }: { href: string; children: string }) {
+  const returnTo =
+    typeof window !== "undefined"
+      ? `${window.location.pathname}${window.location.search}`
+      : "/restaurant/pms/rates-revenue";
   return (
-    <a href={href} className="font-semibold text-primary underline-offset-2 hover:underline">
+    <a
+      href={withReturnTo(href, returnTo)}
+      className="font-semibold text-primary underline-offset-2 hover:underline"
+    >
       {children}
     </a>
   );

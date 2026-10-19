@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronLeft, ChevronRight, Filter, MoreHorizontal, RotateCcw } from "lucide-react";
 
-import { CARD3_PROMOTIONS_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
+import { CARD3_PROMOTIONS_HREF, withReturnTo } from "@/packages/pms/lib/pms-property-setup-card3";
 import { getPromotionsWorkspace } from "@/packages/pms/lib/revenue/commercial-overview.functions";
 import {
   COMMERCIAL_EMPTY_COPY,
@@ -191,7 +191,10 @@ export function PromotionsView({
               Activate Promotion
             </button>
           ) : null}
-          <a href={CARD3_PROMOTIONS_HREF} className={commercialOutlineButton()}>
+          <a
+            href={withReturnTo(CARD3_PROMOTIONS_HREF, "/restaurant/pms/rates-revenue?view=promotions")}
+            className={commercialOutlineButton()}
+          >
             Configure in Property Setup
           </a>
           {onNavigateView ? (
@@ -653,7 +656,9 @@ function PromotionRowMenu({
       <DropdownMenuContent align="end" className="min-w-48">
         <DropdownMenuItem onClick={onView}>View Details</DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <a href={CARD3_PROMOTIONS_HREF}>Configure in Property Setup</a>
+          <a href={withReturnTo(CARD3_PROMOTIONS_HREF, "/restaurant/pms/rates-revenue?view=promotions")}>
+            Configure in Property Setup
+          </a>
         </DropdownMenuItem>
         {onNavigateView ? (
           <DropdownMenuItem onClick={() => onNavigateView("commercial-history")}>

@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 
-import { CARD3_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
+import { CARD3_HREF, withReturnTo } from "@/packages/pms/lib/pms-property-setup-card3";
 import { CommercialActivationWorkflow } from "../commercial-activation/commercial-activation-workflow";
 import { getCommercialOperationDetail } from "@/packages/pms/lib/revenue/commercial-history.functions";
 import {
@@ -217,7 +217,10 @@ export function CommercialOverviewView({
             <History className="size-3.5 text-[#8A641A]" />
             <span>View Commercial History</span>
           </button>
-          <a href={CARD3_HREF} className={commercialOutlineButton()}>
+          <a
+            href={withReturnTo(CARD3_HREF, "/restaurant/pms/rates-revenue?view=commercial-overview")}
+            className={commercialOutlineButton()}
+          >
             Configure in Property Setup
           </a>
           {canManage ? (

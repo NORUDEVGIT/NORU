@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { X } from "lucide-react";
 
-import { CARD3_PROMOTIONS_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
+import { CARD3_PROMOTIONS_HREF, withReturnTo } from "@/packages/pms/lib/pms-property-setup-card3";
 import type { RevenueWorkspaceView } from "@/packages/pms/lib/rate-revenue-workspace";
 import {
   getCommercialOperationDetail,
@@ -274,7 +274,10 @@ function DrawerBody({
                   Reactivate
                 </button>
               ) : null}
-              <a href={CARD3_PROMOTIONS_HREF} className={commercialOutlineButton()}>
+              <a
+                href={withReturnTo(CARD3_PROMOTIONS_HREF, "/restaurant/pms/rates-revenue?view=promotions")}
+                className={commercialOutlineButton()}
+              >
                 Configure in Property Setup
               </a>
               {onNavigateView ? (

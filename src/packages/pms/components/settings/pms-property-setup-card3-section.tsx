@@ -138,6 +138,12 @@ export function PmsPropertySetupCard3Section({
   const nextDomain = currentIndex >= 0 ? CARD3_DOMAINS[currentIndex + 1] : undefined;
 
   function goBackToHub() {
+    const search = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const returnTo = search?.get("returnTo") || search?.get("from");
+    if (returnTo) {
+      window.location.href = returnTo;
+      return;
+    }
     window.location.hash = "";
     window.history.replaceState(null, "", SET1_HUB_HREF);
     window.dispatchEvent(new HashChangeEvent("hashchange"));

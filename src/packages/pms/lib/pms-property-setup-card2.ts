@@ -5,8 +5,10 @@
  * live in rooms.functions.ts. This module stays UI-hash/step ids only.
  */
 
-import { SET1_HUB_HREF } from "./pms-set1-foundation.ts";
+import { SET1_HUB_HREF, withReturnTo } from "./pms-set1-foundation.ts";
 import type { PropertySetupCardStatus } from "./pms-property-setup-card1.ts";
+
+export { withReturnTo };
 
 export const CARD2_TITLE = "Rooms & Operations";
 export const CARD2_WORKSPACE_TITLE = "Rooms & Operations";
