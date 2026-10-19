@@ -225,7 +225,14 @@ describe("AIOS-05 inbound Aiosell reservations", () => {
     expect(memory.snapshots[0]?.bookingId).toBe("Book-1");
     expect(memory.mappings).toHaveLength(1);
     expect(memory.reservations[0]?.folioId).toBeTruthy();
-    expect(memory.transactions).toHaveLength(0);
+    expect(memory.transactions).toEqual([
+      {
+        reservationId: memory.reservations[0]?.id,
+        type: "charge",
+        amount: 200,
+        referenceType: "reservation_room_charge",
+      },
+    ]);
     expect(memory.availabilityWrites).toHaveLength(0);
     expect(events[0]).toMatchObject({
       direction: "inbound",
@@ -238,7 +245,42 @@ describe("AIOS-05 inbound Aiosell reservations", () => {
     expect(sql).toContain(AIOSELL_CANCEL_REASON);
     expect(sql).not.toContain("public.price_hotel_stay");
     expect(sql).not.toContain("INSERT INTO public.folio_transactions");
+    const folioSql = readFileSync(
+      resolve(process.cwd(), "supabase/migrations/0173_channel_reservation_folio.sql"),
+      "utf8",
+    );
+    const folioSqlCopy = readFileSync(
+      resolve(process.cwd(), "drizzle/migrations/0173_channel_reservation_folio.sql"),
+      "utf8",
+    );
+    expect(folioSqlCopy).toBe(folioSql);
+    expect(folioSql).toContain("post_channel_reservation_folio");
+    expect(folioSql).toContain("external_prepaid");
+    expect(folioSql).toContain("pay_at_hotel IS DISTINCT FROM false");
     expect(sql).not.toContain("UPDATE public.pms_room_type_availability");
+  });
+
+  it("settles a prepaid channel booking and leaves a pay-at-hotel booking due", async () => {
+    const prepaid = harness();
+    await post(prepaid.directory, booking({ pah: false, bookingId: "Prepaid-1" }));
+    expect(prepaid.memory.transactions).toEqual([
+      {
+        reservationId: prepaid.memory.reservations[0]?.id,
+        type: "charge",
+        amount: 200,
+        referenceType: "reservation_room_charge",
+      },
+      {
+        reservationId: prepaid.memory.reservations[0]?.id,
+        type: "payment",
+        amount: 200,
+        referenceType: "external_prepaid",
+      },
+    ]);
+
+    const due = harness();
+    await post(due.directory, booking({ pah: true, bookingId: "Due-1" }));
+    expect(due.memory.transactions.map((line) => line.type)).toEqual(["charge"]);
   });
 
   it("accepts a guest-less booking without inventing contact data", async () => {
@@ -585,7 +627,7 @@ describe("AIOS-05 inbound Aiosell reservations", () => {
     });
     expect(cancelled.body.success).toBe(true);
     expect(memory.reservations[0]?.status).toBe("cancelled");
-    expect(memory.transactions).toHaveLength(0);
+    expect(memory.transactions.map((line) => line.type)).toEqual(["charge"]);
     expect(memory.history.some((row) => row.eventType === "cancelled")).toBe(true);
     expect(memory.history.some((row) => row.eventType === "external_reservation_cancelled")).toBe(
       true,

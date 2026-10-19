@@ -108,12 +108,14 @@ describe("Room & Inventory workspace", () => {
     expect(availability).toContain("Available Tonight");
     expect(availability).toContain("Occupied Tonight");
     expect(availability).toContain("Blocked Inventory");
-    expect(availability).toContain("Overbooking Allowance");
+    expect(availability).toContain("Allowances stay off this physical grid");
     expect(availability).toContain("Availability Matrix");
     expect(availability).toContain("Reserved / Demand");
     expect(availability).toContain("lg:grid-cols-[minmax(0,1fr)_360px]");
     expect(availability).toContain("View All Blocks");
     expect(workspace).toContain('onOpenBlocks={() => selectView("blocks")}');
+    expect(workspace).toContain("openBlockForRoom");
+    expect(workspace).toContain("createPrefill={blockPrefill}");
   });
 
   it("renders the approved monthly inventory calendar and summary panel", () => {
@@ -195,21 +197,36 @@ describe("Room & Inventory workspace", () => {
     expect(rules).toContain("query.data.rules");
     expect(rules).toContain("saveInventoryRules");
     expect(rules).toContain("Sellable room required");
-    expect(rules).toContain("Config only");
     expect(rules).toContain("Block-type inventory behavior");
+    expect(rules).not.toContain("Operational availability required");
+    expect(rules).not.toContain("Room move allowed");
+    expect(rules).not.toContain("Config only");
     expect(rules).not.toContain("query.data.sellableStatusRequired");
   });
 
-  it("keeps overbooking configuration separate from operational allowance", () => {
+  it("keeps overbooking configuration separate from the operational board", () => {
     expect(workspace).toContain("<RoomOverbookingView restaurantId={restaurantId} />");
     expect(rules).toContain("OVERBOOKING_CAPACITY_NOTE");
-    expect(rules).toContain("Operational allowance");
-    expect(rules).toContain("Stop-sell fallback");
-    expect(rules).toContain("Not configured");
+    expect(rules).toContain("getOverbookingBoard");
+    expect(rules).toContain("Allowed overbooking");
+    expect(rules).toContain("Consumed overbooking");
+    expect(rules).not.toContain("Stop-sell fallback");
   });
 
   it("scopes maintenance authorization failures to the maintenance view", () => {
     expect(more).toContain("Maintenance details are unavailable for your role");
     expect(workspace).toContain("<RoomMaintenanceView");
+  });
+
+  it("gives the maintenance tab the same request actions as Maintenance", () => {
+    expect(more).toContain("createMaintenanceRequest");
+    expect(more).toContain("updateMaintenanceRequest");
+    expect(more).toContain("Log request");
+    expect(more).toContain("Start");
+    expect(more).toContain("Complete");
+    expect(more).toContain("Reopen");
+    expect(more).toContain('status: "in_progress"');
+    expect(more).toContain('status: "resolved"');
+    expect(more).toContain('status: "open"');
   });
 });

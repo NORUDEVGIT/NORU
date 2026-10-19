@@ -36,13 +36,13 @@ import {
   saveRateOverride,
   saveRateRestriction,
 } from "@/packages/pms/lib/rates.functions";
-import { CARD2_RATES_HREF } from "@/packages/pms/lib/pms-property-setup-card2";
+import { CARD2_RATES_HREF, withReturnTo } from "@/packages/pms/lib/pms-property-setup-card2";
 import { useMoney } from "@/core/state/property-format";
 
 function PropertySetupRatesLink({ className }: { className?: string }) {
   return (
     <a
-      href={CARD2_RATES_HREF}
+      href={withReturnTo(CARD2_RATES_HREF, "/restaurant/pms/rates-revenue?view=rates-reference")}
       className={className ?? "font-medium text-primary underline-offset-2 hover:underline"}
     >
       Property Setup
@@ -342,7 +342,7 @@ export function RatePlansTab({
           </div>
 
           <a
-            href={CARD2_RATES_HREF}
+            href={withReturnTo(CARD2_RATES_HREF, "/restaurant/pms/rates-revenue?view=rates-reference")}
             className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#DDD4C5] bg-[#FAF6F0] px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#F1E9DC]"
           >
             <Settings className="size-3.5 text-[#8A641A]" />
@@ -448,7 +448,10 @@ export function RatePlansTab({
                             </DropdownMenuItem>
                           ) : null}
                           <DropdownMenuItem asChild>
-                            <a href={CARD2_RATES_HREF} className="flex items-center">
+                            <a
+                              href={withReturnTo(CARD2_RATES_HREF, "/restaurant/pms/rates-revenue?view=rates-reference")}
+                              className="flex items-center"
+                            >
                               <Settings className="mr-2 size-4 text-[#8A641A]" />
                               <span>Configure in Property Setup</span>
                             </a>

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PmsPropertySetupCard2RoomTypes } from "@/packages/pms/components/settings/pms-property-setup-card2-room-types";
 import { PmsPropertySetupCard2Housekeeping } from "@/packages/pms/components/settings/pms-property-setup-card2-housekeeping";
@@ -66,6 +66,23 @@ export function PmsPropertySetupCard2Section({
     }
     return initialStep;
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const applyFromSearch = () => {
+      const fromSearch = card2StepFromSearch(window.location.search);
+      if (fromSearch) {
+        setStep(fromSearch);
+      }
+    };
+    applyFromSearch();
+    window.addEventListener("popstate", applyFromSearch);
+    window.addEventListener("hashchange", applyFromSearch);
+    return () => {
+      window.removeEventListener("popstate", applyFromSearch);
+      window.removeEventListener("hashchange", applyFromSearch);
+    };
+  }, []);
   const [roomTypesStatus, setRoomTypesStatus] = useState<PropertySetupCardStatus>(
     card2Steps?.["room-types"] ?? "not_started",
   );
@@ -180,6 +197,12 @@ export function PmsPropertySetupCard2Section({
       setStep(previous);
       return;
     }
+    const search = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const returnTo = search?.get("returnTo") || search?.get("from");
+    if (returnTo) {
+      window.location.href = returnTo;
+      return;
+    }
     window.location.hash = "";
     window.history.replaceState(null, "", SET1_HUB_HREF);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
@@ -240,11 +263,6 @@ export function PmsPropertySetupCard2Section({
           <p>Canonical capacity: {inventoryStats.canonicalEngineSellableRoomCount}</p>
           <p>Block policies: {inventoryStats.blockPoliciesConfigured} / 9</p>
         </div>
-        {inventoryStats.configuredButNotOperational ? (
-          <p className="text-sm text-[#9A6A12]">
-            Overbooking policy configured — engine support not active
-          </p>
-        ) : null}
       </PropertySetupPanel>
     ) : step === "amenities" && amenitiesStats ? (
       <PropertySetupPanel title="Amenities" icon="amenity" helper="Configured amenity coverage.">

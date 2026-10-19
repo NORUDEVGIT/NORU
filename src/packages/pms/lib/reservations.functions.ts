@@ -23,6 +23,45 @@ import { assertRoomTypeOccupancy } from "./create-reservation-phase1-section4";
 import { buildStayAmendmentResult, type StayAmendmentResult } from "./reservation-stay-amendment";
 import { propertyToday } from "@/shared/lib/property-dates";
 import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
+
+async function assertExplicitOverbookingAllowed(
+  db: {
+    from: (table: string) => {
+      select: (columns: string) => {
+        eq: (
+          column: string,
+          value: string,
+        ) => {
+          maybeSingle: () => Promise<{
+            data: {
+              manager_approval_required?: boolean | null;
+              overbooking_reason_required?: boolean | null;
+            } | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
+    };
+  },
+  restaurantId: string,
+  role: string,
+  reason: string | null | undefined,
+) {
+  const loaded = await db
+    .from("pms_inventory_rules")
+    .select("manager_approval_required, overbooking_reason_required")
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (loaded.error) throw new Error(loaded.error.message);
+  const approvalRequired = loaded.data ? Boolean(loaded.data.manager_approval_required) : true;
+  const reasonRequired = loaded.data ? Boolean(loaded.data.overbooking_reason_required) : true;
+  if (approvalRequired && role !== "owner" && role !== "manager") {
+    throw reservationError("OVERBOOKING_APPROVAL_REQUIRED");
+  }
+  if (reasonRequired && !reason?.trim()) {
+    throw reservationError("OVERBOOKING_REASON_REQUIRED");
+  }
+}
 import { stayFitsAllotment } from "./groups";
 import {
   assertCreateReservationSection7,
@@ -1238,6 +1277,8 @@ const stayInputSchema = z.object({
     )
     .max(20)
     .optional(),
+  overbookingRequested: z.boolean().optional(),
+  overbookingReason: z.string().trim().max(500).nullable().optional(),
 });
 
 async function postCreateReservationMoney(
@@ -1600,20 +1641,34 @@ export const createReservation = createServerFn({ method: "POST" })
       };
       const hasCommercialSelection =
         Boolean(data.promotionActivationId) || (data.packageActivationIds?.length ?? 0) > 0;
-      const { data: created, error } = hasCommercialSelection
-        ? await (
-            supabaseAdmin as never as {
-              rpc: (
-                name: string,
-                args: Record<string, unknown>,
-              ) => Promise<{ data: unknown; error: { message: string } | null }>;
-            }
-          ).rpc("create_hotel_reservation_priced_commercial", {
+      if (data.overbookingRequested) {
+        await assertExplicitOverbookingAllowed(
+          supabaseAdmin as never,
+          data.restaurantId,
+          me.role,
+          data.overbookingReason,
+        );
+      }
+      const overbookingRpc = supabaseAdmin as never as {
+        rpc: (
+          name: string,
+          args: Record<string, unknown>,
+        ) => Promise<{ data: unknown; error: { message: string } | null }>;
+      };
+      const { data: created, error } = data.overbookingRequested
+        ? await overbookingRpc.rpc("create_hotel_reservation_overbooking", {
             ...pricedArgs,
+            _overbooking_reason: data.overbookingReason,
             _promotion_activation_id: data.promotionActivationId ?? null,
             _package_activation_ids: data.packageActivationIds ?? null,
           })
-        : await supabaseAdmin.rpc("create_hotel_reservation_priced", pricedArgs);
+        : hasCommercialSelection
+          ? await overbookingRpc.rpc("create_hotel_reservation_priced_commercial", {
+              ...pricedArgs,
+              _promotion_activation_id: data.promotionActivationId ?? null,
+              _package_activation_ids: data.packageActivationIds ?? null,
+            })
+          : await supabaseAdmin.rpc("create_hotel_reservation_priced", pricedArgs);
       if (error) throw rateError(reservationError(error.message).message);
 
       const row = created as unknown as {
@@ -1872,7 +1927,15 @@ export const amendReservation = createServerFn({ method: "POST" })
           excludeReservationId: data.reservationId,
         });
       }
-      const { data: updated, error } = await supabaseAdmin.rpc("amend_hotel_reservation_priced", {
+      if (data.overbookingRequested) {
+        await assertExplicitOverbookingAllowed(
+          supabaseAdmin as never,
+          data.restaurantId,
+          me.role,
+          data.overbookingReason,
+        );
+      }
+      const amendArgs = {
         _restaurant_id: data.restaurantId,
         _reservation_id: data.reservationId,
         _room_type_id: data.roomTypeId,
@@ -1886,7 +1949,20 @@ export const amendReservation = createServerFn({ method: "POST" })
         _rate_plan_id: (data.ratePlanId ?? null) as unknown as string,
         _membership_id: me.id,
         _infants: data.infants ?? null,
-      });
+      };
+      const { data: updated, error } = data.overbookingRequested
+        ? await (
+            supabaseAdmin as never as {
+              rpc: (
+                name: string,
+                args: Record<string, unknown>,
+              ) => Promise<{ data: unknown; error: { message: string } | null }>;
+            }
+          ).rpc("amend_hotel_reservation_overbooking", {
+            ...amendArgs,
+            _overbooking_reason: data.overbookingReason,
+          })
+        : await supabaseAdmin.rpc("amend_hotel_reservation_priced", amendArgs);
       if (error) throw rateError(reservationError(error.message).message);
 
       const nextGuestId = data.guestId !== existing.guest_id ? data.guestId : null;

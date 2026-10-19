@@ -377,6 +377,33 @@ describe("FO-EX1 exception feeds", () => {
     assert.equal(comingSoon.some((item) => item.id === "overbooking"), false);
   });
 
+  it("uses canonical shortages and ignores the local demand heuristic", () => {
+    const { rows } = deriveExceptionRows({
+      arrivals: [],
+      inHouse: [],
+      departures: [],
+      rooms: [{ id: "r1", status: "available", roomTypeId: "deluxe", roomTypeName: "Deluxe" }],
+      folioLane: "live",
+      businessDate: "2026-09-12",
+      demandStays: [
+        demand({ id: "a", roomTypeId: "deluxe" }),
+        demand({ id: "b", roomTypeId: "deluxe" }),
+      ],
+      canonicalOverbooking: [
+        {
+          date: "2026-09-12",
+          roomTypeId: "standard",
+          roomTypeName: "Standard",
+          shortage: 2,
+        },
+      ],
+    });
+    const over = rows.filter((row) => row.type === "overbooking");
+    assert.equal(over.length, 1);
+    assert.equal(over[0]?.reason, "Standard overbooked +2");
+    assert.equal(over[0]?.roomTypeName, "Standard");
+  });
+
   it("emits one High Overbooking row when demand exceeds sellable", () => {
     const { rows } = deriveExceptionRows({
       arrivals: [],

@@ -17,6 +17,10 @@ import {
   RATE_HISTORY_PAGE_SIZES,
   historyPaginationRange,
 } from "@/packages/pms/lib/revenue/rate-history";
+import type {
+  RevenueRatePlan,
+  RevenueRoomType,
+} from "@/packages/pms/lib/revenue/revenue-config.types";
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import {
   RATE_HISTORY_LOAD_ERROR,
@@ -39,9 +43,15 @@ function TableSkeleton() {
 export function RateHistoryView({
   restaurantId,
   context,
+  roomTypes = [],
+  ratePlans = [],
+  onContextChange,
 }: {
   restaurantId: string;
   context: RevenueContext;
+  roomTypes?: RevenueRoomType[] | undefined;
+  ratePlans?: RevenueRatePlan[] | undefined;
+  onContextChange?: ((patch: Partial<RevenueContext>) => void) | undefined;
 }) {
   const listFn = useServerFn(listRateChangeHistory);
   const detailFn = useServerFn(getRateChangeOperationDetail);
@@ -108,7 +118,11 @@ export function RateHistoryView({
   return (
     <div className="min-w-0 space-y-3">
       <RateHistoryFilters
+        context={context}
+        roomTypes={roomTypes}
+        ratePlans={ratePlans}
         actionType={actionType}
+        onContextChange={onContextChange}
         onActionTypeChange={(value) => {
           setActionType(value);
           setSelected(null);

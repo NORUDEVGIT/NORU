@@ -30,17 +30,13 @@ export const INVENTORY_IMPACTS = [
 export type InventoryImpact = (typeof INVENTORY_IMPACTS)[number];
 
 export const OVERBOOKING_CAPACITY_NOTE =
-  "Overbooking policy is configured, but reservation capacity enforcement remains unchanged.";
+  "Each room type has its own nightly allowance. When both a maximum and a percentage are set, the smaller limit is used. Percentage is calculated from that room type's physical sellable capacity and rounded down.";
 
-export const MOVE_DEPENDENT_KEYS = [
-  "roomTypeChangeAllowed",
-  "rateRecalculationRequired",
-  "moveApprovalRequired",
-  "moveReasonRequired",
-  "inventoryRecalculationRequired",
-  "housekeepingUpdateRequired",
-  "maintenanceValidationRequired",
-] as const;
+export const OVERBOOKING_FUTURE_LIMITS_NOTE =
+  "When this is on, a date range replaces that room type's allowance for those nights. Overlapping ranges use the smaller allowance. Other nights keep the room-type allowance.";
+
+export const OVERBOOKING_AUTHORIZATION_NOTE =
+  "Manager approval and a reason are required only when those switches are on. Normal bookings still stop at physical availability.";
 
 export type InventoryBlockTypeRule = {
   blockType: InventoryBlockType;
@@ -51,16 +47,8 @@ export type InventoryBlockTypeRule = {
 
 export type InventoryRulesDraft = {
   sellableStatusRequired: boolean;
-  operationalAvailabilityRequired: boolean;
-  housekeepingReadinessRequired: boolean;
-  maintenanceClearRequired: boolean;
-  roomBlockRemovesInventory: boolean;
-  outOfOrderRemovesInventory: boolean;
-  outOfServiceRemovesInventory: boolean;
   maintenanceAffectsAvailability: boolean;
   housekeepingAffectsAssignment: boolean;
-  automaticAssignmentAllowed: boolean;
-  manualAssignmentAllowed: boolean;
   requireRoomTypeMatch: boolean;
   requireOccupancyMatch: boolean;
   requireBedTypeMatch: boolean;
@@ -71,14 +59,6 @@ export type InventoryRulesDraft = {
   useGuestPreference: boolean;
   requireHousekeepingReadiness: boolean;
   requireMaintenanceAvailability: boolean;
-  roomMoveAllowed: boolean;
-  roomTypeChangeAllowed: boolean;
-  rateRecalculationRequired: boolean;
-  moveApprovalRequired: boolean;
-  moveReasonRequired: boolean;
-  inventoryRecalculationRequired: boolean;
-  housekeepingUpdateRequired: boolean;
-  maintenanceValidationRequired: boolean;
   overbookingAllowed: boolean;
   maximumOverbooking: number | null;
   percentageLimit: number | null;
@@ -115,16 +95,8 @@ export function defaultBlockTypeRules(): InventoryBlockTypeRule[] {
 export function defaultInventoryRules(): InventoryRulesDraft {
   return {
     sellableStatusRequired: true,
-    operationalAvailabilityRequired: true,
-    housekeepingReadinessRequired: false,
-    maintenanceClearRequired: false,
-    roomBlockRemovesInventory: false,
-    outOfOrderRemovesInventory: true,
-    outOfServiceRemovesInventory: true,
     maintenanceAffectsAvailability: false,
     housekeepingAffectsAssignment: false,
-    automaticAssignmentAllowed: false,
-    manualAssignmentAllowed: true,
     requireRoomTypeMatch: true,
     requireOccupancyMatch: false,
     requireBedTypeMatch: false,
@@ -135,14 +107,6 @@ export function defaultInventoryRules(): InventoryRulesDraft {
     useGuestPreference: false,
     requireHousekeepingReadiness: false,
     requireMaintenanceAvailability: false,
-    roomMoveAllowed: true,
-    roomTypeChangeAllowed: false,
-    rateRecalculationRequired: false,
-    moveApprovalRequired: false,
-    moveReasonRequired: true,
-    inventoryRecalculationRequired: false,
-    housekeepingUpdateRequired: false,
-    maintenanceValidationRequired: false,
     overbookingAllowed: false,
     maximumOverbooking: null,
     percentageLimit: null,
@@ -185,15 +149,6 @@ export function normalizeInventoryRules(draft: InventoryRulesDraft): InventoryRu
     ...draft,
     blockTypes: mergeBlockTypeRules(draft.blockTypes ?? []),
   };
-  if (!next.roomMoveAllowed) {
-    next.roomTypeChangeAllowed = false;
-    next.rateRecalculationRequired = false;
-    next.moveApprovalRequired = false;
-    next.moveReasonRequired = false;
-    next.inventoryRecalculationRequired = false;
-    next.housekeepingUpdateRequired = false;
-    next.maintenanceValidationRequired = false;
-  }
   if (!next.overbookingAllowed) {
     next.maximumOverbooking = null;
     next.percentageLimit = null;
@@ -203,6 +158,9 @@ export function normalizeInventoryRules(draft: InventoryRulesDraft): InventoryRu
     next.overridePermissionRequired = false;
     next.overbookingReasonRequired = false;
     next.overbookingAlertEnabled = false;
+  } else {
+    next.roomTypeLimitEnabled = false;
+    next.overridePermissionRequired = false;
   }
   return next;
 }
@@ -211,16 +169,8 @@ export function inventoryRulesErrors(draft: InventoryRulesDraft): string[] {
   const errors: string[] = [];
   const boolFields: Array<keyof InventoryRulesDraft> = [
     "sellableStatusRequired",
-    "operationalAvailabilityRequired",
-    "housekeepingReadinessRequired",
-    "maintenanceClearRequired",
-    "roomBlockRemovesInventory",
-    "outOfOrderRemovesInventory",
-    "outOfServiceRemovesInventory",
     "maintenanceAffectsAvailability",
     "housekeepingAffectsAssignment",
-    "automaticAssignmentAllowed",
-    "manualAssignmentAllowed",
     "requireRoomTypeMatch",
     "requireOccupancyMatch",
     "requireBedTypeMatch",
@@ -231,14 +181,6 @@ export function inventoryRulesErrors(draft: InventoryRulesDraft): string[] {
     "useGuestPreference",
     "requireHousekeepingReadiness",
     "requireMaintenanceAvailability",
-    "roomMoveAllowed",
-    "roomTypeChangeAllowed",
-    "rateRecalculationRequired",
-    "moveApprovalRequired",
-    "moveReasonRequired",
-    "inventoryRecalculationRequired",
-    "housekeepingUpdateRequired",
-    "maintenanceValidationRequired",
     "overbookingAllowed",
     "roomTypeLimitEnabled",
     "dateBasedLimitEnabled",
@@ -252,10 +194,6 @@ export function inventoryRulesErrors(draft: InventoryRulesDraft): string[] {
   }
   if (errors.length > 0) return Array.from(new Set(errors));
 
-  if (!draft.manualAssignmentAllowed && !draft.automaticAssignmentAllowed) {
-    errors.push("At least one assignment mode (manual or automatic) must be allowed.");
-  }
-
   if (draft.maximumOverbooking != null) {
     if (!Number.isInteger(draft.maximumOverbooking) || draft.maximumOverbooking < 0) {
       errors.push("Maximum overbooking must be empty or an integer of 0 or more.");
@@ -268,7 +206,6 @@ export function inventoryRulesErrors(draft: InventoryRulesDraft): string[] {
       errors.push("Percentage limit must be empty or a number between 0 and 100.");
     }
   }
-
   if (!Array.isArray(draft.blockTypes)) {
     errors.push("Block-type policy must include all nine supported types.");
     return errors;
@@ -302,7 +239,7 @@ export function evaluateCard2InventoryReadiness(input: {
   persisted: boolean;
   rules: InventoryRulesDraft;
 }): InventoryReadiness {
-  const configuredButNotOperational = Boolean(input.rules.overbookingAllowed);
+  const configuredButNotOperational = false;
   if (!input.persisted) {
     return {
       ready: false,

@@ -61,9 +61,8 @@ function DomainChip({ domain }: { domain: UnifiedRevenueAuditDomain }) {
 
   return (
     <span
-      className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
-        styles[domain] ?? "border-border bg-muted text-muted-foreground"
-      }`}
+      className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${styles[domain] ?? "border-border bg-muted text-muted-foreground"
+        }`}
     >
       {labels[domain] ?? domain}
     </span>
@@ -292,44 +291,40 @@ export function RevenueAuditView({
           <button
             type="button"
             onClick={() => setTab("history")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${
-              activeTab === "history"
+            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${activeTab === "history"
                 ? "bg-[#F7F4EE] text-foreground shadow-2xs"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             Control History
           </button>
           <button
             type="button"
             onClick={() => setTab("rates")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${
-              activeTab === "rates"
+            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${activeTab === "rates"
                 ? "bg-[#F7F4EE] text-foreground shadow-2xs"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             Rate Audit
           </button>
           <button
             type="button"
             onClick={() => setTab("restrictions")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${
-              activeTab === "restrictions"
+            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${activeTab === "restrictions"
                 ? "bg-[#F7F4EE] text-foreground shadow-2xs"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             Restriction Audit
           </button>
           <button
             type="button"
             onClick={() => setTab("overrides")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${
-              activeTab === "overrides"
+            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${activeTab === "overrides"
                 ? "bg-[#F7F4EE] text-foreground shadow-2xs"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             Override Audit
           </button>

@@ -103,7 +103,7 @@ export function RestrictionHistoryView({
     queryKey: ["restriction-operation", restaurantId, selected?.operationId ?? null],
     queryFn: () =>
       detailFn({
-        data: { restaurantId, operationId: selected!.operationId },
+        data: { restaurantId, operationId: selected?.operationId! },
       }),
     enabled: Boolean(selected?.operationId),
     retry: false,

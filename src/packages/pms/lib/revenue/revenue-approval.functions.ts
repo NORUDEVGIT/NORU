@@ -14,6 +14,7 @@ import {
 import {
   approveRevenueApprovalRequest,
   cancelRevenueApprovalRequest,
+  getRevenueApprovalMetrics,
   getRevenueApprovalPolicy,
   getRevenueApprovalRequestDetail,
   listRevenueApprovalActors,
@@ -170,4 +171,20 @@ export const listRevenueApprovalActorsFn = createServerFn({ method: "POST" })
     await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return listRevenueApprovalActors(supabaseAdmin, data.restaurantId);
+  });
+
+export const getRevenueApprovalMetricsFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        membershipId: idSchema.optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRateManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return getRevenueApprovalMetrics(supabaseAdmin, data.restaurantId, data.membershipId);
   });

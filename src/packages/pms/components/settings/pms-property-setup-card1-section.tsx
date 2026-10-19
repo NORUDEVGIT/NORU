@@ -144,6 +144,12 @@ export function PmsPropertySetupCard1Section({
       return;
     }
     if (dirty && !window.confirm("Return to Property Setup with unsaved changes?")) return;
+    const search = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const returnTo = search?.get("returnTo") || search?.get("from");
+    if (returnTo) {
+      window.location.href = returnTo;
+      return;
+    }
     window.location.hash = "";
     window.history.replaceState(null, "", SET1_HUB_HREF);
     window.dispatchEvent(new HashChangeEvent("hashchange"));

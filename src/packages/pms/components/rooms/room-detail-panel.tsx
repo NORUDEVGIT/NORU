@@ -68,14 +68,14 @@ export function RoomDetailPanel({
       <div className="border-b border-border px-4 pb-0 pt-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold tracking-tight">Room {room.roomNumber}</h3>
-            <p className="text-xs text-muted-foreground">
+            <h3 className="text-xl font-bold tracking-tight text-[#251605]">Room {room.roomNumber}</h3>
+            <p className="text-xs font-medium text-muted-foreground">
               {room.roomTypeName || "Room type not set"}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <span
-              className={`rounded-full border px-2 py-1 text-[11px] font-medium ${roomStateClasses(state)}`}
+              className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${roomStateClasses(state)}`}
             >
               {ROOM_STATE_LABELS[state]}
             </span>
@@ -97,7 +97,7 @@ export function RoomDetailPanel({
               key={item}
               type="button"
               onClick={() => setTab(item)}
-              className={`border-b-2 pb-2 text-xs font-medium capitalize ${
+              className={`border-b-2 pb-2 text-sm font-semibold capitalize transition-colors ${
                 tab === item
                   ? "border-[#C89933] text-[#6B4A0A]"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -134,15 +134,8 @@ export function RoomDetailPanel({
               </div>
             </DetailSection>
 
-            <DetailSection
-              title="Room Information"
-              action={
-                <Button asChild variant="outline" size="sm" className="h-7 px-2 text-[11px]">
-                  <a href="/restaurant/settings#rooms-inventory">Manage Configuration</a>
-                </Button>
-              }
-            >
-              <dl className="grid grid-cols-[120px_1fr] gap-x-4 gap-y-2 text-xs">
+            <DetailSection title="Room Information">
+              <dl className="grid grid-cols-[130px_1fr] gap-x-4 gap-y-2.5 text-xs">
                 <Info label="Room Number" value={room.roomNumber} />
                 <Info label="Room Type" value={room.roomTypeName} />
                 <Info label="Building" value={room.building} />
@@ -159,7 +152,7 @@ export function RoomDetailPanel({
 
             <DetailSection title="Current Information">
               {room.restrictionReason || room.restrictionExpectedReturn || block ? (
-                <dl className="grid grid-cols-[110px_1fr] gap-x-4 gap-y-2 text-xs">
+                <dl className="grid grid-cols-[130px_1fr] gap-x-4 gap-y-2.5 text-xs">
                   <Info label="Reason" value={room.restrictionReason ?? block?.reason} />
                   <Info
                     label="Since"
@@ -191,56 +184,50 @@ export function RoomDetailPanel({
 
             <DetailSection title="Actions">
               <div className="grid grid-cols-2 gap-2">
-                <DisabledAction
-                  label="Change Status"
-                  explanation="Generic status changes are not supported. Use the canonical restriction actions."
-                />
                 <Button
                   variant="outline"
                   size="sm"
-                  className="justify-start text-xs"
+                  className="h-9 justify-start text-xs font-semibold"
                   onClick={onOpenBlocks}
                 >
-                  <LockKeyhole className="mr-2 size-3.5" /> Block Room
+                  <LockKeyhole className="mr-2 size-4" /> Block Room
                 </Button>
                 <ActionWithPermission
                   allowed={canManageRestrictions}
                   label="Set OOS / OOO"
                   explanation="Restriction changes require manager access."
-                  icon={<Ban className="mr-2 size-3.5" />}
+                  icon={<Ban className="mr-2 size-4" />}
                   onClick={() => onSetRestriction("out_of_order")}
                 />
-                <ActionWithPermission
-                  allowed={canManageRestrictions && room.status !== "available"}
-                  label="Return to Service"
-                  explanation={
-                    canManageRestrictions
-                      ? "This room is already available."
-                      : "Returning a room to service requires manager access."
-                  }
-                  icon={<Play className="mr-2 size-3.5" />}
-                  onClick={() => onSetRestriction("available")}
-                />
-                <Button asChild variant="outline" size="sm" className="justify-start text-xs">
-                  <a href="/restaurant/settings#rooms-inventory">
-                    <Settings2 className="mr-2 size-3.5" /> Configuration
+                {room.status !== "available" ? (
+                  <ActionWithPermission
+                    allowed={canManageRestrictions}
+                    label="Return to Service"
+                    explanation="Returning a room to service requires manager access."
+                    icon={<Play className="mr-2 size-4" />}
+                    onClick={() => onSetRestriction("available")}
+                  />
+                ) : null}
+                <Button asChild variant="outline" size="sm" className="h-9 justify-start text-xs font-semibold">
+                  <a href="/restaurant/settings?card2Step=room-types&returnTo=/restaurant/pms/room-inventory#rooms-inventory">
+                    <Settings2 className="mr-2 size-4" /> Configuration
                   </a>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="justify-start text-xs"
+                  className="h-9 justify-start text-xs font-semibold"
                   onClick={() => setTab("history")}
                 >
-                  <History className="mr-2 size-3.5" /> View History
+                  <History className="mr-2 size-4" /> View History
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="col-span-2 justify-start text-xs"
+                  className="col-span-2 h-9 justify-start text-xs font-semibold"
                   onClick={onInspect}
                 >
-                  <ClipboardCheck className="mr-2 size-3.5" /> Inspect Assignment
+                  <ClipboardCheck className="mr-2 size-4" /> Inspect Assignment
                 </Button>
               </div>
             </DetailSection>
@@ -267,19 +254,19 @@ export function RoomDetailPanel({
               {roomEvents.map((event) => (
                 <div key={event.id} className="border-l-2 border-[#C89933]/50 pl-3">
                   <div className="flex items-start justify-between gap-3">
-                    <p className="text-xs font-medium capitalize">
+                    <p className="text-xs font-bold capitalize text-[#251605]">
                       {event.eventType.replaceAll("_", " ")}
                     </p>
-                    <time className="shrink-0 text-[10px] text-muted-foreground">
+                    <time className="shrink-0 text-xs text-muted-foreground">
                       {new Date(event.createdAt).toLocaleString()}
                     </time>
                   </div>
                   {event.previousValues || event.newValues ? (
-                    <p className="mt-1 break-words text-[11px] text-muted-foreground">
+                    <p className="mt-1 break-words text-xs text-muted-foreground">
                       {event.previousValues ?? "—"} → {event.newValues ?? "—"}
                     </p>
                   ) : null}
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Actor {event.actorMembershipId.slice(0, 8)}…
                     {event.notes ? ` · ${event.notes}` : ""}
                   </p>
@@ -311,7 +298,7 @@ function DetailSection({
   return (
     <section>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h4 className="text-xs font-semibold">{title}</h4>
+        <h4 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">{title}</h4>
         {action}
       </div>
       {children}
@@ -335,10 +322,10 @@ function StatusBox({
     neutral: "bg-slate-400",
   }[tone];
   return (
-    <div className="rounded-lg border border-border bg-background px-2.5 py-2">
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="mt-1 flex items-center gap-1.5 truncate text-[11px] font-medium capitalize">
-        <span className={`size-1.5 shrink-0 rounded-full ${dot}`} />
+    <div className="rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm">
+      <p className="text-xs font-medium text-[#756A5B]">{label}</p>
+      <p className="mt-1 flex items-center gap-1.5 truncate text-xs font-bold capitalize text-[#251605]">
+        <span className={`size-2 shrink-0 rounded-full ${dot}`} />
         {value}
       </p>
     </div>
@@ -348,27 +335,11 @@ function StatusBox({
 function Info({ label, value }: { label: string; value: ReactNode }) {
   return (
     <>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 font-medium">
+      <dt className="text-xs font-medium text-[#756A5B]">{label}</dt>
+      <dd className="min-w-0 text-xs font-semibold text-[#251605]">
         {value === null || value === undefined || value === "" ? "—" : value}
       </dd>
     </>
-  );
-}
-
-function DisabledAction({ label, explanation }: { label: string; explanation: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span>
-          <Button disabled variant="outline" size="sm" className="w-full justify-start text-xs">
-            <BedDouble className="mr-2 size-3.5" />
-            {label}
-          </Button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{explanation}</TooltipContent>
-    </Tooltip>
   );
 }
 
@@ -387,7 +358,7 @@ function ActionWithPermission({
 }) {
   if (allowed)
     return (
-      <Button variant="outline" size="sm" className="justify-start text-xs" onClick={onClick}>
+      <Button variant="outline" size="sm" className="h-9 justify-start text-xs font-semibold" onClick={onClick}>
         {icon}
         {label}
       </Button>
@@ -396,7 +367,7 @@ function ActionWithPermission({
     <Tooltip>
       <TooltipTrigger asChild>
         <span>
-          <Button disabled variant="outline" size="sm" className="w-full justify-start text-xs">
+          <Button disabled variant="outline" size="sm" className="h-9 w-full justify-start text-xs font-semibold">
             {icon}
             {label}
           </Button>

@@ -4,7 +4,9 @@
  */
 import { canManageHousekeeping } from "./housekeeping.server";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
-import { deriveExceptionRows, isOooOrOos } from "./fo-exceptions";
+import { deriveExceptionRows, isOooOrOos, OVERBOOKING_HORIZON_DAYS } from "./fo-exceptions";
+import { loadOverbookingNights, overbookingShortageRows } from "./overbooking.functions";
+import { addDays } from "./reservation-dates";
 import { loadFoExceptionFeeds } from "./fo-exceptions.functions";
 import { loadFoStaySignals } from "./fo-exceptions.functions";
 import {
@@ -719,6 +721,13 @@ export async function loadFrontOfficeRoomOpsQueue(params: {
     maintenanceStatus: r.maintenance_status,
   }));
 
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const overbookingNights = await loadOverbookingNights(
+    supabaseAdmin as never,
+    restaurantId,
+    businessDate,
+    addDays(businessDate, OVERBOOKING_HORIZON_DAYS - 1),
+  );
   const derived = deriveExceptionRows({
     arrivals: ((arrivalRows ?? []) as unknown as StayRow[]).map(toStayLike),
     inHouse: ((inHouseRows ?? []) as unknown as StayRow[]).map(toStayLike),
@@ -729,6 +738,7 @@ export async function loadFrontOfficeRoomOpsQueue(params: {
     overbookingLane: feeds.overbookingLane,
     discrepancyLane: feeds.discrepancyLane,
     demandStays: feeds.demandStays,
+    canonicalOverbooking: overbookingShortageRows(overbookingNights),
     discrepancies: feeds.discrepancies,
     canResolveDiscrepancy: feeds.canResolveDiscrepancy,
   });

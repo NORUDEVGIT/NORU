@@ -201,7 +201,7 @@ export function RevenueAuditDetailDrawer({
                           <div className="flex items-center gap-1.5 font-mono">
                             <span className="text-muted-foreground line-through">
                               {change["previousRate"] !== null &&
-                              change["previousRate"] !== undefined
+                                change["previousRate"] !== undefined
                                 ? `${change["currency"] ?? ""} ${change["previousRate"]}`
                                 : "None"}
                             </span>

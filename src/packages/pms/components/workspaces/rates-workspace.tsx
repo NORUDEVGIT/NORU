@@ -150,6 +150,7 @@ export function RatesWorkspace({
 
   useEffect(() => {
     setView(normalizeRevenueView(search.view ?? search.tab));
+    setSearchQuery("");
   }, [search.view, search.tab]);
 
   const fetchAccess = useServerFn(getRevenueAccess);
@@ -213,11 +214,23 @@ export function RatesWorkspace({
   const secondaryViews = viewsForRevenueSection(activeSection, access);
   const showSecondary = activeSection !== "revenue-control" && activeSection !== "more";
   const moreViews = viewsForRevenueSection("more", access).filter(
-    (item) => revenueViewDefinition(item).implemented,
+    (item) => item !== "competitor-setup" && revenueViewDefinition(item).implemented,
   );
   const primarySections = REVENUE_PRIMARY_SECTIONS.filter(
     (section) => viewsForRevenueSection(section.id, access).length > 0,
   );
+
+  function defaultRangeForView(targetView: RevenueWorkspaceView, bDate: string) {
+    if (targetView === "control-center") return defaultControlCenterRange(bDate);
+    if (targetView === "rate-calendar" || targetView === "restrictions") {
+      return defaultRateCalendarRange(bDate);
+    }
+    if (targetView === "demand-forecast" || targetView === "pickup-pace") {
+      return defaultDemandRange(bDate);
+    }
+    if (targetView === "demand-calendar") return defaultDemandCalendarRange(bDate);
+    return defaultControlCenterRange(bDate);
+  }
 
   function writeState(nextView: RevenueWorkspaceView, nextContext: RevenueContext) {
     const targetView = isDemotedDemandView(nextView) ? REVENUE_DEFAULT_VIEW : nextView;
@@ -226,14 +239,18 @@ export function RatesWorkspace({
     void navigate({
       to: "/restaurant/pms/rates-revenue",
       search: serializeRevenueSearch(targetView, nextContext, {
-        approvalTab: search.approvalTab,
-        approvalRequest: search.approvalRequest,
-        analyticsTab: search.analyticsTab,
-        auditTab: search.auditTab,
-        auditEvent: search.auditEvent,
-        auditAction: search.auditAction,
-        auditActor: search.auditActor,
-        auditSearch: search.auditSearch,
+        approvalTab: targetView === "approvals" ? search.approvalTab : undefined,
+        approvalRequest: targetView === "approvals" ? search.approvalRequest : undefined,
+        analyticsTab: targetView === "revenue-performance" ? search.analyticsTab : undefined,
+        auditTab:
+          targetView === "audit-control" || targetView === "export" ? search.auditTab : undefined,
+        auditEvent: targetView === "audit-control" ? search.auditEvent : undefined,
+        auditAction:
+          targetView === "audit-control" || targetView === "export" ? search.auditAction : undefined,
+        auditActor:
+          targetView === "audit-control" || targetView === "export" ? search.auditActor : undefined,
+        auditSearch:
+          targetView === "audit-control" || targetView === "export" ? search.auditSearch : undefined,
       }),
       replace: true,
     });
@@ -242,7 +259,17 @@ export function RatesWorkspace({
   function selectView(nextView: RevenueWorkspaceView) {
     if (isDemotedDemandView(nextView)) return;
     if (access && !canAccessRevenueView(access, nextView)) return;
-    writeState(nextView, context);
+    setSearchQuery("");
+    const range = defaultRangeForView(nextView, businessDate);
+    writeState(nextView, {
+      fromDate: range.fromDate,
+      toDate: range.toDate,
+      roomTypeId: null,
+      ratePlanId: null,
+      marketSegmentId: null,
+      commercialSourceId: null,
+      salesChannelId: null,
+    });
   }
 
   function updateContext(patch: Partial<RevenueContext>) {
@@ -366,7 +393,15 @@ export function RatesWorkspace({
           />
         );
       case "rate-history":
-        return <RateHistoryView restaurantId={restaurantId} context={context} />;
+        return (
+          <RateHistoryView
+            restaurantId={restaurantId}
+            context={context}
+            roomTypes={roomTypes}
+            ratePlans={ratePlans}
+            onContextChange={updateContext}
+          />
+        );
       case "restrictions":
         return (
           <RestrictionCalendarView
@@ -475,6 +510,8 @@ export function RatesWorkspace({
             context={context}
             access={access!}
             analyticsTab={search.analyticsTab}
+            marketSegments={marketSegments}
+            bookingSources={bookingSources}
           />
         );
       case "audit-control":
@@ -704,6 +741,7 @@ export function RatesWorkspace({
         <main className="space-y-4 p-4 sm:p-5 lg:p-6">
           {requestedView !== "rate-plans-reference" &&
           requestedView !== "bulk-rate-change" &&
+          requestedView !== "rate-history" &&
           requestedView !== "apply-restriction" &&
           requestedView !== "restriction-history" &&
           requestedView !== "promotions" &&

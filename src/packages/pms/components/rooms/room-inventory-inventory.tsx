@@ -35,6 +35,7 @@ import {
   InventoryState,
   InventoryStatusBadge,
   InventoryViewHeader,
+  PmsSelect,
 } from "./room-inventory-shared";
 import {
   addDays,
@@ -1092,19 +1093,14 @@ function SelectField({
   options: string[][];
 }) {
   return (
-    <label className="grid gap-1 text-[10px] font-medium text-muted-foreground">
-      {label}
-      <select
-        className="h-9 min-w-40 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+    <div className="grid gap-1 text-[10px] font-medium text-muted-foreground">
+      <span>{label}</span>
+      <PmsSelect
+        className="h-9 min-w-40 rounded-md border-input bg-background px-3 text-xs text-foreground"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        {options.map(([id, name]) => (
-          <option key={`${id}-${name}`} value={id}>
-            {name}
-          </option>
-        ))}
-      </select>
-    </label>
+        onChange={onChange}
+        options={options.map(([id, name]) => [id, name] as [string, string])}
+      />
+    </div>
   );
 }

@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import {
@@ -22,7 +21,9 @@ import {
 import {
   INVENTORY_BLOCK_TYPES,
   INVENTORY_IMPACTS,
+  OVERBOOKING_AUTHORIZATION_NOTE,
   OVERBOOKING_CAPACITY_NOTE,
+  OVERBOOKING_FUTURE_LIMITS_NOTE,
   card2InventoryStepStatus,
   defaultInventoryRules,
   inventoryRulesErrors,
@@ -31,6 +32,8 @@ import {
   type InventoryRulesDraft,
 } from "@/packages/pms/lib/inventory-rules-card2.server";
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
+import { OverbookingDateLimitsEditor } from "@/packages/pms/components/settings/overbooking-date-limits-editor";
+import { RoomTypeOverbookingEditor } from "@/packages/pms/components/settings/room-type-overbooking-editor";
 
 const BLOCK_LABELS: Record<(typeof INVENTORY_BLOCK_TYPES)[number], string> = {
   temporary: "Temporary",
@@ -74,9 +77,11 @@ function SectionCard({
   children: ReactNode;
   testId?: string;
 }) {
+  const sectionId = testId?.replace(/^pms-card2-inventory-/, "");
   return (
     <section
-      className="scroll-mb-32 rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm"
+      id={sectionId}
+      className="scroll-mb-32 rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm scroll-mt-6"
       data-testid={testId}
     >
       <div className="flex items-start gap-3">
@@ -154,14 +159,7 @@ export function PmsPropertySetupCard2Inventory({
       : ["Save Inventory Rules to create the property configuration."]);
   const stepStatus =
     ready?.stepStatus ?? card2InventoryStepStatus(false, persisted);
-  const configuredButNotOperational = Boolean(
-    ready?.configuredButNotOperational || draft.overbookingAllowed,
-  );
-  const assignmentError =
-    !draft.manualAssignmentAllowed && !draft.automaticAssignmentAllowed
-      ? "At least one assignment mode (manual or automatic) must be allowed."
-      : "";
-
+  const configuredButNotOperational = false;
   useEffect(() => {
     onReadiness(stepStatus, blockers);
     onStats({
@@ -211,8 +209,7 @@ export function PmsPropertySetupCard2Inventory({
   const saveMutation = useMutation({
     mutationFn: async () => {
       const normalized = normalizeInventoryRules(draft);
-      const clientIssue =
-        inventoryRulesErrors(normalized)[0] ?? assignmentError;
+      const clientIssue = inventoryRulesErrors(normalized)[0];
 
       if (clientIssue) {
         return { ok: false as const, message: clientIssue };
@@ -272,6 +269,21 @@ export function PmsPropertySetupCard2Inventory({
     registerActions({ saveDraft, saveAndContinue });
   });
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const targetSection = new URLSearchParams(window.location.search).get("section");
+    if (targetSection) {
+      const el =
+        document.getElementById(targetSection) ||
+        document.querySelector(`[data-testid*="${targetSection}"]`);
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 150);
+      }
+    }
+  }, []);
+
   return (
     <div
       className="space-y-5 scroll-mb-32"
@@ -292,7 +304,7 @@ export function PmsPropertySetupCard2Inventory({
         description="Define which room conditions affect sellability, availability, and assignment."
         testId="pms-card2-inventory-availability"
       >
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           <PolicyToggle
             label="Sellable Status Required"
             help="Room types must be marked sellable before they can contribute inventory."
@@ -300,66 +312,6 @@ export function PmsPropertySetupCard2Inventory({
             disabled={!canEdit}
             onChange={(value) =>
               patch({ sellableStatusRequired: value })
-            }
-          />
-
-          <PolicyToggle
-            label="Operational Availability Required"
-            help="A room's operational state must allow it to be considered available."
-            checked={draft.operationalAvailabilityRequired}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ operationalAvailabilityRequired: value })
-            }
-          />
-
-          <PolicyToggle
-            label="Housekeeping Readiness Required"
-            help="Housekeeping readiness must be satisfied before the room is eligible."
-            checked={draft.housekeepingReadinessRequired}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ housekeepingReadinessRequired: value })
-            }
-          />
-
-          <PolicyToggle
-            label="Maintenance Clear Required"
-            help="Maintenance state must be clear before the room is eligible."
-            checked={draft.maintenanceClearRequired}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ maintenanceClearRequired: value })
-            }
-          />
-
-          <PolicyToggle
-            label="Room Block Removes Inventory"
-            help="Configured room blocks remove affected inventory from availability."
-            checked={draft.roomBlockRemovesInventory}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ roomBlockRemovesInventory: value })
-            }
-          />
-
-          <PolicyToggle
-            label="Out of Order Removes Inventory"
-            help="Out-of-order rooms are removed from available inventory."
-            checked={draft.outOfOrderRemovesInventory}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ outOfOrderRemovesInventory: value })
-            }
-          />
-
-          <PolicyToggle
-            label="Out of Service Removes Inventory"
-            help="Out-of-service rooms are removed from available inventory."
-            checked={draft.outOfServiceRemovesInventory}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ outOfServiceRemovesInventory: value })
             }
           />
 
@@ -490,39 +442,10 @@ export function PmsPropertySetupCard2Inventory({
       <SectionCard
         number={3}
         title="Room Assignment Rules"
-        description="Control assignment modes, required matches, preferences, and readiness checks."
+        description="Control required matches, preferences, and readiness checks."
         testId="pms-card2-inventory-assignment"
       >
         <div className="space-y-5">
-          <RuleGroup title="Assignment Modes">
-            <PolicyToggle
-              label="Automatic Assignment"
-              checked={draft.automaticAssignmentAllowed}
-              disabled={!canEdit}
-              onChange={(value) =>
-                patch({ automaticAssignmentAllowed: value })
-              }
-            />
-            <PolicyToggle
-              label="Manual Assignment"
-              checked={draft.manualAssignmentAllowed}
-              disabled={!canEdit}
-              onChange={(value) =>
-                patch({ manualAssignmentAllowed: value })
-              }
-            />
-          </RuleGroup>
-
-          {assignmentError ? (
-            <p
-              className="text-sm text-destructive"
-              data-testid="pms-card2-inventory-assignment-error"
-              role="alert"
-            >
-              {assignmentError}
-            </p>
-          ) : null}
-
           <RuleGroup title="Required Matches">
             <PolicyToggle
               label="Room Type Match"
@@ -616,95 +539,13 @@ export function PmsPropertySetupCard2Inventory({
 
       <SectionCard
         number={4}
-        title="Room Move Rules"
-        description="Define move-policy requirements. Live room moves remain in Front Office."
-        testId="pms-card2-inventory-move"
-      >
-        <div className="grid gap-3 md:grid-cols-2">
-          <PolicyToggle
-            label="Room Move Allowed"
-            checked={draft.roomMoveAllowed}
-            disabled={!canEdit}
-            onChange={(value) => patch({ roomMoveAllowed: value })}
-          />
-
-          {draft.roomMoveAllowed ? (
-            <>
-              <PolicyToggle
-                label="Room Type Change Allowed"
-                checked={draft.roomTypeChangeAllowed}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ roomTypeChangeAllowed: value })
-                }
-              />
-              <PolicyToggle
-                label="Rate Recalculation Required"
-                checked={draft.rateRecalculationRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ rateRecalculationRequired: value })
-                }
-              />
-              <PolicyToggle
-                id="inventory-move-approval-required"
-                label="Approval Required"
-                checked={draft.moveApprovalRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ moveApprovalRequired: value })
-                }
-              />
-              <PolicyToggle
-                label="Reason Required"
-                checked={draft.moveReasonRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ moveReasonRequired: value })
-                }
-              />
-              <PolicyToggle
-                label="Inventory Recalculation Required"
-                checked={draft.inventoryRecalculationRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ inventoryRecalculationRequired: value })
-                }
-              />
-              <PolicyToggle
-                label="Housekeeping Update Required"
-                checked={draft.housekeepingUpdateRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ housekeepingUpdateRequired: value })
-                }
-              />
-              <PolicyToggle
-                label="Maintenance Validation Required"
-                checked={draft.maintenanceValidationRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ maintenanceValidationRequired: value })
-                }
-              />
-            </>
-          ) : (
-            <div className="rounded-xl border border-[#EDE6D8] bg-[#F7F4EE] px-3 py-3 text-sm text-muted-foreground">
-              Move-dependent rules remain inactive until Room Move Allowed is enabled.
-            </div>
-          )}
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        number={5}
         title="Overbooking Rules"
-        description="Store the property's overbooking policy without creating a separate booking engine."
+        description="The property switch turns overbooking on. Each room type has its own allowance. This does not add rooms to ordinary availability."
         testId="pms-card2-inventory-overbooking"
       >
         <PolicyToggle
           label="Overbooking Allowed"
-          help="This enables policy configuration only; it does not activate live oversell."
+          help="Allows an owner or manager to explicitly overbook. Normal bookings still stop at physical availability."
           checked={draft.overbookingAllowed}
           disabled={!canEdit}
           onChange={(value) => patch({ overbookingAllowed: value })}
@@ -712,102 +553,34 @@ export function PmsPropertySetupCard2Inventory({
 
         {draft.overbookingAllowed ? (
           <div className="mt-4 space-y-4">
-            <div
-              className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-[#251605]"
-              data-testid="pms-card2-inventory-overbooking-warning"
-              role="status"
-            >
-              <p>{OVERBOOKING_CAPACITY_NOTE}</p>
-              <p className="mt-1">
-                Room-type and date-based limits are stored as policy settings and are not yet applied to live capacity.
-              </p>
-            </div>
+            <RoomTypeOverbookingEditor restaurantId={restaurantId} canEdit={canEdit} />
+            <p className="text-sm text-muted-foreground">
+              {OVERBOOKING_CAPACITY_NOTE} {OVERBOOKING_AUTHORIZATION_NOTE}
+            </p>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <Field label="Maximum Overbooking">
-                <Input
-                  type="number"
-                  min={0}
-                  step={1}
-                  disabled={!canEdit}
-                  value={draft.maximumOverbooking ?? ""}
-                  onChange={(event) =>
-                    patch({
-                      maximumOverbooking:
-                        event.target.value === ""
-                          ? null
-                          : Number(event.target.value),
-                    })
-                  }
-                  aria-label="Maximum overbooking"
-                />
-              </Field>
-
-              <Field label="Percentage Limit">
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.01}
-                  disabled={!canEdit}
-                  value={draft.percentageLimit ?? ""}
-                  onChange={(event) =>
-                    patch({
-                      percentageLimit:
-                        event.target.value === ""
-                          ? null
-                          : Number(event.target.value),
-                    })
-                  }
-                  aria-label="Percentage limit"
-                />
-              </Field>
-
-              <PolicyToggle
-                label="Room-Type Limit Enabled"
-                help="Stores the policy flag for room-type limits."
-                checked={draft.roomTypeLimitEnabled}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ roomTypeLimitEnabled: value })
-                }
-              />
-
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
               <PolicyToggle
                 label="Date-Based Limit Enabled"
-                help="Stores the policy flag for date-based limits."
+                help={OVERBOOKING_FUTURE_LIMITS_NOTE}
                 checked={draft.dateBasedLimitEnabled}
                 disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ dateBasedLimitEnabled: value })
-                }
+                onChange={(value) => patch({ dateBasedLimitEnabled: value })}
               />
 
               <PolicyToggle
                 label="Manager Approval Required"
+                help="When on, only an owner or manager can confirm an overbooking."
                 checked={draft.managerApprovalRequired}
                 disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ managerApprovalRequired: value })
-                }
-              />
-
-              <PolicyToggle
-                label="Override Permission Required"
-                checked={draft.overridePermissionRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ overridePermissionRequired: value })
-                }
+                onChange={(value) => patch({ managerApprovalRequired: value })}
               />
 
               <PolicyToggle
                 label="Overbooking Reason Required"
+                help="When on, confirming an overbooking requires a reason."
                 checked={draft.overbookingReasonRequired}
                 disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ overbookingReasonRequired: value })
-                }
+                onChange={(value) => patch({ overbookingReasonRequired: value })}
               />
 
               <PolicyToggle
@@ -819,15 +592,12 @@ export function PmsPropertySetupCard2Inventory({
                 }
               />
             </div>
+            {draft.dateBasedLimitEnabled ? (
+              <OverbookingDateLimitsEditor restaurantId={restaurantId} canEdit={canEdit} />
+            ) : null}
           </div>
         ) : null}
       </SectionCard>
-
-      {configuredButNotOperational ? (
-        <div className="rounded-xl border border-[#E5DED1] bg-white px-4 py-3 text-sm text-muted-foreground">
-          Some Inventory Rules are stored as configuration policy and are not yet enforced by live reservation capacity.
-        </div>
-      ) : null}
 
       {formError ? (
         <p
@@ -851,23 +621,8 @@ function RuleGroup({
 }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-[#251605]">{title}</h3>
-      <div className="mt-2 grid gap-3 md:grid-cols-2">{children}</div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div>
-      <Label className="text-[#251605]">{label}</Label>
-      <div className="mt-1">{children}</div>
+      <h3 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">{title}</h3>
+      <div className="mt-2 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
     </div>
   );
 }
@@ -894,20 +649,21 @@ function PolicyToggle({
       .toLowerCase()}`;
 
   return (
-    <div className="rounded-xl border border-[#EDE6D8] px-3 py-2">
-      <div className="flex items-center justify-between gap-3">
-        <Label htmlFor={id} className="text-[#251605]">
+    <div className="group flex flex-col justify-between rounded-lg border border-[#EDE6D8] bg-[#FAF8F5]/30 px-3 py-2.5 transition-colors hover:border-[#DED7CD] hover:bg-[#FAF8F5]/70">
+      <div className="flex items-center justify-between gap-2.5">
+        <Label htmlFor={id} className="cursor-pointer text-xs font-semibold text-[#251605]">
           {label}
         </Label>
         <Switch
           id={id}
           checked={checked}
           disabled={disabled}
+          className="data-[state=checked]:bg-[#C89933] shrink-0"
           onCheckedChange={onChange}
         />
       </div>
       {help ? (
-        <p className="mt-1 text-xs text-muted-foreground">{help}</p>
+        <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{help}</p>
       ) : null}
     </div>
   );

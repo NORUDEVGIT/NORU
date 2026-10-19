@@ -4,6 +4,7 @@ import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
 import {
   CARD3_PACKAGES_HREF,
   CARD3_PROMOTIONS_HREF,
+  withReturnTo,
 } from "@/packages/pms/lib/pms-property-setup-card3";
 import type { RevenueWorkspaceView } from "@/packages/pms/lib/rate-revenue-workspace";
 import {
@@ -45,9 +46,9 @@ function DrawerBody({
 }) {
   const masterHref =
     detail?.masterId && detail.entityType === "package_activation"
-      ? CARD3_PACKAGES_HREF
+      ? withReturnTo(CARD3_PACKAGES_HREF, "/restaurant/pms/rates-revenue?view=commercial-history")
       : detail?.masterId
-        ? CARD3_PROMOTIONS_HREF
+        ? withReturnTo(CARD3_PROMOTIONS_HREF, "/restaurant/pms/rates-revenue?view=commercial-history")
         : null;
 
   function navigateToEntity(target: CommercialHistoryOperationDetailView) {

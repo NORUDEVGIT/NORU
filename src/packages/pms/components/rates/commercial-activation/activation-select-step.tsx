@@ -1,4 +1,4 @@
-import { CARD3_PACKAGES_HREF, CARD3_PROMOTIONS_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
+import { CARD3_PACKAGES_HREF, CARD3_PROMOTIONS_HREF, withReturnTo } from "@/packages/pms/lib/pms-property-setup-card3";
 import {
   ACTIVATION_FREE_NIGHT_COPY,
   promotionSelectCanAdvance,
@@ -78,7 +78,15 @@ export function PromotionSelectStep({
           Selected {selected.code}. Master value and terms cannot be edited here.
         </p>
       ) : null}
-      <a href={CARD3_PROMOTIONS_HREF} className={`${commercialOutlineButton()} w-full justify-center`}>
+      <a
+        href={withReturnTo(
+          CARD3_PROMOTIONS_HREF,
+          typeof window !== "undefined"
+            ? `${window.location.pathname}${window.location.search}`
+            : "/restaurant/pms/rates-revenue?view=promotions",
+        )}
+        className={`${commercialOutlineButton()} w-full justify-center`}
+      >
         View in Property Setup
       </a>
     </div>
@@ -141,7 +149,15 @@ export function PackageSelectStep({
           Selected {selected.code}. Price and components cannot be edited here.
         </p>
       ) : null}
-      <a href={CARD3_PACKAGES_HREF} className={`${commercialOutlineButton()} w-full justify-center`}>
+      <a
+        href={withReturnTo(
+          CARD3_PACKAGES_HREF,
+          typeof window !== "undefined"
+            ? `${window.location.pathname}${window.location.search}`
+            : "/restaurant/pms/rates-revenue?view=packages",
+        )}
+        className={`${commercialOutlineButton()} w-full justify-center`}
+      >
         View in Property Setup
       </a>
     </div>

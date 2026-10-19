@@ -47,6 +47,7 @@ export const RESERVATION_EVENT_TYPES = [
   "external_reservation_created",
   "external_reservation_modified",
   "external_reservation_cancelled",
+  "overbooked",
   "package_applied",
   "package_removed",
   "promotion_applied",
@@ -105,6 +106,13 @@ export function assertStayDates(
 const DB_ERROR_MESSAGES: Record<string, string> = {
   INVALID_DATES: "Departure must be after arrival.",
   NO_AVAILABILITY: "No rooms of that type are available for those dates.",
+  OVERBOOKING_NOT_ALLOWED: "Overbooking is turned off for this property.",
+  OVERBOOKING_APPROVAL_REQUIRED:
+    "No physical availability. Overbooking requires Owner or Manager authorization.",
+  OVERBOOKING_REASON_REQUIRED: "A reason is required to overbook.",
+  OVERBOOKING_LIMIT_REACHED: "This room type's overbooking limit cannot cover this stay.",
+  OVERBOOKING_CONFIGURATION_INVALID:
+    "Overbooking is enabled without a maximum or percentage limit.",
   ROOM_NOT_ASSIGNABLE:
     "That room can't be used — check it is active, available and of the reserved type.",
   ROOM_ALREADY_BOOKED: "That room is already booked or occupied for part of those dates.",
@@ -181,6 +189,13 @@ export function assertBookingStatusTransition(from: string, to: string): void {
 
 /** Turn RAISE EXCEPTION codes from the reservation functions into user-facing text. */
 export function reservationError(message: string): Error {
+  const limitDetail = message.split("OVERBOOKING_LIMIT_REACHED:")[1]?.trim();
+  if (limitDetail) {
+    const [name, date] = limitDetail.split(" for ");
+    if (name && date) {
+      return new Error(`${name} overbooking limit has been reached for ${date}.`);
+    }
+  }
   for (const [code, text] of Object.entries(DB_ERROR_MESSAGES)) {
     if (message.includes(code)) return new Error(text);
   }

@@ -2,7 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  FileText,
+  RotateCcw,
+  Search,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { InventoryState } from "@/packages/pms/components/rooms/room-inventory-shared";
@@ -18,6 +28,7 @@ import {
 import {
   approveRevenueApprovalRequestFn,
   cancelRevenueApprovalRequestFn,
+  getRevenueApprovalMetricsFn,
   getRevenueApprovalRequestDetailFn,
   listRevenueApprovalActorsFn,
   listRevenueApprovalRequestsFn,
@@ -43,6 +54,7 @@ import {
   parseApprovalTab,
   revenueApprovalActorsQueryKey,
   revenueApprovalDomainLabel,
+  revenueApprovalMetricsQueryKey,
   revenueApprovalQueryKey,
 } from "@/packages/pms/lib/revenue/revenue-approval-ui";
 import {
@@ -59,6 +71,50 @@ import { ApprovalTable } from "./approval-table";
 import { ApprovalTabs } from "./approval-tabs";
 import { useRevenueApprovalPolicy } from "./use-revenue-approval-policy";
 
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  tone,
+  hint,
+  active,
+  onClick,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string | number;
+  tone: string;
+  hint?: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "flex min-w-0 flex-1 items-center gap-3.5 rounded-xl border bg-card p-4 text-left transition-all shadow-2xs hover:shadow-sm",
+        active
+          ? "border-[#C89933] ring-2 ring-[#C89933]/30 bg-[#FAF7F0]"
+          : "border-[#E8E1D7] hover:border-[#D5C7B3] hover:bg-[#FAF8F4]/70",
+      ].join(" ")}
+    >
+      <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${tone}`}>
+        <Icon className="size-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
+          {label}
+        </p>
+        <p className="mt-0.5 font-display text-2xl font-bold leading-tight text-[#251605]">
+          {value}
+        </p>
+        {hint ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{hint}</p> : null}
+      </div>
+    </button>
+  );
+}
+
 function TableSkeleton() {
   return (
     <div
@@ -66,6 +122,34 @@ function TableSkeleton() {
       aria-busy="true"
     />
   );
+}
+
+type ApprovalTabFilters = {
+  search: string;
+  domain: RevenueApprovalDomain | "";
+  status: RevenueApprovalStatus | "";
+  requestedBy: string;
+  reviewedBy: string;
+  fromDate: string;
+  toDate: string;
+};
+
+const DEFAULT_APPROVAL_TAB_FILTERS: ApprovalTabFilters = {
+  search: "",
+  domain: "",
+  status: "",
+  requestedBy: "",
+  reviewedBy: "",
+  fromDate: "",
+  toDate: "",
+};
+
+function createInitialApprovalTabFilters(): Record<RevenueApprovalTab, ApprovalTabFilters> {
+  return {
+    pending: { ...DEFAULT_APPROVAL_TAB_FILTERS },
+    mine: { ...DEFAULT_APPROVAL_TAB_FILTERS },
+    history: { ...DEFAULT_APPROVAL_TAB_FILTERS },
+  };
 }
 
 export function ApprovalsView({
@@ -91,25 +175,36 @@ export function ApprovalsView({
   const setPolicyFn = useServerFn(setRevenueApprovalPolicyFn);
   const actorsFn = useServerFn(listRevenueApprovalActorsFn);
   const policyQuery = useRevenueApprovalPolicy(restaurantId);
+  const metricsFn = useServerFn(getRevenueApprovalMetricsFn);
 
   const actorsQuery = useQuery({
     queryKey: revenueApprovalActorsQueryKey(restaurantId),
     queryFn: () => actorsFn({ data: { restaurantId } }),
   });
 
+  const metricsQuery = useQuery({
+    queryKey: revenueApprovalMetricsQueryKey(restaurantId, access.membershipId ?? undefined),
+    queryFn: () =>
+      metricsFn({
+        data: {
+          restaurantId,
+          membershipId: access.membershipId ?? undefined,
+        },
+      }),
+  });
+
   const tab = parseApprovalTab(approvalTab);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(REVENUE_APPROVAL_DEFAULT_PAGE_SIZE);
-  const [historyStatus, setHistoryStatus] = useState<RevenueApprovalStatus | "">("");
-  const [historyDomain, setHistoryDomain] = useState<RevenueApprovalDomain | "">("");
-  const [requestedBy, setRequestedBy] = useState("");
-  const [reviewedBy, setReviewedBy] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [tabFilters, setTabFilters] = useState<Record<RevenueApprovalTab, ApprovalTabFilters>>(
+    createInitialApprovalTabFilters,
+  );
   const [selectedId, setSelectedId] = useState<string | null>(approvalRequest ?? null);
   const [dialog, setDialog] = useState<ApprovalDialogKind | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [staleCopy, setStaleCopy] = useState(false);
+
+  const currentFilters = tabFilters[tab] ?? DEFAULT_APPROVAL_TAB_FILTERS;
 
   useEffect(() => {
     setSelectedId(approvalRequest ?? null);
@@ -117,7 +212,7 @@ export function ApprovalsView({
 
   useEffect(() => {
     setPage(1);
-  }, [tab, historyStatus, historyDomain, requestedBy, reviewedBy, fromDate, toDate, pageSize]);
+  }, [tab, currentFilters, pageSize]);
 
   function writeApprovalSearch(nextTab: RevenueApprovalTab, nextRequest?: string | null) {
     void navigate({
@@ -130,17 +225,48 @@ export function ApprovalsView({
     });
   }
 
+  function updateFilter<K extends keyof ApprovalTabFilters>(key: K, value: ApprovalTabFilters[K]) {
+    setTabFilters((prev) => ({
+      ...prev,
+      [tab]: {
+        ...prev[tab],
+        [key]: value,
+      },
+    }));
+    setPage(1);
+  }
+
+  function clearFilters() {
+    setTabFilters((prev) => ({
+      ...prev,
+      [tab]: { ...DEFAULT_APPROVAL_TAB_FILTERS },
+    }));
+    setPage(1);
+  }
+
+  function handleTabChange(nextTab: RevenueApprovalTab, overrides?: Partial<ApprovalTabFilters>) {
+    setSelectedId(null);
+    setPage(1);
+    setTabFilters((prev) => ({
+      ...prev,
+      [nextTab]: overrides
+        ? { ...DEFAULT_APPROVAL_TAB_FILTERS, ...overrides }
+        : { ...DEFAULT_APPROVAL_TAB_FILTERS },
+    }));
+    writeApprovalSearch(nextTab, null);
+  }
+
   const listQuery = useQuery({
     queryKey: revenueApprovalQueryKey(restaurantId, {
       tab,
       page,
       pageSize,
-      historyStatus,
-      historyDomain,
-      requestedBy,
-      reviewedBy,
-      fromDate,
-      toDate,
+      historyStatus: currentFilters.status,
+      historyDomain: currentFilters.domain,
+      requestedBy: currentFilters.requestedBy,
+      reviewedBy: currentFilters.reviewedBy,
+      fromDate: currentFilters.fromDate,
+      toDate: currentFilters.toDate,
     }),
     queryFn: () =>
       listFn({
@@ -148,22 +274,83 @@ export function ApprovalsView({
           restaurantId,
           page,
           pageSize,
-          ...(tab === "pending" ? { status: "pending" as const } : {}),
-          ...(tab === "mine" && access.membershipId ? { requestedBy: access.membershipId } : {}),
+          domain: currentFilters.domain || undefined,
+          ...(tab === "pending"
+            ? {
+                status: "pending" as const,
+                requestedBy: currentFilters.requestedBy || undefined,
+              }
+            : {}),
+          ...(tab === "mine" && access.membershipId
+            ? {
+                requestedBy: access.membershipId,
+                status: currentFilters.status || undefined,
+              }
+            : {}),
           ...(tab === "history"
             ? {
-                statuses: historyStatus ? [historyStatus] : [...REVENUE_APPROVAL_TERMINAL_STATUSES],
-                domain: historyDomain || undefined,
-                requestedBy: requestedBy || undefined,
-                reviewedBy: reviewedBy || undefined,
-                fromDate: fromDate || undefined,
-                toDate: toDate || undefined,
+                statuses: currentFilters.status ? [currentFilters.status] : [...REVENUE_APPROVAL_TERMINAL_STATUSES],
+                requestedBy: currentFilters.requestedBy || undefined,
+                reviewedBy: currentFilters.reviewedBy || undefined,
+                fromDate: currentFilters.fromDate || undefined,
+                toDate: currentFilters.toDate || undefined,
               }
             : {}),
         },
       }),
     retry: false,
   });
+
+  const filteredRows = useMemo(() => {
+    const rows = listQuery.data?.rows ?? [];
+    if (!currentFilters.search.trim()) return rows;
+    const q = currentFilters.search.trim().toLowerCase();
+    return rows.filter((row) => {
+      const summaryMatch = row.summary.toLowerCase().includes(q);
+      const reqReasonMatch = Boolean(
+        row.requestReason && row.requestReason.toLowerCase().includes(q),
+      );
+      const revReasonMatch = Boolean(
+        row.reviewReason && row.reviewReason.toLowerCase().includes(q),
+      );
+      const requesterMatch = row.requestedByLabel.toLowerCase().includes(q);
+      const reviewerMatch = Boolean(
+        row.reviewedByLabel && row.reviewedByLabel.toLowerCase().includes(q),
+      );
+      const scopeMatch = Boolean(
+        row.displaySnapshot &&
+          (row.displaySnapshot.roomTypeNames.some((n) => n.toLowerCase().includes(q)) ||
+            row.displaySnapshot.ratePlanNames.some((n) => n.toLowerCase().includes(q))),
+      );
+      return (
+        summaryMatch ||
+        reqReasonMatch ||
+        revReasonMatch ||
+        requesterMatch ||
+        reviewerMatch ||
+        scopeMatch
+      );
+    });
+  }, [listQuery.data?.rows, currentFilters.search]);
+
+  const hasActiveFilters = Boolean(
+    currentFilters.search.trim() ||
+      currentFilters.domain ||
+      currentFilters.status ||
+      currentFilters.requestedBy ||
+      currentFilters.reviewedBy ||
+      currentFilters.fromDate ||
+      currentFilters.toDate,
+  );
+
+  const activeFilterCount =
+    (currentFilters.search.trim() ? 1 : 0) +
+    (currentFilters.domain ? 1 : 0) +
+    (currentFilters.status ? 1 : 0) +
+    (currentFilters.requestedBy ? 1 : 0) +
+    (currentFilters.reviewedBy ? 1 : 0) +
+    (currentFilters.fromDate ? 1 : 0) +
+    (currentFilters.toDate ? 1 : 0);
 
   const detailQuery = useQuery<RevenueApprovalDetail>({
     queryKey: ["revenue-approval-detail", restaurantId, selectedId],
@@ -272,6 +459,49 @@ export function ApprovalsView({
         </p>
       </div>
 
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KpiCard
+          icon={Clock}
+          label="Pending Review"
+          value={metricsQuery.isLoading ? "…" : (metricsQuery.data?.pending ?? 0)}
+          tone="bg-amber-100 text-amber-900 border border-amber-200/80"
+          hint="Requires manager review"
+          active={tab === "pending"}
+          onClick={() => handleTabChange("pending")}
+        />
+        <KpiCard
+          icon={FileText}
+          label="My Requests"
+          value={metricsQuery.isLoading ? "…" : (metricsQuery.data?.mine ?? 0)}
+          tone="bg-blue-100 text-blue-900 border border-blue-200/80"
+          hint="Submitted by you"
+          active={tab === "mine"}
+          onClick={() => handleTabChange("mine")}
+        />
+        <KpiCard
+          icon={CheckCircle2}
+          label="Approved & Applied"
+          value={metricsQuery.isLoading ? "…" : (metricsQuery.data?.approved ?? 0)}
+          tone="bg-emerald-100 text-emerald-900 border border-emerald-200/80"
+          hint="Active in property rates"
+          active={tab === "history" && currentFilters.status === "approved"}
+          onClick={() => handleTabChange("history", { status: "approved" })}
+        />
+        <KpiCard
+          icon={AlertTriangle}
+          label="Rejected / Stale"
+          value={metricsQuery.isLoading ? "…" : (metricsQuery.data?.rejectedOrStale ?? 0)}
+          tone="bg-rose-100 text-rose-900 border border-rose-200/80"
+          hint="Unapplied changes"
+          active={
+            tab === "history" &&
+            (currentFilters.status === "rejected" || currentFilters.status === "stale")
+          }
+          onClick={() => handleTabChange("history", { status: "rejected" })}
+        />
+      </div>
+
       <ApprovalPolicyControl
         enabled={policyEnabled}
         loading={policyQuery.isLoading}
@@ -284,44 +514,70 @@ export function ApprovalsView({
 
       <ApprovalTabs
         tab={tab}
-        onChange={(next) => {
-          setSelectedId(null);
-          writeApprovalSearch(next, null);
-        }}
+        onChange={(next) => handleTabChange(next)}
       />
 
-      {tab === "history" ? (
-        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#E8E1D7] bg-card p-4 shadow-2xs">
-          <label className="min-w-36 flex-1 sm:flex-none">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
-              From
-            </span>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(event) => setFromDate(event.target.value)}
-              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
-            />
+      {/* Unified Search and Filters Toolbar */}
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#E8E1D7] bg-card p-4 shadow-2xs">
+        {/* Search Input */}
+        <div className="min-w-64 flex-1">
+          <label htmlFor="approval-search" className="block text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
+            Search requests
           </label>
-          <label className="min-w-36 flex-1 sm:flex-none">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
-              To
-            </span>
+          <div className="relative mt-1.5 flex items-center">
+            <Search className="absolute left-3 size-4 text-muted-foreground pointer-events-none" />
             <input
-              type="date"
-              value={toDate}
-              onChange={(event) => setToDate(event.target.value)}
-              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+              id="approval-search"
+              type="text"
+              value={currentFilters.search}
+              onChange={(e) => updateFilter("search", e.target.value)}
+              placeholder="Search summary, room, plan, reason, or staff…"
+              className="flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white pl-9 pr-8 text-sm text-[#251605] placeholder:text-muted-foreground/70 focus:border-[#C89933] focus:outline-hidden"
             />
-          </label>
+            {currentFilters.search ? (
+              <button
+                type="button"
+                onClick={() => updateFilter("search", "")}
+                className="absolute right-2.5 text-muted-foreground hover:text-[#251605]"
+                aria-label="Clear search"
+              >
+                <X className="size-4" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Domain Filter (available across tabs) */}
+        <label className="min-w-36 flex-1 sm:flex-none">
+          <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
+            Domain
+          </span>
+          <select
+            value={currentFilters.domain}
+            onChange={(event) =>
+              updateFilter("domain", event.target.value as RevenueApprovalDomain | "")
+            }
+            className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+          >
+            <option value="">All domains</option>
+            {REVENUE_APPROVAL_DOMAINS.map((domain) => (
+              <option key={domain} value={domain}>
+                {revenueApprovalDomainLabel(domain)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* Status Filter */}
+        {tab === "history" ? (
           <label className="min-w-36 flex-1 sm:flex-none">
             <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               Status
             </span>
             <select
-              value={historyStatus}
+              value={currentFilters.status}
               onChange={(event) =>
-                setHistoryStatus(event.target.value as RevenueApprovalStatus | "")
+                updateFilter("status", event.target.value as RevenueApprovalStatus | "")
               }
               className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             >
@@ -333,32 +589,38 @@ export function ApprovalsView({
               ))}
             </select>
           </label>
+        ) : tab === "mine" ? (
           <label className="min-w-36 flex-1 sm:flex-none">
             <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
-              Domain
+              Status
             </span>
             <select
-              value={historyDomain}
+              value={currentFilters.status}
               onChange={(event) =>
-                setHistoryDomain(event.target.value as RevenueApprovalDomain | "")
+                updateFilter("status", event.target.value as RevenueApprovalStatus | "")
               }
               className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             >
-              <option value="">All domains</option>
-              {REVENUE_APPROVAL_DOMAINS.map((domain) => (
-                <option key={domain} value={domain}>
-                  {revenueApprovalDomainLabel(domain)}
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              {REVENUE_APPROVAL_TERMINAL_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
                 </option>
               ))}
             </select>
           </label>
+        ) : null}
+
+        {/* Requested By Filter (History and Pending tabs) */}
+        {tab !== "mine" ? (
           <label className="min-w-40 flex-1 sm:flex-none">
             <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               Requested By
             </span>
             <select
-              value={requestedBy}
-              onChange={(event) => setRequestedBy(event.target.value)}
+              value={currentFilters.requestedBy}
+              onChange={(event) => updateFilter("requestedBy", event.target.value)}
               className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             >
               <option value="">Anyone</option>
@@ -369,13 +631,17 @@ export function ApprovalsView({
               ))}
             </select>
           </label>
+        ) : null}
+
+        {/* Reviewed By Filter (History tab) */}
+        {tab === "history" ? (
           <label className="min-w-40 flex-1 sm:flex-none">
             <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
               Reviewed By
             </span>
             <select
-              value={reviewedBy}
-              onChange={(event) => setReviewedBy(event.target.value)}
+              value={currentFilters.reviewedBy}
+              onChange={(event) => updateFilter("reviewedBy", event.target.value)}
               className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
             >
               <option value="">Anyone</option>
@@ -386,8 +652,50 @@ export function ApprovalsView({
               ))}
             </select>
           </label>
-        </div>
-      ) : null}
+        ) : null}
+
+        {/* Date Range Filters (History tab) */}
+        {tab === "history" ? (
+          <>
+            <label className="min-w-36 flex-1 sm:flex-none">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
+                From
+              </span>
+              <input
+                type="date"
+                value={currentFilters.fromDate}
+                onChange={(event) => updateFilter("fromDate", event.target.value)}
+                className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+              />
+            </label>
+            <label className="min-w-36 flex-1 sm:flex-none">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
+                To
+              </span>
+              <input
+                type="date"
+                value={currentFilters.toDate}
+                onChange={(event) => updateFilter("toDate", event.target.value)}
+                className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+              />
+            </label>
+          </>
+        ) : null}
+
+        {/* Clear Filters Action */}
+        {hasActiveFilters ? (
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#DED7CD] bg-white px-3.5 text-sm font-semibold text-[#251605] hover:bg-[#FAF8F4] transition-colors"
+            >
+              <RotateCcw className="size-3.5" />
+              Clear ({activeFilterCount})
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       <div className="min-w-0 space-y-4">
         {listQuery.isLoading ? (
@@ -403,10 +711,22 @@ export function ApprovalsView({
           <div className="rounded-xl border border-[#E8E1D7] bg-card px-4 py-12 text-center text-sm text-muted-foreground shadow-2xs">
             {emptyCopy}
           </div>
+        ) : filteredRows.length === 0 ? (
+          <div className="rounded-xl border border-[#E8E1D7] bg-card px-4 py-12 text-center text-sm text-muted-foreground shadow-2xs space-y-3">
+            <p className="font-medium text-[#251605]">No approvals match your current filters.</p>
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#DED7CD] bg-white px-3 text-sm font-semibold text-[#251605] hover:bg-[#FAF8F4]"
+            >
+              <RotateCcw className="size-3.5" />
+              Reset Filters
+            </button>
+          </div>
         ) : listQuery.data ? (
           <>
             <ApprovalTable
-              rows={listQuery.data.rows}
+              rows={filteredRows}
               tab={tab}
               membershipId={access.membershipId}
               onReview={openRow}
@@ -417,7 +737,8 @@ export function ApprovalsView({
             />
             <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E8E1D7] bg-card px-4 py-3 shadow-2xs">
               <p className="text-sm text-muted-foreground">
-                Showing {range.start}–{range.end} of {range.total}
+                Showing {range.start}–{currentFilters.search.trim() ? Math.min(range.end, filteredRows.length) : range.end} of{" "}
+                {currentFilters.search.trim() ? filteredRows.length : range.total}
               </p>
               <div className="flex items-center gap-1.5">
                 <button

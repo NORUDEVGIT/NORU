@@ -74,9 +74,11 @@ function SectionCard({
   children: ReactNode;
   testId?: string;
 }) {
+  const sectionId = testId?.replace(/^pms-card2-maintenance-/, "");
   return (
     <section
-      className="scroll-mb-32 rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm"
+      id={sectionId}
+      className="scroll-mb-32 rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm scroll-mt-6"
       data-testid={testId}
     >
       <div className="flex items-start gap-3">
@@ -298,6 +300,21 @@ export function PmsPropertySetupCard2Maintenance({
   useEffect(() => {
     registerActions({ saveDraft, saveAndContinue });
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const targetSection = new URLSearchParams(window.location.search).get("section");
+    if (targetSection) {
+      const el =
+        document.getElementById(targetSection) ||
+        document.querySelector(`[data-testid*="${targetSection}"]`);
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 150);
+      }
+    }
+  }, []);
 
   return (
     <div

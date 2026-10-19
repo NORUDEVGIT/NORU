@@ -65,6 +65,40 @@ export function nightlyBlocked(night: {
   return night.typeHold ? night.physicalCapacity : night.quantityHoldApplied;
 }
 
+/**
+ * Active single-room blocks that remove inventory. The availability RPC folds these
+ * into pinnedRoomClaims, so they must be counted separately to show as blocked.
+ */
+export function activeRoomBlocksOn(
+  blocks: Array<{
+    targetKind: string;
+    roomId: string | null;
+    roomTypeId: string;
+    status: string;
+    inventoryImpact: string;
+    startDate: string;
+    endDate: string;
+  }>,
+  roomTypeId: string,
+  date: string,
+): number {
+  const rooms = new Set<string>();
+  for (const block of blocks) {
+    if (
+      block.targetKind === "room" &&
+      block.roomId &&
+      block.roomTypeId === roomTypeId &&
+      block.status === "active" &&
+      block.inventoryImpact === "remove_from_inventory" &&
+      block.startDate <= date &&
+      block.endDate > date
+    ) {
+      rooms.add(block.roomId);
+    }
+  }
+  return rooms.size;
+}
+
 export function stayDemand(row: {
   reserved: number | null;
   nightly: Array<{ pinnedRoomClaims: number; unrepresentedReservationDemand: number }>;

@@ -80,6 +80,15 @@ export const SET1_TITLE = "Settings";
 export const SET1_FOUNDATION_CHIP = "Foundation";
 export const SET1_HUB_HREF = "/restaurant/settings";
 export const SET1_PMS_BACK_HREF = "/restaurant/pms";
+
+export function withReturnTo(href: string, returnTo?: string): string {
+  if (!returnTo || href.includes("returnTo=")) return href;
+  const hashIdx = href.indexOf("#");
+  const base = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
+  const hash = hashIdx >= 0 ? href.slice(hashIdx) : "";
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}returnTo=${encodeURIComponent(returnTo)}${hash}`;
+}
 export const SET1_AUDIT_ACTION = "pms_set1_updated";
 export const SET1_DENIED =
   "Only a supervisor, manager or property admin can edit property settings.";

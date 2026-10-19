@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
+import { PmsSelect } from "./room-inventory-shared";
 
 export const PMS_MODULE_NAV_ITEMS = [
   { label: "Front Office", to: "/restaurant/pms/front-office" },
@@ -37,6 +38,7 @@ export function RoomInventoryChrome({
   searchPlaceholder = "Search room…",
   searchTestId,
   initialSearch = "",
+  showSearch = true,
   helpLabel = "Room & Inventory operational workspace",
   onHelpClick,
   overflowItems = [],
@@ -51,6 +53,7 @@ export function RoomInventoryChrome({
   searchPlaceholder?: string;
   searchTestId?: string;
   initialSearch?: string;
+  showSearch?: boolean;
   helpLabel?: string;
   onHelpClick?: () => void;
   overflowItems?: Array<{ label: string; onSelect: () => void; testId?: string }>;
@@ -116,18 +119,13 @@ export function RoomInventoryChrome({
       }
       mobile={
         <div className="border-b border-border bg-card px-3 py-2 lg:hidden">
-          <select
+          <PmsSelect
             aria-label="PMS module"
             value={NAV_ITEMS.find((item) => item.label === activeModule)?.to ?? ""}
-            onChange={(event) => window.location.assign(event.target.value)}
-            className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
-          >
-            {NAV_ITEMS.map((item) => (
-              <option key={item.label} value={item.to}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => window.location.assign(val)}
+            className="h-9 w-full rounded-lg border-input bg-background px-3 text-sm"
+            options={NAV_ITEMS.map((item) => [item.to, item.label])}
+          />
         </div>
       }
       rightControls={
@@ -148,22 +146,24 @@ export function RoomInventoryChrome({
               })}
             </span>
           </div>
-          <form onSubmit={submitSearch} className="hidden lg:block">
-            <label className="flex h-8 w-52 items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-2.5 text-white/75 focus-within:border-[#C89933]/70">
-              <Search className="size-3.5 shrink-0" />
-              <input
-                data-testid={searchTestId}
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  onSearchChange?.(event.target.value);
-                }}
-                placeholder={searchPlaceholder}
-                aria-label={searchPlaceholder}
-                className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/45"
-              />
-            </label>
-          </form>
+          {showSearch ? (
+            <form onSubmit={submitSearch} className="hidden lg:block">
+              <label className="flex h-8 w-52 items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-2.5 text-white/75 focus-within:border-[#C89933]/70">
+                <Search className="size-3.5 shrink-0" />
+                <input
+                  data-testid={searchTestId}
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    onSearchChange?.(event.target.value);
+                  }}
+                  placeholder={searchPlaceholder}
+                  aria-label={searchPlaceholder}
+                  className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/45"
+                />
+              </label>
+            </form>
+          ) : null}
           <Tooltip>
             <TooltipTrigger asChild>
               <button

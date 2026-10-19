@@ -125,6 +125,90 @@ export function OccupancySoftWarn({
   );
 }
 
+export function OverbookingDecision({
+  role,
+  roomName,
+  requestedRooms,
+  physicalAvailable,
+  shortage,
+  allowance,
+  consumed,
+  remaining,
+  showControls = true,
+  approvalRequired = true,
+  reasonRequired = true,
+  reason,
+  armed,
+  onReason,
+  onArm,
+}: {
+  role: string;
+  roomName: string;
+  requestedRooms: number;
+  physicalAvailable: number | null;
+  shortage: number;
+  allowance: number | null;
+  consumed: number | null;
+  remaining: number | null;
+  showControls?: boolean;
+  approvalRequired?: boolean;
+  reasonRequired?: boolean;
+  reason: string;
+  armed: boolean;
+  onReason: (value: string) => void;
+  onArm: (value: boolean) => void;
+}) {
+  if (shortage <= 0 || physicalAvailable == null) return null;
+  const canAuthorize = !approvalRequired || role === "owner" || role === "manager";
+  return (
+    <section
+      className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-[#251605]"
+      data-testid="overbooking-decision"
+    >
+      <p className="font-medium">Overbooking</p>
+      <p>Room type: {roomName}</p>
+      <p>Requested rooms: {requestedRooms}</p>
+      <p>Physical available: {physicalAvailable}</p>
+      <p>This reservation exceeds physical inventory.</p>
+      <p>Overbooking required: {shortage}</p>
+      {canAuthorize ? (
+        <div className="mt-2 space-y-2">
+          <p>Overbooking allowance: {allowance == null ? "—" : allowance}</p>
+          <p>Already overbooked: {consumed == null ? "—" : consumed}</p>
+          <p>Remaining: {remaining == null ? "—" : remaining}</p>
+          {showControls ? (
+            <>
+              <button
+                type="button"
+                className="rounded-md border border-[#C89933] bg-white px-3 py-1 text-xs"
+                onClick={() => onArm(!armed)}
+              >
+                {armed ? "Cancel" : `Overbook ${roomName}`}
+              </button>
+              {armed ? (
+                <label className="block text-xs">
+                  Reason{reasonRequired ? " *" : ""}
+                  <textarea
+                    className="mt-1 w-full rounded-md border border-[#E5DED4] bg-white p-2"
+                    value={reason}
+                    onChange={(event) => onReason(event.target.value)}
+                    required={reasonRequired}
+                  />
+                </label>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      ) : (
+        <p className="mt-2">
+          {roomName} has no physical availability. Owner or Manager authorization is required to
+          overbook while Manager Approval Required is on.
+        </p>
+      )}
+    </section>
+  );
+}
+
 export function CreateReservationRoomType({
   datesValid,
   loading,
@@ -148,6 +232,7 @@ export function CreateReservationRoomType({
   statusMessage,
   ratePlanOptions = [],
   selectedPlanId = "",
+  allowExhaustedSelection = false,
 }: {
   datesValid: boolean;
   loading: boolean;
@@ -171,6 +256,7 @@ export function CreateReservationRoomType({
   statusMessage?: string | null;
   ratePlanOptions?: Array<{ id: string; name: string }>;
   selectedPlanId?: string;
+  allowExhaustedSelection?: boolean;
 }) {
   const selected = availability.find((row) => row.roomTypeId === roomTypeId);
   const occupancyCeiling = selected?.maxOccupancy ?? selectedMaxOccupancy;
@@ -343,7 +429,9 @@ export function CreateReservationRoomType({
                 <ul className="divide-y divide-[#E7E0D4]">
                   {visibleRows.map((row) => {
                     const state = roomTypeAvailabilityState(row.available);
-                    const disabled = !isRoomTypeSelectable(row.available);
+                    const disabled =
+                      !isRoomTypeSelectable(row.available) &&
+                      !(allowExhaustedSelection && row.available <= 0);
                     const selectedCard = row.roomTypeId === roomTypeId;
                     const details = catalog?.[row.roomTypeId];
                     const amenityLabels = (details?.amenityLabels ?? []).filter((label) =>

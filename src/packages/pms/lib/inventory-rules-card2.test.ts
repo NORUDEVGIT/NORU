@@ -22,18 +22,11 @@ const functions = readFileSync(join(here, "inventory-rules.functions.ts"), "utf8
 const roomsFns = readFileSync(join(here, "rooms.functions.ts"), "utf8");
 
 describe("Card 2 Phase 4 inventory validators", () => {
-  it("requires an assignment mode and nine unique block types", () => {
+  it("requires nine unique block types", () => {
     const base = defaultInventoryRules();
     assert.equal(INVENTORY_BLOCK_TYPES.length, 9);
     assert.equal(INVENTORY_IMPACTS.length, 4);
     assert.deepEqual(inventoryRulesErrors(base), []);
-    assert.ok(
-      inventoryRulesErrors({
-        ...base,
-        manualAssignmentAllowed: false,
-        automaticAssignmentAllowed: false,
-      }).includes("At least one assignment mode (manual or automatic) must be allowed."),
-    );
     assert.ok(
       inventoryRulesErrors({ ...base, blockTypes: base.blockTypes.slice(0, 8) }).some((row) =>
         row.includes("nine supported types"),
@@ -88,26 +81,7 @@ describe("Card 2 Phase 4 inventory validators", () => {
 });
 
 describe("Card 2 Phase 4 inventory normalization", () => {
-  it("turns move off and overbooking off dependents to false/null", () => {
-    const moved = normalizeInventoryRules({
-      ...defaultInventoryRules(),
-      roomMoveAllowed: false,
-      roomTypeChangeAllowed: true,
-      rateRecalculationRequired: true,
-      moveApprovalRequired: true,
-      moveReasonRequired: true,
-      inventoryRecalculationRequired: true,
-      housekeepingUpdateRequired: true,
-      maintenanceValidationRequired: true,
-    });
-    assert.equal(moved.roomTypeChangeAllowed, false);
-    assert.equal(moved.rateRecalculationRequired, false);
-    assert.equal(moved.moveApprovalRequired, false);
-    assert.equal(moved.moveReasonRequired, false);
-    assert.equal(moved.inventoryRecalculationRequired, false);
-    assert.equal(moved.housekeepingUpdateRequired, false);
-    assert.equal(moved.maintenanceValidationRequired, false);
-
+  it("turns overbooking off dependents to false/null", () => {
     const overbook = normalizeInventoryRules({
       ...defaultInventoryRules(),
       overbookingAllowed: false,
@@ -128,6 +102,20 @@ describe("Card 2 Phase 4 inventory normalization", () => {
     assert.equal(overbook.overridePermissionRequired, false);
     assert.equal(overbook.overbookingReasonRequired, false);
     assert.equal(overbook.overbookingAlertEnabled, false);
+
+    const open = normalizeInventoryRules({
+      ...defaultInventoryRules(),
+      overbookingAllowed: true,
+      dateBasedLimitEnabled: true,
+      managerApprovalRequired: false,
+      overbookingReasonRequired: false,
+      overbookingAlertEnabled: true,
+    });
+    assert.equal(open.dateBasedLimitEnabled, true);
+    assert.equal(open.managerApprovalRequired, false);
+    assert.equal(open.overbookingReasonRequired, false);
+    assert.equal(open.overbookingAlertEnabled, true);
+    assert.equal(open.overridePermissionRequired, false);
   });
 
   it("normalizes disabled block types", () => {
@@ -164,8 +152,14 @@ describe("Card 2 Phase 4 inventory readiness", () => {
       rules: { ...defaultInventoryRules(), overbookingAllowed: true, maximumOverbooking: 2 },
     });
     assert.equal(overbook.ready, true);
-    assert.equal(overbook.configuredButNotOperational, true);
-    assert.ok(OVERBOOKING_CAPACITY_NOTE.includes("capacity enforcement remains unchanged"));
+    assert.equal(overbook.configuredButNotOperational, false);
+    assert.ok(OVERBOOKING_CAPACITY_NOTE.includes("rounded down"));
+    const legacy = evaluateCard2InventoryReadiness({
+      persisted: true,
+      rules: { ...defaultInventoryRules(), overbookingAllowed: true },
+    });
+    assert.equal(legacy.ready, true);
+    assert.equal(legacy.configuredButNotOperational, false);
   });
 
   it("never marks the whole Card 2 complete from inventory-rules readiness", () => {
