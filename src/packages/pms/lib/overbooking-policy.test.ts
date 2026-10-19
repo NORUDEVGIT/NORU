@@ -14,7 +14,7 @@ import {
 } from "./overbooking-policy.ts";
 
 const migration = readFileSync(
-  new URL("../../../../supabase/migrations/0167_reservation_overbooking.sql", import.meta.url),
+  new URL("../../../../supabase/migrations/0172_reservation_overbooking.sql", import.meta.url),
   "utf8",
 );
 
@@ -349,7 +349,7 @@ describe("overbooking migration contract", () => {
     assert.match(migration, /shortage := GREATEST\(reservation_demand - physical_before, 0\)/);
     assert.doesNotMatch(migration, /hotel_reservation_counters/);
     const controls = readFileSync(
-      new URL("../../../../supabase/migrations/0170_overbooking_controls.sql", import.meta.url),
+      new URL("../../../../supabase/migrations/0175_overbooking_controls.sql", import.meta.url),
       "utf8",
     );
     assert.match(controls, /pms_overbooking_date_limits/);

@@ -24,6 +24,7 @@ import { callerMembership } from "@/core/lib/workforce.server";
 import { guestCreateBlocked } from "./pms-set3-rates-guest";
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 import { isMissingSchemaError } from "./pms-set2-structure";
+import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
 import {
   kindFromTypeCode,
   maskedDocumentNumber,
@@ -3279,6 +3280,9 @@ export const createGuestServiceRequest = createServerFn({ method: "POST" })
     }): Promise<{ ok: true; id: string } | { ok: false; message: string }> => {
       const me = await requireGuestManager(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      if (data.reservationId) {
+        await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
+      }
       const type = await supabaseAdmin
         .from("pms_guest_service_types")
         .select("id, active")
@@ -3414,6 +3418,19 @@ export const updateGuestServiceRequest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
     const me = await requireGuestManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const linked = await supabaseAdmin
+      .from("guest_service_requests")
+      .select("reservation_id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.requestId)
+      .maybeSingle();
+    const linkedReservationId =
+      linked.error || linked.data?.reservation_id == null
+        ? null
+        : String(linked.data.reservation_id);
+    if (linkedReservationId) {
+      await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, linkedReservationId);
+    }
     const updateParams: Parameters<typeof applyGuestServiceRequestUpdate>[0] = {
       admin: supabaseAdmin,
       restaurantId: data.restaurantId,

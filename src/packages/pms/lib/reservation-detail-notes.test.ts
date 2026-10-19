@@ -42,8 +42,9 @@ describe("Reservation Detail Notes & Traces tab", () => {
     expect(workspace).not.toContain('detailTab === "notes" ? (\n                <NotesEditor');
     expect(notesUi).toContain("amendReservation");
     expect(notesUi).toContain("addGuestNote");
-    expect(notesUi).toContain("listHousekeepingTasks");
-    expect(notesUi).toContain("createHousekeepingTask");
+    expect(notesUi).toContain("listReservationTraces");
+    expect(notesUi).toContain("createReservationTrace");
+    expect(notesUi).not.toContain("listHousekeepingTasks");
     expect(notesUi).toContain("Back to Requests & Preferences");
     expect(notesUi).not.toContain("createGuestServiceRequest");
   });
@@ -72,7 +73,9 @@ describe("Reservation Detail Notes & Traces tab", () => {
     expect(rows.map((row) => row.type).sort()).toEqual(["Guest", "Internal"]);
     expect(filterStayNotes(rows, "internal")).toHaveLength(1);
     expect(importantStayNotes(rows)).toEqual([]);
-    expect(notesUi).toContain("NOTE_PIN_GAP_COPY");
+    expect(notesUi).toContain("setReservationNotePin");
+    expect(notesUi).toContain("listReservationTraces");
+    expect(notesUi).not.toContain("listHousekeepingTasks");
     expect(notesUi).not.toContain("Billing Notes");
     expect(notesUi).not.toContain("Issue / Complaint");
   });

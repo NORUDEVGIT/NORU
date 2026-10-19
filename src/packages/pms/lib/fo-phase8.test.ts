@@ -20,7 +20,9 @@ function readRel(rel: string) {
 }
 
 function requirement(
-  extra: Partial<Parameters<typeof evaluateFoApprovalRequirement>[0]> & { actionKey: Parameters<typeof evaluateFoApprovalRequirement>[0]["actionKey"] },
+  extra: Partial<Parameters<typeof evaluateFoApprovalRequirement>[0]> & {
+    actionKey: Parameters<typeof evaluateFoApprovalRequirement>[0]["actionKey"];
+  },
 ) {
   return evaluateFoApprovalRequirement({
     staffRole: "receptionist",
@@ -49,9 +51,18 @@ describe("FO Phase 8 — approval rule lookup", () => {
   });
 
   it("reuses catalogue permission codes already defined in Settings", () => {
-    assert.equal(FO_AUTHORIZATION_META["front_office.check_in.override"].permissionCode, "front_office.check_in.override");
-    assert.equal(FO_AUTHORIZATION_META["front_office.check_out.override"].permissionCode, "front_office.check_out.override");
-    assert.equal(FO_AUTHORIZATION_META["front_office.fee.override"].permissionCode, "front_office.fee.override");
+    assert.equal(
+      FO_AUTHORIZATION_META["front_office.check_in.override"].permissionCode,
+      "front_office.check_in.override",
+    );
+    assert.equal(
+      FO_AUTHORIZATION_META["front_office.check_out.override"].permissionCode,
+      "front_office.check_out.override",
+    );
+    assert.equal(
+      FO_AUTHORIZATION_META["front_office.fee.override"].permissionCode,
+      "front_office.fee.override",
+    );
     assert.equal(FO_AUTHORIZATION_META["cashiering.room_charge.override"].foCommand, false);
     assert.equal(FO_AUTHORIZATION_META["rates.calendar.override"].foCommand, false);
     assert.equal(FO_AUTHORIZATION_META["guest.restriction.authorize"].foCommand, false);
@@ -80,7 +91,16 @@ describe("FO Phase 8 — direct permission vs approval required", () => {
 
   it("does not invent a queued pending/approved/rejected state", () => {
     const agent = requirement({ actionKey: "front_office.check_out.override" });
-    assert.equal(["authorized", "authorization_required", "not_authorized", "not_configured", "unsupported"].includes(agent.state), true);
+    assert.equal(
+      [
+        "authorized",
+        "authorization_required",
+        "not_authorized",
+        "not_configured",
+        "unsupported",
+      ].includes(agent.state),
+      true,
+    );
     assert.notEqual(agent.state, "pending");
   });
 });
@@ -88,11 +108,12 @@ describe("FO Phase 8 — direct permission vs approval required", () => {
 describe("FO Phase 8 — writers remain the authority", () => {
   it("keeps deposit waiver on waiveCheckInDeposit with a server supervisor gate", () => {
     const checkIn = readRel("./fo-check-in.functions.ts");
+    const waiver = readRel("./fo-check-in-waiver.functions.ts");
     assert.match(checkIn, /export const waiveCheckInDeposit/);
-    assert.match(checkIn, /requireSupervisor\(me\.role\)/);
-    assert.match(checkIn, /requireReservationManager/);
-    assert.match(checkIn, /deposit_waived: true/);
-    assert.match(checkIn, /recordReservationEvent/);
+    assert.match(waiver, /assertCheckInWaiverRole\(me\.role\)/);
+    assert.match(waiver, /requireReservationManager/);
+    assert.match(readRel("./fo-check-in-waiver.ts"), /deposit_waived: true/);
+    assert.match(waiver, /recordReservationEvent/);
     const stepper = readRel("../components/frontoffice/fo-check-in-stepper.tsx");
     assert.match(stepper, /waiveCheckInDeposit/);
     assert.match(stepper, /FoAuthorizationCard/);
@@ -102,7 +123,8 @@ describe("FO Phase 8 — writers remain the authority", () => {
 
   it("does not override hard check-in or check-out lifecycle", () => {
     const checkIn = readRel("./fo-check-in.functions.ts");
-    assert.match(checkIn, /Only confirmed stays can be checked in/);
+    assert.match(checkIn, /getCheckInReadiness/);
+    assert.match(checkIn, /readiness\.blockers\.length > 0/);
     assert.match(checkIn, /check_in_hotel_reservation/);
     const checkOut = readRel("./fo-check-out.functions.ts");
     assert.match(checkOut, /export const completeFoCheckOut/);
@@ -139,7 +161,10 @@ describe("FO Phase 8 — writers remain the authority", () => {
 
 describe("FO Phase 8 — Model B workspace honesty", () => {
   it("does not add a fake Approvals inbox or request table", () => {
-    assert.equal(FO_NAV_ITEMS.some((item) => /approv/i.test(item.id) || /approv/i.test(item.label)), false);
+    assert.equal(
+      FO_NAV_ITEMS.some((item) => /approv/i.test(item.id) || /approv/i.test(item.label)),
+      false,
+    );
     const fns = readRel("./fo-approvals.functions.ts");
     const ts = readRel("./fo-approvals.ts");
     const card = readRel("../components/frontoffice/fo-authorization-card.tsx");
@@ -148,15 +173,19 @@ describe("FO Phase 8 — Model B workspace honesty", () => {
       assert.doesNotMatch(src, /CREATE TABLE/i);
     }
     const repoRoot = join(here, "../../../..");
-    const extra = [...readdirSync(join(repoRoot, "drizzle/migrations")), ...readdirSync(join(repoRoot, "supabase/migrations"))].filter(
-      (name) => name.startsWith("0101_") || name.startsWith("0102_"),
-    );
+    const extra = [
+      ...readdirSync(join(repoRoot, "drizzle/migrations")),
+      ...readdirSync(join(repoRoot, "supabase/migrations")),
+    ].filter((name) => name.startsWith("0101_") || name.startsWith("0102_"));
     assert.equal(extra.length, 0);
     assert.match(card, /will not queue a request/);
   });
 
   it("marks Cashiering / Rates / guest restriction keys as unsupported FO commands", () => {
-    const charge = requirement({ actionKey: "cashiering.room_charge.override", staffRole: "owner" });
+    const charge = requirement({
+      actionKey: "cashiering.room_charge.override",
+      staffRole: "owner",
+    });
     assert.equal(charge.foCommand, false);
     assert.equal(charge.state, "unsupported");
     assert.equal(foAuthorizationButtonLabel(charge), "Not a Front Office command");

@@ -1,4 +1,4 @@
-import { isRoomReady } from "../fo-check-in";
+import { isDepositSatisfied, isRoomReady } from "../fo-check-in";
 import type { HousekeepingReadinessPolicy } from "../housekeeping-card2.server";
 import { FOLIO_ZERO_EPSILON } from "../fo-check-out";
 import type { FolioSignalLane, StayMoneySignal } from "../fo-exceptions";
@@ -105,10 +105,14 @@ export function financialFromSignal(
 }
 
 export function arrivalDepositUnpaid(signal: StayMoneySignal | undefined): boolean {
-  if (!signal) return false;
-  if (signal.depositWaived) return false;
-  if (signal.depositPosted == null) return false;
-  return signal.depositPosted <= 0;
+  if (!signal || signal.depositWaived) return false;
+  const required = signal.paymentRequired;
+  if (required == null || required <= 0) return false;
+  return !isDepositSatisfied({
+    postedAmount: signal.paymentPosted ?? 0,
+    waived: false,
+    requiredAmount: required,
+  });
 }
 
 export function outstandingBalance(signal: StayMoneySignal | undefined): boolean {

@@ -107,8 +107,14 @@ describe("reservation create step 3 policies and payment layout", () => {
     assert.match(policies, /Refundable/);
     assert.match(page, /noShowPenaltySummary\(/);
     assert.match(page, /ratePlanNoShowPenalty=/);
-    assert.doesNotMatch(policies, /<input/);
-    assert.doesNotMatch(policies, /onChange/);
+    const requirement = policies.slice(
+      policies.indexOf('data-testid="deposit-policy"'),
+      policies.indexOf('testId="payment-received"'),
+    );
+    assert.doesNotMatch(requirement, /<input/);
+    assert.doesNotMatch(requirement, /onChange/);
+    assert.match(policies, /testId="payment-received"/);
+    assert.match(policies, /testId="guest-deposit"/);
   });
 
   it("keeps Cancel, Back, and Continue to Review & Confirm", () => {

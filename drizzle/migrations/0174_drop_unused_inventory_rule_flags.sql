@@ -3,6 +3,8 @@
 -- The duplicate housekeeping and maintenance flags are not the ones eligibility uses.
 -- Do not apply this from an agent. Apply it with the code that stops writing these columns.
 -- Applying it first makes an older save fail because those columns no longer exist.
+-- Dual-lane copy of supabase/migrations/0174_drop_unused_inventory_rule_flags.sql.
+-- Do not run both copies against the same database.
 
 ALTER TABLE public.pms_inventory_rules
   DROP CONSTRAINT IF EXISTS pms_inventory_rules_assignment_mode_check,

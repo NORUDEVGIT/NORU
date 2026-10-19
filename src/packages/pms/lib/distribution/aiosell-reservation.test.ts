@@ -246,11 +246,11 @@ describe("AIOS-05 inbound Aiosell reservations", () => {
     expect(sql).not.toContain("public.price_hotel_stay");
     expect(sql).not.toContain("INSERT INTO public.folio_transactions");
     const folioSql = readFileSync(
-      resolve(process.cwd(), "supabase/migrations/0168_channel_reservation_folio.sql"),
+      resolve(process.cwd(), "supabase/migrations/0173_channel_reservation_folio.sql"),
       "utf8",
     );
     const folioSqlCopy = readFileSync(
-      resolve(process.cwd(), "drizzle/migrations/0168_channel_reservation_folio.sql"),
+      resolve(process.cwd(), "drizzle/migrations/0173_channel_reservation_folio.sql"),
       "utf8",
     );
     expect(folioSqlCopy).toBe(folioSql);

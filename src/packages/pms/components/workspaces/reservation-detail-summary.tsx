@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
 import {
   BedDouble,
   CalendarDays,
+  Coins,
   CreditCard,
   FileText,
   Shield,
@@ -26,7 +26,6 @@ import {
 } from "@/packages/pms/lib/reservation-detail-group";
 import {
   DETAIL_DASH,
-  depositStatusLabel,
   parseDepositRequirementSnapshot,
   snapshotDisplayName,
   snapshotField,
@@ -42,6 +41,10 @@ export function ReservationDetailSummary({
   packagesTotal,
   folioBalance,
   showFolioBalance = false,
+  paymentReceived,
+  guestDeposit,
+  totalAmount,
+  paymentPercentage,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -51,6 +54,10 @@ export function ReservationDetailSummary({
   packagesTotal?: number;
   folioBalance?: number | null;
   showFolioBalance?: boolean;
+  paymentReceived?: number | null;
+  guestDeposit?: number | null;
+  totalAmount?: number | null;
+  paymentPercentage?: number | null;
 }) {
   const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
   const assigned = Boolean(reservation.roomId && reservation.roomNumber);
@@ -66,11 +73,20 @@ export function ReservationDetailSummary({
   const occupancy = groupOccupancyTotals(reservation);
   const assignment = groupAssignmentSummary(reservation);
   const combined = groupCombinedSubtotal(reservation);
-  const roomTotal = group ? combined : reservation.roomSubtotal;
+  const computedRoomTotal = group ? combined : reservation.roomSubtotal;
+  const effectiveTotal = totalAmount !== undefined ? totalAmount : computedRoomTotal;
+  const effectivePaymentPct =
+    paymentPercentage !== undefined
+      ? paymentPercentage
+      : paymentReceived != null && effectiveTotal != null && effectiveTotal > 0
+        ? Math.round((paymentReceived / effectiveTotal) * 100)
+        : null;
+  const effectiveGuestDeposit = guestDeposit != null && guestDeposit > 0 ? guestDeposit : null;
+  const paymentHasCredit = paymentReceived != null && paymentReceived > 0;
 
   return (
     <aside
-      className="h-fit space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+      className="sticky top-4 h-fit space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm self-start"
       data-testid={testId}
       data-reservation-summary={group ? "group" : "single"}
     >
@@ -173,17 +189,17 @@ export function ReservationDetailSummary({
               {occupancy.rooms} room unit{occupancy.rooms === 1 ? "" : "s"}
             </p>
             <p className="font-medium text-[#251605]">
-              Combined total {roomTotal == null ? DETAIL_DASH : money(roomTotal)}
+              Total Amount {effectiveTotal == null ? DETAIL_DASH : money(effectiveTotal)}
             </p>
           </>
         ) : (
-          <p>Room Rate {roomTotal == null ? DETAIL_DASH : money(roomTotal)}</p>
-        )}
-        {packagesTotal != null ? <p>Packages {money(packagesTotal)}</p> : null}
-        {group ? null : (
-          <p className="font-medium text-[#251605]">
-            Total Amount {roomTotal == null ? DETAIL_DASH : money(roomTotal)}
-          </p>
+          <>
+            <p>Room Rate {effectiveTotal == null ? DETAIL_DASH : money(effectiveTotal)}</p>
+            {packagesTotal != null ? <p>Packages {money(packagesTotal)}</p> : null}
+            <p className="font-medium text-[#251605]">
+              Total Amount {effectiveTotal == null ? DETAIL_DASH : money(effectiveTotal)}
+            </p>
+          </>
         )}
       </SummaryBlock>
       {showFolioBalance ? (
@@ -191,14 +207,53 @@ export function ReservationDetailSummary({
           <p>{folioBalance == null ? DETAIL_DASH : money(folioBalance)}</p>
         </SummaryBlock>
       ) : null}
+
+      <div className="space-y-2 border-t border-[#EEE6D8] pt-3">
+        <div className="flex items-center gap-2.5 rounded-lg border border-[#BBE3C5] bg-[#EAF7EE] p-2.5">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[#D4EED8] text-[#16A34A]">
+            <Wallet className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-1 text-xs font-semibold text-[#1F542C]">
+              <span>Payment Received</span>
+              <span>{paymentHasCredit ? money(paymentReceived) : "—"}</span>
+            </div>
+            <p className="text-[11px] text-[#2F7B42]">
+              {paymentHasCredit
+                ? effectivePaymentPct != null
+                  ? `${effectivePaymentPct}% of total`
+                  : null
+                : "No payment received"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 rounded-lg border border-[#F3DFC1] bg-[#FDF5E8] p-2.5">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[#FCE8CC] text-[#D97706]">
+            <Coins className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-1 text-xs font-semibold text-[#7A4B0C]">
+              <span>Guest Deposit</span>
+              <span>{effectiveGuestDeposit != null ? money(effectiveGuestDeposit) : "—"}</span>
+            </div>
+            <p className="text-[11px] font-medium text-[#C2410C]">
+              {effectiveGuestDeposit == null ? "No deposit received" : null}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <SummaryBlock
         icon={<CreditCard className="size-3.5 text-[#B8954F]" />}
-        title="Payment & Deposit"
+        title="Payment Method"
       >
-        <p>{reviewDash(reservation.guaranteeMethod)}</p>
+        <p className="font-medium text-[#251605]">
+          {reviewDash(reservation.guaranteeMethod).toUpperCase()}
+        </p>
         <p>
-          Deposit {deposit?.amount == null ? DETAIL_DASH : money(deposit.amount)} ·{" "}
-          {depositStatusLabel(deposit)}
+          Payment requirement {deposit?.amount == null ? DETAIL_DASH : money(deposit.amount)}
+          {deposit?.required ? " · Required" : ""}
         </p>
       </SummaryBlock>
       <SummaryBlock icon={<Shield className="size-3.5 text-[#B8954F]" />} title="Stay Policies">

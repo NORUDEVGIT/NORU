@@ -110,7 +110,13 @@ describe("FO-FS6 exception honesty", () => {
       ],
       folioLane: "live",
       moneyByStay: {
-        "pay-1": money({ folioId: "f1", folioNumber: "F-1", depositPosted: 0 }),
+        "pay-1": money({
+          folioId: "f1",
+          folioNumber: "F-1",
+          depositPosted: 500,
+          paymentPosted: 0,
+          paymentRequired: 1500,
+        }),
         "over-1": money({ folioId: "f2", folioNumber: "F-2", balance: 0 }),
       },
       businessDate: "2026-09-12",

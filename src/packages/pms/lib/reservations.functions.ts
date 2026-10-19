@@ -22,6 +22,7 @@ import { assertReservationCreateSourceChannel } from "./reservation-source-chann
 import { assertRoomTypeOccupancy } from "./create-reservation-phase1-section4";
 import { buildStayAmendmentResult, type StayAmendmentResult } from "./reservation-stay-amendment";
 import { propertyToday } from "@/shared/lib/property-dates";
+import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
 
 async function assertExplicitOverbookingAllowed(
   db: {
@@ -80,6 +81,20 @@ import {
 } from "./create-reservation-step4";
 import { DEPOSIT_POLICY_TYPE_LABELS, type DepositPolicyCard3Row } from "./payments-card3.server";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
+import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
+import {
+  callPostFolioTransaction,
+  requireCashierOperator,
+} from "./cashiering.server";
+import { mapCashierShiftError } from "./fo-check-in";
+import {
+  createMoneyNeedsFolio,
+  createReceiptShapeError,
+  emptyCreateMoneyResult,
+  normalizeCreateReceipt,
+  type CreateMoneyPostResult,
+  type CreateReceiptRequest,
+} from "./reservation-create-money";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { resolveReservationMode, type ReservationMode } from "./reservation-mode";
 import {
@@ -168,6 +183,8 @@ export interface ReservationDetail extends ReservationSummary {
   arrivalTransport?: string | null;
   pickupNote?: string | null;
   specialOccasion?: string | null;
+  rateNotes?: string | null;
+  notesPinned?: boolean;
   /** Room units from `hotel_reservation_rooms`. These own the operational room. */
   rooms?: ReservationRoomUnit[];
   /** Booking mode. Absent reads stay `single` until the column exists. */
@@ -260,6 +277,12 @@ const RESERVATION_DETAIL_EARLY_SELECT = RESERVATION_DETAIL_POLICY_SELECT.replace
   early_departure_policy_id, early_departure_policy_snapshot,`,
 );
 
+const RESERVATION_DETAIL_STAY_SELECT = RESERVATION_DETAIL_EARLY_SELECT.replace(
+  "early_departure_policy_id, early_departure_policy_snapshot,",
+  `early_departure_policy_id, early_departure_policy_snapshot,
+  rate_notes, notes_pinned,`,
+);
+
 type NameRelation = { name: string; code?: string | null } | null;
 type GuestRelation = {
   first_name: string;
@@ -322,6 +345,8 @@ type ReservationRow = {
   arrival_transport?: string | null;
   pickup_note?: string | null;
   special_occasion?: string | null;
+  rate_notes?: string | null;
+  notes_pinned?: boolean | null;
   guest_profiles: GuestRelation | GuestRelation[] | null;
   room_types: NameRelation | NameRelation[];
   hotel_rooms: RoomRelation | RoomRelation[] | null;
@@ -405,6 +430,8 @@ function toDetail(row: ReservationRow): ReservationDetail {
     arrivalTransport: row.arrival_transport ?? null,
     pickupNote: row.pickup_note ?? null,
     specialOccasion: row.special_occasion ?? null,
+    rateNotes: row.rate_notes ?? null,
+    notesPinned: row.notes_pinned === true,
     reservationMode: "single",
   };
 }
@@ -732,12 +759,21 @@ export const getReservation = createServerFn({ method: "POST" })
     }): Promise<{ reservation: ReservationDetail; history: ReservationHistoryEntry[] }> => {
       await requireReservationManager(context as never, data.restaurantId);
 
-      const earlyQuery = await context.supabase
+      const stayQuery = await context.supabase
         .from("hotel_reservations")
-        .select(RESERVATION_DETAIL_EARLY_SELECT)
+        .select(RESERVATION_DETAIL_STAY_SELECT)
         .eq("restaurant_id", data.restaurantId)
         .eq("id", data.reservationId)
         .maybeSingle();
+      const earlyQuery =
+        stayQuery.error && isMissingSchemaError(stayQuery.error)
+          ? await context.supabase
+              .from("hotel_reservations")
+              .select(RESERVATION_DETAIL_EARLY_SELECT)
+              .eq("restaurant_id", data.restaurantId)
+              .eq("id", data.reservationId)
+              .maybeSingle()
+          : stayQuery;
       const policyQuery =
         earlyQuery.error && isMissingSchemaError(earlyQuery.error)
           ? await context.supabase
@@ -793,10 +829,18 @@ export const getReservation = createServerFn({ method: "POST" })
         "id, unit_sequence, room_type_id, room_id, arrival_date, departure_date, adults, children, infants, rate_plan_id, currency, nightly_rate_snapshot, room_subtotal, priced_at";
       let unitsQuery = await context.supabase
         .from("hotel_reservation_rooms")
-        .select(`${unitColumns}, status`)
+        .select(`${unitColumns}, status, assignment_notes`)
         .eq("restaurant_id", data.restaurantId)
         .eq("reservation_id", data.reservationId)
         .order("unit_sequence", { ascending: true });
+      if (unitsQuery.error && isMissingSchemaError(unitsQuery.error)) {
+        unitsQuery = await context.supabase
+          .from("hotel_reservation_rooms")
+          .select(`${unitColumns}, status`)
+          .eq("restaurant_id", data.restaurantId)
+          .eq("reservation_id", data.reservationId)
+          .order("unit_sequence", { ascending: true });
+      }
       if (
         unitsQuery.error &&
         isMissingSchemaError(unitsQuery.error) &&
@@ -812,13 +856,16 @@ export const getReservation = createServerFn({ method: "POST" })
       if (unitsQuery.error && !isMissingSchemaError(unitsQuery.error)) {
         throw new Error(unitsQuery.error.message);
       }
+      const unitRows = (
+        unitsQuery.error && isMissingSchemaError(unitsQuery.error) ? [] : (unitsQuery.data ?? [])
+      ) as Array<ReservationRoomUnitRow & { assignment_notes?: string | null }>;
       reservation.rooms =
-        unitsQuery.error && isMissingSchemaError(unitsQuery.error)
+        unitRows.length === 0 && unitsQuery.error && isMissingSchemaError(unitsQuery.error)
           ? []
-          : projectReservationRoomUnits(
-              reservation,
-              (unitsQuery.data ?? []) as ReservationRoomUnitRow[],
-            );
+          : projectReservationRoomUnits(reservation, unitRows).map((unit) => {
+              const stored = unitRows.find((row) => row.id === unit.id);
+              return { ...unit, assignmentNotes: stored?.assignment_notes ?? null };
+            });
       const occupantQuery = await context.supabase
         .from("hotel_reservation_room_guests")
         .select("reservation_room_id, guest_id, is_primary")
@@ -836,29 +883,46 @@ export const getReservation = createServerFn({ method: "POST" })
               is_primary: boolean;
             }>);
       const guestIds = [...new Set(occupantRows.map((occupant) => occupant.guest_id))];
-      const profileQuery =
+      const profileSelect = "id, first_name, last_name, phone, gender, id_document_number, notes";
+      const richProfiles =
         guestIds.length === 0
           ? { data: [], error: null }
           : await context.supabase
               .from("guest_profiles")
-              .select("id, first_name, last_name")
+              .select(profileSelect)
               .eq("restaurant_id", data.restaurantId)
               .in("id", guestIds);
-      if (profileQuery.error) throw new Error(profileQuery.error.message);
-      const guestNames = new Map(
-        (profileQuery.data ?? []).map((profile) => [
+      const profileQuery =
+        richProfiles.error && isMissingSchemaError(richProfiles.error)
+          ? await context.supabase
+              .from("guest_profiles")
+              .select("id, first_name, last_name")
+              .eq("restaurant_id", data.restaurantId)
+              .in("id", guestIds)
+          : richProfiles;
+      if (guestIds.length > 0 && profileQuery.error) throw new Error(profileQuery.error.message);
+      const profiles = new Map(
+        ((profileQuery.data ?? []) as Array<Record<string, string | null>>).map((profile) => [
           profile.id,
-          [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() || "Guest",
+          profile,
         ]),
       );
       reservation.rooms = attachRoomOccupants(
         reservation.rooms,
-        occupantRows.map((occupant) => ({
-          reservationRoomId: occupant.reservation_room_id,
-          guestId: occupant.guest_id,
-          name: guestNames.get(occupant.guest_id) ?? "Guest",
-          isPrimary: occupant.is_primary,
-        })),
+        occupantRows.map((occupant) => {
+          const profile = profiles.get(occupant.guest_id);
+          return {
+            reservationRoomId: occupant.reservation_room_id,
+            guestId: occupant.guest_id,
+            name:
+              [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() || "Guest",
+            isPrimary: occupant.is_primary,
+            phone: profile?.phone ?? null,
+            gender: profile?.gender ?? null,
+            idDocumentNumber: profile?.id_document_number ?? null,
+            notes: profile?.notes ?? null,
+          };
+        }),
       );
       const typeIds = [...new Set(reservation.rooms.map((unit) => unit.roomTypeId))];
       const physicalIds = [
@@ -1217,6 +1281,102 @@ const stayInputSchema = z.object({
   overbookingReason: z.string().trim().max(500).nullable().optional(),
 });
 
+async function postCreateReservationMoney(
+  context: unknown,
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
+  input: {
+    restaurantId: string;
+    reservationId: string;
+    payment: CreateReceiptRequest;
+    guestDeposit: CreateReceiptRequest;
+  },
+): Promise<CreateMoneyPostResult> {
+  const result = emptyCreateMoneyResult();
+  if (!createMoneyNeedsFolio(input.payment, input.guestDeposit)) return result;
+
+  let folioId = "";
+  let membershipId = "";
+  try {
+    const cashier = await requireCashierOperator(context as never, input.restaurantId);
+    membershipId = cashier.id;
+    const opened = await supabaseAdmin.rpc("open_folio_for_reservation", {
+      _restaurant_id: input.restaurantId,
+      _reservation_id: input.reservationId,
+      _membership_id: cashier.id,
+    });
+    if (opened.error) throw new Error(opened.error.message);
+    folioId = (opened.data as { id: string }).id;
+    result.folioOpened = true;
+  } catch (error) {
+    const message = mapCashierShiftError(
+      error instanceof Error ? error.message : "Payment could not be posted.",
+    );
+    if (input.payment.amount != null) result.paymentError = message;
+    if (input.guestDeposit.amount != null) result.guestDepositError = message;
+    return result;
+  }
+
+  const polish = await loadPolish1Snapshot(supabaseAdmin, input.restaurantId);
+  const catalogue = polish.paymentMethodsAvailable ? polish.paymentMethods : null;
+  const postLine = async (receipt: CreateReceiptRequest, type: "payment" | "deposit") => {
+    if (receipt.amount == null || !receipt.tender || !receipt.idempotencyKey) return;
+    const tender = folioTenderFromCatalogue(receipt.tender, catalogue);
+    if (!tender.ok) throw new Error(tender.message);
+    const reference = receipt.reference;
+    const label = type === "payment" ? "Reservation payment" : "Guest deposit";
+    const description = reference
+      ? `${label} (${tender.stored}) · ${reference}`
+      : `${label} (${tender.stored})`;
+    if (type === "payment") {
+      await callPostFolioTransaction({
+        restaurantId: input.restaurantId,
+        folioId,
+        type: "payment",
+        category: "payment",
+        description,
+        amount: receipt.amount,
+        membershipId,
+        paymentMethod: tender.stored,
+        idempotencyKey: receipt.idempotencyKey,
+      });
+      return;
+    }
+    await callPostFolioTransaction({
+      restaurantId: input.restaurantId,
+      folioId,
+      type: "deposit",
+      category: "deposit",
+      description,
+      amount: receipt.amount,
+      membershipId,
+      paymentMethod: tender.stored,
+      idempotencyKey: receipt.idempotencyKey,
+    });
+  };
+
+  if (input.payment.amount != null) {
+    try {
+      await postLine(input.payment, "payment");
+      result.paymentPosted = true;
+    } catch (error) {
+      result.paymentError = mapCashierShiftError(
+        error instanceof Error ? error.message : "Payment could not be posted.",
+      );
+    }
+  }
+  if (input.guestDeposit.amount != null) {
+    try {
+      await postLine(input.guestDeposit, "deposit");
+      result.guestDepositPosted = true;
+    } catch (error) {
+      result.guestDepositError = mapCashierShiftError(
+        error instanceof Error ? error.message : "Guest deposit could not be posted.",
+      );
+    }
+  }
+  return result;
+}
+
 export const createReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
@@ -1245,6 +1405,14 @@ export const createReservation = createServerFn({ method: "POST" })
         travelAgentContactId: idSchema.nullable().optional(),
         bookerGuestId: idSchema.nullable().optional(),
         depositTenderCode: z.string().max(80).nullable().optional(),
+        paymentReceivedAmount: z.number().finite().nonnegative().max(999999999).nullable().optional(),
+        paymentReceivedTender: z.string().max(80).nullable().optional(),
+        paymentReceivedReference: z.string().max(80).nullable().optional(),
+        paymentReceivedIdempotencyKey: z.string().max(80).nullable().optional(),
+        guestDepositAmount: z.number().finite().nonnegative().max(999999999).nullable().optional(),
+        guestDepositTender: z.string().max(80).nullable().optional(),
+        guestDepositReference: z.string().max(80).nullable().optional(),
+        guestDepositIdempotencyKey: z.string().max(80).nullable().optional(),
         reservationMode: z.enum(["single", "group"]).optional(),
         roomGuestAssignments: z
           .array(
@@ -1272,6 +1440,11 @@ export const createReservation = createServerFn({ method: "POST" })
       packagesSubtotal: number;
       grandCommercialSubtotal: number | null;
       reservationMode: ReservationMode;
+      paymentPosted: boolean;
+      paymentError: string | null;
+      guestDepositPosted: boolean;
+      guestDepositError: string | null;
+      folioOpened: boolean;
     }> => {
       const me = await requireReservationManager(context as never, data.restaurantId);
       const status = data.status ?? "pending";
@@ -1292,6 +1465,22 @@ export const createReservation = createServerFn({ method: "POST" })
         companyMasterId: data.companyMasterId ?? null,
         travelAgentMasterId: data.travelAgentMasterId ?? null,
       });
+      const paymentReceipt = normalizeCreateReceipt({
+        amount: data.paymentReceivedAmount,
+        tender: data.paymentReceivedTender,
+        reference: data.paymentReceivedReference,
+        idempotencyKey: data.paymentReceivedIdempotencyKey,
+      });
+      const guestDepositReceipt = normalizeCreateReceipt({
+        amount: data.guestDepositAmount,
+        tender: data.guestDepositTender,
+        reference: data.guestDepositReference,
+        idempotencyKey: data.guestDepositIdempotencyKey,
+      });
+      const paymentShape = createReceiptShapeError(paymentReceipt);
+      if (paymentShape) throw new Error(paymentShape);
+      const depositShape = createReceiptShapeError(guestDepositReceipt);
+      if (depositShape) throw new Error(depositShape);
       const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
       const { data: roomType, error: occupancyError } = await context.supabase
@@ -1353,6 +1542,15 @@ export const createReservation = createServerFn({ method: "POST" })
       }
 
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      if (createMoneyNeedsFolio(paymentReceipt, guestDepositReceipt)) {
+        const polish = await loadPolish1Snapshot(supabaseAdmin, data.restaurantId);
+        const activeTenderCodes = polish.paymentMethodsAvailable
+          ? polish.paymentMethods.filter((row) => row.active).map((row) => row.code)
+          : null;
+        if (paymentReceipt.tender) assertReservationTenderCode(paymentReceipt.tender, activeTenderCodes);
+        if (guestDepositReceipt.tender)
+          assertReservationTenderCode(guestDepositReceipt.tender, activeTenderCodes);
+      }
       let groupLink: { groupId: string; blockId: string | null } | null = null;
       if (data.pmsGroupBlockId || data.pmsGroupId) {
         const { assertGroupStayPickup } = await import("./groups.functions");
@@ -1533,6 +1731,12 @@ export const createReservation = createServerFn({ method: "POST" })
         currency: row.currency,
         nightly: parseSnapshot(row.nightly_rate_snapshot),
       });
+      const money = await postCreateReservationMoney(context, supabaseAdmin, {
+        restaurantId: data.restaurantId,
+        reservationId: row.id,
+        payment: paymentReceipt,
+        guestDeposit: guestDepositReceipt,
+      });
       if (data.travelAgentMasterId) {
         const { syncTravelAgentCommission } = await import("./guest-travel-agent-booking");
         const { notifyTravelAgentBookingEvent } =
@@ -1567,6 +1771,11 @@ export const createReservation = createServerFn({ method: "POST" })
         packagesSubtotal: commercial.packagesSubtotal,
         grandCommercialSubtotal: commercial.grandCommercialSubtotal,
         reservationMode,
+        paymentPosted: money.paymentPosted,
+        paymentError: money.paymentError,
+        guestDepositPosted: money.guestDepositPosted,
+        guestDepositError: money.guestDepositError,
+        folioOpened: money.folioOpened,
       };
     },
   );
@@ -1636,9 +1845,9 @@ export const amendReservation = createServerFn({ method: "POST" })
   .handler(
     async ({ data, context }): Promise<{ id: string; amendment: StayAmendmentResult | null }> => {
       const me = await requireReservationManager(context as never, data.restaurantId);
-      const { arrival, departure } = assertStayDates(data.arrival, data.departure);
-
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
+      const { arrival, departure } = assertStayDates(data.arrival, data.departure);
       const { data: existing, error: readError } = await supabaseAdmin
         .from("hotel_reservations")
         .select(
@@ -1931,6 +2140,21 @@ export const amendReservation = createServerFn({ method: "POST" })
     },
   );
 
+const ROOM_ASSIGNMENT_UNAVAILABLE =
+  "This room is no longer available. Select another eligible room.";
+
+function assignmentWriteError(error: { message: string }): Error {
+  const mapped = reservationError(error.message);
+  if (
+    /ROOM_NOT_ASSIGNABLE|ROOM_ALREADY_BOOKED|NO_AVAILABILITY|eligible|available|booked|occupied|blocked/i.test(
+      `${error.message} ${mapped.message}`,
+    )
+  ) {
+    return new Error(ROOM_ASSIGNMENT_UNAVAILABLE);
+  }
+  return mapped;
+}
+
 /** Assign or clear a room without touching the rest of the stay. */
 export const assignReservationRoom = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1957,28 +2181,67 @@ export const assignReservationRoom = createServerFn({ method: "POST" })
       .maybeSingle();
     if (readError) throw new Error(readError.message);
     if (!existing) throw new Error("Reservation not found for this property.");
-
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const units = await supabaseAdmin
       .from("hotel_reservation_rooms")
-      .select("id")
+      .select("id, status, room_type_id, arrival_date, departure_date, adults, children")
       .eq("restaurant_id", data.restaurantId)
-      .eq("reservation_id", data.reservationId);
+      .eq("reservation_id", data.reservationId)
+      .order("unit_sequence", { ascending: true });
     if (units.error && !isMissingSchemaError(units.error)) throw new Error(units.error.message);
     const unitRows = units.error ? [] : (units.data ?? []);
-    if (unitRows.length <= 1 && !["pending", "confirmed"].includes(existing.status)) {
+    const targetUnit = data.reservationRoomId
+      ? unitRows.find((unit) => unit.id === data.reservationRoomId)
+      : unitRows.length === 1
+        ? unitRows[0]
+        : undefined;
+    if (unitRows.length > 0 && !targetUnit) throw reservationError("ROOM_UNIT_REQUIRED");
+    const assignmentStatus = targetUnit
+      ? String(targetUnit.status ?? existing.status)
+      : String(existing.status);
+    if (assignmentStatus === "checked_in") {
+      throw reservationError(
+        "In-house room changes use the Front Office room move. Direct assign and unassign are not available after check-in.",
+      );
+    }
+    if (!["pending", "confirmed"].includes(assignmentStatus)) {
       throw new Error("Rooms can only be assigned before check-in.");
     }
-    if (unitRows.length > 1) {
-      if (!data.reservationRoomId) throw reservationError("ROOM_UNIT_REQUIRED");
+    if (data.roomId) {
+      const { getAssignmentEligibilityCompat } = await import("./room-inventory-compat");
+      const eligibility = await getAssignmentEligibilityCompat(
+        context.supabase,
+        {
+          restaurantId: data.restaurantId,
+          roomId: data.roomId,
+          roomTypeId: targetUnit?.room_type_id ?? existing.room_type_id,
+          arrival: targetUnit?.arrival_date ?? existing.arrival_date,
+          departure: targetUnit?.departure_date ?? existing.departure_date,
+          excludeReservationId: data.reservationId,
+          adults: targetUnit?.adults ?? existing.adults,
+          children: targetUnit?.children ?? existing.children,
+        },
+        () => ({
+          source: "legacy" as const,
+          eligible: true,
+          blockers: [],
+          warnings: [],
+          preferenceScore: 0,
+          preferenceReasons: [],
+        }),
+      );
+      if (!eligibility.eligible) throw new Error(ROOM_ASSIGNMENT_UNAVAILABLE);
+    }
+    if (targetUnit) {
       const { error: assignError } = await supabaseAdmin.rpc("assign_hotel_reservation_room_unit", {
         _restaurant_id: data.restaurantId,
         _reservation_id: data.reservationId,
         _room_id: data.roomId as unknown as string,
         _membership_id: me.id,
-        _reservation_room_id: data.reservationRoomId,
+        _reservation_room_id: targetUnit.id,
       });
-      if (assignError) throw reservationError(assignError.message);
+      if (assignError) throw assignmentWriteError(assignError);
       return { id: data.reservationId };
     }
 
@@ -1995,18 +2258,7 @@ export const assignReservationRoom = createServerFn({ method: "POST" })
       _notes: existing.notes as unknown as string,
       _membership_id: me.id,
     });
-    if (error) throw reservationError(error.message);
-    const onlyUnit = unitRows[0];
-    if (onlyUnit) {
-      const unitRoom = await supabaseAdmin
-        .from("hotel_reservation_rooms")
-        .update({ room_id: data.roomId })
-        .eq("restaurant_id", data.restaurantId)
-        .eq("id", onlyUnit.id);
-      if (unitRoom.error && !isMissingSchemaError(unitRoom.error)) {
-        throw new Error(unitRoom.error.message);
-      }
-    }
+    if (error) throw assignmentWriteError(error);
     return { id: data.reservationId };
   });
 
@@ -2026,6 +2278,7 @@ export const applyReservationRoomPackage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const { data: packageId, error } = await supabaseAdmin.rpc(
       "apply_hotel_reservation_room_package",
       {
@@ -2037,6 +2290,17 @@ export const applyReservationRoomPackage = createServerFn({ method: "POST" })
       },
     );
     if (error) throw reservationError(error.message);
+    await recordReservationEvent({
+      restaurantId: data.restaurantId,
+      reservationId: data.reservationId,
+      eventType: "package_applied",
+      newValues: {
+        package_activation_id: data.packageActivationId,
+        reservation_room_id: data.reservationRoomId,
+        package_row_id: packageId == null ? null : String(packageId),
+      },
+      actorMembershipId: me.id,
+    });
     return { id: String(packageId) };
   });
 
@@ -2059,6 +2323,7 @@ export const manageReservationRoomGuest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const { error } = await supabaseAdmin.rpc("manage_reservation_room_guest", {
       _restaurant_id: data.restaurantId,
       _reservation_id: data.reservationId,

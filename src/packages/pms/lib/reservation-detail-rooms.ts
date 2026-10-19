@@ -1,7 +1,9 @@
 import { REVIEW_ROOM_PREFERENCE_FLAGS } from "@/packages/pms/lib/create-reservation-review";
 import { DETAIL_DASH } from "@/packages/pms/lib/reservation-detail-overview";
+import type { ReservationRoomDisplay } from "@/packages/pms/lib/reservation-room-display.functions";
 import type { AssignableRoom, ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 import type { HotelRoom, RoomType } from "@/packages/pms/lib/rooms.functions";
+import { formatStayDate } from "@/shared/lib/property-dates";
 
 export const ASSIGNMENT_NOTES_MAX = 500;
 
@@ -42,6 +44,8 @@ export type RoomAssignmentRow = {
   statusTone: "ready" | "warn" | "blocked";
   features: string[];
   eligible: boolean;
+  blockerCode: string | null;
+  occupiedUntil: string | null;
 };
 
 export function assignmentLabel(reservation: ReservationDetail): "Assigned" | "Not Assigned" {
@@ -76,8 +80,10 @@ export function buildRoomAssignmentRows(input: {
   rooms: HotelRoom[];
   assignable: AssignableRoom[];
   roomType: RoomType | null | undefined;
+  display?: ReservationRoomDisplay[];
 }): RoomAssignmentRow[] {
   const eligibleIds = new Set(input.assignable.map((row) => row.id));
+  const displayById = new Map((input.display ?? []).map((row) => [row.id, row]));
   const view = input.roomType?.roomView?.trim() || null;
   const bedType =
     input.roomType?.beds?.[0]?.bedType?.trim() || input.roomType?.bedType?.trim() || null;
@@ -115,6 +121,7 @@ export function buildRoomAssignmentRows(input: {
   return [...byId.values()]
     .map((room) => {
       const status = roomStatusLabel(room);
+      const display = displayById.get(room.id);
       return {
         id: room.id,
         roomNumber: room.roomNumber,
@@ -125,7 +132,9 @@ export function buildRoomAssignmentRows(input: {
         statusLabel: status.label,
         statusTone: status.tone,
         features: room.roomFeatures,
-        eligible: eligibleIds.has(room.id),
+        eligible: display ? display.eligible : eligibleIds.has(room.id),
+        blockerCode: display?.blockerCode ?? null,
+        occupiedUntil: display?.occupiedUntil ?? null,
       };
     })
     .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true }));
@@ -169,6 +178,83 @@ export function uniqueFilterOptions(rows: RoomAssignmentRow[]): {
     statuses: [...statuses].sort(collator),
     features: [...features].sort(collator),
   };
+}
+
+export type RoomAssignmentIntent = "assign" | "change_room";
+
+/** Draft selection for one room unit. It is not part of the page save draft. */
+export type RoomAssignmentSelection = {
+  intent: RoomAssignmentIntent;
+  reservationRoomId: string;
+  unitSequence: number;
+  currentRoomId: string | null;
+};
+
+export const ROOM_NO_LONGER_AVAILABLE =
+  "This room is no longer available. Select another eligible room.";
+
+export function roomSelectionNotice(selection: RoomAssignmentSelection): string {
+  return `Select an eligible room to assign to Room ${selection.unitSequence}.`;
+}
+
+/**
+ * Radios become assignment controls only in selection mode.
+ * Eligibility is the server Room & Inventory result. Dirty housekeeping does not block selection.
+ */
+/** Why a room cannot be chosen. The current room keeps its Assigned badge instead. */
+export function roomHoldReason(input: {
+  eligible: boolean;
+  current: boolean;
+  occupiedUntil: string | null;
+  statusLabel: string;
+  blockerCode: string | null;
+}): string | null {
+  if (input.current || input.eligible) return null;
+  if (input.occupiedUntil) return `Occupied until ${formatStayDate(input.occupiedUntil)}`;
+  if (input.blockerCode === "ROOM_ALREADY_BOOKED") return "Occupied";
+  if (input.blockerCode === "ROOM_BLOCKED") return "Blocked";
+  if (input.statusLabel === "Out of Order" || input.statusLabel === "Out of Service") {
+    return input.statusLabel;
+  }
+  return null;
+}
+
+export function roomCanBeSelected(input: {
+  selecting: boolean;
+  eligible: boolean;
+  current: boolean;
+}): boolean {
+  return input.selecting && input.eligible && !input.current;
+}
+
+export function assignmentAvailabilityMessage(serverMessage: string): string | null {
+  if (
+    /closed and cannot be changed|no-show|Front Office room move|permission|not found/i.test(
+      serverMessage,
+    )
+  ) {
+    return null;
+  }
+  if (
+    /eligible|available|assignable|overlap|occupied|out of order|out of service|blocked/i.test(
+      serverMessage,
+    )
+  ) {
+    return ROOM_NO_LONGER_AVAILABLE;
+  }
+  return null;
+}
+
+export function roomsDraftDirty(input: {
+  prefs: Record<RoomAssignmentPrefId, boolean>;
+  savedPrefs: Record<RoomAssignmentPrefId, boolean>;
+  notes: string;
+  savedNotes: string;
+}): boolean {
+  const prefsChanged = ROOM_ASSIGNMENT_PREFS.some(
+    (pref) => input.prefs[pref.id] !== input.savedPrefs[pref.id],
+  );
+  return prefsChanged || input.notes.trim() !== input.savedNotes.trim();
 }
 
 export function preferenceChecked(

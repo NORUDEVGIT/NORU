@@ -19,6 +19,7 @@ import { resolvePropertyBusinessDate } from "./reservation-workspace/business-da
 import { financialFromSignal, type RoomInventoryState } from "./reservation-workspace/arrivals-departures";
 import { normalizeClock } from "./pms-set1-foundation";
 import {
+  checkInPaymentGate,
   depositOkFromSignals,
   foArrivalActionHints,
   foArrivalBlockingKeys,
@@ -346,11 +347,13 @@ export const listFrontOfficeWalkInsDesk = createServerFn({ method: "POST" })
           phone: stay.guestPhone,
           email: stay.guestEmail,
         });
-        const depositOk = depositOkFromSignals({
-          postedAmount: Number(progress?.deposit_amount ?? signals.byStay[stay.id]?.depositPosted ?? 0),
-          waived: progress?.deposit_waived === true || signals.byStay[stay.id]?.depositWaived === true,
-          requiredAmount: settings.depositRequired && settings.depositValue ? settings.depositValue : null,
-        });
+        const depositOk = depositOkFromSignals(
+          checkInPaymentGate({
+            folioLane: signals.folioLane,
+            signal: signals.byStay[stay.id],
+            waived: progress?.deposit_waived === true || signals.byStay[stay.id]?.depositWaived === true,
+          }),
+        );
         const snapshots = Array.isArray(row.nightly_rate_snapshot)
           ? (row.nightly_rate_snapshot as Array<{ rate?: number }>)
           : [];
@@ -507,12 +510,14 @@ export const getFrontOfficeWalkInQuickView = createServerFn({ method: "POST" })
     const signal = signals.byStay[stay.id];
     const financial = financialFromSignal(signals.folioLane, signal);
     const depositWaived = progressRow?.deposit_waived === true || signal?.depositWaived === true;
-    const postedAmount = Number(progressRow?.deposit_amount ?? signal?.depositPosted ?? 0);
-    const depositOk = depositOkFromSignals({
-      postedAmount,
-      waived: depositWaived,
-      requiredAmount: settings.depositRequired && settings.depositValue ? settings.depositValue : null,
-    });
+    const depositPosted = Number(progressRow?.deposit_amount ?? signal?.depositPosted ?? 0);
+    const depositOk = depositOkFromSignals(
+      checkInPaymentGate({
+        folioLane: signals.folioLane,
+        signal,
+        waived: depositWaived,
+      }),
+    );
     const pricedRowTyped = pricedRow as {
       created_at?: string;
       room_subtotal?: number | string | null;
@@ -585,7 +590,7 @@ export const getFrontOfficeWalkInQuickView = createServerFn({ method: "POST" })
         folioNumber: signal?.folioNumber ?? null,
         depositRequired: settings.depositRequired,
         depositRequiredAmount: settings.depositValue,
-        depositPosted: postedAmount,
+        depositPosted,
         depositWaived,
         outstanding: !depositOk,
       },

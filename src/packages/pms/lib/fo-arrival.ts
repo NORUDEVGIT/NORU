@@ -260,6 +260,24 @@ export function depositOkFromSignals(params: {
   return isDepositSatisfied(params);
 }
 
+/** Arrival and walk-in use the same payment sum and snapshot amount as check-in completion. */
+export function checkInPaymentGate(input: {
+  folioLane?: string | null;
+  signal?: {
+    paymentPosted?: number | null;
+    paymentRequired?: number | null;
+    depositWaived?: boolean;
+  } | null;
+  waived?: boolean;
+}): { postedAmount: number; waived: boolean; requiredAmount: number | null } {
+  const live = input.folioLane == null || input.folioLane === "live";
+  return {
+    postedAmount: live ? (input.signal?.paymentPosted ?? 0) : 0,
+    waived: input.waived === true || input.signal?.depositWaived === true,
+    requiredAmount: live ? (input.signal?.paymentRequired ?? null) : null,
+  };
+}
+
 export function roomEligibleStatus(status: string | null | undefined): boolean {
   return status !== "out_of_order" && status !== "out_of_service";
 }

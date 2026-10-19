@@ -132,7 +132,7 @@ export const CREATE_RESERVATION_PERSIST_HELD_COPY =
   "Confirm / Guarantee cannot store source, segment, reference, or guarantee until migration 0061 is applied. This create fails closed instead of dropping those fields. Save as Pending still works.";
 
 export const CREATE_RESERVATION_GUARANTEE_LABELS_ONLY =
-  "Recorded guarantee / tender class only. This does not post a deposit, open a gateway, or capture a card.";
+  "Recorded guarantee / tender class only. A guarantee label does not post money, open a gateway, or capture a card. An explicit received payment or guest deposit posts through Cashiering.";
 
 export const CREATE_RESERVATION_EMPTY_PAYMENT_METHODS_WARN =
   "No active payment methods in Setup yet. Cashier tender labels are shown instead. This is a warning, not a fake seed.";
@@ -152,7 +152,7 @@ export const CREATE_RESERVATION_SECTION7_PERMISSION_DOC =
 
 export const CREATE_RESERVATION_SECTION7_LOCKED_NON_GOALS = [
   "email/SMS send confirmation",
-  "create-time deposit cashiering",
+  "automatic create-time cashiering without an explicit amount",
   "payment gateway / card capture",
   "credit-approval engine / city-ledger",
   "guarantee rules Setup product",

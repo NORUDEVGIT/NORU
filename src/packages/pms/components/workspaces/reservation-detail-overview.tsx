@@ -1,5 +1,16 @@
-import type { ReactNode } from "react";
-import { BedDouble, CalendarDays, CreditCard, FileText, Share2, UserRound } from "lucide-react";
+import {
+  BedDouble,
+  Calendar,
+  CalendarDays,
+  Coins,
+  CreditCard,
+  DoorOpen,
+  FileText,
+  Moon,
+  Share2,
+  UserRound,
+  Wallet,
+} from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { Button } from "@/shared/components/ui/button";
@@ -468,39 +479,117 @@ function OverviewFields({ rows }: { rows: Array<[string, string]> }) {
   );
 }
 
-export function ReservationDetailKpiStrip({
-  items,
-}: {
-  items: Array<{ label: string; value: string; hint?: string | null }>;
-}) {
+export type ReservationDetailKpiItem = {
+  label: string;
+  value: string;
+  hint?: string | null;
+  icon?: React.ReactNode;
+  iconBg?: string;
+};
+
+function getKpiIconFallback(label: string): { icon: React.ReactNode; iconBg: string } {
+  const lower = label.toLowerCase();
+  if (lower.includes("arrive")) {
+    return {
+      icon: <Calendar className="size-4 text-[#2563EB]" />,
+      iconBg: "bg-[#EAF2FD]",
+    };
+  }
+  if (lower.includes("status")) {
+    return {
+      icon: <BedDouble className="size-4 text-[#16A34A]" />,
+      iconBg: "bg-[#EAF7EE]",
+    };
+  }
+  if (lower.includes("night")) {
+    return {
+      icon: <Moon className="size-4 text-[#7C3AED]" />,
+      iconBg: "bg-[#F1EFFD]",
+    };
+  }
+  if (lower.includes("room")) {
+    return {
+      icon: <DoorOpen className="size-4 text-[#6366F1]" />,
+      iconBg: "bg-[#ECE9FB]",
+    };
+  }
+  if (lower.includes("total amount") || lower.includes("subtotal")) {
+    return {
+      icon: <FileText className="size-4 text-[#8C6D3B]" />,
+      iconBg: "bg-[#F7F2EA]",
+    };
+  }
+  if (lower.includes("payment")) {
+    return {
+      icon: <Wallet className="size-4 text-[#16A34A]" />,
+      iconBg: "bg-[#EAF7EE]",
+    };
+  }
+  if (lower.includes("deposit")) {
+    return {
+      icon: <Coins className="size-4 text-[#D97706]" />,
+      iconBg: "bg-[#FDF3E3]",
+    };
+  }
+  return {
+    icon: <FileText className="size-4 text-[#8C7A6B]" />,
+    iconBg: "bg-[#F4EFE6]",
+  };
+}
+
+export function ReservationDetailKpiStrip({ items }: { items: ReservationDetailKpiItem[] }) {
   return (
     <div
-      className="grid grid-cols-2 gap-2 border-b border-[#DDD4C5] bg-[#FBF8F2] px-4 py-3 sm:grid-cols-3 xl:grid-cols-6"
+      className="grid grid-cols-2 gap-2.5 border-b border-[#DDD4C5] bg-[#FBF8F2] px-4 py-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7"
       data-testid="reservation-detail-kpi"
     >
-      {items.map((item) => (
-        <div
-          key={item.label}
-          className="min-w-0 rounded-lg border border-[#E8DFD0] bg-white px-3 py-2"
-        >
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            {item.label}
-          </p>
-          <p className="mt-0.5 truncate font-display text-lg text-[#251605]">{item.value}</p>
-          {item.hint ? (
-            <p className={cn("truncate text-[11px]", hintTone(item.hint))}>{item.hint}</p>
-          ) : null}
-        </div>
-      ))}
+      {items.map((item) => {
+        const fallback = getKpiIconFallback(item.label);
+        const icon = item.icon ?? fallback.icon;
+        const iconBg = item.iconBg ?? fallback.iconBg;
+        return (
+          <div
+            key={item.label}
+            className="flex min-w-0 items-center gap-2.5 rounded-xl border border-[#E8DFD0] bg-white p-2.5 shadow-2xs"
+          >
+            {icon ? (
+              <div
+                className={cn(
+                  "flex size-9 shrink-0 items-center justify-center rounded-lg sm:size-10",
+                  iconBg,
+                )}
+              >
+                {icon}
+              </div>
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8C7A6B]">
+                {item.label}
+              </p>
+              <p className="mt-0.5 truncate font-display text-base font-bold text-[#251605]">
+                {item.value}
+              </p>
+              {item.hint ? (
+                <p className={cn("truncate text-[11px]", hintTone(item.hint))}>{item.hint}</p>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function hintTone(hint: string): string {
   const lower = hint.toLowerCase();
-  if (lower.includes("not assigned") || lower.includes("pending") || lower.includes("required")) {
-    return "text-amber-700";
+  if (lower.includes("not assigned") || lower.includes("required")) {
+    return "text-[#C2410C] font-medium";
   }
-  if (lower.includes("due in") || lower.includes("confirmed")) return "text-emerald-700";
+  if (lower.includes("pending")) {
+    return "text-amber-700 font-medium";
+  }
+  if (lower.includes("due in") || lower.includes("confirmed") || lower.includes("% of total")) {
+    return "text-[#15803D] font-medium";
+  }
   return "text-muted-foreground";
 }

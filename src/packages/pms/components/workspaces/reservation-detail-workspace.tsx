@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -28,7 +28,6 @@ import {
 import { stayFromReservation } from "@/packages/pms/lib/front-office-shell";
 import { frontOfficeRoomTargets } from "@/packages/pms/lib/reservation-room-units";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
-import { getOverbookingControls } from "@/packages/pms/lib/overbooking.functions";
 import {
   Select,
   SelectContent,
@@ -57,6 +56,9 @@ import { ReservationDetailRatesTab } from "@/packages/pms/components/workspaces/
 import { ReservationDetailRoomsTab } from "@/packages/pms/components/workspaces/reservation-detail-rooms";
 import { ReservationDetailPackagesTab } from "@/packages/pms/components/workspaces/reservation-detail-packages";
 import { ReservationDetailFolioTab } from "@/packages/pms/components/workspaces/reservation-detail-folio";
+import { getReservationFolio, getFolio } from "@/packages/pms/lib/cashiering.functions";
+import { folioLedgerSummary } from "@/packages/pms/lib/reservation-detail-folio";
+import { reservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle";
 import { ReservationDetailRequestsTab } from "@/packages/pms/components/workspaces/reservation-detail-requests";
 import { ReservationDetailNotesTab } from "@/packages/pms/components/workspaces/reservation-detail-notes";
 import {
@@ -66,7 +68,6 @@ import {
   COMMUNICATION_DEFERRED_COPY,
   DETAIL_DASH,
   DETAIL_SIDEBAR_ITEMS,
-  depositStatusLabel,
   LINKED_DEFERRED_COPY,
   parseDepositRequirementSnapshot,
   snapshotDisplayName,
@@ -203,6 +204,8 @@ export function ReservationDetailWorkspace({
   const submitAssign = useServerFn(assignReservationRoom);
   const submitStatus = useServerFn(setReservationStatus);
   const submitCopy = useServerFn(copyReservation);
+  const fetchReservationFolio = useServerFn(getReservationFolio);
+  const fetchFolio = useServerFn(getFolio);
 
   const [amendOpen, setAmendOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -216,13 +219,6 @@ export function ReservationDetailWorkspace({
     retry: false,
   });
   const canManage = accessQuery.data?.canManage ?? false;
-  const loadOverbookingControls = useServerFn(getOverbookingControls);
-  const overbookingControls = useQuery({
-    queryKey: ["overbooking-controls", restaurantId],
-    queryFn: () => loadOverbookingControls({ data: { restaurantId } }),
-  });
-  const overbookingApprovalRequired = overbookingControls.data?.managerApprovalRequired !== false;
-  const overbookingReasonRequired = overbookingControls.data?.reasonRequired !== false;
 
   const detailQuery = useQuery({
     queryKey: ["reservation", restaurantId, reservationId],
@@ -304,11 +300,30 @@ export function ReservationDetailWorkspace({
     retry: false,
   });
 
+  const previewFolioQuery = useQuery({
+    queryKey: ["reservation-folio", restaurantId, reservation?.id],
+    queryFn: () =>
+      fetchReservationFolio({ data: { restaurantId, reservationId: reservation!.id } }),
+    enabled: canManage && Boolean(reservation?.id),
+    retry: false,
+  });
+
+  const folioQuery = useQuery({
+    queryKey: ["folio", restaurantId, previewFolioQuery.data?.id],
+    queryFn: () => fetchFolio({ data: { restaurantId, folioId: previewFolioQuery.data!.id } }),
+    enabled: Boolean(previewFolioQuery.data?.id),
+    retry: false,
+  });
+
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["reservation", restaurantId, reservationId] });
     void queryClient.invalidateQueries({ queryKey: ["reservations", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["assignable-rooms", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["bookings-dashboard", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["reservation-folio", restaurantId, reservationId] });
+    void queryClient.invalidateQueries({ queryKey: ["folio", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["reservation-commercial", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["room-type-availability", restaurantId] });
   }
 
   const statusMutation = useMutation({
@@ -380,6 +395,12 @@ export function ReservationDetailWorkspace({
   const history = detailQuery.data?.history ?? [];
   const rooms = roomsQuery.data ?? [];
   const cancelled = reservation.status === "cancelled";
+  const stayMutable = reservationDetailEditable({
+    status: reservation.status,
+    arrivalDate: reservation.arrivalDate,
+    businessDate,
+    canManage,
+  });
   const createdBy =
     reservation.createdByName ??
     history.find((entry) => entry.eventType === "created")?.actorName ??
@@ -544,6 +565,16 @@ export function ReservationDetailWorkspace({
 
   if (embedded) {
     const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
+    const folioSummary = folioLedgerSummary(folioQuery.data ?? null);
+    const paymentReceived = folioSummary?.payments ?? null;
+    const guestDepositCredits = folioSummary?.depositCredits ?? null;
+    const guestDepositReceived =
+      guestDepositCredits != null && guestDepositCredits > 0 ? guestDepositCredits : null;
+    const paymentHasCredit = paymentReceived != null && paymentReceived > 0;
+    const paymentPercentage =
+      paymentReceived != null && headerRoomTotal != null && headerRoomTotal > 0
+        ? Math.round((paymentReceived / headerRoomTotal) * 100)
+        : null;
     const roomType = (availabilityQuery.data ?? []).find(
       (row) => row.roomTypeId === reservation.roomTypeId,
     );
@@ -683,17 +714,14 @@ export function ReservationDetailWorkspace({
       <ReservationDetailStayTab
         restaurantId={restaurantId}
         reservation={reservation}
-        editable={detailActions?.editable ?? false}
-        canManage={canManage}
-        canOverbook={
-          overbookingApprovalRequired
-            ? accessQuery.data?.role === "owner" || accessQuery.data?.role === "manager"
-            : canManage
-        }
-        reasonRequired={overbookingReasonRequired}
+        editable={(detailActions?.editable ?? false) && stayMutable}
+        canManage={stayMutable}
         timezone={timezone}
         money={money}
         coverUrl={roomType?.coverUrl ?? null}
+        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        guestDeposit={guestDepositReceived}
+        totalAmount={headerRoomTotal}
         onBackToOverview={() => setDetailTab("overview")}
         onSaved={invalidate}
       />
@@ -704,9 +732,12 @@ export function ReservationDetailWorkspace({
         reservation={reservation}
         guest={guestQuery.data?.guest ?? null}
         preferences={guestQuery.data?.preferences ?? null}
-        canManage={canManage && !cancelled}
+        canManage={stayMutable}
         money={money}
         coverUrl={roomType?.coverUrl ?? null}
+        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        guestDeposit={guestDepositReceived}
+        totalAmount={headerRoomTotal}
         onBackToOverview={() => setDetailTab("overview")}
         onSaved={invalidate}
       />
@@ -715,8 +746,10 @@ export function ReservationDetailWorkspace({
       <ReservationDetailRatesTab
         restaurantId={restaurantId}
         reservation={reservation}
-        canManage={canManage && !cancelled}
+        canManage={stayMutable}
         money={money}
+        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        guestDeposit={guestDepositReceived}
         coverUrl={roomType?.coverUrl ?? null}
         occupancyLabel={
           roomType ? `${roomType.adultCapacity} adults · ${roomType.childCapacity} children` : null
@@ -730,14 +763,16 @@ export function ReservationDetailWorkspace({
         restaurantId={restaurantId}
         reservation={reservation}
         assignableRooms={rooms}
-        canManage={canManage && !cancelled}
+        canManage={stayMutable}
+        businessDate={businessDate}
         money={money}
+        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        guestDeposit={guestDepositReceived}
         coverUrl={roomType?.coverUrl ?? null}
         occupancyLabel={
           roomType ? `${roomType.adultCapacity} adults · ${roomType.childCapacity} children` : null
         }
         onBackToGuest={() => setDetailTab("guest")}
-        onChangeRoomType={() => setAmendOpen(true)}
         onSaved={invalidate}
         onOperate={(action, reservationRoomId) => {
           setFoRoomTarget(reservationRoomId);
@@ -749,8 +784,10 @@ export function ReservationDetailWorkspace({
       <ReservationDetailPackagesTab
         restaurantId={restaurantId}
         reservation={reservation}
-        canManage={canManage && !cancelled}
+        canManage={stayMutable}
         money={money}
+        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        guestDeposit={guestDepositReceived}
         coverUrl={roomType?.coverUrl ?? null}
         onBackToRates={() => setDetailTab("rates")}
       />
@@ -761,6 +798,8 @@ export function ReservationDetailWorkspace({
         reservation={reservation}
         canManage={canManage && !cancelled}
         money={money}
+        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        guestDeposit={guestDepositReceived}
         coverUrl={roomType?.coverUrl ?? null}
         onBackToPackages={() => setDetailTab("packages")}
       />
@@ -772,8 +811,10 @@ export function ReservationDetailWorkspace({
         guest={guestQuery.data?.guest ?? null}
         preferences={guestQuery.data?.preferences ?? null}
         history={history}
-        canManage={canManage && !cancelled}
+        canManage={stayMutable}
         money={money}
+        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        guestDeposit={guestDepositReceived}
         coverUrl={roomType?.coverUrl ?? null}
         onBackToFolio={() => setDetailTab("folio")}
         onSaved={invalidate}
@@ -786,8 +827,10 @@ export function ReservationDetailWorkspace({
         guest={guestQuery.data?.guest ?? null}
         guestHistory={guestQuery.data?.history ?? []}
         history={history}
-        canManage={canManage && !cancelled}
+        canManage={stayMutable}
         money={money}
+        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        guestDeposit={guestDepositReceived}
         coverUrl={roomType?.coverUrl ?? null}
         onBackToRequests={() => setDetailTab("requests")}
         onSaved={invalidate}
@@ -863,6 +906,7 @@ export function ReservationDetailWorkspace({
             {
               label: "Arrive in",
               value: arriveInLabel(reservation.arrivalDate, businessDate),
+              hint: formatStayDate(reservation.arrivalDate),
             },
             {
               label: "Stay Status",
@@ -872,17 +916,31 @@ export function ReservationDetailWorkspace({
                 departureDate: reservation.departureDate,
                 businessDate,
               }),
+              hint: reservation.status === "confirmed" ? "Confirmed" : reservation.status,
             },
-            { label: "Nights", value: String(reservation.nights) },
+            {
+              label: "Nights",
+              value: String(reservation.nights),
+              hint: `${formatStayDate(reservation.arrivalDate)} – ${formatStayDate(reservation.departureDate)}`,
+            },
             reservationHeaderRoomKpi(reservation),
             {
               label: "Total Amount",
               value: headerRoomTotal == null ? DETAIL_DASH : money(headerRoomTotal),
             },
             {
-              label: "Deposit",
-              value: deposit?.amount == null ? DETAIL_DASH : money(deposit.amount),
-              hint: depositStatusLabel(deposit),
+              label: "Payment Received",
+              value: paymentHasCredit ? money(paymentReceived) : "—",
+              hint: paymentHasCredit
+                ? paymentPercentage != null
+                  ? `${paymentPercentage}% of total`
+                  : null
+                : "No payment received",
+            },
+            {
+              label: "Guest Deposit",
+              value: guestDepositReceived == null ? "—" : money(guestDepositReceived),
+              hint: guestDepositReceived == null ? "No deposit received" : null,
             },
           ]}
         />
@@ -947,7 +1005,7 @@ export function ReservationDetailWorkspace({
                     beds: null,
                   }}
                   money={(value) => money(value)}
-                  editable={detailActions?.editable ?? false}
+                  editable={(detailActions?.editable ?? false) && stayMutable}
                   catalogues={{
                     sources: set6Query.data?.snapshot.sourceCodes ?? [],
                     channels: set6Query.data?.snapshot.salesChannels ?? [],
@@ -1138,7 +1196,7 @@ export function ReservationDetailWorkspace({
       <NotesEditor
         reservation={reservation}
         restaurantId={restaurantId}
-        canManage={canManage && !cancelled}
+        canManage={stayMutable}
         amend={submitAmend}
         onSaved={invalidate}
       />
@@ -1146,7 +1204,7 @@ export function ReservationDetailWorkspace({
       <PricingSection
         restaurantId={restaurantId}
         reservation={reservation}
-        canManage={canManage && !cancelled}
+        canManage={stayMutable}
         onRepriced={invalidate}
       />
 
@@ -1428,9 +1486,15 @@ function AmendDialog({
   const [step, setStep] = useState<"edit" | "review">("edit");
   const fetchGuests = useServerFn(listGuests);
   const fetchQuotes = useServerFn(quoteStay);
+  const draftReservationId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      draftReservationId.current = null;
+      return;
+    }
+    if (draftReservationId.current === reservation.id) return;
+    draftReservationId.current = reservation.id;
     setArrival(reservation.arrivalDate);
     setDeparture(reservation.departureDate);
     setRoomTypeId(reservation.roomTypeId);

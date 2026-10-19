@@ -8,6 +8,7 @@ import {
   buildRoomPrefDraft,
   emptyRoomFilters,
   filterRoomAssignmentRows,
+  roomHoldReason,
   specialRequestsFromPrefs,
   uniqueFilterOptions,
 } from "@/packages/pms/lib/reservation-detail-rooms";
@@ -191,6 +192,99 @@ describe("Reservation Detail Rooms tab", () => {
     expect(uniqueFilterOptions(rows).floors).toContain("5");
   });
 
+  it("explains occupied, blocked, and out-of-order rooms without hiding a later stay", () => {
+    const rows = buildRoomAssignmentRows({
+      rooms: [
+        hotelRoom({ id: "room-401", roomNumber: "401" }),
+        hotelRoom({ id: "room-402", roomNumber: "402", housekeepingStatus: "dirty" }),
+        hotelRoom({ id: "room-403", roomNumber: "403", status: "out_of_order" }),
+      ],
+      assignable: [
+        {
+          id: "room-401",
+          roomNumber: "401",
+          floor: "4",
+          building: null,
+          housekeepingStatus: "clean",
+        },
+        {
+          id: "room-402",
+          roomNumber: "402",
+          floor: "4",
+          building: null,
+          housekeepingStatus: "dirty",
+        },
+      ],
+      roomType,
+      display: [
+        {
+          id: "room-401",
+          eligible: false,
+          blockerCode: "ROOM_ALREADY_BOOKED",
+          occupiedUntil: "2026-10-24",
+        },
+        { id: "room-402", eligible: true, blockerCode: null, occupiedUntil: null },
+        {
+          id: "room-403",
+          eligible: false,
+          blockerCode: "ROOM_OPERATIONALLY_UNAVAILABLE",
+          occupiedUntil: null,
+        },
+      ],
+    });
+    const occupied = rows.find((row) => row.id === "room-401");
+    const dirty = rows.find((row) => row.id === "room-402");
+    const ooo = rows.find((row) => row.id === "room-403");
+    expect(occupied?.eligible).toBe(false);
+    expect(
+      roomHoldReason({
+        eligible: false,
+        current: false,
+        occupiedUntil: "2026-10-24",
+        statusLabel: "Ready",
+        blockerCode: "ROOM_ALREADY_BOOKED",
+      }),
+    ).toBe("Occupied until 24 Oct 2026");
+    expect(dirty?.eligible).toBe(true);
+    expect(
+      roomHoldReason({
+        eligible: true,
+        current: false,
+        occupiedUntil: null,
+        statusLabel: "Dirty",
+        blockerCode: null,
+      }),
+    ).toBeNull();
+    expect(ooo?.eligible).toBe(false);
+    expect(
+      roomHoldReason({
+        eligible: false,
+        current: false,
+        occupiedUntil: null,
+        statusLabel: "Out of Order",
+        blockerCode: "ROOM_OPERATIONALLY_UNAVAILABLE",
+      }),
+    ).toBe("Out of Order");
+    expect(
+      roomHoldReason({
+        eligible: false,
+        current: false,
+        occupiedUntil: null,
+        statusLabel: "Ready",
+        blockerCode: "ROOM_BLOCKED",
+      }),
+    ).toBe("Blocked");
+    expect(
+      roomHoldReason({
+        eligible: true,
+        current: true,
+        occupiedUntil: null,
+        statusLabel: "Ready",
+        blockerCode: null,
+      }),
+    ).toBeNull();
+  });
+
   it("saves stay preferences through special requests and keeps assignment notes local", () => {
     const draft = buildRoomPrefDraft(reservation.specialRequests);
     expect(draft.high_floor).toBe(true);
@@ -200,7 +294,8 @@ describe("Reservation Detail Rooms tab", () => {
     expect(next).toContain("High Floor");
     expect(next).toContain("King bed");
     expect(next).toContain("Welcome drink");
-    expect(roomsUi).toContain("ASSIGNMENT_NOTES_GAP_COPY");
+    expect(roomsUi).toContain("saveAssignmentNotes");
+    expect(roomsUi).not.toContain("ASSIGNMENT_NOTES_GAP_COPY");
     expect(roomsUi).toContain("specialRequestsFromPrefs");
     expect(roomsUi).not.toContain("saveGuestPreferences");
   });

@@ -206,10 +206,57 @@ describe("Reservation Detail Guest tab", () => {
     expect(chips.length).toBeGreaterThan(0);
     expect(accompanyingRelationshipLabel("spouse")).toBe("Spouse");
     expect(guestUi).toContain("guest-accompanying-empty");
-    expect(guestUi).toContain("not stored on this reservation yet");
+    expect(guestUi).toContain("manageReservationRoomGuest");
+    expect(guestUi).toContain("createGuest");
+    expect(guestUi).not.toContain("not stored on this reservation yet");
     expect(guestUi).toContain("notes: draft.guestNotes");
-    expect(guestUi).toContain("specialRequests: draft.specialRequests");
     expect(guestUi).not.toContain("updateGuest");
     expect(guestUi).not.toContain("saveGuestConsent");
+  });
+
+  it("verifies critical Guest tab UI requirements: absent actions, read-only guest type, and required modal fields", () => {
+    // 1. View Full Profile and Edit are REMOVED from Primary Guest Information
+    expect(guestUi).not.toContain("View Full Profile");
+    expect(guestUi).not.toContain("view full profile");
+
+    // Primary Guest Card does not contain any Action/Edit buttons
+    const primaryCardCode = guestUi.slice(
+      guestUi.indexOf("function PrimaryGuestCard"),
+      guestUi.indexOf("function AccompanyingGuestsCard"),
+    );
+    expect(primaryCardCode).not.toContain("<Button");
+    expect(primaryCardCode).not.toContain("View Full Profile");
+
+    // 2. Guest Type is read-only (no radio buttons or RadioGroup)
+    expect(primaryCardCode).not.toContain("RadioGroup");
+    expect(primaryCardCode).not.toContain('type="radio"');
+    expect(primaryCardCode).toContain("Guest Type");
+    expect(primaryCardCode).toContain("Individual Guest");
+
+    // 3. Add Guest modal has exact 9 required fields
+    expect(guestUi).toContain('label="First Name *"');
+    expect(guestUi).toContain('label="Last Name *"');
+    expect(guestUi).toContain('label="Relationship *"');
+    expect(guestUi).toContain('label="Date of Birth *"');
+    expect(guestUi).toContain('label="Gender *"');
+    expect(guestUi).toContain('label="Nationality *"');
+    expect(guestUi).toContain('label="Phone"');
+    expect(guestUi).toContain('label="Email"');
+    expect(guestUi).toContain('label="ID / Passport *"');
+
+    // 4. Modal footer uses "Add Guest", NOT "Add to stay"
+    expect(guestUi).toContain('"Add Guest"');
+    expect(guestUi).not.toContain('"Add to stay"');
+    expect(guestUi).not.toContain("Add to stay");
+
+    // 5. Accompanying Guest removal detaches without deleting profile
+    expect(guestUi).toContain('action: "remove"');
+    expect(guestUi).not.toContain("deleteGuest");
+
+    // 6. Preferences & Special Requests modals with Edit buttons
+    expect(guestUi).toContain("handleOpenPreferences");
+    expect(guestUi).toContain("handleSavePreferences");
+    expect(guestUi).toContain("handleOpenSpecialRequests");
+    expect(guestUi).toContain("handleSaveSpecialRequests");
   });
 });

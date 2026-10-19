@@ -48,6 +48,14 @@ export const RESERVATION_EVENT_TYPES = [
   "external_reservation_modified",
   "external_reservation_cancelled",
   "overbooked",
+  "package_applied",
+  "package_removed",
+  "promotion_applied",
+  "note_pinned",
+  "trace_created",
+  "trace_updated",
+  "assignment_notes_updated",
+  "rate_notes_updated",
 ] as const;
 export type ReservationEventType = (typeof RESERVATION_EVENT_TYPES)[number];
 
@@ -130,6 +138,27 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   MULTI_ROOM_AMEND_UNSUPPORTED:
     "Dates, room, occupancy, and rate plan cannot be changed while this reservation has more than one room.",
   ROOM_UNIT_REQUIRED: "Choose which room this action applies to.",
+  CHECKIN_PROGRESS_UNIT_REQUIRED: "Check-in progress for this stay has to be stored on a room.",
+  CHECKIN_AGREEMENT_UNIT_REQUIRED:
+    "The registration agreement for this stay has to be stored on a room.",
+  AGREEMENT_REQUIRED: "Publish a registration agreement before this stay can be signed.",
+  AGREEMENT_ACK_REQUIRED: "Confirm each required acknowledgement before signing.",
+  AGREEMENT_DRAFT_REQUIRED: "Create a guest agreement draft before publishing.",
+  AGREEMENT_DRAFT_EXISTS: "Finish or publish the open guest agreement draft first.",
+  AGREEMENT_PLACEHOLDER_UNKNOWN: "This agreement uses a placeholder that cannot be resolved.",
+  AGREEMENT_PROPERTY_TIME_MISSING:
+    "Set the property check-in and check-out times before publishing this agreement.",
+  AGREEMENT_CONFIG_INVALID: "The guest agreement draft is incomplete.",
+  AGREEMENT_VERSION_MISMATCH: "Sign the agreement version that is currently shown.",
+  AGREEMENT_ALREADY_SIGNED:
+    "This agreement version is already signed. Start a new signature instead of editing it.",
+  AGREEMENT_NOT_READY: "Save the agreement acknowledgements before capturing a signature.",
+  AGREEMENT_OPEN_DRAFT: "An unsigned agreement is already open for this room.",
+  AGREEMENT_NOT_SIGNED: "This agreement is not signed yet.",
+  AGREEMENT_GUEST_MISMATCH: "Sign this agreement for the guest on this room.",
+  AGREEMENT_INSTANCE_IMMUTABLE: "A signed agreement cannot be changed.",
+  AGREEMENT_VERSION_IMMUTABLE:
+    "This agreement version can no longer be edited. Publish a new version.",
   ROOM_UNIT_NOT_FOUND: "That room is not on this reservation.",
   ROOM_REQUIRED: "Assign a room before completing check-in.",
   REASON_REQUIRED: "A reason is required for a room move.",

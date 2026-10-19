@@ -65,8 +65,13 @@ describe("Create reservation Step 4 policies layout", () => {
     const createCall = page.slice(page.indexOf("submitReservation({"), page.indexOf("onSuccess:"));
     assert.doesNotMatch(
       createCall,
-      /cardNumber|cvv|cardExpiry|depositAmount|depositDueDate|depositReference|noShowPolicy|ackInformed/i,
+      /cardNumber|cvv|cardExpiry|depositDueDate|noShowPolicy|ackInformed/i,
     );
+    assert.doesNotMatch(createCall, /(?<![A-Za-z])depositReference/);
+    assert.match(createCall, /paymentReceivedAmount/);
+    assert.match(createCall, /guestDepositAmount/);
+    assert.match(createCall, /paymentReceivedTender/);
+    assert.match(createCall, /guestDepositTender/);
     assert.doesNotMatch(createCall, /depositPolicyId/);
     assert.match(createCall, /depositTenderCode/);
     assert.match(
@@ -94,7 +99,12 @@ describe("Create reservation Step 4 policies layout", () => {
     assert.match(layout, /DEPOSIT_POLICY_TYPE_LABELS/);
     assert.match(functions, /persistDepositRequirementSnapshot/);
     assert.match(functions, /deposit_requirement_snapshot/);
-    assert.doesNotMatch(functions, /open_folio_for_reservation|post_folio_transaction/);
+    const persistBody = functions.slice(
+      functions.indexOf("async function persistDepositRequirementSnapshot"),
+      functions.indexOf("async function postCreateReservationMoney"),
+    );
+    assert.doesNotMatch(persistBody, /open_folio_for_reservation|post_folio_transaction/);
+    assert.match(functions, /if \(!createMoneyNeedsFolio/);
     assert.match(drizzle, /Cashiering posts deposits/);
     assert.equal(drizzle, supabase);
     assert.doesNotMatch(page, /getDefaultDepositPolicy/);

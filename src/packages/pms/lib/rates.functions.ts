@@ -13,6 +13,7 @@ import {
   type StayQuote,
 } from "./rates.server";
 import { callerMembership } from "@/core/lib/workforce.server";
+import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { REPORTS_ROLES } from "@/core/lib/module-access";
 import { selectCompanyBookingDefaults } from "./create-reservation-step3";
@@ -1511,6 +1512,8 @@ export const repriceReservation = createServerFn({ method: "POST" })
       | { ok: false; message: string }
     > => {
       const me = await requireRateManager(context as never, data.restaurantId);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
 
       const { data: reservation } = await context.supabase
         .from("hotel_reservations")
@@ -1520,7 +1523,6 @@ export const repriceReservation = createServerFn({ method: "POST" })
         .maybeSingle();
       if (!reservation) return { ok: false, message: "Reservation not found for this property." };
 
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: updated, error } = await supabaseAdmin.rpc("reprice_hotel_reservation", {
         _restaurant_id: data.restaurantId,
         _reservation_id: data.reservationId,
