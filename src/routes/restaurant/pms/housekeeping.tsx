@@ -10,6 +10,7 @@ export const Route = createFileRoute("/restaurant/pms/housekeeping")({
   validateSearch: (search: Record<string, unknown>) => ({
     ...(typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {}),
     ...(typeof search["room"] === "string" ? { room: search["room"] as string } : {}),
+    ...(typeof search["returnTo"] === "string" ? { returnTo: search["returnTo"] as string } : {}),
   }),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();

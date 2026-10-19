@@ -161,9 +161,9 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
         title="Maintenance"
         description="Operational visibility into room maintenance impact."
         action={
-          <Button asChild size="sm" variant="outline">
-            <a href="/restaurant/pms/maintenance">
-              Open Maintenance <ArrowRight className="ml-2 size-4" />
+          <Button asChild size="sm" variant="outline" className="border-[#D6CDBF] bg-white hover:bg-[#FAF8F5]">
+            <a href="/restaurant/pms/maintenance?tab=maintenance&returnTo=/restaurant/pms/room-inventory%3Ftab%3Dmaintenance">
+              Configure Maintenance <ArrowRight className="ml-1.5 size-3.5" />
             </a>
           </Button>
         }

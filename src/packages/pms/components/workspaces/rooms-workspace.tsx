@@ -172,6 +172,18 @@ const MORE_VIEWS: RoomInventoryView[] = [
   "offline-sync",
 ];
 
+const HIDDEN_MORE_VIEWS = new Set<RoomInventoryView>([
+  "floor-plan",
+  "bulk-operations",
+  "snapshot",
+  "reports",
+  "offline-sync",
+]);
+
+const MORE_VISIBLE_VIEWS: RoomInventoryView[] = MORE_VIEWS.filter(
+  (view) => !HIDDEN_MORE_VIEWS.has(view),
+);
+
 const VALID_VIEWS = new Set<RoomInventoryView>(VIEW_DEFINITIONS.map((view) => view.id));
 
 function normalizeInitialView(initialTab?: string): RoomInventoryView {
@@ -180,6 +192,9 @@ function normalizeInitialView(initialTab?: string): RoomInventoryView {
   if (initialTab === "dashboard") return "room-board";
 
   if (VALID_VIEWS.has(initialTab as RoomInventoryView)) {
+    if (HIDDEN_MORE_VIEWS.has(initialTab as RoomInventoryView)) {
+      return "room-board";
+    }
     return initialTab as RoomInventoryView;
   }
 
@@ -408,7 +423,11 @@ export function RoomsWorkspace({
       return;
     }
 
-    setMoreOpen((current) => !current);
+    if (activeSection === "more") {
+      setMoreOpen((current) => !current);
+    } else {
+      selectView(MORE_VISIBLE_VIEWS.includes(view) ? view : (MORE_VISIBLE_VIEWS[0] ?? "maintenance"));
+    }
   }
 
   return (
@@ -472,28 +491,34 @@ export function RoomsWorkspace({
               </SectionButton>
 
               {moreOpen ? (
-                <div className="absolute left-0 top-[calc(100%+8px)] z-50 w-56 overflow-hidden rounded-xl border border-border bg-popover p-1.5 shadow-xl">
-                  {MORE_VIEWS.map((item) => {
-                    const definition = viewDefinition(item);
-                    const active = view === item;
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setMoreOpen(false)}
+                  />
+                  <div className="absolute left-0 top-[calc(100%+8px)] z-50 w-56 overflow-hidden rounded-xl border border-border bg-popover p-1.5 shadow-xl">
+                    {MORE_VISIBLE_VIEWS.map((item) => {
+                      const definition = viewDefinition(item);
+                      const active = view === item;
 
-                    return (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => selectView(item)}
-                        className={[
-                          "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                          active
-                            ? "bg-muted font-medium text-foreground"
-                            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                        ].join(" ")}
-                      >
-                        {definition.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                      return (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => selectView(item)}
+                          className={[
+                            "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                            active
+                              ? "bg-muted font-medium text-foreground"
+                              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                          ].join(" ")}
+                        >
+                          {definition.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
               ) : null}
             </div>
           </div>
@@ -511,6 +536,16 @@ export function RoomsWorkspace({
           {activeSection === "rules" ? (
             <div className="flex items-end gap-1 border-t border-border/60 px-6">
               {RULE_VIEWS.map((item) => (
+                <SecondaryButton key={item} active={view === item} onClick={() => selectView(item)}>
+                  {viewDefinition(item).label}
+                </SecondaryButton>
+              ))}
+            </div>
+          ) : null}
+
+          {activeSection === "more" ? (
+            <div className="flex items-end gap-1 border-t border-border/60 px-6">
+              {MORE_VISIBLE_VIEWS.map((item) => (
                 <SecondaryButton key={item} active={view === item} onClick={() => selectView(item)}>
                   {viewDefinition(item).label}
                 </SecondaryButton>
