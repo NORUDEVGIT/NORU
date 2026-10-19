@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
-import { isGroupReservation, traceRoomTargets } from "@/packages/pms/lib/reservation-detail-group";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -54,17 +53,12 @@ import {
   type GuestProfile,
 } from "@/packages/pms/lib/guests.functions";
 import {
-  completeHousekeepingTask,
-  createHousekeepingTask,
-  listHousekeepingTasks,
-  updateHousekeepingTask,
-} from "@/packages/pms/lib/housekeeping.functions";
-import { TASK_TYPES, type TaskType } from "@/packages/pms/lib/housekeeping.server";
-import {
-  HK_CLEANING_TYPE_LABELS,
-  HK_PRIORITY_LABELS,
-} from "@/packages/pms/lib/pms-set4-hk-inventory";
-import { nightsBetween, propertyToday } from "@/packages/pms/lib/reservation-dates";
+  createReservationTrace,
+  listReservationTraces,
+  setReservationNotePin,
+  updateReservationTrace,
+} from "@/packages/pms/lib/reservation-detail-controls.functions";
+import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import {
   DETAIL_DASH,
   depositStatusLabel,
@@ -76,19 +70,14 @@ import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departu
 import {
   buildNotesActivity,
   buildStayNoteRows,
-  filterHousekeepingTasks,
+  filterReservationTraces,
   filterStayNotes,
   housekeepingStatusLabel,
-  housekeepingTaskLabel,
   importantStayNotes,
   NOTE_MAX,
-  NOTE_PIN_GAP_COPY,
   NOTE_TABS,
-  labeledHousekeepingTasks,
-  roomHousekeepingTasks,
-  TRACE_NO_ROOM_COPY,
-  TRACE_ROOM_GAP_COPY,
   TRACE_TABS,
+  traceOverdue,
   type NoteTabId,
   type TraceTabId,
 } from "@/packages/pms/lib/reservation-detail-notes";
@@ -111,6 +100,8 @@ export function ReservationDetailNotesTab({
   history,
   canManage,
   money,
+  paymentReceived = null,
+  guestDeposit = null,
   coverUrl,
   onBackToRequests,
   onSaved,
@@ -122,22 +113,23 @@ export function ReservationDetailNotesTab({
   history: ReservationHistoryEntry[];
   canManage: boolean;
   money: (value: number) => string;
+  paymentReceived?: number | null;
+  guestDeposit?: number | null;
   coverUrl: string | null;
   onBackToRequests: () => void;
   onSaved: () => void;
 }) {
   const queryClient = useQueryClient();
-  const { dateTime, timezone } = useRestaurantTime();
-  const fetchTasks = useServerFn(listHousekeepingTasks);
-  const createTask = useServerFn(createHousekeepingTask);
-  const updateTask = useServerFn(updateHousekeepingTask);
-  const completeTask = useServerFn(completeHousekeepingTask);
+  const { dateTime } = useRestaurantTime();
+  const fetchTraces = useServerFn(listReservationTraces);
+  const createTraceFn = useServerFn(createReservationTrace);
+  const updateTraceFn = useServerFn(updateReservationTrace);
+  const submitPin = useServerFn(setReservationNotePin);
   const submitAmend = useServerFn(amendReservation);
   const submitGuestNote = useServerFn(addGuestNote);
   const cancelled = reservation.status === "cancelled";
   const editable = canManage && !cancelled;
   const nights = nightsBetween(reservation.arrivalDate, reservation.departureDate);
-  const today = propertyToday(timezone);
 
   const [noteTab, setNoteTab] = useState<NoteTabId>("all");
   const [traceTab, setTraceTab] = useState<TraceTabId>("all");
@@ -147,20 +139,23 @@ export function ReservationDetailNotesTab({
   const [noteKind, setNoteKind] = useState<"internal" | "guest">("internal");
   const [noteText, setNoteText] = useState("");
   const [traceOpen, setTraceOpen] = useState(false);
-  const [taskType, setTaskType] = useState<TaskType>("stayover_cleaning");
+  const [taskText, setTaskText] = useState("");
   const [taskNotes, setTaskNotes] = useState("");
+  const [traceAssignee, setTraceAssignee] = useState("");
+  const [traceDepartment, setTraceDepartment] = useState("");
+  const [tracePriority, setTracePriority] = useState<"low" | "normal" | "high" | "urgent">(
+    "normal",
+  );
+  const [traceDue, setTraceDue] = useState("");
   const [activityAll, setActivityAll] = useState(false);
 
   useEffect(() => {
     setInternalDraft(reservation.notes ?? "");
   }, [reservation.id, reservation.notes]);
 
-  const groupNotes = isGroupReservation(reservation);
-  const traceTargets = traceRoomTargets(reservation);
-  const tasksQuery = useQuery({
-    queryKey: ["housekeeping-tasks", restaurantId, today, "reservation-notes"],
-    queryFn: () => fetchTasks({ data: { restaurantId, today } }),
-    enabled: groupNotes ? traceTargets.length > 0 : Boolean(reservation.roomId),
+  const tracesQuery = useQuery({
+    queryKey: ["reservation-traces", restaurantId, reservation.id],
+    queryFn: () => fetchTraces({ data: { restaurantId, reservationId: reservation.id } }),
     retry: false,
   });
 
@@ -171,18 +166,12 @@ export function ReservationDetailNotesTab({
     guestHistory,
   });
   const visibleNotes = filterStayNotes(noteRows, noteTab);
-  const important = importantStayNotes(noteRows);
-  const roomTasks = groupNotes
-    ? labeledHousekeepingTasks(tasksQuery.data ?? [], traceTargets)
-    : roomHousekeepingTasks(tasksQuery.data ?? [], reservation.roomId).map((task) => ({
-        ...task,
-        roomContext: "",
-      }));
-  const visibleTasks = filterHousekeepingTasks(roomTasks, traceTab, traceSearch);
+  const important = importantStayNotes(noteRows, reservation.notesPinned === true);
+  const visibleTraces = filterReservationTraces(tracesQuery.data ?? [], traceTab, traceSearch);
   const activity = buildNotesActivity({
     reservationHistory: history,
     guestHistory,
-    tasks: roomTasks,
+    tasks: [],
   });
   const visibleActivity = activityAll ? activity : activity.slice(0, 8);
 
@@ -230,37 +219,68 @@ export function ReservationDetailNotesTab({
 
   const createTrace = useMutation({
     mutationFn: () => {
-      if (!reservation.roomId) throw new Error(TRACE_NO_ROOM_COPY);
-      return createTask({
+      if (!taskText.trim()) throw new Error("Enter a trace.");
+      return createTraceFn({
         data: {
           restaurantId,
-          roomId: reservation.roomId,
-          taskType,
-          notes: taskNotes.trim() || undefined,
+          reservationId: reservation.id,
+          task: taskText.trim(),
+          assigneeName: traceAssignee.trim() || null,
+          department: traceDepartment.trim() || null,
+          priority: tracePriority,
+          dueAt: traceDue ? new Date(traceDue).toISOString() : null,
+          notes: taskNotes.trim() || null,
         },
       });
     },
     onSuccess: () => {
-      toast.success("Housekeeping task created.");
+      toast.success("Trace added.");
       setTraceOpen(false);
+      setTaskText("");
       setTaskNotes("");
-      void queryClient.invalidateQueries({ queryKey: ["housekeeping-tasks", restaurantId] });
+      setTraceAssignee("");
+      setTraceDepartment("");
+      setTraceDue("");
+      void queryClient.invalidateQueries({
+        queryKey: ["reservation-traces", restaurantId, reservation.id],
+      });
+      onSaved();
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   const mutateTask = useMutation({
-    mutationFn: (input: { taskId: string; action: "start" | "cancel" | "complete" }) => {
-      if (input.action === "complete") {
-        return completeTask({ data: { restaurantId, taskId: input.taskId } });
-      }
-      return updateTask({
-        data: { restaurantId, taskId: input.taskId, action: input.action },
-      });
-    },
+    mutationFn: (input: { traceId: string; status: "in_progress" | "completed" | "cancelled" }) =>
+      updateTraceFn({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          traceId: input.traceId,
+          status: input.status,
+        },
+      }),
     onSuccess: () => {
-      toast.success("Housekeeping task updated.");
-      void queryClient.invalidateQueries({ queryKey: ["housekeeping-tasks", restaurantId] });
+      toast.success("Trace updated.");
+      void queryClient.invalidateQueries({
+        queryKey: ["reservation-traces", restaurantId, reservation.id],
+      });
+      onSaved();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const pinNote = useMutation({
+    mutationFn: () =>
+      submitPin({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          pinned: reservation.notesPinned !== true,
+        },
+      }),
+    onSuccess: () => {
+      toast.success(reservation.notesPinned ? "Note unpinned." : "Note pinned.");
+      onSaved();
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -315,7 +335,7 @@ export function ReservationDetailNotesTab({
               </div>
               {important.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-[#E4D6B8] px-3 py-4 text-xs text-muted-foreground">
-                  {NOTE_PIN_GAP_COPY}
+                  Pin the internal note to keep it here.
                 </p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -407,7 +427,10 @@ export function ReservationDetailNotesTab({
                               size="icon"
                               variant="ghost"
                               aria-label="Pin note"
-                              onClick={() => toast.message(NOTE_PIN_GAP_COPY)}
+                              disabled={
+                                !editable || pinNote.isPending || row.source !== "reservation"
+                              }
+                              onClick={() => pinNote.mutate()}
                             >
                               <Pin className="size-3.5" />
                             </Button>
@@ -428,7 +451,10 @@ export function ReservationDetailNotesTab({
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="font-display text-base text-[#251605]">Traces / Tasks</h2>
-                <p className="text-xs text-muted-foreground">{TRACE_ROOM_GAP_COPY}</p>
+                <p className="text-xs text-muted-foreground">
+                  Follow-up traces for this reservation. Housekeeping tasks stay on the housekeeping
+                  board.
+                </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {TRACE_TABS.map((tab) => (
@@ -457,16 +483,12 @@ export function ReservationDetailNotesTab({
                 </div>
               </div>
             </div>
-            {tasksQuery.error instanceof Error ? (
-              <p className="mb-2 text-sm text-destructive">{tasksQuery.error.message}</p>
+            {tracesQuery.error instanceof Error ? (
+              <p className="mb-2 text-sm text-destructive">{tracesQuery.error.message}</p>
             ) : null}
-            {!(groupNotes ? traceTargets.length > 0 : reservation.roomId) ? (
+            {visibleTraces.length === 0 ? (
               <p className="rounded-lg border border-dashed border-[#E4D6B8] px-4 py-8 text-center text-sm text-muted-foreground">
-                {TRACE_NO_ROOM_COPY}
-              </p>
-            ) : visibleTasks.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-[#E4D6B8] px-4 py-8 text-center text-sm text-muted-foreground">
-                No housekeeping tasks for this room.
+                No traces on this reservation.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -485,26 +507,24 @@ export function ReservationDetailNotesTab({
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleTasks.map((task, index) => (
+                    {visibleTraces.map((task, index) => (
                       <tr key={task.id} className="border-b border-[#F4EEE4]">
                         <td className="py-2 pr-2">{index + 1}</td>
                         <td className="py-2 pr-2">
-                          {groupNotes && task.roomContext ? (
-                            <span className="block text-xs text-[#251605]">{task.roomContext}</span>
-                          ) : null}
-                          {housekeepingTaskLabel(task.taskType)}
+                          {task.task}
                           {task.notes ? (
                             <span className="block text-xs text-muted-foreground">
                               {task.notes}
                             </span>
                           ) : null}
                         </td>
-                        <td className="py-2 pr-2">{reviewDash(task.assignedName)}</td>
-                        <td className="py-2 pr-2">Housekeeping</td>
+                        <td className="py-2 pr-2">{reviewDash(task.assigneeName)}</td>
+                        <td className="py-2 pr-2">{reviewDash(task.department)}</td>
+                        <td className="py-2 pr-2">{task.priority}</td>
                         <td className="py-2 pr-2">
-                          {HK_PRIORITY_LABELS[task.priority] ?? task.priority}
+                          {task.dueAt ? dateTime(task.dueAt) : DETAIL_DASH}
+                          {traceOverdue(task) ? " · Overdue" : ""}
                         </td>
-                        <td className="py-2 pr-2">{DETAIL_DASH}</td>
                         <td className="py-2 pr-2">{housekeepingStatusLabel(task.status)}</td>
                         <td className="py-2 pr-2">
                           {task.completedAt ? dateTime(task.completedAt) : DETAIL_DASH}
@@ -522,11 +542,11 @@ export function ReservationDetailNotesTab({
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              {task.status === "pending" || task.status === "assigned" ? (
+                              {task.status === "pending" ? (
                                 <DropdownMenuItem
                                   disabled={!editable || mutateTask.isPending}
                                   onClick={() =>
-                                    mutateTask.mutate({ taskId: task.id, action: "start" })
+                                    mutateTask.mutate({ traceId: task.id, status: "in_progress" })
                                   }
                                 >
                                   Start
@@ -536,7 +556,7 @@ export function ReservationDetailNotesTab({
                                 <DropdownMenuItem
                                   disabled={!editable || mutateTask.isPending}
                                   onClick={() =>
-                                    mutateTask.mutate({ taskId: task.id, action: "complete" })
+                                    mutateTask.mutate({ traceId: task.id, status: "completed" })
                                   }
                                 >
                                   Complete
@@ -546,7 +566,7 @@ export function ReservationDetailNotesTab({
                                 <DropdownMenuItem
                                   disabled={!editable || mutateTask.isPending}
                                   onClick={() =>
-                                    mutateTask.mutate({ taskId: task.id, action: "cancel" })
+                                    mutateTask.mutate({ traceId: task.id, status: "cancelled" })
                                   }
                                 >
                                   Cancel
@@ -605,6 +625,8 @@ export function ReservationDetailNotesTab({
         </div>
         <NotesSummaryRail
           reservation={reservation}
+          paymentReceived={paymentReceived}
+          guestDeposit={guestDeposit}
           money={money}
           coverUrl={coverUrl}
           nights={nights}
@@ -696,24 +718,64 @@ export function ReservationDetailNotesTab({
       <Dialog open={traceOpen} onOpenChange={setTraceOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add housekeeping task</DialogTitle>
+            <DialogTitle>Add trace</DialogTitle>
           </DialogHeader>
-          <p className="text-xs text-muted-foreground">{TRACE_ROOM_GAP_COPY}</p>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label>Task type</Label>
-              <Select value={taskType} onValueChange={(value) => setTaskType(value as TaskType)}>
+              <Label htmlFor="trace-task">Task</Label>
+              <Input
+                id="trace-task"
+                className={FIELD}
+                value={taskText}
+                onChange={(event) => setTaskText(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="trace-assignee">Assigned to</Label>
+              <Input
+                id="trace-assignee"
+                className={FIELD}
+                value={traceAssignee}
+                onChange={(event) => setTraceAssignee(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="trace-department">Department</Label>
+              <Input
+                id="trace-department"
+                className={FIELD}
+                value={traceDepartment}
+                onChange={(event) => setTraceDepartment(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Priority</Label>
+              <Select
+                value={tracePriority}
+                onValueChange={(value) =>
+                  setTracePriority(value as "low" | "normal" | "high" | "urgent")
+                }
+              >
                 <SelectTrigger className={FIELD}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TASK_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {HK_CLEANING_TYPE_LABELS[type] ?? type}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="urgent">Urgent</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="trace-due">Due</Label>
+              <Input
+                id="trace-due"
+                type="datetime-local"
+                className={FIELD}
+                value={traceDue}
+                onChange={(event) => setTraceDue(event.target.value)}
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="task-notes">Notes</Label>
@@ -748,11 +810,15 @@ function NotesSummaryRail({
   money,
   coverUrl,
   nights,
+  paymentReceived,
+  guestDeposit,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
   coverUrl: string | null;
   nights: number;
+  paymentReceived: number | null;
+  guestDeposit: number | null;
 }) {
   return (
     <ReservationDetailSummary
@@ -761,6 +827,8 @@ function NotesSummaryRail({
       money={money}
       coverUrl={coverUrl}
       nights={nights}
+      paymentReceived={paymentReceived}
+      guestDeposit={guestDeposit}
     />
   );
 }

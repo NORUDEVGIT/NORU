@@ -18,7 +18,7 @@ import { loadFrontOfficeRoomOpsQueue } from "./front-office-room-operations.serv
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 import { financialFromSignal, outstandingBalance, parseLateCheckoutPolicy } from "./reservation-workspace/arrivals-departures";
 import { normalizeClock } from "./pms-set1-foundation";
-import { foArrivalExceptionKeys, guestVerificationMissing, etaTiming, depositOkFromSignals } from "./fo-arrival";
+import { foArrivalExceptionKeys, guestVerificationMissing, etaTiming, checkInPaymentGate, depositOkFromSignals } from "./fo-arrival";
 import { foInHouseExceptionKeys } from "./fo-inhouse";
 import { foDepartureExceptionKeys } from "./fo-departure";
 import { foGuestServiceSignals, isActiveGuestServiceStatus } from "./fo-guest-services";
@@ -210,11 +210,13 @@ export const getFrontOfficeExceptions = createServerFn({ method: "POST" })
         phone: stay.guestPhone,
         email: stay.guestEmail,
       });
-      const depositOk = depositOkFromSignals({
-        postedAmount: signals.byStay[stay.id]?.depositPosted ?? 0,
-        waived: signals.byStay[stay.id]?.depositWaived === true,
-        requiredAmount: property.deposit_required && property.deposit_value ? Number(property.deposit_value) : null,
-      });
+      const depositOk = depositOkFromSignals(
+        checkInPaymentGate({
+          folioLane: signals.folioLane,
+          signal: signals.byStay[stay.id],
+          waived: signals.byStay[stay.id]?.depositWaived === true,
+        }),
+      );
       const keys = foArrivalExceptionKeys({
         status: stay.status,
         roomId: stay.roomId,

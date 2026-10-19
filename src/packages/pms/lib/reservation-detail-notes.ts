@@ -139,8 +139,46 @@ export function filterStayNotes(rows: StayNoteRow[], tab: NoteTabId): StayNoteRo
   return rows;
 }
 
-export function importantStayNotes(_rows: StayNoteRow[]): StayNoteRow[] {
-  return [];
+export function importantStayNotes(rows: StayNoteRow[], pinned = false): StayNoteRow[] {
+  if (!pinned) return [];
+  return rows.filter((row) => row.source === "reservation");
+}
+
+export type ReservationTraceView = {
+  id: string;
+  task: string;
+  notes: string | null;
+  assigneeName: string | null;
+  department: string | null;
+  priority: string;
+  dueAt: string | null;
+  status: string;
+  completedAt: string | null;
+};
+
+export function filterReservationTraces(
+  traces: ReservationTraceView[],
+  tab: TraceTabId,
+  search: string,
+): ReservationTraceView[] {
+  const term = search.trim().toLowerCase();
+  return traces.filter((trace) => {
+    if (tab === "pending" && trace.status !== "pending") return false;
+    if (tab === "in_progress" && trace.status !== "in_progress") return false;
+    if (tab === "completed" && trace.status !== "completed") return false;
+    if (!term) return true;
+    return [trace.task, trace.notes, trace.assigneeName, trace.department, trace.status]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(term);
+  });
+}
+
+export function traceOverdue(trace: ReservationTraceView, now = Date.now()): boolean {
+  if (!trace.dueAt || trace.status === "completed" || trace.status === "cancelled") return false;
+  const due = Date.parse(trace.dueAt);
+  return Number.isFinite(due) && due < now;
 }
 
 export function roomHousekeepingTasks(

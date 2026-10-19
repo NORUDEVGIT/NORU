@@ -45,6 +45,7 @@ import {
   RoomUnitTargetSelect,
 } from "@/packages/pms/components/frontoffice/room-unit-target-select";
 import { assignReservationRoom } from "@/packages/pms/lib/reservations.functions";
+import { FoCheckInV2Workspace } from "@/packages/pms/components/frontoffice/fo-checkin-v2-workspace";
 import { FoCheckInStepper } from "@/packages/pms/components/frontoffice/fo-check-in-stepper";
 import { FoCheckOutStepper } from "@/packages/pms/components/frontoffice/fo-check-out-stepper";
 import { FoNoShowStepper } from "@/packages/pms/components/frontoffice/fo-no-show-stepper";
@@ -262,6 +263,34 @@ export function AssignRoomDialog({
 }
 
 export function CheckInDialog({
+  restaurantId,
+  stay,
+  open,
+  onOpenChange,
+  initialReservationRoomId,
+}: {
+  restaurantId: string;
+  stay: FrontOfficeStay;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  /** Kept for existing callers. Step 1 always opens; later steps are not built here. */
+  initialStep?: CheckInStepId;
+  initialReservationRoomId?: string;
+}) {
+  return (
+    <FoCheckInV2Workspace
+      restaurantId={restaurantId}
+      reservationId={stay.id}
+      reservationRoomId={initialReservationRoomId ?? null}
+      open={open}
+      onOpenChange={onOpenChange}
+      confirmationNumber={stay.confirmationNumber}
+    />
+  );
+}
+
+/** Compatibility host for the previous stepper. Desk Check-In uses FoCheckInV2Workspace. */
+export function LegacyCheckInStepperHost({
   restaurantId,
   stay,
   open,

@@ -1110,6 +1110,59 @@ export const getReservationFolio = createServerFn({ method: "GET" })
     },
   );
 
+export const getReservationDepositRemainder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ applied: number }> => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const folio = await supabaseAdmin
+      .from("guest_folios")
+      .select("id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("reservation_id", data.reservationId)
+      .maybeSingle();
+    if (folio.error || !folio.data) return { applied: 0 };
+    const deposits = await supabaseAdmin
+      .from("folio_transactions")
+      .select("id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("folio_id", (folio.data as { id: string }).id)
+      .eq("transaction_type", "deposit");
+    if (deposits.error) return { applied: 0 };
+    const ids = ((deposits.data ?? []) as Array<{ id: string }>).map((row) => row.id);
+    if (ids.length === 0) return { applied: 0 };
+    const invoice = await supabaseAdmin
+      .from("guest_deposit_invoice_allocations")
+      .select("deposit_transaction_id, amount")
+      .eq("restaurant_id", data.restaurantId)
+      .in("deposit_transaction_id", ids);
+    const folioAlloc = await supabaseAdmin
+      .from("folio_deposit_allocations")
+      .select("deposit_transaction_id, amount")
+      .eq("restaurant_id", data.restaurantId)
+      .in("deposit_transaction_id", ids);
+    const seen = new Set<string>();
+    let applied = 0;
+    for (const row of (invoice.data ?? []) as Array<{
+      deposit_transaction_id: string;
+      amount: number | string;
+    }>) {
+      seen.add(row.deposit_transaction_id);
+      applied += Number(row.amount);
+    }
+    for (const row of (folioAlloc.data ?? []) as Array<{
+      deposit_transaction_id: string;
+      amount: number | string;
+    }>) {
+      if (seen.has(row.deposit_transaction_id)) continue;
+      applied += Number(row.amount);
+    }
+    return { applied: Math.round(applied * 100) / 100 };
+  });
+
 export const getCashieringDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((d: { restaurantId: string; today: string }) =>

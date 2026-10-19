@@ -44,6 +44,14 @@ import {
   ReservationStatusBadge,
 } from "@/packages/pms/components/bookings/reservation-bits";
 import { guestInitials, reviewDash } from "@/packages/pms/lib/create-reservation-review";
+import { listEligiblePackageActivations } from "@/packages/pms/lib/revenue/commercial-package.functions";
+import { listPromotionActivations } from "@/packages/pms/lib/revenue/commercial-promotion-activation.functions";
+import {
+  applyReservationPromotion,
+  saveRateNotes,
+} from "@/packages/pms/lib/reservation-detail-controls.functions";
+import { stayRoomUnitId } from "@/packages/pms/lib/reservation-detail-guest";
+import { applyReservationRoomPackage } from "@/packages/pms/lib/reservations.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import {
   DETAIL_DASH,
@@ -58,10 +66,7 @@ import {
   marketSegmentLabel,
   nightlyBreakdownRows,
   packageNightsLabel,
-  RATE_DISCOUNT_GAP_COPY,
-  RATE_NOTES_GAP_COPY,
   RATE_NOTES_MAX,
-  RATE_PACKAGE_ADD_GAP_COPY,
   rateCancellationLabel,
   rateChangePolicyLabel,
   ratePlanMealLabel,
@@ -94,6 +99,8 @@ export function ReservationDetailRatesTab({
   reservation,
   canManage,
   money,
+  paymentReceived = null,
+  guestDeposit = null,
   coverUrl,
   occupancyLabel,
   onBackToRooms,
@@ -103,6 +110,8 @@ export function ReservationDetailRatesTab({
   reservation: ReservationDetail;
   canManage: boolean;
   money: (value: number) => string;
+  paymentReceived?: number | null;
+  guestDeposit?: number | null;
   coverUrl: string | null;
   occupancyLabel: string | null;
   onBackToRooms: () => void;
@@ -112,13 +121,23 @@ export function ReservationDetailRatesTab({
   const fetchCommercial = useServerFn(getReservationCommercialAttribution);
   const fetchCatalogue = useServerFn(getMealsCard3);
   const submitReprice = useServerFn(repriceReservation);
-  const [rateNotes, setRateNotes] = useState("");
+  const submitPromotion = useServerFn(applyReservationPromotion);
+  const submitPackage = useServerFn(applyReservationRoomPackage);
+  const submitRateNotes = useServerFn(saveRateNotes);
+  const fetchPromotions = useServerFn(listPromotionActivations);
+  const fetchPackages = useServerFn(listEligiblePackageActivations);
+  const [rateNotes, setRateNotes] = useState(reservation.rateNotes ?? "");
   const [planOpen, setPlanOpen] = useState(false);
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [packageOpen, setPackageOpen] = useState(false);
+  const [promotionId, setPromotionId] = useState("");
+  const [packageActivationId, setPackageActivationId] = useState("");
   const [planId, setPlanId] = useState(reservation.ratePlanId ?? "");
 
   useEffect(() => {
     setPlanId(reservation.ratePlanId ?? "");
-  }, [reservation.ratePlanId]);
+    setRateNotes(reservation.rateNotes ?? "");
+  }, [reservation.ratePlanId, reservation.rateNotes]);
 
   const plansQuery = useQuery({
     queryKey: ["rate-plans", restaurantId, reservation.roomTypeId, true, "detail-rates"],
@@ -178,6 +197,89 @@ export function ReservationDetailRatesTab({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const promotionsQuery = useQuery({
+    queryKey: ["promotion-activations", restaurantId, "detail-rates"],
+    queryFn: () => fetchPromotions({ data: { restaurantId } }),
+    enabled: discountOpen,
+    retry: false,
+  });
+  const eligiblePackagesQuery = useQuery({
+    queryKey: ["eligible-packages", restaurantId, reservation.id, "detail-rates"],
+    queryFn: () =>
+      fetchPackages({
+        data: {
+          restaurantId,
+          ratePlanId: reservation.ratePlanId ?? "",
+          roomTypeId: reservation.roomTypeId,
+          arrivalDate: reservation.arrivalDate,
+          departureDate: reservation.departureDate,
+          reservationId: reservation.id,
+        },
+      }),
+    enabled: packageOpen && Boolean(reservation.ratePlanId),
+    retry: false,
+  });
+
+  const applyDiscount = useMutation({
+    mutationFn: () => {
+      if (!promotionId) throw new Error("Choose an existing promotion.");
+      return submitPromotion({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          promotionActivationId: promotionId,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Promotion applied.");
+      setDiscountOpen(false);
+      onSaved();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const addPackage = useMutation({
+    mutationFn: () => {
+      const roomId = stayRoomUnitId(reservation);
+      if (!roomId) throw new Error("This stay has no room unit for a package.");
+      if (!packageActivationId) throw new Error("Choose an existing package.");
+      return submitPackage({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          reservationRoomId: roomId,
+          packageActivationId,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Package applied to this room.");
+      setPackageOpen(false);
+      onSaved();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const saveNotes = useMutation({
+    mutationFn: () =>
+      submitRateNotes({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          notes: rateNotes.trim() || null,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Rate notes saved.");
+      onSaved();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const promotionOptions = promotionsQuery.data ?? [];
+  const packageOptions = eligiblePackagesQuery.data ?? [];
+
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-rates">
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
@@ -197,8 +299,8 @@ export function ReservationDetailRatesTab({
                 currency={currency}
                 editable={editable}
                 onChangePlan={() => setPlanOpen(true)}
-                onApplyDiscount={() => toast.message(RATE_DISCOUNT_GAP_COPY)}
-                onAddPackage={() => toast.message(RATE_PACKAGE_ADD_GAP_COPY)}
+                onApplyDiscount={() => setDiscountOpen(true)}
+                onAddPackage={() => setPackageOpen(true)}
               />
               <DailyRateBreakdownCard
                 rows={rows}
@@ -216,7 +318,7 @@ export function ReservationDetailRatesTab({
               promotion={promotion}
               money={money}
               editable={editable}
-              onAdd={() => toast.message(RATE_DISCOUNT_GAP_COPY)}
+              onAdd={() => setDiscountOpen(true)}
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
@@ -227,13 +329,15 @@ export function ReservationDetailRatesTab({
               stayNights={reservation.nights}
               money={money}
               editable={editable}
-              onAdd={() => toast.message(RATE_PACKAGE_ADD_GAP_COPY)}
+              onAdd={() => setPackageOpen(true)}
             />
             <RateNotesCard value={rateNotes} onChange={setRateNotes} editable={editable} />
           </div>
         </div>
         <RatesSummaryRail
           reservation={reservation}
+          paymentReceived={paymentReceived}
+          guestDeposit={guestDeposit}
           money={money}
           coverUrl={coverUrl}
           nights={nights}
@@ -247,12 +351,17 @@ export function ReservationDetailRatesTab({
           <Button
             type="button"
             size="sm"
-            disabled={!editable}
-            onClick={() => toast.message(RATE_NOTES_GAP_COPY)}
+            disabled={!editable || saveNotes.isPending}
+            onClick={() => saveNotes.mutate()}
           >
             Save Changes
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => setRateNotes("")}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setRateNotes(reservation.rateNotes ?? "")}
+          >
             Cancel
           </Button>
         </div>
@@ -291,6 +400,74 @@ export function ReservationDetailRatesTab({
               onClick={() => reprice.mutate()}
             >
               {reprice.isPending ? "Repricing…" : "Reprice stay"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={discountOpen} onOpenChange={setDiscountOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Apply promotion</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1">
+            <Label>Existing promotion</Label>
+            <Select value={promotionId} onValueChange={setPromotionId}>
+              <SelectTrigger className={FIELD}>
+                <SelectValue placeholder="Select promotion" />
+              </SelectTrigger>
+              <SelectContent>
+                {promotionOptions.map((row) => (
+                  <SelectItem key={row.activationId} value={row.activationId}>
+                    {row.code} — {row.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDiscountOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!promotionId || applyDiscount.isPending}
+              onClick={() => applyDiscount.mutate()}
+            >
+              {applyDiscount.isPending ? "Applying…" : "Apply"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={packageOpen} onOpenChange={setPackageOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add package</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1">
+            <Label>Eligible package</Label>
+            <Select value={packageActivationId} onValueChange={setPackageActivationId}>
+              <SelectTrigger className={FIELD}>
+                <SelectValue placeholder="Select package" />
+              </SelectTrigger>
+              <SelectContent>
+                {packageOptions.map((row) => (
+                  <SelectItem key={row.activationId} value={row.activationId}>
+                    {row.code} — {row.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setPackageOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!packageActivationId || addPackage.isPending}
+              onClick={() => addPackage.mutate()}
+            >
+              {addPackage.isPending ? "Adding…" : "Add package"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -640,7 +817,6 @@ function DiscountsCard({
           data-testid="rate-discounts-empty"
         >
           No discounts or adjustments.
-          <p className="mt-1 text-xs">{RATE_DISCOUNT_GAP_COPY}</p>
         </div>
       )}
     </section>
@@ -691,7 +867,6 @@ function PackagesCard({
           data-testid="rate-packages-empty"
         >
           No packages added.
-          <p className="mt-1 text-xs">{RATE_PACKAGE_ADD_GAP_COPY}</p>
         </div>
       ) : (
         <table className="w-full text-left text-sm">
@@ -774,7 +949,6 @@ function RateNotesCard({
       <p className="mt-1 text-right text-[11px] text-muted-foreground">
         {value.length}/{RATE_NOTES_MAX}
       </p>
-      <p className="mt-1 text-[11px] text-muted-foreground">{RATE_NOTES_GAP_COPY}</p>
     </section>
   );
 }
@@ -784,11 +958,15 @@ function RatesSummaryRail({
   money,
   coverUrl,
   nights,
+  paymentReceived,
+  guestDeposit,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
   coverUrl: string | null;
   nights: number;
+  paymentReceived: number | null;
+  guestDeposit: number | null;
 }) {
   return (
     <ReservationDetailSummary
@@ -797,6 +975,8 @@ function RatesSummaryRail({
       money={money}
       coverUrl={coverUrl}
       nights={nights}
+      paymentReceived={paymentReceived}
+      guestDeposit={guestDeposit}
     />
   );
 }

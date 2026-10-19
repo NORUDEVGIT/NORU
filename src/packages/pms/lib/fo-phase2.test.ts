@@ -58,7 +58,11 @@ describe("FO Phase 2 — ETA honesty", () => {
       null,
     );
     assert.equal(
-      etaTiming({ expectedArrivalAt: "2026-09-25T13:00:00.000Z", checkInTime: null, timezone: "UTC" }),
+      etaTiming({
+        expectedArrivalAt: "2026-09-25T13:00:00.000Z",
+        checkInTime: null,
+        timezone: "UTC",
+      }),
       null,
     );
     assert.equal(
@@ -259,7 +263,8 @@ describe("FO Phase 2 — assignment, finance and completion ownership", () => {
     const fns = readRel("./fo-check-in.functions.ts");
     const complete = fns.slice(fns.indexOf("export const completeFoCheckIn"));
     assert.match(complete, /check_in_hotel_reservation/);
-    assert.match(complete, /Only confirmed stays can be checked in/);
+    assert.match(complete, /getCheckInReadiness/);
+    assert.match(complete, /readiness\.blockers\.length > 0/);
     assert.doesNotMatch(complete, /checkInReservation/);
     assert.equal(
       canCompleteCheckIn({ roomReady: true, registrationOk: true, depositOk: true, keyOk: false }),

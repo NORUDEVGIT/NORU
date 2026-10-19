@@ -177,7 +177,38 @@ export function ledgerReference(row: FolioTransactionRow): string {
 
 export function depositPaidFromLedger(summary: FolioLedgerSummary | null): number | null {
   if (!summary) return null;
+  return summary.payments;
+}
+
+export function guestDepositCreditFromLedger(summary: FolioLedgerSummary | null): number | null {
+  if (!summary) return null;
   return summary.depositCredits;
+}
+
+export function depositRemainder(input: {
+  credit: number | null;
+  applied: number | null;
+}): { applied: number | null; refundable: number | null } {
+  if (input.credit == null && input.applied == null) return { applied: null, refundable: null };
+  const credit = input.credit ?? 0;
+  const applied = Math.max(0, input.applied ?? 0);
+  const refundable = Math.max(0, Math.round((credit - applied) * 100) / 100);
+  return { applied, refundable };
+}
+
+export function folioLineQuantity(quantity: number | null | undefined): string {
+  if (quantity == null || !Number.isFinite(quantity)) return DETAIL_DASH;
+  return String(quantity);
+}
+
+export function folioRunningBalances(rows: Array<{ id: string; amount: number }>): Map<string, number> {
+  let balance = 0;
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    balance = Math.round((balance + row.amount) * 100) / 100;
+    totals.set(row.id, balance);
+  }
+  return totals;
 }
 
 export function folioDepositStatus(deposit: DetailDepositView | null, paid: number | null): string {

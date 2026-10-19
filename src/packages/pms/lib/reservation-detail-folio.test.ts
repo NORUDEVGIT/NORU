@@ -4,10 +4,12 @@ import { resolve } from "node:path";
 
 import type { FolioDetail, FolioTransactionRow } from "@/packages/pms/lib/cashiering.functions";
 import {
+  depositPaidFromLedger,
   folioActiveLabel,
   folioDepositStatus,
   folioKpiCards,
   folioLedgerSummary,
+  guestDepositCreditFromLedger,
   paymentRows,
 } from "@/packages/pms/lib/reservation-detail-folio";
 
@@ -126,6 +128,9 @@ describe("Reservation Detail Folio & Payments tab", () => {
     expect(taxed?.taxes).toBe(675);
     expect(taxed?.otherCharges).toBe(1200);
     expect(summary?.depositCredits).toBe(4500);
+    expect(depositPaidFromLedger(summary)).toBe(4500);
+    expect(guestDepositCreditFromLedger(summary)).toBe(4500);
+    expect(folioUi).toContain("Guest deposit credit");
     const cards = folioKpiCards(folio, summary);
     expect(cards.find((card) => card.id === "room")?.realFolio).toBe(true);
     expect(cards.find((card) => card.id === "extras")?.amount).toBeNull();
@@ -147,12 +152,63 @@ describe("Reservation Detail Folio & Payments tab", () => {
     ).toBe("Received");
   });
 
+  it("treats Paid Amount as payment lines and keeps the guest deposit as credit", () => {
+    const split = folioLedgerSummary({
+      ...folio,
+      transactions: [
+        txn({ id: "room", type: "charge", category: "room", amount: 1500 }),
+        txn({ id: "pay", type: "payment", category: "payment", amount: -1500 }),
+        txn({ id: "dep", type: "deposit", category: "deposit", amount: -500 }),
+      ],
+    });
+    const requirement = {
+      required: true,
+      amount: 1500,
+      currency: "ETB",
+      name: null,
+      tenderCode: null,
+      type: "fixed" as const,
+      reference: null,
+    };
+    expect(depositPaidFromLedger(split)).toBe(1500);
+    expect(guestDepositCreditFromLedger(split)).toBe(500);
+    expect(folioDepositStatus(requirement, depositPaidFromLedger(split))).toBe("Received");
+    expect(
+      folioDepositStatus(
+        requirement,
+        depositPaidFromLedger(
+          folioLedgerSummary({
+            ...folio,
+            transactions: [
+              txn({ id: "room", type: "charge", category: "room", amount: 1500 }),
+              txn({ id: "pay", type: "payment", category: "payment", amount: -1000 }),
+              txn({ id: "dep", type: "deposit", category: "deposit", amount: -500 }),
+            ],
+          }),
+        ),
+      ),
+    ).toBe("Partial");
+    expect(
+      folioDepositStatus(
+        requirement,
+        depositPaidFromLedger(
+          folioLedgerSummary({
+            ...folio,
+            transactions: [txn({ id: "dep", type: "deposit", category: "deposit", amount: -500 })],
+          }),
+        ),
+      ),
+    ).toBe("Pending");
+  });
+
   it("keeps invoice, billing edit, notes, qty, and line balance honest", () => {
     expect(folioUi).toContain("FOLIO_INVOICE_GAP_COPY");
     expect(folioUi).toContain("FOLIO_BILLING_EDIT_GAP_COPY");
     expect(folioUi).toContain("FOLIO_NOTES_GAP_COPY");
-    expect(folioUi).toContain("FOLIO_LINE_QTY_GAP");
-    expect(folioUi).toContain("FOLIO_LINE_BALANCE_GAP");
+    expect(folioUi).toContain("folioLineQuantity");
+    expect(folioUi).toContain("folioRunningBalances");
+    expect(folioUi).toContain("getReservationDepositRemainder");
+    expect(folioUi).toContain("Refundable");
     expect(folioUi).not.toContain("initializeFolio");
     expect(folioUi).not.toContain("amendReservation");
   });

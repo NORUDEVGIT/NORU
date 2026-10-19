@@ -1,68 +1,62 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { BedDouble, CalendarDays, CreditCard, FileText, Shield, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  Baby,
+  Calendar,
+  CalendarDays,
+  Car,
+  Clock,
+  DoorOpen,
+  FileText,
+  Info,
+  Lock,
+  Moon,
+  UserRound,
+  Users,
+} from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
-import {
-  formatStayDate,
-  ReservationStatusBadge,
-} from "@/packages/pms/components/bookings/reservation-bits";
-import { guestInitials, reviewDash } from "@/packages/pms/lib/create-reservation-review";
+import { cn } from "@/shared/lib/utils";
 import { getFrontOfficeApprovalRequirement } from "@/packages/pms/lib/fo-approvals.functions";
 import {
   setExpectedArrivalTime,
   setLateCheckout,
 } from "@/packages/pms/lib/arrivals-departures.functions";
+import { getReservationFolio, getFolio } from "@/packages/pms/lib/cashiering.functions";
+import { folioLedgerSummary } from "@/packages/pms/lib/reservation-detail-folio";
 import {
-  listPurposeOfStay,
-  purposeOptionsFromRows,
-} from "@/packages/pms/lib/purpose-of-stay.functions";
-import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
-import {
-  GROUP_AMEND_UNAVAILABLE,
-  GROUP_OCCUPANCY_NOTE,
   groupOccupancyTotals,
   isGroupReservation,
 } from "@/packages/pms/lib/reservation-detail-group";
-import {
-  DETAIL_DASH,
-  depositStatusLabel,
-  parseDepositRequirementSnapshot,
-  snapshotDisplayName,
-  snapshotField,
-} from "@/packages/pms/lib/reservation-detail-overview";
-import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
+import { DETAIL_DASH } from "@/packages/pms/lib/reservation-detail-overview";
 import {
   buildStayDraft,
   clockFromInstant,
   STAY_NOTES_MAX,
-  stayAmendmentCopy,
   stayClockForInput,
   stayInstantFromClock,
   stayNights,
   type ReservationStayDraft,
 } from "@/packages/pms/lib/reservation-detail-stay";
-import type { StayAmendmentResult } from "@/packages/pms/lib/reservation-stay-amendment";
 import {
   amendReservation,
   type ReservationDetail,
 } from "@/packages/pms/lib/reservations.functions";
 
-const FIELD =
-  "h-8 w-full rounded-md border border-[#DDD4C5] bg-white px-2 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#F7F2EA]";
+function formatDateDMY(dateStr: string | null | undefined): string {
+  if (!dateStr) return DETAIL_DASH;
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  return `${d}/${m}/${y}`;
+}
 
 export function ReservationDetailStayTab({
   restaurantId,
@@ -72,6 +66,9 @@ export function ReservationDetailStayTab({
   timezone,
   money,
   coverUrl,
+  paymentReceived: initialPaymentReceived,
+  guestDeposit: initialGuestDeposit,
+  totalAmount: initialTotalAmount,
   onBackToOverview,
   onSaved,
 }: {
@@ -82,44 +79,70 @@ export function ReservationDetailStayTab({
   timezone: string;
   money: (value: number) => string;
   coverUrl: string | null;
+  paymentReceived?: number | null;
+  guestDeposit?: number | null;
+  totalAmount?: number | null;
   onBackToOverview: () => void;
   onSaved: () => void;
 }) {
-  const fetchPurpose = useServerFn(listPurposeOfStay);
   const submitAmend = useServerFn(amendReservation);
   const submitArrival = useServerFn(setExpectedArrivalTime);
   const submitLateCheckout = useServerFn(setLateCheckout);
   const fetchApproval = useServerFn(getFrontOfficeApprovalRequirement);
+  const fetchReservationFolio = useServerFn(getReservationFolio);
+  const fetchFolio = useServerFn(getFolio);
+
+  const previewFolioQuery = useQuery({
+    queryKey: ["reservation-folio", restaurantId, reservation.id],
+    queryFn: () => fetchReservationFolio({ data: { restaurantId, reservationId: reservation.id } }),
+    enabled: initialPaymentReceived === undefined,
+    retry: false,
+  });
+
+  const folioQuery = useQuery({
+    queryKey: ["folio", restaurantId, previewFolioQuery.data?.id],
+    queryFn: () => fetchFolio({ data: { restaurantId, folioId: previewFolioQuery.data!.id } }),
+    enabled: Boolean(previewFolioQuery.data?.id) && initialPaymentReceived === undefined,
+    retry: false,
+  });
+
+  const folioSummary = folioLedgerSummary(folioQuery.data ?? null);
+  const effectivePaymentReceived =
+    initialPaymentReceived !== undefined
+      ? initialPaymentReceived
+      : (folioSummary?.payments ?? null);
+  const effectiveGuestDeposit =
+    initialGuestDeposit !== undefined
+      ? initialGuestDeposit
+      : (folioSummary?.depositCredits ?? null);
+
   const [draft, setDraft] = useState<ReservationStayDraft>(() => buildStayDraft(reservation));
-  const [amendArrival, setAmendArrival] = useState(reservation.arrivalDate);
-  const [amendDeparture, setAmendDeparture] = useState(reservation.departureDate);
-  const [extendDeparture, setExtendDeparture] = useState("");
   const [arrivalClock, setArrivalClock] = useState(() =>
     stayClockForInput(reservation.expectedArrivalAt, timezone),
   );
-  const [lateClock, setLateClock] = useState(() =>
-    stayClockForInput(reservation.lateCheckoutUntil, timezone),
+  const [lateClock, setLateClock] = useState(
+    () => stayClockForInput(reservation.lateCheckoutUntil, timezone) || "14:00",
   );
   const [lateNote, setLateNote] = useState("");
-  const [impact, setImpact] = useState<StayAmendmentResult | null>(null);
 
   useEffect(() => {
     setDraft(buildStayDraft(reservation));
-    setAmendArrival(reservation.arrivalDate);
-    setAmendDeparture(reservation.departureDate);
-    setExtendDeparture("");
     setArrivalClock(stayClockForInput(reservation.expectedArrivalAt, timezone));
-    setLateClock(stayClockForInput(reservation.lateCheckoutUntil, timezone));
+    setLateClock(stayClockForInput(reservation.lateCheckoutUntil, timezone) || "14:00");
   }, [reservation, timezone]);
 
-  const purposeQuery = useQuery({
-    queryKey: ["pms-purpose-of-stay", restaurantId, "reservation-detail-stay"],
-    queryFn: () => fetchPurpose({ data: { restaurantId } }),
-    retry: false,
-    enabled: editable,
-  });
+  const initialDraft = useMemo(() => buildStayDraft(reservation), [reservation]);
+  const isDirty = useMemo(() => {
+    return (
+      draft.adults !== initialDraft.adults ||
+      draft.children !== initialDraft.children ||
+      draft.infants !== initialDraft.infants ||
+      (draft.arrivalTransport || "") !== (initialDraft.arrivalTransport || "") ||
+      (draft.pickupNote || "") !== (initialDraft.pickupNote || "") ||
+      (draft.stayNotes || "") !== (initialDraft.stayNotes || "")
+    );
+  }, [draft, initialDraft]);
 
-  const purposeOptions = purposeOptionsFromRows(purposeQuery.data?.items);
   const nights = stayNights(reservation.arrivalDate, reservation.departureDate);
   const groupStay = isGroupReservation(reservation);
   const groupOccupancy = groupOccupancyTotals(reservation);
@@ -141,6 +164,11 @@ export function ReservationDetailStayTab({
   });
 
   function stayPayload(arrival: string, departure: string) {
+    const singleOccupancy = {
+      adults: draft.adults,
+      children: draft.children,
+      infants: draft.infants,
+    };
     return {
       restaurantId,
       reservationId: reservation.id,
@@ -149,9 +177,9 @@ export function ReservationDetailStayTab({
       roomId: reservation.roomId,
       arrival,
       departure,
-      adults: groupStay ? reservation.adults : draft.adults,
-      children: groupStay ? reservation.children : draft.children,
-      infants: groupStay ? reservation.infants : draft.infants,
+      adults: groupStay ? reservation.adults : singleOccupancy.adults,
+      children: groupStay ? reservation.children : singleOccupancy.children,
+      infants: groupStay ? reservation.infants : singleOccupancy.infants,
       notes: draft.stayNotes,
       specialRequests: reservation.specialRequests,
       ratePlanId: reservation.ratePlanId,
@@ -165,30 +193,9 @@ export function ReservationDetailStayTab({
     mutationFn: () =>
       submitAmend({ data: stayPayload(reservation.arrivalDate, reservation.departureDate) }),
     onSuccess: (result) => {
-      setImpact(result.amendment);
       toast.success(
         result.amendment ? "Stay updated. Review the room subtotal change." : "Stay updated.",
       );
-      onSaved();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const amendDates = useMutation({
-    mutationFn: () => submitAmend({ data: stayPayload(amendArrival, amendDeparture) }),
-    onSuccess: (result) => {
-      setImpact(result.amendment);
-      toast.success("Stay dates amended.");
-      onSaved();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const extendStay = useMutation({
-    mutationFn: () => submitAmend({ data: stayPayload(reservation.arrivalDate, extendDeparture) }),
-    onSuccess: (result) => {
-      setImpact(result.amendment);
-      toast.success("Stay extended.");
       onSaved();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -228,335 +235,314 @@ export function ReservationDetailStayTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-stay">
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="space-y-4">
+      <div className="grid min-h-0 flex-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
+        <div className="space-y-4 min-w-0">
+          {/* Stay Information Card */}
           <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-            <h2 className="flex items-center gap-2 font-display text-base text-[#251605]">
-              <CalendarDays className="size-4 text-[#B8954F]" />
-              Stay Information
-            </h2>
-            <p className="mb-3 text-xs text-muted-foreground">
-              Dates stay fixed until a stay amendment reprices the reservation. Occupancy, purpose,
-              and internal notes can be saved when this stay is editable.
+            <div className="flex items-center gap-2">
+              <CalendarDays className="size-4 text-[#D97706]" />
+              <h2 className="font-display text-base font-semibold text-[#251605]">
+                Stay Information
+              </h2>
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Core reservation details. These dates and occupancy are fixed until a stay amendment
+              is made.
             </p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+
+            {/* Row 1: Arrival Date, Departure Date, Nights, Rooms */}
+            <div className="mt-3.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <StayField label="Arrival Date" htmlFor="stay-arrival">
-                <Input
-                  id="stay-arrival"
-                  type="date"
-                  className={FIELD}
-                  value={reservation.arrivalDate}
-                  readOnly
-                  disabled
-                />
-              </StayField>
-              <StayField label="Departure Date" htmlFor="stay-departure">
-                <Input
-                  id="stay-departure"
-                  type="date"
-                  className={FIELD}
-                  value={reservation.departureDate}
-                  readOnly
-                  disabled
-                />
-              </StayField>
-              <StayField label="Nights">
-                <Input className={FIELD} value={String(nights)} disabled />
-              </StayField>
-              {groupStay ? (
-                <StayField label="Rooms">
-                  <Input className={FIELD} value={String(groupOccupancy.rooms)} disabled readOnly />
-                </StayField>
-              ) : null}
-              <StayField label="Adults *">
-                <Input
-                  type="number"
-                  min={1}
-                  className={FIELD}
-                  value={groupStay ? groupOccupancy.adults : draft.adults}
-                  disabled={groupStay || !editable}
-                  readOnly={groupStay}
-                  onChange={(e) => patch({ adults: Math.max(1, Number(e.target.value) || 1) })}
-                />
-              </StayField>
-              <StayField label="Children">
-                <Input
-                  type="number"
-                  min={0}
-                  className={FIELD}
-                  value={groupStay ? groupOccupancy.children : draft.children}
-                  disabled={groupStay || !editable}
-                  readOnly={groupStay}
-                  onChange={(e) => patch({ children: Math.max(0, Number(e.target.value) || 0) })}
-                />
-              </StayField>
-              <StayField label="Infants">
-                <Input
-                  type="number"
-                  min={0}
-                  className={FIELD}
-                  value={groupStay ? groupOccupancy.infants : draft.infants}
-                  disabled={groupStay || !editable}
-                  readOnly={groupStay}
-                  onChange={(e) => patch({ infants: Math.max(0, Number(e.target.value) || 0) })}
-                />
-              </StayField>
-              <StayField label="Purpose of Stay">
-                <Select
-                  value={draft.purposeOfStay || "none"}
-                  onValueChange={(value) => patch({ purposeOfStay: value === "none" ? "" : value })}
-                  disabled={!editable}
-                >
-                  <SelectTrigger className={FIELD}>
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">—</SelectItem>
-                    {draft.purposeOfStay &&
-                    !purposeOptions.some((option) => option.value === draft.purposeOfStay) ? (
-                      <SelectItem value={draft.purposeOfStay}>{draft.purposeOfStay}</SelectItem>
-                    ) : null}
-                    {purposeOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </StayField>
-              <StayField label="Expected Arrival">
-                <Input className={FIELD} value={arrivalTime || DETAIL_DASH} disabled />
-              </StayField>
-              <StayField label="Late Checkout">
-                <Input
-                  className={FIELD}
-                  value={
-                    reservation.lateCheckoutGranted ? lateCheckoutTime || "Granted" : "Not granted"
-                  }
-                  disabled
-                />
-              </StayField>
-            </div>
-            {groupStay ? (
-              <p className="mt-3 text-xs text-muted-foreground" data-testid="stay-group-occupancy">
-                {GROUP_OCCUPANCY_NOTE}
-              </p>
-            ) : null}
-          </section>
-          {impact ? (
-            <p
-              className="rounded-md border border-[#E7D7B1] bg-[#FBF6EC] px-3 py-2 text-sm text-[#251605]"
-              data-testid="stay-amendment-result"
-            >
-              {stayAmendmentCopy(impact, money)}
-            </p>
-          ) : null}
-          {groupStay ? (
-            <p
-              className="rounded-md border border-[#E7D7B1] bg-[#FBF6EC] px-3 py-2 text-xs text-[#251605]"
-              data-testid="stay-group-amend-unavailable"
-            >
-              {GROUP_AMEND_UNAVAILABLE}
-            </p>
-          ) : (
-            <>
-              <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-                <h2 className="font-display text-base text-[#251605]">Amend dates</h2>
-                <p className="mb-3 text-xs text-muted-foreground">
-                  This saves a new arrival and departure, reprices one room, and shows the room
-                  subtotal returned by the server.
-                </p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <StayField label="New arrival" htmlFor="amend-arrival">
-                    <Input
-                      id="amend-arrival"
-                      type="date"
-                      className={FIELD}
-                      value={amendArrival}
-                      disabled={!editable || amendDates.isPending}
-                      onChange={(event) => setAmendArrival(event.target.value)}
-                    />
-                  </StayField>
-                  <StayField label="New departure" htmlFor="amend-departure">
-                    <Input
-                      id="amend-departure"
-                      type="date"
-                      className={FIELD}
-                      value={amendDeparture}
-                      disabled={!editable || amendDates.isPending}
-                      onChange={(event) => setAmendDeparture(event.target.value)}
-                    />
-                  </StayField>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="mt-3"
-                  disabled={!editable || amendDates.isPending}
-                  onClick={() => amendDates.mutate()}
-                >
-                  {amendDates.isPending ? "Amending…" : "Amend dates"}
-                </Button>
-              </section>
-              <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-                <h2 className="font-display text-base text-[#251605]">Extend Stay</h2>
-                <p className="mb-3 text-xs text-muted-foreground">
-                  Moves only the departure date. If the assigned room is already booked for the
-                  extra nights, use Change Room. This does not move the guest or create another
-                  reservation.
-                </p>
-                <StayField label="New departure" htmlFor="extend-departure">
-                  <Input
-                    id="extend-departure"
-                    type="date"
-                    className={FIELD}
-                    value={extendDeparture}
-                    min={reservation.departureDate}
-                    disabled={!editable || extendStay.isPending}
-                    onChange={(event) => setExtendDeparture(event.target.value)}
+                <div className="flex h-9 w-full items-center justify-between rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] px-3 text-sm text-[#251605]">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="size-3.5 text-[#8C7A6B]" />
+                    <span className="font-medium">{formatDateDMY(reservation.arrivalDate)}</span>
+                  </div>
+                  <Lock className="size-3.5 text-[#8C7A6B]/70" />
+                  <input
+                    id="stay-arrival"
+                    type="hidden"
+                    value={reservation.arrivalDate}
+                    readOnly
+                    disabled={!editable}
                   />
-                </StayField>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="mt-3"
-                  disabled={
-                    !editable ||
-                    !extendDeparture ||
-                    extendDeparture <= reservation.departureDate ||
-                    extendStay.isPending
-                  }
-                  onClick={() => extendStay.mutate()}
-                >
-                  {extendStay.isPending ? "Extending…" : "Extend Stay"}
-                </Button>
-              </section>
-            </>
-          )}
-          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-            <h2 className="font-display text-base text-[#251605]">Expected arrival</h2>
-            <p className="mb-3 text-xs text-muted-foreground">
-              Saved on the arrival date for pending and confirmed stays. Current time:{" "}
-              {arrivalTime || "not set"}.
-            </p>
-            <div className="flex flex-wrap items-end gap-2">
-              <StayField label="Time" htmlFor="stay-eta">
-                <Input
-                  id="stay-eta"
-                  type="time"
-                  className={FIELD}
-                  value={arrivalClock}
-                  disabled={!etaWritable || saveArrival.isPending}
-                  onChange={(event) => setArrivalClock(event.target.value)}
-                />
+                </div>
               </StayField>
-              <Button
-                type="button"
-                size="sm"
-                disabled={!etaWritable || !arrivalClock || saveArrival.isPending}
-                onClick={() =>
-                  saveArrival.mutate(
-                    stayInstantFromClock(reservation.arrivalDate, arrivalClock, timezone),
-                  )
-                }
-              >
-                Save expected arrival
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={!etaWritable || saveArrival.isPending}
-                onClick={() => saveArrival.mutate(null)}
-              >
-                Clear
-              </Button>
+
+              <StayField label="Departure Date" htmlFor="stay-departure">
+                <div className="flex h-9 w-full items-center justify-between rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] px-3 text-sm text-[#251605]">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="size-3.5 text-[#8C7A6B]" />
+                    <span className="font-medium">{formatDateDMY(reservation.departureDate)}</span>
+                  </div>
+                  <Lock className="size-3.5 text-[#8C7A6B]/70" />
+                  <input
+                    id="stay-departure"
+                    type="hidden"
+                    value={reservation.departureDate}
+                    readOnly
+                    disabled={!editable}
+                  />
+                </div>
+              </StayField>
+
+              <StayField label="Nights">
+                <div className="flex h-9 w-full items-center gap-2 rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] px-3 text-sm text-[#251605]">
+                  <Moon className="size-3.5 text-[#8C7A6B]" />
+                  <span className="font-medium">{nights}</span>
+                </div>
+              </StayField>
+
+              <StayField label="Rooms">
+                <div className="flex h-9 w-full items-center gap-2 rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] px-3 text-sm text-[#251605]">
+                  <DoorOpen className="size-3.5 text-[#8C7A6B]" />
+                  <span className="font-medium">
+                    {groupStay ? groupOccupancy.rooms : reservation.roomsRequested || 1}
+                  </span>
+                </div>
+              </StayField>
             </div>
-          </section>
-          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-            <h2 className="font-display text-base text-[#251605]">Late checkout</h2>
-            <p className="mb-3 text-xs text-muted-foreground">
-              In-house stays only. The departure date stays {reservation.departureDate}. Current:{" "}
-              {reservation.lateCheckoutGranted ? lateCheckoutTime || "Granted" : "Not granted"}.
-            </p>
-            {lateApproval.data?.policyNeedsApproval ? (
-              <p className="mb-2 text-xs text-[#765719]">
-                Property policy requires owner or manager approval for late checkout.
-              </p>
+
+            {/* Row 2: Adults, Children, Infants */}
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <StayField label="Adults" htmlFor="stay-adults">
+                <div className="relative flex items-center">
+                  <UserRound className="pointer-events-none absolute left-3 size-3.5 text-[#8C7A6B]" />
+                  <Input
+                    id="stay-adults"
+                    type="number"
+                    min={1}
+                    className="h-9 w-full rounded-lg border-[#DDD4C5] bg-white pl-8 pr-3 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#FAF8F5]"
+                    value={groupStay ? groupOccupancy.adults : draft.adults}
+                    disabled={groupStay || !editable}
+                    readOnly={groupStay}
+                    onChange={(e) => patch({ adults: Math.max(1, Number(e.target.value) || 1) })}
+                  />
+                </div>
+              </StayField>
+
+              <StayField label="Children" htmlFor="stay-children">
+                <div className="relative flex items-center">
+                  <Users className="pointer-events-none absolute left-3 size-3.5 text-[#8C7A6B]" />
+                  <Input
+                    id="stay-children"
+                    type="number"
+                    min={0}
+                    className="h-9 w-full rounded-lg border-[#DDD4C5] bg-white pl-8 pr-3 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#FAF8F5]"
+                    value={groupStay ? groupOccupancy.children : draft.children}
+                    disabled={groupStay || !editable}
+                    readOnly={groupStay}
+                    onChange={(e) => patch({ children: Math.max(0, Number(e.target.value) || 0) })}
+                  />
+                </div>
+              </StayField>
+
+              <StayField label="Infants" htmlFor="stay-infants">
+                <div className="relative flex items-center">
+                  <Baby className="pointer-events-none absolute left-3 size-3.5 text-[#8C7A6B]" />
+                  <Input
+                    id="stay-infants"
+                    type="number"
+                    min={0}
+                    className="h-9 w-full rounded-lg border-[#DDD4C5] bg-white pl-8 pr-3 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#FAF8F5]"
+                    value={groupStay ? groupOccupancy.infants : draft.infants}
+                    disabled={groupStay || !editable}
+                    readOnly={groupStay}
+                    onChange={(e) => patch({ infants: Math.max(0, Number(e.target.value) || 0) })}
+                  />
+                </div>
+              </StayField>
+            </div>
+
+            {/* Compact contextual notice for multi-room group stays */}
+            {groupStay ? (
+              <div
+                className="mt-3.5 flex items-center gap-2 rounded-lg border border-[#D5E4F0] bg-[#F2F7FA] px-3 py-2 text-xs text-[#2B5D88]"
+                data-testid="stay-group-amend-unavailable"
+              >
+                <Info className="size-3.5 shrink-0 text-[#2B79B4]" />
+                <span>Multi-room date amendments are not supported from this workspace yet.</span>
+              </div>
             ) : null}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <StayField label="Until" htmlFor="stay-late">
-                <Input
-                  id="stay-late"
-                  type="time"
-                  className={FIELD}
-                  value={lateClock}
-                  disabled={!lateWritable || saveLateCheckout.isPending}
-                  onChange={(event) => setLateClock(event.target.value)}
-                />
-              </StayField>
-              <StayField label="Note" htmlFor="stay-late-note">
-                <Input
-                  id="stay-late-note"
-                  className={FIELD}
-                  value={lateNote}
-                  maxLength={500}
-                  disabled={!lateWritable || saveLateCheckout.isPending}
-                  onChange={(event) => setLateNote(event.target.value)}
-                />
-              </StayField>
+          </section>
+
+          {/* Row 2: Expected arrival & Late checkout */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Expected arrival */}
+            <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Clock className="size-4 text-[#D97706]" />
+                <h2 className="font-display text-base font-semibold text-[#251605]">
+                  Expected arrival
+                </h2>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Set the guest's expected arrival time for operational planning.
+              </p>
+              <div className="mt-3.5 space-y-1">
+                <Label htmlFor="stay-eta" className="text-[11px] text-muted-foreground">
+                  Expected arrival time
+                </Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    id="stay-eta"
+                    type="time"
+                    className="h-9 w-36 rounded-lg border-[#DDD4C5] bg-white px-3 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#FAF8F5]"
+                    value={arrivalClock}
+                    disabled={!etaWritable || saveArrival.isPending}
+                    onChange={(event) => setArrivalClock(event.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-9 rounded-lg bg-[#251605] px-4 text-xs font-medium text-white hover:bg-[#3D2810]"
+                    disabled={!etaWritable || !arrivalClock || saveArrival.isPending}
+                    onClick={() =>
+                      saveArrival.mutate(
+                        stayInstantFromClock(reservation.arrivalDate, arrivalClock, timezone),
+                      )
+                    }
+                  >
+                    {saveArrival.isPending ? "Saving…" : "Save expected arrival"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-9 rounded-lg border-[#DDD4C5] bg-white px-3 text-xs font-medium text-[#251605] hover:bg-[#F7F2EA]"
+                    disabled={
+                      !etaWritable ||
+                      saveArrival.isPending ||
+                      (!reservation.expectedArrivalAt && !arrivalClock)
+                    }
+                    onClick={() => {
+                      setArrivalClock("");
+                      saveArrival.mutate(null);
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            </section>
+
+            {/* Late checkout */}
+            <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Clock className="size-4 text-[#D97706]" />
+                <h2 className="font-display text-base font-semibold text-[#251605]">
+                  Late checkout
+                </h2>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Grant a late checkout for in-house stays only.
+              </p>
+              <div className="mt-3.5 space-y-2.5">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">Current status</span>
+                  <span
+                    className={cn(
+                      "rounded-md px-2 py-0.5 font-medium",
+                      reservation.lateCheckoutGranted
+                        ? "bg-[#EAF7EE] text-[#16A34A]"
+                        : "bg-[#F3EFEA] text-[#5C5346]",
+                    )}
+                  >
+                    {reservation.lateCheckoutGranted
+                      ? lateCheckoutTime
+                        ? `Granted (${lateCheckoutTime})`
+                        : "Granted"
+                      : "Not granted"}
+                  </span>
+                </div>
+                {lateApproval.data?.policyNeedsApproval ? (
+                  <p className="text-xs text-[#765719]">
+                    Property policy requires owner or manager approval for late checkout.
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-9 rounded-lg bg-[#251605] px-4 text-xs font-medium text-white hover:bg-[#3D2810]"
+                    disabled={!lateWritable || saveLateCheckout.isPending}
+                    onClick={() => saveLateCheckout.mutate(true)}
+                  >
+                    {saveLateCheckout.isPending ? "Updating…" : "Grant late checkout"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-9 rounded-lg border-[#DDD4C5] bg-white px-3 text-xs font-medium text-[#251605] hover:bg-[#F7F2EA]"
+                    disabled={
+                      !lateWritable ||
+                      !reservation.lateCheckoutGranted ||
+                      saveLateCheckout.isPending
+                    }
+                    onClick={() => saveLateCheckout.mutate(false)}
+                  >
+                    Clear late checkout
+                  </Button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          {/* Row 3: Arrival transport & Pickup note */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Arrival transport */}
+            <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Car className="size-4 text-[#D97706]" />
+                <h2 className="font-display text-base font-semibold text-[#251605]">
+                  Arrival transport
+                </h2>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Flight or other transport text stored on this reservation.
+              </p>
+              <Input
+                id="stay-transport"
+                maxLength={200}
+                disabled={!editable}
+                value={draft.arrivalTransport}
+                onChange={(event) => patch({ arrivalTransport: event.target.value })}
+                placeholder="Add arrival transport details..."
+                className="mt-3.5 h-9 w-full rounded-lg border-[#DDD4C5] bg-white px-3 text-sm text-[#251605] placeholder:text-muted-foreground/60 disabled:bg-[#FAF8F5]"
+              />
+            </section>
+
+            {/* Pickup note */}
+            <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-2">
+                <FileText className="size-4 text-[#D97706]" />
+                <h2 className="font-display text-base font-semibold text-[#251605]">Pickup note</h2>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                A note on the reservation. This does not create a pickup request or a service order.
+              </p>
+              <Input
+                id="stay-pickup"
+                maxLength={200}
+                disabled={!editable}
+                value={draft.pickupNote}
+                onChange={(event) => patch({ pickupNote: event.target.value })}
+                placeholder="Add pickup note..."
+                className="mt-3.5 h-9 w-full rounded-lg border-[#DDD4C5] bg-white px-3 text-sm text-[#251605] placeholder:text-muted-foreground/60 disabled:bg-[#FAF8F5]"
+              />
+            </section>
+          </div>
+
+          {/* Row 4: Internal Notes */}
+          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <FileText className="size-4 text-[#D97706]" />
+              <h2 className="font-display text-base font-semibold text-[#251605]">
+                Internal Notes
+              </h2>
             </div>
-            <div className="mt-3 flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={!lateWritable || !lateClock || saveLateCheckout.isPending}
-                onClick={() => saveLateCheckout.mutate(true)}
-              >
-                Grant late checkout
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={!lateWritable || saveLateCheckout.isPending}
-                onClick={() => saveLateCheckout.mutate(false)}
-              >
-                Clear late checkout
-              </Button>
-            </div>
-          </section>
-          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-            <h2 className="font-display text-base text-[#251605]">Arrival transport</h2>
-            <p className="mb-2 text-xs text-muted-foreground">
-              Flight or other transport text stored on this reservation.
-            </p>
-            <Input
-              id="stay-transport"
-              className={FIELD}
-              maxLength={200}
-              disabled={!editable}
-              value={draft.arrivalTransport}
-              onChange={(event) => patch({ arrivalTransport: event.target.value })}
-            />
-          </section>
-          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-            <h2 className="font-display text-base text-[#251605]">Pickup note</h2>
-            <p className="mb-2 text-xs text-muted-foreground">
-              A note on the reservation. This does not create a pickup request or a service order.
-            </p>
-            <Input
-              id="stay-pickup"
-              className={FIELD}
-              maxLength={200}
-              disabled={!editable}
-              value={draft.pickupNote}
-              onChange={(event) => patch({ pickupNote: event.target.value })}
-            />
-          </section>
-          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-            <h2 className="font-display text-base text-[#251605]">Internal Notes</h2>
-            <p className="mb-2 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Same internal notes as the Notes tab. Visible to hotel staff.
             </p>
             <Textarea
@@ -565,42 +551,64 @@ export function ReservationDetailStayTab({
               disabled={!editable}
               value={draft.stayNotes}
               onChange={(e) => patch({ stayNotes: e.target.value.slice(0, STAY_NOTES_MAX) })}
-              placeholder="Add internal notes here…"
-              className="min-h-24"
+              placeholder="Add internal notes here..."
+              className="mt-3 min-h-[72px] sm:min-h-[80px] w-full rounded-lg border-[#DDD4C5] bg-white p-3 text-sm text-[#251605] placeholder:text-muted-foreground/60 resize-y disabled:bg-[#FAF8F5]"
             />
             <p className="mt-1 text-right text-[11px] text-muted-foreground">
               {draft.stayNotes.length}/{STAY_NOTES_MAX}
             </p>
           </section>
         </div>
+
+        {/* Right Sticky Reservation Summary */}
         <StaySummaryRail
           reservation={reservation}
           money={money}
           coverUrl={coverUrl}
           nights={nights}
+          paymentReceived={effectivePaymentReceived}
+          guestDeposit={effectiveGuestDeposit}
+          totalAmount={initialTotalAmount}
         />
       </div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white py-3">
-        <Button type="button" variant="outline" size="sm" onClick={onBackToOverview}>
+
+      {/* Sticky Bottom Action Bar */}
+      <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#DDD4C5] bg-[#FAF8F5]/95 backdrop-blur-xs px-4 py-3 sm:px-6">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5 rounded-lg border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F2EA]"
+          onClick={onBackToOverview}
+        >
+          <ArrowLeft className="size-3.5" />
           Back to Overview
         </Button>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            disabled={!editable || save.isPending}
-            onClick={() => save.mutate()}
-          >
-            {save.isPending ? "Saving…" : "Save Changes"}
-          </Button>
+        <div className="flex items-center gap-3">
+          {isDirty ? (
+            <span className="flex items-center text-xs font-medium text-[#E06D14]">
+              <span className="mr-1.5 size-2 rounded-full bg-[#E06D14]" />
+              Unsaved changes
+            </span>
+          ) : null}
           <Button
             type="button"
             variant="outline"
             size="sm"
-            disabled={!editable}
+            className="rounded-lg border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F2EA]"
+            disabled={!editable || !isDirty}
             onClick={() => setDraft(buildStayDraft(reservation))}
           >
             Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="rounded-lg bg-[#251605] px-4 text-xs font-medium text-white hover:bg-[#3D2810]"
+            disabled={!editable || save.isPending}
+            onClick={() => save.mutate()}
+          >
+            {save.isPending ? "Saving…" : "Save Changes"}
           </Button>
         </div>
       </div>
@@ -613,11 +621,17 @@ function StaySummaryRail({
   money,
   coverUrl,
   nights,
+  paymentReceived,
+  guestDeposit,
+  totalAmount,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
   coverUrl: string | null;
   nights: number;
+  paymentReceived?: number | null;
+  guestDeposit?: number | null;
+  totalAmount?: number | null;
 }) {
   return (
     <ReservationDetailSummary
@@ -626,9 +640,13 @@ function StaySummaryRail({
       money={money}
       coverUrl={coverUrl}
       nights={nights}
+      paymentReceived={paymentReceived}
+      guestDeposit={guestDeposit}
+      totalAmount={totalAmount}
     />
   );
 }
+
 function StayField({
   label,
   htmlFor,

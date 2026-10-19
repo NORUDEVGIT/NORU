@@ -95,11 +95,139 @@ export function isRegistrationComplete(draft: RegistrationDraft): boolean {
   const email = (draft.email ?? "").trim();
   const idType = draft.idDocumentType;
   const idNumber = (draft.idDocumentNumber ?? "").trim();
-  return name.length > 0 && (phone.length > 0 || email.length > 0) && !!idType && idNumber.length > 0;
+  return (
+    name.length > 0 && (phone.length > 0 || email.length > 0) && !!idType && idNumber.length > 0
+  );
 }
 
 export function canContinueRegistration(draft: RegistrationDraft, waived: boolean): boolean {
   return waived || isRegistrationComplete(draft);
+}
+
+export type RequirementLedgerLine = {
+  id?: string | null;
+  type: string;
+  amount: number;
+  originalTransactionId?: string | null;
+};
+
+/** Net reservation payments. Deposit credits are not part of this sum. */
+export function netPaymentTowardRequirement(lines: RequirementLedgerLine[]): number {
+  const paymentIds = new Set<string>();
+  let payments = 0;
+  for (const line of lines) {
+    if (line.type !== "payment") continue;
+    const amount = Number(line.amount);
+    if (!Number.isFinite(amount)) continue;
+    payments += Math.abs(amount);
+    if (line.id) paymentIds.add(line.id);
+  }
+  let refunds = 0;
+  for (const line of lines) {
+    if (line.type !== "refund") continue;
+    const original = line.originalTransactionId ?? null;
+    if (!original || !paymentIds.has(original)) continue;
+    const amount = Number(line.amount);
+    if (!Number.isFinite(amount)) continue;
+    refunds += Math.abs(amount);
+  }
+  return Math.max(0, Math.round((payments - refunds) * 100) / 100);
+}
+
+/** Net check-in deposit credits. Payment lines are not part of this sum. */
+export function netDepositTowardRequirement(lines: RequirementLedgerLine[]): number {
+  const depositIds = new Set<string>();
+  let deposits = 0;
+  for (const line of lines) {
+    if (line.type !== "deposit") continue;
+    const amount = Number(line.amount);
+    if (!Number.isFinite(amount)) continue;
+    deposits += Math.abs(amount);
+    if (line.id) depositIds.add(line.id);
+  }
+  let refunds = 0;
+  for (const line of lines) {
+    if (line.type !== "refund") continue;
+    const original = line.originalTransactionId ?? null;
+    if (!original || !depositIds.has(original)) continue;
+    const amount = Number(line.amount);
+    if (!Number.isFinite(amount)) continue;
+    refunds += Math.abs(amount);
+  }
+  return Math.max(0, Math.round((deposits - refunds) * 100) / 100);
+}
+
+export const GUARANTEE_UNRULED = "No guarantee satisfaction rule is configured.";
+
+export type CheckInDepositReadiness = {
+  scope: "reservation";
+  folioId: string | null;
+  folioStatus: string | null;
+  currency: string | null;
+  requiredAmount: number | null;
+  receivedAmount: number;
+  outstanding: number;
+  satisfied: boolean;
+  guaranteeMethod: string | null;
+  guaranteeSatisfied: null;
+  guaranteeNote: string;
+  companyMasterId: string | null;
+  groupAccountMasterId: string | null;
+};
+
+/** Reservation folio numbers. Company and group ids are echoed and do not change the sum. */
+export function projectCheckInDepositReadiness(input: {
+  folioId: string | null;
+  folioStatus: string | null;
+  currency: string | null;
+  requiredAmount: number | null;
+  lines: RequirementLedgerLine[];
+  waived: boolean;
+  guaranteeMethod: string | null;
+  companyMasterId: string | null;
+  groupAccountMasterId: string | null;
+}): CheckInDepositReadiness {
+  const receivedAmount = netDepositTowardRequirement(input.lines);
+  const satisfied = isDepositSatisfied({
+    postedAmount: receivedAmount,
+    waived: input.waived,
+    requiredAmount: input.requiredAmount,
+  });
+  return {
+    scope: "reservation",
+    folioId: input.folioId,
+    folioStatus: input.folioStatus,
+    currency: input.currency,
+    requiredAmount: input.requiredAmount,
+    receivedAmount,
+    outstanding: satisfied ? 0 : paymentOutstanding(receivedAmount, input.requiredAmount),
+    satisfied,
+    guaranteeMethod: input.guaranteeMethod,
+    guaranteeSatisfied: null,
+    guaranteeNote: GUARANTEE_UNRULED,
+    companyMasterId: input.companyMasterId,
+    groupAccountMasterId: input.groupAccountMasterId,
+  };
+}
+
+/** Null when the reservation has no snapshot amount. Zero is a real requirement of nothing. */
+export function snapshotRequiredAmount(raw: unknown): number | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as Record<string, unknown>;
+  const value = row.computed_amount ?? row.computedAmount;
+  if (value == null || value === "") return null;
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return null;
+  return amount;
+}
+
+export function paymentOutstanding(postedAmount: number, requiredAmount: number | null): number {
+  const required =
+    requiredAmount == null || !Number.isFinite(requiredAmount) || requiredAmount <= 0
+      ? 0
+      : requiredAmount;
+  const posted = Number.isFinite(postedAmount) ? postedAmount : 0;
+  return Math.max(0, Math.round((required - posted) * 100) / 100);
 }
 
 export function isDepositSatisfied(input: {
@@ -108,11 +236,13 @@ export function isDepositSatisfied(input: {
   requiredAmount?: number | null;
 }): boolean {
   if (input.waived) return true;
+  const required =
+    input.requiredAmount == null || !Number.isFinite(input.requiredAmount)
+      ? 0
+      : input.requiredAmount;
+  if (required <= 0) return true;
   const posted = Number.isFinite(input.postedAmount) ? input.postedAmount : 0;
-  if (posted <= 0) return false;
-  const required = input.requiredAmount ?? 0;
-  if (required > 0) return posted + 1e-9 >= required;
-  return true;
+  return posted + 1e-9 >= required;
 }
 
 export function canContinueDeposit(input: {
@@ -131,7 +261,10 @@ export function canCompleteDeposit(input: {
   return isDepositSatisfied(input);
 }
 
-export function isKeyRecorded(input: { accessType: string | null; identifier: string | null }): boolean {
+export function isKeyRecorded(input: {
+  accessType: string | null;
+  identifier: string | null;
+}): boolean {
   return Boolean((input.accessType ?? "").trim() && (input.identifier ?? "").trim());
 }
 
@@ -171,7 +304,9 @@ export function mapCashierShiftError(message: string): string {
   return message;
 }
 
-export function promptPassportExpiry(idType: IdDocumentType | null, expiry: string | null | undefined): boolean {
+export function promptPassportExpiry(
+  idType: IdDocumentType | null,
+  expiry: string | null | undefined,
+): boolean {
   return idType === "passport" && !(expiry ?? "").trim();
 }
-

@@ -222,11 +222,13 @@ describe("reservation detail group projection", () => {
     expect(requests).toContain("GROUP_PROFILE_PREFERENCE_NOTE");
   });
 
-  it("hides the legacy room card for group and keeps occupant cards", () => {
-    expect(rooms).toContain("isGroupReservation(reservation) ? null");
+  it("keeps one operational card per room and the available-room list", () => {
+    expect(rooms).toContain("units.length > 1 ? null : (");
     expect(rooms).toContain("Room(s) for this Reservation");
     expect(rooms).toContain("Available Rooms");
     expect(rooms).toContain("<ReservationRoomOccupants");
+    expect(rooms).toContain("roomActionsFor");
+    expect(rooms).not.toContain("isGroupReservation(reservation) ? null");
   });
 
   it("keeps the single rate grid and renders one priced section per group room", () => {

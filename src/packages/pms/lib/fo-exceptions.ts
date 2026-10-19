@@ -112,6 +112,10 @@ export type StayMoneySignal = {
   balance: number | null;
   /** Null when deposit evidence is missing. */
   depositPosted: number | null;
+  /** Net folio payments toward the reservation requirement. Deposit lines are excluded. */
+  paymentPosted?: number | null;
+  /** Snapshot computed_amount. Null when the stay has no requirement amount. */
+  paymentRequired?: number | null;
   depositWaived: boolean;
   checkoutOverride: boolean;
   keyIssued: boolean;
@@ -269,10 +273,14 @@ function paymentCta(stay: ExceptionStayLike): ExceptionCta {
 }
 
 function arrivalDepositUnpaid(signal: StayMoneySignal | undefined): boolean {
-  if (!signal) return false;
-  if (signal.depositWaived) return false;
-  if (signal.depositPosted == null) return false;
-  return !isDepositSatisfied({ postedAmount: signal.depositPosted, waived: signal.depositWaived });
+  if (!signal || signal.depositWaived) return false;
+  const required = signal.paymentRequired;
+  if (required == null || required <= 0) return false;
+  return !isDepositSatisfied({
+    postedAmount: signal.paymentPosted ?? 0,
+    waived: false,
+    requiredAmount: required,
+  });
 }
 
 function outstandingBalance(signal: StayMoneySignal | undefined): boolean {

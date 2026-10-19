@@ -37,7 +37,8 @@ export type AccompanyingGuestDraft = {
   gender: string;
   idPassport: string;
   contact: string;
-  status: "local";
+  status: "local" | "stored";
+  reservationRoomId?: string;
 };
 
 export type PreferenceChip = {
@@ -187,7 +188,7 @@ export function buildGuestDraft(
     guestType: reservationGuestKind(reservation),
     specialRequests: reservation.specialRequests ?? "",
     guestNotes: reservation.notes ?? "",
-    accompanying: [],
+    accompanying: accompanyingFromReservation(reservation),
   };
 }
 
@@ -212,3 +213,74 @@ export const CONTACT_METHOD_OPTIONS = PREFERRED_CONTACT_METHODS.map((value) => (
   value,
   label: contactMethodLabel(value) || value,
 }));
+
+const COMPANION_MARKER = "[stay-companion]";
+
+export function splitCompanionName(name: string): { firstName: string; lastName: string | null } {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] ?? "",
+    lastName: parts.length > 1 ? parts.slice(1).join(" ") : null,
+  };
+}
+
+export function companionGender(value: string): "female" | "male" | "other" | "unspecified" | null {
+  const normalized = value.trim().toLowerCase();
+  if (!isGuestGender(normalized)) return null;
+  return normalized;
+}
+
+export function companionProfileNotes(
+  relationship: string,
+  age: string,
+  existing: string | null | undefined,
+): string | null {
+  const base = (existing ?? "").replace(/\n?\[stay-companion\][^\n]*/g, "").trim();
+  const line = `${COMPANION_MARKER} relationship=${relationship.trim()}; age=${age.trim()}`;
+  const next = [base, line].filter(Boolean).join("\n");
+  return next || null;
+}
+
+export function parseCompanionNote(notes: string | null | undefined): {
+  relationship: string;
+  age: string;
+} {
+  const match = notes?.match(/\[stay-companion\]\s*relationship=([^;]*);\s*age=([^\n]*)/);
+  return {
+    relationship: match?.[1]?.trim() ?? "",
+    age: match?.[2]?.trim() ?? "",
+  };
+}
+
+export function stayRoomUnitId(reservation: ReservationDetail): string | null {
+  const units = reservation.rooms ?? [];
+  const open = units.find(
+    (unit) =>
+      unit.status !== "cancelled" && unit.status !== "checked_out" && unit.status !== "no_show",
+  );
+  return (open ?? units[0])?.id ?? null;
+}
+
+export function accompanyingFromReservation(
+  reservation: ReservationDetail,
+): AccompanyingGuestDraft[] {
+  const rows: AccompanyingGuestDraft[] = [];
+  for (const unit of reservation.rooms ?? []) {
+    for (const occupant of unit.occupants) {
+      if (occupant.isPrimary || occupant.guestId === reservation.guestId) continue;
+      const meta = parseCompanionNote(occupant.notes);
+      rows.push({
+        id: occupant.guestId,
+        name: occupant.name,
+        relationship: meta.relationship,
+        age: meta.age,
+        gender: occupant.gender ?? "",
+        idPassport: occupant.idDocumentNumber ?? "",
+        contact: occupant.phone ?? "",
+        status: "stored",
+        reservationRoomId: unit.id,
+      });
+    }
+  }
+  return rows;
+}

@@ -313,10 +313,13 @@ export function FoCheckInStepper({
     registrationDraft,
     ctx?.progress.registrationWaived ?? false,
   );
-  const depositOk = canContinueDeposit({
-    postedAmount: ctx?.folio.postedAmount ?? 0,
-    waived: ctx?.progress.depositWaived ?? false,
-  });
+  const depositOk = ctx
+    ? canContinueDeposit({
+        postedAmount: ctx.folio.postedAmount,
+        waived: ctx.progress.depositWaived,
+        requiredAmount: ctx.folio.requiredAmount,
+      })
+    : false;
   const keyOk = canContinueKey({
     accessType: ctx?.progress.keyAccessType ?? (keyType || null),
     identifier: ctx?.progress.keyIdentifier ?? (keyId || null),

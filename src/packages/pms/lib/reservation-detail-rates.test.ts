@@ -148,9 +148,10 @@ describe("Reservation Detail Rates tab", () => {
   it("does not invent discounts, packages, or rate-note persistence", () => {
     expect(ratesUi).toContain("rate-discounts-empty");
     expect(ratesUi).toContain("rate-packages-empty");
-    expect(ratesUi).toContain("RATE_DISCOUNT_GAP_COPY");
-    expect(ratesUi).toContain("RATE_PACKAGE_ADD_GAP_COPY");
-    expect(ratesUi).toContain("RATE_NOTES_GAP_COPY");
+    expect(ratesUi).toContain("applyReservationPromotion");
+    expect(ratesUi).toContain("applyReservationRoomPackage");
+    expect(ratesUi).toContain("saveRateNotes");
+    expect(ratesUi).not.toContain("RATE_DISCOUNT_GAP_COPY");
     expect(ratesUi).not.toContain("amendReservation");
     expect(ratesUi).toContain("reservation.roomSubtotal");
     expect(ratesUi).toContain("nightlyBreakdownRows(reservation, plan)");
