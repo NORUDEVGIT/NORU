@@ -348,6 +348,15 @@ describe("overbooking migration contract", () => {
     assert.match(migration, /member\.role IN \('owner', 'manager'\)/);
     assert.match(migration, /shortage := GREATEST\(reservation_demand - physical_before, 0\)/);
     assert.doesNotMatch(migration, /hotel_reservation_counters/);
+    const controls = readFileSync(
+      new URL("../../../../supabase/migrations/0170_overbooking_controls.sql", import.meta.url),
+      "utf8",
+    );
+    assert.match(controls, /pms_overbooking_date_limits/);
+    assert.match(controls, /pms_room_type_overbooking_effective_limits/);
+    assert.match(controls, /rules\.manager_approval_required/);
+    assert.match(controls, /rules\.overbooking_reason_required/);
+    assert.match(controls, /candidate_allowance < chosen_allowance/);
   });
 
   it("does not give public, channel, or waitlist writers the override function", () => {

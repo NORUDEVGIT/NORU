@@ -22,6 +22,45 @@ import { assertReservationCreateSourceChannel } from "./reservation-source-chann
 import { assertRoomTypeOccupancy } from "./create-reservation-phase1-section4";
 import { buildStayAmendmentResult, type StayAmendmentResult } from "./reservation-stay-amendment";
 import { propertyToday } from "@/shared/lib/property-dates";
+
+async function assertExplicitOverbookingAllowed(
+  db: {
+    from: (table: string) => {
+      select: (columns: string) => {
+        eq: (
+          column: string,
+          value: string,
+        ) => {
+          maybeSingle: () => Promise<{
+            data: {
+              manager_approval_required?: boolean | null;
+              overbooking_reason_required?: boolean | null;
+            } | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
+    };
+  },
+  restaurantId: string,
+  role: string,
+  reason: string | null | undefined,
+) {
+  const loaded = await db
+    .from("pms_inventory_rules")
+    .select("manager_approval_required, overbooking_reason_required")
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (loaded.error) throw new Error(loaded.error.message);
+  const approvalRequired = loaded.data ? Boolean(loaded.data.manager_approval_required) : true;
+  const reasonRequired = loaded.data ? Boolean(loaded.data.overbooking_reason_required) : true;
+  if (approvalRequired && role !== "owner" && role !== "manager") {
+    throw reservationError("OVERBOOKING_APPROVAL_REQUIRED");
+  }
+  if (reasonRequired && !reason?.trim()) {
+    throw reservationError("OVERBOOKING_REASON_REQUIRED");
+  }
+}
 import { stayFitsAllotment } from "./groups";
 import {
   assertCreateReservationSection7,
@@ -1405,10 +1444,12 @@ export const createReservation = createServerFn({ method: "POST" })
       const hasCommercialSelection =
         Boolean(data.promotionActivationId) || (data.packageActivationIds?.length ?? 0) > 0;
       if (data.overbookingRequested) {
-        if (me.role !== "owner" && me.role !== "manager") {
-          throw reservationError("OVERBOOKING_APPROVAL_REQUIRED");
-        }
-        if (!data.overbookingReason) throw reservationError("OVERBOOKING_REASON_REQUIRED");
+        await assertExplicitOverbookingAllowed(
+          supabaseAdmin as never,
+          data.restaurantId,
+          me.role,
+          data.overbookingReason,
+        );
       }
       const overbookingRpc = supabaseAdmin as never as {
         rpc: (
@@ -1678,10 +1719,12 @@ export const amendReservation = createServerFn({ method: "POST" })
         });
       }
       if (data.overbookingRequested) {
-        if (me.role !== "owner" && me.role !== "manager") {
-          throw reservationError("OVERBOOKING_APPROVAL_REQUIRED");
-        }
-        if (!data.overbookingReason) throw reservationError("OVERBOOKING_REASON_REQUIRED");
+        await assertExplicitOverbookingAllowed(
+          supabaseAdmin as never,
+          data.restaurantId,
+          me.role,
+          data.overbookingReason,
+        );
       }
       const amendArgs = {
         _restaurant_id: data.restaurantId,

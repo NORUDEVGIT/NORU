@@ -70,6 +70,7 @@ export function ReservationDetailStayTab({
   editable,
   canManage,
   canOverbook = false,
+  reasonRequired = true,
   timezone,
   money,
   coverUrl,
@@ -81,6 +82,7 @@ export function ReservationDetailStayTab({
   editable: boolean;
   canManage: boolean;
   canOverbook?: boolean;
+  reasonRequired?: boolean;
   timezone: string;
   money: (value: number) => string;
   coverUrl: string | null;
@@ -187,7 +189,9 @@ export function ReservationDetailStayTab({
         setOverbookOffer(kind);
         return;
       }
-      toast.error("No physical availability. Overbooking requires Owner or Manager authorization.");
+      toast.error(
+        "No physical availability. Owner or Manager authorization is required while Manager Approval Required is on.",
+      );
       return;
     }
     toast.error(error.message);
@@ -431,6 +435,7 @@ export function ReservationDetailStayTab({
                 {overbookOffer === "dates" && canOverbook ? (
                   <OverbookAmendReason
                     reason={overbookReason}
+                    reasonRequired={reasonRequired}
                     pending={amendDates.isPending}
                     onReason={setOverbookReason}
                     onConfirm={() => amendDates.mutate(overbookReason.trim())}
@@ -472,6 +477,7 @@ export function ReservationDetailStayTab({
                 {overbookOffer === "extend" && canOverbook ? (
                   <OverbookAmendReason
                     reason={overbookReason}
+                    reasonRequired={reasonRequired}
                     pending={extendStay.isPending}
                     onReason={setOverbookReason}
                     onConfirm={() => extendStay.mutate(overbookReason.trim())}
@@ -657,11 +663,13 @@ export function ReservationDetailStayTab({
 
 function OverbookAmendReason({
   reason,
+  reasonRequired,
   pending,
   onReason,
   onConfirm,
 }: {
   reason: string;
+  reasonRequired: boolean;
   pending: boolean;
   onReason: (value: string) => void;
   onConfirm: () => void;
@@ -670,7 +678,7 @@ function OverbookAmendReason({
     <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-[#251605]">
       <p>This change exceeds physical inventory.</p>
       <label className="mt-2 block text-xs">
-        Reason *
+        Reason{reasonRequired ? " *" : ""}
         <textarea
           className="mt-1 w-full rounded-md border border-[#E5DED4] bg-white p-2"
           value={reason}
@@ -681,7 +689,7 @@ function OverbookAmendReason({
         type="button"
         size="sm"
         className="mt-2"
-        disabled={pending || reason.trim().length === 0}
+        disabled={pending || (reasonRequired && reason.trim().length === 0)}
         onClick={onConfirm}
       >
         Confirm overbooking

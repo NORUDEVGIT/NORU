@@ -93,7 +93,7 @@ import {
   listAssignableRooms,
   type RoomTypeAvailability,
 } from "@/packages/pms/lib/reservations.functions";
-import { getOverbookingBoard } from "@/packages/pms/lib/overbooking.functions";
+import { getOverbookingBoard, getOverbookingControls } from "@/packages/pms/lib/overbooking.functions";
 import { createReservationRoomUnitPayload } from "@/packages/pms/lib/reservation-room-units";
 import type { ReservationMode } from "@/packages/pms/lib/reservation-mode";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -1171,12 +1171,20 @@ export function CreateReservationPage({
   const shortRoomTypes = availability.filter(
     (row) => requestedRoomsForType(row.roomTypeId) > row.available,
   );
-  const canAuthorizeOverbook = actorRole === "owner" || actorRole === "manager";
+  const loadOverbookingControls = useServerFn(getOverbookingControls);
+  const overbookingControls = useQuery({
+    queryKey: ["overbooking-controls", restaurantId],
+    queryFn: () => loadOverbookingControls({ data: { restaurantId } }),
+  });
+  const approvalRequired = overbookingControls.data?.managerApprovalRequired !== false;
+  const reasonRequired = overbookingControls.data?.reasonRequired !== false;
+  const canAuthorizeOverbook =
+    !approvalRequired || actorRole === "owner" || actorRole === "manager";
   const overbookReady =
     overbookShortage > 0 &&
     canAuthorizeOverbook &&
     overbookingArmed &&
-    overbookingReason.trim().length > 0;
+    (!reasonRequired || overbookingReason.trim().length > 0);
   const loadOverbookingBoard = useServerFn(getOverbookingBoard);
   const overbookBoardQuery = useQuery({
     queryKey: ["create-overbooking-board", restaurantId, arrival, departure],
@@ -2159,7 +2167,7 @@ export function CreateReservationPage({
         }
         activeRoomLabel={groupMode ? `Room ${activeRoomIndex + 1}` : null}
         modifySearchLabel={groupMode ? `Edit Room ${activeRoomIndex + 1} Criteria` : undefined}
-        allowExhaustedSelection={actorRole === "owner" || actorRole === "manager"}
+        allowExhaustedSelection={canAuthorizeOverbook}
         onModifySearch={() => {
           document.getElementById("create-reservation-stay-information")?.scrollIntoView({
             behavior: "smooth",
@@ -2736,6 +2744,8 @@ export function CreateReservationPage({
                     consumed={tightest?.overbookingConsumed ?? null}
                     remaining={tightest?.overbookingRemaining ?? null}
                     showControls={index === 0}
+                    approvalRequired={approvalRequired}
+                    reasonRequired={reasonRequired}
                     reason={overbookingReason}
                     armed={overbookingArmed}
                     onReason={setOverbookingReason}

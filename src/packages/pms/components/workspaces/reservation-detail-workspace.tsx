@@ -28,6 +28,7 @@ import {
 import { stayFromReservation } from "@/packages/pms/lib/front-office-shell";
 import { frontOfficeRoomTargets } from "@/packages/pms/lib/reservation-room-units";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
+import { getOverbookingControls } from "@/packages/pms/lib/overbooking.functions";
 import {
   Select,
   SelectContent,
@@ -215,6 +216,13 @@ export function ReservationDetailWorkspace({
     retry: false,
   });
   const canManage = accessQuery.data?.canManage ?? false;
+  const loadOverbookingControls = useServerFn(getOverbookingControls);
+  const overbookingControls = useQuery({
+    queryKey: ["overbooking-controls", restaurantId],
+    queryFn: () => loadOverbookingControls({ data: { restaurantId } }),
+  });
+  const overbookingApprovalRequired = overbookingControls.data?.managerApprovalRequired !== false;
+  const overbookingReasonRequired = overbookingControls.data?.reasonRequired !== false;
 
   const detailQuery = useQuery({
     queryKey: ["reservation", restaurantId, reservationId],
@@ -678,8 +686,11 @@ export function ReservationDetailWorkspace({
         editable={detailActions?.editable ?? false}
         canManage={canManage}
         canOverbook={
-          accessQuery.data?.role === "owner" || accessQuery.data?.role === "manager"
+          overbookingApprovalRequired
+            ? accessQuery.data?.role === "owner" || accessQuery.data?.role === "manager"
+            : canManage
         }
+        reasonRequired={overbookingReasonRequired}
         timezone={timezone}
         money={money}
         coverUrl={roomType?.coverUrl ?? null}

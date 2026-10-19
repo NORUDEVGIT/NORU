@@ -102,6 +102,20 @@ describe("Card 2 Phase 4 inventory normalization", () => {
     assert.equal(overbook.overridePermissionRequired, false);
     assert.equal(overbook.overbookingReasonRequired, false);
     assert.equal(overbook.overbookingAlertEnabled, false);
+
+    const open = normalizeInventoryRules({
+      ...defaultInventoryRules(),
+      overbookingAllowed: true,
+      dateBasedLimitEnabled: true,
+      managerApprovalRequired: false,
+      overbookingReasonRequired: false,
+      overbookingAlertEnabled: true,
+    });
+    assert.equal(open.dateBasedLimitEnabled, true);
+    assert.equal(open.managerApprovalRequired, false);
+    assert.equal(open.overbookingReasonRequired, false);
+    assert.equal(open.overbookingAlertEnabled, true);
+    assert.equal(open.overridePermissionRequired, false);
   });
 
   it("normalizes disabled block types", () => {

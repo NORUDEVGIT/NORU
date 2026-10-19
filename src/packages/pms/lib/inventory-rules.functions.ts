@@ -137,9 +137,9 @@ function parentPayload(restaurantId: string, rules: InventoryRulesDraft) {
   };
 }
 
-function overbookingMeta(allowed: boolean) {
+function overbookingMeta() {
   return {
-    configuredButNotOperational: allowed,
+    configuredButNotOperational: false,
     capacityNote: OVERBOOKING_CAPACITY_NOTE,
   };
 }
@@ -202,14 +202,14 @@ export const getInventoryRules = createServerFn({ method: "POST" })
       return {
         persisted: false,
         rules,
-        overbooking: overbookingMeta(false),
+        overbooking: overbookingMeta(),
       };
     }
     const rules = mapParent(loaded.parent, loaded.blockTypes);
     return {
       persisted: true,
       rules,
-      overbooking: overbookingMeta(rules.overbookingAllowed),
+      overbooking: overbookingMeta(),
     };
   });
 
@@ -265,7 +265,7 @@ export const saveInventoryRules = createServerFn({ method: "POST" })
     return {
       ok: true as const,
       rules: normalized,
-      overbooking: overbookingMeta(normalized.overbookingAllowed),
+      overbooking: overbookingMeta(),
     };
   });
 

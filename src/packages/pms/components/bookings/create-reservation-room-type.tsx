@@ -135,6 +135,8 @@ export function OverbookingDecision({
   consumed,
   remaining,
   showControls = true,
+  approvalRequired = true,
+  reasonRequired = true,
   reason,
   armed,
   onReason,
@@ -149,13 +151,15 @@ export function OverbookingDecision({
   consumed: number | null;
   remaining: number | null;
   showControls?: boolean;
+  approvalRequired?: boolean;
+  reasonRequired?: boolean;
   reason: string;
   armed: boolean;
   onReason: (value: string) => void;
   onArm: (value: boolean) => void;
 }) {
   if (shortage <= 0 || physicalAvailable == null) return null;
-  const canAuthorize = role === "owner" || role === "manager";
+  const canAuthorize = !approvalRequired || role === "owner" || role === "manager";
   return (
     <section
       className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-[#251605]"
@@ -183,12 +187,12 @@ export function OverbookingDecision({
               </button>
               {armed ? (
                 <label className="block text-xs">
-                  Reason *
+                  Reason{reasonRequired ? " *" : ""}
                   <textarea
                     className="mt-1 w-full rounded-md border border-[#E5DED4] bg-white p-2"
                     value={reason}
                     onChange={(event) => onReason(event.target.value)}
-                    required
+                    required={reasonRequired}
                   />
                 </label>
               ) : null}
@@ -198,7 +202,7 @@ export function OverbookingDecision({
       ) : (
         <p className="mt-2">
           {roomName} has no physical availability. Owner or Manager authorization is required to
-          overbook.
+          overbook while Manager Approval Required is on.
         </p>
       )}
     </section>

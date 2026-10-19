@@ -263,11 +263,6 @@ export function PmsPropertySetupCard2Section({
           <p>Canonical capacity: {inventoryStats.canonicalEngineSellableRoomCount}</p>
           <p>Block policies: {inventoryStats.blockPoliciesConfigured} / 9</p>
         </div>
-        {inventoryStats.configuredButNotOperational ? (
-          <p className="text-sm text-[#9A6A12]">
-            Overbooking policy configured — engine support not active
-          </p>
-        ) : null}
       </PropertySetupPanel>
     ) : step === "amenities" && amenitiesStats ? (
       <PropertySetupPanel title="Amenities" icon="amenity" helper="Configured amenity coverage.">

@@ -32,6 +32,7 @@ import {
   type InventoryRulesDraft,
 } from "@/packages/pms/lib/inventory-rules-card2.server";
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
+import { OverbookingDateLimitsEditor } from "@/packages/pms/components/settings/overbooking-date-limits-editor";
 import { RoomTypeOverbookingEditor } from "@/packages/pms/components/settings/room-type-overbooking-editor";
 
 const BLOCK_LABELS: Record<(typeof INVENTORY_BLOCK_TYPES)[number], string> = {
@@ -158,9 +159,7 @@ export function PmsPropertySetupCard2Inventory({
       : ["Save Inventory Rules to create the property configuration."]);
   const stepStatus =
     ready?.stepStatus ?? card2InventoryStepStatus(false, persisted);
-  const configuredButNotOperational = Boolean(
-    ready?.configuredButNotOperational || draft.overbookingAllowed,
-  );
+  const configuredButNotOperational = false;
   useEffect(() => {
     onReadiness(stepStatus, blockers);
     onStats({
@@ -555,38 +554,33 @@ export function PmsPropertySetupCard2Inventory({
         {draft.overbookingAllowed ? (
           <div className="mt-4 space-y-4">
             <RoomTypeOverbookingEditor restaurantId={restaurantId} canEdit={canEdit} />
+            <p className="text-sm text-muted-foreground">
+              {OVERBOOKING_CAPACITY_NOTE} {OVERBOOKING_AUTHORIZATION_NOTE}
+            </p>
 
             <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
               <PolicyToggle
                 label="Date-Based Limit Enabled"
                 help={OVERBOOKING_FUTURE_LIMITS_NOTE}
-                checked={false}
-                disabled
-                onChange={() => undefined}
+                checked={draft.dateBasedLimitEnabled}
+                disabled={!canEdit}
+                onChange={(value) => patch({ dateBasedLimitEnabled: value })}
               />
 
               <PolicyToggle
                 label="Manager Approval Required"
-                help="Locked on. Only an owner or manager can confirm an overbooking."
-                checked
-                disabled
-                onChange={() => undefined}
-              />
-
-              <PolicyToggle
-                label="Override Permission Required"
-                help="Locked on. There is no separate override permission in V1."
-                checked
-                disabled
-                onChange={() => undefined}
+                help="When on, only an owner or manager can confirm an overbooking."
+                checked={draft.managerApprovalRequired}
+                disabled={!canEdit}
+                onChange={(value) => patch({ managerApprovalRequired: value })}
               />
 
               <PolicyToggle
                 label="Overbooking Reason Required"
-                help="Locked on. Every overbooking confirmation stores a reason."
-                checked
-                disabled
-                onChange={() => undefined}
+                help="When on, confirming an overbooking requires a reason."
+                checked={draft.overbookingReasonRequired}
+                disabled={!canEdit}
+                onChange={(value) => patch({ overbookingReasonRequired: value })}
               />
 
               <PolicyToggle
@@ -598,15 +592,12 @@ export function PmsPropertySetupCard2Inventory({
                 }
               />
             </div>
+            {draft.dateBasedLimitEnabled ? (
+              <OverbookingDateLimitsEditor restaurantId={restaurantId} canEdit={canEdit} />
+            ) : null}
           </div>
         ) : null}
       </SectionCard>
-
-      {configuredButNotOperational ? (
-        <div className="rounded-xl border border-[#E5DED1] bg-white px-4 py-3 text-sm text-muted-foreground">
-          Some Inventory Rules are stored as configuration policy and are not yet enforced by live reservation capacity.
-        </div>
-      ) : null}
 
       {formError ? (
         <p

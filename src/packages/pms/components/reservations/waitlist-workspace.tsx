@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { CalendarClock, CircleCheck, Hourglass, ListTodo, Users } from "lucide-react";
 
+import { getOverbookingControls } from "@/packages/pms/lib/overbooking.functions";
 import { reservationHistoryChanges } from "@/packages/pms/lib/reservation-history-display";
 import {
   WAITLIST_DISPLAY_STATUSES,
@@ -471,6 +472,12 @@ function WaitlistQuickView({
   const [amendOpen, setAmendOpen] = useState(false);
   const [overbookReason, setOverbookReason] = useState("");
   const [needsOverbook, setNeedsOverbook] = useState(false);
+  const loadOverbookingControls = useServerFn(getOverbookingControls);
+  const overbookingControls = useQuery({
+    queryKey: ["overbooking-controls", restaurantId],
+    queryFn: () => loadOverbookingControls({ data: { restaurantId } }),
+  });
+  const reasonRequired = overbookingControls.data?.reasonRequired !== false;
   const [candidates, setCandidates] = useState<WaitlistMatchCandidate[] | null>(null);
   const liveOffer = useMemo(
     () => detail.offers.find((offer) => offer.displayStatus === "pending") ?? null,
@@ -690,9 +697,12 @@ function WaitlistQuickView({
           </Button>
           {needsOverbook ? (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-[#251605]">
-              <p>No physical availability. Converting now overbooks and requires a reason.</p>
+              <p>
+                No physical availability. Converting now overbooks
+                {reasonRequired ? " and requires a reason." : "."}
+              </p>
               <label className="mt-2 block text-xs">
-                Reason *
+                Reason{reasonRequired ? " *" : ""}
                 <textarea
                   className="mt-1 w-full rounded-md border border-[#E5DED4] bg-white p-2"
                   value={overbookReason}
@@ -701,7 +711,7 @@ function WaitlistQuickView({
               </label>
               <Button
                 className="mt-2"
-                disabled={overbookReason.trim().length === 0}
+                disabled={reasonRequired && overbookReason.trim().length === 0}
                 onClick={() =>
                   void onConvert({
                     data: {

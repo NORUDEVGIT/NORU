@@ -33,10 +33,10 @@ export const OVERBOOKING_CAPACITY_NOTE =
   "Each room type has its own nightly allowance. When both a maximum and a percentage are set, the smaller limit is used. Percentage is calculated from that room type's physical sellable capacity and rounded down.";
 
 export const OVERBOOKING_FUTURE_LIMITS_NOTE =
-  "Coming later — date-specific overbooking limits are not operational yet.";
+  "When this is on, a date range replaces that room type's allowance for those nights. Overlapping ranges use the smaller allowance. Other nights keep the room-type allowance.";
 
 export const OVERBOOKING_AUTHORIZATION_NOTE =
-  "Owner or Manager authorization and a reason are always required. Receptionists cannot overbook.";
+  "Manager approval and a reason are required only when those switches are on. Normal bookings still stop at physical availability.";
 
 export type InventoryBlockTypeRule = {
   blockType: InventoryBlockType;
@@ -160,10 +160,7 @@ export function normalizeInventoryRules(draft: InventoryRulesDraft): InventoryRu
     next.overbookingAlertEnabled = false;
   } else {
     next.roomTypeLimitEnabled = false;
-    next.dateBasedLimitEnabled = false;
-    next.managerApprovalRequired = true;
-    next.overridePermissionRequired = true;
-    next.overbookingReasonRequired = true;
+    next.overridePermissionRequired = false;
   }
   return next;
 }
