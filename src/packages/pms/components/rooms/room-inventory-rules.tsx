@@ -614,12 +614,11 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
           <div className="grid gap-4 xl:grid-cols-2">
             <RulePanel
               title="Inventory and availability"
-              description="Flags that affect or are stored for sellable inventory. Config-only flags do not change canonical availability math."
+              description="These flags are read by canonical availability. Out of order, out of service, and each block's own inventory impact are applied directly."
             >
               <PolicySwitch
                 label="Sellable room required"
                 help="Enforced by assignment and availability when a room must be sellable."
-                tone="enforced"
                 checked={rules.sellableStatusRequired}
                 disabled={!canConfigure}
                 onChange={(sellableStatusRequired) => setDraft({ sellableStatusRequired })}
@@ -627,47 +626,10 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
               <PolicySwitch
                 label="Maintenance affects availability"
                 help="Canonical availability excludes rooms that are not maintenance-normal."
-                tone="enforced"
                 checked={rules.maintenanceAffectsAvailability}
                 disabled={!canConfigure}
                 onChange={(maintenanceAffectsAvailability) =>
                   setDraft({ maintenanceAffectsAvailability })
-                }
-              />
-              <PolicySwitch
-                label="Operational availability required"
-                help="Stored policy. The v1 availability RPC does not read this flag."
-                tone="config"
-                checked={rules.operationalAvailabilityRequired}
-                disabled={!canConfigure}
-                onChange={(operationalAvailabilityRequired) =>
-                  setDraft({ operationalAvailabilityRequired })
-                }
-              />
-              <PolicySwitch
-                label="Room blocks remove inventory"
-                help="Stored policy. Live removal uses each block's inventory impact."
-                tone="config"
-                checked={rules.roomBlockRemovesInventory}
-                disabled={!canConfigure}
-                onChange={(roomBlockRemovesInventory) => setDraft({ roomBlockRemovesInventory })}
-              />
-              <PolicySwitch
-                label="OOO removes inventory"
-                help="Stored policy. Canonical availability already pins OOO on the business date."
-                tone="config"
-                checked={rules.outOfOrderRemovesInventory}
-                disabled={!canConfigure}
-                onChange={(outOfOrderRemovesInventory) => setDraft({ outOfOrderRemovesInventory })}
-              />
-              <PolicySwitch
-                label="OOS removes inventory"
-                help="Stored policy. Canonical availability already pins OOS on the business date."
-                tone="config"
-                checked={rules.outOfServiceRemovesInventory}
-                disabled={!canConfigure}
-                onChange={(outOfServiceRemovesInventory) =>
-                  setDraft({ outOfServiceRemovesInventory })
                 }
               />
             </RulePanel>
@@ -678,7 +640,6 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
             >
               <PolicySwitch
                 label="Housekeeping affects assignment"
-                tone="enforced"
                 checked={rules.housekeepingAffectsAssignment}
                 disabled={!canConfigure}
                 onChange={(housekeepingAffectsAssignment) =>
@@ -687,7 +648,6 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
               />
               <PolicySwitch
                 label="Require housekeeping readiness"
-                tone="enforced"
                 checked={rules.requireHousekeepingReadiness}
                 disabled={!canConfigure}
                 onChange={(requireHousekeepingReadiness) =>
@@ -697,7 +657,6 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
               <PolicySwitch
                 label="Require maintenance availability"
                 help="Uses Card 2 maintenance status rules at evaluation time."
-                tone="enforced"
                 checked={rules.requireMaintenanceAvailability}
                 disabled={!canConfigure}
                 onChange={(requireMaintenanceAvailability) =>
@@ -706,73 +665,51 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
               />
               <PolicySwitch
                 label="Require room type match"
-                tone="enforced"
                 checked={rules.requireRoomTypeMatch}
                 disabled={!canConfigure}
                 onChange={(requireRoomTypeMatch) => setDraft({ requireRoomTypeMatch })}
               />
               <PolicySwitch
                 label="Occupancy match required"
-                tone="enforced"
                 checked={rules.requireOccupancyMatch}
                 disabled={!canConfigure}
                 onChange={(requireOccupancyMatch) => setDraft({ requireOccupancyMatch })}
               />
               <PolicySwitch
                 label="Bed match"
-                tone="enforced"
                 checked={rules.requireBedTypeMatch}
                 disabled={!canConfigure}
                 onChange={(requireBedTypeMatch) => setDraft({ requireBedTypeMatch })}
               />
               <PolicySwitch
                 label="Accessibility match"
-                tone="enforced"
                 checked={rules.requireAccessibilityMatch}
                 disabled={!canConfigure}
                 onChange={(requireAccessibilityMatch) => setDraft({ requireAccessibilityMatch })}
               />
               <PolicySwitch
                 label="Connecting-room match"
-                tone="enforced"
                 checked={rules.requireConnectingRoomMatch}
                 disabled={!canConfigure}
                 onChange={(requireConnectingRoomMatch) => setDraft({ requireConnectingRoomMatch })}
               />
               <PolicySwitch
                 label="Building preference"
-                tone="enforced"
                 checked={rules.useBuildingPreference}
                 disabled={!canConfigure}
                 onChange={(useBuildingPreference) => setDraft({ useBuildingPreference })}
               />
               <PolicySwitch
                 label="Floor preference"
-                tone="enforced"
                 checked={rules.useFloorPreference}
                 disabled={!canConfigure}
                 onChange={(useFloorPreference) => setDraft({ useFloorPreference })}
               />
               <PolicySwitch
                 label="Guest preference"
-                tone="enforced"
                 checked={rules.useGuestPreference}
                 disabled={!canConfigure}
                 onChange={(useGuestPreference) => setDraft({ useGuestPreference })}
-              />
-              <PolicySwitch
-                label="Manual assignment allowed"
-                tone="config"
-                checked={rules.manualAssignmentAllowed}
-                disabled={!canConfigure}
-                onChange={(manualAssignmentAllowed) => setDraft({ manualAssignmentAllowed })}
-              />
-              <PolicySwitch
-                label="Automatic assignment allowed"
-                tone="config"
-                checked={rules.automaticAssignmentAllowed}
-                disabled={!canConfigure}
-                onChange={(automaticAssignmentAllowed) => setDraft({ automaticAssignmentAllowed })}
               />
             </RulePanel>
 
@@ -870,33 +807,6 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
               <div className="mt-3.5 flex flex-wrap gap-2">
                 <SettingsLink label="Configure Housekeeping Rules" step="housekeeping" />
                 <SettingsLink label="Configure Maintenance Rules" step="maintenance" />
-              </div>
-              <div className="pt-1 space-y-2.5">
-                <PolicySwitch
-                  label="Housekeeping readiness required (inventory flag)"
-                  help="Stored on inventory rules. Canonical eligibility uses require housekeeping readiness plus Card 2 HK settings."
-                  tone="config"
-                  checked={rules.housekeepingReadinessRequired}
-                  disabled={!canConfigure}
-                  onChange={(housekeepingReadinessRequired) =>
-                    setDraft({ housekeepingReadinessRequired })
-                  }
-                />
-                <PolicySwitch
-                  label="Maintenance clear required (inventory flag)"
-                  help="Stored on inventory rules. Canonical eligibility uses require maintenance availability plus maintenance status rules."
-                  tone="config"
-                  checked={rules.maintenanceClearRequired}
-                  disabled={!canConfigure}
-                  onChange={(maintenanceClearRequired) => setDraft({ maintenanceClearRequired })}
-                />
-                <PolicySwitch
-                  label="Room move allowed"
-                  tone="config"
-                  checked={rules.roomMoveAllowed}
-                  disabled={!canConfigure}
-                  onChange={(roomMoveAllowed) => setDraft({ roomMoveAllowed })}
-                />
               </div>
             </RulePanel>
           </div>
@@ -1208,14 +1118,12 @@ function PolicySwitch({
   help,
   checked,
   disabled,
-  tone,
   onChange,
 }: {
   label: string;
   help?: string;
   checked: boolean;
   disabled: boolean;
-  tone: "enforced" | "config" | "future";
   onChange: (value: boolean) => void;
 }) {
   return (
@@ -1225,9 +1133,7 @@ function PolicySwitch({
           <p className="text-xs font-bold" style={{ color: INK }}>
             {label}
           </p>
-          <InventoryStatusBadge tone={tone === "enforced" ? "info" : "warning"}>
-            {tone === "enforced" ? "Enforced" : tone === "future" ? "Coming later" : "Config only"}
-          </InventoryStatusBadge>
+          <InventoryStatusBadge tone="info">Enforced</InventoryStatusBadge>
         </div>
         {help ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{help}</p> : null}
       </div>

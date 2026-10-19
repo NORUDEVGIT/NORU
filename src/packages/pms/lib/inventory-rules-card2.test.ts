@@ -22,18 +22,11 @@ const functions = readFileSync(join(here, "inventory-rules.functions.ts"), "utf8
 const roomsFns = readFileSync(join(here, "rooms.functions.ts"), "utf8");
 
 describe("Card 2 Phase 4 inventory validators", () => {
-  it("requires an assignment mode and nine unique block types", () => {
+  it("requires nine unique block types", () => {
     const base = defaultInventoryRules();
     assert.equal(INVENTORY_BLOCK_TYPES.length, 9);
     assert.equal(INVENTORY_IMPACTS.length, 4);
     assert.deepEqual(inventoryRulesErrors(base), []);
-    assert.ok(
-      inventoryRulesErrors({
-        ...base,
-        manualAssignmentAllowed: false,
-        automaticAssignmentAllowed: false,
-      }).includes("At least one assignment mode (manual or automatic) must be allowed."),
-    );
     assert.ok(
       inventoryRulesErrors({ ...base, blockTypes: base.blockTypes.slice(0, 8) }).some((row) =>
         row.includes("nine supported types"),
@@ -88,26 +81,7 @@ describe("Card 2 Phase 4 inventory validators", () => {
 });
 
 describe("Card 2 Phase 4 inventory normalization", () => {
-  it("turns move off and overbooking off dependents to false/null", () => {
-    const moved = normalizeInventoryRules({
-      ...defaultInventoryRules(),
-      roomMoveAllowed: false,
-      roomTypeChangeAllowed: true,
-      rateRecalculationRequired: true,
-      moveApprovalRequired: true,
-      moveReasonRequired: true,
-      inventoryRecalculationRequired: true,
-      housekeepingUpdateRequired: true,
-      maintenanceValidationRequired: true,
-    });
-    assert.equal(moved.roomTypeChangeAllowed, false);
-    assert.equal(moved.rateRecalculationRequired, false);
-    assert.equal(moved.moveApprovalRequired, false);
-    assert.equal(moved.moveReasonRequired, false);
-    assert.equal(moved.inventoryRecalculationRequired, false);
-    assert.equal(moved.housekeepingUpdateRequired, false);
-    assert.equal(moved.maintenanceValidationRequired, false);
-
+  it("turns overbooking off dependents to false/null", () => {
     const overbook = normalizeInventoryRules({
       ...defaultInventoryRules(),
       overbookingAllowed: false,

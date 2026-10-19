@@ -197,8 +197,10 @@ describe("Room & Inventory workspace", () => {
     expect(rules).toContain("query.data.rules");
     expect(rules).toContain("saveInventoryRules");
     expect(rules).toContain("Sellable room required");
-    expect(rules).toContain("Config only");
     expect(rules).toContain("Block-type inventory behavior");
+    expect(rules).not.toContain("Operational availability required");
+    expect(rules).not.toContain("Room move allowed");
+    expect(rules).not.toContain("Config only");
     expect(rules).not.toContain("query.data.sellableStatusRequired");
   });
 

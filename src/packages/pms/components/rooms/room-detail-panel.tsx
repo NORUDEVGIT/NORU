@@ -134,14 +134,7 @@ export function RoomDetailPanel({
               </div>
             </DetailSection>
 
-            <DetailSection
-              title="Room Information"
-              action={
-                <Button asChild variant="outline" size="sm" className="h-8 px-2.5 text-xs font-medium">
-                  <a href="/restaurant/settings?card2Step=room-types&returnTo=/restaurant/pms/room-inventory#rooms-inventory">Manage Configuration</a>
-                </Button>
-              }
-            >
+            <DetailSection title="Room Information">
               <dl className="grid grid-cols-[130px_1fr] gap-x-4 gap-y-2.5 text-xs">
                 <Info label="Room Number" value={room.roomNumber} />
                 <Info label="Room Type" value={room.roomTypeName} />
@@ -222,7 +215,7 @@ export function RoomDetailPanel({
                   onClick={() => onSetRestriction("available")}
                 />
                 <Button asChild variant="outline" size="sm" className="h-9 justify-start text-xs font-semibold">
-                  <a href="/restaurant/settings?card2Step=maintenance&returnTo=/restaurant/pms/room-inventory#rooms-inventory">
+                  <a href="/restaurant/settings?card2Step=room-types&returnTo=/restaurant/pms/room-inventory#rooms-inventory">
                     <Settings2 className="mr-2 size-4" /> Configuration
                   </a>
                 </Button>

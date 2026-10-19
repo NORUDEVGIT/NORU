@@ -161,11 +161,6 @@ export function PmsPropertySetupCard2Inventory({
   const configuredButNotOperational = Boolean(
     ready?.configuredButNotOperational || draft.overbookingAllowed,
   );
-  const assignmentError =
-    !draft.manualAssignmentAllowed && !draft.automaticAssignmentAllowed
-      ? "At least one assignment mode (manual or automatic) must be allowed."
-      : "";
-
   useEffect(() => {
     onReadiness(stepStatus, blockers);
     onStats({
@@ -215,8 +210,7 @@ export function PmsPropertySetupCard2Inventory({
   const saveMutation = useMutation({
     mutationFn: async () => {
       const normalized = normalizeInventoryRules(draft);
-      const clientIssue =
-        inventoryRulesErrors(normalized)[0] ?? assignmentError;
+      const clientIssue = inventoryRulesErrors(normalized)[0];
 
       if (clientIssue) {
         return { ok: false as const, message: clientIssue };
@@ -319,66 +313,6 @@ export function PmsPropertySetupCard2Inventory({
             disabled={!canEdit}
             onChange={(value) =>
               patch({ sellableStatusRequired: value })
-            }
-          />
-
-          <PolicyToggle
-            label="Operational Availability Required"
-            help="A room's operational state must allow it to be considered available."
-            checked={draft.operationalAvailabilityRequired}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ operationalAvailabilityRequired: value })
-            }
-          />
-
-          <PolicyToggle
-            label="Housekeeping Readiness Required"
-            help="Housekeeping readiness must be satisfied before the room is eligible."
-            checked={draft.housekeepingReadinessRequired}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ housekeepingReadinessRequired: value })
-            }
-          />
-
-          <PolicyToggle
-            label="Maintenance Clear Required"
-            help="Maintenance state must be clear before the room is eligible."
-            checked={draft.maintenanceClearRequired}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ maintenanceClearRequired: value })
-            }
-          />
-
-          <PolicyToggle
-            label="Room Block Removes Inventory"
-            help="Configured room blocks remove affected inventory from availability."
-            checked={draft.roomBlockRemovesInventory}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ roomBlockRemovesInventory: value })
-            }
-          />
-
-          <PolicyToggle
-            label="Out of Order Removes Inventory"
-            help="Out-of-order rooms are removed from available inventory."
-            checked={draft.outOfOrderRemovesInventory}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ outOfOrderRemovesInventory: value })
-            }
-          />
-
-          <PolicyToggle
-            label="Out of Service Removes Inventory"
-            help="Out-of-service rooms are removed from available inventory."
-            checked={draft.outOfServiceRemovesInventory}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ outOfServiceRemovesInventory: value })
             }
           />
 
@@ -509,39 +443,10 @@ export function PmsPropertySetupCard2Inventory({
       <SectionCard
         number={3}
         title="Room Assignment Rules"
-        description="Control assignment modes, required matches, preferences, and readiness checks."
+        description="Control required matches, preferences, and readiness checks."
         testId="pms-card2-inventory-assignment"
       >
         <div className="space-y-5">
-          <RuleGroup title="Assignment Modes">
-            <PolicyToggle
-              label="Automatic Assignment"
-              checked={draft.automaticAssignmentAllowed}
-              disabled={!canEdit}
-              onChange={(value) =>
-                patch({ automaticAssignmentAllowed: value })
-              }
-            />
-            <PolicyToggle
-              label="Manual Assignment"
-              checked={draft.manualAssignmentAllowed}
-              disabled={!canEdit}
-              onChange={(value) =>
-                patch({ manualAssignmentAllowed: value })
-              }
-            />
-          </RuleGroup>
-
-          {assignmentError ? (
-            <p
-              className="text-sm text-destructive"
-              data-testid="pms-card2-inventory-assignment-error"
-              role="alert"
-            >
-              {assignmentError}
-            </p>
-          ) : null}
-
           <RuleGroup title="Required Matches">
             <PolicyToggle
               label="Room Type Match"
@@ -635,88 +540,6 @@ export function PmsPropertySetupCard2Inventory({
 
       <SectionCard
         number={4}
-        title="Room Move Rules"
-        description="Define move-policy requirements. Live room moves remain in Front Office."
-        testId="pms-card2-inventory-move"
-      >
-        <div className="grid gap-3 md:grid-cols-2">
-          <PolicyToggle
-            label="Room Move Allowed"
-            checked={draft.roomMoveAllowed}
-            disabled={!canEdit}
-            onChange={(value) => patch({ roomMoveAllowed: value })}
-          />
-
-          {draft.roomMoveAllowed ? (
-            <>
-              <PolicyToggle
-                label="Room Type Change Allowed"
-                checked={draft.roomTypeChangeAllowed}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ roomTypeChangeAllowed: value })
-                }
-              />
-              <PolicyToggle
-                label="Rate Recalculation Required"
-                checked={draft.rateRecalculationRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ rateRecalculationRequired: value })
-                }
-              />
-              <PolicyToggle
-                id="inventory-move-approval-required"
-                label="Approval Required"
-                checked={draft.moveApprovalRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ moveApprovalRequired: value })
-                }
-              />
-              <PolicyToggle
-                label="Reason Required"
-                checked={draft.moveReasonRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ moveReasonRequired: value })
-                }
-              />
-              <PolicyToggle
-                label="Inventory Recalculation Required"
-                checked={draft.inventoryRecalculationRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ inventoryRecalculationRequired: value })
-                }
-              />
-              <PolicyToggle
-                label="Housekeeping Update Required"
-                checked={draft.housekeepingUpdateRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ housekeepingUpdateRequired: value })
-                }
-              />
-              <PolicyToggle
-                label="Maintenance Validation Required"
-                checked={draft.maintenanceValidationRequired}
-                disabled={!canEdit}
-                onChange={(value) =>
-                  patch({ maintenanceValidationRequired: value })
-                }
-              />
-            </>
-          ) : (
-            <div className="rounded-xl border border-[#EDE6D8] bg-[#F7F4EE] px-3 py-3 text-sm text-muted-foreground">
-              Move-dependent rules remain inactive until Room Move Allowed is enabled.
-            </div>
-          )}
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        number={5}
         title="Overbooking Rules"
         description="The property switch turns overbooking on. Each room type has its own allowance. This does not add rooms to ordinary availability."
         testId="pms-card2-inventory-overbooking"
