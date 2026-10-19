@@ -48,6 +48,7 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
+import { CompactSelect, PmsSelect } from "./room-inventory-shared";
 import { RoomDetailPanel } from "./room-detail-panel";
 import {
   metricPercentage,
@@ -551,26 +552,24 @@ export function RoomsDashboardTab({
           </DialogHeader>
           {restrictionTarget?.status !== "available" ? (
             <div className="grid gap-4 py-2">
-              <label className="grid gap-1.5 text-xs font-medium">
-                Restriction
-                <select
-                  value={restrictionTarget?.status ?? "out_of_order"}
-                  onChange={(event) =>
-                    setRestrictionTarget((current) =>
-                      current
-                        ? {
-                            ...current,
-                            status: event.target.value as "out_of_order" | "out_of_service",
-                          }
-                        : null,
-                    )
-                  }
-                  className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
-                >
-                  <option value="out_of_order">Out of Order</option>
-                  <option value="out_of_service">Out of Service</option>
-                </select>
-              </label>
+              <PmsSelect
+                label="Restriction"
+                value={restrictionTarget?.status ?? "out_of_order"}
+                onChange={(val) =>
+                  setRestrictionTarget((current) =>
+                    current
+                      ? {
+                          ...current,
+                          status: val as "out_of_order" | "out_of_service",
+                        }
+                      : null,
+                  )
+                }
+                options={[
+                  ["out_of_order", "Out of Order"],
+                  ["out_of_service", "Out of Service"],
+                ]}
+              />
               <label className="grid gap-1.5 text-xs font-medium">
                 Reason
                 <textarea
@@ -822,34 +821,7 @@ function FilterBand({
   );
 }
 
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: string[][];
-}) {
-  return (
-    <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
-      {label}
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-9 min-w-0 rounded-lg border border-[#DED7CD] bg-white px-2.5 text-xs font-medium text-[#251605] outline-none focus:border-[#C89933]"
-      >
-        {options.map(([id, name]) => (
-          <option key={id} value={id}>
-            {name}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
+const FilterSelect = CompactSelect;
 
 function LocationNavigator({
   locations,

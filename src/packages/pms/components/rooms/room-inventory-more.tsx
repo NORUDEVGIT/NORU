@@ -3,15 +3,21 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  AlertCircle,
+  AlertTriangle,
   ArrowRight,
   BarChart3,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
   CloudOff,
   Download,
   FileText,
   Layers3,
+  Plus,
   RefreshCw,
+  Search,
   ShieldAlert,
   Wrench,
 } from "lucide-react";
@@ -40,6 +46,7 @@ import {
   InventoryState,
   InventoryStatusBadge,
   InventoryViewHeader,
+  PmsSelect,
 } from "./room-inventory-shared";
 import { dateLabel } from "./room-inventory-utils";
 
@@ -173,15 +180,111 @@ const MAINTENANCE_PRIORITY_OPTIONS = [
   ["urgent", "Urgent"],
 ] as const;
 
+function PriorityBadge({ priority }: { priority: string }) {
+  const tones: Record<string, string> = {
+    urgent: "border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-400 font-semibold",
+    high: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium",
+    normal: "border-border bg-muted/40 text-muted-foreground",
+  };
+  return (
+    <span
+      className={`inline-flex items-center capitalize rounded-full border px-2 py-0.5 text-[11px] ${
+        tones[priority] ?? tones.normal
+      }`}
+    >
+      {priority}
+    </span>
+  );
+}
+
+function MaintenanceKpis({
+  total,
+  open,
+  inProgress,
+  resolved,
+  urgentOrHigh,
+}: {
+  total: number;
+  open: number;
+  inProgress: number;
+  resolved: number;
+  urgentOrHigh: number;
+}) {
+  const items = [
+    {
+      label: "Total Requests",
+      value: total,
+      detail: "All recorded room issues",
+      icon: Wrench,
+      tone: "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300",
+    },
+    {
+      label: "Open Issues",
+      value: open,
+      detail: "Awaiting technician",
+      icon: AlertTriangle,
+      tone: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
+    },
+    {
+      label: "In Progress",
+      value: inProgress,
+      detail: "Repairs actively underway",
+      icon: Clock,
+      tone: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400",
+    },
+    {
+      label: "Completed",
+      value: resolved,
+      detail: "Work verified and resolved",
+      icon: CheckCircle2,
+      tone: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
+    },
+    {
+      label: "Urgent & High",
+      value: urgentOrHigh,
+      detail: "Priority unresolved issues",
+      icon: ShieldAlert,
+      tone: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400",
+    },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <div
+            key={item.label}
+            className="flex min-h-[72px] items-center gap-3 rounded-xl border border-[#E8E1D7] bg-card px-3.5 py-2.5 shadow-xs"
+          >
+            <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${item.tone}`}>
+              <Icon className="size-4.5" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-xs font-medium text-muted-foreground">{item.label}</p>
+              <p className="text-xl font-bold leading-tight text-foreground">{item.value}</p>
+              <p className="truncate text-[11px] text-muted-foreground">{item.detail}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) {
   const loadMaintenance = useServerFn(listMaintenanceRequests);
   const loadRooms = useServerFn(listRooms);
   const createRequest = useServerFn(createMaintenanceRequest);
   const updateRequest = useServerFn(updateMaintenanceRequest);
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<"open" | "in_progress" | "resolved" | "all">(
-    "all",
-  );
+
+  const [statusFilter, setStatusFilter] = useState<"open" | "in_progress" | "resolved" | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [completeId, setCompleteId] = useState<string | null>(null);
@@ -190,19 +293,72 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
   const [category, setCategory] = useState<(typeof MAINTENANCE_CATEGORY_OPTIONS)[number][0]>("plumbing");
   const [priority, setPriority] = useState<(typeof MAINTENANCE_PRIORITY_OPTIONS)[number][0]>("normal");
   const [description, setDescription] = useState("");
+
   const maintenance = useQuery({
     queryKey: ["room-inventory-maintenance", restaurantId],
     queryFn: () => loadMaintenance({ data: { restaurantId } }),
     retry: false,
   });
+
   const rooms = useQuery({
     queryKey: ["room-inventory-maintenance-rooms", restaurantId],
     queryFn: () => loadRooms({ data: { restaurantId, includeInactive: true } }),
   });
-  const affected = new Map((rooms.data ?? []).map((room) => [room.id, room]));
+
+  const affected = useMemo(
+    () => new Map((rooms.data ?? []).map((room) => [room.id, room])),
+    [rooms.data],
+  );
+
   const requests = maintenance.data ?? [];
-  const visible = requests.filter((request) => statusFilter === "all" || request.status === statusFilter);
-  const selected = visible.find((request) => request.id === selectedId) ?? visible[0] ?? null;
+
+  const kpiCounts = useMemo(() => {
+    const total = requests.length;
+    const open = requests.filter((r) => r.status === "open").length;
+    const inProgress = requests.filter((r) => r.status === "in_progress").length;
+    const resolved = requests.filter((r) => r.status === "resolved").length;
+    const urgentOrHigh = requests.filter(
+      (r) => (r.priority === "urgent" || r.priority === "high") && r.status !== "resolved",
+    ).length;
+    return { total, open, inProgress, resolved, urgentOrHigh };
+  }, [requests]);
+
+  const filteredRequests = useMemo(() => {
+    return requests.filter((request) => {
+      if (statusFilter !== "all" && request.status !== statusFilter) return false;
+      if (categoryFilter !== "all" && request.category !== categoryFilter) return false;
+      if (priorityFilter !== "all" && request.priority !== priorityFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const room = affected.get(request.roomId);
+        const matches =
+          request.roomNumber.toLowerCase().includes(q) ||
+          request.description.toLowerCase().includes(q) ||
+          request.category.toLowerCase().includes(q) ||
+          request.priority.toLowerCase().includes(q) ||
+          (room?.roomTypeName && room.roomTypeName.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [requests, statusFilter, categoryFilter, priorityFilter, searchQuery, affected]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const pageRows = filteredRequests.slice(startIndex, startIndex + pageSize);
+  const selected = filteredRequests.find((request) => request.id === selectedId) ?? pageRows[0] ?? null;
+
+  const hasActiveFilters =
+    statusFilter !== "all" || categoryFilter !== "all" || priorityFilter !== "all" || searchQuery.trim() !== "";
+
+  function clearFilters() {
+    setStatusFilter("all");
+    setSearchQuery("");
+    setCategoryFilter("all");
+    setPriorityFilter("all");
+    setPage(1);
+  }
 
   async function refreshMaintenance() {
     await Promise.all([
@@ -212,6 +368,56 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
       queryClient.invalidateQueries({ queryKey: ["room-board-rooms", restaurantId] }),
       queryClient.invalidateQueries({ queryKey: ["hk-maintenance", restaurantId] }),
     ]);
+  }
+
+  function handleExportCsv() {
+    if (filteredRequests.length === 0) {
+      toast.error("No maintenance requests to export");
+      return;
+    }
+    const headers = [
+      "Room",
+      "Room Type",
+      "Category",
+      "Priority",
+      "Status",
+      "Issue Description",
+      "Room Condition",
+      "Logged At",
+    ];
+    const escapeCsv = (val: unknown) => {
+      const str = val == null ? "" : String(val);
+      if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+    const csvLines = [
+      headers.join(","),
+      ...filteredRequests.map((req) => {
+        const room = affected.get(req.roomId);
+        return [
+          escapeCsv(req.roomNumber),
+          escapeCsv(room?.roomTypeName ?? "—"),
+          escapeCsv(req.category.replaceAll("_", " ")),
+          escapeCsv(req.priority),
+          escapeCsv(req.status.replaceAll("_", " ")),
+          escapeCsv(req.description),
+          escapeCsv(room?.maintenanceStatus.replaceAll("_", " ") ?? "—"),
+          escapeCsv(new Date(req.createdAt).toLocaleString()),
+        ].join(",");
+      }),
+    ];
+    const blob = new Blob([csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `maintenance-requests-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredRequests.length} maintenance request${filteredRequests.length === 1 ? "" : "s"}`);
   }
 
   const create = useMutation({
@@ -228,6 +434,7 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
   const update = useMutation({
     mutationFn: (input: { requestId: string; status: MaintenanceRequest["status"]; notes?: string }) =>
       updateRequest({ data: { restaurantId, ...input } }),
@@ -247,46 +454,163 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
   });
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <InventoryViewHeader
         title="Maintenance"
         description="Log a room issue and move it from open, to in progress, to completed. Completing a request updates that room's maintenance condition."
         action={
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              className="h-9 gap-1.5 bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#B5882D] shadow-xs"
+              onClick={() => setCreateOpen(true)}
+            >
+              <Plus className="size-3.5" />
               Log request
             </Button>
-            <Button asChild size="sm" variant="outline" className="border-[#D6CDBF] bg-white hover:bg-[#FAF8F5]">
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="h-9 gap-1.5 border-[#D6CDBF] bg-white text-xs font-semibold text-[#251605] hover:bg-[#FAF8F5] shadow-xs"
+            >
               <a href="/restaurant/pms/maintenance?tab=maintenance&returnTo=/restaurant/pms/room-inventory%3Ftab%3Dmaintenance">
-                Open Maintenance <ArrowRight className="ml-1.5 size-3.5" />
+                Open Maintenance <ArrowRight className="size-3.5" />
               </a>
             </Button>
           </div>
         }
       />
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            ["open", "Open"],
-            ["in_progress", "In progress"],
-            ["resolved", "Completed"],
-            ["all", "All"],
-          ] as const
-        ).map(([value, label]) => (
-          <Button
-            key={value}
-            type="button"
-            size="sm"
-            variant={statusFilter === value ? "default" : "outline"}
-            onClick={() => setStatusFilter(value)}
-          >
-            {label}
-            <span className="ml-1.5 text-xs opacity-70">
-              {value === "all" ? requests.length : requests.filter((request) => request.status === value).length}
-            </span>
-          </Button>
-        ))}
+
+      <MaintenanceKpis
+        total={kpiCounts.total}
+        open={kpiCounts.open}
+        inProgress={kpiCounts.inProgress}
+        resolved={kpiCounts.resolved}
+        urgentOrHigh={kpiCounts.urgentOrHigh}
+      />
+
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                ["all", "All", requests.length],
+                ["open", "Open", requests.filter((r) => r.status === "open").length],
+                ["in_progress", "In progress", requests.filter((r) => r.status === "in_progress").length],
+                ["resolved", "Completed", requests.filter((r) => r.status === "resolved").length],
+              ] as const
+            ).map(([value, label, count]) => {
+              const active = statusFilter === value;
+              return (
+                <Button
+                  key={value}
+                  type="button"
+                  size="sm"
+                  variant={active ? "default" : "outline"}
+                  className={`h-8 gap-1.5 rounded-lg text-xs font-semibold ${
+                    active
+                      ? "bg-[#251605] text-white hover:bg-[#3d2710]"
+                      : "border-[#D6CDBF] bg-white text-[#5C5346] hover:bg-[#FAF8F5]"
+                  }`}
+                  onClick={() => {
+                    setStatusFilter(value);
+                    setPage(1);
+                  }}
+                >
+                  {label}
+                  <span
+                    className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                      active ? "bg-white/20 text-white" : "bg-[#F3EFEA] text-[#7A6F62]"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCsv}
+              disabled={filteredRequests.length === 0}
+              className="h-8 gap-1.5 border-[#D6CDBF] bg-white text-xs font-semibold text-[#251605] shadow-2xs hover:bg-[#FAF8F5]"
+            >
+              <Download className="size-3.5" />
+              Export CSV
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0 border-[#D6CDBF] bg-white text-[#5C5346] shadow-2xs hover:bg-[#FAF8F5]"
+              onClick={() => void refreshMaintenance()}
+              aria-label="Refresh maintenance"
+            >
+              <RefreshCw className={`size-3.5 ${maintenance.isFetching ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4 items-center pt-2 border-t border-border/50">
+          <div className="relative sm:col-span-2">
+            <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+            <input
+              className="h-8.5 w-full rounded-lg border border-input bg-background pl-8 pr-3 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#C89933]"
+              placeholder="Search room number, issue description, category..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+
+          <PmsSelect
+            className="h-8.5 rounded-lg border-[#DED7CD] bg-background px-2.5 text-xs text-[#5F554B]"
+            value={categoryFilter}
+            onChange={(val) => {
+              setCategoryFilter(val);
+              setPage(1);
+            }}
+            options={[
+              ["all", "All Categories"],
+              ...MAINTENANCE_CATEGORY_OPTIONS,
+            ]}
+          />
+
+          <div className="flex items-center gap-2">
+            <PmsSelect
+              className="h-8.5 flex-1 rounded-lg border-[#DED7CD] bg-background px-2.5 text-xs text-[#5F554B]"
+              value={priorityFilter}
+              onChange={(val) => {
+                setPriorityFilter(val);
+                setPage(1);
+              }}
+              options={[
+                ["all", "All Priorities"],
+                ...MAINTENANCE_PRIORITY_OPTIONS,
+              ]}
+            />
+
+            {hasActiveFilters ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                onClick={clearFilters}
+              >
+                Reset
+              </Button>
+            ) : null}
+          </div>
+        </div>
       </div>
+
       {maintenance.isLoading ? (
         <InventoryState state="loading" />
       ) : maintenance.isError ? (
@@ -302,82 +626,141 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
           title="No maintenance requests"
           description="Log a request for a room. It will stay here until the work is completed."
         />
-      ) : visible.length === 0 ? (
+      ) : filteredRequests.length === 0 ? (
         <InventoryState
           state="empty"
-          title="Nothing in this status"
-          description="Choose another status, or log a new request."
+          title="No matching maintenance requests"
+          description="Try clearing your filters or search terms, or log a new request."
+          onRetry={clearFilters}
         />
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
-            <table className="w-full min-w-[860px] text-left text-sm">
-              <thead className="border-b border-border bg-muted/30">
-                <tr>
-                  {["Room", "Issue", "Priority", "Status", "Room condition", "Actions"].map((heading) => (
-                    <th key={heading} className="px-4 py-3 text-xs font-semibold text-muted-foreground">
-                      {heading}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((request) => {
-                  const room = affected.get(request.roomId);
-                  return (
-                    <tr
-                      key={request.id}
-                      className={`border-b border-border/70 last:border-0 ${
-                        selected?.id === request.id ? "bg-[#FAF8F5]" : ""
-                      }`}
-                    >
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          className="text-left font-medium"
-                          onClick={() => setSelectedId(request.id)}
-                        >
-                          Room {request.roomNumber}
-                        </button>
-                        <p className="text-xs text-muted-foreground">{room?.roomTypeName ?? "Room"}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p>{request.description}</p>
-                        <p className="text-xs capitalize text-muted-foreground">
-                          {request.category.replaceAll("_", " ")}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 capitalize">{request.priority}</td>
-                      <td className="px-4 py-3">
-                        <InventoryStatusBadge tone={request.status === "resolved" ? "success" : "warning"}>
-                          {request.status.replaceAll("_", " ")}
-                        </InventoryStatusBadge>
-                      </td>
-                      <td className="px-4 py-3 capitalize">
-                        {room?.maintenanceStatus.replaceAll("_", " ") ?? "—"}
-                        <p className="text-xs text-muted-foreground">
-                          {room?.status.replaceAll("_", " ") ?? "No operational restriction"}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <MaintenanceActions
-                          request={request}
-                          pending={update.isPending}
-                          onStart={() => update.mutate({ requestId: request.id, status: "in_progress" })}
-                          onComplete={() => {
-                            setCompleteId(request.id);
-                            setNotes("");
-                          }}
-                          onReopen={() => update.mutate({ requestId: request.id, status: "open" })}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="flex flex-col justify-between overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] text-left text-sm">
+                <thead className="border-b border-[#E5DED4] bg-[#F8F5F0] text-xs font-bold uppercase tracking-wider text-[#5C5346]">
+                  <tr>
+                    {["Room", "Issue", "Priority", "Status", "Room condition", "Actions"].map((heading) => (
+                      <th key={heading} className="px-4 py-3 text-xs font-semibold text-muted-foreground">
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((request) => {
+                    const room = affected.get(request.roomId);
+                    const isSelected = selected?.id === request.id;
+                    return (
+                      <tr
+                        key={request.id}
+                        className={`border-b border-border/70 last:border-0 transition-colors cursor-pointer ${
+                          isSelected
+                            ? "bg-[#FAF8F5] dark:bg-muted/40 border-l-3 border-l-[#C89933]"
+                            : "hover:bg-muted/20"
+                        }`}
+                        onClick={() => setSelectedId(request.id)}
+                      >
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            className="text-left font-semibold text-[#251605] hover:underline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedId(request.id);
+                            }}
+                          >
+                            Room {request.roomNumber}
+                          </button>
+                          <p className="text-xs text-muted-foreground">{room?.roomTypeName ?? "Room"}</p>
+                        </td>
+                        <td className="px-4 py-3 max-w-xs">
+                          <p className="font-medium text-foreground line-clamp-2">{request.description}</p>
+                          <span className="mt-1 inline-block rounded-md bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            {request.category.replaceAll("_", " ")}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <PriorityBadge priority={request.priority} />
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <InventoryStatusBadge tone={request.status === "resolved" ? "success" : "warning"}>
+                            {request.status.replaceAll("_", " ")}
+                          </InventoryStatusBadge>
+                        </td>
+                        <td className="px-4 py-3 capitalize text-xs">
+                          <span className="font-medium text-foreground">
+                            {room?.maintenanceStatus.replaceAll("_", " ") ?? "—"}
+                          </span>
+                          <p className="text-muted-foreground">
+                            {room?.status.replaceAll("_", " ") ?? "No operational restriction"}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <MaintenanceActions
+                            request={request}
+                            pending={update.isPending}
+                            onStart={() => update.mutate({ requestId: request.id, status: "in_progress" })}
+                            onComplete={() => {
+                              setCompleteId(request.id);
+                              setNotes("");
+                            }}
+                            onReopen={() => update.mutate({ requestId: request.id, status: "open" })}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-border/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Rows per page:</span>
+                <PmsSelect
+                  className="h-8 w-20 rounded-md border-input bg-background px-2 text-xs font-medium"
+                  value={String(pageSize)}
+                  onChange={(val) => {
+                    setPageSize(Number(val));
+                    setPage(1);
+                  }}
+                  options={[10, 15, 25, 50].map((sz) => [String(sz), String(sz)])}
+                />
+                <span className="ml-2">
+                  Showing {filteredRequests.length === 0 ? 0 : startIndex + 1}–
+                  {Math.min(startIndex + pageSize, filteredRequests.length)} of {filteredRequests.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 border-[#D6CDBF] bg-white text-xs font-semibold text-[#251605] shadow-2xs hover:bg-[#FAF8F5]"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                >
+                  <ChevronLeft className="mr-1 size-3.5" />
+                  Previous
+                </Button>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Page {safePage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 border-[#D6CDBF] bg-white text-xs font-semibold text-[#251605] shadow-2xs hover:bg-[#FAF8F5]"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                >
+                  Next
+                  <ChevronRight className="ml-1 size-3.5" />
+                </Button>
+              </div>
+            </div>
           </div>
-          <aside className="rounded-2xl border border-border bg-card p-4">
+
+          <aside className="rounded-2xl border border-border bg-card p-4 shadow-sm">
             {selected ? (
               <MaintenanceDetail
                 request={selected}
@@ -391,7 +774,13 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
                 onReopen={() => update.mutate({ requestId: selected.id, status: "open" })}
               />
             ) : (
-              <p className="text-sm text-muted-foreground">Select a room request to see its condition and actions.</p>
+              <div className="flex h-64 flex-col items-center justify-center p-6 text-center">
+                <Wrench className="size-8 text-muted-foreground/40 mb-2" />
+                <p className="text-sm font-semibold text-foreground">No request selected</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Select a room issue from the list to view its complete operational context and actions.
+                </p>
+              </div>
             )}
           </aside>
         </div>
@@ -402,77 +791,69 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
           <DialogHeader>
             <DialogTitle>Log maintenance request</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3.5 py-1">
             <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
               Room
-              <select
-                className="h-9 rounded-md border border-[#DED7CD] bg-white px-2 text-sm font-normal"
+              <PmsSelect
+                className="h-9 rounded-lg border-[#DED7CD] bg-background px-2.5 text-xs font-normal"
                 value={roomId}
-                onChange={(event) => setRoomId(event.target.value)}
-              >
-                <option value="">Select a room</option>
-                {(rooms.data ?? [])
-                  .filter((room) => room.active)
-                  .map((room) => (
-                    <option key={room.id} value={room.id}>
-                      {room.roomNumber} · {room.roomTypeName}
-                    </option>
-                  ))}
-              </select>
+                onChange={(val) => setRoomId(val)}
+                placeholder="Select a room"
+                options={[
+                  ["", "Select a room"],
+                  ...(rooms.data ?? [])
+                    .filter((room) => room.active)
+                    .map((room) => [room.id, `${room.roomNumber} · ${room.roomTypeName}`] as [string, string]),
+                ]}
+              />
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
                 Category
-                <select
-                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-2 text-sm font-normal"
+                <PmsSelect
+                  className="h-9 rounded-lg border-[#DED7CD] bg-background px-2.5 text-xs font-normal"
                   value={category}
-                  onChange={(event) =>
-                    setCategory(event.target.value as (typeof MAINTENANCE_CATEGORY_OPTIONS)[number][0])
+                  onChange={(val) =>
+                    setCategory(val as (typeof MAINTENANCE_CATEGORY_OPTIONS)[number][0])
                   }
-                >
-                  {MAINTENANCE_CATEGORY_OPTIONS.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                  options={MAINTENANCE_CATEGORY_OPTIONS}
+                />
               </label>
               <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
                 Priority
-                <select
-                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-2 text-sm font-normal"
+                <PmsSelect
+                  className="h-9 rounded-lg border-[#DED7CD] bg-background px-2.5 text-xs font-normal"
                   value={priority}
-                  onChange={(event) =>
-                    setPriority(event.target.value as (typeof MAINTENANCE_PRIORITY_OPTIONS)[number][0])
+                  onChange={(val) =>
+                    setPriority(val as (typeof MAINTENANCE_PRIORITY_OPTIONS)[number][0])
                   }
-                >
-                  {MAINTENANCE_PRIORITY_OPTIONS.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                  options={MAINTENANCE_PRIORITY_OPTIONS}
+                />
               </label>
             </div>
             <div className="grid gap-1.5">
-              <Label>What needs work</Label>
+              <Label className="text-xs font-semibold text-[#5F554B]">What needs work</Label>
               <Textarea
+                placeholder="Describe the issue in detail..."
                 value={description}
                 maxLength={1000}
                 onChange={(event) => setDescription(event.target.value)}
                 rows={3}
+                className="text-xs"
               />
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               This records the work order and updates the room maintenance condition. Taking the room out of
               inventory is still a separate restriction.
             </p>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setCreateOpen(false)}>
+            <Button variant="ghost" size="sm" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
             <Button
+              size="sm"
+              className="bg-[#C89933] text-xs font-semibold text-[#251605] hover:bg-[#B5882D]"
               disabled={!roomId || description.trim() === "" || create.isPending}
               onClick={() => create.mutate()}
             >
@@ -487,15 +868,24 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
           <DialogHeader>
             <DialogTitle>Complete maintenance</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-1.5">
-            <Label>Notes</Label>
-            <Textarea value={notes} maxLength={500} onChange={(event) => setNotes(event.target.value)} rows={3} />
+          <div className="grid gap-1.5 py-1">
+            <Label className="text-xs font-semibold text-[#5F554B]">Resolution Notes</Label>
+            <Textarea
+              placeholder="Add optional notes about the repair..."
+              value={notes}
+              maxLength={500}
+              onChange={(event) => setNotes(event.target.value)}
+              rows={3}
+              className="text-xs"
+            />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setCompleteId(null)}>
+            <Button variant="ghost" size="sm" onClick={() => setCompleteId(null)}>
               Cancel
             </Button>
             <Button
+              size="sm"
+              className="bg-[#C89933] text-xs font-semibold text-[#251605] hover:bg-[#B5882D]"
               disabled={update.isPending || completeId == null}
               onClick={() =>
                 completeId &&
@@ -517,28 +907,56 @@ function MaintenanceActions({
   onStart,
   onComplete,
   onReopen,
+  fullWidth = false,
 }: {
   request: MaintenanceRequest;
   pending: boolean;
   onStart: () => void;
   onComplete: () => void;
   onReopen: () => void;
+  fullWidth?: boolean;
 }) {
   if (request.status === "resolved") {
     return (
-      <Button type="button" size="sm" variant="outline" disabled={pending} onClick={onReopen}>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        onClick={onReopen}
+        className={`h-8 border-[#D6CDBF] bg-white text-xs font-semibold text-[#251605] hover:bg-[#FAF8F5] shadow-2xs ${
+          fullWidth ? "w-full" : ""
+        }`}
+      >
         Reopen
       </Button>
     );
   }
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className={`flex flex-wrap gap-1.5 ${fullWidth ? "w-full" : ""}`}>
       {request.status === "open" ? (
-        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={onStart}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={onStart}
+          className={`h-8 border-[#D6CDBF] bg-white text-xs font-semibold text-[#251605] hover:bg-[#FAF8F5] shadow-2xs ${
+            fullWidth ? "flex-1" : ""
+          }`}
+        >
           Start
         </Button>
       ) : null}
-      <Button type="button" size="sm" disabled={pending} onClick={onComplete}>
+      <Button
+        type="button"
+        size="sm"
+        disabled={pending}
+        onClick={onComplete}
+        className={`h-8 bg-[#C89933] text-xs font-semibold text-[#251605] hover:bg-[#B5882D] shadow-2xs ${
+          fullWidth ? "flex-1" : ""
+        }`}
+      >
         Complete
       </Button>
     </div>
@@ -561,44 +979,82 @@ function MaintenanceDetail({
   onReopen: () => void;
 }) {
   return (
-    <div className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Room {request.roomNumber}
-      </p>
-      <h3 className="text-base font-semibold">{request.description}</h3>
-      <dl className="space-y-1.5 text-sm">
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Category</dt>
-          <dd className="capitalize">{request.category.replaceAll("_", " ")}</dd>
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-display text-base font-bold text-[#251605]">
+              Room {request.roomNumber}
+            </span>
+            <span className="rounded-md bg-[#FAF8F5] border border-[#E8E1D7] px-2 py-0.5 text-[10px] font-medium text-[#756A5B]">
+              {room?.roomTypeName ?? "Room"}
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground capitalize">
+            {request.category.replaceAll("_", " ")} issue
+          </p>
         </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Priority</dt>
-          <dd className="capitalize">{request.priority}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Work status</dt>
-          <dd className="capitalize">{request.status.replaceAll("_", " ")}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Room condition</dt>
-          <dd className="capitalize">{room?.maintenanceStatus.replaceAll("_", " ") ?? "—"}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Operational status</dt>
-          <dd className="capitalize">{room?.status.replaceAll("_", " ") ?? "—"}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Logged</dt>
-          <dd>{dateLabel(request.createdAt)}</dd>
-        </div>
-      </dl>
-      <MaintenanceActions
-        request={request}
-        pending={pending}
-        onStart={onStart}
-        onComplete={onComplete}
-        onReopen={onReopen}
-      />
+        <InventoryStatusBadge tone={request.status === "resolved" ? "success" : "warning"}>
+          {request.status.replaceAll("_", " ")}
+        </InventoryStatusBadge>
+      </div>
+
+      <div className="rounded-xl border border-[#EDE7DF] bg-[#FAF8F5]/60 p-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-[#756A5B]">
+          Issue Description
+        </p>
+        <p className="mt-1 text-sm font-medium leading-relaxed text-[#251605]">
+          {request.description}
+        </p>
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-border bg-card p-3 text-xs">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Operational Context
+        </p>
+        <dl className="divide-y divide-border/60 text-xs">
+          <div className="flex justify-between py-1.5">
+            <dt className="text-muted-foreground">Priority</dt>
+            <dd>
+              <PriorityBadge priority={request.priority} />
+            </dd>
+          </div>
+          <div className="flex justify-between py-1.5">
+            <dt className="text-muted-foreground">Maintenance Condition</dt>
+            <dd className="font-medium capitalize text-foreground">
+              {room?.maintenanceStatus.replaceAll("_", " ") ?? "—"}
+            </dd>
+          </div>
+          <div className="flex justify-between py-1.5">
+            <dt className="text-muted-foreground">Operational Status</dt>
+            <dd className="font-medium capitalize text-foreground">
+              {room?.status.replaceAll("_", " ") ?? "No restriction"}
+            </dd>
+          </div>
+          <div className="flex justify-between py-1.5">
+            <dt className="text-muted-foreground">Housekeeping</dt>
+            <dd className="font-medium capitalize text-foreground">
+              {room?.housekeepingStatus?.replaceAll("_", " ") ?? "Not set"}
+            </dd>
+          </div>
+          <div className="flex justify-between py-1.5">
+            <dt className="text-muted-foreground">Logged At</dt>
+            <dd className="text-muted-foreground">{dateLabel(request.createdAt)}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div className="rounded-xl border border-[#EDE7DF] bg-[#FAF8F5]/80 p-3">
+        <p className="text-[11px] font-semibold text-[#5C5346] mb-2">Available Actions</p>
+        <MaintenanceActions
+          request={request}
+          pending={pending}
+          onStart={onStart}
+          onComplete={onComplete}
+          onReopen={onReopen}
+          fullWidth
+        />
+      </div>
     </div>
   );
 }
@@ -879,19 +1335,15 @@ export function RoomHistoryAuditView({ restaurantId }: { restaurantId: string })
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
                 <span>Rows per page:</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
+                <PmsSelect
+                  value={String(pageSize)}
+                  onChange={(val) => {
+                    setPageSize(Number(val));
                     setPage(1);
                   }}
-                  className="h-7 rounded-md border border-[#DED7CD] bg-background px-2 text-xs font-medium text-foreground outline-none focus:border-[#C89933]"
-                >
-                  <option value={10}>10</option>
-                  <option value={15}>15</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                </select>
+                  className="h-7 w-20 rounded-md border-[#DED7CD] bg-background px-2 text-xs font-medium text-foreground"
+                  options={["10", "15", "25", "50"]}
+                />
               </div>
 
               <span className="text-muted-foreground">
@@ -1051,19 +1503,17 @@ function FilterSelect({
   options: string[];
 }) {
   return (
-    <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-      {label}
-      <select
-        className="h-9 min-w-40 rounded-lg border border-input bg-background px-3 text-sm"
+    <div className="grid gap-1 text-xs font-medium text-muted-foreground">
+      <span>{label}</span>
+      <PmsSelect
+        className="h-9 min-w-40 rounded-lg border-input bg-background px-3 text-xs"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option === "all" ? `All ${label.toLowerCase()}s` : option.replaceAll("_", " ")}
-          </option>
-        ))}
-      </select>
-    </label>
+        onChange={onChange}
+        options={options.map((option) => [
+          option,
+          option === "all" ? `All ${label.toLowerCase()}s` : option.replaceAll("_", " "),
+        ])}
+      />
+    </div>
   );
 }

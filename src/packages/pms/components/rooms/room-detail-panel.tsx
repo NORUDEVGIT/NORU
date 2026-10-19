@@ -184,10 +184,6 @@ export function RoomDetailPanel({
 
             <DetailSection title="Actions">
               <div className="grid grid-cols-2 gap-2">
-                <DisabledAction
-                  label="Change Status"
-                  explanation="Generic status changes are not supported. Use the canonical restriction actions."
-                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -203,17 +199,15 @@ export function RoomDetailPanel({
                   icon={<Ban className="mr-2 size-4" />}
                   onClick={() => onSetRestriction("out_of_order")}
                 />
-                <ActionWithPermission
-                  allowed={canManageRestrictions && room.status !== "available"}
-                  label="Return to Service"
-                  explanation={
-                    canManageRestrictions
-                      ? "This room is already available."
-                      : "Returning a room to service requires manager access."
-                  }
-                  icon={<Play className="mr-2 size-4" />}
-                  onClick={() => onSetRestriction("available")}
-                />
+                {room.status !== "available" ? (
+                  <ActionWithPermission
+                    allowed={canManageRestrictions}
+                    label="Return to Service"
+                    explanation="Returning a room to service requires manager access."
+                    icon={<Play className="mr-2 size-4" />}
+                    onClick={() => onSetRestriction("available")}
+                  />
+                ) : null}
                 <Button asChild variant="outline" size="sm" className="h-9 justify-start text-xs font-semibold">
                   <a href="/restaurant/settings?card2Step=room-types&returnTo=/restaurant/pms/room-inventory#rooms-inventory">
                     <Settings2 className="mr-2 size-4" /> Configuration
@@ -346,22 +340,6 @@ function Info({ label, value }: { label: string; value: ReactNode }) {
         {value === null || value === undefined || value === "" ? "—" : value}
       </dd>
     </>
-  );
-}
-
-function DisabledAction({ label, explanation }: { label: string; explanation: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span>
-          <Button disabled variant="outline" size="sm" className="h-9 w-full justify-start text-xs font-semibold">
-            <BedDouble className="mr-2 size-4" />
-            {label}
-          </Button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{explanation}</TooltipContent>
-    </Tooltip>
   );
 }
 

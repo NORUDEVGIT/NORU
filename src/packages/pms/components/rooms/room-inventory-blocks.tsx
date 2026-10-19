@@ -65,7 +65,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/shared/components/ui/sheet";
-import { InventoryState } from "./room-inventory-shared";
+import { CompactSelect, InventoryState, PmsSelect } from "./room-inventory-shared";
 import { addDays, dateLabel } from "./room-inventory-utils";
 
 type ConfirmAction =
@@ -913,34 +913,6 @@ function BlocksFilters({
   );
 }
 
-function CompactSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[][];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="grid gap-1 text-xs font-semibold text-[#5F554B]">
-      {label}
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-9 rounded-md border border-[#DED7CD] bg-white px-2.5 text-xs text-[#251605] outline-none focus:border-[#C89933]"
-      >
-        {options.map(([id, name]) => (
-          <option key={`${id}-${name}`} value={id}>
-            {name}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
 
 function BlockTableRow({
   block,
@@ -1161,18 +1133,18 @@ function BlocksPagination({
           Next
           <ChevronRight className="ml-1 size-3.5" />
         </Button>
-        <select
-          value={pageSize}
-          onChange={(event) => onPageSize(Number(event.target.value))}
-          className="ml-2 h-8 rounded border border-[#DED7CD] bg-white px-2.5 text-xs font-medium text-[#251605]"
-          aria-label="Rows per page"
-        >
-          {[10, 25, 50].map((size) => (
-            <option key={size} value={size}>
-              {size} / page
-            </option>
-          ))}
-        </select>
+        <div className="ml-2 w-28">
+          <PmsSelect
+            value={String(pageSize)}
+            onChange={(val) => onPageSize(Number(val))}
+            options={[
+              ["10", "10 / page"],
+              ["25", "25 / page"],
+              ["50", "50 / page"],
+            ]}
+            triggerClassName="h-8 text-xs font-medium"
+          />
+        </div>
       </div>
     </footer>
   );
@@ -1507,20 +1479,13 @@ function DrawerSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
-      {label}
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-9 rounded-lg border border-[#DED7CD] bg-white px-3 text-xs font-medium text-[#251605] outline-none focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]/20 transition-all"
-      >
-        {options.map(([id, name]) => (
-          <option key={`${id}-${name}`} value={id}>
-            {name}
-          </option>
-        ))}
-      </select>
-    </label>
+    <PmsSelect
+      label={label}
+      value={value}
+      options={options}
+      onChange={onChange}
+      triggerClassName="focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]/20"
+    />
   );
 }
 

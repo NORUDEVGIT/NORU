@@ -1,8 +1,16 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import { AlertCircle, Inbox, Loader2, RefreshCw } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import { cn } from "@/shared/lib/utils";
 
 export function InventoryViewHeader({
   eyebrow = "Room & Inventory",
@@ -104,3 +112,86 @@ export function InventoryState({
     </div>
   );
 }
+
+export interface PmsSelectOption {
+  value: string;
+  label: string;
+}
+
+export function PmsSelect({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder = "Select...",
+  className,
+  triggerClassName,
+  disabled,
+}: {
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<[string, string]> | PmsSelectOption[] | string[];
+  placeholder?: string;
+  className?: string;
+  triggerClassName?: string;
+  disabled?: boolean;
+}) {
+  const normalized: PmsSelectOption[] = useMemo(() => {
+    return options.map((opt) => {
+      if (Array.isArray(opt)) {
+        return { value: opt[0], label: opt[1] };
+      }
+      if (typeof opt === "string") {
+        return {
+          value: opt,
+          label:
+            opt === "all"
+              ? "All"
+              : opt.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        };
+      }
+      return opt;
+    });
+  }, [options]);
+
+  const selectedItem = normalized.find((item) => item.value === value);
+  const internalValue = value === "" ? "__empty__" : value;
+
+  return (
+    <div className={cn("grid gap-1.5 min-w-0", className)}>
+      {label ? (
+        <span className="text-xs font-semibold text-[#5F554B]">{label}</span>
+      ) : null}
+      <Select
+        value={internalValue}
+        disabled={disabled}
+        onValueChange={(val) => onChange(val === "__empty__" ? "" : val)}
+      >
+        <SelectTrigger
+          className={cn(
+            "h-9 min-w-0 rounded-lg border border-[#DED7CD] bg-white px-2.5 text-xs font-medium text-[#251605] shadow-2xs hover:bg-[#FAF8F5] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]/25 transition-colors cursor-pointer",
+            triggerClassName,
+          )}
+        >
+          <SelectValue placeholder={placeholder}>
+            {selectedItem ? selectedItem.label : placeholder}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent className="border border-[#E5DED4] bg-white text-xs font-medium text-[#251605] shadow-lg max-h-72">
+          {normalized.map((item) => (
+            <SelectItem
+              key={`${item.value}-${item.label}`}
+              value={item.value === "" ? "__empty__" : item.value}
+              className="text-xs text-[#251605] hover:bg-[#FAF8F5] focus:bg-[#FAF8F5] focus:text-[#251605] cursor-pointer"
+            >
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+export const CompactSelect = PmsSelect;

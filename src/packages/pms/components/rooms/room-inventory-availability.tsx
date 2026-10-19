@@ -41,7 +41,7 @@ import {
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { addDays, dateLabel, nightlyBlocked, nightlyDemand } from "./room-inventory-utils";
-import { InventoryState } from "./room-inventory-shared";
+import { CompactSelect, InventoryState } from "./room-inventory-shared";
 
 type DetailTab = "overview" | "inventory" | "blocks" | "history";
 type OperationalFilter = "all" | "available" | "low" | "sold_out" | "blocked";
@@ -700,38 +700,6 @@ function AvailabilityFilters({
         </div>
       ) : null}
     </section>
-  );
-}
-
-function CompactSelect({
-  label,
-  value,
-  options,
-  onChange,
-  disabled = false,
-}: {
-  label: string;
-  value: string;
-  options: string[][];
-  onChange: (value: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="grid gap-1 text-xs font-semibold text-[#5F554B]">
-      {label}
-      <select
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-9 rounded-md border border-[#DED7CD] bg-white px-2.5 text-xs text-[#251605] outline-none focus:border-[#C89933] disabled:bg-[#F7F4EF] disabled:text-muted-foreground"
-      >
-        {options.map(([id, name]) => (
-          <option key={`${id}-${name}`} value={id}>
-            {name}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

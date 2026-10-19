@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  AlertCircle,
+  AlertTriangle,
   Ban,
   CheckCircle2,
   ExternalLink,
@@ -11,6 +13,7 @@ import {
   Search,
   ShieldAlert,
   SlidersHorizontal,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,7 +44,12 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Switch } from "@/shared/components/ui/switch";
 import { cn } from "@/shared/lib/utils";
-import { InventoryState, InventoryStatusBadge, InventoryViewHeader } from "./room-inventory-shared";
+import {
+  InventoryState,
+  InventoryStatusBadge,
+  InventoryViewHeader,
+  PmsSelect,
+} from "./room-inventory-shared";
 import { addDays, eligibilityCodeLabel, preferenceReasonLabel } from "./room-inventory-utils";
 
 export interface AssignmentInspectionPrefill {
@@ -175,143 +183,159 @@ export function RoomAssignmentEligibilityView({
     <div className="space-y-4">
       <InventoryViewHeader
         title="Assignment Eligibility"
-        description="Inspect canonical eligibility for a specific room and stay. Evaluation runs only when you inspect."
+        description="Verify stay requirements, check-in readiness, and operational eligibility for candidate rooms."
       />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="rounded-lg border border-[#E5DED4] bg-white p-5 shadow-xs">
-          <h3 className="text-base font-bold" style={{ color: INK }}>
-            Stay and requirements
-          </h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Canonical inputs only. Guest preference is a caller flag, not a guest-profile lookup.
-          </p>
+        <section className="rounded-xl border border-[#E5DED4] bg-white p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-[#E5DED4]/80 pb-3">
+            <div>
+              <h3 className="text-sm font-bold" style={{ color: INK }}>
+                Stay & Requirements
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Select a room and set stay parameters to evaluate assignment eligibility.
+              </p>
+            </div>
+            {room ? (
+              <span className="rounded-md bg-[#FAF8F5] border border-[#E8E1D7] px-2 py-0.5 text-[11px] font-semibold text-[#5F554B]">
+                Room {room.roomNumber}
+              </span>
+            ) : null}
+          </div>
+
           {roomsQuery.isLoading ? (
-            <div className="mt-5">
+            <div className="py-8">
               <InventoryState state="loading" />
             </div>
           ) : (
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <Field label="Candidate room">
-                <select
-                  value={input.roomId}
-                  onChange={(event) => {
-                    const selected = rooms.find((item) => item.id === event.target.value);
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Field label="Candidate room">
+                    <PmsSelect
+                      value={input.roomId}
+                      onChange={(val) => {
+                        const selected = rooms.find((item) => item.id === val);
+                        setInput({
+                          ...input,
+                          roomId: val,
+                          roomTypeId: selected?.roomTypeId ?? "",
+                        });
+                      }}
+                      placeholder="Select a room to evaluate"
+                      options={[
+                        ["", "Select a room to evaluate"],
+                        ...rooms.map((item) => [
+                          item.id,
+                          `Room ${item.roomNumber} · ${item.roomTypeName} (${titleCase(item.status)})`,
+                        ] as [string, string]),
+                      ]}
+                      className="h-9 w-full rounded-md border-[#DED7CD] bg-white px-3 text-xs"
+                    />
+                  </Field>
+                </div>
+
+                <TextInput
+                  label="Arrival"
+                  type="date"
+                  value={input.arrival}
+                  onChange={(arrival) =>
                     setInput({
                       ...input,
-                      roomId: event.target.value,
-                      roomTypeId: selected?.roomTypeId ?? "",
-                    });
-                  }}
-                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-3 text-xs outline-none focus:border-[#C89933]"
-                >
-                  <option value="">Select room</option>
-                  {rooms.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      Room {item.roomNumber} · {item.roomTypeName}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Room type">
-                <input
-                  readOnly
-                  className="h-9 rounded-md border border-[#DED7CD] bg-[#FAF8F5] px-3 text-xs text-[#251605]"
-                  value={room?.roomTypeName ?? roomType?.name ?? ""}
-                />
-              </Field>
-              <TextInput
-                label="Arrival"
-                type="date"
-                value={input.arrival}
-                onChange={(arrival) =>
-                  setInput({
-                    ...input,
-                    arrival,
-                    departure: input.departure <= arrival ? addDays(arrival, 1) : input.departure,
-                  })
-                }
-              />
-              <TextInput
-                label="Departure"
-                type="date"
-                min={addDays(input.arrival, 1)}
-                value={input.departure}
-                onChange={(departure) => setInput({ ...input, departure })}
-              />
-              <TextInput
-                label="Adults"
-                type="number"
-                value={input.adults}
-                onChange={(adults) => setInput({ ...input, adults })}
-              />
-              <TextInput
-                label="Children"
-                type="number"
-                value={input.children}
-                onChange={(children) => setInput({ ...input, children })}
-              />
-              <TextInput
-                label="Required bed type"
-                value={input.requiredBedType}
-                onChange={(requiredBedType) => setInput({ ...input, requiredBedType })}
-              />
-              <Field label="Preferred building">
-                <select
-                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-3 text-xs outline-none focus:border-[#C89933]"
-                  value={input.preferredBuildingId}
-                  onChange={(event) =>
-                    setInput({ ...input, preferredBuildingId: event.target.value })
-                  }
-                >
-                  <option value="">No preference</option>
-                  {locations.buildings.map(([id, name]) => (
-                    <option key={id} value={id}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Preferred floor">
-                <select
-                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-3 text-xs outline-none focus:border-[#C89933]"
-                  value={input.preferredFloorId}
-                  onChange={(event) => setInput({ ...input, preferredFloorId: event.target.value })}
-                >
-                  <option value="">No preference</option>
-                  {locations.floors.map(([id, name]) => (
-                    <option key={id} value={id}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <div className="space-y-2.5 sm:col-span-2 pt-1">
-                <CheckRow
-                  label="Accessible room required"
-                  checked={input.accessibleRequired}
-                  onChange={(accessibleRequired) => setInput({ ...input, accessibleRequired })}
-                />
-                <CheckRow
-                  label="Connecting room required"
-                  checked={input.connectingRequired}
-                  onChange={(connectingRequired) => setInput({ ...input, connectingRequired })}
-                />
-                <CheckRow
-                  label="Guest preference matched"
-                  checked={input.guestPreferenceMatched}
-                  onChange={(guestPreferenceMatched) =>
-                    setInput({ ...input, guestPreferenceMatched })
+                      arrival,
+                      departure: input.departure <= arrival ? addDays(arrival, 1) : input.departure,
+                    })
                   }
                 />
-                <CheckRow
-                  label="Evaluate check-in readiness"
-                  checked={input.forCheckIn}
-                  onChange={(forCheckIn) => setInput({ ...input, forCheckIn })}
+                <TextInput
+                  label="Departure"
+                  type="date"
+                  min={addDays(input.arrival, 1)}
+                  value={input.departure}
+                  onChange={(departure) => setInput({ ...input, departure })}
+                />
+                <TextInput
+                  label="Adults"
+                  type="number"
+                  value={input.adults}
+                  onChange={(adults) => setInput({ ...input, adults })}
+                />
+                <TextInput
+                  label="Children"
+                  type="number"
+                  value={input.children}
+                  onChange={(children) => setInput({ ...input, children })}
                 />
               </div>
-              <div className="sm:col-span-2 pt-2">
+
+              <div className="pt-2 border-t border-[#E5DED4]/60">
+                <p className="text-xs font-semibold text-[#5C5346] mb-2.5">Preferences & Features</p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <TextInput
+                    label="Bed type"
+                    value={input.requiredBedType}
+                    onChange={(requiredBedType) => setInput({ ...input, requiredBedType })}
+                  />
+                  <Field label="Building">
+                    <PmsSelect
+                      className="h-9 rounded-md border-[#DED7CD] bg-white px-2.5 text-xs"
+                      value={input.preferredBuildingId}
+                      onChange={(val) =>
+                        setInput({ ...input, preferredBuildingId: val })
+                      }
+                      placeholder="Any Building"
+                      options={[
+                        ["", "Any Building"],
+                        ...locations.buildings,
+                      ]}
+                    />
+                  </Field>
+                  <Field label="Floor">
+                    <PmsSelect
+                      className="h-9 rounded-md border-[#DED7CD] bg-white px-2.5 text-xs"
+                      value={input.preferredFloorId}
+                      onChange={(val) => setInput({ ...input, preferredFloorId: val })}
+                      placeholder="Any Floor"
+                      options={[
+                        ["", "Any Floor"],
+                        ...locations.floors,
+                      ]}
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-[#E5DED4]/60">
+                <p className="text-xs font-semibold text-[#5C5346] mb-2">Verification Options</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <CheckRow
+                    label="Accessible room required"
+                    checked={input.accessibleRequired}
+                    onChange={(accessibleRequired) => setInput({ ...input, accessibleRequired })}
+                  />
+                  <CheckRow
+                    label="Connecting room required"
+                    checked={input.connectingRequired}
+                    onChange={(connectingRequired) => setInput({ ...input, connectingRequired })}
+                  />
+                  <CheckRow
+                    label="Guest preference matched"
+                    checked={input.guestPreferenceMatched}
+                    onChange={(guestPreferenceMatched) =>
+                      setInput({ ...input, guestPreferenceMatched })
+                    }
+                  />
+                  <CheckRow
+                    label="Evaluate check-in readiness"
+                    checked={input.forCheckIn}
+                    onChange={(forCheckIn) => setInput({ ...input, forCheckIn })}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
                 <Button
-                  className="h-9 px-4 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
+                  className="h-9 px-5 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B5882D] shadow-xs"
                   disabled={
                     !input.roomId ||
                     !input.roomTypeId ||
@@ -328,23 +352,21 @@ export function RoomAssignmentEligibilityView({
           )}
         </section>
 
-        <aside className="h-fit rounded-lg border border-[#E5DED4] bg-white shadow-xs lg:sticky lg:top-3">
-          <div className="border-b border-[#E5DED4] px-5 py-4">
-            <h3 className="text-base font-bold" style={{ color: INK }}>
-              Candidate result
+        <aside className="h-fit rounded-xl border border-[#E5DED4] bg-white shadow-xs lg:sticky lg:top-3">
+          <div className="border-b border-[#E5DED4] px-5 py-3.5">
+            <h3 className="text-sm font-bold" style={{ color: INK }}>
+              Evaluation Results
             </h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Blockers and warnings come from the canonical evaluator. Room facts below are
-              read-only context.
-            </p>
           </div>
-          <div className="space-y-4 p-5">
+          <div className="space-y-3.5 p-4">
             {!mutation.data && !mutation.isError ? (
-              <InventoryState
-                state="empty"
-                title="No evaluation yet"
-                description="Supply a stay context and inspect a candidate room."
-              />
+              <div className="flex flex-col items-center justify-center p-6 text-center rounded-lg border border-dashed border-border bg-muted/10">
+                <Search className="size-7 text-muted-foreground/40 mb-2" />
+                <p className="text-xs font-semibold text-foreground">Ready to evaluate</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Select a candidate room and stay period, then click Inspect eligibility.
+                </p>
+              </div>
             ) : mutation.isError ? (
               <InventoryState
                 state="error"
@@ -354,54 +376,78 @@ export function RoomAssignmentEligibilityView({
               />
             ) : mutation.data ? (
               <>
-                <div className="flex items-center justify-between rounded-lg border border-[#E5DED4] bg-[#FAF8F5]/60 p-3.5">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Eligibility</p>
-                    <p className="text-xl font-bold" style={{ color: INK }}>
-                      {mutation.data.eligible ? "Eligible" : "Blocked"}
-                    </p>
+                <div
+                  className={`flex items-center justify-between rounded-xl border p-3.5 shadow-xs ${
+                    mutation.data.eligible
+                      ? "border-emerald-200 bg-emerald-50/70"
+                      : "border-red-200 bg-red-50/70"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {mutation.data.eligible ? (
+                      <CheckCircle2 className="size-5 text-emerald-600 shrink-0" />
+                    ) : (
+                      <Ban className="size-5 text-red-600 shrink-0" />
+                    )}
+                    <div>
+                      <p
+                        className={`text-sm font-bold ${
+                          mutation.data.eligible ? "text-emerald-950" : "text-red-950"
+                        }`}
+                      >
+                        {mutation.data.eligible ? "Eligible for Assignment" : "Blocked from Assignment"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {mutation.data.eligible
+                          ? "Room satisfies all stay and operational criteria."
+                          : `${mutation.data.blockers.length} blocker${
+                              mutation.data.blockers.length === 1 ? "" : "s"
+                            } prevent assignment.`}
+                      </p>
+                    </div>
                   </div>
                   <InventoryStatusBadge tone={mutation.data.eligible ? "success" : "danger"}>
                     {mutation.data.source}
                   </InventoryStatusBadge>
                 </div>
-                {mutation.data.source === "legacy" ? (
-                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900 leading-5">
-                    Legacy evaluation returned a boolean only. Structured blockers and warnings are
-                    not available until the canonical assignment RPC is present.
-                  </p>
-                ) : null}
+
                 <ResultNotes
                   title="Blockers"
                   items={mutation.data.blockers}
-                  empty="No blockers returned."
+                  empty="No blockers detected."
                   tone="danger"
                 />
                 <ResultNotes
                   title="Warnings"
                   items={mutation.data.warnings}
-                  empty="No warnings returned."
+                  empty="No warnings detected."
                   tone="warning"
                 />
-                <div className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5]/60 p-3.5">
-                  <p className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
-                    Preference score
-                  </p>
-                  <p className="mt-1 text-2xl font-extrabold" style={{ color: INK }}>
-                    {mutation.data.preferenceScore}
-                  </p>
-                  {mutation.data.preferenceReasons.length ? (
-                    <ul className="mt-2 space-y-1 text-xs text-[#5F554B]">
+
+                {mutation.data.preferenceScore > 0 || mutation.data.preferenceReasons.length > 0 ? (
+                  <div className="flex items-center justify-between rounded-lg border border-border bg-[#FAF8F5] p-2.5 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="size-3.5 text-[#C89933]" />
+                      <span className="font-semibold text-[#5C5346]">Preference Match</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
                       {mutation.data.preferenceReasons.map((reason) => (
-                        <li key={reason}>• {preferenceReasonLabel(reason)}</li>
+                        <span
+                          key={reason}
+                          className="rounded bg-white border border-[#E8E1D7] px-1.5 py-0.5 text-[10px] font-medium text-[#756A5B]"
+                        >
+                          {preferenceReasonLabel(reason)}
+                        </span>
                       ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-1 text-xs text-muted-foreground">No preference matches.</p>
-                  )}
-                </div>
+                      <span className="rounded-full bg-[#251605] px-2 py-0.5 text-[11px] font-bold text-white">
+                        +{mutation.data.preferenceScore}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : null}
+
             <RoomContextCard room={room} roomType={roomType} />
           </div>
         </aside>
@@ -419,44 +465,98 @@ function RoomContextCard({
 }) {
   if (!room) {
     return (
-      <p className="text-xs text-muted-foreground leading-5">
-        Select a room to show operational context. This panel does not recalculate eligibility.
-      </p>
+      <div className="rounded-lg border border-border/60 bg-muted/10 p-3 text-center text-xs text-muted-foreground">
+        Select a candidate room to preview Room context.
+      </div>
     );
   }
+
   const connecting = room.links.some((link) => link.kind === "connecting");
   const beds =
     roomType?.beds.map((bed) => `${bed.numberOfBeds}× ${bed.bedType}`).join(", ") ||
     roomType?.bedType ||
     "—";
-  const rows: Array<[string, string]> = [
-    ["Room", `${room.roomNumber} · ${room.roomTypeName}`],
-    ["Operational status", statusLabel(room.status)],
-    ["Housekeeping", statusLabel(room.housekeepingStatus)],
-    ["Maintenance", statusLabel(room.maintenanceStatus)],
-    ["Sellable", room.sellable ? "Yes" : "No"],
-    ["Active", room.active ? "Yes" : "No"],
-    ["Accessible", room.accessible ? "Yes" : "No"],
-    ["Connecting link", connecting ? "Yes" : "No"],
-    ["Building", room.building?.trim() || "—"],
-    ["Floor", room.floor?.trim() || "—"],
-    ["Max occupancy", roomType ? String(roomType.maxOccupancy) : "—"],
-    ["Beds", beds],
-  ];
+
   return (
-    <section className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5] p-3.5">
-      <h4 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
-        Room context
-      </h4>
-      <dl className="mt-2.5 divide-y divide-[#E8E1D7] text-xs">
-        {rows.map(([label, value]) => (
-          <div key={label} className="flex items-start justify-between gap-3 py-1.5">
-            <dt className="text-muted-foreground font-medium">{label}</dt>
-            <dd className="text-right font-semibold text-[#251605]">{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
+    <div className="rounded-xl border border-border bg-[#FAF8F5]/60 p-3.5 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#756A5B] mb-0.5">
+            Room context
+          </p>
+          <span className="text-xs font-bold text-[#251605]">
+            Room {room.roomNumber}
+          </span>
+          <span className="ml-1.5 text-xs text-muted-foreground">
+            · {room.roomTypeName}
+          </span>
+        </div>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+            room.status === "available"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-amber-200 bg-amber-50 text-amber-700"
+          }`}
+        >
+          {titleCase(room.status)}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded-lg border border-border/60 bg-white p-2">
+          <span className="text-[10px] font-medium text-muted-foreground block">Housekeeping</span>
+          <span className="font-semibold text-foreground capitalize">
+            {room.housekeepingStatus?.replaceAll("_", " ") ?? "Not set"}
+          </span>
+        </div>
+        <div className="rounded-lg border border-border/60 bg-white p-2">
+          <span className="text-[10px] font-medium text-muted-foreground block">Maintenance</span>
+          <span className="font-semibold text-foreground capitalize">
+            {room.maintenanceStatus.replaceAll("_", " ")}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1 pt-0.5 text-[10px]">
+        <span className="inline-flex items-center rounded bg-white border border-[#E8E1D7] px-2 py-0.5 text-[#5F554B]">
+          Beds: {beds}
+        </span>
+        {roomType ? (
+          <span className="inline-flex items-center rounded bg-white border border-[#E8E1D7] px-2 py-0.5 text-[#5F554B]">
+            Max: {roomType.maxOccupancy} guests
+          </span>
+        ) : null}
+        {room.floor ? (
+          <span className="inline-flex items-center rounded bg-white border border-[#E8E1D7] px-2 py-0.5 text-[#5F554B]">
+            Floor {room.floor}
+          </span>
+        ) : null}
+        {room.building ? (
+          <span className="inline-flex items-center rounded bg-white border border-[#E8E1D7] px-2 py-0.5 text-[#5F554B]">
+            {room.building}
+          </span>
+        ) : null}
+        <span
+          className={`inline-flex items-center rounded px-2 py-0.5 border ${
+            room.sellable
+              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+              : "bg-muted/40 border-border text-muted-foreground"
+          }`}
+        >
+          {room.sellable ? "Sellable" : "Not Sellable"}
+        </span>
+        {room.accessible ? (
+          <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 px-2 py-0.5 text-blue-700">
+            Accessible
+          </span>
+        ) : null}
+        {connecting ? (
+          <span className="inline-flex items-center rounded bg-purple-50 border border-purple-200 px-2 py-0.5 text-purple-700">
+            Connecting
+          </span>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -471,45 +571,72 @@ function ResultNotes({
   empty: string;
   tone: "danger" | "warning";
 }) {
+  if (items.length === 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/15 px-3 py-2 text-xs text-muted-foreground">
+        <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+        <span>{empty}</span>
+      </div>
+    );
+  }
+
+  const Icon = tone === "danger" ? AlertCircle : AlertTriangle;
+  const isDanger = tone === "danger";
+
   return (
-    <div>
-      <p className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
-        {title}
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold uppercase tracking-wider text-[#5C5346]">
+        {title} ({items.length})
       </p>
-      <div className="mt-2 space-y-2">
-        {items.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{empty}</p>
-        ) : (
-          items.map((item, index) => {
-            const code = typeof item.code === "string" ? item.code : `ITEM_${index + 1}`;
-            const extras = Object.entries(item).filter(
-              ([key, value]) =>
-                key !== "code" && key !== "message" && value != null && value !== "",
-            );
-            return (
-              <div
-                key={`${code}-${index}`}
-                className={`rounded-lg border px-3 py-2.5 ${
-                  tone === "danger" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"
+      <div className="space-y-1.5">
+        {items.map((item, index) => {
+          const code = typeof item.code === "string" ? item.code : `ITEM_${index + 1}`;
+          const label =
+            typeof item.message === "string" && item.message.trim()
+              ? item.message
+              : eligibilityCodeLabel(code);
+
+          const contextChips = Object.entries(item).filter(
+            ([key, value]) =>
+              key !== "code" &&
+              key !== "message" &&
+              key !== "status" &&
+              value != null &&
+              value !== "",
+          );
+
+          return (
+            <div
+              key={`${code}-${index}`}
+              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 text-xs transition-colors ${
+                isDanger
+                  ? "border-red-200 bg-red-50/80 text-red-950"
+                  : "border-amber-200 bg-amber-50/80 text-amber-950"
+              }`}
+            >
+              <Icon
+                className={`size-4 shrink-0 mt-0.5 ${
+                  isDanger ? "text-red-600" : "text-amber-600"
                 }`}
-              >
-                <p className="text-xs font-bold" style={{ color: INK }}>
-                  {eligibilityCodeLabel(code)}
-                </p>
-                {typeof item.message === "string" ? (
-                  <p className="mt-0.5 text-xs text-muted-foreground leading-5">{item.message}</p>
-                ) : null}
-                {extras.length ? (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {extras
-                      .map(([key, value]) => `${titleCase(key)}: ${String(value)}`)
-                      .join(" · ")}
-                  </p>
+              />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold leading-snug">{label}</p>
+                {contextChips.length > 0 ? (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {contextChips.map(([k, v]) => (
+                      <span
+                        key={k}
+                        className="inline-flex rounded bg-black/5 px-1.5 py-0.2 text-[10px] font-medium"
+                      >
+                        {titleCase(k)}: {String(v)}
+                      </span>
+                    ))}
+                  </div>
                 ) : null}
               </div>
-            );
-          })
-        )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -772,29 +899,24 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
                           />
                         </td>
                         <td className="px-3.5 py-3">
-                          <select
+                          <PmsSelect
                             disabled={!canConfigure || !row.enabled}
                             value={row.inventoryImpact}
-                            onChange={(event) =>
+                            onChange={(val) =>
                               setDraft({
                                 blockTypes: rules.blockTypes.map((item) =>
                                   item.blockType === row.blockType
                                     ? {
                                         ...item,
-                                        inventoryImpact: event.target.value as InventoryImpact,
+                                        inventoryImpact: val as InventoryImpact,
                                       }
                                     : item,
                                 ),
                               })
                             }
-                            className="h-9 w-full max-w-xs rounded-md border border-[#DED7CD] bg-white px-2.5 text-xs font-medium outline-none focus:border-[#C89933]"
-                          >
-                            {INVENTORY_IMPACTS.map((impact) => (
-                              <option key={impact} value={impact}>
-                                {IMPACT_LABELS[impact]}
-                              </option>
-                            ))}
-                          </select>
+                            options={INVENTORY_IMPACTS.map((impact) => [impact, IMPACT_LABELS[impact]])}
+                            className="h-9 w-full max-w-xs rounded-md border-[#DED7CD] bg-white px-2.5 text-xs font-medium"
+                          />
                         </td>
                       </tr>
                     ))}

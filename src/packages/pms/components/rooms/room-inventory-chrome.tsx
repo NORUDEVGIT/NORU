@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
+import { PmsSelect } from "./room-inventory-shared";
 
 export const PMS_MODULE_NAV_ITEMS = [
   { label: "Front Office", to: "/restaurant/pms/front-office" },
@@ -118,18 +119,13 @@ export function RoomInventoryChrome({
       }
       mobile={
         <div className="border-b border-border bg-card px-3 py-2 lg:hidden">
-          <select
+          <PmsSelect
             aria-label="PMS module"
             value={NAV_ITEMS.find((item) => item.label === activeModule)?.to ?? ""}
-            onChange={(event) => window.location.assign(event.target.value)}
-            className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm"
-          >
-            {NAV_ITEMS.map((item) => (
-              <option key={item.label} value={item.to}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => window.location.assign(val)}
+            className="h-9 w-full rounded-lg border-input bg-background px-3 text-sm"
+            options={NAV_ITEMS.map((item) => [item.to, item.label])}
+          />
         </div>
       }
       rightControls={
