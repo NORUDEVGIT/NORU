@@ -126,12 +126,20 @@ const LEDGER_TYPES = [
   "transfer_out",
 ] as const;
 
-type FolioFilter = "all" | "in_house" | "departures" | "balance" | "open" | "closed";
+type FolioFilter =
+  | "all"
+  | "in_house"
+  | "departures"
+  | "positive"
+  | "negative"
+  | "open"
+  | "closed";
 
 const FILTERS: Array<{ id: FolioFilter; label: string }> = [
   { id: "in_house", label: "In House" },
   { id: "departures", label: "Departures" },
-  { id: "balance", label: "Balance > 0" },
+  { id: "positive", label: "Positive" },
+  { id: "negative", label: "Negative" },
   { id: "open", label: "Open" },
   { id: "closed", label: "Closed" },
 ];
@@ -351,7 +359,8 @@ export function CashieringDesk({
       if (!matchesTerm) return false;
       if (filter === "in_house") return folio.reservationStatus === "checked_in";
       if (filter === "departures") return folio.departureDate === businessDate;
-      if (filter === "balance") return folio.balance > 0.009;
+      if (filter === "positive") return folio.balance > 0.009;
+      if (filter === "negative") return folio.balance < -0.009;
       if (filter === "open") return folio.status === "open";
       if (filter === "closed") return folio.status === "closed";
       return true;
