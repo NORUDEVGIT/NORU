@@ -613,50 +613,30 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
           ) : null}
 
           <div className="space-y-4">
-            <div className="grid gap-4 lg:grid-cols-2">
-              <RulePanel
-                title="Inventory and availability"
-                description="These flags are read by canonical availability. Out of order, out of service, and each block's own inventory impact are applied directly."
-                count="2 rules"
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <PolicySwitch
-                    label="Sellable room required"
-                    help="Enforced by assignment and availability when a room must be sellable."
-                    checked={rules.sellableStatusRequired}
-                    disabled={!canConfigure}
-                    onChange={(sellableStatusRequired) => setDraft({ sellableStatusRequired })}
-                  />
-                  <PolicySwitch
-                    label="Maintenance affects availability"
-                    help="Canonical availability excludes rooms that are not maintenance-normal."
-                    checked={rules.maintenanceAffectsAvailability}
-                    disabled={!canConfigure}
-                    onChange={(maintenanceAffectsAvailability) =>
-                      setDraft({ maintenanceAffectsAvailability })
-                    }
-                  />
-                </div>
-              </RulePanel>
-
-              <RulePanel
-                title="Operational restriction ownership"
-                description="Housekeeping readiness thresholds, OOO/OOS gates, and room-type sellable flags stay in Property Setup."
-                count="2 links"
-              >
-                <div className="flex flex-col justify-between h-full">
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    Housekeeping settings, maintenance status rules, and per-type sellable inventory are
-                    not duplicated here. Default sellable source, minimum sellable inventory,
-                    auto-release blocks, and release windows are not configured in this product.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <SettingsLink label="Configure Housekeeping Rules" step="housekeeping" />
-                    <SettingsLink label="Configure Maintenance Rules" step="maintenance" />
-                  </div>
-                </div>
-              </RulePanel>
-            </div>
+            <RulePanel
+              title="Inventory and availability"
+              description="These flags are read by canonical availability. Out of order, out of service, and each block's own inventory impact are applied directly."
+              count="2 rules"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <PolicySwitch
+                  label="Sellable room required"
+                  help="Enforced by assignment and availability when a room must be sellable."
+                  checked={rules.sellableStatusRequired}
+                  disabled={!canConfigure}
+                  onChange={(sellableStatusRequired) => setDraft({ sellableStatusRequired })}
+                />
+                <PolicySwitch
+                  label="Maintenance affects availability"
+                  help="Canonical availability excludes rooms that are not maintenance-normal."
+                  checked={rules.maintenanceAffectsAvailability}
+                  disabled={!canConfigure}
+                  onChange={(maintenanceAffectsAvailability) =>
+                    setDraft({ maintenanceAffectsAvailability })
+                  }
+                />
+              </div>
+            </RulePanel>
 
             <RulePanel
               title="Assignment matching"

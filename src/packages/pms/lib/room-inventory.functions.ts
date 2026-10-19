@@ -78,6 +78,7 @@ export interface RoomInventoryEvent {
   roomNumber: string | null;
   blockId: string | null;
   actorMembershipId: string;
+  actorName?: string | null;
   previousValues: string | null;
   newValues: string | null;
   notes: string | null;
@@ -364,6 +365,61 @@ export const listRoomInventoryEvents = createServerFn({ method: "POST" })
     if (result.error) throw new Error(result.error.message || "Could not load inventory history.");
 
     const rows = Array.isArray(result.data) ? result.data : [];
+    const actorIds = [
+      ...new Set(
+        rows
+          .map((value) => objectValue(value)?.["actor_membership_id"])
+          .filter((id): id is string => typeof id === "string" && Boolean(id)),
+      ),
+    ];
+    const actorNames = new Map<string, string>();
+    if (actorIds.length > 0) {
+      try {
+        const memRes = await looseDb(context.supabase)
+          .from("restaurant_memberships")
+          .select("id, display_name, email")
+          .in("id", actorIds);
+        if (!memRes.error && Array.isArray(memRes.data)) {
+          for (const m of memRes.data as Array<{ id: string; display_name: string | null; email: string | null }>) {
+            const label = m.display_name?.trim() || m.email?.trim();
+            if (label) actorNames.set(m.id, label);
+          }
+        }
+      } catch {}
+
+      const unresolved = actorIds.filter((id) => !actorNames.has(id));
+      if (unresolved.length > 0) {
+        try {
+          const userRes = await looseDb(context.supabase)
+            .from("restaurant_users")
+            .select("id, user_id")
+            .eq("restaurant_id", data.restaurantId)
+            .in("id", unresolved);
+          if (!userRes.error && Array.isArray(userRes.data)) {
+            const userMap = new Map<string, string>();
+            for (const u of userRes.data as Array<{ id: string; user_id: string }>) {
+              userMap.set(u.user_id, u.id);
+            }
+            const uIds = [...userMap.keys()];
+            if (uIds.length > 0) {
+              const profRes = await looseDb(context.supabase)
+                .from("profiles")
+                .select("id, first_name, last_name, email")
+                .in("id", uIds);
+              if (!profRes.error && Array.isArray(profRes.data)) {
+                for (const p of profRes.data as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>) {
+                  const fullName = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
+                  const label = fullName || p.email || "Staff";
+                  const memId = userMap.get(p.id);
+                  if (memId) actorNames.set(memId, label);
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+
     return rows.flatMap((value) => {
       const row = objectValue(value);
       if (
@@ -387,6 +443,7 @@ export const listRoomInventoryEvents = createServerFn({ method: "POST" })
               : null,
           blockId: typeof row["block_id"] === "string" ? row["block_id"] : null,
           actorMembershipId: row["actor_membership_id"],
+          actorName: actorNames.get(row["actor_membership_id"]) ?? "Staff",
           previousValues:
             row["previous_values"] == null ? null : JSON.stringify(row["previous_values"]),
           newValues: row["new_values"] == null ? null : JSON.stringify(row["new_values"]),

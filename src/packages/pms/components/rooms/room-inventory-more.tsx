@@ -1,20 +1,38 @@
 import { useMemo, useState } from "react";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowRight,
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
   CloudOff,
+  Download,
   FileText,
   Layers3,
   RefreshCw,
   ShieldAlert,
   Wrench,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
-import { listMaintenanceRequests } from "@/packages/pms/lib/housekeeping.functions";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
+import { Label } from "@/shared/components/ui/label";
+import { Textarea } from "@/shared/components/ui/textarea";
+import {
+  createMaintenanceRequest,
+  listMaintenanceRequests,
+  updateMaintenanceRequest,
+  type MaintenanceRequest,
+} from "@/packages/pms/lib/housekeeping.functions";
 import { listRoomInventoryEvents } from "@/packages/pms/lib/room-inventory.functions";
 import { getRoomsDashboard, listRooms, type HotelRoom } from "@/packages/pms/lib/rooms.functions";
 import {
@@ -142,9 +160,36 @@ function RoomTile({ room }: { room: HotelRoom }) {
   );
 }
 
+const MAINTENANCE_CATEGORY_OPTIONS = [
+  ["plumbing", "Plumbing"],
+  ["electrical", "Electrical"],
+  ["furniture", "Furniture"],
+  ["equipment", "Equipment"],
+  ["other", "Other"],
+] as const;
+const MAINTENANCE_PRIORITY_OPTIONS = [
+  ["normal", "Normal"],
+  ["high", "High"],
+  ["urgent", "Urgent"],
+] as const;
+
 export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) {
   const loadMaintenance = useServerFn(listMaintenanceRequests);
   const loadRooms = useServerFn(listRooms);
+  const createRequest = useServerFn(createMaintenanceRequest);
+  const updateRequest = useServerFn(updateMaintenanceRequest);
+  const queryClient = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<"open" | "in_progress" | "resolved" | "all">(
+    "all",
+  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [completeId, setCompleteId] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
+  const [roomId, setRoomId] = useState("");
+  const [category, setCategory] = useState<(typeof MAINTENANCE_CATEGORY_OPTIONS)[number][0]>("plumbing");
+  const [priority, setPriority] = useState<(typeof MAINTENANCE_PRIORITY_OPTIONS)[number][0]>("normal");
+  const [description, setDescription] = useState("");
   const maintenance = useQuery({
     queryKey: ["room-inventory-maintenance", restaurantId],
     queryFn: () => loadMaintenance({ data: { restaurantId } }),
@@ -155,19 +200,93 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
     queryFn: () => loadRooms({ data: { restaurantId, includeInactive: true } }),
   });
   const affected = new Map((rooms.data ?? []).map((room) => [room.id, room]));
+  const requests = maintenance.data ?? [];
+  const visible = requests.filter((request) => statusFilter === "all" || request.status === statusFilter);
+  const selected = visible.find((request) => request.id === selectedId) ?? visible[0] ?? null;
+
+  async function refreshMaintenance() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["room-inventory-maintenance", restaurantId] }),
+      queryClient.invalidateQueries({ queryKey: ["room-inventory-maintenance-rooms", restaurantId] }),
+      queryClient.invalidateQueries({ queryKey: ["rooms-dashboard", restaurantId] }),
+      queryClient.invalidateQueries({ queryKey: ["room-board-rooms", restaurantId] }),
+      queryClient.invalidateQueries({ queryKey: ["hk-maintenance", restaurantId] }),
+    ]);
+  }
+
+  const create = useMutation({
+    mutationFn: () =>
+      createRequest({
+        data: { restaurantId, roomId, category, priority, description: description.trim() },
+      }),
+    onSuccess: async () => {
+      toast.success("Maintenance request logged.");
+      setCreateOpen(false);
+      setDescription("");
+      setRoomId("");
+      await refreshMaintenance();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const update = useMutation({
+    mutationFn: (input: { requestId: string; status: MaintenanceRequest["status"]; notes?: string }) =>
+      updateRequest({ data: { restaurantId, ...input } }),
+    onSuccess: async (_result, input) => {
+      toast.success(
+        input.status === "resolved"
+          ? "Maintenance request completed."
+          : input.status === "in_progress"
+            ? "Maintenance work started."
+            : "Maintenance request reopened.",
+      );
+      setCompleteId(null);
+      setNotes("");
+      await refreshMaintenance();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   return (
     <div className="space-y-5">
       <InventoryViewHeader
         title="Maintenance"
-        description="Operational visibility into room maintenance impact."
+        description="Log a room issue and move it from open, to in progress, to completed. Completing a request updates that room's maintenance condition."
         action={
-          <Button asChild size="sm" variant="outline" className="border-[#D6CDBF] bg-white hover:bg-[#FAF8F5]">
-            <a href="/restaurant/pms/maintenance?tab=maintenance&returnTo=/restaurant/pms/room-inventory%3Ftab%3Dmaintenance">
-              Configure Maintenance <ArrowRight className="ml-1.5 size-3.5" />
-            </a>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              Log request
+            </Button>
+            <Button asChild size="sm" variant="outline" className="border-[#D6CDBF] bg-white hover:bg-[#FAF8F5]">
+              <a href="/restaurant/pms/maintenance?tab=maintenance&returnTo=/restaurant/pms/room-inventory%3Ftab%3Dmaintenance">
+                Open Maintenance <ArrowRight className="ml-1.5 size-3.5" />
+              </a>
+            </Button>
+          </div>
         }
       />
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ["open", "Open"],
+            ["in_progress", "In progress"],
+            ["resolved", "Completed"],
+            ["all", "All"],
+          ] as const
+        ).map(([value, label]) => (
+          <Button
+            key={value}
+            type="button"
+            size="sm"
+            variant={statusFilter === value ? "default" : "outline"}
+            onClick={() => setStatusFilter(value)}
+          >
+            {label}
+            <span className="ml-1.5 text-xs opacity-70">
+              {value === "all" ? requests.length : requests.filter((request) => request.status === value).length}
+            </span>
+          </Button>
+        ))}
+      </div>
       {maintenance.isLoading ? (
         <InventoryState state="loading" />
       ) : maintenance.isError ? (
@@ -177,63 +296,309 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
           description="Maintenance access is managed separately. This does not affect other Room & Inventory views."
           onRetry={() => maintenance.refetch()}
         />
-      ) : maintenance.data?.length === 0 ? (
+      ) : requests.length === 0 ? (
         <InventoryState
           state="empty"
           title="No maintenance requests"
-          description="Maintenance-owned work orders will appear here when your role has access."
+          description="Log a request for a room. It will stay here until the work is completed."
+        />
+      ) : visible.length === 0 ? (
+        <InventoryState
+          state="empty"
+          title="Nothing in this status"
+          description="Choose another status, or log a new request."
         />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
-          <table className="w-full min-w-[800px] text-left text-sm">
-            <thead className="border-b border-border bg-muted/30">
-              <tr>
-                {[
-                  "Room",
-                  "Issue",
-                  "Priority",
-                  "Maintenance status",
-                  "Operational restriction",
-                  "Expected return",
-                ].map((heading) => (
-                  <th
-                    key={heading}
-                    className="px-4 py-3 text-xs font-semibold text-muted-foreground"
-                  >
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {maintenance.data?.map((request) => {
-                const room = affected.get(request.roomId);
-                return (
-                  <tr key={request.id} className="border-b border-border/70 last:border-0">
-                    <td className="px-4 py-3 font-medium">{request.roomNumber}</td>
-                    <td className="px-4 py-3">
-                      <p>{request.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {request.category.replaceAll("_", " ")}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3">{request.priority}</td>
-                    <td className="px-4 py-3">
-                      <InventoryStatusBadge
-                        tone={request.status === "resolved" ? "success" : "warning"}
-                      >
-                        {request.status.replaceAll("_", " ")}
-                      </InventoryStatusBadge>
-                    </td>
-                    <td className="px-4 py-3">{room?.status.replaceAll("_", " ") ?? "—"}</td>
-                    <td className="px-4 py-3">{dateLabel(room?.restrictionExpectedReturn)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
+            <table className="w-full min-w-[860px] text-left text-sm">
+              <thead className="border-b border-border bg-muted/30">
+                <tr>
+                  {["Room", "Issue", "Priority", "Status", "Room condition", "Actions"].map((heading) => (
+                    <th key={heading} className="px-4 py-3 text-xs font-semibold text-muted-foreground">
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((request) => {
+                  const room = affected.get(request.roomId);
+                  return (
+                    <tr
+                      key={request.id}
+                      className={`border-b border-border/70 last:border-0 ${
+                        selected?.id === request.id ? "bg-[#FAF8F5]" : ""
+                      }`}
+                    >
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          className="text-left font-medium"
+                          onClick={() => setSelectedId(request.id)}
+                        >
+                          Room {request.roomNumber}
+                        </button>
+                        <p className="text-xs text-muted-foreground">{room?.roomTypeName ?? "Room"}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p>{request.description}</p>
+                        <p className="text-xs capitalize text-muted-foreground">
+                          {request.category.replaceAll("_", " ")}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 capitalize">{request.priority}</td>
+                      <td className="px-4 py-3">
+                        <InventoryStatusBadge tone={request.status === "resolved" ? "success" : "warning"}>
+                          {request.status.replaceAll("_", " ")}
+                        </InventoryStatusBadge>
+                      </td>
+                      <td className="px-4 py-3 capitalize">
+                        {room?.maintenanceStatus.replaceAll("_", " ") ?? "—"}
+                        <p className="text-xs text-muted-foreground">
+                          {room?.status.replaceAll("_", " ") ?? "No operational restriction"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <MaintenanceActions
+                          request={request}
+                          pending={update.isPending}
+                          onStart={() => update.mutate({ requestId: request.id, status: "in_progress" })}
+                          onComplete={() => {
+                            setCompleteId(request.id);
+                            setNotes("");
+                          }}
+                          onReopen={() => update.mutate({ requestId: request.id, status: "open" })}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <aside className="rounded-2xl border border-border bg-card p-4">
+            {selected ? (
+              <MaintenanceDetail
+                request={selected}
+                room={affected.get(selected.roomId)}
+                pending={update.isPending}
+                onStart={() => update.mutate({ requestId: selected.id, status: "in_progress" })}
+                onComplete={() => {
+                  setCompleteId(selected.id);
+                  setNotes("");
+                }}
+                onReopen={() => update.mutate({ requestId: selected.id, status: "open" })}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">Select a room request to see its condition and actions.</p>
+            )}
+          </aside>
         </div>
       )}
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Log maintenance request</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
+              Room
+              <select
+                className="h-9 rounded-md border border-[#DED7CD] bg-white px-2 text-sm font-normal"
+                value={roomId}
+                onChange={(event) => setRoomId(event.target.value)}
+              >
+                <option value="">Select a room</option>
+                {(rooms.data ?? [])
+                  .filter((room) => room.active)
+                  .map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.roomNumber} · {room.roomTypeName}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
+                Category
+                <select
+                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-2 text-sm font-normal"
+                  value={category}
+                  onChange={(event) =>
+                    setCategory(event.target.value as (typeof MAINTENANCE_CATEGORY_OPTIONS)[number][0])
+                  }
+                >
+                  {MAINTENANCE_CATEGORY_OPTIONS.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
+                Priority
+                <select
+                  className="h-9 rounded-md border border-[#DED7CD] bg-white px-2 text-sm font-normal"
+                  value={priority}
+                  onChange={(event) =>
+                    setPriority(event.target.value as (typeof MAINTENANCE_PRIORITY_OPTIONS)[number][0])
+                  }
+                >
+                  {MAINTENANCE_PRIORITY_OPTIONS.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>What needs work</Label>
+              <Textarea
+                value={description}
+                maxLength={1000}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={3}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This records the work order and updates the room maintenance condition. Taking the room out of
+              inventory is still a separate restriction.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!roomId || description.trim() === "" || create.isPending}
+              onClick={() => create.mutate()}
+            >
+              Log request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={completeId != null} onOpenChange={(open) => !open && setCompleteId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Complete maintenance</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-1.5">
+            <Label>Notes</Label>
+            <Textarea value={notes} maxLength={500} onChange={(event) => setNotes(event.target.value)} rows={3} />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCompleteId(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={update.isPending || completeId == null}
+              onClick={() =>
+                completeId &&
+                update.mutate({ requestId: completeId, status: "resolved", notes: notes.trim() || undefined })
+              }
+            >
+              Complete work
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function MaintenanceActions({
+  request,
+  pending,
+  onStart,
+  onComplete,
+  onReopen,
+}: {
+  request: MaintenanceRequest;
+  pending: boolean;
+  onStart: () => void;
+  onComplete: () => void;
+  onReopen: () => void;
+}) {
+  if (request.status === "resolved") {
+    return (
+      <Button type="button" size="sm" variant="outline" disabled={pending} onClick={onReopen}>
+        Reopen
+      </Button>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {request.status === "open" ? (
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={onStart}>
+          Start
+        </Button>
+      ) : null}
+      <Button type="button" size="sm" disabled={pending} onClick={onComplete}>
+        Complete
+      </Button>
+    </div>
+  );
+}
+
+function MaintenanceDetail({
+  request,
+  room,
+  pending,
+  onStart,
+  onComplete,
+  onReopen,
+}: {
+  request: MaintenanceRequest;
+  room: HotelRoom | undefined;
+  pending: boolean;
+  onStart: () => void;
+  onComplete: () => void;
+  onReopen: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Room {request.roomNumber}
+      </p>
+      <h3 className="text-base font-semibold">{request.description}</h3>
+      <dl className="space-y-1.5 text-sm">
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">Category</dt>
+          <dd className="capitalize">{request.category.replaceAll("_", " ")}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">Priority</dt>
+          <dd className="capitalize">{request.priority}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">Work status</dt>
+          <dd className="capitalize">{request.status.replaceAll("_", " ")}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">Room condition</dt>
+          <dd className="capitalize">{room?.maintenanceStatus.replaceAll("_", " ") ?? "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">Operational status</dt>
+          <dd className="capitalize">{room?.status.replaceAll("_", " ") ?? "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">Logged</dt>
+          <dd>{dateLabel(request.createdAt)}</dd>
+        </div>
+      </dl>
+      <MaintenanceActions
+        request={request}
+        pending={pending}
+        onStart={onStart}
+        onComplete={onComplete}
+        onReopen={onReopen}
+      />
     </div>
   );
 }
@@ -334,27 +699,113 @@ export function RoomHistoryAuditView({ restaurantId }: { restaurantId: string })
     queryFn: () => loadEvents({ data: { restaurantId, limit: 200 } }),
     retry: false,
   });
+
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+
   const rows = (query.data ?? []).filter((event) =>
-    [event.eventType, event.roomNumber, event.notes, event.actorMembershipId].some((value) =>
+    [
+      event.eventType,
+      event.roomNumber,
+      event.notes,
+      event.actorName,
+      event.actorMembershipId,
+    ].some((value) =>
       String(value ?? "")
         .toLowerCase()
         .includes(search.toLowerCase()),
     ),
   );
+
+  const totalCount = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const paginatedRows = rows.slice(startIndex, startIndex + pageSize);
+
+  function handleSearchChange(event: React.ChangeEvent<HTMLInputElement>) {
+    setSearch(event.target.value);
+    setPage(1);
+  }
+
+  function handleExportCsv() {
+    if (rows.length === 0) {
+      toast.error("No events to export");
+      return;
+    }
+
+    const headers = [
+      "Date / Time",
+      "Room",
+      "Event",
+      "Previous Values",
+      "New Values",
+      "Actor",
+      "Reason / Context",
+    ];
+
+    const escapeCsv = (val: unknown) => {
+      const str = val == null ? "" : String(val);
+      if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csvLines = [
+      headers.join(","),
+      ...rows.map((event) =>
+        [
+          escapeCsv(new Date(event.createdAt).toLocaleString()),
+          escapeCsv(event.roomNumber ?? "—"),
+          escapeCsv(event.eventType.replaceAll("_", " ")),
+          escapeCsv(event.previousValues ?? "—"),
+          escapeCsv(event.newValues ?? "—"),
+          escapeCsv(event.actorName || "Staff"),
+          escapeCsv(event.notes ?? "—"),
+        ].join(","),
+      ),
+    ];
+
+    const blob = new Blob([csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `inventory-history-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success(`Exported ${rows.length} audit event${rows.length === 1 ? "" : "s"} to CSV`);
+  }
+
   return (
     <div className="space-y-5">
       <InventoryViewHeader
         title="History & Audit"
         description="Immutable operational room and inventory events."
       />
-      <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
         <input
           className="h-9 w-full max-w-sm rounded-lg border border-input bg-background px-3 text-sm"
           placeholder="Search room, event, actor or context"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={handleSearchChange}
         />
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCsv}
+            disabled={rows.length === 0}
+            className="h-9 gap-1.5 border-[#D6CDBF] bg-white text-xs font-semibold text-[#251605] shadow-xs hover:bg-[#FAF8F5]"
+          >
+            <Download className="size-3.5" />
+            Export CSV
+          </Button>
+        </div>
       </div>
       {query.isLoading ? (
         <InventoryState state="loading" />
@@ -371,46 +822,106 @@ export function RoomHistoryAuditView({ restaurantId }: { restaurantId: string })
           description="Events written by the canonical inventory lifecycle will appear here."
         />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
-          <table className="w-full min-w-[1000px] text-left text-sm">
-            <thead className="border-b border-border bg-muted/30">
-              <tr>
-                {[
-                  "Date / Time",
-                  "Room",
-                  "Event",
-                  "Previous",
-                  "New",
-                  "Actor",
-                  "Reason / Context",
-                ].map((heading) => (
-                  <th
-                    key={heading}
-                    className="px-4 py-3 text-xs font-semibold text-muted-foreground"
-                  >
-                    {heading}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((event) => (
-                <tr key={event.id} className="border-b border-border/70 last:border-0">
-                  <td className="px-4 py-3">{new Date(event.createdAt).toLocaleString()}</td>
-                  <td className="px-4 py-3">{event.roomNumber ?? "—"}</td>
-                  <td className="px-4 py-3 font-medium">{event.eventType.replaceAll("_", " ")}</td>
-                  <td className="max-w-48 truncate px-4 py-3 text-xs text-muted-foreground">
-                    {event.previousValues ?? "—"}
-                  </td>
-                  <td className="max-w-48 truncate px-4 py-3 text-xs text-muted-foreground">
-                    {event.newValues ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-xs">{event.actorMembershipId.slice(0, 8)}…</td>
-                  <td className="max-w-56 px-4 py-3">{event.notes ?? "—"}</td>
+        <div className="space-y-3">
+          <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
+            <table className="w-full min-w-[1000px] text-left text-sm">
+              <thead className="border-b border-border bg-muted/30">
+                <tr>
+                  {[
+                    "Date / Time",
+                    "Room",
+                    "Event",
+                    "Previous",
+                    "New",
+                    "Actor",
+                    "Reason / Context",
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      className="px-4 py-3 text-xs font-semibold text-muted-foreground"
+                    >
+                      {heading}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {paginatedRows.map((event) => (
+                  <tr key={event.id} className="border-b border-border/70 last:border-0 hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(event.createdAt).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-[#251605]">{event.roomNumber ?? "—"}</td>
+                    <td className="px-4 py-3 font-medium">{event.eventType.replaceAll("_", " ")}</td>
+                    <td className="max-w-48 truncate px-4 py-3 text-xs text-muted-foreground">
+                      {event.previousValues ?? "—"}
+                    </td>
+                    <td className="max-w-48 truncate px-4 py-3 text-xs text-muted-foreground">
+                      {event.newValues ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-medium text-[#251605]">
+                      {event.actorName || (event.actorMembershipId ? `${event.actorMembershipId.slice(0, 8)}…` : "Staff")}
+                    </td>
+                    <td className="max-w-56 px-4 py-3 text-xs text-muted-foreground">{event.notes ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground shadow-xs">
+            <div className="flex items-center gap-2">
+              <span>
+                Showing {totalCount > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + pageSize, totalCount)} of {totalCount} events
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span>Rows per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="h-7 rounded-md border border-[#DED7CD] bg-background px-2 text-xs font-medium text-foreground outline-none focus:border-[#C89933]"
+                >
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+
+              <span className="text-muted-foreground">
+                Page {safePage} of {totalPages}
+              </span>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="h-7 w-7 p-0"
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="size-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="h-7 w-7 p-0"
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

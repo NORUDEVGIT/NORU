@@ -118,7 +118,7 @@ const VIEW_DEFINITIONS: ViewDefinition[] = [
     label: "Maintenance",
     section: "more",
     description:
-      "Review room maintenance state and operational impact without replacing the Maintenance domain.",
+      "Log a room issue, start the work, and complete it. Completing a request updates that room's maintenance condition.",
   },
   {
     id: "bulk-operations",

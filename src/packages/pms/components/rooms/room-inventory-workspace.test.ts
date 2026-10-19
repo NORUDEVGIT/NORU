@@ -217,4 +217,16 @@ describe("Room & Inventory workspace", () => {
     expect(more).toContain("Maintenance details are unavailable for your role");
     expect(workspace).toContain("<RoomMaintenanceView");
   });
+
+  it("gives the maintenance tab the same request actions as Maintenance", () => {
+    expect(more).toContain("createMaintenanceRequest");
+    expect(more).toContain("updateMaintenanceRequest");
+    expect(more).toContain("Log request");
+    expect(more).toContain("Start");
+    expect(more).toContain("Complete");
+    expect(more).toContain("Reopen");
+    expect(more).toContain('status: "in_progress"');
+    expect(more).toContain('status: "resolved"');
+    expect(more).toContain('status: "open"');
+  });
 });
