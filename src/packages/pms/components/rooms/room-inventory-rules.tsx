@@ -40,6 +40,7 @@ import {
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Switch } from "@/shared/components/ui/switch";
+import { cn } from "@/shared/lib/utils";
 import { InventoryState, InventoryStatusBadge, InventoryViewHeader } from "./room-inventory-shared";
 import { addDays, eligibilityCodeLabel, preferenceReasonLabel } from "./room-inventory-utils";
 
@@ -611,111 +612,138 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
             </p>
           ) : null}
 
-          <div className="grid gap-4 xl:grid-cols-2">
-            <RulePanel
-              title="Inventory and availability"
-              description="These flags are read by canonical availability. Out of order, out of service, and each block's own inventory impact are applied directly."
-            >
-              <PolicySwitch
-                label="Sellable room required"
-                help="Enforced by assignment and availability when a room must be sellable."
-                checked={rules.sellableStatusRequired}
-                disabled={!canConfigure}
-                onChange={(sellableStatusRequired) => setDraft({ sellableStatusRequired })}
-              />
-              <PolicySwitch
-                label="Maintenance affects availability"
-                help="Canonical availability excludes rooms that are not maintenance-normal."
-                checked={rules.maintenanceAffectsAvailability}
-                disabled={!canConfigure}
-                onChange={(maintenanceAffectsAvailability) =>
-                  setDraft({ maintenanceAffectsAvailability })
-                }
-              />
-            </RulePanel>
+          <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <RulePanel
+                title="Inventory and availability"
+                description="These flags are read by canonical availability. Out of order, out of service, and each block's own inventory impact are applied directly."
+                count="2 rules"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <PolicySwitch
+                    label="Sellable room required"
+                    help="Enforced by assignment and availability when a room must be sellable."
+                    checked={rules.sellableStatusRequired}
+                    disabled={!canConfigure}
+                    onChange={(sellableStatusRequired) => setDraft({ sellableStatusRequired })}
+                  />
+                  <PolicySwitch
+                    label="Maintenance affects availability"
+                    help="Canonical availability excludes rooms that are not maintenance-normal."
+                    checked={rules.maintenanceAffectsAvailability}
+                    disabled={!canConfigure}
+                    onChange={(maintenanceAffectsAvailability) =>
+                      setDraft({ maintenanceAffectsAvailability })
+                    }
+                  />
+                </div>
+              </RulePanel>
+
+              <RulePanel
+                title="Operational restriction ownership"
+                description="Housekeeping readiness thresholds, OOO/OOS gates, and room-type sellable flags stay in Property Setup."
+                count="2 links"
+              >
+                <div className="flex flex-col justify-between h-full">
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Housekeeping settings, maintenance status rules, and per-type sellable inventory are
+                    not duplicated here. Default sellable source, minimum sellable inventory,
+                    auto-release blocks, and release windows are not configured in this product.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <SettingsLink label="Configure Housekeeping Rules" step="housekeeping" />
+                    <SettingsLink label="Configure Maintenance Rules" step="maintenance" />
+                  </div>
+                </div>
+              </RulePanel>
+            </div>
 
             <RulePanel
               title="Assignment matching"
               description="These flags are read by the canonical assignment evaluator."
+              count="11 rules"
             >
-              <PolicySwitch
-                label="Housekeeping affects assignment"
-                checked={rules.housekeepingAffectsAssignment}
-                disabled={!canConfigure}
-                onChange={(housekeepingAffectsAssignment) =>
-                  setDraft({ housekeepingAffectsAssignment })
-                }
-              />
-              <PolicySwitch
-                label="Require housekeeping readiness"
-                checked={rules.requireHousekeepingReadiness}
-                disabled={!canConfigure}
-                onChange={(requireHousekeepingReadiness) =>
-                  setDraft({ requireHousekeepingReadiness })
-                }
-              />
-              <PolicySwitch
-                label="Require maintenance availability"
-                help="Uses Card 2 maintenance status rules at evaluation time."
-                checked={rules.requireMaintenanceAvailability}
-                disabled={!canConfigure}
-                onChange={(requireMaintenanceAvailability) =>
-                  setDraft({ requireMaintenanceAvailability })
-                }
-              />
-              <PolicySwitch
-                label="Require room type match"
-                checked={rules.requireRoomTypeMatch}
-                disabled={!canConfigure}
-                onChange={(requireRoomTypeMatch) => setDraft({ requireRoomTypeMatch })}
-              />
-              <PolicySwitch
-                label="Occupancy match required"
-                checked={rules.requireOccupancyMatch}
-                disabled={!canConfigure}
-                onChange={(requireOccupancyMatch) => setDraft({ requireOccupancyMatch })}
-              />
-              <PolicySwitch
-                label="Bed match"
-                checked={rules.requireBedTypeMatch}
-                disabled={!canConfigure}
-                onChange={(requireBedTypeMatch) => setDraft({ requireBedTypeMatch })}
-              />
-              <PolicySwitch
-                label="Accessibility match"
-                checked={rules.requireAccessibilityMatch}
-                disabled={!canConfigure}
-                onChange={(requireAccessibilityMatch) => setDraft({ requireAccessibilityMatch })}
-              />
-              <PolicySwitch
-                label="Connecting-room match"
-                checked={rules.requireConnectingRoomMatch}
-                disabled={!canConfigure}
-                onChange={(requireConnectingRoomMatch) => setDraft({ requireConnectingRoomMatch })}
-              />
-              <PolicySwitch
-                label="Building preference"
-                checked={rules.useBuildingPreference}
-                disabled={!canConfigure}
-                onChange={(useBuildingPreference) => setDraft({ useBuildingPreference })}
-              />
-              <PolicySwitch
-                label="Floor preference"
-                checked={rules.useFloorPreference}
-                disabled={!canConfigure}
-                onChange={(useFloorPreference) => setDraft({ useFloorPreference })}
-              />
-              <PolicySwitch
-                label="Guest preference"
-                checked={rules.useGuestPreference}
-                disabled={!canConfigure}
-                onChange={(useGuestPreference) => setDraft({ useGuestPreference })}
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                <PolicySwitch
+                  label="Housekeeping affects assignment"
+                  checked={rules.housekeepingAffectsAssignment}
+                  disabled={!canConfigure}
+                  onChange={(housekeepingAffectsAssignment) =>
+                    setDraft({ housekeepingAffectsAssignment })
+                  }
+                />
+                <PolicySwitch
+                  label="Require housekeeping readiness"
+                  checked={rules.requireHousekeepingReadiness}
+                  disabled={!canConfigure}
+                  onChange={(requireHousekeepingReadiness) =>
+                    setDraft({ requireHousekeepingReadiness })
+                  }
+                />
+                <PolicySwitch
+                  label="Require maintenance availability"
+                  help="Uses Card 2 maintenance status rules at evaluation time."
+                  checked={rules.requireMaintenanceAvailability}
+                  disabled={!canConfigure}
+                  onChange={(requireMaintenanceAvailability) =>
+                    setDraft({ requireMaintenanceAvailability })
+                  }
+                />
+                <PolicySwitch
+                  label="Require room type match"
+                  checked={rules.requireRoomTypeMatch}
+                  disabled={!canConfigure}
+                  onChange={(requireRoomTypeMatch) => setDraft({ requireRoomTypeMatch })}
+                />
+                <PolicySwitch
+                  label="Occupancy match required"
+                  checked={rules.requireOccupancyMatch}
+                  disabled={!canConfigure}
+                  onChange={(requireOccupancyMatch) => setDraft({ requireOccupancyMatch })}
+                />
+                <PolicySwitch
+                  label="Bed match"
+                  checked={rules.requireBedTypeMatch}
+                  disabled={!canConfigure}
+                  onChange={(requireBedTypeMatch) => setDraft({ requireBedTypeMatch })}
+                />
+                <PolicySwitch
+                  label="Accessibility match"
+                  checked={rules.requireAccessibilityMatch}
+                  disabled={!canConfigure}
+                  onChange={(requireAccessibilityMatch) => setDraft({ requireAccessibilityMatch })}
+                />
+                <PolicySwitch
+                  label="Connecting-room match"
+                  checked={rules.requireConnectingRoomMatch}
+                  disabled={!canConfigure}
+                  onChange={(requireConnectingRoomMatch) => setDraft({ requireConnectingRoomMatch })}
+                />
+                <PolicySwitch
+                  label="Building preference"
+                  checked={rules.useBuildingPreference}
+                  disabled={!canConfigure}
+                  onChange={(useBuildingPreference) => setDraft({ useBuildingPreference })}
+                />
+                <PolicySwitch
+                  label="Floor preference"
+                  checked={rules.useFloorPreference}
+                  disabled={!canConfigure}
+                  onChange={(useFloorPreference) => setDraft({ useFloorPreference })}
+                />
+                <PolicySwitch
+                  label="Guest preference"
+                  checked={rules.useGuestPreference}
+                  disabled={!canConfigure}
+                  onChange={(useGuestPreference) => setDraft({ useGuestPreference })}
+                />
+              </div>
             </RulePanel>
 
             <RulePanel
               title="Block-type inventory behavior"
               description="Enabled types, approval, and impact are copied onto new operational blocks. Changing impact here does not rewrite existing blocks."
+              count="9 types"
             >
               <div className="overflow-x-auto rounded-lg border border-[#E5DED4]">
                 <table className="w-full min-w-[540px] text-left text-xs">
@@ -779,7 +807,7 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
                                 ),
                               })
                             }
-                            className="h-9 w-full rounded-md border border-[#DED7CD] bg-white px-2.5 text-xs font-medium outline-none focus:border-[#C89933]"
+                            className="h-9 w-full max-w-xs rounded-md border border-[#DED7CD] bg-white px-2.5 text-xs font-medium outline-none focus:border-[#C89933]"
                           >
                             {INVENTORY_IMPACTS.map((impact) => (
                               <option key={impact} value={impact}>
@@ -792,21 +820,6 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
                     ))}
                   </tbody>
                 </table>
-              </div>
-            </RulePanel>
-
-            <RulePanel
-              title="Operational restriction ownership"
-              description="Housekeeping readiness thresholds, OOO/OOS gates, and room-type sellable flags stay in Property Setup."
-            >
-              <p className="text-xs leading-5 text-muted-foreground">
-                Housekeeping settings, maintenance status rules, and per-type sellable inventory are
-                not duplicated here. Default sellable source, minimum sellable inventory,
-                auto-release blocks, and release windows are not configured in this product.
-              </p>
-              <div className="mt-3.5 flex flex-wrap gap-2">
-                <SettingsLink label="Configure Housekeeping Rules" step="housekeeping" />
-                <SettingsLink label="Configure Maintenance Rules" step="maintenance" />
               </div>
             </RulePanel>
           </div>
@@ -1096,19 +1109,34 @@ function Kpi({
 function RulePanel({
   title,
   description,
+  count,
+  className,
   children,
 }: {
   title: string;
   description: string;
+  count?: string;
+  className?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-[#E5DED4] bg-white p-5 shadow-xs">
-      <h3 className="text-base font-bold" style={{ color: INK }}>
-        {title}
-      </h3>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
-      <div className="mt-4 space-y-2.5">{children}</div>
+    <section className={cn("rounded-xl border border-[#E5DED4] bg-white p-4 sm:p-5 shadow-xs transition-all", className)}>
+      <div className="mb-3.5 flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold tracking-tight" style={{ color: INK }}>
+              {title}
+            </h3>
+            {count ? (
+              <span className="inline-flex items-center rounded-full bg-[#FAF5EB] border border-[#E8DFD1] px-2 py-0.5 text-[11px] font-semibold text-[#8C6214]">
+                {count}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <div>{children}</div>
     </section>
   );
 }
@@ -1127,20 +1155,33 @@ function PolicySwitch({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-lg border border-[#EEE8E0] bg-[#FAF8F5]/40 px-3.5 py-3 hover:bg-[#FAF8F5] transition-colors">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-xs font-bold" style={{ color: INK }}>
+    <div
+      className={cn(
+        "group flex justify-between gap-2.5 rounded-lg border border-[#EEE8E0] bg-[#FAF8F5]/60 px-3 py-2.5 transition-all duration-150 hover:border-[#DED7CD] hover:bg-[#FAF8F5]",
+        help ? "items-start" : "items-center",
+      )}
+    >
+      <div className="min-w-0 pr-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <p
+            className="text-xs font-semibold leading-snug group-hover:text-[#1A0E03] transition-colors"
+            style={{ color: INK }}
+          >
             {label}
           </p>
-          <InventoryStatusBadge tone="info">Enforced</InventoryStatusBadge>
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#C89933]/15 text-[#7A5511]">
+            Enforced
+          </span>
         </div>
-        {help ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{help}</p> : null}
+        {help ? <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{help}</p> : null}
       </div>
       <Switch
         checked={checked}
         disabled={disabled}
-        className="mt-0.5 data-[state=checked]:bg-[#C89933]"
+        className={cn(
+          "data-[state=checked]:bg-[#C89933] shrink-0",
+          help ? "mt-0.5" : "",
+        )}
         onCheckedChange={(value) => onChange(value === true)}
       />
     </div>

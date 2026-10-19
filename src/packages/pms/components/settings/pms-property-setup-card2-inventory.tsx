@@ -305,7 +305,7 @@ export function PmsPropertySetupCard2Inventory({
         description="Define which room conditions affect sellability, availability, and assignment."
         testId="pms-card2-inventory-availability"
       >
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           <PolicyToggle
             label="Sellable Status Required"
             help="Room types must be marked sellable before they can contribute inventory."
@@ -556,7 +556,7 @@ export function PmsPropertySetupCard2Inventory({
           <div className="mt-4 space-y-4">
             <RoomTypeOverbookingEditor restaurantId={restaurantId} canEdit={canEdit} />
 
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
               <PolicyToggle
                 label="Date-Based Limit Enabled"
                 help={OVERBOOKING_FUTURE_LIMITS_NOTE}
@@ -630,8 +630,8 @@ function RuleGroup({
 }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-[#251605]">{title}</h3>
-      <div className="mt-2 grid gap-3 md:grid-cols-2">{children}</div>
+      <h3 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">{title}</h3>
+      <div className="mt-2 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
     </div>
   );
 }
@@ -658,20 +658,21 @@ function PolicyToggle({
       .toLowerCase()}`;
 
   return (
-    <div className="rounded-xl border border-[#EDE6D8] px-3 py-2">
-      <div className="flex items-center justify-between gap-3">
-        <Label htmlFor={id} className="text-[#251605]">
+    <div className="group flex flex-col justify-between rounded-lg border border-[#EDE6D8] bg-[#FAF8F5]/30 px-3 py-2.5 transition-colors hover:border-[#DED7CD] hover:bg-[#FAF8F5]/70">
+      <div className="flex items-center justify-between gap-2.5">
+        <Label htmlFor={id} className="cursor-pointer text-xs font-semibold text-[#251605]">
           {label}
         </Label>
         <Switch
           id={id}
           checked={checked}
           disabled={disabled}
+          className="data-[state=checked]:bg-[#C89933] shrink-0"
           onCheckedChange={onChange}
         />
       </div>
       {help ? (
-        <p className="mt-1 text-xs text-muted-foreground">{help}</p>
+        <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{help}</p>
       ) : null}
     </div>
   );
