@@ -162,8 +162,7 @@ describe("Check-In Step 2 registration", () => {
 
   it("advances Save & Continue to the Step 3 shell", () => {
     assert.match(workspace, /setStep\("payment_guarantee"\)/);
-    assert.match(workspace, /fo-ci-v2-step-placeholder-/);
-    assert.match(workspace, /This step is not available yet/);
+    assert.match(workspace, /FoCheckInV2Payment/);
   });
 
   it("returns to Step 1 without leaving the workspace", () => {

@@ -20,7 +20,10 @@ function readRel(rel: string): string {
 }
 
 const workspace = readRel("../components/frontoffice/fo-checkin-v2-workspace.tsx");
-const agreement = readRel("../components/frontoffice/fo-checkin-v2-agreement.tsx");
+const agreement = [
+  readRel("../components/frontoffice/fo-checkin-v2-agreement.tsx"),
+  readRel("../components/frontoffice/fo-checkin-v2-agreement-document.tsx"),
+].join("\n");
 
 function read(overrides: Partial<CheckInAgreementRead> = {}): CheckInAgreementRead {
   return {
@@ -56,11 +59,12 @@ describe("check-in v2 agreement", () => {
     assert.doesNotMatch(agreement, /I accept the hotel/);
   });
 
-  it("displays the version label and id", () => {
+  it("displays the version label and keeps the id out of the text", () => {
     const summary = buildCheckInAgreementSummary(read(), "Hana Ali Kebede");
-    assert.equal(summary.version, "2026.1");
-    assert.match(agreement, /\{version\.label\}/);
-    assert.match(agreement, /\{version\.id\}/);
+    assert.equal(summary.version, "Version 2026.1");
+    assert.match(agreement, /agreementVersionLabel\(version\)/);
+    assert.match(agreement, /data-version-id=\{version\.id\}/);
+    assert.doesNotMatch(agreement, /Version \{version\.id\}/);
   });
 
   it("displays the selected unit guest", () => {
@@ -115,7 +119,8 @@ describe("check-in v2 agreement", () => {
   it("saves acknowledgements before signing", () => {
     assert.match(agreement, /saveCheckInAgreement/);
     assert.match(agreement, /acknowledgements: flags/);
-    assert.match(agreement, /fo-ci-v2-save-acknowledgements/);
+    assert.match(workspace, /fo-ci-v2-save-agreement-draft/);
+    assert.match(agreement, /persistAcknowledgements\(\)/);
     assert.match(agreement, /Save the acknowledgements before signing/);
   });
 
@@ -165,7 +170,7 @@ describe("check-in v2 agreement", () => {
     assert.match(agreement, /signed\.capturedBy/);
     assert.match(agreement, /fo-ci-v2-agreement-signed-at/);
     assert.match(agreement, /fo-ci-v2-agreement-recorded-by/);
-    assert.match(agreement, /agreement\.version\?\.label/);
+    assert.match(agreement, /agreementVersionLabel\(agreement\.version\)/);
   });
 
   it("does not sign a sibling unit", () => {
@@ -212,15 +217,15 @@ describe("check-in v2 agreement", () => {
     assert.match(agreement, /onReady\(agreementCanContinue\(agreement\)\)/);
   });
 
-  it("advances Continue to the Step 5 shell", () => {
+  it("advances Continue to the Step 5 review", () => {
     assert.match(workspace, /setStep\("review_checkin"\)/);
-    assert.match(workspace, /fo-ci-v2-step-placeholder-/);
-    assert.match(workspace, /This step is not available yet/);
+    assert.match(workspace, /FoCheckInV2Review/);
+    assert.match(workspace, /data-testid="fo-ci-v2-back-agreement"/);
   });
 
-  it("does not implement final check-in", () => {
+  it("does not implement final check-in inside the agreement step", () => {
     assert.doesNotMatch(agreement, /completeFoCheckIn|Complete Check-In/);
-    assert.doesNotMatch(workspace, /completeFoCheckIn|Complete Check-In/);
+    assert.match(workspace, /Complete Check-In/);
   });
 
   it("does not use profile consent or email signature fields", () => {

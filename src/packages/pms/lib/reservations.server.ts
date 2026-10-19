@@ -134,6 +134,13 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   CHECKIN_AGREEMENT_UNIT_REQUIRED:
     "The registration agreement for this stay has to be stored on a room.",
   AGREEMENT_REQUIRED: "Publish a registration agreement before this stay can be signed.",
+  AGREEMENT_ACK_REQUIRED: "Confirm each required acknowledgement before signing.",
+  AGREEMENT_DRAFT_REQUIRED: "Create a guest agreement draft before publishing.",
+  AGREEMENT_DRAFT_EXISTS: "Finish or publish the open guest agreement draft first.",
+  AGREEMENT_PLACEHOLDER_UNKNOWN: "This agreement uses a placeholder that cannot be resolved.",
+  AGREEMENT_PROPERTY_TIME_MISSING:
+    "Set the property check-in and check-out times before publishing this agreement.",
+  AGREEMENT_CONFIG_INVALID: "The guest agreement draft is incomplete.",
   AGREEMENT_VERSION_MISMATCH: "Sign the agreement version that is currently shown.",
   AGREEMENT_ALREADY_SIGNED:
     "This agreement version is already signed. Start a new signature instead of editing it.",

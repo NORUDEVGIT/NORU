@@ -1,6 +1,5 @@
 /**
- * Shared Check-In workspace — Guest & Reservation, Registration, Payment, and Agreement.
- * Review stays a placeholder.
+ * Shared Check-In workspace — Guest & Reservation, Registration, Payment, Agreement, and Review.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,11 +36,18 @@ import {
 import { FoCheckInV2Payment } from "@/packages/pms/components/frontoffice/fo-checkin-v2-payment";
 import {
   FoCheckInV2Agreement,
+  type CheckInAgreementActions,
   type CheckInAgreementHandle,
 } from "@/packages/pms/components/frontoffice/fo-checkin-v2-agreement";
+import {
+  FoCheckInV2Review,
+  type CheckInReviewActions,
+  type CheckInReviewHandle,
+} from "@/packages/pms/components/frontoffice/fo-checkin-v2-review";
 import type { RegistrationDocumentState } from "@/packages/pms/lib/fo-checkin-v2-registration-model";
 import type { CheckInPaymentSummary } from "@/packages/pms/lib/fo-checkin-v2-payment-model";
 import type { CheckInAgreementSummary } from "@/packages/pms/lib/fo-checkin-v2-agreement-model";
+import { unitAlreadyCheckedIn } from "@/packages/pms/lib/fo-checkin-v2-review-model";
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import {
   CHECKIN_V2_STEPS,
@@ -158,13 +164,13 @@ function StatusChip({ label }: { label: CheckInRoomChip }) {
   );
 }
 
-function StepRail({ currentStep }: { currentStep: CheckInV2StepId }) {
+function StepRail({ currentStep, complete }: { currentStep: CheckInV2StepId; complete: boolean }) {
   const currentIndex = CHECKIN_V2_STEPS.findIndex((step) => step.id === currentStep);
   return (
     <nav aria-label="Check-In steps" className="flex items-center" data-testid="fo-ci-v2-stepper">
       {CHECKIN_V2_STEPS.map((step, index) => {
-        const isActive = step.id === currentStep;
-        const isDone = index < currentIndex;
+        const isDone = index < currentIndex || (complete && index <= currentIndex);
+        const isActive = step.id === currentStep && !isDone;
         return (
           <div key={step.id} className="flex items-center">
             <div
@@ -305,6 +311,9 @@ function CheckInSummaryColumn({
   registrationStatus,
   depositSummary,
   agreementSummary,
+  checkedIn,
+  confirmationNumber,
+  roomReadiness,
 }: {
   unit: CheckInUnitRead;
   profileNumber: string | null;
@@ -313,6 +322,9 @@ function CheckInSummaryColumn({
   registrationStatus: RegistrationDocumentState | null;
   depositSummary: CheckInPaymentSummary | null;
   agreementSummary: CheckInAgreementSummary | null;
+  checkedIn: boolean;
+  confirmationNumber: string | null;
+  roomReadiness: string | null;
 }) {
   const view = checkInStep1Presentation(unit);
   const charge = moneyText(money, unit.subtotal);
@@ -336,6 +348,26 @@ function CheckInSummaryColumn({
           </span>
         ) : null}
       </div>
+      {confirmationNumber ? (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
+            Reservation
+          </p>
+          <p
+            className="text-sm font-medium text-[#251605]"
+            data-testid="fo-ci-v2-summary-confirmation"
+          >
+            {confirmationNumber}
+          </p>
+          <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-summary-status">
+            {checkedIn ? "Checked In" : (unit.status ?? "—")}
+          </p>
+        </div>
+      ) : checkedIn ? (
+        <p className="text-xs font-medium text-[#436436]" data-testid="fo-ci-v2-summary-status">
+          Checked In
+        </p>
+      ) : null}
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">Stay</p>
         <p className="text-sm font-medium text-[#251605]">
@@ -351,6 +383,11 @@ function CheckInSummaryColumn({
           {view.roomNumber ? `Room ${view.roomNumber}` : "No room assigned"}
         </p>
         {view.roomTypeName ? <p className="text-xs text-[#6B5E4E]">{view.roomTypeName}</p> : null}
+        {roomReadiness ? (
+          <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-summary-room-readiness">
+            {roomReadiness}
+          </p>
+        ) : null}
       </div>
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">Guests</p>
@@ -429,8 +466,15 @@ function CheckInSummaryColumn({
             (step.id === "registration" && view.registrationComplete) ||
             (step.id === "payment_guarantee" && view.paymentRecorded) ||
             (step.id === "review_checkin" && view.reviewComplete);
-          const completed = stepIndex < currentIndex || (backendDone && step.id !== currentStep);
-          const current = step.id === currentStep;
+          const agreementDone =
+            step.id === "agreement_signature" && agreementSummary?.status === "Signed";
+          const reviewDone = step.id === "review_checkin" && (checkedIn || view.reviewComplete);
+          const completed =
+            stepIndex < currentIndex ||
+            agreementDone ||
+            reviewDone ||
+            (backendDone && step.id !== currentStep);
+          const current = step.id === currentStep && !agreementDone && !reviewDone;
           return (
             <div
               key={step.id}
@@ -1160,19 +1204,6 @@ function SiblingRoomsSection({
   );
 }
 
-function StepPlaceholder({ step }: { step: CheckInV2StepId }) {
-  const meta = CHECKIN_V2_STEPS.find((item) => item.id === step);
-  return (
-    <div
-      className="flex min-h-64 flex-col items-center justify-center gap-3 p-8 text-center"
-      data-testid={`fo-ci-v2-step-placeholder-${step}`}
-    >
-      <p className="font-semibold text-[#251605]">{meta?.label ?? "Next step"}</p>
-      <p className="max-w-sm text-sm text-[#6B5E4E]">This step is not available yet.</p>
-    </div>
-  );
-}
-
 export function FoCheckInV2Workspace({
   restaurantId,
   reservationId,
@@ -1204,8 +1235,39 @@ export function FoCheckInV2Workspace({
   const [agreementSigned, setAgreementSigned] = useState(false);
   const registrationRef = useRef<CheckInRegistrationHandle>(null);
   const agreementRef = useRef<CheckInAgreementHandle>(null);
+  const reviewRef = useRef<CheckInReviewHandle>(null);
+  const [agreementActions, setAgreementActions] = useState<CheckInAgreementActions>({
+    canSign: false,
+    canSave: false,
+    busy: false,
+  });
+  const [reviewActions, setReviewActions] = useState<CheckInReviewActions>({
+    canComplete: false,
+    busy: false,
+    checkedIn: false,
+    roomReadiness: null,
+  });
   const onAgreementReady = useCallback((signed: boolean) => {
     setAgreementSigned((current) => (current === signed ? current : signed));
+  }, []);
+  const onAgreementActions = useCallback((actions: CheckInAgreementActions) => {
+    setAgreementActions((current) =>
+      current.canSign === actions.canSign &&
+      current.canSave === actions.canSave &&
+      current.busy === actions.busy
+        ? current
+        : actions,
+    );
+  }, []);
+  const onReviewActions = useCallback((actions: CheckInReviewActions) => {
+    setReviewActions((current) =>
+      current.canComplete === actions.canComplete &&
+      current.busy === actions.busy &&
+      current.checkedIn === actions.checkedIn &&
+      current.roomReadiness === actions.roomReadiness
+        ? current
+        : actions,
+    );
   }, []);
   const onAgreementSummary = useCallback((summary: CheckInAgreementSummary) => {
     setAgreementSummary((current) =>
@@ -1241,6 +1303,17 @@ export function FoCheckInV2Workspace({
     );
   }, []);
   const activeRoomId = switchUnitId ?? reservationRoomId ?? null;
+  const reviewScope = `${reservationId}:${activeRoomId ?? "legacy"}`;
+  const [reviewScopeSeen, setReviewScopeSeen] = useState(reviewScope);
+  if (reviewScopeSeen !== reviewScope) {
+    setReviewScopeSeen(reviewScope);
+    setReviewActions({
+      canComplete: false,
+      busy: false,
+      checkedIn: false,
+      roomReadiness: null,
+    });
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -1322,7 +1395,13 @@ export function FoCheckInV2Workspace({
             </Button>
           </div>
           <div className="mt-3 overflow-x-auto pb-1">
-            <StepRail currentStep={step} />
+            <StepRail
+              currentStep={step}
+              complete={
+                step === "review_checkin" &&
+                (reviewActions.checkedIn || unitAlreadyCheckedIn(unitQuery.data?.status))
+              }
+            />
           </div>
         </SheetHeader>
 
@@ -1505,13 +1584,31 @@ export function FoCheckInV2Workspace({
                     reservationId={reservationId}
                     reservationRoomId={activeRoomId}
                     unit={unit}
+                    confirmationNumber={
+                      confirmationNumber ?? reservation?.confirmationNumber ?? null
+                    }
                     onReady={onAgreementReady}
                     onSummary={onAgreementSummary}
+                    onActions={onAgreementActions}
                     onRefresh={reloadUnit}
                   />
-                ) : (
-                  <StepPlaceholder step={step} />
-                )}
+                ) : step === "review_checkin" ? (
+                  <FoCheckInV2Review
+                    ref={reviewRef}
+                    restaurantId={restaurantId}
+                    reservationId={reservationId}
+                    reservationRoomId={activeRoomId}
+                    unit={unit}
+                    reservation={reservation}
+                    confirmationNumber={
+                      confirmationNumber ?? reservation?.confirmationNumber ?? null
+                    }
+                    onEdit={setStep}
+                    onActions={onReviewActions}
+                    onClose={() => handleOpenChange(false)}
+                    onRefresh={reloadUnit}
+                  />
+                ) : null}
               </div>
               <div data-testid="fo-ci-v2-summary-col">
                 <CheckInSummaryColumn
@@ -1522,6 +1619,9 @@ export function FoCheckInV2Workspace({
                   registrationStatus={registrationStatus}
                   depositSummary={depositSummary}
                   agreementSummary={agreementSummary}
+                  checkedIn={reviewActions.checkedIn || unitAlreadyCheckedIn(unit.status)}
+                  confirmationNumber={confirmationNumber ?? reservation?.confirmationNumber ?? null}
+                  roomReadiness={reviewActions.roomReadiness}
                 />
               </div>
             </div>
@@ -1565,13 +1665,16 @@ export function FoCheckInV2Workspace({
               >
                 Cancel
               </Button>
-            ) : (
+            ) : step === "review_checkin" ? (
               <Button
                 variant="outline"
-                onClick={() =>
-                  setStep(step === "review_checkin" ? "agreement_signature" : "payment_guarantee")
-                }
+                onClick={() => setStep("agreement_signature")}
+                data-testid="fo-ci-v2-back-agreement"
               >
+                Back
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => setStep("payment_guarantee")}>
                 Back
               </Button>
             )}
@@ -1615,18 +1718,50 @@ export function FoCheckInV2Workspace({
                   data-testid="fo-ci-v2-continue-review"
                   onClick={() => setStep("review_checkin")}
                 >
-                  Continue to Review & Check-In
+                  Next: Review & Check-In
                   <ArrowRight className="ml-2 size-4" />
                 </Button>
               ) : (
-                <Button
-                  className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-                  data-testid="fo-ci-v2-sign-agreement-footer"
-                  onClick={() => void agreementRef.current?.sign()}
-                >
-                  Sign Agreement
-                </Button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    data-testid="fo-ci-v2-save-agreement-draft"
+                    disabled={!agreementActions.canSave || agreementActions.busy}
+                    onClick={() => void agreementRef.current?.save()}
+                  >
+                    Save as Draft
+                  </Button>
+                  <Button
+                    className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                    data-testid="fo-ci-v2-sign-agreement-footer"
+                    disabled={!agreementActions.canSign || agreementActions.busy}
+                    onClick={() => void agreementRef.current?.sign()}
+                  >
+                    {agreementActions.busy ? "Signing…" : "Sign Agreement"}
+                  </Button>
+                </div>
               )
+            ) : step === "review_checkin" ? (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  data-testid="fo-ci-v2-print-registration"
+                  onClick={() => reviewRef.current?.print()}
+                >
+                  Print Registration Form
+                </Button>
+                {reviewActions.checkedIn || unitAlreadyCheckedIn(unit?.status) ? null : (
+                  <Button
+                    className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                    data-testid="fo-ci-v2-complete-checkin"
+                    disabled={!reviewActions.canComplete || reviewActions.busy}
+                    aria-describedby="fo-ci-v2-complete-reason"
+                    onClick={() => reviewRef.current?.requestComplete()}
+                  >
+                    {reviewActions.busy ? "Completing…" : "Complete Check-In"}
+                  </Button>
+                )}
+              </div>
             ) : null}
           </div>
         </footer>

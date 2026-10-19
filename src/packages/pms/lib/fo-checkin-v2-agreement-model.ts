@@ -5,7 +5,10 @@
 import {
   signatureStoragePrefix,
   type CheckInAgreementAcknowledgement,
+  type CheckInAgreementAcknowledgementView,
   type CheckInAgreementRead,
+  type CheckInAgreementSectionView,
+  type CheckInAgreementVersion,
 } from "@/packages/pms/lib/fo-check-in-agreement";
 
 export type AgreementProgressStatus =
@@ -31,14 +34,98 @@ export function agreementAcknowledgementLabel(key: string): string {
   return key;
 }
 
-/** Flags already stored on this unit. A review flag is added only when none were returned. */
+/** Enabled acknowledgements from the published version, in display order. */
+export function agreementAcknowledgementItems(
+  read: CheckInAgreementRead | null | undefined,
+): CheckInAgreementAcknowledgementView[] {
+  const items = read?.version?.acknowledgements ?? [];
+  return [...items].sort((a, b) => a.displayOrder - b.displayOrder);
+}
+
+/** Enabled sections from the published version, in display order. */
+export function agreementSectionItems(
+  read: CheckInAgreementRead | null | undefined,
+): CheckInAgreementSectionView[] {
+  const items = read?.version?.sections ?? [];
+  return [...items].sort((a, b) => a.displayOrder - b.displayOrder);
+}
+
+/**
+ * Flags keyed by the configured acknowledgement ids, seeded from the stored record.
+ * The review flag is used only when the version has no configured acknowledgements,
+ * because the save command needs at least one flag.
+ */
 export function agreementAcknowledgementState(
   read: CheckInAgreementRead,
 ): CheckInAgreementAcknowledgement {
   const source = read.draft?.acknowledgements ?? read.signed?.acknowledgements ?? {};
+  const items = agreementAcknowledgementItems(read);
+  if (items.length > 0) {
+    const flags: CheckInAgreementAcknowledgement = {};
+    for (const item of items) flags[item.id] = source[item.id] === true;
+    return flags;
+  }
   if (Object.keys(source).length > 0) return { ...source };
   if (read.signed || read.blocker) return {};
   return { [CHECKIN_AGREEMENT_REVIEW_FLAG]: false };
+}
+
+/** Required configured ids that are not accepted. Without configured items every flag counts. */
+export function agreementMissingRequired(
+  read: CheckInAgreementRead | null | undefined,
+  flags: CheckInAgreementAcknowledgement,
+): string[] {
+  const items = agreementAcknowledgementItems(read);
+  if (items.length > 0) {
+    return items.filter((item) => item.required && flags[item.id] !== true).map((item) => item.id);
+  }
+  const keys = Object.keys(flags);
+  if (keys.length === 0) return [CHECKIN_AGREEMENT_REVIEW_FLAG];
+  return keys.filter((key) => flags[key] !== true);
+}
+
+export function agreementSignReady(input: {
+  read: CheckInAgreementRead | null | undefined;
+  flags: CheckInAgreementAcknowledgement;
+  strokes: number;
+  guestMatches: boolean;
+}): boolean {
+  const { read } = input;
+  if (!read?.version || read.blocker) return false;
+  if (read.signed && !read.draft) return false;
+  if (!input.guestMatches) return false;
+  if (!signatureHasInk(input.strokes)) return false;
+  return agreementMissingRequired(read, input.flags).length === 0;
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** "Version 3" for numbered labels. Never shows a bare row id. */
+export function agreementVersionLabel(version: CheckInAgreementVersion | null | undefined): string {
+  if (!version) return "—";
+  const label = version.label.trim();
+  if (!label || label === version.id || UUID_PATTERN.test(label)) return "Published Agreement";
+  if (/^v?\d+(\.\d+)*$/i.test(label)) return `Version ${label.replace(/^v/i, "")}`;
+  return label;
+}
+
+/** Staff memberships come back as ids only. Show a short reference, not the full id. */
+export function agreementStaffReference(membershipId: string | null | undefined): string {
+  if (!membershipId) return "—";
+  return `Front desk staff (ref ${membershipId.slice(0, 8)})`;
+}
+
+export function formatAgreementTimestamp(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function acknowledgementsMatch(
@@ -87,10 +174,10 @@ export function buildCheckInAgreementSummary(
   guestName: string | null,
 ): CheckInAgreementSummary {
   return {
-    version: read?.version?.label ?? "—",
+    version: agreementVersionLabel(read?.version),
     status: agreementProgressStatus(read),
     signedBy: read?.signed ? guestName : null,
-    signedAt: read?.signed?.signedAt ?? null,
+    signedAt: read?.signed ? formatAgreementTimestamp(read.signed.signedAt) : null,
   };
 }
 

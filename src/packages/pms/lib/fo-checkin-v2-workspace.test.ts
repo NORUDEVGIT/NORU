@@ -201,6 +201,7 @@ describe("Check-In Step 1 workspace", () => {
     assert.match(workspace, /data-testid="fo-ci-v2-progress"/);
     assert.match(workspace, /view\.registrationComplete/);
     assert.doesNotMatch(workspace, /unit\.status === "checked_in"/);
+    assert.match(workspace, /unitAlreadyCheckedIn\(unit\.status\)/);
   });
 
   it("changes the room through the existing assignment command", () => {
@@ -256,8 +257,7 @@ describe("Check-In Step 1 workspace", () => {
   it("advances to a Registration placeholder without building Registration", () => {
     assert.match(workspace, /setStep\("registration"\)/);
     assert.match(workspace, /data-testid="fo-ci-v2-next-registration"/);
-    assert.match(workspace, /fo-ci-v2-step-placeholder-/);
-    assert.match(workspace, /This step is not available yet/);
+    assert.match(workspace, /FoCheckInV2Registration/);
     assert.doesNotMatch(workspace, /saveCheckInRegistration/);
     assert.doesNotMatch(workspace, /idDocumentNumber/);
     assert.doesNotMatch(workspace, /price_hotel_stay/);

@@ -141,6 +141,8 @@ export const registerRestaurant = createServerFn({ method: "POST" })
 
       const { provisionDisabledPackageEntitlements } = await import("./package-entitlements.server");
       await provisionDisabledPackageEntitlements(restaurantId);
+      const { seedGuestAgreementDraft } = await import("@/packages/pms/lib/guest-agreement.server");
+      await seedGuestAgreementDraft(supabaseAdmin, restaurantId);
 
       return {
         ok: true as const,
