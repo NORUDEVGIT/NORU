@@ -4,7 +4,6 @@ export const CASHIERING_TABS = [
   { id: "overview", label: "Overview" },
   { id: "folios", label: "Folios" },
   { id: "accounts", label: "Accounts" },
-  { id: "exceptions", label: "Exceptions" },
   { id: "reports", label: "Reports" },
   { id: "cashier-shift", label: "Cashier Shift" },
 ] as const;
@@ -22,6 +21,7 @@ const TAB_ALIASES: Record<string, CashieringTabId> = {
   payments: "overview",
   deposits: "overview",
   refunds: "overview",
+  exceptions: "overview",
   shifts: "cashier-shift",
   "cashier-shifts": "cashier-shift",
   transfers: "overview",
@@ -62,6 +62,7 @@ export function resolveCashieringTab(value: string | undefined | null): Cashieri
 export type CashieringSearchParams = {
   tab?: CashieringTabId;
   folio?: string;
+  shift?: string;
   account?: "all" | "guest" | "company" | "group";
   q?: string;
   page?: number;

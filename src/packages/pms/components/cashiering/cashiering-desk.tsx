@@ -34,7 +34,7 @@ import { toast } from "sonner";
 import { FolioSearchPanel } from "@/packages/pms/components/cashiering/folio-search-panel";
 import {
   AccountsPanel,
-  ExceptionsPanel,
+  AttentionRequired,
   ReportsPanel,
   TransfersPanel,
 } from "@/packages/pms/components/cashiering/cashiering-phase-panels";
@@ -856,7 +856,9 @@ export function CashieringDesk({
               ...(selected?.id ? { folio: selected.id } : {}),
             })
           }
-          onOpenShift={() => onTab("cashier-shift", null)}
+          onOpenShift={(shiftId) =>
+            onTab("cashier-shift", null, shiftId ? { shift: shiftId } : undefined)
+          }
           openFolios={folios}
           sourceLineId={sourceLineId}
           onChooseFolio={(folioId) => {
@@ -895,10 +897,6 @@ export function CashieringDesk({
         <AccountsPanel restaurantId={restaurantId} canManage={canManage} money={money} />
       ) : null}
 
-      {tab === "exceptions" ? (
-        <ExceptionsPanel restaurantId={restaurantId} money={money} dateTime={dateTime} />
-      ) : null}
-
       {tab === "reports" ? (
         <ReportsPanel restaurantId={restaurantId} money={money} timezone={timezone} />
       ) : null}
@@ -913,6 +911,15 @@ export function CashieringDesk({
           money={money}
           dateTime={dateTime}
           onNavigate={(next, extra) => onTab(next, null, extra)}
+          selectedShiftId={searchParams.shift ?? null}
+          onShiftDetailChange={(shiftId) => {
+            if (shiftId) {
+              onTab("cashier-shift", null, { shift: shiftId });
+              return;
+            }
+            const { shift: _shift, ...next } = searchParams;
+            onSearchParams({ ...next, tab: "cashier-shift" });
+          }}
         />
       ) : null}
     </div>
@@ -1026,7 +1033,7 @@ function Overview({
   canAllocate: boolean;
   onSelect: (folio: FolioRow) => void;
   onActivity: (activity: CashieringActivityFilter) => void;
-  onOpenShift: () => void;
+  onOpenShift: (shiftId?: string) => void;
   openFolios: FolioRow[];
   sourceLineId: string | null;
   onChooseFolio: (folioId: string) => void;
@@ -1078,9 +1085,9 @@ function Overview({
             onClick={() => onActivity("payment")}
           >
             <Kpi
-              label="Payments"
+              label="Today's Payments"
               value={money(dashboard.todayPayments)}
-              hint="Click to filter financial activity"
+              hint="Posted on the current business date"
               tone="green"
               icon={Banknote}
             />
@@ -1092,9 +1099,9 @@ function Overview({
             onClick={() => onActivity("deposit")}
           >
             <Kpi
-              label="Deposits"
+              label="Today's Deposits"
               value={money(dashboard.todayDeposits)}
-              hint="Click to filter financial activity"
+              hint="Collected on the current business date"
               tone="gold"
               icon={Coins}
             />
@@ -1106,9 +1113,9 @@ function Overview({
             onClick={() => onActivity("refund")}
           >
             <Kpi
-              label="Refunds"
+              label="Today's Refunds"
               value={money(dashboard.todayRefunds)}
-              hint="Click to filter financial activity"
+              hint="Posted on the current business date"
               tone="rose"
               icon={Undo2}
             />
@@ -1159,37 +1166,13 @@ function Overview({
           onSelect={onSelect}
         />
         <aside className="space-y-3.5">
-          <SideCard title="Today’s Activity">
-            {dashboard ? (
-              <ul className="space-y-1 text-sm">
-                <ActivityRow
-                  label="Total Charges"
-                  value={money(dashboard.todayCharges)}
-                  icon={Plus}
-                  onClick={() => onActivity("folios")}
-                />
-                <ActivityRow
-                  label="Payments Received"
-                  value={money(dashboard.todayPayments)}
-                  icon={Banknote}
-                  onClick={() => onActivity("payment")}
-                />
-                <ActivityRow
-                  label="Deposits Collected"
-                  value={money(dashboard.todayDeposits)}
-                  icon={Coins}
-                  onClick={() => onActivity("deposit")}
-                />
-                <ActivityRow
-                  label="Refunds Processed"
-                  value={money(dashboard.todayRefunds)}
-                  icon={Undo2}
-                  onClick={() => onActivity("refund")}
-                />
-              </ul>
-            ) : (
-              <p className="p-3 text-center text-xs text-[#7A7167]">No activity loaded.</p>
-            )}
+          <SideCard title="Attention Required">
+            <AttentionRequired
+              restaurantId={restaurantId}
+              money={money}
+              dateTime={dateTime}
+              onOpenShift={onOpenShift}
+            />
           </SideCard>
           <SideCard
             title="Recent Transactions"
@@ -1284,38 +1267,6 @@ function Overview({
         documentProperty={documentProperty}
       />
     </div>
-  );
-}
-
-function ActivityRow({
-  label,
-  value,
-  onClick,
-  icon: Icon = Plus,
-}: {
-  label: string;
-  value: string;
-  onClick: () => void;
-  icon?: LucideIcon;
-}) {
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={onClick}
-        className="group flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[#FAF8F4]"
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="grid size-6 shrink-0 place-items-center rounded border border-[#E8DCC4]/80 bg-[#FAF4E6] text-[#8A6A24]">
-            <Icon className="size-3.5" />
-          </span>
-          <span className="truncate text-xs font-medium text-[#5F554B] group-hover:text-[#251605]">
-            {label}
-          </span>
-        </div>
-        <span className="font-display text-sm font-bold tabular-nums text-[#251605]">{value}</span>
-      </button>
-    </li>
   );
 }
 

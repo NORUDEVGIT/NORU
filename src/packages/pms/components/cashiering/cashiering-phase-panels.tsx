@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  ArrowLeftRight,
   Building2,
   ChevronLeft,
   ChevronRight,
-  CircleAlert,
   Coins,
   Download,
   FileSpreadsheet,
@@ -19,7 +17,6 @@ import {
   Search,
   Users,
   Wallet,
-  type LucideIcon,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -1045,91 +1042,26 @@ export function DepositAllocationForm({
   );
 }
 
-function ExceptionCard({
-  row,
-  money,
-  dateTime,
-  icon: Icon,
-  tone,
-}: {
-  row: CashieringExceptionRow;
-  money: (n: number) => string;
-  dateTime: (iso: string | null | undefined) => string;
-  icon: LucideIcon;
-  tone: "destructive" | "amber";
-}) {
-  return (
-    <li
-      className={cn(
-        "rounded-xl border bg-card p-4 shadow-sm",
-        tone === "destructive" ? "border-rose-200" : "border-amber-200",
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <span
-          className={cn(
-            "grid size-8 shrink-0 place-items-center rounded-md",
-            tone === "destructive" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800",
-          )}
-        >
-          <Icon className="size-4" aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          {row.kind === "unsettled_checkout" ? (
-            <>
-              <p className="font-medium">Unsettled checkout — {row.folioNumber}</p>
-              <p
-                className={cn(
-                  "mt-1 text-sm",
-                  tone === "destructive" ? "text-destructive" : "text-amber-900",
-                )}
-              >
-                Balance {money(row.balance ?? 0)}. {row.reason ?? "No reason recorded."}
-              </p>
-              {row.at ? (
-                <p className="mt-1 text-xs text-muted-foreground">{dateTime(row.at)}</p>
-              ) : null}
-              {row.folioId ? (
-                <Button
-                  asChild
-                  size="sm"
-                  className="mt-3 min-h-11 bg-[#C89933] text-[#251605] hover:bg-[#B5882D] sm:min-h-9"
-                >
-                  <Link
-                    to="/restaurant/pms/cashiering/folios/$folioId"
-                    params={{ folioId: row.folioId }}
-                  >
-                    Open folio
-                  </Link>
-                </Button>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <p className="font-medium">Drawer variance</p>
-              <p className="mt-1 text-sm text-amber-900">
-                Variance {money(row.variance ?? 0)}
-                {row.shiftId ? ` · Shift ${shortRef(row.shiftId)}` : ""}
-              </p>
-              {row.at ? (
-                <p className="mt-1 text-xs text-muted-foreground">Closed {dateTime(row.at)}</p>
-              ) : null}
-            </>
-          )}
-        </div>
-      </div>
-    </li>
-  );
+function attentionPreview(rows: CashieringExceptionRow[]): CashieringExceptionRow[] {
+  const unsettled = rows.filter((row) => row.kind === "unsettled_checkout");
+  const variances = rows.filter((row) => row.kind === "drawer_variance");
+  if (unsettled.length > 0 && variances.length > 0) {
+    const checkoutRows = unsettled.slice(0, 2);
+    return [...checkoutRows, ...variances.slice(0, 3 - checkoutRows.length)];
+  }
+  return rows.slice(0, 3);
 }
 
-export function ExceptionsPanel({
+export function AttentionRequired({
   restaurantId,
   money,
   dateTime,
+  onOpenShift,
 }: {
   restaurantId: string;
   money: (n: number) => string;
   dateTime: (iso: string | null | undefined) => string;
+  onOpenShift: (shiftId?: string) => void;
 }) {
   const fetchExceptions = useServerFn(listCashieringExceptions);
   const query = useQuery({
@@ -1138,47 +1070,93 @@ export function ExceptionsPanel({
   });
 
   const rows = query.data ?? [];
-  const unsettled = rows.filter((row) => row.kind === "unsettled_checkout");
-  const variances = rows.filter((row) => row.kind === "drawer_variance");
+  const unsettled = rows.filter((row) => row.kind === "unsettled_checkout").length;
+  const variances = rows.filter((row) => row.kind === "drawer_variance").length;
+  const preview = attentionPreview(rows);
 
   return (
-    <div className="space-y-4" data-testid="cashiering-exceptions-panel">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Kpi
-          label="Unsettled Checkouts"
-          value={String(unsettled.length)}
-          hint="Open folios after checkout override"
-          tone="rose"
-          icon={CircleAlert}
-        />
-        <Kpi
-          label="Drawer Variances"
-          value={String(variances.length)}
-          hint="Last 7 days"
-          tone="amber"
-          icon={Wallet}
-        />
-      </div>
-      <DeskSection
-        title={`Open exceptions (${rows.length})`}
-        loading={query.isLoading}
-        error={query.isError ? (query.error as Error).message : null}
-        isEmpty={rows.length === 0}
-        empty="No open exceptions. Cleared only by a real settling post — not a manual resolved flag."
-      >
-        <ul className="space-y-3 p-4">
-          {rows.map((row: CashieringExceptionRow, index) => (
-            <ExceptionCard
+    <div className="space-y-3" data-testid="cashiering-attention-required">
+      <dl className="grid grid-cols-2 gap-2">
+        <div>
+          <dt className="text-[11px] font-medium text-[#7A7167]">Unsettled checkouts</dt>
+          <dd className="font-display text-sm font-bold tabular-nums text-[#251605]">
+            {query.isLoading ? "…" : query.isError ? "—" : unsettled}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[11px] font-medium text-[#7A7167]">Drawer variances</dt>
+          <dd className="font-display text-sm font-bold tabular-nums text-[#251605]">
+            {query.isLoading ? "…" : query.isError ? "—" : variances}
+          </dd>
+        </div>
+      </dl>
+      {query.isError ? (
+        <p className="text-xs text-destructive">{(query.error as Error).message}</p>
+      ) : null}
+      {!query.isLoading && !query.isError && rows.length === 0 ? (
+        <p className="text-xs text-[#7A7167]">
+          Nothing needs attention. Cleared only by a real settling post — not a manual resolved
+          flag.
+        </p>
+      ) : null}
+      {preview.length > 0 ? (
+        <ul className="space-y-2">
+          {preview.map((row, index) => (
+            <li
               key={`${row.kind}-${row.folioId ?? row.shiftId}-${index}`}
-              row={row}
-              money={money}
-              dateTime={dateTime}
-              icon={row.kind === "unsettled_checkout" ? CircleAlert : ArrowLeftRight}
-              tone={row.kind === "unsettled_checkout" ? "destructive" : "amber"}
-            />
+              className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F4]/40 p-2"
+            >
+              {row.kind === "unsettled_checkout" ? (
+                <>
+                  <p className="text-xs font-semibold text-[#251605]">
+                    Unsettled checkout — {row.folioNumber}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-[#7A7167]">
+                    Balance {money(row.balance ?? 0)}
+                    {row.at ? ` · ${dateTime(row.at)}` : ""}
+                  </p>
+                  {row.folioId ? (
+                    <Button
+                      asChild
+                      size="sm"
+                      className="mt-2 h-8 bg-[#C89933] text-xs text-[#251605] hover:bg-[#B5882D]"
+                    >
+                      <Link
+                        to="/restaurant/pms/cashiering/folios/$folioId"
+                        params={{ folioId: row.folioId }}
+                      >
+                        Open folio
+                      </Link>
+                    </Button>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <p className="text-xs font-semibold text-[#251605]">Drawer variance</p>
+                  <p className="mt-0.5 text-[11px] text-[#7A7167]">
+                    Variance {money(row.variance ?? 0)}
+                    {row.shiftId ? ` · Shift ${shortRef(row.shiftId)}` : ""}
+                    {row.at ? ` · Closed ${dateTime(row.at)}` : ""}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="mt-2 h-8 bg-[#C89933] text-xs text-[#251605] hover:bg-[#B5882D]"
+                    onClick={() => onOpenShift(row.shiftId)}
+                  >
+                    Open Cashier Shift
+                  </Button>
+                </>
+              )}
+            </li>
           ))}
         </ul>
-      </DeskSection>
+      ) : null}
+      {!query.isLoading && rows.length > preview.length ? (
+        <p className="text-[11px] text-[#7A7167]">
+          Showing {preview.length} of {rows.length}
+        </p>
+      ) : null}
     </div>
   );
 }

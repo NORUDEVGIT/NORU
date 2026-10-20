@@ -20,7 +20,7 @@ describe("cashiering desk shell", () => {
   it("keeps the desk URL tabs and maps the old names", () => {
     assert.deepEqual(
       CASHIERING_TABS.map((tab) => tab.id),
-      ["overview", "folios", "accounts", "exceptions", "reports", "cashier-shift"],
+      ["overview", "folios", "accounts", "reports", "cashier-shift"],
     );
     assert.equal(CASHIERING_DESK_EYEBROW, "Operations");
     assert.equal(CASHIERING_DESK_TITLE, "Cashiering");
@@ -37,6 +37,7 @@ describe("cashiering desk shell", () => {
     assert.equal(resolveCashieringTab("payments"), "overview");
     assert.equal(resolveCashieringTab("deposits"), "overview");
     assert.equal(resolveCashieringTab("refunds"), "overview");
+    assert.equal(resolveCashieringTab("exceptions"), "overview");
     assert.equal(activityFilterFromLegacyTab("payments"), "payment");
     assert.equal(activityFilterFromLegacyTab("deposits"), "deposit");
     assert.equal(activityFilterFromLegacyTab("refunds"), "refund");
@@ -53,6 +54,10 @@ describe("cashiering desk shell", () => {
     });
     assert.deepEqual(cashieringTabSearch("overview", null, { folio: "folio-1" }), {
       tab: "overview",
+    });
+    assert.deepEqual(cashieringTabSearch("cashier-shift", null, { shift: "shift-1" }), {
+      shift: "shift-1",
+      tab: "cashier-shift",
     });
   });
 
@@ -85,6 +90,8 @@ describe("cashiering desk shell", () => {
     assert.match(panel, /Expected Cash/);
     assert.match(panel, /Restaurant sales are not included/);
     assert.match(desk, /selectOwnOpenShift/);
+    assert.match(panel, /cashier-shift-detail-drawer/);
+    assert.match(panel, /Transactions stamped to this hotel drawer/);
     assert.doesNotMatch(desk, /expected_cash|City Ledger|Company Folio|Unallocated|Allocated/);
     assert.doesNotMatch(desk, /PAN|CVV|provider/);
   });

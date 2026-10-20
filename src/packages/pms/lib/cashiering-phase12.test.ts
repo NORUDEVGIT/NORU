@@ -26,6 +26,10 @@ const panels = readFileSync(
   "utf8",
 );
 const shell = readFileSync(new URL("./cashiering-shell.ts", import.meta.url), "utf8");
+const desk = readFileSync(
+  new URL("../components/cashiering/cashiering-desk.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("Cashiering Phase 12 exceptions and reports", () => {
   it("derives exceptions and sums canonical ledger lines", () => {
@@ -40,7 +44,11 @@ describe("Cashiering Phase 12 exceptions and reports", () => {
     assert.match(poster, /propertyDayBounds/);
     assert.doesNotMatch(poster, /list_cashiering_exceptions|cashiering_report_totals/);
     assert.match(panels, /Cleared only by a real settling post/);
-    assert.match(shell, /id: "exceptions"/);
+    assert.match(panels, /data-testid="cashiering-attention-required"/);
+    assert.match(desk, /Attention Required/);
+    assert.doesNotMatch(desk, /Today’s Activity/);
+    assert.match(shell, /exceptions: "overview"/);
+    assert.doesNotMatch(shell, /id: "exceptions"/);
     assert.match(shell, /id: "reports"/);
   });
 
