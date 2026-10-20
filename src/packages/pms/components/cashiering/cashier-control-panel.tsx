@@ -60,6 +60,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/shared/components/ui/sheet";
 
 const CARD = "rounded-xl border border-[#E8E1D7] bg-white shadow-2xs";
 
@@ -72,6 +79,8 @@ export function CashierControl({
   money,
   dateTime,
   onNavigate,
+  selectedShiftId,
+  onShiftDetailChange,
 }: {
   restaurantId: string;
   membershipId: string;
@@ -81,6 +90,8 @@ export function CashierControl({
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
   onNavigate: (tab: CashieringTabId, extra?: Partial<CashieringSearchParams>) => void;
+  selectedShiftId: string | null;
+  onShiftDetailChange: (shiftId: string | null) => void;
 }) {
   const queryClient = useQueryClient();
   const [now, setNow] = useState(() => Date.now());
@@ -291,9 +302,21 @@ export function CashierControl({
             money={money}
             dateTime={dateTime}
             ownOnly={role === "cashier"}
+            onSelect={(shift) => onShiftDetailChange(shift.id)}
           />
         </div>
       </div>
+
+      <ShiftDetailDrawer
+        restaurantId={restaurantId}
+        shiftId={selectedShiftId}
+        shift={shifts.find((row) => row.id === selectedShiftId) ?? null}
+        shiftsLoading={shiftsQuery.isLoading}
+        money={money}
+        dateTime={dateTime}
+        now={now}
+        onClose={() => onShiftDetailChange(null)}
+      />
 
       {/* Modal: Open Shift */}
       {canOperate ? (
@@ -1117,11 +1140,13 @@ function ShiftHistoryCard({
   money,
   dateTime,
   ownOnly,
+  onSelect,
 }: {
   rows: CashierShiftRow[];
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
   ownOnly: boolean;
+  onSelect: (shift: CashierShiftRow) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const displayed = expanded ? rows : rows.slice(0, 5);
@@ -1162,7 +1187,20 @@ function ShiftHistoryCard({
                 const isMatched = shift.variance !== null && Math.abs(shift.variance) < 0.01;
 
                 return (
-                  <tr key={shift.id} className="hover:bg-[#FCFBF9]">
+                  <tr
+                    key={shift.id}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Open shift details for ${shift.staffName}`}
+                    className="cursor-pointer hover:bg-[#FCFBF9] focus-visible:bg-[#FAF5EB] focus-visible:outline-none"
+                    onClick={() => onSelect(shift)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelect(shift);
+                      }
+                    }}
+                  >
                     <td className="px-3 py-2 font-medium text-[#251605]">{shift.staffName}</td>
                     <td className="px-3 py-2 text-[#5F554B] tabular-nums">
                       {dateTime(shift.openedAt)}
@@ -1214,6 +1252,227 @@ function ShiftHistoryCard({
         </div>
       )}
     </section>
+  );
+}
+
+function ShiftDetailDrawer({
+  restaurantId,
+  shiftId,
+  shift,
+  shiftsLoading,
+  money,
+  dateTime,
+  now,
+  onClose,
+}: {
+  restaurantId: string;
+  shiftId: string | null;
+  shift: CashierShiftRow | null;
+  shiftsLoading: boolean;
+  money: (value: number) => string;
+  dateTime: (iso: string | null | undefined) => string;
+  now: number;
+  onClose: () => void;
+}) {
+  const fetchActivity = useServerFn(getCashierShiftActivity);
+  const activityQuery = useQuery({
+    queryKey: ["cashier-shift-activity", restaurantId, shiftId],
+    queryFn: () => fetchActivity({ data: { restaurantId, shiftId: shiftId! } }),
+    enabled: Boolean(shiftId),
+    retry: false,
+  });
+  const activity = activityQuery.data;
+  const lines = activity?.lines ?? [];
+  const variance = shift?.variance ?? null;
+
+  return (
+    <Sheet open={Boolean(shiftId)} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
+        data-testid="cashier-shift-detail-drawer"
+      >
+        <SheetHeader className="border-b border-[#E8E1D7] bg-[#FAF8F4] px-5 py-4 pr-12">
+          <SheetTitle>Cashier Shift Details</SheetTitle>
+          <SheetDescription>
+            {shift
+              ? `${shift.staffName} · ${dateTime(shift.openedAt)}`
+              : "Drawer reconciliation and stamped cash activity"}
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 space-y-5 overflow-y-auto p-5">
+          {shiftsLoading ? <p className="text-sm text-[#7A7167]">Loading shift…</p> : null}
+          {!shiftsLoading && shiftId && !shift ? (
+            <p className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+              This shift is no longer available.
+            </p>
+          ) : null}
+
+          {shift ? (
+            <>
+              <section className="rounded-xl border border-[#E8E1D7] bg-white p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-[#251605]">{shift.staffName}</p>
+                    <p className="mt-0.5 text-xs text-[#7A7167]">
+                      {dateTime(shift.openedAt)} →{" "}
+                      {shift.closedAt ? dateTime(shift.closedAt) : "Open"}
+                    </p>
+                  </div>
+                  <span
+                    className={
+                      shift.status === "open"
+                        ? "rounded-full border border-[#A3E0C1] bg-[#E7F6EE] px-2.5 py-1 text-[10px] font-semibold uppercase text-[#146C43]"
+                        : "rounded-full border border-[#DDD4C5] bg-[#FAF8F4] px-2.5 py-1 text-[10px] font-semibold uppercase text-[#5F554B]"
+                    }
+                  >
+                    {shift.status}
+                  </span>
+                </div>
+                <dl className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
+                  <ShiftDetailValue
+                    label="Duration"
+                    value={formatShiftDuration(shift.openedAt, shift.closedAt, now)}
+                  />
+                  <ShiftDetailValue
+                    label="Opening cash"
+                    value={shift.openingCash === null ? "—" : money(shift.openingCash)}
+                  />
+                  <ShiftDetailValue label="Cash in" value={money(shift.cashIn)} />
+                  <ShiftDetailValue label="Cash out" value={money(shift.cashOut)} />
+                  <ShiftDetailValue label="Expected cash" value={money(shift.expected)} />
+                  <ShiftDetailValue
+                    label="Counted cash"
+                    value={shift.closingCash === null ? "—" : money(shift.closingCash)}
+                  />
+                  <ShiftDetailValue
+                    label="Variance"
+                    value={variance === null ? "—" : `${variance > 0 ? "+" : ""}${money(variance)}`}
+                    tone={
+                      variance === null || Math.abs(variance) < 0.01 ? "default" : "destructive"
+                    }
+                  />
+                </dl>
+                {shift.notes ? (
+                  <div className="mt-4 rounded-lg bg-[#FAF8F4] p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[#7A7167]">
+                      Shift notes
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap text-xs text-[#251605]">{shift.notes}</p>
+                  </div>
+                ) : null}
+              </section>
+
+              <section>
+                <h3 className="text-sm font-semibold text-[#251605]">Cash Activity</h3>
+                <p className="mt-0.5 text-xs text-[#7A7167]">
+                  Transactions stamped to this hotel drawer
+                </p>
+                <dl className="mt-3 grid grid-cols-3 gap-2">
+                  <ShiftDetailValue label="Payments" value={money(activity?.cashPayments ?? 0)} />
+                  <ShiftDetailValue label="Deposits" value={money(activity?.cashDeposits ?? 0)} />
+                  <ShiftDetailValue label="Refunds" value={money(activity?.cashRefunds ?? 0)} />
+                </dl>
+              </section>
+            </>
+          ) : null}
+
+          {activityQuery.isLoading ? (
+            <p className="text-sm text-[#7A7167]">Loading transactions…</p>
+          ) : null}
+          {activityQuery.isError ? (
+            <p className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+              {(activityQuery.error as Error).message}
+            </p>
+          ) : null}
+          {!activityQuery.isLoading && !activityQuery.isError && shift && lines.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#DDD4C5] p-5 text-center">
+              <Receipt className="mx-auto size-5 text-[#7A7167]" />
+              <p className="mt-2 text-xs text-[#7A7167]">
+                No cash transactions or drawer movements were stamped to this shift.
+              </p>
+            </div>
+          ) : null}
+          {lines.length > 0 ? (
+            <section>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-[#251605]">Transactions</h3>
+                <span className="text-xs tabular-nums text-[#7A7167]">{lines.length} entries</span>
+              </div>
+              <ul className="mt-3 space-y-2">
+                {lines.map((line) => (
+                  <li
+                    key={line.id}
+                    className="rounded-lg border border-[#E8E1D7] bg-white p-3 text-xs"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-[#251605]">{line.description}</p>
+                        <p className="mt-0.5 text-[11px] capitalize text-[#7A7167]">
+                          {line.kind.replaceAll("_", " ")} · {dateTime(line.occurredAt)}
+                        </p>
+                        {line.guest || line.party ? (
+                          <p className="mt-1 text-[11px] text-[#5F554B]">
+                            {line.guest ?? line.party}
+                          </p>
+                        ) : null}
+                        {line.actor ? (
+                          <p className="mt-0.5 text-[10px] text-[#7A7167]">
+                            Posted by {line.actor}
+                          </p>
+                        ) : null}
+                      </div>
+                      <p
+                        className={`shrink-0 font-semibold tabular-nums ${
+                          line.amount < 0 ? "text-[#B91C1C]" : "text-[#146C43]"
+                        }`}
+                      >
+                        {line.amount > 0 ? "+" : line.amount < 0 ? "−" : ""}
+                        {money(Math.abs(line.amount))}
+                      </p>
+                    </div>
+                    {line.folioId ? (
+                      <Button asChild variant="outline" size="sm" className="mt-2 h-8 text-xs">
+                        <Link
+                          to="/restaurant/pms/cashiering/folios/$folioId"
+                          params={{ folioId: line.folioId }}
+                        >
+                          Open folio
+                        </Link>
+                      </Button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function ShiftDetailValue({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "destructive";
+}) {
+  return (
+    <div className="rounded-lg bg-[#FAF8F4] p-2.5">
+      <dt className="text-[10px] font-medium uppercase tracking-wide text-[#7A7167]">{label}</dt>
+      <dd
+        className={`mt-1 font-semibold tabular-nums ${
+          tone === "destructive" ? "text-[#B91C1C]" : "text-[#251605]"
+        }`}
+      >
+        {value}
+      </dd>
+    </div>
   );
 }
 
