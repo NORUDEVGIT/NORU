@@ -10,6 +10,7 @@ import { rateError, requireRateManager } from "../rates.server";
 import {
   getPromotionActivationDetail as loadPromotionActivationDetail,
   listPromotionActivations as loadPromotionActivations,
+  applyStoredPromotionActivation,
   previewStoredPromotionActivation,
 } from "./commercial-promotion-activation.server.ts";
 import { executeOrSubmitPromotionActivation } from "./revenue-approval.server.ts";
@@ -33,6 +34,10 @@ const previewSchema = z.object({
   expectedVersion: z.string().min(1).optional(),
 });
 
+const applySchema = previewSchema.extend({
+  applyImmediately: z.boolean().optional(),
+});
+
 export const previewPromotionActivation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => previewSchema.parse(input))
@@ -48,11 +53,16 @@ export const previewPromotionActivation = createServerFn({ method: "POST" })
 
 export const applyPromotionActivation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => previewSchema.parse(input))
+  .validator((input: unknown) => applySchema.parse(input))
   .handler(async ({ data, context }) => {
     const me = await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
+      if (data.applyImmediately) {
+        const { applyImmediately: _applyImmediately, ...proposal } = data;
+        const applied = await applyStoredPromotionActivation(supabaseAdmin, proposal, me.id);
+        return { mode: "applied" as const, ...applied };
+      }
       return await executeOrSubmitPromotionActivation(supabaseAdmin, data, {
         membershipId: me.id,
         userId: context.userId,

@@ -153,9 +153,13 @@ describe("P7-STEP-03 approval UI", () => {
     const dialog = readRel("../../components/rates/approvals/approval-action-dialog.tsx");
     const drawer = readRel("../../components/rates/approvals/approval-detail-drawer.tsx");
     const policy = readRel("../../components/rates/approvals/approval-policy-control.tsx");
+    const view = readRel("../../components/rates/approvals/approvals-view.tsx");
     assert.equal(APPROVE_APPLY_LABEL, "Approve & Apply");
     assert.equal(APPROVE_CONFIRM_COPY, "Approve and apply this requested change?");
     assert.match(dialog, /REJECT_REASON_REQUIRED|review reason/i);
+    assert.match(dialog, /z-\[100\]/);
+    assert.match(view, /actionTargetId/);
+    assert.match(view, /approvalRequestId: actionTargetId/);
     assert.equal(REJECT_REASON_REQUIRED.includes("required"), true);
     assert.match(drawer, /APPROVAL_STALE_COPY/);
     assert.match(drawer, /APPROVAL_STALE_HELP/);
