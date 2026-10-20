@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import {
-  GROUP_RATE_CHANGE_UNAVAILABLE,
+  GROUP_RATE_CHANGE_PER_ROOM,
   groupCombinedSubtotal,
   groupRoomRateSections,
   isGroupReservation,
@@ -14,7 +14,6 @@ import {
   CalendarDays,
   CreditCard,
   FileText,
-  Package,
   Percent,
   Plus,
   Shield,
@@ -44,15 +43,17 @@ import {
   ReservationStatusBadge,
 } from "@/packages/pms/components/bookings/reservation-bits";
 import { guestInitials, reviewDash } from "@/packages/pms/lib/create-reservation-review";
-import { listEligiblePackageActivations } from "@/packages/pms/lib/revenue/commercial-package.functions";
+import {
+  quoteFolioRoomCharge,
+  type FolioRoomChargeQuote,
+} from "@/packages/pms/lib/cashiering.functions";
 import { listPromotionActivations } from "@/packages/pms/lib/revenue/commercial-promotion-activation.functions";
 import {
   applyReservationPromotion,
+  removeReservationPromotion,
   saveRateNotes,
 } from "@/packages/pms/lib/reservation-detail-controls.functions";
 import { stayRoomUnitId } from "@/packages/pms/lib/reservation-detail-guest";
-import { applyReservationRoomPackage } from "@/packages/pms/lib/reservations.functions";
-import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import {
   DETAIL_DASH,
   depositStatusLabel,
@@ -62,17 +63,22 @@ import {
 } from "@/packages/pms/lib/reservation-detail-overview";
 import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
 import {
-  assignmentLabel,
+  buildRatesReadModel,
   marketSegmentLabel,
   nightlyBreakdownRows,
   packageNightsLabel,
   RATE_NOTES_MAX,
+  RATE_OVERRIDE_OWNERSHIP,
+  RATE_PACKAGE_SUMMARY_COPY,
+  RATE_PROMOTION_OUTSIDE_SUBTOTAL,
   rateCancellationLabel,
   rateChangePolicyLabel,
   ratePlanMealLabel,
   ratePlanRestrictions,
   snapshotNightlyTotal,
   stayRatePerNight,
+  type RatesCashieringRead,
+  type RatesUnitSnapshot,
 } from "@/packages/pms/lib/reservation-detail-rates";
 import {
   listRatePlans,
@@ -99,22 +105,27 @@ export function ReservationDetailRatesTab({
   reservation,
   canManage,
   money,
-  paymentReceived = null,
-  guestDeposit = null,
+  folio = null,
   coverUrl,
   occupancyLabel,
   onBackToRooms,
+  onOpenPackages,
   onSaved,
 }: {
   restaurantId: string;
   reservation: ReservationDetail;
   canManage: boolean;
   money: (value: number) => string;
-  paymentReceived?: number | null;
-  guestDeposit?: number | null;
+  folio?: {
+    id?: string;
+    status?: string | null;
+    balance: number;
+    transactions: ReadonlyArray<{ type: string; amount: number; category?: string | null }>;
+  } | null;
   coverUrl: string | null;
   occupancyLabel: string | null;
   onBackToRooms: () => void;
+  onOpenPackages: () => void;
   onSaved: () => void;
 }) {
   const fetchPlans = useServerFn(listRatePlans);
@@ -122,30 +133,25 @@ export function ReservationDetailRatesTab({
   const fetchCatalogue = useServerFn(getMealsCard3);
   const submitReprice = useServerFn(repriceReservation);
   const submitPromotion = useServerFn(applyReservationPromotion);
-  const submitPackage = useServerFn(applyReservationRoomPackage);
+  const submitRemovePromotion = useServerFn(removeReservationPromotion);
   const submitRateNotes = useServerFn(saveRateNotes);
   const fetchPromotions = useServerFn(listPromotionActivations);
-  const fetchPackages = useServerFn(listEligiblePackageActivations);
+  const fetchRoomQuote = useServerFn(quoteFolioRoomCharge);
   const [rateNotes, setRateNotes] = useState(reservation.rateNotes ?? "");
   const [planOpen, setPlanOpen] = useState(false);
   const [discountOpen, setDiscountOpen] = useState(false);
-  const [packageOpen, setPackageOpen] = useState(false);
   const [promotionId, setPromotionId] = useState("");
-  const [packageActivationId, setPackageActivationId] = useState("");
   const [planId, setPlanId] = useState(reservation.ratePlanId ?? "");
+  const [unitId, setUnitId] = useState<string | null>(stayRoomUnitId(reservation));
 
   useEffect(() => {
-    setPlanId(reservation.ratePlanId ?? "");
     setRateNotes(reservation.rateNotes ?? "");
-  }, [reservation.ratePlanId, reservation.rateNotes]);
-
-  const plansQuery = useQuery({
-    queryKey: ["rate-plans", restaurantId, reservation.roomTypeId, true, "detail-rates"],
-    queryFn: () =>
-      fetchPlans({ data: { restaurantId, roomTypeId: reservation.roomTypeId, activeOnly: true } }),
-    enabled: canManage,
-    retry: false,
-  });
+    setUnitId((current) =>
+      current && reservation.rooms?.some((unit) => unit.id === current)
+        ? current
+        : stayRoomUnitId(reservation),
+    );
+  }, [reservation]);
 
   const commercialQuery = useQuery({
     queryKey: ["reservation-commercial", restaurantId, reservation.id],
@@ -160,37 +166,90 @@ export function ReservationDetailRatesTab({
     retry: false,
   });
 
+  const commercial = commercialQuery.data;
+  const read = useMemo(
+    () =>
+      buildRatesReadModel({
+        reservation,
+        selectedUnitId: unitId,
+        promotion: commercial ? commercial.promotion : undefined,
+        packages: commercial ? commercial.packages : undefined,
+        folio,
+      }),
+    [reservation, unitId, commercial, folio],
+  );
+
+  const plansQuery = useQuery({
+    queryKey: ["rate-plans", restaurantId, read.unit.roomTypeId, true, "detail-rates"],
+    queryFn: () =>
+      fetchPlans({
+        data: { restaurantId, roomTypeId: read.unit.roomTypeId, activeOnly: true },
+      }),
+    enabled: canManage,
+    retry: false,
+  });
+
   const catalogueQuery = useQuery({
     queryKey: ["meals-card3", restaurantId, "reservation-detail-rates"],
     queryFn: () => fetchCatalogue({ data: { restaurantId } }),
     retry: false,
   });
 
+  useEffect(() => {
+    setPlanId(read.unit.ratePlanId ?? "");
+  }, [read.unit.unitId, read.unit.ratePlanId]);
+
+  const roomQuoteAmount = read.unit.roomSubtotal;
+  const roomQuoteQuery = useQuery({
+    queryKey: ["rates-room-quote", restaurantId, folio?.id, read.unit.unitId, roomQuoteAmount],
+    queryFn: () =>
+      fetchRoomQuote({
+        data: {
+          restaurantId,
+          folioId: folio!.id!,
+          amount: roomQuoteAmount!,
+        },
+      }),
+    enabled:
+      folio?.status === "open" &&
+      Boolean(folio.id) &&
+      roomQuoteAmount != null &&
+      roomQuoteAmount > 0,
+    retry: false,
+  });
+
   const plan: RatePlan | null =
-    (plansQuery.data ?? []).find((row) => row.id === reservation.ratePlanId) ??
-    (plansQuery.data ?? []).find((row) => row.id === planId) ??
-    null;
-  const rows = useMemo(() => nightlyBreakdownRows(reservation, plan), [reservation, plan]);
-  const assigned = assignmentLabel(reservation);
-  const nights = nightsBetween(reservation.arrivalDate, reservation.departureDate);
-  const perNight = stayRatePerNight(reservation);
-  const currency = reservation.currency?.trim() || "ETB";
-  const promotion = commercialQuery.data?.promotion ?? null;
-  const packages = commercialQuery.data?.packages ?? [];
+    (plansQuery.data ?? []).find((row) => row.id === read.unit.ratePlanId) ?? null;
+  const rows = useMemo(() => nightlyBreakdownRows(read.unit, plan), [read.unit, plan]);
+  const perNight = stayRatePerNight(read.unit);
+  const currency = read.unit.currency?.trim() || "ETB";
+  const promotion = read.promotion;
+  const packages = read.packages ?? [];
+  const groupStay = isGroupReservation(reservation);
   const cancelled = reservation.status === "cancelled";
   const editable = canManage && !cancelled;
+  const selectedUnit = read.units.find((unit) => unit.id === read.selectedUnitId);
+  const canChangePlan =
+    editable &&
+    (selectedUnit == null ||
+      (selectedUnit.status !== "cancelled" && selectedUnit.status !== "no_show"));
 
   const reprice = useMutation({
     mutationFn: () =>
       submitReprice({
-        data: { restaurantId, reservationId: reservation.id, ratePlanId: planId },
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          ratePlanId: planId,
+          ...(read.selectedUnitId ? { reservationRoomId: read.selectedUnitId } : {}),
+        },
       }),
     onSuccess: (result) => {
       if (!result.ok) {
         toast.error(result.message);
         return;
       }
-      toast.success(`Repriced — stay total ${money(result.subtotal)}.`);
+      toast.success(`Repriced ${read.unit.roomLabel} — room total ${money(result.subtotal)}.`);
       setPlanOpen(false);
       onSaved();
     },
@@ -203,23 +262,6 @@ export function ReservationDetailRatesTab({
     enabled: discountOpen,
     retry: false,
   });
-  const eligiblePackagesQuery = useQuery({
-    queryKey: ["eligible-packages", restaurantId, reservation.id, "detail-rates"],
-    queryFn: () =>
-      fetchPackages({
-        data: {
-          restaurantId,
-          ratePlanId: reservation.ratePlanId ?? "",
-          roomTypeId: reservation.roomTypeId,
-          arrivalDate: reservation.arrivalDate,
-          departureDate: reservation.departureDate,
-          reservationId: reservation.id,
-        },
-      }),
-    enabled: packageOpen && Boolean(reservation.ratePlanId),
-    retry: false,
-  });
-
   const applyDiscount = useMutation({
     mutationFn: () => {
       if (!promotionId) throw new Error("Choose an existing promotion.");
@@ -239,23 +281,13 @@ export function ReservationDetailRatesTab({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const addPackage = useMutation({
-    mutationFn: () => {
-      const roomId = stayRoomUnitId(reservation);
-      if (!roomId) throw new Error("This stay has no room unit for a package.");
-      if (!packageActivationId) throw new Error("Choose an existing package.");
-      return submitPackage({
-        data: {
-          restaurantId,
-          reservationId: reservation.id,
-          reservationRoomId: roomId,
-          packageActivationId,
-        },
-      });
-    },
+  const removeDiscount = useMutation({
+    mutationFn: () =>
+      submitRemovePromotion({
+        data: { restaurantId, reservationId: reservation.id },
+      }),
     onSuccess: () => {
-      toast.success("Package applied to this room.");
-      setPackageOpen(false);
+      toast.success("Promotion removed. Room subtotal was not changed.");
       onSaved();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -278,69 +310,96 @@ export function ReservationDetailRatesTab({
   });
 
   const promotionOptions = promotionsQuery.data ?? [];
-  const packageOptions = eligiblePackagesQuery.data ?? [];
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-rates">
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-4">
-          {isGroupReservation(reservation) ? (
-            <GroupRoomRates reservation={reservation} money={money} />
+          {read.units.length > 1 ? (
+            <div className="flex flex-wrap gap-2" data-testid="rates-unit-selector">
+              {read.units.map((choice) => (
+                <Button
+                  key={choice.id}
+                  type="button"
+                  size="sm"
+                  variant={choice.id === read.selectedUnitId ? "default" : "outline"}
+                  onClick={() => setUnitId(choice.id)}
+                >
+                  Room {choice.unitSequence}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+          {groupStay ? (
+            <GroupRoomRates
+              reservation={reservation}
+              money={money}
+              editable={canChangePlan && Boolean(read.selectedUnitId)}
+              onChangePlan={() => setPlanOpen(true)}
+            />
           ) : (
             <>
               <RateInformationCard
                 reservation={reservation}
+                unit={read.unit}
                 plan={plan}
-                assigned={assigned}
                 coverUrl={coverUrl}
                 occupancyLabel={occupancyLabel}
                 perNight={perNight}
                 money={money}
                 currency={currency}
                 editable={editable}
+                canChangePlan={canChangePlan}
                 onChangePlan={() => setPlanOpen(true)}
                 onApplyDiscount={() => setDiscountOpen(true)}
-                onAddPackage={() => setPackageOpen(true)}
               />
               <DailyRateBreakdownCard
                 rows={rows}
-                reservation={reservation}
+                roomSubtotal={read.unit.roomSubtotal}
                 money={money}
                 currency={currency}
               />
             </>
           )}
           <div className="grid gap-4 lg:grid-cols-2">
-            {isGroupReservation(reservation) ? null : (
-              <RatePlanDetailsCard reservation={reservation} plan={plan} />
+            {groupStay ? null : (
+              <RatePlanDetailsCard reservation={reservation} unit={read.unit} plan={plan} />
             )}
             <DiscountsCard
               promotion={promotion}
               money={money}
               editable={editable}
+              removing={removeDiscount.isPending}
               onAdd={() => setDiscountOpen(true)}
+              onRemove={() => removeDiscount.mutate()}
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             <PackagesCard
               packages={packages}
+              packageTotal={read.packageTotal}
+              omittedPackageCount={read.omittedPackageCount}
+              roomLabel={read.unit.roomLabel}
               catalogue={catalogueQuery.data?.snapshot.packages ?? []}
-              ratePlanId={reservation.ratePlanId}
-              stayNights={reservation.nights}
+              ratePlanId={read.unit.ratePlanId}
+              stayNights={read.unit.nights}
               money={money}
-              editable={editable}
-              onAdd={() => setPackageOpen(true)}
+              onOpenPackages={onOpenPackages}
             />
             <RateNotesCard value={rateNotes} onChange={setRateNotes} editable={editable} />
           </div>
         </div>
         <RatesSummaryRail
           reservation={reservation}
-          paymentReceived={paymentReceived}
-          guestDeposit={guestDeposit}
+          read={read}
           money={money}
           coverUrl={coverUrl}
-          nights={nights}
+          nights={groupStay ? reservation.nights : read.unit.nights}
+          groupStay={groupStay}
+          roomLabel={read.unit.roomLabel}
+          roomQuote={roomQuoteQuery.data ?? null}
+          roomQuotePending={roomQuoteQuery.isFetching}
+          folioOpen={folio?.status === "open"}
         />
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white py-3">
@@ -386,8 +445,9 @@ export function ReservationDetailRatesTab({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Repricing recalculates every night on the server from the selected plan. Browser
-              totals are not used.
+              Repricing writes {read.unit.roomLabel} and rolls the booking total up from the room
+              units. Promotion discount stays outside the room subtotal. Browser totals are not
+              used.
             </p>
           </div>
           <DialogFooter>
@@ -396,10 +456,10 @@ export function ReservationDetailRatesTab({
             </Button>
             <Button
               type="button"
-              disabled={!planId || reprice.isPending}
+              disabled={!canChangePlan || !planId || reprice.isPending}
               onClick={() => reprice.mutate()}
             >
-              {reprice.isPending ? "Repricing…" : "Reprice stay"}
+              {reprice.isPending ? "Repricing…" : `Reprice ${read.unit.roomLabel}`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -438,40 +498,6 @@ export function ReservationDetailRatesTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={packageOpen} onOpenChange={setPackageOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add package</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-1">
-            <Label>Eligible package</Label>
-            <Select value={packageActivationId} onValueChange={setPackageActivationId}>
-              <SelectTrigger className={FIELD}>
-                <SelectValue placeholder="Select package" />
-              </SelectTrigger>
-              <SelectContent>
-                {packageOptions.map((row) => (
-                  <SelectItem key={row.activationId} value={row.activationId}>
-                    {row.code} — {row.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPackageOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={!packageActivationId || addPackage.isPending}
-              onClick={() => addPackage.mutate()}
-            >
-              {addPackage.isPending ? "Adding…" : "Add package"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -479,9 +505,13 @@ export function ReservationDetailRatesTab({
 function GroupRoomRates({
   reservation,
   money,
+  editable,
+  onChangePlan,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
+  editable: boolean;
+  onChangePlan: () => void;
 }) {
   const sections = groupRoomRateSections(reservation);
   const combined = groupCombinedSubtotal(reservation);
@@ -490,11 +520,23 @@ function GroupRoomRates({
       className="space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
       data-testid="rates-group-rooms"
     >
-      <div>
-        <h2 className="font-display text-base text-[#251605]">Rate Information</h2>
-        <p className="text-xs text-muted-foreground" data-testid="rates-group-change-gated">
-          {GROUP_RATE_CHANGE_UNAVAILABLE}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="font-display text-base text-[#251605]">Rate Information</h2>
+          <p className="text-xs text-muted-foreground" data-testid="rates-group-change-per-room">
+            {GROUP_RATE_CHANGE_PER_ROOM}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!editable}
+          onClick={onChangePlan}
+        >
+          <Tag className="mr-1 size-3.5" />
+          Change Rate Plan
+        </Button>
       </div>
       {sections.map((section) => (
         <div key={section.sequence} className="border-t border-[#EEE6D8] pt-3 text-sm">
@@ -530,36 +572,37 @@ function GroupRoomRates({
       <p className="border-t border-[#EEE6D8] pt-3 text-sm font-medium text-[#251605]">
         Combined Room Total {combined == null ? DETAIL_DASH : money(combined)}
       </p>
+      <p className="text-xs text-muted-foreground">{RATE_OVERRIDE_OWNERSHIP}</p>
     </section>
   );
 }
 
 function RateInformationCard({
   reservation,
+  unit,
   plan,
-  assigned,
   coverUrl,
   occupancyLabel,
   perNight,
   money,
   currency,
   editable,
+  canChangePlan,
   onChangePlan,
   onApplyDiscount,
-  onAddPackage,
 }: {
   reservation: ReservationDetail;
+  unit: RatesUnitSnapshot;
   plan: RatePlan | null;
-  assigned: string;
   coverUrl: string | null;
   occupancyLabel: string | null;
   perNight: number | null;
   money: (value: number) => string;
   currency: string;
   editable: boolean;
+  canChangePlan: boolean;
   onChangePlan: () => void;
   onApplyDiscount: () => void;
-  onAddPackage: () => void;
 }) {
   return (
     <section
@@ -573,7 +616,13 @@ function RateInformationCard({
             View and manage the applied rate plan, daily rates, discounts and rate adjustments.
           </p>
         </div>
-        <Button type="button" variant="ghost" size="sm" disabled={!editable} onClick={onChangePlan}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!canChangePlan}
+          onClick={onChangePlan}
+        >
           Edit Rate
         </Button>
       </div>
@@ -588,27 +637,27 @@ function RateInformationCard({
           )}
           <div className="min-w-0 text-sm">
             <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              Room 1
+              {unit.roomLabel}
               <span
                 className={cn(
                   "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                  assigned === "Assigned"
+                  unit.assignment === "Assigned"
                     ? "bg-emerald-50 text-emerald-800"
                     : "bg-amber-50 text-amber-800",
                 )}
               >
-                {assigned}
+                {unit.assignment}
               </span>
             </p>
-            <p className="font-medium text-[#251605]">{reviewDash(reservation.roomTypeName)}</p>
+            <p className="font-medium text-[#251605]">{reviewDash(unit.roomTypeName)}</p>
             <p className="text-xs text-muted-foreground">
-              {reservation.adults} Adults
+              {unit.adults} Adults
               {occupancyLabel ? ` · ${occupancyLabel}` : ""}
             </p>
           </div>
         </div>
         <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
-          <Info label="Rate Plan" value={reviewDash(reservation.ratePlanName ?? plan?.name)} />
+          <Info label="Rate Plan" value={reviewDash(unit.ratePlanName ?? plan?.name)} />
           <Info label="Rate Code" value={reviewDash(plan?.code)} />
           <Info
             label="Market Segment"
@@ -616,8 +665,8 @@ function RateInformationCard({
           />
           <Info label="Rate per Night" value={perNight == null ? DETAIL_DASH : money(perNight)} />
           <Info
-            label={`Total for Stay`}
-            value={reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
+            label="Total for Stay"
+            value={unit.roomSubtotal == null ? DETAIL_DASH : money(unit.roomSubtotal)}
           />
           <Info label="Currency" value={reviewDash(currency)} />
         </dl>
@@ -626,7 +675,7 @@ function RateInformationCard({
             type="button"
             variant="outline"
             size="sm"
-            disabled={!editable}
+            disabled={!canChangePlan}
             onClick={onChangePlan}
           >
             <Tag className="mr-1 size-3.5" />
@@ -642,16 +691,6 @@ function RateInformationCard({
             <Percent className="mr-1 size-3.5" />
             Apply Discount
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!editable}
-            onClick={onAddPackage}
-          >
-            <Package className="mr-1 size-3.5" />
-            Add Package
-          </Button>
         </div>
       </div>
     </section>
@@ -660,17 +699,17 @@ function RateInformationCard({
 
 function DailyRateBreakdownCard({
   rows,
-  reservation,
+  roomSubtotal,
   money,
   currency,
 }: {
   rows: ReturnType<typeof nightlyBreakdownRows>;
-  reservation: ReservationDetail;
+  roomSubtotal: number | null;
   money: (value: number) => string;
   currency: string;
 }) {
   const snapshotTotal = snapshotNightlyTotal(rows);
-  const stayTotal = reservation.roomSubtotal;
+  const stayTotal = roomSubtotal;
   return (
     <section
       className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
@@ -678,7 +717,7 @@ function DailyRateBreakdownCard({
     >
       <h2 className="font-display text-base text-[#251605]">Daily Rate Breakdown</h2>
       <p className="mb-3 text-xs text-muted-foreground">
-        View nightly rates, inclusions and charges for this reservation.
+        View nightly rates and inclusions for this room. {RATE_OVERRIDE_OWNERSHIP}
       </p>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -737,9 +776,11 @@ function DailyRateBreakdownCard({
 
 function RatePlanDetailsCard({
   reservation,
+  unit,
   plan,
 }: {
   reservation: ReservationDetail;
+  unit: RatesUnitSnapshot;
   plan: RatePlan | null;
 }) {
   return (
@@ -749,10 +790,10 @@ function RatePlanDetailsCard({
     >
       <h2 className="font-display text-base text-[#251605]">Rate Plan Details</h2>
       <dl className="mt-3 space-y-1.5 text-sm">
-        <Info label="Rate Plan Name" value={reviewDash(reservation.ratePlanName ?? plan?.name)} />
+        <Info label="Rate Plan Name" value={reviewDash(unit.ratePlanName ?? plan?.name)} />
         <Info label="Rate Code" value={reviewDash(plan?.code)} />
         <Info label="Description" value={reviewDash(plan?.description)} />
-        <Info label="Currency" value={reviewDash(reservation.currency ?? plan?.currency)} />
+        <Info label="Currency" value={reviewDash(unit.currency ?? plan?.currency)} />
         <Info label="Meal Plan" value={ratePlanMealLabel(plan)} />
         <Info label="Cancellation Policy" value={rateCancellationLabel(reservation, plan)} />
         <Info label="Change Policy" value={rateChangePolicyLabel(reservation, plan)} />
@@ -766,17 +807,22 @@ function DiscountsCard({
   promotion,
   money,
   editable,
+  removing,
   onAdd,
+  onRemove,
 }: {
   promotion: {
-    promotionName: string;
-    promotionCode: string;
-    promoKind: string;
+    name: string;
+    code: string;
+    kind: string;
     discountAmount: number;
+    roomSubtotalAfterPromotion: number | null;
   } | null;
   money: (value: number) => string;
   editable: boolean;
+  removing: boolean;
   onAdd: () => void;
+  onRemove: () => void;
 }) {
   return (
     <section
@@ -791,26 +837,44 @@ function DiscountsCard({
         </Button>
       </div>
       {promotion ? (
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-[#EEE6D8] text-[11px] uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="py-2 pr-2">Type</th>
-              <th className="py-2 pr-2">Description</th>
-              <th className="py-2 pr-2 text-right">Amount</th>
-              <th className="py-2">Applied To</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="py-2 pr-2">{reviewDash(promotion.promoKind || "Promotion")}</td>
-              <td className="py-2 pr-2">
-                {reviewDash(promotion.promotionName || promotion.promotionCode)}
-              </td>
-              <td className="py-2 pr-2 text-right">{money(promotion.discountAmount)}</td>
-              <td className="py-2">Room subtotal</td>
-            </tr>
-          </tbody>
-        </table>
+        <>
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-[#EEE6D8] text-[11px] uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="py-2 pr-2">Type</th>
+                <th className="py-2 pr-2">Description</th>
+                <th className="py-2 pr-2 text-right">Amount</th>
+                <th className="py-2">Applied To</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="py-2 pr-2">{reviewDash(promotion.kind || "Promotion")}</td>
+                <td className="py-2 pr-2">{reviewDash(promotion.name || promotion.code)}</td>
+                <td className="py-2 pr-2 text-right" data-testid="rates-promotion-total">
+                  {money(promotion.discountAmount)}
+                </td>
+                <td className="py-2">Booking, outside room subtotal</td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="mt-2 text-xs text-muted-foreground" data-testid="rates-promotion-rule">
+            {RATE_PROMOTION_OUTSIDE_SUBTOTAL}
+            {promotion.roomSubtotalAfterPromotion == null
+              ? ""
+              : ` Stored room subtotal after promotion ${money(promotion.roomSubtotalAfterPromotion)}.`}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            disabled={!editable || removing}
+            onClick={onRemove}
+          >
+            {removing ? "Removing…" : "Remove promotion"}
+          </Button>
+        </>
       ) : (
         <div
           className="rounded-lg border border-dashed border-[#E4D6B8] px-4 py-8 text-center text-sm text-muted-foreground"
@@ -819,18 +883,21 @@ function DiscountsCard({
           No discounts or adjustments.
         </div>
       )}
+      <p className="mt-3 text-xs text-muted-foreground">{RATE_OVERRIDE_OWNERSHIP}</p>
     </section>
   );
 }
 
 function PackagesCard({
   packages,
+  packageTotal,
+  omittedPackageCount,
+  roomLabel,
   catalogue,
   ratePlanId,
   stayNights,
   money,
-  editable,
-  onAdd,
+  onOpenPackages,
 }: {
   packages: Array<{
     id: string;
@@ -842,12 +909,14 @@ function PackagesCard({
     appliedAmount: number;
     roomUnitLabel?: string | null;
   }>;
+  packageTotal: number | null;
+  omittedPackageCount: number;
+  roomLabel: string;
   catalogue: Parameters<typeof cataloguePackageById>[0];
   ratePlanId: string | null;
   stayNights: number;
   money: (value: number) => string;
-  editable: boolean;
-  onAdd: () => void;
+  onOpenPackages: () => void;
 }) {
   return (
     <section
@@ -855,10 +924,9 @@ function PackagesCard({
       data-testid="rate-packages"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="font-display text-base text-[#251605]">Packages & Promotions</h2>
-        <Button type="button" size="sm" disabled={!editable} onClick={onAdd}>
-          <Plus className="mr-1 size-3.5" />
-          Add
+        <h2 className="font-display text-base text-[#251605]">Packages</h2>
+        <Button type="button" size="sm" variant="outline" onClick={onOpenPackages}>
+          Manage on Packages
         </Button>
       </div>
       {packages.length === 0 ? (
@@ -866,7 +934,7 @@ function PackagesCard({
           className="rounded-lg border border-dashed border-[#E4D6B8] px-4 py-8 text-center text-sm text-muted-foreground"
           data-testid="rate-packages-empty"
         >
-          No packages added.
+          No packages on this room.
         </div>
       ) : (
         <table className="w-full text-left text-sm">
@@ -915,6 +983,20 @@ function PackagesCard({
           </tbody>
         </table>
       )}
+      {packageTotal != null ? (
+        <p className="mt-3 text-sm font-medium text-[#251605]" data-testid="rates-package-total">
+          Package total {money(packageTotal)}
+        </p>
+      ) : null}
+      {omittedPackageCount > 0 ? (
+        <p className="mt-1 text-xs text-muted-foreground" data-testid="rates-package-scope">
+          {omittedPackageCount} package{omittedPackageCount === 1 ? "" : "s"} on other rooms are not
+          included in the {roomLabel} total.
+        </p>
+      ) : null}
+      <p className="mt-2 text-xs text-muted-foreground" data-testid="rates-package-summary">
+        {RATE_PACKAGE_SUMMARY_COPY}
+      </p>
     </section>
   );
 }
@@ -955,29 +1037,106 @@ function RateNotesCard({
 
 function RatesSummaryRail({
   reservation,
+  read,
   money,
   coverUrl,
   nights,
-  paymentReceived,
-  guestDeposit,
+  groupStay,
+  roomLabel,
+  roomQuote,
+  roomQuotePending,
+  folioOpen,
 }: {
   reservation: ReservationDetail;
+  read: {
+    unit: RatesUnitSnapshot;
+    packageTotal: number | null;
+    cashiering: RatesCashieringRead;
+  };
   money: (value: number) => string;
   coverUrl: string | null;
   nights: number;
-  paymentReceived: number | null;
-  guestDeposit: number | null;
+  groupStay: boolean;
+  roomLabel: string;
+  roomQuote: FolioRoomChargeQuote | null;
+  roomQuotePending: boolean;
+  folioOpen: boolean;
 }) {
+  const payment = read.cashiering.payment;
+  const deposit = read.cashiering.deposit;
+  const refund = read.cashiering.refund;
+  const balance = read.cashiering.balance;
+  const postedTax = read.cashiering.postedTax;
+  const postedService = read.cashiering.postedServiceCharge;
+  const postedAdjustment = read.cashiering.postedAdjustment;
   return (
-    <ReservationDetailSummary
-      testId="reservation-rates-summary"
-      reservation={reservation}
-      money={money}
-      coverUrl={coverUrl}
-      nights={nights}
-      paymentReceived={paymentReceived}
-      guestDeposit={guestDeposit}
-    />
+    <div className="space-y-3">
+      <ReservationDetailSummary
+        testId="reservation-rates-summary"
+        reservation={reservation}
+        money={money}
+        coverUrl={coverUrl}
+        nights={nights}
+        packagesTotal={
+          !groupStay && read.packageTotal != null && read.packageTotal > 0
+            ? read.packageTotal
+            : undefined
+        }
+        paymentReceived={payment != null && payment > 0 ? payment : null}
+        guestDeposit={deposit != null && deposit > 0 ? deposit : null}
+        paymentPercentage={null}
+        totalAmount={groupStay ? undefined : read.unit.roomSubtotal}
+      />
+      <section
+        className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+        data-testid="rates-cashiering-read"
+      >
+        <h2 className="font-display text-sm text-[#251605]">Posted cashiering</h2>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Tax, service charge, adjustments, and folio balance are posted folio amounts. Refunds are
+          not subtracted from payment.
+        </p>
+        <dl className="space-y-1 text-sm">
+          <Info label="Refund" value={refund != null && refund > 0 ? money(refund) : DETAIL_DASH} />
+          <Info
+            label="Posted tax"
+            value={postedTax == null ? DETAIL_DASH : money(postedTax)}
+          />
+          <Info
+            label="Posted service charge"
+            value={postedService == null ? DETAIL_DASH : money(postedService)}
+          />
+          <Info
+            label="Posted adjustments"
+            value={postedAdjustment == null ? DETAIL_DASH : money(postedAdjustment)}
+          />
+          <Info
+            label="Posted folio balance"
+            value={balance == null ? DETAIL_DASH : money(balance)}
+          />
+        </dl>
+        <div className="mt-3 border-t border-[#EEE6D8] pt-3" data-testid="rates-room-quote">
+          <p className="text-sm font-medium text-[#251605]">Quoted room total</p>
+          <p className="text-xs text-muted-foreground">
+            Not posted. The cashiering tax engine quotes {roomLabel} only. Promotion and packages
+            stay outside this quote, so it is not a reservation grand total.
+          </p>
+          {roomQuote ? (
+            <p className="mt-1 text-sm text-[#251605]" data-testid="rates-room-quote-total">
+              {money(roomQuote.total)}
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {roomQuotePending
+                ? "Quoting room charge…"
+                : folioOpen
+                  ? "Room quote unavailable."
+                  : "An open folio is required before this room can be quoted."}
+            </p>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 function Info({ label, value }: { label: string; value: string }) {

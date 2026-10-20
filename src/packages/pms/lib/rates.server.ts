@@ -52,6 +52,11 @@ const RATE_ERRORS: Record<string, string> = {
   ROOMS_INVALID: "At least one room is required to quote this stay.",
   OCCUPANCY_INVALID: "Occupancy must be a valid adult, child, and infant count.",
   RESERVATION_NOT_FOUND: "Reservation not found for this property.",
+  ROOM_UNIT_NOT_FOUND: "That room is not on this reservation.",
+  ROOM_UNIT_NOT_REPRICEABLE: "A cancelled or no-show room cannot be repriced.",
+  MULTI_ROOM_REPRICE_REQUIRES_UNIT:
+    "Change the rate plan on one room. A multi-room stay cannot be repriced from the booking total.",
+  PROMOTION_NOT_APPLIED: "This reservation has no promotion to remove.",
   NO_AVAILABILITY: "No rooms of that type are available for those dates.",
   ROOM_NOT_ASSIGNABLE:
     "That room can't be used — check it is active, available and of the reserved type.",

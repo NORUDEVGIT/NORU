@@ -320,7 +320,9 @@ export function ReservationDetailWorkspace({
     void queryClient.invalidateQueries({ queryKey: ["reservations", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["assignable-rooms", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["bookings-dashboard", restaurantId] });
-    void queryClient.invalidateQueries({ queryKey: ["reservation-folio", restaurantId, reservationId] });
+    void queryClient.invalidateQueries({
+      queryKey: ["reservation-folio", restaurantId, reservationId],
+    });
     void queryClient.invalidateQueries({ queryKey: ["folio", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["reservation-commercial", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["room-type-availability", restaurantId] });
@@ -748,13 +750,13 @@ export function ReservationDetailWorkspace({
         reservation={reservation}
         canManage={stayMutable}
         money={money}
-        paymentReceived={paymentHasCredit ? paymentReceived : null}
-        guestDeposit={guestDepositReceived}
+        folio={folioQuery.data ?? null}
         coverUrl={roomType?.coverUrl ?? null}
         occupancyLabel={
           roomType ? `${roomType.adultCapacity} adults · ${roomType.childCapacity} children` : null
         }
         onBackToRooms={() => setDetailTab("rooms")}
+        onOpenPackages={() => setDetailTab("packages")}
         onSaved={invalidate}
       />
     );
@@ -1967,6 +1969,10 @@ function PricingSection({
   const fetchPlans = useServerFn(listRatePlans);
   const submitReprice = useServerFn(repriceReservation);
   const [planId, setPlanId] = useState(reservation.ratePlanId ?? "");
+  const activeUnits = (reservation.rooms ?? []).filter(
+    (unit) => unit.status !== "cancelled" && unit.status !== "no_show",
+  );
+  const multiRoom = activeUnits.length > 1;
 
   const plansQuery = useQuery({
     queryKey: ["rate-plans", restaurantId, reservation.roomTypeId, true],
@@ -1978,7 +1984,14 @@ function PricingSection({
 
   const reprice = useMutation({
     mutationFn: () =>
-      submitReprice({ data: { restaurantId, reservationId: reservation.id, ratePlanId: planId } }),
+      submitReprice({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          ratePlanId: planId,
+          ...(activeUnits.length === 1 ? { reservationRoomId: activeUnits[0]!.id } : {}),
+        },
+      }),
     onSuccess: (result) => {
       if (!result.ok) {
         toast.error(result.message);
@@ -2025,7 +2038,13 @@ function PricingSection({
         </div>
       )}
 
-      {canManage ? (
+      {canManage && multiRoom ? (
+        <p className="mt-4 text-xs text-muted-foreground">
+          Rate plan changes apply to one room at a time on the Rates tab. The booking total rolls
+          up from the room units.
+        </p>
+      ) : null}
+      {canManage && !multiRoom ? (
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <div className="min-w-56 space-y-1">
             <Label>Rate plan</Label>

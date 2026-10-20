@@ -1493,7 +1493,12 @@ export const repriceReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z
-      .object({ restaurantId: idSchema, reservationId: idSchema, ratePlanId: idSchema })
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        ratePlanId: idSchema,
+        reservationRoomId: idSchema.optional(),
+      })
       .parse(input),
   )
   .handler(
@@ -1523,12 +1528,20 @@ export const repriceReservation = createServerFn({ method: "POST" })
         .maybeSingle();
       if (!reservation) return { ok: false, message: "Reservation not found for this property." };
 
-      const { data: updated, error } = await supabaseAdmin.rpc("reprice_hotel_reservation", {
-        _restaurant_id: data.restaurantId,
-        _reservation_id: data.reservationId,
-        _rate_plan_id: data.ratePlanId,
-        _membership_id: me.id,
-      });
+      const { data: updated, error } = data.reservationRoomId
+        ? await supabaseAdmin.rpc("reprice_hotel_reservation_room", {
+            _restaurant_id: data.restaurantId,
+            _reservation_id: data.reservationId,
+            _reservation_room_id: data.reservationRoomId,
+            _rate_plan_id: data.ratePlanId,
+            _membership_id: me.id,
+          })
+        : await supabaseAdmin.rpc("reprice_hotel_reservation", {
+            _restaurant_id: data.restaurantId,
+            _reservation_id: data.reservationId,
+            _rate_plan_id: data.ratePlanId,
+            _membership_id: me.id,
+          });
       // Restriction / rate-plan rejections are expected outcomes, not server faults.
       if (error) return { ok: false, message: rateError(error.message).message };
 

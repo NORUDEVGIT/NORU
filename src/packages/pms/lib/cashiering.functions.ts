@@ -1501,6 +1501,60 @@ export const previewFolioCharge = createServerFn({ method: "GET" })
     return readChargePreview(preview);
   });
 
+export type FolioRoomChargeQuote = {
+  currency: string;
+  enteredAmount: number;
+  netAmount: number;
+  tax: number;
+  serviceCharge: number;
+  total: number;
+  /** This quote is not a posted folio line. */
+  posted: false;
+};
+
+function previewLineTotal(lines: FolioChargePreviewLine[]): number {
+  return Math.round(lines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0) * 100) / 100;
+}
+
+/**
+ * Quotes tax and service on one room amount with preview_folio_charge_scoped.
+ * The function is stable and does not post. It is not a reservation grand total:
+ * promotion and packages stay outside this room charge.
+ */
+export const quoteFolioRoomCharge = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((d: { restaurantId: string; folioId: string; amount: number }) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        folioId: idSchema,
+        amount: z.number().finite().positive(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<FolioRoomChargeQuote> => {
+    await requireCashieringAccess(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: preview, error } = await supabaseAdmin.rpc("preview_folio_charge_scoped", {
+      _restaurant_id: data.restaurantId,
+      _folio_id: data.folioId,
+      _amount: Math.round(data.amount * 100) / 100,
+      _charge_source: "room",
+      _department_id: null,
+    });
+    if (error) throw cashierError(error.message);
+    const quote = readChargePreview(preview);
+    return {
+      currency: quote.currency,
+      enteredAmount: quote.enteredAmount,
+      netAmount: quote.netAmount,
+      tax: previewLineTotal(quote.taxLines),
+      serviceCharge: previewLineTotal(quote.serviceLines),
+      total: quote.total,
+      posted: false,
+    };
+  });
+
 export const CORRECTION_MODES = [
   "adjust_amount",
   "correct_quantity",
