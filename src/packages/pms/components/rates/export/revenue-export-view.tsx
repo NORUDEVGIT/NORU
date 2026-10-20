@@ -151,62 +151,72 @@ export function RevenueExportView({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="border-b border-[#E8E1D7] pb-3">
-        <h2 className="font-display text-xl font-semibold tracking-tight text-foreground">
-          Revenue Export (UI-40)
+      <div className="border-b border-[#DDD4C5] pb-3.5">
+        <h2 className="font-display text-xl font-semibold tracking-tight text-[#251605]">
+          Revenue Data Export
         </h2>
-        <p className="text-xs text-muted-foreground">
-          Generate RFC-4180 compliant CSV exports for operational revenue analysis and audit
-          records.
+        <p className="mt-1 text-xs text-[#7A7167]">
+          Generate official, RFC-4180 compliant CSV exports for operational revenue analysis, commercial performance, and audit compliance.
         </p>
       </div>
 
-      <div className="flex items-center gap-1.5 rounded-lg border border-[#E8E1D7] bg-card px-3.5 py-2 text-xs text-muted-foreground">
-        <Info className="h-3.5 w-3.5 shrink-0" />
+      {/* Guidance Banner */}
+      <div className="flex items-start sm:items-center gap-2.5 rounded-xl border border-[#DDD4C5] bg-[#FAF8F4]/80 px-4 py-3 text-xs text-[#5F554B] shadow-2xs">
+        <Info className="h-4 w-4 shrink-0 text-[#C89933] mt-0.5 sm:mt-0" />
         <span>
-          Exports strictly reflect current active filters and authorization. Additional formats
-          (Excel, PDF, JSON) and scheduled exports are not configured.
+          Exports reflect your current property context, active filters, and stay date range in standard CSV format, compatible with Excel, Google Sheets, and financial reporting systems.
         </span>
       </div>
 
       {/* Export Cards Grid */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4.5 md:grid-cols-3">
         {/* 1. Revenue Performance */}
-        <div className="flex flex-col justify-between rounded-xl border border-[#E8E1D7] bg-card p-4 shadow-xs">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-[#8B651D]" />
-              <h3 className="font-semibold text-sm text-foreground">Revenue Performance</h3>
+        <div className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-xs transition-all hover:border-[#C89933]/60 hover:shadow-sm">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-8 items-center justify-center rounded-lg border border-[#ECD9B5] bg-[#FAF4E8] text-[#9E721D]">
+                  <TrendingUp className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm text-[#251605]">Revenue Performance</h3>
+                  <p className="text-[11px] text-[#7A7167]">KPIs & Multi-Dimensional Breakdowns</p>
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Complete stay-date KPIs, daily trend series, and breakdowns (Room Types, Rate Plans,
-              Market Segments, Commercial Sources, Technical Origins).
+
+            <p className="text-xs leading-relaxed text-[#5F554B]">
+              Comprehensive stay-date KPIs, daily performance trend series, and complete breakdowns across Room Types, Rate Plans, Market Segments, Commercial Sources, and Technical Origins.
             </p>
-            <div className="pt-2 text-[11px] text-muted-foreground font-mono space-y-0.5">
-              <div>
+
+            <div className="rounded-lg border border-[#EFE9DF] bg-[#FAF8F4]/90 p-3 text-[11px] text-[#5F554B] space-y-1">
+              <div className="font-medium text-[#251605]">
                 Stay Range: {context.fromDate} → {context.toDate}
               </div>
-              <div>Format: CSV (RFC-4180)</div>
+              <div>Room Type: {context.roomTypeId ? "Filtered" : "All Room Types"}</div>
+              <div>Rate Plan: {context.ratePlanId ? "Filtered" : "All Rate Plans"}</div>
+              <div>Includes: Summary KPIs, Daily Trends, 5 Breakdowns</div>
+              <div className="text-[#8B651D] font-mono pt-0.5">Format: CSV (RFC-4180)</div>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-[#E8E1D7]/60 mt-4">
+          <div className="pt-4 border-t border-[#EFE9DF] mt-4">
             <button
               type="button"
               disabled={Boolean(pendingExport)}
               onClick={handleExportPerformance}
-              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-[#D3A13B] px-3 text-xs font-medium text-[#251605] hover:bg-[#BE8D2D] disabled:opacity-50 transition-colors"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-[#D5A62B] px-3.5 text-xs font-semibold text-[#332303] hover:bg-[#C89933] shadow-xs transition-colors disabled:opacity-50"
             >
               {pendingExport === "performance" ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Generating CSV…
                 </>
               ) : (
                 <>
-                  <Download className="h-3.5 w-3.5" />
+                  <Download className="h-4 w-4" />
                   Export Performance CSV
                 </>
               )}
@@ -215,39 +225,50 @@ export function RevenueExportView({
         </div>
 
         {/* 2. Commercial Performance */}
-        <div className="flex flex-col justify-between rounded-xl border border-[#E8E1D7] bg-card p-4 shadow-xs">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <FileSpreadsheet className="h-4 w-4 text-emerald-700" />
-              <h3 className="font-semibold text-sm text-foreground">Commercial Performance</h3>
+        <div className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-xs transition-all hover:border-[#C89933]/60 hover:shadow-sm">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800">
+                  <FileSpreadsheet className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm text-[#251605]">Commercial Performance</h3>
+                  <p className="text-[11px] text-[#7A7167]">Promotions & Package Uptake</p>
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Operational promotion discounts and package selections attributed to stay dates within
-              the selected range.
+
+            <p className="text-xs leading-relaxed text-[#5F554B]">
+              Operational promotion discounts, base vs. post-discount room amounts, and package selections attributed to stay dates within the selected timeframe.
             </p>
-            <div className="pt-2 text-[11px] text-muted-foreground font-mono space-y-0.5">
-              <div>
+
+            <div className="rounded-lg border border-[#EFE9DF] bg-[#FAF8F4]/90 p-3 text-[11px] text-[#5F554B] space-y-1">
+              <div className="font-medium text-[#251605]">
                 Stay Range: {context.fromDate} → {context.toDate}
               </div>
-              <div>Format: CSV (RFC-4180)</div>
+              <div>Room Type: {context.roomTypeId ? "Filtered" : "All Room Types"}</div>
+              <div>Rate Plan: {context.ratePlanId ? "Filtered" : "All Rate Plans"}</div>
+              <div>Includes: Promotions discounts & Package selections</div>
+              <div className="text-[#8B651D] font-mono pt-0.5">Format: CSV (RFC-4180)</div>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-[#E8E1D7]/60 mt-4">
+          <div className="pt-4 border-t border-[#EFE9DF] mt-4">
             <button
               type="button"
               disabled={Boolean(pendingExport)}
               onClick={handleExportCommercial}
-              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-[#E8E1D7] bg-white px-3 text-xs font-medium text-foreground hover:bg-[#F7F4EE] disabled:opacity-50 transition-colors"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-[#D5A62B] px-3.5 text-xs font-semibold text-[#332303] hover:bg-[#C89933] shadow-xs transition-colors disabled:opacity-50"
             >
               {pendingExport === "commercial" ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Generating CSV…
                 </>
               ) : (
                 <>
-                  <Download className="h-3.5 w-3.5" />
+                  <Download className="h-4 w-4" />
                   Export Commercial CSV
                 </>
               )}
@@ -256,19 +277,26 @@ export function RevenueExportView({
         </div>
 
         {/* 3. Unified Revenue Audit */}
-        <div className="flex flex-col justify-between rounded-xl border border-[#E8E1D7] bg-card p-4 shadow-xs">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-[#7A5418]" />
-              <h3 className="font-semibold text-sm text-foreground">Unified Revenue Audit</h3>
+        <div className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-xs transition-all hover:border-[#C89933]/60 hover:shadow-sm">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-8 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-900">
+                  <ShieldCheck className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm text-[#251605]">Unified Revenue Audit</h3>
+                  <p className="text-[11px] text-[#7A7167]">Rates, Restrictions & Approvals</p>
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Complete, unpaginated operational audit stream across Rates, Restrictions, Commercial
-              changes, and Approvals (up to 10,000 rows).
+
+            <p className="text-xs leading-relaxed text-[#5F554B]">
+              Complete, unpaginated operational audit stream capturing rate modifications, restriction events, commercial updates, and manager approvals.
             </p>
-            {/* UI-40 Truthful Scope Display */}
-            <div className="pt-2 text-[11px] text-muted-foreground font-mono space-y-0.5">
-              <div>
+
+            <div className="rounded-lg border border-[#EFE9DF] bg-[#FAF8F4]/90 p-3 text-[11px] text-[#5F554B] space-y-1">
+              <div className="font-medium text-[#251605]">
                 Date Range: {context.fromDate} → {context.toDate}
               </div>
               <div>
@@ -284,25 +312,26 @@ export function RevenueExportView({
               {auditActor && <div>Actor: {actorLabel}</div>}
               {auditAction && <div>Action: {auditAction}</div>}
               {auditSearch && <div>Search: {auditSearch}</div>}
-              <div>Format: CSV (12 Columns)</div>
+              <div>Bound: Complete audit stream (up to 10,000 records)</div>
+              <div className="text-[#8B651D] font-mono pt-0.5">Format: CSV (12 Columns)</div>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-[#E8E1D7]/60 mt-4">
+          <div className="pt-4 border-t border-[#EFE9DF] mt-4">
             <button
               type="button"
               disabled={Boolean(pendingExport)}
               onClick={handleExportAudit}
-              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-[#E8E1D7] bg-white px-3 text-xs font-medium text-foreground hover:bg-[#F7F4EE] disabled:opacity-50 transition-colors"
+              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-[#D5A62B] px-3.5 text-xs font-semibold text-[#332303] hover:bg-[#C89933] shadow-xs transition-colors disabled:opacity-50"
             >
               {pendingExport === "audit" ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Generating CSV…
                 </>
               ) : (
                 <>
-                  <Download className="h-3.5 w-3.5" />
+                  <Download className="h-4 w-4" />
                   Export Audit CSV
                 </>
               )}

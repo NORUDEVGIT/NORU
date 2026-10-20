@@ -38,7 +38,7 @@ export function RoomInventoryChrome({
   searchPlaceholder = "Search room…",
   searchTestId,
   initialSearch = "",
-  showSearch = true,
+  showSearch = false,
   helpLabel = "Room & Inventory operational workspace",
   onHelpClick,
   overflowItems = [],
@@ -46,7 +46,7 @@ export function RoomInventoryChrome({
   children,
 }: {
   membership: RestaurantMembership;
-  onRoomSearch: (value: string) => void;
+  onRoomSearch?: (value: string) => void;
   onSearchChange?: (value: string) => void;
   /** Null leaves every module unselected. Omitted keeps the Rooms & Inventory default. */
   activeModule?: PmsModuleNavLabel | null;
@@ -73,7 +73,7 @@ export function RoomInventoryChrome({
 
   function submitSearch(event: FormEvent) {
     event.preventDefault();
-    onRoomSearch(search.trim());
+    onRoomSearch?.(search.trim());
   }
 
   const initials = membership.restaurant.name
