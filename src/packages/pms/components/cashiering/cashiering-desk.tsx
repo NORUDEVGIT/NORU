@@ -135,6 +135,11 @@ type FolioFilter =
   | "open"
   | "closed";
 
+type FolioStatusFilter = "all" | "open" | "closed";
+type StayStatusFilter = "all" | "in_house" | "departures" | "checked_out" | "reserved";
+type BalanceFilter = "all" | "positive" | "zero" | "negative";
+type SortOption = "default" | "balance_desc" | "balance_asc" | "room_asc" | "guest_asc";
+
 const FILTERS: Array<{ id: FolioFilter; label: string }> = [
   { id: "in_house", label: "In House" },
   { id: "departures", label: "Departures" },
@@ -175,56 +180,290 @@ function FilterBar({
   onSearch,
   filter,
   onFilter,
+  statusFilter,
+  onStatusFilter,
+  stayFilter,
+  onStayFilter,
+  balanceFilter,
+  onBalanceFilter,
+  roomFilter,
+  onRoomFilter,
+  sortOption,
+  onSortOption,
+  onClearAll,
 }: {
   search: string;
   onSearch: (value: string) => void;
   filter: FolioFilter;
   onFilter: (value: FolioFilter) => void;
+  statusFilter: FolioStatusFilter;
+  onStatusFilter: (value: FolioStatusFilter) => void;
+  stayFilter: StayStatusFilter;
+  onStayFilter: (value: StayStatusFilter) => void;
+  balanceFilter: BalanceFilter;
+  onBalanceFilter: (value: BalanceFilter) => void;
+  roomFilter: string;
+  onRoomFilter: (value: string) => void;
+  sortOption: SortOption;
+  onSortOption: (value: SortOption) => void;
+  onClearAll: () => void;
 }) {
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+
+  const activeChips: Array<{ id: string; label: string; onRemove: () => void }> = [];
+
+  if (search.trim()) {
+    activeChips.push({
+      id: "search",
+      label: `Search: "${search.trim()}"`,
+      onRemove: () => onSearch(""),
+    });
+  }
+
+  if (statusFilter !== "all") {
+    activeChips.push({
+      id: "status",
+      label: `Folio: ${statusFilter === "open" ? "Open" : "Closed"}`,
+      onRemove: () => onStatusFilter("all"),
+    });
+  }
+
+  if (stayFilter !== "all") {
+    const stayLabels: Record<StayStatusFilter, string> = {
+      all: "All",
+      in_house: "In House",
+      departures: "Departures Today",
+      checked_out: "Checked Out",
+      reserved: "Reserved",
+    };
+    activeChips.push({
+      id: "stay",
+      label: `Stay: ${stayLabels[stayFilter]}`,
+      onRemove: () => onStayFilter("all"),
+    });
+  }
+
+  if (balanceFilter !== "all") {
+    const balLabels: Record<BalanceFilter, string> = {
+      all: "All",
+      positive: "Outstanding (> 0)",
+      zero: "Settled (= 0)",
+      negative: "Credit (< 0)",
+    };
+    activeChips.push({
+      id: "balance",
+      label: `Balance: ${balLabels[balanceFilter]}`,
+      onRemove: () => onBalanceFilter("all"),
+    });
+  }
+
+  if (roomFilter.trim()) {
+    activeChips.push({
+      id: "room",
+      label: `Room: ${roomFilter.trim()}`,
+      onRemove: () => onRoomFilter(""),
+    });
+  }
+
+  if (sortOption !== "default") {
+    const sortLabels: Record<SortOption, string> = {
+      default: "Default",
+      balance_desc: "Highest Balance",
+      balance_asc: "Lowest Balance",
+      room_asc: "Room Number",
+      guest_asc: "Guest Name",
+    };
+    activeChips.push({
+      id: "sort",
+      label: `Sort: ${sortLabels[sortOption]}`,
+      onRemove: () => onSortOption("default"),
+    });
+  }
+
+  if (filter !== "all" && statusFilter === "all" && stayFilter === "all" && balanceFilter === "all") {
+    const found = FILTERS.find((f) => f.id === filter);
+    if (found) {
+      activeChips.push({
+        id: "preset",
+        label: `Preset: ${found.label}`,
+        onRemove: () => onFilter("all"),
+      });
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-[#DDD4C5] bg-card p-2.5 shadow-xs">
-      <div className="relative flex-1 sm:max-w-md">
-        <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#7A7167]" />
-        <Input
-          value={search}
-          onChange={(event) => onSearch(event.target.value)}
-          placeholder="Search guest name, folio no, room no, reservation no…"
-          className="h-10 min-h-10 border-[#DDD4C5] bg-[#FAF8F4]/50 pl-10 pr-9 text-sm text-[#251605] placeholder:text-[#9A9187] focus-visible:border-[#C89933] focus-visible:ring-1 focus-visible:ring-[#C89933]"
-          data-testid="cashiering-folio-search"
-        />
-        {search ? (
+    <div className="rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-sm space-y-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="grid min-w-[240px] flex-1 gap-1.5 text-xs font-semibold text-[#5A4833]">
+          Search Folios
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#7A7167]" />
+            <Input
+              value={search}
+              onChange={(event) => onSearch(event.target.value)}
+              placeholder="Search guest name, folio no, room no, reservation no…"
+              className="h-9 border-[#DED7CD] bg-white pl-9 pr-8 text-sm font-medium text-[#251605] placeholder:text-[#9A9187] focus-visible:border-[#C89933] focus-visible:ring-1 focus-visible:ring-[#C89933]"
+              data-testid="cashiering-folio-search"
+            />
+            {search ? (
+              <button
+                type="button"
+                onClick={() => onSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#7A7167] hover:bg-muted/80 hover:text-[#251605]"
+                aria-label="Clear search"
+              >
+                <X className="size-3.5" />
+              </button>
+            ) : null}
+          </div>
+        </label>
+
+        <label className="grid shrink-0 w-36 gap-1.5 text-xs font-semibold text-[#5A4833]">
+          Folio Status
+          <select
+            value={statusFilter}
+            onChange={(event) => onStatusFilter(event.target.value as FolioStatusFilter)}
+            className="flex h-9 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm font-medium text-[#251605] outline-none focus:border-[#C89933]"
+          >
+            <option value="all">All Statuses</option>
+            <option value="open">Open Folios</option>
+            <option value="closed">Closed Folios</option>
+          </select>
+        </label>
+
+        <label className="grid shrink-0 w-40 gap-1.5 text-xs font-semibold text-[#5A4833]">
+          Stay Status
+          <select
+            value={stayFilter}
+            onChange={(event) => onStayFilter(event.target.value as StayStatusFilter)}
+            className="flex h-9 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm font-medium text-[#251605] outline-none focus:border-[#C89933]"
+          >
+            <option value="all">All Stays</option>
+            <option value="in_house">In House</option>
+            <option value="departures">Departures Today</option>
+            <option value="checked_out">Checked Out</option>
+            <option value="reserved">Reserved</option>
+          </select>
+        </label>
+
+        <label className="grid shrink-0 w-40 gap-1.5 text-xs font-semibold text-[#5A4833]">
+          Balance
+          <select
+            value={balanceFilter}
+            onChange={(event) => onBalanceFilter(event.target.value as BalanceFilter)}
+            className="flex h-9 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm font-medium text-[#251605] outline-none focus:border-[#C89933]"
+          >
+            <option value="all">All Balances</option>
+            <option value="positive">Outstanding (&gt; 0)</option>
+            <option value="zero">Settled (= 0)</option>
+            <option value="negative">Credit (&lt; 0)</option>
+          </select>
+        </label>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 px-3 text-xs font-semibold text-[#5A4833] hover:text-[#251605]"
+            onClick={onClearAll}
+          >
+            Clear
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="h-9 bg-[#D5A62B] px-3.5 text-xs font-semibold text-[#332303] hover:bg-[#C89933]"
+            onClick={() => setFiltersExpanded((current) => !current)}
+          >
+            <SlidersHorizontal className="mr-1.5 size-3.5" />
+            Filters
+            {activeChips.length > 0 ? ` (${activeChips.length})` : ""}
+          </Button>
+        </div>
+      </div>
+
+      {filtersExpanded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#EFE9DF] pt-3 text-xs text-[#5A4833]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-[#251605]">Presets:</span>
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Folio presets">
+              {FILTERS.map((item) => {
+                const active = filter === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-pressed={active}
+                    data-testid={`cashiering-filter-${item.id}`}
+                    onClick={() => onFilter(active ? "all" : item.id)}
+                    className={cn(
+                      "inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-semibold transition-all duration-150",
+                      active
+                        ? "border-[#C89933] bg-[#C89933] text-[#251605] shadow-xs ring-1 ring-[#C89933]"
+                        : "border-[#DED7CD] bg-[#FAF6F0] text-[#5F554B] hover:border-[#C89933]/60 hover:bg-white hover:text-[#251605]",
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-[#5A4833]">
+              Room:
+              <Input
+                value={roomFilter}
+                onChange={(event) => onRoomFilter(event.target.value)}
+                placeholder="Room #"
+                className="h-7 w-24 border-[#DED7CD] bg-white px-2 text-xs font-medium text-[#251605]"
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-[#5A4833]">
+              Sort:
+              <select
+                value={sortOption}
+                onChange={(event) => onSortOption(event.target.value as SortOption)}
+                className="h-7 rounded-md border border-[#DED7CD] bg-white px-2 text-xs font-medium text-[#251605] outline-none focus:border-[#C89933]"
+              >
+                <option value="default">Default</option>
+                <option value="balance_desc">Highest Balance</option>
+                <option value="balance_asc">Lowest Balance</option>
+                <option value="room_asc">Room Number</option>
+                <option value="guest_asc">Guest Name</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      ) : null}
+
+      {activeChips.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 border-t border-[#EFE9DF] pt-2.5">
+          <span className="text-xs font-semibold text-[#756A5B]">Active:</span>
+          <ul className="flex flex-wrap gap-1.5">
+            {activeChips.map((chip) => (
+              <li key={chip.id}>
+                <button
+                  type="button"
+                  onClick={chip.onRemove}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#DDD4C5] bg-[#FAF6F0] px-2.5 py-0.5 text-xs font-medium text-[#251605] transition-colors hover:border-[#C89933] hover:bg-[#F3ECE0]"
+                >
+                  <span>{chip.label}</span>
+                  <X className="size-3 text-[#8A641A]" />
+                </button>
+              </li>
+            ))}
+          </ul>
           <button
             type="button"
-            onClick={() => onSearch("")}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#7A7167] hover:bg-muted/80 hover:text-[#251605]"
-            aria-label="Clear search"
+            onClick={onClearAll}
+            className="text-xs font-semibold text-[#8A641A] hover:underline ml-1"
           >
-            <X className="size-3.5" />
+            Clear all
           </button>
-        ) : null}
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Folio filters">
-        {FILTERS.map((item) => {
-          const active = filter === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              aria-pressed={active}
-              data-testid={`cashiering-filter-${item.id}`}
-              onClick={() => onFilter(active ? "all" : item.id)}
-              className={cn(
-                "inline-flex h-9 items-center rounded-full border px-3 text-xs font-semibold transition-all duration-150",
-                active
-                  ? "border-[#C89933] bg-[#C89933] text-[#251605] shadow-xs ring-1 ring-[#C89933]"
-                  : "border-[#DDD4C5] bg-[#FAF8F4]/70 text-[#5F554B] hover:border-[#C89933]/60 hover:bg-white hover:text-[#251605]",
-              )}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -265,6 +504,11 @@ export function CashieringDesk({
   const { dateTime } = useRestaurantTime();
   const [search, setSearch] = useState(moduleSearch);
   const [filter, setFilter] = useState<FolioFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<FolioStatusFilter>("all");
+  const [stayFilter, setStayFilter] = useState<StayStatusFilter>("all");
+  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>("all");
+  const [roomFilter, setRoomFilter] = useState<string>("");
+  const [sortOption, setSortOption] = useState<SortOption>("default");
   const [page, setPage] = useState(1);
   const [sourceLineId, setSourceLineId] = useState<string | null>(null);
 
@@ -349,7 +593,9 @@ export function CashieringDesk({
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return folios.filter((folio) => {
+    const roomTerm = roomFilter.trim().toLowerCase();
+
+    let result = folios.filter((folio) => {
       const matchesTerm =
         term === "" ||
         folio.guestName.toLowerCase().includes(term) ||
@@ -357,19 +603,102 @@ export function CashieringDesk({
         (folio.roomNumber ?? "").toLowerCase().includes(term) ||
         (folio.confirmationNumber ?? "").toLowerCase().includes(term);
       if (!matchesTerm) return false;
-      if (filter === "in_house") return folio.reservationStatus === "checked_in";
-      if (filter === "departures") return folio.departureDate === businessDate;
-      if (filter === "positive") return folio.balance > 0.009;
-      if (filter === "negative") return folio.balance < -0.009;
-      if (filter === "open") return folio.status === "open";
-      if (filter === "closed") return folio.status === "closed";
+
+      if (roomTerm && !(folio.roomNumber ?? "").toLowerCase().includes(roomTerm)) {
+        return false;
+      }
+
+      if (statusFilter === "open" && folio.status !== "open") return false;
+      if (statusFilter === "closed" && folio.status !== "closed") return false;
+
+      if (stayFilter === "in_house" && folio.reservationStatus !== "checked_in") return false;
+      if (stayFilter === "departures" && folio.departureDate !== businessDate) return false;
+      if (stayFilter === "checked_out" && folio.reservationStatus !== "checked_out") return false;
+      if (
+        stayFilter === "reserved" &&
+        folio.reservationStatus !== "reserved" &&
+        folio.reservationStatus !== "confirmed"
+      ) {
+        return false;
+      }
+
+      if (balanceFilter === "positive" && folio.balance <= 0.009) return false;
+      if (balanceFilter === "zero" && Math.abs(folio.balance) > 0.009) return false;
+      if (balanceFilter === "negative" && folio.balance >= -0.009) return false;
+
+      // Legacy filter fallback
+      if (filter === "in_house" && folio.reservationStatus !== "checked_in") return false;
+      if (filter === "departures" && folio.departureDate !== businessDate) return false;
+      if (filter === "positive" && folio.balance <= 0.009) return false;
+      if (filter === "negative" && folio.balance >= -0.009) return false;
+      if (filter === "open" && folio.status !== "open") return false;
+      if (filter === "closed" && folio.status !== "closed") return false;
+
       return true;
     });
-  }, [filter, folios, search, businessDate]);
+
+    if (sortOption === "balance_desc") {
+      result = [...result].sort((a, b) => b.balance - a.balance);
+    } else if (sortOption === "balance_asc") {
+      result = [...result].sort((a, b) => a.balance - b.balance);
+    } else if (sortOption === "room_asc") {
+      result = [...result].sort((a, b) => (a.roomNumber ?? "").localeCompare(b.roomNumber ?? ""));
+    } else if (sortOption === "guest_asc") {
+      result = [...result].sort((a, b) => a.guestName.localeCompare(b.guestName));
+    }
+
+    return result;
+  }, [
+    folios,
+    search,
+    roomFilter,
+    statusFilter,
+    stayFilter,
+    balanceFilter,
+    filter,
+    sortOption,
+    businessDate,
+  ]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
   const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  function handlePresetFilter(nextFilter: FolioFilter) {
+    if (filter === nextFilter) {
+      setFilter("all");
+      setStatusFilter("all");
+      setStayFilter("all");
+      setBalanceFilter("all");
+    } else {
+      setFilter(nextFilter);
+      if (nextFilter === "in_house") {
+        setStayFilter("in_house");
+      } else if (nextFilter === "departures") {
+        setStayFilter("departures");
+      } else if (nextFilter === "positive") {
+        setBalanceFilter("positive");
+      } else if (nextFilter === "negative") {
+        setBalanceFilter("negative");
+      } else if (nextFilter === "open") {
+        setStatusFilter("open");
+      } else if (nextFilter === "closed") {
+        setStatusFilter("closed");
+      }
+    }
+    setPage(1);
+  }
+
+  function handleClearAll() {
+    setSearch("");
+    setFilter("all");
+    setStatusFilter("all");
+    setStayFilter("all");
+    setBalanceFilter("all");
+    setRoomFilter("");
+    setSortOption("default");
+    setPage(1);
+  }
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ["cashiering-dashboard", restaurantId] });
@@ -469,10 +798,42 @@ export function CashieringDesk({
             setPage(1);
           }}
           filter={filter}
-          onFilter={(value) => {
-            setFilter(value);
+          onFilter={handlePresetFilter}
+          statusFilter={statusFilter}
+          onStatusFilter={(value) => {
+            setStatusFilter(value);
+            if (value === "open") setFilter("open");
+            else if (value === "closed") setFilter("closed");
+            else if (filter === "open" || filter === "closed") setFilter("all");
             setPage(1);
           }}
+          stayFilter={stayFilter}
+          onStayFilter={(value) => {
+            setStayFilter(value);
+            if (value === "in_house") setFilter("in_house");
+            else if (value === "departures") setFilter("departures");
+            else if (filter === "in_house" || filter === "departures") setFilter("all");
+            setPage(1);
+          }}
+          balanceFilter={balanceFilter}
+          onBalanceFilter={(value) => {
+            setBalanceFilter(value);
+            if (value === "positive") setFilter("positive");
+            else if (value === "negative") setFilter("negative");
+            else if (filter === "positive" || filter === "negative") setFilter("all");
+            setPage(1);
+          }}
+          roomFilter={roomFilter}
+          onRoomFilter={(value) => {
+            setRoomFilter(value);
+            setPage(1);
+          }}
+          sortOption={sortOption}
+          onSortOption={(value) => {
+            setSortOption(value);
+            setPage(1);
+          }}
+          onClearAll={handleClearAll}
           recent={recentTransactions}
           financialActivity={financialActivity}
           activity={activity}
@@ -573,6 +934,17 @@ function Overview({
   onSearch,
   filter,
   onFilter,
+  statusFilter,
+  onStatusFilter,
+  stayFilter,
+  onStayFilter,
+  balanceFilter,
+  onBalanceFilter,
+  roomFilter,
+  onRoomFilter,
+  sortOption,
+  onSortOption,
+  onClearAll,
   recent,
   financialActivity,
   activity,
@@ -623,6 +995,17 @@ function Overview({
   onSearch: (value: string) => void;
   filter: FolioFilter;
   onFilter: (value: FolioFilter) => void;
+  statusFilter: FolioStatusFilter;
+  onStatusFilter: (value: FolioStatusFilter) => void;
+  stayFilter: StayStatusFilter;
+  onStayFilter: (value: StayStatusFilter) => void;
+  balanceFilter: BalanceFilter;
+  onBalanceFilter: (value: BalanceFilter) => void;
+  roomFilter: string;
+  onRoomFilter: (value: string) => void;
+  sortOption: SortOption;
+  onSortOption: (value: SortOption) => void;
+  onClearAll: () => void;
   recent: LedgerEntryRow[];
   financialActivity: LedgerEntryRow[];
   activity: CashieringActivityFilter;
@@ -743,7 +1126,23 @@ function Overview({
           />
         </div>
       ) : null}
-      <FilterBar search={search} onSearch={onSearch} filter={filter} onFilter={onFilter} />
+      <FilterBar
+        search={search}
+        onSearch={onSearch}
+        filter={filter}
+        onFilter={onFilter}
+        statusFilter={statusFilter}
+        onStatusFilter={onStatusFilter}
+        stayFilter={stayFilter}
+        onStayFilter={onStayFilter}
+        balanceFilter={balanceFilter}
+        onBalanceFilter={onBalanceFilter}
+        roomFilter={roomFilter}
+        onRoomFilter={onRoomFilter}
+        sortOption={sortOption}
+        onSortOption={onSortOption}
+        onClearAll={onClearAll}
+      />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,0.85fr)]">
         <FolioTable
           rows={folios}
