@@ -51,6 +51,7 @@ export const RESERVATION_EVENT_TYPES = [
   "package_applied",
   "package_removed",
   "promotion_applied",
+  "promotion_removed",
   "note_pinned",
   "trace_created",
   "trace_updated",

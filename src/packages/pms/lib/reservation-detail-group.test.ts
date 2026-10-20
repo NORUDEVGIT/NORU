@@ -12,7 +12,7 @@ import type { HousekeepingTask } from "@/packages/pms/lib/housekeeping.functions
 import {
   GROUP_AMEND_UNAVAILABLE,
   GROUP_COPY_UNAVAILABLE,
-  GROUP_RATE_CHANGE_UNAVAILABLE,
+  GROUP_RATE_CHANGE_PER_ROOM,
   groupActionGate,
   groupAssignmentSummary,
   groupCombinedSubtotal,
@@ -243,10 +243,12 @@ describe("reservation detail group projection", () => {
     expect(sections[0]?.subtotal).toBe(13500);
     expect(sections[1]?.subtotal).toBe(18000);
     expect(groupCombinedSubtotal(group)).toBe(31500);
-    expect(rates).toContain("nightlyBreakdownRows(reservation, plan)");
+    expect(rates).toContain("nightlyBreakdownRows(read.unit, plan)");
     expect(rates).toContain("<GroupRoomRates");
-    expect(rates).toContain("GROUP_RATE_CHANGE_UNAVAILABLE");
-    expect(groupActionGate("rate", true)).toBe(GROUP_RATE_CHANGE_UNAVAILABLE);
+    expect(rates).toContain("GROUP_RATE_CHANGE_PER_ROOM");
+    expect(rates).toContain("repriceReservation");
+    expect(groupActionGate("rate", true)).toBeNull();
+    expect(GROUP_RATE_CHANGE_PER_ROOM).toContain("selected room");
     expect(groupActionGate("rate", false)).toBeNull();
     expect(overview).toContain('data-testid="overview-group-rates"');
     expect(overview).toContain("Room-specific nightly rates");

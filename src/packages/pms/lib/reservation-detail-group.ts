@@ -6,8 +6,8 @@ export const GROUP_COPY_UNAVAILABLE =
 export const GROUP_AMEND_UNAVAILABLE =
   "Multi-room date amendments are not supported from this workspace yet.";
 
-export const GROUP_RATE_CHANGE_UNAVAILABLE =
-  "Rate changes for multi-room reservations must be handled per room. This action is not available here yet.";
+export const GROUP_RATE_CHANGE_PER_ROOM =
+  "Rate plan changes apply to the selected room. The booking total rolls up from the room units.";
 
 export const GROUP_OCCUPANCY_NOTE = "Room occupancy is managed per room under Rooms.";
 
@@ -184,7 +184,7 @@ export function groupActionGate(action: "copy" | "amend" | "rate", group: boolea
   if (!group) return null;
   if (action === "copy") return GROUP_COPY_UNAVAILABLE;
   if (action === "amend") return GROUP_AMEND_UNAVAILABLE;
-  return GROUP_RATE_CHANGE_UNAVAILABLE;
+  return null;
 }
 
 export function historyGuestName(guestId: string, reservation: GroupReservationSlice): string {

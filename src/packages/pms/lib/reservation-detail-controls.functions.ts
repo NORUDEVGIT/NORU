@@ -158,6 +158,25 @@ export const applyReservationPromotion = createServerFn({ method: "POST" })
     return { id: data.reservationId };
   });
 
+/** Deletes the promotion snapshot. Does not change room_subtotal. */
+export const removeReservationPromotion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ id: string }> => {
+    const me = await requireRateManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
+    const { error } = await supabaseAdmin.rpc("remove_hotel_reservation_promotion", {
+      _restaurant_id: data.restaurantId,
+      _reservation_id: data.reservationId,
+      _membership_id: me.id,
+    });
+    if (error) throw rateError(error.message);
+    return { id: data.reservationId };
+  });
+
 export const saveAssignmentNotes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>

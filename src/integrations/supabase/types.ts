@@ -16157,6 +16157,16 @@ export type Database = {
         }
         Returns: Json
       }
+      preview_folio_charge_scoped: {
+        Args: {
+          _amount: number
+          _charge_source: string
+          _department_id: string | null
+          _folio_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
       list_chargeable_guest_services: {
         Args: {
           _folio_id: string
@@ -16349,6 +16359,24 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      reprice_hotel_reservation_room: {
+        Args: {
+          _membership_id: string
+          _rate_plan_id: string
+          _reservation_id: string
+          _reservation_room_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      remove_hotel_reservation_promotion: {
+        Args: {
+          _membership_id: string
+          _reservation_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
       }
       reprice_hotel_reservation: {
         Args: {
