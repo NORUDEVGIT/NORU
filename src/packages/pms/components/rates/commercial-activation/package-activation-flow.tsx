@@ -77,7 +77,17 @@ export function PackageActivationFlow({
   const previewFn = useServerFn(previewPackageActivation);
   const applyFn = useServerFn(applyPackageActivation);
   const [step, setStep] = useState<CommercialActivationStep>(initialPackageId ? 2 : 1);
-  const [draft, setDraft] = useState<PackageActivationDraft>(() => emptyPackageDraft(initialPackageId));
+  const [draft, setDraft] = useState<PackageActivationDraft>(() => {
+    const initial = emptyPackageDraft(initialPackageId);
+    const selected = masters.find((row) => row.id === initialPackageId);
+    return selected
+      ? {
+          ...initial,
+          roomTypeIds: [...selected.roomTypeIds],
+          ratePlanIds: [...selected.ratePlanIds],
+        }
+      : initial;
+  });
   const [preview, setPreview] = useState<PackageActivationPreview | null>(null);
   const [previewFingerprint, setPreviewFingerprint] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
@@ -227,7 +237,14 @@ export function PackageActivationFlow({
             masters={masters}
             selectedId={draft.packageId}
             currency={currency}
-            onSelect={(id) => patchDraft({ packageId: id })}
+            onSelect={(id) => {
+              const selected = masters.find((row) => row.id === id);
+              patchDraft({
+                packageId: id,
+                roomTypeIds: selected ? [...selected.roomTypeIds] : [],
+                ratePlanIds: selected ? [...selected.ratePlanIds] : [],
+              });
+            }}
           />
         ) : null}
         {step === 2 ? <PackageDatesStep draft={draft} onChange={patchDraft} /> : null}

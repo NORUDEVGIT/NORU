@@ -10,6 +10,7 @@ import { rateError, requireRateManager } from "../rates.server";
 import {
   getPackageActivationDetail as loadPackageActivationDetail,
   listPackageActivations as loadPackageActivations,
+  applyStoredPackageActivation,
   previewStoredPackageActivation,
 } from "./commercial-package-activation.server.ts";
 import { executeOrSubmitPackageActivation } from "./revenue-approval.server.ts";
@@ -54,6 +55,11 @@ export const applyPackageActivation = createServerFn({ method: "POST" })
     const me = await requireRateManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
+      if (data.applyImmediately) {
+        const { applyImmediately: _applyImmediately, ...proposal } = data;
+        const applied = await applyStoredPackageActivation(supabaseAdmin, proposal, me.id);
+        return { mode: "applied" as const, ...applied };
+      }
       return await executeOrSubmitPackageActivation(supabaseAdmin, data, {
         membershipId: me.id,
         userId: context.userId,

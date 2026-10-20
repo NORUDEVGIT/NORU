@@ -163,6 +163,15 @@ describe("RR-P5-UI-03 commercial activation workflow", () => {
       reason: "Launch",
       expectedVersion: COMMERCIAL_ABSENT_VERSION,
     });
+    assert.equal(
+      promotionApplyPayload(
+        "11111111-1111-4111-8111-111111111111",
+        preview,
+        "Launch",
+        true,
+      )?.applyImmediately,
+      true,
+    );
     assert.equal(promotionPreviewPayload("11111111-1111-4111-8111-111111111111", emptyPromotionDraft()).expectedVersion, COMMERCIAL_ABSENT_VERSION);
     const packagePreview: PackageActivationPreview = {
       operation: "CREATE",
@@ -233,6 +242,8 @@ describe("RR-P5-UI-03 commercial activation workflow", () => {
     const packages = readRel("../../components/rates/packages/packages-view.tsx");
     const promoFlow = readRel("../../components/rates/commercial-activation/promotion-activation-flow.tsx");
     const packageFlow = readRel("../../components/rates/commercial-activation/package-activation-flow.tsx");
+    const promotionApply = readRel("./commercial-promotion-activation.functions.ts");
+    const packageApply = readRel("./commercial-package-activation.functions.ts");
     const workflow = readRel("../../components/rates/commercial-activation/commercial-activation-workflow.tsx");
     const review = readRel("../../components/rates/commercial-activation/activation-review.tsx");
     const validation = readRel("../../components/rates/commercial-activation/activation-validation.tsx");
@@ -255,10 +266,21 @@ describe("RR-P5-UI-03 commercial activation workflow", () => {
     assert.match(promoFlow, /applyPromotionActivation/);
     assert.match(promoFlow, /promotionPreviewPayload|promotionApplyPayload/);
     assert.match(promoFlow, /Promotion activated/);
+    assert.match(promoFlow, /SUBMIT_FOR_APPROVAL_LABEL/);
+    assert.match(promoFlow, /APPROVE_APPLY_LABEL/);
+    assert.match(promoFlow, /roomTypeIds: selected \? \[\.\.\.selected\.roomTypeIds\]/);
     assert.match(packageFlow, /previewPackageActivation/);
     assert.match(packageFlow, /applyPackageActivation/);
     assert.match(packageFlow, /packagePreviewPayload|packageApplyPayload/);
     assert.match(packageFlow, /Package activated/);
+    assert.match(packageFlow, /SUBMIT_FOR_APPROVAL_LABEL/);
+    assert.match(packageFlow, /APPROVE_APPLY_LABEL/);
+    assert.match(packageFlow, /roomTypeIds: selected \? \[\.\.\.selected\.roomTypeIds\]/);
+    assert.match(packageFlow, /ratePlanIds: selected \? \[\.\.\.selected\.ratePlanIds\]/);
+    assert.match(promotionApply, /applyStoredPromotionActivation/);
+    assert.match(promotionApply, /data\.applyImmediately/);
+    assert.match(packageApply, /applyStoredPackageActivation/);
+    assert.match(packageApply, /data\.applyImmediately/);
     assert.match(readRel("./commercial-activation-workflow.ts"), /operation: "CREATE"/);
     assert.match(workflow, /Activate Commercial Item/);
     assert.match(validation, /PROMOTION_ACTIVATION_OVERLAP|ACTIVATION_OVERLAP_COPY/);
