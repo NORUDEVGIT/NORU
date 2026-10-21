@@ -1,6 +1,7 @@
 /**
  * Reports workspace. Analytics readers stay on the existing desk.
  * Police reads getPoliceStayReport. Cashier reads getCashierInvoiceReport.
+ * Fiscal reads getFiscalRegistrationReport.
  * The house date is restaurants.business_date via getPropertyBusinessDate.
  */
 import { useEffect, useState } from "react";
@@ -14,6 +15,7 @@ import { ReportsCatalogue } from "@/packages/pms/components/reports/reports-cata
 import { ReportsDesk } from "@/packages/pms/components/reports/reports-desk";
 import { ReportMissingState } from "@/packages/pms/components/reports/report-states";
 import { CashierInvoiceReportScreen } from "@/packages/pms/components/reports/cashier-invoice-report-screen";
+import { FiscalRegistrationReportScreen } from "@/packages/pms/components/reports/fiscal-registration-report-screen";
 import { PoliceStayReportScreen } from "@/packages/pms/components/reports/police-stay-report-screen";
 import { RevenueOverviewTab } from "@/packages/pms/components/rates/rates-tabs";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
@@ -38,6 +40,8 @@ function rowSearchFilters(search: ReportsRouteSearch): Partial<ReportsRouteSearc
   if (search.grain) filters.grain = search.grain;
   if (search.query) filters.query = search.query;
   if (search.issuer) filters.issuer = search.issuer;
+  if (search.mode) filters.mode = search.mode;
+  if (search.status) filters.status = search.status;
   if (search.page) filters.page = search.page;
   if (search.pageSize) filters.pageSize = search.pageSize;
   if (search.presence) filters.presence = search.presence;
@@ -80,6 +84,12 @@ export function PmsReportsWorkspace({
       filters.stayDate = reportsReaderDate(businessDate);
     }
     if (next.kind === "row" && next.report === "cashier-invoice" && filters && businessDate) {
+      const houseDate = reportsReaderDate(businessDate);
+      if (!filters.from) filters.from = houseDate;
+      if (!filters.to) filters.to = houseDate;
+      if (!filters.documentType) filters.documentType = "INV";
+    }
+    if (next.kind === "row" && next.report === "fiscal-registration" && filters && businessDate) {
       const houseDate = reportsReaderDate(businessDate);
       if (!filters.from) filters.from = houseDate;
       if (!filters.to) filters.to = houseDate;
@@ -144,6 +154,20 @@ export function PmsReportsWorkspace({
   } else if (view.kind === "row" && view.report === "cashier-invoice" && openRow?.kind === "row") {
     body = (
       <CashierInvoiceReportScreen
+        restaurantId={restaurantId}
+        propertyName={membership.restaurant.name}
+        businessDate={reportsReaderDate(businessDate)}
+        timezone={timezone}
+        search={search}
+      />
+    );
+  } else if (
+    view.kind === "row" &&
+    view.report === "fiscal-registration" &&
+    openRow?.kind === "row"
+  ) {
+    body = (
+      <FiscalRegistrationReportScreen
         restaurantId={restaurantId}
         propertyName={membership.restaurant.name}
         businessDate={reportsReaderDate(businessDate)}

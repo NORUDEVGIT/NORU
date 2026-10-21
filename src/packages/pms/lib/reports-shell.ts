@@ -129,7 +129,7 @@ type ReportBase = {
 
 export type AnalyticsReportId = "operational" | "financial" | "rooms" | "revenue" | "management";
 
-export type RowReportId = "police" | "cashier-invoice";
+export type RowReportId = "police" | "cashier-invoice" | "fiscal-registration";
 export type ReportId = AnalyticsReportId | RowReportId;
 
 export type AnalyticsReportDefinition = ReportBase & {
@@ -305,6 +305,23 @@ export const REPORT_CATALOGUE: readonly ReportDefinition[] = [
     permissions: { view: null, print: null, export: null },
     placeholderNote: null,
   },
+  {
+    kind: "row",
+    id: "fiscal-registration",
+    code: "fiscal-registration",
+    group: "financial-reports",
+    status: "LIVE",
+    icon: "clipboard",
+    title: "Fiscal Registration Report",
+    name: "Fiscal Registration Report",
+    description: "Provider fiscal registrations for invoices, notes, and sales receipts.",
+    caption: "Provider fiscal registrations for invoices, notes, and sales receipts.",
+    supportsPrint: true,
+    supportsPdf: true,
+    supportsExcel: true,
+    permissions: { view: null, print: null, export: null },
+    placeholderNote: null,
+  },
 ];
 
 export type ReportCode = ReportId;
@@ -329,6 +346,7 @@ const HELD_CODES = new Set([
 
 const REPORT_ALIASES: Record<string, ReportId> = {
   cashier: "cashier-invoice",
+  fiscal: "fiscal-registration",
 };
 
 export const REPORTS_DESK_EYEBROW = "Reports";
@@ -361,6 +379,8 @@ export type ReportsRouteSearch = {
   grain?: string;
   query?: string;
   issuer?: string;
+  mode?: string;
+  status?: string;
   presence?: "IN_HOUSE" | "HISTORICAL";
   name?: string;
   nationality?: string;
@@ -393,6 +413,8 @@ const SEARCH_KEYS = [
   "grain",
   "query",
   "issuer",
+  "mode",
+  "status",
   "presence",
   "name",
   "nationality",
@@ -553,12 +575,16 @@ export function parseReportsRouteSearch(search: Record<string, unknown>): Report
   const room = parseReportText(search.room, 80);
   const query = parseReportText(search.query, 120);
   const issuer = parseIssuer(search.issuer);
+  const mode = parseToken(search.mode);
+  const status = parseToken(search.status);
   if (presence) next.presence = presence;
   if (name) next.name = name;
   if (nationality) next.nationality = nationality;
   if (room) next.room = room;
   if (query) next.query = query;
   if (issuer) next.issuer = issuer;
+  if (mode === "CASH" || mode === "CREDIT" || mode === "ALL") next.mode = mode;
+  if (status) next.status = status.toUpperCase();
   return next;
 }
 
@@ -633,6 +659,8 @@ export function reportsSearch(
       | "grain"
       | "query"
       | "issuer"
+      | "mode"
+      | "status"
       | "page"
       | "pageSize"
       | "presence"
@@ -653,6 +681,8 @@ export function reportsSearch(
     if (preserved?.grain === "detail") search.grain = "detail";
     if (preserved?.query) search.query = preserved.query;
     if (preserved?.issuer) search.issuer = preserved.issuer;
+    if (preserved?.mode && preserved.mode !== "ALL") search.mode = preserved.mode;
+    if (preserved?.status && preserved.status !== "ALL") search.status = preserved.status;
     if (preserved?.presence === "HISTORICAL") search.presence = "HISTORICAL";
     if (preserved?.name) search.name = preserved.name;
     if (preserved?.nationality) search.nationality = preserved.nationality;
