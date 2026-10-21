@@ -5,9 +5,10 @@ import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-invent
 import {
   REPORTS_DESK_EYEBROW,
   REPORTS_DESK_TITLE,
-  REPORT_CATEGORIES,
+  REPORT_GROUPS,
   reportByCode,
-  type ReportCategory,
+  reportStatusLabel,
+  type ReportGroupId,
   type ReportsView,
 } from "@/packages/pms/lib/reports-shell";
 import {
@@ -29,11 +30,13 @@ export function ReportsChrome({
   membership: RestaurantMembership;
   view: ReportsView;
   onOpenCenter: () => void;
-  onOpenCategory: (category: ReportCategory) => void;
+  onOpenCategory: (group: ReportGroupId) => void;
   onSearch: (value: string) => void;
   children: ReactNode;
 }) {
-  const openReport = view.tab === "report" ? reportByCode(view.report) : null;
+  const openReport =
+    view.kind === "analytics" || view.kind === "row" ? reportByCode(view.report) : null;
+  const openStatus = openReport ? reportStatusLabel(openReport.status) : null;
 
   return (
     <RoomInventoryChrome
@@ -56,7 +59,8 @@ export function ReportsChrome({
                 {REPORTS_DESK_TITLE}
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Hotel reads for {membership.restaurant.name}. Counts appear only when a reader returns them.
+                Analytics and row-level reports for {membership.restaurant.name}. Figures use the
+                property house date.
               </p>
             </div>
             <CategoryMenu
@@ -73,7 +77,7 @@ export function ReportsChrome({
           >
             <TabButton
               testId="reports-nav-center"
-              active={view.tab === "center"}
+              active={view.kind === "center"}
               onClick={onOpenCenter}
             >
               Report Center
@@ -81,6 +85,7 @@ export function ReportsChrome({
             {openReport ? (
               <TabButton testId={`reports-nav-${openReport.code}`} active>
                 {openReport.name}
+                {openStatus ? ` · ${openStatus}` : ""}
               </TabButton>
             ) : null}
             <CategoryMenu
@@ -120,7 +125,9 @@ function TabButton({
       )}
     >
       <span>{children}</span>
-      {active ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" /> : null}
+      {active ? (
+        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+      ) : null}
     </button>
   );
 }
@@ -134,7 +141,7 @@ function CategoryMenu({
   label: string;
   testId: string;
   itemPrefix: string;
-  onOpenCategory: (category: ReportCategory) => void;
+  onOpenCategory: (group: ReportGroupId) => void;
 }) {
   return (
     <DropdownMenu>
@@ -145,13 +152,13 @@ function CategoryMenu({
         {label}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {REPORT_CATEGORIES.map((category) => (
+        {REPORT_GROUPS.map((group) => (
           <DropdownMenuItem
-            key={category.id}
-            data-testid={`${itemPrefix}-${category.id}`}
-            onSelect={() => onOpenCategory(category.id)}
+            key={group.id}
+            data-testid={`${itemPrefix}-${group.id}`}
+            onSelect={() => onOpenCategory(group.id)}
           >
-            {category.label}
+            {group.label}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

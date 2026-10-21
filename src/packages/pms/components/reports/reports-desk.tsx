@@ -9,14 +9,13 @@ import { getHousekeepingDashboard } from "@/packages/pms/lib/housekeeping.functi
 import { listNightAuditRuns } from "@/packages/pms/lib/nightaudit.functions";
 import { getBookingsDashboard } from "@/packages/pms/lib/reservations.functions";
 import {
-  filterReports,
+  isAnalyticsReport,
   REPORTS_NIGHT_AUDIT_DISPLAY_LIMIT,
   REPORTS_NIGHT_AUDIT_SERVER_LIMIT,
   reportByCode,
   reportsReaderDate,
-  type ReportCategory,
-  type ReportCode,
-  type ReportDefinition,
+  type AnalyticsReportDefinition,
+  type AnalyticsReportId,
 } from "@/packages/pms/lib/reports-shell";
 import { useMoney } from "@/core/state/property-format";
 
@@ -24,55 +23,21 @@ export function ReportsDesk({
   restaurantId,
   businessDate,
   report,
-  category,
-  catalogueQuery,
-  onOpenReport,
 }: {
   restaurantId: string;
   businessDate: string;
-  report: ReportCode | null;
-  category: ReportCategory | null;
-  catalogueQuery: string;
-  onOpenReport: (code: ReportCode) => void;
+  report: AnalyticsReportId;
 }) {
   const readerDate = reportsReaderDate(businessDate);
-  if (!report) {
-    const rows = filterReports(catalogueQuery, category);
-    return (
-      <div className="space-y-3" data-testid="reports-center">
-        <p className="text-sm text-muted-foreground">
-          {category ? `${categoryLabel(category)} reports with a live reader.` : "Reports with a live reader."}
-        </p>
-        {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No report matches that search.</p>
-        ) : (
-          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-            {rows.map((row) => (
-              <li key={row.code}>
-                <button
-                  type="button"
-                  data-testid={`reports-open-${row.code}`}
-                  onClick={() => onOpenReport(row.code)}
-                  className="flex w-full flex-col items-start gap-1 px-4 py-3 text-left hover:bg-muted/40"
-                >
-                  <span className="text-sm font-medium">{row.name}</span>
-                  <span className="text-xs text-muted-foreground">{row.reader}</span>
-                  <span className="text-xs text-muted-foreground">{row.caption}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    );
-  }
-
   const definition = reportByCode(report);
-  if (!definition) return null;
+  if (!definition || !isAnalyticsReport(definition)) return null;
 
   return (
     <div className="space-y-4" data-testid={`reports-report-${definition.code}`}>
-      <p className="text-sm text-muted-foreground" data-testid={`reports-caption-${definition.code}`}>
+      <p
+        className="text-sm text-muted-foreground"
+        data-testid={`reports-caption-${definition.code}`}
+      >
         {definition.caption}
       </p>
       <OwnerLink definition={definition} />
@@ -90,15 +55,7 @@ export function ReportsDesk({
   );
 }
 
-function categoryLabel(category: ReportCategory): string {
-  if (category === "operational") return "Operational";
-  if (category === "financial") return "Financial";
-  if (category === "rooms") return "Rooms";
-  if (category === "revenue") return "Revenue";
-  return "Management";
-}
-
-function OwnerLink({ definition }: { definition: ReportDefinition }) {
+function OwnerLink({ definition }: { definition: AnalyticsReportDefinition }) {
   if (definition.code === "financial") {
     return (
       <Link
@@ -141,22 +98,41 @@ function NoAccess({ what }: { what: string }) {
   );
 }
 
-function OperationalReport({ restaurantId, readerDate }: { restaurantId: string; readerDate: string }) {
+function OperationalReport({
+  restaurantId,
+  readerDate,
+}: {
+  restaurantId: string;
+  readerDate: string;
+}) {
   const fetchBookings = useServerFn(getBookingsDashboard);
   const bookings = useQuery({
     queryKey: ["pms-reports-bookings", restaurantId, readerDate],
     queryFn: () => fetchBookings({ data: { restaurantId, today: readerDate } }),
     retry: false,
   });
-  if (bookings.isLoading) return <p className="text-sm text-muted-foreground">Loading reservation counts…</p>;
+  if (bookings.isLoading)
+    return <p className="text-sm text-muted-foreground">Loading reservation counts…</p>;
   if (bookings.isError) return <NoAccess what="reservation reporting" />;
   if (!bookings.data) return null;
   const data = bookings.data;
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <StatCard label="Arrivals" value={data.arrivalsToday} hint="Pending and confirmed arriving on the house date" />
-      <StatCard label="Departures" value={data.departuresToday} hint="Confirmed and checked-in departing on the house date" />
-      <StatCard label="Staying" value={data.stayingToday} hint="Pending, confirmed, and checked-in overlapping the house date" />
+      <StatCard
+        label="Arrivals"
+        value={data.arrivalsToday}
+        hint="Pending and confirmed arriving on the house date"
+      />
+      <StatCard
+        label="Departures"
+        value={data.departuresToday}
+        hint="Confirmed and checked-in departing on the house date"
+      />
+      <StatCard
+        label="Staying"
+        value={data.stayingToday}
+        hint="Pending, confirmed, and checked-in overlapping the house date"
+      />
       <StatCard label="Pending" value={data.pending} />
       <StatCard label="Upcoming" value={data.upcoming} />
       <StatCard
@@ -164,7 +140,11 @@ function OperationalReport({ restaurantId, readerDate }: { restaurantId: string;
         value={data.cancelledThisMonth}
         hint="Cancelled stays whose arrival is on or after the first day of the house-date month. Not a no-show list."
       />
-      <StatCard label="Sellable rooms" value={data.sellableRooms} hint="Active rooms with status available" />
+      <StatCard
+        label="Sellable rooms"
+        value={data.sellableRooms}
+        hint="Active rooms with status available"
+      />
       <StatCard
         label="Staying occupancy"
         value={`${data.occupancyPercent}%`}
@@ -174,7 +154,13 @@ function OperationalReport({ restaurantId, readerDate }: { restaurantId: string;
   );
 }
 
-function FinancialReport({ restaurantId, readerDate }: { restaurantId: string; readerDate: string }) {
+function FinancialReport({
+  restaurantId,
+  readerDate,
+}: {
+  restaurantId: string;
+  readerDate: string;
+}) {
   const money = useMoney();
   const fetchCashiering = useServerFn(getCashieringDashboard);
   const cashiering = useQuery({
@@ -182,18 +168,39 @@ function FinancialReport({ restaurantId, readerDate }: { restaurantId: string; r
     queryFn: () => fetchCashiering({ data: { restaurantId, today: readerDate } }),
     retry: false,
   });
-  if (cashiering.isLoading) return <p className="text-sm text-muted-foreground">Loading folio activity…</p>;
+  if (cashiering.isLoading)
+    return <p className="text-sm text-muted-foreground">Loading folio activity…</p>;
   if (cashiering.isError) return <NoAccess what="cashiering reporting" />;
   if (!cashiering.data) return null;
   const data = cashiering.data;
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <StatCard label="Open folios" value={data.openFolios} />
-      <StatCard label="Outstanding balance" value={money(data.outstandingBalance)} hint="Sum of open folio amounts, all dates" />
-      <StatCard label="Charges" value={money(data.todayCharges)} hint={`Property-timezone day of hotel business date ${data.businessDate}`} />
-      <StatCard label="Payments" value={money(data.todayPayments)} hint={`Guest payments only, business date ${data.businessDate}`} />
-      <StatCard label="Deposits" value={money(data.todayDeposits)} hint={`Guest deposits only, business date ${data.businessDate}`} />
-      <StatCard label="Refunds" value={money(data.todayRefunds)} hint={`Property-timezone day of hotel business date ${data.businessDate}`} />
+      <StatCard
+        label="Outstanding balance"
+        value={money(data.outstandingBalance)}
+        hint="Sum of open folio amounts, all dates"
+      />
+      <StatCard
+        label="Charges"
+        value={money(data.todayCharges)}
+        hint={`Property-timezone day of hotel business date ${data.businessDate}`}
+      />
+      <StatCard
+        label="Payments"
+        value={money(data.todayPayments)}
+        hint={`Guest payments only, business date ${data.businessDate}`}
+      />
+      <StatCard
+        label="Deposits"
+        value={money(data.todayDeposits)}
+        hint={`Guest deposits only, business date ${data.businessDate}`}
+      />
+      <StatCard
+        label="Refunds"
+        value={money(data.todayRefunds)}
+        hint={`Property-timezone day of hotel business date ${data.businessDate}`}
+      />
       <StatCard label="Open hotel drawers" value={data.openShifts} />
     </div>
   );
@@ -232,7 +239,8 @@ function ManagementReport({ restaurantId }: { restaurantId: string }) {
     queryFn: () => fetchRuns({ data: { restaurantId } }),
     retry: false,
   });
-  if (runs.isLoading) return <p className="text-sm text-muted-foreground">Loading night audit history…</p>;
+  if (runs.isLoading)
+    return <p className="text-sm text-muted-foreground">Loading night audit history…</p>;
   if (runs.isError) return <NoAccess what="night audit reporting" />;
   const rows = runs.data ?? [];
   if (rows.length === 0) {
@@ -247,7 +255,8 @@ function ManagementReport({ restaurantId }: { restaurantId: string }) {
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        Showing {shown.length} of {rows.length} loaded runs. The server returns at most {REPORTS_NIGHT_AUDIT_SERVER_LIMIT}.
+        Showing {shown.length} of {rows.length} loaded runs. The server returns at most{" "}
+        {REPORTS_NIGHT_AUDIT_SERVER_LIMIT}.
       </p>
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         <table className="w-full text-sm">

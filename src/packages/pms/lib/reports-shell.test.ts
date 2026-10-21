@@ -17,9 +17,9 @@ function read(path: string): string {
 }
 
 describe("Reports Phase 0 shell", () => {
-  it("lists only the five live readers", () => {
+  it("keeps the five live analytics readers and rejects held submission codes", () => {
     assert.deepEqual(
-      REPORT_CATALOGUE.map((row) => row.code),
+      REPORT_CATALOGUE.filter((row) => row.kind === "analytics").map((row) => row.code),
       ["operational", "financial", "rooms", "revenue", "management"],
     );
     assert.deepEqual(
@@ -32,22 +32,19 @@ describe("Reports Phase 0 shell", () => {
     assert.equal(reportByCode("custom"), null);
     assert.equal(reportByCode("scheduled"), null);
     assert.equal(reportByCode("occupancy"), null);
-    assert.equal(resolveReportsView({ tab: "occupancy" }).tab, "report");
-    assert.equal(
-      resolveReportsView({ tab: "occupancy" }).tab === "report"
-        ? resolveReportsView({ tab: "occupancy" }).report
-        : null,
-      "operational",
+    const occupancy = resolveReportsView({ tab: "occupancy" });
+    assert.equal(occupancy.kind, "analytics");
+    assert.equal(occupancy.kind === "analytics" ? occupancy.report : null, "operational");
+    assert.deepEqual(reportsSearch({ kind: "center", group: null, topic: null }), {});
+    assert.deepEqual(reportsSearch({ kind: "analytics", report: "rooms" }), { report: "rooms" });
+    assert.deepEqual(
+      filterReports("folio", null).map((row) => row.code),
+      [],
     );
-    assert.deepEqual(reportsSearch({ tab: "center" }), { tab: "center" });
-    assert.deepEqual(reportsSearch({ tab: "report", report: "rooms" }), {
-      tab: "report",
-      report: "rooms",
-    });
-    assert.deepEqual(filterReports("folio", null).map((row) => row.code), []);
-    assert.deepEqual(filterReports("getCashieringDashboard", "financial").map((row) => row.code), [
-      "financial",
-    ]);
+    assert.deepEqual(
+      filterReports("getCashieringDashboard", "financial").map((row) => row.code),
+      ["financial"],
+    );
   });
 
   it("sends the supplied house date and does not invent one", () => {
@@ -62,7 +59,10 @@ describe("Reports Phase 0 shell", () => {
     assert.doesNotMatch(financial?.caption ?? "", /UTC/);
     assert.doesNotMatch(rooms?.caption ?? "", /business date/i);
     const desk = read("../components/reports/reports-desk.tsx");
-    const roomsFn = desk.slice(desk.indexOf("function RoomsReport"), desk.indexOf("function ManagementReport"));
+    const roomsFn = desk.slice(
+      desk.indexOf("function RoomsReport"),
+      desk.indexOf("function ManagementReport"),
+    );
     assert.doesNotMatch(roomsFn, /business date/i);
     assert.match(desk, /hotel business date/);
     assert.doesNotMatch(desk, /posted_at UTC day/);
@@ -86,7 +86,10 @@ describe("Reports Phase 0 shell", () => {
     assert.doesNotMatch(workspace, /propertyToday/);
     assert.doesNotMatch(desk, /propertyToday/);
     assert.doesNotMatch(joined, /from ["'][^"']*(jspdf|xlsx|exportRevenue|pg_cron)/);
-    assert.doesNotMatch(chrome + desk + workspace, /Export CSV|Schedule report|Government report|Submit report/i);
+    assert.doesNotMatch(
+      chrome + desk + workspace,
+      /Export CSV|Schedule report|Government report|Submit report/i,
+    );
     assert.doesNotMatch(chrome, /MoreHorizontal/);
   });
 });
