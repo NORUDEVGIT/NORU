@@ -45,7 +45,7 @@ describe("Police stay report screen", () => {
     assert.match(workspace, /PoliceStayReportScreen/);
     assert.match(screen, /getPoliceStayReport/);
     assert.match(workspace, /view\.report === "police"/);
-    assert.match(workspace, /RowReportPlaceholder/);
+    assert.match(workspace, /CashierInvoiceReportScreen/);
     assert.doesNotMatch(
       screen,
       /Unknown Guest|fo_stay_companions|guest_documents|pms_group_rooming_rows|exceljs|jspdf|text\/csv/,

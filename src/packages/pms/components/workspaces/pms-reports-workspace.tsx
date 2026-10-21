@@ -1,6 +1,6 @@
 /**
  * Reports workspace. Analytics readers stay on the existing desk.
- * Police reads getPoliceStayReport. Cashier stays a placeholder.
+ * Police reads getPoliceStayReport. Cashier reads getCashierInvoiceReport.
  * The house date is restaurants.business_date via getPropertyBusinessDate.
  */
 import { useEffect, useState } from "react";
@@ -13,8 +13,8 @@ import { ReportsChrome } from "@/packages/pms/components/reports/reports-chrome"
 import { ReportsCatalogue } from "@/packages/pms/components/reports/reports-catalogue";
 import { ReportsDesk } from "@/packages/pms/components/reports/reports-desk";
 import { ReportMissingState } from "@/packages/pms/components/reports/report-states";
+import { CashierInvoiceReportScreen } from "@/packages/pms/components/reports/cashier-invoice-report-screen";
 import { PoliceStayReportScreen } from "@/packages/pms/components/reports/police-stay-report-screen";
-import { RowReportPlaceholder } from "@/packages/pms/components/reports/row-report-placeholder";
 import { RevenueOverviewTab } from "@/packages/pms/components/rates/rates-tabs";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
 import {
@@ -26,7 +26,6 @@ import {
   sameReportsSearch,
   type ReportGroupId,
   type ReportId,
-  type ReportPageSize,
   type ReportsRouteSearch,
 } from "@/packages/pms/lib/reports-shell";
 
@@ -36,6 +35,9 @@ function rowSearchFilters(search: ReportsRouteSearch): Partial<ReportsRouteSearc
   if (search.from) filters.from = search.from;
   if (search.to) filters.to = search.to;
   if (search.documentType) filters.documentType = search.documentType;
+  if (search.grain) filters.grain = search.grain;
+  if (search.query) filters.query = search.query;
+  if (search.issuer) filters.issuer = search.issuer;
   if (search.page) filters.page = search.page;
   if (search.pageSize) filters.pageSize = search.pageSize;
   if (search.presence) filters.presence = search.presence;
@@ -77,6 +79,12 @@ export function PmsReportsWorkspace({
     ) {
       filters.stayDate = reportsReaderDate(businessDate);
     }
+    if (next.kind === "row" && next.report === "cashier-invoice" && filters && businessDate) {
+      const houseDate = reportsReaderDate(businessDate);
+      if (!filters.from) filters.from = houseDate;
+      if (!filters.to) filters.to = houseDate;
+      if (!filters.documentType) filters.documentType = "INV";
+    }
     const canonical = reportsSearch(next, filters);
     if (sameReportsSearch(search, canonical)) return;
     void navigate({
@@ -101,14 +109,6 @@ export function PmsReportsWorkspace({
     void navigate({
       to: "/restaurant/pms/reports",
       search: reportsSearch(resolveReportsView({ report: id })),
-    });
-  }
-
-  function goPage(page: number, pageSize: ReportPageSize) {
-    if (view.kind !== "row") return;
-    void navigate({
-      to: "/restaurant/pms/reports",
-      search: reportsSearch(view, { ...rowSearchFilters(search), page, pageSize }),
     });
   }
 
@@ -141,15 +141,14 @@ export function PmsReportsWorkspace({
         search={search}
       />
     );
-  } else if (view.kind === "row" && openRow && openRow.kind === "row") {
+  } else if (view.kind === "row" && view.report === "cashier-invoice" && openRow?.kind === "row") {
     body = (
-      <RowReportPlaceholder
-        definition={openRow}
+      <CashierInvoiceReportScreen
+        restaurantId={restaurantId}
+        propertyName={membership.restaurant.name}
         businessDate={reportsReaderDate(businessDate)}
         timezone={timezone}
-        page={view.page}
-        pageSize={view.pageSize}
-        onPageChange={goPage}
+        search={search}
       />
     );
   } else if (

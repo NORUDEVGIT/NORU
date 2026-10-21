@@ -49,7 +49,7 @@ describe("RPT-01 reports foundation", () => {
     }
   });
 
-  it("lists Police as a live row report and Cashier as a placeholder", () => {
+  it("lists Police and Cashier as live row reports", () => {
     const police = reportByCode("police");
     const cashier = reportByCode("cashier-invoice");
     assert.equal(police?.kind, "row");
@@ -59,13 +59,14 @@ describe("RPT-01 reports foundation", () => {
     assert.equal(police?.placeholderNote, null);
     assert.equal(police?.supportsPrint, true);
     assert.equal(cashier?.kind, "row");
-    assert.equal(cashier?.status, "PLACEHOLDER");
+    assert.equal(cashier?.status, "LIVE");
     assert.equal(cashier?.group, "financial-reports");
     assert.equal(cashier?.title, "Cashier Invoice Report");
-    assert.match(cashier?.placeholderNote ?? "", /RPT-05/);
+    assert.equal(cashier?.placeholderNote, null);
     assert.equal(police?.supportsExcel, true);
-    assert.equal(cashier?.supportsExcel, false);
-    assert.equal(cashier?.supportsPdf, false);
+    assert.equal(cashier?.supportsExcel, true);
+    assert.equal(cashier?.supportsPdf, true);
+    assert.equal(cashier?.supportsPrint, true);
     assert.deepEqual(
       REPORT_GROUPS.map((group) => group.id),
       ["analytics", "guest-stay", "financial-reports", "operations"],
@@ -114,7 +115,7 @@ describe("RPT-01 reports foundation", () => {
     assert.equal(reportByCode("breakfast"), null);
     assert.equal(resolveReportsView({ report: "government" }).kind, "missing");
     assert.equal(reportByCode("police")?.status, "LIVE");
-    assert.equal(reportByCode("cashier-invoice")?.status, "PLACEHOLDER");
+    assert.equal(reportByCode("cashier-invoice")?.status, "LIVE");
   });
 
   it("parses pagination safely", () => {

@@ -293,17 +293,17 @@ export const REPORT_CATALOGUE: readonly ReportDefinition[] = [
     id: "cashier-invoice",
     code: "cashier-invoice",
     group: "financial-reports",
-    status: "PLACEHOLDER",
+    status: "LIVE",
     icon: "receipt",
     title: "Cashier Invoice Report",
     name: "Cashier Invoice Report",
     description: "Issued guest and account invoice register.",
     caption: "Issued guest and account invoice register.",
-    supportsPrint: false,
-    supportsPdf: false,
-    supportsExcel: false,
+    supportsPrint: true,
+    supportsPdf: true,
+    supportsExcel: true,
     permissions: { view: null, print: null, export: null },
-    placeholderNote: "Report data will be added in RPT-05.",
+    placeholderNote: null,
   },
 ];
 
@@ -358,6 +358,9 @@ export type ReportsRouteSearch = {
   from?: string;
   to?: string;
   documentType?: string;
+  grain?: string;
+  query?: string;
+  issuer?: string;
   presence?: "IN_HOUSE" | "HISTORICAL";
   name?: string;
   nationality?: string;
@@ -387,6 +390,9 @@ const SEARCH_KEYS = [
   "from",
   "to",
   "documentType",
+  "grain",
+  "query",
+  "issuer",
   "presence",
   "name",
   "nationality",
@@ -535,19 +541,32 @@ export function parseReportsRouteSearch(search: Record<string, unknown>): Report
   const from = parseReportDate(search.from);
   const to = parseReportDate(search.to);
   const documentType = parseToken(search.documentType);
+  const grain = parseToken(search.grain);
   if (stayDate) next.stayDate = stayDate;
   if (from) next.from = from;
   if (to) next.to = to;
   if (documentType) next.documentType = documentType;
+  if (grain === "summary" || grain === "detail") next.grain = grain;
   const presence = parsePolicePresence(search.presence);
   const name = parseReportText(search.name, 120);
   const nationality = parseReportText(search.nationality, 80);
   const room = parseReportText(search.room, 80);
+  const query = parseReportText(search.query, 120);
+  const issuer = parseIssuer(search.issuer);
   if (presence) next.presence = presence;
   if (name) next.name = name;
   if (nationality) next.nationality = nationality;
   if (room) next.room = room;
+  if (query) next.query = query;
+  if (issuer) next.issuer = issuer;
   return next;
+}
+
+function parseIssuer(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const token = value.trim();
+  if (!/^[0-9a-f-]{36}$/i.test(token)) return undefined;
+  return token;
 }
 
 function parsePolicePresence(value: unknown): "IN_HOUSE" | "HISTORICAL" | undefined {
@@ -611,6 +630,9 @@ export function reportsSearch(
       | "from"
       | "to"
       | "documentType"
+      | "grain"
+      | "query"
+      | "issuer"
       | "page"
       | "pageSize"
       | "presence"
@@ -628,6 +650,9 @@ export function reportsSearch(
     if (preserved?.from) search.from = preserved.from;
     if (preserved?.to) search.to = preserved.to;
     if (preserved?.documentType) search.documentType = preserved.documentType;
+    if (preserved?.grain === "detail") search.grain = "detail";
+    if (preserved?.query) search.query = preserved.query;
+    if (preserved?.issuer) search.issuer = preserved.issuer;
     if (preserved?.presence === "HISTORICAL") search.presence = "HISTORICAL";
     if (preserved?.name) search.name = preserved.name;
     if (preserved?.nationality) search.nationality = preserved.nationality;
