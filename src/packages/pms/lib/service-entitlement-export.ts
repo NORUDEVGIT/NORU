@@ -8,6 +8,7 @@ import {
 } from "./service-entitlement.ts";
 import {
   SERVICE_REPORT_TOO_LARGE_MESSAGE,
+  serviceStayLabel,
   type ServiceEntitlementReportResult,
   type ServiceReportCategory,
 } from "./service-entitlement-report.ts";
@@ -38,6 +39,7 @@ export const MEAL_EXCEL_COLUMNS = [
   "No.",
   "Room",
   "Guest",
+  "Stay",
   "Adults",
   "Children",
   "Total Pax",
@@ -52,6 +54,7 @@ export const SERVICE_EXCEL_COLUMNS = [
   "No.",
   "Room",
   "Guest",
+  "Stay",
   "Service",
   "Quantity",
   "Service Date",
@@ -86,7 +89,8 @@ export function serviceAccessSnapshot(filters: {
     serviceDate: filters.serviceDate,
     category: filters.category === "FULFILLMENT" ? "FULFILLMENT" : "MEAL",
     status: filters.status ?? "OPEN",
-    stay: filters.stay === "IN_HOUSE" ? "IN_HOUSE" : "ALL",
+    stay:
+      filters.stay === "IN_HOUSE" ? "IN_HOUSE" : filters.stay === "CONFIRMED" ? "CONFIRMED" : "ALL",
   };
   if (filters.meal) snapshot.meal = filters.meal;
   if (filters.room?.trim()) snapshot.room = filters.room.trim().slice(0, 40);
@@ -136,7 +140,13 @@ export function serviceWorkbookRows(
     [text("Service Date"), text(result.context.serviceDate)],
     [
       text("Guests"),
-      text(result.context.stay === "IN_HOUSE" ? "In house only" : "All stays covering this date"),
+      text(
+        result.context.stay === "IN_HOUSE"
+          ? "In house only"
+          : result.context.stay === "CONFIRMED"
+            ? "Expected / confirmed"
+            : "All entitled",
+      ),
     ],
     [text("Generated At"), text(generatedAt)],
   ];
@@ -159,6 +169,7 @@ export function serviceWorkbookRows(
         number(index + 1),
         text(row.roomNumber),
         text(row.guestName),
+        text(serviceStayLabel(row.stayStatus)),
         number(row.adultQuantity),
         number(row.childQuantity),
         number(row.totalQuantity),
@@ -174,6 +185,7 @@ export function serviceWorkbookRows(
       number(index + 1),
       text(row.roomNumber),
       text(row.guestName),
+      text(serviceStayLabel(row.stayStatus)),
       text(row.serviceName),
       number(row.totalQuantity),
       text(row.serviceDate),

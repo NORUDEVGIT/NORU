@@ -52,7 +52,7 @@ function rowSearchFilters(search: ReportsRouteSearch): Partial<ReportsRouteSearc
   if (search.serviceDate) filters.serviceDate = search.serviceDate;
   if (search.meal) filters.meal = search.meal;
   if (search.department) filters.department = search.department;
-  if (search.stay === "in-house") filters.stay = "in-house";
+  if (search.stay === "in-house" || search.stay === "confirmed") filters.stay = search.stay;
   return filters;
 }
 

@@ -309,8 +309,9 @@ function packageEntitlements(
 ): ExpectedEntitlement[] {
   const rows: ExpectedEntitlement[] = [];
   for (const component of room.packages) {
-    if (!component.requiresFulfillment || !component.serviceDateRule) continue;
+    if (!component.requiresFulfillment) continue;
     if (!componentAppliesToRoom(component, room.id, isPrimaryRoom)) continue;
+    // Meal components follow the property meal rules. Their service_date_rule is not a date source.
     if (component.kind === "meal_plan" && component.mealPlan) {
       const flags: Array<[MealCode, boolean, MealDateRule]> = [
         ["BREAKFAST", component.mealPlan.includesBreakfast, policy.breakfast],
@@ -337,6 +338,7 @@ function packageEntitlements(
       }
       continue;
     }
+    if (!component.serviceDateRule) continue;
     const dates = packageServiceDates(
       room.arrivalDate,
       room.departureDate,

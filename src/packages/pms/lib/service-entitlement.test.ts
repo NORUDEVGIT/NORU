@@ -101,6 +101,97 @@ describe("service entitlement engine", () => {
     assert.equal(rows[0]?.childQuantity, 1);
     assert.equal(rows[0]?.totalQuantity, 3);
     assert.equal(mealPax(room(), POLICY).infants, 0);
+    assert.equal(dates(rows).includes("2026-10-21"), false);
+  });
+
+  it("follows lunch and dinner property rules and infant counting", () => {
+    const fullBoard = room({
+      mealPlan: {
+        id: "fb",
+        name: "Full Board",
+        includesBreakfast: true,
+        includesLunch: true,
+        includesDinner: true,
+      },
+    });
+    const rows = expectedEntitlements([fullBoard], POLICY);
+    assert.deepEqual(dates(rows, "LUNCH"), ["2026-10-21", "2026-10-22"]);
+    assert.deepEqual(dates(rows, "DINNER"), ["2026-10-21", "2026-10-22"]);
+    assert.equal(rows.find((row) => row.mealCode === "LUNCH")?.totalQuantity, 3);
+    const withInfants = expectedEntitlements([fullBoard], { ...POLICY, countInfants: true });
+    assert.equal(withInfants.find((row) => row.mealCode === "DINNER")?.totalQuantity, 4);
+  });
+
+  it("uses property meal rules for a fulfilled meal-plan component", () => {
+    const rows = expectedEntitlements(
+      [
+        room({
+          mealPlan: null,
+          packages: [
+            {
+              assignmentId: "asg",
+              reservationRoomId: null,
+              componentId: "meal-component",
+              requiresFulfillment: true,
+              departmentId: "restaurant",
+              serviceDateRule: null,
+              kind: "meal_plan",
+              serviceReferenceId: "meal-bb",
+              serviceName: "Bed and Breakfast",
+              quantity: 1,
+              mealPlan: {
+                id: "meal-bb",
+                name: "Bed and Breakfast",
+                includesBreakfast: true,
+                includesLunch: false,
+                includesDinner: false,
+              },
+            },
+          ],
+        }),
+      ],
+      POLICY,
+    );
+    assert.deepEqual(dates(rows), ["2026-10-22", "2026-10-23"]);
+    assert.equal(
+      rows.every((row) => row.sourceType === "PACKAGE"),
+      true,
+    );
+  });
+
+  it("places package services on arrival, departure, stay dates, or once", () => {
+    function service(
+      rule: "ON_ARRIVAL" | "ON_DEPARTURE" | "EACH_STAY_DATE" | "ONCE_PER_STAY",
+      name: string,
+    ) {
+      return expectedEntitlements(
+        [
+          room({
+            mealPlan: null,
+            packages: [
+              {
+                assignmentId: "asg",
+                reservationRoomId: "room-201",
+                componentId: name,
+                requiresFulfillment: true,
+                departmentId: "dept",
+                serviceDateRule: rule,
+                kind: "room_amenity",
+                serviceReferenceId: name,
+                serviceName: name,
+                quantity: 1,
+                mealPlan: null,
+              },
+            ],
+          }),
+        ],
+        POLICY,
+      ).map((row) => row.serviceDate);
+    }
+    assert.deepEqual(service("ON_ARRIVAL", "Airport Pickup"), ["2026-10-21"]);
+    assert.deepEqual(service("ON_DEPARTURE", "Late checkout"), ["2026-10-23"]);
+    assert.deepEqual(service("EACH_STAY_DATE", "Extra Bed"), ["2026-10-21", "2026-10-22"]);
+    assert.deepEqual(service("ONCE_PER_STAY", "Welcome Amenity"), ["2026-10-21"]);
   });
 
   it("honors an arrival-day breakfast rule and a departure-day dinner rule", () => {
@@ -255,6 +346,82 @@ describe("service entitlement engine", () => {
     assert.equal(noShow.length, 0);
   });
 
+  it("reconciles a breakfast departure change without erasing a completed row", () => {
+    const before = expectedEntitlements([room()], POLICY);
+    assert.deepEqual(dates(before), ["2026-10-22", "2026-10-23"]);
+    const departureOff: MealApplicabilityPolicy = {
+      ...POLICY,
+      breakfast: { includeArrival: false, includeStay: true, includeDeparture: false },
+    };
+    const after = expectedEntitlements([room()], departureOff);
+    assert.deepEqual(dates(after), ["2026-10-22"]);
+    const stored = before.map((row) => ({
+      id: row.serviceDate,
+      generationKey: row.generationKey,
+      status: row.serviceDate === "2026-10-23" ? ("COMPLETED" as const) : ("PENDING" as const),
+    }));
+    const plan = reconcileEntitlements(after, stored);
+    assert.deepEqual(plan.cancelIds, []);
+    assert.equal(plan.insert.length, 0);
+    const pendingDeparture = stored.map((row) =>
+      row.id === "2026-10-23" ? { ...row, status: "PENDING" as const } : row,
+    );
+    const pendingPlan = reconcileEntitlements(after, pendingDeparture);
+    assert.deepEqual(pendingPlan.cancelIds, ["2026-10-23"]);
+    const repeated = reconcileEntitlements(after, [
+      pendingDeparture[0]!,
+      { ...pendingDeparture[1]!, status: "CANCELLED" },
+    ]);
+    assert.deepEqual(repeated.cancelIds, []);
+    assert.equal(repeated.insert.length, 0);
+    assert.deepEqual(repeated.reactivateIds, []);
+    const restored = reconcileEntitlements(before, [
+      { ...stored[0]!, status: "PENDING" },
+      { ...stored[1]!, status: "CANCELLED" },
+    ]);
+    assert.deepEqual(restored.reactivateIds, ["2026-10-23"]);
+    assert.equal(restored.insert.length, 0);
+  });
+
+  it("adds and then cancels a future package entitlement when fulfillment changes", () => {
+    const pickup = {
+      assignmentId: "asg",
+      reservationRoomId: "room-201",
+      componentId: "pickup",
+      requiresFulfillment: true,
+      departmentId: "transport",
+      serviceDateRule: "ON_ARRIVAL" as const,
+      kind: "fo_service" as const,
+      serviceReferenceId: "svc-pickup",
+      serviceName: "Airport Pickup",
+      quantity: 1,
+      mealPlan: null,
+    };
+    const enabled = expectedEntitlements([room({ mealPlan: null, packages: [pickup] })], POLICY);
+    assert.deepEqual(
+      enabled.map((row) => row.serviceDate),
+      ["2026-10-21"],
+    );
+    const created = reconcileEntitlements(enabled, []);
+    assert.equal(created.insert.length, 1);
+    const stored = created.insert.map((row) => ({
+      id: "pickup-1",
+      generationKey: row.generationKey,
+      status: "PENDING" as const,
+    }));
+    const disabled = expectedEntitlements(
+      [room({ mealPlan: null, packages: [{ ...pickup, requiresFulfillment: false }] })],
+      POLICY,
+    );
+    const removed = reconcileEntitlements(disabled, stored);
+    assert.deepEqual(removed.cancelIds, ["pickup-1"]);
+    const completed = reconcileEntitlements(disabled, [{ ...stored[0]!, status: "COMPLETED" }]);
+    assert.deepEqual(completed.cancelIds, []);
+    const again = reconcileEntitlements(enabled, stored);
+    assert.equal(again.insert.length, 0);
+    assert.deepEqual(again.cancelIds, []);
+  });
+
   it("sorts room numbers naturally", () => {
     assert.deepEqual(["12", "2", "101"].sort(compareRoomNumbers), ["2", "12", "101"]);
   });
@@ -351,6 +518,37 @@ describe("service entitlement report", () => {
       stay: "IN_HOUSE",
     });
     assert.equal(cleared.stay, "in-house");
+    const confirmed = assembleServiceEntitlementReport({
+      restaurantId: PROPERTY,
+      businessDate: "2026-10-22",
+      timezone: "Africa/Addis_Ababa",
+      filters: {
+        serviceDate: "2026-10-22",
+        category: "MEAL",
+        meal: "BREAKFAST",
+        stay: "CONFIRMED",
+        export: true,
+      },
+      rows,
+    });
+    assert.deepEqual(
+      confirmed.rows.map((row) => row.roomNumber),
+      ["105"],
+    );
+    const everyone = assembleServiceEntitlementReport({
+      restaurantId: PROPERTY,
+      businessDate: "2026-10-22",
+      timezone: "Africa/Addis_Ababa",
+      filters: {
+        serviceDate: "2026-10-22",
+        category: "MEAL",
+        meal: "BREAKFAST",
+        stay: "ALL",
+        export: true,
+      },
+      rows,
+    });
+    assert.equal(everyone.rows.length, 3);
   });
 
   it("paginates and export returns the full filtered set", () => {

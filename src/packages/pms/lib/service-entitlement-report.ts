@@ -33,7 +33,7 @@ export const SERVICE_STATUS_FILTERS = [
 ] as const;
 export type ServiceStatusFilter = (typeof SERVICE_STATUS_FILTERS)[number];
 
-export const SERVICE_STAY_FILTERS = ["ALL", "IN_HOUSE"] as const;
+export const SERVICE_STAY_FILTERS = ["ALL", "IN_HOUSE", "CONFIRMED"] as const;
 export type ServiceStayFilter = (typeof SERVICE_STAY_FILTERS)[number];
 
 export type ServiceEntitlementReportRow = {
@@ -140,9 +140,7 @@ export function assembleServiceEntitlementReport(input: {
       input.filters.serviceId ? row.serviceReferenceId === input.filters.serviceId : true,
     )
     .filter((row) => (roomQuery ? row.roomNumber.toLowerCase().includes(roomQuery) : true))
-    .filter((row) =>
-      stay === "IN_HOUSE" ? row.stayStatus === "checked_in" : true,
-    )
+    .filter((row) => matchesStay(row.stayStatus, stay))
     .sort((left, right) => {
       const room = compareRoomNumbers(left.roomNumber, right.roomNumber);
       if (room !== 0) return room;
@@ -182,7 +180,23 @@ export function serviceMealFilter(value: string | undefined): ServiceMealFilter 
 }
 
 export function serviceStayFilter(value: string | undefined): ServiceStayFilter {
-  return value === "IN_HOUSE" || value === "in-house" ? "IN_HOUSE" : "ALL";
+  if (value === "IN_HOUSE" || value === "in-house") return "IN_HOUSE";
+  if (value === "CONFIRMED" || value === "confirmed") return "CONFIRMED";
+  return "ALL";
+}
+
+export function serviceStayLabel(status: string): string {
+  if (status === "checked_in") return "Checked in";
+  if (status === "confirmed") return "Confirmed";
+  if (status === "pending") return "Pending";
+  if (status === "checked_out") return "Checked out";
+  return status ? status.replaceAll("_", " ") : "—";
+}
+
+function matchesStay(status: string, filter: ServiceStayFilter): boolean {
+  if (filter === "IN_HOUSE") return status === "checked_in";
+  if (filter === "CONFIRMED") return status === "confirmed";
+  return true;
 }
 
 export function serviceStatusFilter(value: string | undefined): ServiceStatusFilter {

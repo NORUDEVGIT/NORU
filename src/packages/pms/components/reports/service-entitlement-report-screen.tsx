@@ -40,6 +40,7 @@ import {
   serviceReportRequest,
   serviceStatusFilter,
   serviceStayFilter,
+  serviceStayLabel,
 } from "@/packages/pms/lib/service-entitlement-report-view";
 import type { EntitlementStatus } from "@/packages/pms/lib/service-entitlement";
 import {
@@ -365,8 +366,9 @@ export function ServiceEntitlementReportScreen({
                 writeFilters({ stay: serviceStayFilter(event.target.value), resetPage: true })
               }
             >
-              <option value="ALL">All stays covering this date</option>
+              <option value="ALL">All entitled</option>
               <option value="IN_HOUSE">In house only</option>
+              <option value="CONFIRMED">Expected / confirmed</option>
             </select>
           </Filter>
           <Filter label="Room">
@@ -445,6 +447,7 @@ export function ServiceEntitlementReportScreen({
                       </td>
                       <td className={reportCellClass.text}>{row.roomNumber}</td>
                       <td className={reportCellClass.text}>{row.guestName}</td>
+                      <td className={reportCellClass.text}>{serviceStayLabel(row.stayStatus)}</td>
                       {category === "MEAL" ? (
                         <>
                           <td className={reportCellClass.numeric}>{row.adultQuantity}</td>
@@ -501,7 +504,9 @@ export function ServiceEntitlementReportScreen({
                 <p className="text-xs">
                   {printState.rows.context.stay === "IN_HOUSE"
                     ? "In house only"
-                    : "All stays covering this date"}
+                    : printState.rows.context.stay === "CONFIRMED"
+                      ? "Expected / confirmed"
+                      : "All entitled"}
                 </p>
               </header>
               <table>
@@ -512,6 +517,7 @@ export function ServiceEntitlementReportScreen({
                           "No.",
                           "Room",
                           "Guest",
+                          "Stay",
                           "Adults",
                           "Children",
                           "Pax",
@@ -519,7 +525,17 @@ export function ServiceEntitlementReportScreen({
                           "Notes",
                           "Done",
                         ]
-                      : ["No.", "Room", "Guest", "Service", "Qty", "Department", "Notes", "Done"]
+                      : [
+                          "No.",
+                          "Room",
+                          "Guest",
+                          "Stay",
+                          "Service",
+                          "Qty",
+                          "Department",
+                          "Notes",
+                          "Done",
+                        ]
                     ).map((column) => (
                       <th key={column} className="px-2 py-1 text-left text-[10px]">
                         {column}
@@ -533,6 +549,7 @@ export function ServiceEntitlementReportScreen({
                       <td className="px-2 py-1">{index + 1}</td>
                       <td className="px-2 py-1">{row.roomNumber}</td>
                       <td className="px-2 py-1">{row.guestName}</td>
+                      <td className="px-2 py-1">{serviceStayLabel(row.stayStatus)}</td>
                       {category === "MEAL" ? (
                         <>
                           <td className="px-2 py-1">{row.adultQuantity}</td>

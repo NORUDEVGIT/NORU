@@ -126,6 +126,32 @@ async function reconcileServiceDate(
   );
   const existing = await loadStoredForDate(db, restaurantId, serviceDate);
   const plan = reconcileEntitlements(expected, existing);
+  await applyEntitlementPlan(db, restaurantId, plan);
+}
+
+/**
+ * Refresh entitlements from the property business date forward.
+ * Past service dates and completed rows are left in place.
+ */
+export async function reconcileOpenServiceEntitlements(
+  db: ServiceEntitlementDb,
+  restaurantId: string,
+): Promise<void> {
+  const property = await loadProperty(db, restaurantId);
+  const policy = await loadPolicy(db, restaurantId);
+  const rooms = await loadRooms(db, restaurantId, property.businessDate, "open");
+  const expected = expectedEntitlements(rooms, policy).filter(
+    (row) => row.serviceDate >= property.businessDate,
+  );
+  const existing = await loadStoredFromDate(db, restaurantId, property.businessDate);
+  await applyEntitlementPlan(db, restaurantId, reconcileEntitlements(expected, existing));
+}
+
+async function applyEntitlementPlan(
+  db: ServiceEntitlementDb,
+  restaurantId: string,
+  plan: ReturnType<typeof reconcileEntitlements>,
+): Promise<void> {
   if (plan.insert.length > 0) {
     const written = await db.from("pms_reservation_service_entitlements").upsert(
       plan.insert.map((row) => toInsert(row)),
@@ -166,15 +192,18 @@ async function loadRooms(
   db: ServiceEntitlementDb,
   restaurantId: string,
   serviceDate: string,
+  scope: "date" | "open" = "date",
 ): Promise<ReservationRoomSource[]> {
-  const roomResult = await db
+  const selected = db
     .from("hotel_reservation_rooms")
     .select(
       "id, restaurant_id, reservation_id, unit_sequence, room_id, arrival_date, departure_date, adults, children, infants, rate_plan_id",
     )
-    .eq("restaurant_id", restaurantId)
-    .lte("arrival_date", serviceDate)
-    .gte("departure_date", serviceDate);
+    .eq("restaurant_id", restaurantId);
+  const roomResult =
+    scope === "open"
+      ? await selected.gte("departure_date", serviceDate)
+      : await selected.lte("arrival_date", serviceDate).gte("departure_date", serviceDate);
   if (roomResult.error) throw new ServiceEntitlementReportError();
   const roomRows = (roomResult.data ?? []).filter(
     (row) => text(row.restaurant_id) === restaurantId,
@@ -388,6 +417,27 @@ function mapComponent(
     };
   }
   return null;
+}
+
+async function loadStoredFromDate(
+  db: ServiceEntitlementDb,
+  restaurantId: string,
+  serviceDate: string,
+): Promise<StoredEntitlement[]> {
+  const result = await db
+    .from("pms_reservation_service_entitlements")
+    .select("id, restaurant_id, generation_key, status, service_date")
+    .eq("restaurant_id", restaurantId)
+    .gte("service_date", serviceDate);
+  if (result.error) throw new ServiceEntitlementReportError();
+  return (result.data ?? [])
+    .filter((row) => text(row.restaurant_id) === restaurantId)
+    .filter((row) => text(row.service_date).slice(0, 10) >= serviceDate)
+    .map((row) => ({
+      id: text(row.id),
+      generationKey: text(row.generation_key),
+      status: text(row.status) as EntitlementStatus,
+    }));
 }
 
 async function loadStoredForDate(

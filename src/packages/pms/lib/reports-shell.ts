@@ -636,7 +636,7 @@ export function parseReportsRouteSearch(search: Record<string, unknown>): Report
     next.meal = meal;
   }
   if (department) next.department = department;
-  if (stay === "in-house") next.stay = "in-house";
+  if (stay === "in-house" || stay === "confirmed") next.stay = stay;
   return next;
 }
 
@@ -744,7 +744,8 @@ export function reportsSearch(
     if (preserved?.serviceDate) search.serviceDate = preserved.serviceDate;
     if (preserved?.meal) search.meal = preserved.meal;
     if (preserved?.department) search.department = preserved.department;
-    if (preserved?.stay === "in-house") search.stay = "in-house";
+    if (preserved?.stay === "in-house" || preserved?.stay === "confirmed")
+      search.stay = preserved.stay;
     if (preserved?.presence === "HISTORICAL") search.presence = "HISTORICAL";
     if (preserved?.name) search.name = preserved.name;
     if (preserved?.nationality) search.nationality = preserved.nationality;

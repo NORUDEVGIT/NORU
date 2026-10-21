@@ -26,6 +26,9 @@ import {
   PACKAGE_TYPE_LABELS,
   TAX_POSTURE_LABELS,
   evaluateMealsCard3Readiness,
+  isServiceDateRule,
+  mealApplicabilityFromRow,
+  validatePackageFulfillment,
   isOwnedPackageCoverPath,
   packageCoverImagePath,
   PACKAGE_CHARGE_BASES,
@@ -34,6 +37,7 @@ import {
   PACKAGE_COVER_MAX_BYTES,
   parsePackageChargeBasis,
   previousPackageCoverToRemove,
+  type Card3DepartmentRef,
   type Card3FoServiceRef,
   type Card3RatePlanRef,
   type Card3RoomAmenityRef,
@@ -46,6 +50,7 @@ import {
   type PackageComponentKind,
 } from "./meals-card3.server";
 import { parsePackageInclusionType } from "./rate-plan-package-inclusion";
+import { reconcileOpenServiceEntitlements } from "./service-entitlement.server";
 
 // 0072 is intentionally not represented in generated types.ts until its approved apply.
 // Keep the untyped database boundary isolated to this functions module.
@@ -97,18 +102,33 @@ const packageSchema = z.object({
     .optional(),
 });
 
+const serviceTimingSchema = z.enum(["ON_ARRIVAL", "ON_DEPARTURE", "EACH_STAY_DATE", "ONCE_PER_STAY"]);
 const componentBase = {
   restaurantId: idSchema,
   id: idSchema.optional(),
   packageId: idSchema,
   quantity: z.number().positive("Quantity must be greater than zero.").max(1_000_000),
   sortOrder: z.number().int().min(0).max(1_000_000),
+  requiresFulfillment: z.boolean().optional(),
+  departmentId: idSchema.nullable().optional(),
+  serviceDateRule: serviceTimingSchema.nullable().optional(),
 };
-const componentSchema = z.discriminatedUnion("kind", [
-  z.object({ ...componentBase, kind: z.literal("meal_plan"), mealPlanId: idSchema }),
-  z.object({ ...componentBase, kind: z.literal("room_amenity"), roomAmenityId: idSchema }),
-  z.object({ ...componentBase, kind: z.literal("fo_service"), foServiceId: idSchema }),
-]);
+const componentSchema = z
+  .discriminatedUnion("kind", [
+    z.object({ ...componentBase, kind: z.literal("meal_plan"), mealPlanId: idSchema }),
+    z.object({ ...componentBase, kind: z.literal("room_amenity"), roomAmenityId: idSchema }),
+    z.object({ ...componentBase, kind: z.literal("fo_service"), foServiceId: idSchema }),
+  ])
+  .superRefine((value, ctx) => {
+    const message = validatePackageFulfillment({
+      kind: value.kind,
+      requiresFulfillment: value.requiresFulfillment === true,
+      departmentId: value.departmentId ?? null,
+      serviceDateRule: value.serviceDateRule ?? null,
+    });
+    if (!message) return;
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["requiresFulfillment"] });
+  });
 
 function unavailable(error: { code?: string; message?: string } | null): never {
   if (
@@ -212,6 +232,17 @@ function mapFoService(row: any): Card3FoServiceRef {
   return {
     id: row.id,
     name: String(row.name ?? ""),
+    defaultAmount: Number(row.default_amount ?? 0),
+    sortOrder: Number(row.sort_order ?? 0),
+    active: row.active !== false,
+  };
+}
+
+function mapDepartment(row: any): Card3DepartmentRef {
+  return {
+    id: row.id,
+    code: String(row.code ?? "").toUpperCase(),
+    name: String(row.name ?? ""),
     active: row.active !== false,
   };
 }
@@ -228,6 +259,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     roomAmenities,
     ratePlans,
     foServices,
+    departments,
+    mealPolicy,
   ] = await Promise.all([
     db.from("restaurants").select("currency_code").eq("id", restaurantId).maybeSingle(),
     db
@@ -255,7 +288,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     db
       .from("pms_package_components")
       .select(
-        "id, package_id, component_kind, meal_plan_id, room_amenity_id, fo_service_id, quantity, sort_order",
+        "id, package_id, component_kind, meal_plan_id, room_amenity_id, fo_service_id, quantity, sort_order, requires_fulfillment, fulfillment_department_id, service_date_rule",
       )
       .eq("restaurant_id", restaurantId)
       .order("sort_order"),
@@ -276,9 +309,21 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       .order("code"),
     db
       .from("fo_service_catalogue")
-      .select("id, name, active")
+      .select("id, name, default_amount, sort_order, active")
       .eq("restaurant_id", restaurantId)
       .order("name"),
+    db
+      .from("pms_departments")
+      .select("id, code, name, active")
+      .eq("restaurant_id", restaurantId)
+      .order("name"),
+    db
+      .from("pms_meal_applicability_policies")
+      .select(
+        "restaurant_id, breakfast_include_arrival, breakfast_include_stay, breakfast_include_departure, lunch_include_arrival, lunch_include_stay, lunch_include_departure, dinner_include_arrival, dinner_include_stay, dinner_include_departure, count_infants, breakfast_department_id, lunch_department_id, dinner_department_id",
+      )
+      .eq("restaurant_id", restaurantId)
+      .maybeSingle(),
   ]);
   for (const result of [
     restaurant,
@@ -289,6 +334,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     roomAmenities,
     ratePlans,
     foServices,
+    departments,
+    mealPolicy,
   ]) {
     if (result.error) unavailable(result.error);
   }
@@ -401,6 +448,9 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
         "",
       quantity: Number(row.quantity ?? 0),
       sortOrder: Number(row.sort_order ?? 0),
+      requiresFulfillment: row.requires_fulfillment === true,
+      departmentId: row.fulfillment_department_id ? String(row.fulfillment_department_id) : null,
+      serviceDateRule: isServiceDateRule(row.service_date_rule) ? row.service_date_rule : null,
     };
   });
 
@@ -413,6 +463,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     roomAmenities: roomAmenityRows,
     ratePlans: ratePlanRows,
     foServices: foServiceRows,
+    departments: (departments.data ?? []).map(mapDepartment),
+    mealPolicy: mealApplicabilityFromRow(mealPolicy.data),
   };
 }
 
@@ -686,7 +738,25 @@ export const savePackageComponentCard3 = createServerFn({ method: "POST" })
       fo_service_id: data.kind === "fo_service" ? data.foServiceId : null,
       quantity: data.quantity,
       sort_order: data.sortOrder,
+      requires_fulfillment: data.requiresFulfillment === true,
+      fulfillment_department_id:
+        data.requiresFulfillment === true ? (data.departmentId ?? null) : null,
+      service_date_rule:
+        data.requiresFulfillment === true && data.kind !== "meal_plan"
+          ? (data.serviceDateRule ?? null)
+          : null,
     };
+    if (data.requiresFulfillment === true && data.departmentId) {
+      const department = await db
+        .from("pms_departments")
+        .select("id, restaurant_id, active")
+        .eq("id", data.departmentId)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (department.error) unavailable(department.error);
+      if (!department.data) throw new Error("That department doesn't belong to this property.");
+      if (department.data.active === false) throw new Error("Choose an active department.");
+    }
     const result = data.id
       ? await db
           .from("pms_package_components")
@@ -698,6 +768,7 @@ export const savePackageComponentCard3 = createServerFn({ method: "POST" })
     await writeAudit(db, data.restaurantId, context.userId, "card3_package_component_saved", {
       detail: `${data.kind} ${source.id}`,
     });
+    await refreshOperationalLists(db, data.restaurantId);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateMealsCard3Readiness(snapshot) };
   });
@@ -726,6 +797,7 @@ export const deletePackageComponentCard3 = createServerFn({ method: "POST" })
     await writeAudit(db, data.restaurantId, context.userId, "card3_package_component_deleted", {
       detail: data.id,
     });
+    await refreshOperationalLists(db, data.restaurantId);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateMealsCard3Readiness(snapshot) };
   });
@@ -831,4 +903,139 @@ export const removePackageCoverImage = createServerFn({ method: "POST" })
     if (updated.error) unavailable(updated.error);
     await removeStoredCover(current.cover_image_path);
     return { ok: true as const };
+  });
+
+const mealRuleSchema = z.object({
+  includeArrival: z.boolean(),
+  includeStay: z.boolean(),
+  includeDeparture: z.boolean(),
+  departmentId: idSchema.nullable(),
+});
+
+const mealPolicySchema = z.object({
+  restaurantId: idSchema,
+  breakfast: mealRuleSchema,
+  lunch: mealRuleSchema,
+  dinner: mealRuleSchema,
+  countInfants: z.boolean(),
+});
+
+async function assertActiveDepartment(
+  db: DbClient,
+  restaurantId: string,
+  departmentId: string | null,
+) {
+  if (!departmentId) return;
+  const department = await db
+    .from("pms_departments")
+    .select("id, restaurant_id, active")
+    .eq("id", departmentId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (department.error) unavailable(department.error);
+  if (!department.data) throw new Error("That department doesn't belong to this property.");
+  if (department.data.active === false) throw new Error("Choose an active department.");
+}
+
+async function refreshOperationalLists(db: DbClient, restaurantId: string) {
+  try {
+    await reconcileOpenServiceEntitlements(db, restaurantId);
+  } catch {
+    throw new Error(
+      "Saved, but the operational service list could not be refreshed. Open the service report to try again.",
+    );
+  }
+}
+
+export const getMealApplicabilityPolicyCard3 = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const snapshot = await loadSnapshot(db, data.restaurantId);
+    return { policy: snapshot.mealPolicy, departments: snapshot.departments };
+  });
+
+export const saveMealApplicabilityPolicyCard3 = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => mealPolicySchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    await Promise.all([
+      assertActiveDepartment(db, data.restaurantId, data.breakfast.departmentId),
+      assertActiveDepartment(db, data.restaurantId, data.lunch.departmentId),
+      assertActiveDepartment(db, data.restaurantId, data.dinner.departmentId),
+    ]);
+    const rule = (value: z.infer<typeof mealRuleSchema>, prefix: string) => ({
+      [`${prefix}_include_arrival`]: value.includeArrival,
+      [`${prefix}_include_stay`]: value.includeStay,
+      [`${prefix}_include_departure`]: value.includeDeparture,
+      [`${prefix}_department_id`]: value.departmentId,
+    });
+    const saved = await db.from("pms_meal_applicability_policies").upsert(
+      {
+        restaurant_id: data.restaurantId,
+        ...rule(data.breakfast, "breakfast"),
+        ...rule(data.lunch, "lunch"),
+        ...rule(data.dinner, "dinner"),
+        count_infants: data.countInfants,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "restaurant_id" },
+    );
+    if (saved.error) unavailable(saved.error);
+    await writeAudit(db, data.restaurantId, context.userId, "card3_meal_service_rules_saved", {
+      detail: data.restaurantId,
+    });
+    await refreshOperationalLists(db, data.restaurantId);
+    const snapshot = await loadSnapshot(db, data.restaurantId);
+    return { snapshot, readiness: evaluateMealsCard3Readiness(snapshot) };
+  });
+
+const foServiceSchema = z.object({
+  restaurantId: idSchema,
+  id: idSchema.optional(),
+  name: z.string().trim().min(1).max(80),
+  defaultAmount: z.number().min(0).max(10_000_000),
+  active: z.boolean(),
+  sortOrder: z.number().int().min(0).max(1_000_000),
+});
+
+export const saveFoServiceCard3 = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => foServiceSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    if (data.id) {
+      await requireOwnedRecord(
+        db,
+        "fo_service_catalogue",
+        data.restaurantId,
+        data.id,
+        "That front-office service doesn't belong to this property.",
+      );
+    }
+    const payload = {
+      restaurant_id: data.restaurantId,
+      name: data.name.trim(),
+      default_amount: data.defaultAmount,
+      active: data.active,
+      sort_order: data.sortOrder,
+    };
+    const result = data.id
+      ? await db
+          .from("fo_service_catalogue")
+          .update(payload)
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
+      : await db.from("fo_service_catalogue").insert(payload);
+    if (result.error) unavailable(result.error);
+    await writeAudit(db, data.restaurantId, context.userId, "card3_fo_service_saved", {
+      detail: data.name.trim(),
+    });
+    const snapshot = await loadSnapshot(db, data.restaurantId);
+    return { snapshot, readiness: evaluateMealsCard3Readiness(snapshot) };
   });

@@ -6,6 +6,7 @@ import {
   serviceMealFilter,
   serviceStatusFilter,
   serviceStayFilter,
+  serviceStayLabel,
   type ServiceMealFilter,
   type ServiceReportCategory,
   type ServiceStatusFilter,
@@ -27,6 +28,7 @@ export const MEAL_COLUMNS = [
   "No.",
   "Room",
   "Guest",
+  "Stay",
   "Adults",
   "Children",
   "Pax",
@@ -40,6 +42,7 @@ export const FULFILLMENT_COLUMNS = [
   "No.",
   "Room",
   "Guest",
+  "Stay",
   "Service",
   "Qty",
   "Department",
@@ -71,7 +74,11 @@ export function serviceFilterSearch(input: {
       ...(input.status && input.status !== "OPEN" ? { status: input.status } : {}),
       ...(input.room ? { room: input.room } : {}),
       ...(input.department ? { department: input.department } : {}),
-      ...(input.stay === "IN_HOUSE" ? { stay: "in-house" } : {}),
+      ...(input.stay === "IN_HOUSE"
+        ? { stay: "in-house" }
+        : input.stay === "CONFIRMED"
+          ? { stay: "confirmed" }
+          : {}),
       ...(input.page ? { page: input.page } : {}),
       ...(input.pageSize ? { pageSize: input.pageSize } : {}),
     },
@@ -118,7 +125,7 @@ export function serviceReportRequest(input: {
     ...(input.departmentId && /^[0-9a-f-]{36}$/i.test(input.departmentId)
       ? { departmentId: input.departmentId }
       : {}),
-    ...(serviceStayFilter(input.stay) === "IN_HOUSE" ? { stay: "IN_HOUSE" as const } : {}),
+    ...(serviceStayFilter(input.stay) === "ALL" ? {} : { stay: serviceStayFilter(input.stay) }),
     ...(input.exportAll ? { export: true as const, action: input.action ?? "print" } : {}),
   };
 }
@@ -131,4 +138,4 @@ export function serviceReportFailure(error: unknown): "access" | "too-large" | "
   return "load";
 }
 
-export { serviceMealFilter, serviceStatusFilter, serviceStayFilter };
+export { serviceMealFilter, serviceStatusFilter, serviceStayFilter, serviceStayLabel };

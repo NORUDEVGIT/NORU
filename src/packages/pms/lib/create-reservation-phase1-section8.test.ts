@@ -341,7 +341,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
     const set3Ui = readRel("../components/settings/pms-set3-section.tsx");
     assert.doesNotMatch(page, /pms_meal_plans|savePmsMealPlan|mealPlanId/);
     assert.doesNotMatch(gate, /pms_meal_plans|savePmsMealPlan|mealPlanId/);
-    assert.match(set3Ui, /savePmsMealPlan/);
+    assert.match(set3Ui, /set3-meals-card3-redirect/);
   });
 
   it("AC-CR8-14 No commission settlement, LIVE OTA/RMS package mapping, or email/SMS", () => {
