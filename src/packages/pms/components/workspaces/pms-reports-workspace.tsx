@@ -17,6 +17,7 @@ import { ReportMissingState } from "@/packages/pms/components/reports/report-sta
 import { CashierInvoiceReportScreen } from "@/packages/pms/components/reports/cashier-invoice-report-screen";
 import { FiscalRegistrationReportScreen } from "@/packages/pms/components/reports/fiscal-registration-report-screen";
 import { PoliceStayReportScreen } from "@/packages/pms/components/reports/police-stay-report-screen";
+import { ServiceEntitlementReportScreen } from "@/packages/pms/components/reports/service-entitlement-report-screen";
 import { RevenueOverviewTab } from "@/packages/pms/components/rates/rates-tabs";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
 import {
@@ -48,6 +49,10 @@ function rowSearchFilters(search: ReportsRouteSearch): Partial<ReportsRouteSearc
   if (search.name) filters.name = search.name;
   if (search.nationality) filters.nationality = search.nationality;
   if (search.room) filters.room = search.room;
+  if (search.serviceDate) filters.serviceDate = search.serviceDate;
+  if (search.meal) filters.meal = search.meal;
+  if (search.department) filters.department = search.department;
+  if (search.stay === "in-house") filters.stay = "in-house";
   return filters;
 }
 
@@ -94,6 +99,15 @@ export function PmsReportsWorkspace({
       if (!filters.from) filters.from = houseDate;
       if (!filters.to) filters.to = houseDate;
       if (!filters.documentType) filters.documentType = "INV";
+    }
+    if (
+      next.kind === "row" &&
+      (next.report === "meal-service" || next.report === "service-fulfillment") &&
+      filters &&
+      businessDate
+    ) {
+      if (!filters.serviceDate) filters.serviceDate = reportsReaderDate(businessDate);
+      if (next.report === "meal-service" && !filters.meal) filters.meal = "BREAKFAST";
     }
     const canonical = reportsSearch(next, filters);
     if (sameReportsSearch(search, canonical)) return;
@@ -172,6 +186,20 @@ export function PmsReportsWorkspace({
         propertyName={membership.restaurant.name}
         businessDate={reportsReaderDate(businessDate)}
         timezone={timezone}
+        search={search}
+      />
+    );
+  } else if (
+    view.kind === "row" &&
+    (view.report === "meal-service" || view.report === "service-fulfillment") &&
+    openRow?.kind === "row"
+  ) {
+    body = (
+      <ServiceEntitlementReportScreen
+        restaurantId={restaurantId}
+        propertyName={membership.restaurant.name}
+        businessDate={reportsReaderDate(businessDate)}
+        report={view.report}
         search={search}
       />
     );

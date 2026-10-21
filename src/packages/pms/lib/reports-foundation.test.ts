@@ -109,13 +109,15 @@ describe("RPT-01 reports foundation", () => {
   });
 
   it("handles an invalid report id without opening a live report", () => {
-    const missing = resolveReportsView({ report: "breakfast" });
+    const missing = resolveReportsView({ report: "not-a-report" });
     assert.equal(missing.kind, "missing");
-    assert.equal(missing.kind === "missing" ? missing.requested : null, "breakfast");
-    assert.equal(reportByCode("breakfast"), null);
+    assert.equal(missing.kind === "missing" ? missing.requested : null, "not-a-report");
+    assert.equal(reportByCode("not-a-report"), null);
     assert.equal(resolveReportsView({ report: "government" }).kind, "missing");
     assert.equal(reportByCode("police")?.status, "LIVE");
     assert.equal(reportByCode("cashier-invoice")?.status, "LIVE");
+    assert.equal(reportByCode("breakfast")?.id, "meal-service");
+    assert.equal(reportByCode("service-fulfillment")?.status, "LIVE");
   });
 
   it("parses pagination safely", () => {
@@ -202,14 +204,7 @@ describe("RPT-01 reports foundation", () => {
   });
 
   it("does not present withheld operations reports as live catalogue entries", () => {
-    for (const id of [
-      "breakfast",
-      "meal",
-      "meal-plan",
-      "service-fulfillment",
-      "packages",
-      "government",
-    ]) {
+    for (const id of ["meal-plan", "packages", "government"]) {
       assert.equal(reportByCode(id), null);
       assert.equal(
         REPORT_CATALOGUE.some((row) => row.id === id),
@@ -218,9 +213,9 @@ describe("RPT-01 reports foundation", () => {
     }
     const catalogue = read("../components/reports/reports-catalogue.tsx");
     assert.match(catalogue, /reports-group-operations/);
-    assert.match(catalogue, /No operations report is available yet/);
-    assert.doesNotMatch(catalogue, /Today.?s Breakfast|Meal Report|Service Fulfillment/i);
-    assert.equal(REPORT_CATALOGUE.filter((row) => row.group === "operations").length, 0);
+    assert.equal(REPORT_CATALOGUE.filter((row) => row.group === "operations").length, 2);
+    assert.equal(reportByCode("meal-service")?.status, "LIVE");
+    assert.equal(reportByCode("service-fulfillment")?.status, "LIVE");
   });
 
   it("wraps filters and export actions instead of a fixed wide bar", () => {

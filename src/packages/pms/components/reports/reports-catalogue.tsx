@@ -41,13 +41,11 @@ export function ReportsCatalogue({
   const groups = REPORT_GROUPS.filter(
     (group) => !scope || group.id === scope || scopeBelongsToGroup(scope, group.id),
   );
-  const anyReport = groups.some((group) => {
-    if (group.id === "operations") return false;
-    return (
+  const anyReport = groups.some(
+    (group) =>
       filterReports(query, scope && scopeBelongsToGroup(scope, group.id) ? scope : group.id)
-        .length > 0
-    );
-  });
+        .length > 0,
+  );
   const searching = query.trim().length > 0;
 
   return (
@@ -60,8 +58,8 @@ export function ReportsCatalogue({
           query,
           scope && scopeBelongsToGroup(scope, group.id) ? scope : group.id,
         );
-        if (group.id === "operations") {
-          if (searching && rows.length === 0 && scope !== "operations") return null;
+        if (rows.length === 0) {
+          if (group.id !== "operations" || (searching && scope !== "operations")) return null;
           return (
             <section key={group.id} className="space-y-2" data-testid="reports-group-operations">
               <GroupHeading label={group.label} description={group.description} />
@@ -71,7 +69,6 @@ export function ReportsCatalogue({
             </section>
           );
         }
-        if (rows.length === 0) return null;
         return (
           <section key={group.id} className="space-y-2" data-testid={`reports-group-${group.id}`}>
             <GroupHeading label={group.label} description={group.description} />

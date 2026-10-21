@@ -43,7 +43,7 @@ export const REPORT_GROUPS = [
   {
     id: "operations",
     label: "Operations",
-    description: "Reserved for service, meal, and package reports. None are available yet.",
+    description: "Meal lists and operational service handoff.",
   },
 ] as const;
 
@@ -129,7 +129,8 @@ type ReportBase = {
 
 export type AnalyticsReportId = "operational" | "financial" | "rooms" | "revenue" | "management";
 
-export type RowReportId = "police" | "cashier-invoice" | "fiscal-registration";
+export type RowReportId =
+  "police" | "cashier-invoice" | "fiscal-registration" | "meal-service" | "service-fulfillment";
 export type ReportId = AnalyticsReportId | RowReportId;
 
 export type AnalyticsReportDefinition = ReportBase & {
@@ -322,6 +323,40 @@ export const REPORT_CATALOGUE: readonly ReportDefinition[] = [
     permissions: { view: null, print: null, export: null },
     placeholderNote: null,
   },
+  {
+    kind: "row",
+    id: "meal-service",
+    code: "meal-service",
+    group: "operations",
+    status: "LIVE",
+    icon: "bed",
+    title: "Meal Service",
+    name: "Meal Service",
+    description: "Operational meal entitlements by service date.",
+    caption: "Operational meal entitlements by service date.",
+    supportsPrint: true,
+    supportsPdf: true,
+    supportsExcel: true,
+    permissions: { view: null, print: null, export: null },
+    placeholderNote: null,
+  },
+  {
+    kind: "row",
+    id: "service-fulfillment",
+    code: "service-fulfillment",
+    group: "operations",
+    status: "LIVE",
+    icon: "clipboard",
+    title: "Service Fulfillment",
+    name: "Service Fulfillment",
+    description: "Reservation services due for operational delivery.",
+    caption: "Reservation services due for operational delivery.",
+    supportsPrint: true,
+    supportsPdf: true,
+    supportsExcel: true,
+    permissions: { view: null, print: null, export: null },
+    placeholderNote: null,
+  },
 ];
 
 export type ReportCode = ReportId;
@@ -337,16 +372,15 @@ const HELD_CODES = new Set([
   "scheduled",
   "schedule",
   "occupancy",
-  "breakfast",
-  "meal",
   "meal-plan",
-  "service-fulfillment",
   "packages",
 ]);
 
 const REPORT_ALIASES: Record<string, ReportId> = {
   cashier: "cashier-invoice",
   fiscal: "fiscal-registration",
+  breakfast: "meal-service",
+  meal: "meal-service",
 };
 
 export const REPORTS_DESK_EYEBROW = "Reports";
@@ -381,6 +415,10 @@ export type ReportsRouteSearch = {
   issuer?: string;
   mode?: string;
   status?: string;
+  serviceDate?: string;
+  meal?: string;
+  department?: string;
+  stay?: string;
   presence?: "IN_HOUSE" | "HISTORICAL";
   name?: string;
   nationality?: string;
@@ -415,6 +453,10 @@ const SEARCH_KEYS = [
   "issuer",
   "mode",
   "status",
+  "serviceDate",
+  "meal",
+  "department",
+  "stay",
   "presence",
   "name",
   "nationality",
@@ -577,6 +619,10 @@ export function parseReportsRouteSearch(search: Record<string, unknown>): Report
   const issuer = parseIssuer(search.issuer);
   const mode = parseToken(search.mode);
   const status = parseToken(search.status);
+  const serviceDate = parseReportDate(search.serviceDate);
+  const meal = parseToken(search.meal);
+  const department = parseIssuer(search.department);
+  const stay = parseToken(search.stay);
   if (presence) next.presence = presence;
   if (name) next.name = name;
   if (nationality) next.nationality = nationality;
@@ -585,6 +631,12 @@ export function parseReportsRouteSearch(search: Record<string, unknown>): Report
   if (issuer) next.issuer = issuer;
   if (mode === "CASH" || mode === "CREDIT" || mode === "ALL") next.mode = mode;
   if (status) next.status = status.toUpperCase();
+  if (serviceDate) next.serviceDate = serviceDate;
+  if (meal === "BREAKFAST" || meal === "LUNCH" || meal === "DINNER" || meal === "ALL") {
+    next.meal = meal;
+  }
+  if (department) next.department = department;
+  if (stay === "in-house") next.stay = "in-house";
   return next;
 }
 
@@ -661,6 +713,10 @@ export function reportsSearch(
       | "issuer"
       | "mode"
       | "status"
+      | "serviceDate"
+      | "meal"
+      | "department"
+      | "stay"
       | "page"
       | "pageSize"
       | "presence"
@@ -682,7 +738,13 @@ export function reportsSearch(
     if (preserved?.query) search.query = preserved.query;
     if (preserved?.issuer) search.issuer = preserved.issuer;
     if (preserved?.mode && preserved.mode !== "ALL") search.mode = preserved.mode;
-    if (preserved?.status && preserved.status !== "ALL") search.status = preserved.status;
+    if (preserved?.status && preserved.status !== "ALL" && preserved.status !== "OPEN") {
+      search.status = preserved.status;
+    }
+    if (preserved?.serviceDate) search.serviceDate = preserved.serviceDate;
+    if (preserved?.meal) search.meal = preserved.meal;
+    if (preserved?.department) search.department = preserved.department;
+    if (preserved?.stay === "in-house") search.stay = "in-house";
     if (preserved?.presence === "HISTORICAL") search.presence = "HISTORICAL";
     if (preserved?.name) search.name = preserved.name;
     if (preserved?.nationality) search.nationality = preserved.nationality;
