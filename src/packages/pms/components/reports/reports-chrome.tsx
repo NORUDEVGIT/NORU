@@ -1,23 +1,15 @@
 import type { ReactNode } from "react";
+import { ArrowLeft, ChevronRight, FileSpreadsheet, Sparkles } from "lucide-react";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 import {
   REPORTS_DESK_EYEBROW,
   REPORTS_DESK_TITLE,
-  REPORT_GROUPS,
   reportByCode,
-  reportStatusLabel,
   type ReportGroupId,
   type ReportsView,
 } from "@/packages/pms/lib/reports-shell";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/shared/components/ui/dropdown-menu";
-import { cn } from "@/shared/lib/utils";
 
 export function ReportsChrome({
   membership,
@@ -36,7 +28,6 @@ export function ReportsChrome({
 }) {
   const openReport =
     view.kind === "analytics" || view.kind === "row" ? reportByCode(view.report) : null;
-  const openStatus = openReport ? reportStatusLabel(openReport.status) : null;
 
   return (
     <RoomInventoryChrome
@@ -48,120 +39,66 @@ export function ReportsChrome({
       shellTestId="reports-command-shell"
       onRoomSearch={onSearch}
     >
-      <div className="min-w-0 bg-[#F7F4EE]" data-testid="reports-desk">
-        <header className="border-b border-border bg-background" data-testid="reports-desk-header">
-          <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4 sm:px-6">
+      <div className="min-w-0 bg-[#FAF8F4]" data-testid="reports-desk">
+        <header className="border-b border-[#DDD4C5] bg-white shadow-2xs" data-testid="reports-desk-header">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-6">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                {REPORTS_DESK_EYEBROW}
-              </p>
-              <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
-                {REPORTS_DESK_TITLE}
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Analytics and row-level reports for {membership.restaurant.name}. Figures use the
-                property house date.
-              </p>
+              {openReport ? (
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={onOpenCenter}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8A6A24] transition-colors hover:text-[#5F4512] hover:underline"
+                  >
+                    <ArrowLeft className="size-3.5" />
+                    <span>All Reports</span>
+                    <ChevronRight className="size-3 text-[#A89F91]" />
+                    <span className="text-[#5F554B]">{openReport.name}</span>
+                  </button>
+                  <h1 className="font-display text-2xl font-bold tracking-tight text-[#251605]">
+                    {openReport.name}
+                  </h1>
+                  <p className="max-w-2xl text-xs text-[#7A7167]">
+                    {openReport.description}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8A6A24]">
+                    {REPORTS_DESK_EYEBROW}
+                  </p>
+                  <h1 className="font-display text-2xl font-bold tracking-tight text-[#251605]">
+                    {REPORTS_DESK_TITLE}
+                  </h1>
+                  <p className="text-xs text-[#7A7167]">
+                    Operational registers, statutory compliance documents, and service delivery handoff for {membership.restaurant.name}.
+                  </p>
+                </div>
+              )}
             </div>
-            <CategoryMenu
-              testId="reports-category-menu"
-              itemPrefix="reports-category"
-              label="Categories"
-              onOpenCategory={onOpenCategory}
-            />
+
+            <div className="flex items-center gap-2">
+              {openReport ? (
+                <button
+                  type="button"
+                  onClick={onOpenCenter}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#DDD4C5] bg-[#FAF8F4] px-3 py-1.5 text-xs font-semibold text-[#8A6A24] transition-colors hover:border-[#C89933] hover:bg-[#FAF3E3]"
+                >
+                  <ArrowLeft className="size-3.5" />
+                  <span>Return to Report Center</span>
+                </button>
+              ) : (
+                <div className="hidden sm:flex items-center gap-2 rounded-lg border border-[#E5D7B7] bg-[#FAF3E3] px-3 py-1.5 text-xs font-semibold text-[#8A6A24]">
+                  <Sparkles className="size-3.5" />
+                  <span>5 Active Registers Available</span>
+                </div>
+              )}
+            </div>
           </div>
-          <nav
-            data-testid="reports-workspace-nav"
-            className="mt-3 flex items-end gap-1 overflow-x-auto px-5 sm:px-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            aria-label="Reports"
-          >
-            <TabButton
-              testId="reports-nav-center"
-              active={view.kind === "center"}
-              onClick={onOpenCenter}
-            >
-              Report Center
-            </TabButton>
-            {openReport ? (
-              <TabButton testId={`reports-nav-${openReport.code}`} active>
-                {openReport.name}
-                {openStatus ? ` · ${openStatus}` : ""}
-              </TabButton>
-            ) : null}
-            <CategoryMenu
-              testId="reports-open-catalogue"
-              itemPrefix="reports-catalogue"
-              label="+"
-              onOpenCategory={onOpenCategory}
-            />
-          </nav>
         </header>
-        <div className="space-y-4 p-4 sm:p-5 lg:p-6">{children}</div>
+
+        <main className="p-5 sm:p-6">{children}</main>
       </div>
     </RoomInventoryChrome>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  testId,
-  children,
-}: {
-  active?: boolean;
-  onClick?: () => void;
-  testId: string;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      data-testid={testId}
-      onClick={onClick}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "relative flex h-11 min-h-11 shrink-0 items-center px-3 text-xs font-medium transition-colors",
-        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      <span>{children}</span>
-      {active ? (
-        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
-      ) : null}
-    </button>
-  );
-}
-
-function CategoryMenu({
-  label,
-  testId,
-  itemPrefix,
-  onOpenCategory,
-}: {
-  label: string;
-  testId: string;
-  itemPrefix: string;
-  onOpenCategory: (group: ReportGroupId) => void;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        data-testid={testId}
-        className="inline-flex h-9 shrink-0 items-center rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground"
-      >
-        {label}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {REPORT_GROUPS.map((group) => (
-          <DropdownMenuItem
-            key={group.id}
-            data-testid={`${itemPrefix}-${group.id}`}
-            onSelect={() => onOpenCategory(group.id)}
-          >
-            {group.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

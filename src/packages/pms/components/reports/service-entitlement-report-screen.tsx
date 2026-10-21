@@ -11,6 +11,13 @@ import {
 } from "@/packages/pms/components/reports/report-table-shell";
 import { reportCellClass } from "@/packages/pms/components/reports/report-columns";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import {
   exportServiceEntitlementWorkbook,
   getServiceEntitlementReport,
   setServiceEntitlementStatus,
@@ -43,6 +50,8 @@ import {
   serviceStayLabel,
 } from "@/packages/pms/lib/service-entitlement-report-view";
 import type { EntitlementStatus } from "@/packages/pms/lib/service-entitlement";
+import { UtensilsCrossed } from "lucide-react";
+import { cn } from "@/shared/lib/utils";
 import {
   DEFAULT_REPORT_PAGE_SIZE,
   parseReportPage,
@@ -53,7 +62,7 @@ import {
 } from "@/packages/pms/lib/reports-shell";
 
 const FIELD =
-  "h-9 w-full rounded-lg border border-[#E8E1D7] bg-white px-2.5 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden";
+  "h-9 w-full rounded-lg border border-[#DDD4C5] bg-white px-3 text-xs text-[#251605] placeholder:text-[#A89F91] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] focus:outline-hidden transition-all shadow-2xs";
 
 /**
  * Operational meal and service handoff. Rows come from getServiceEntitlementReport.
@@ -292,6 +301,27 @@ export function ServiceEntitlementReportScreen({
             ...(failure === "too-large" ? { errorMessage: SERVICE_REPORT_TOO_LARGE_MESSAGE } : {}),
           }
         : {})}
+      kpis={
+        phase === "ready" && result ? (
+          <div className="report-print-hide flex flex-wrap gap-2" data-testid="service-summary">
+            {category === "MEAL" ? (
+              <>
+                <Summary label="Rooms" value={String(result.summary.rooms)} />
+                <Summary label="Adults" value={String(result.summary.adults)} />
+                <Summary label="Children" value={String(result.summary.children)} />
+                <Summary label="Total Pax" value={String(result.summary.totalPax)} />
+              </>
+            ) : (
+              <>
+                <Summary label="Services Due" value={String(result.summary.services)} />
+                <Summary label="Pending" value={String(result.summary.pending)} />
+                <Summary label="In Progress" value={String(result.summary.inProgress)} />
+                <Summary label="Completed" value={String(result.summary.completed)} />
+              </>
+            )}
+          </div>
+        ) : null
+      }
       filters={
         <ReportFilterBar
           onClear={() =>
@@ -314,19 +344,30 @@ export function ServiceEntitlementReportScreen({
           </Filter>
           {category === "MEAL" ? (
             <Filter label="Meal">
-              <select
-                className={FIELD}
-                data-testid="service-meal"
+              <Select
                 value={meal}
-                onChange={(event) =>
-                  writeFilters({ meal: serviceMealFilter(event.target.value), resetPage: true })
+                onValueChange={(val) =>
+                  writeFilters({ meal: serviceMealFilter(val), resetPage: true })
                 }
               >
-                <option value="BREAKFAST">Breakfast</option>
-                <option value="LUNCH">Lunch</option>
-                <option value="DINNER">Dinner</option>
-                <option value="ALL">All meals</option>
-              </select>
+                <SelectTrigger className={FIELD} data-testid="service-meal">
+                  <SelectValue placeholder="Select meal" />
+                </SelectTrigger>
+                <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
+                  <SelectItem value="BREAKFAST" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                    Breakfast
+                  </SelectItem>
+                  <SelectItem value="LUNCH" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                    Lunch
+                  </SelectItem>
+                  <SelectItem value="DINNER" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                    Dinner
+                  </SelectItem>
+                  <SelectItem value="ALL" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                    All meals
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </Filter>
           ) : (
             <Filter label="Department">
@@ -342,34 +383,56 @@ export function ServiceEntitlementReportScreen({
             </Filter>
           )}
           <Filter label="Status">
-            <select
-              className={FIELD}
-              data-testid="service-status"
+            <Select
               value={status}
-              onChange={(event) =>
-                writeFilters({ status: serviceStatusFilter(event.target.value), resetPage: true })
+              onValueChange={(val) =>
+                writeFilters({ status: serviceStatusFilter(val), resetPage: true })
               }
             >
-              <option value="OPEN">Due</option>
-              <option value="PENDING">Pending</option>
-              <option value="IN_PROGRESS">In progress</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
+              <SelectTrigger className={FIELD} data-testid="service-status">
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
+                <SelectItem value="OPEN" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Due
+                </SelectItem>
+                <SelectItem value="PENDING" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Pending
+                </SelectItem>
+                <SelectItem value="IN_PROGRESS" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  In progress
+                </SelectItem>
+                <SelectItem value="COMPLETED" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Completed
+                </SelectItem>
+                <SelectItem value="CANCELLED" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Cancelled
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </Filter>
           <Filter label="Guests">
-            <select
-              className={FIELD}
-              data-testid="service-stay"
+            <Select
               value={stay}
-              onChange={(event) =>
-                writeFilters({ stay: serviceStayFilter(event.target.value), resetPage: true })
+              onValueChange={(val) =>
+                writeFilters({ stay: serviceStayFilter(val), resetPage: true })
               }
             >
-              <option value="ALL">All entitled</option>
-              <option value="IN_HOUSE">In house only</option>
-              <option value="CONFIRMED">Expected / confirmed</option>
-            </select>
+              <SelectTrigger className={FIELD} data-testid="service-stay">
+                <SelectValue placeholder="Select guest status" />
+              </SelectTrigger>
+              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
+                <SelectItem value="ALL" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  All entitled
+                </SelectItem>
+                <SelectItem value="IN_HOUSE" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  In house only
+                </SelectItem>
+                <SelectItem value="CONFIRMED" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Expected / confirmed
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </Filter>
           <Filter label="Room">
             <input
@@ -384,23 +447,6 @@ export function ServiceEntitlementReportScreen({
     >
       {phase === "ready" && result ? (
         <div className="space-y-3">
-          <div className="report-print-hide flex flex-wrap gap-2" data-testid="service-summary">
-            {category === "MEAL" ? (
-              <>
-                <Summary label="Rooms" value={String(result.summary.rooms)} />
-                <Summary label="Adults" value={String(result.summary.adults)} />
-                <Summary label="Children" value={String(result.summary.children)} />
-                <Summary label="Total Pax" value={String(result.summary.totalPax)} />
-              </>
-            ) : (
-              <>
-                <Summary label="Services Due" value={String(result.summary.services)} />
-                <Summary label="Pending" value={String(result.summary.pending)} />
-                <Summary label="In Progress" value={String(result.summary.inProgress)} />
-                <Summary label="Completed" value={String(result.summary.completed)} />
-              </>
-            )}
-          </div>
           {printState.kind === "error" ? (
             <p className="report-print-hide text-xs" role="alert" data-testid="service-print-error">
               {printState.problem === "too-large"
@@ -419,11 +465,14 @@ export function ServiceEntitlementReportScreen({
           ) : null}
           {result.rows.length === 0 ? (
             <div
-              className="report-print-hide rounded-xl border border-[#E8E1D7] bg-white px-5 py-8"
+              className="report-print-hide flex flex-col items-center justify-center rounded-xl border border-dashed border-[#DDD4C5] bg-white px-6 py-12 text-center shadow-2xs"
               data-testid="service-empty"
             >
-              <h3 className="text-sm font-semibold text-[#251605]">{emptyTitle}</h3>
-              <p className="mt-1 text-sm text-[#7A7167]">{emptyBody}</p>
+              <div className="grid size-11 place-items-center rounded-full bg-[#FAF3E3] text-[#8A6A24]">
+                <UtensilsCrossed className="size-5" />
+              </div>
+              <h3 className="mt-3 font-display text-sm font-semibold text-[#251605]">{emptyTitle}</h3>
+              <p className="mt-1 max-w-md text-xs text-[#7A7167]">{emptyBody}</p>
             </div>
           ) : (
             <div className="report-print-hide">
@@ -435,12 +484,12 @@ export function ServiceEntitlementReportScreen({
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[#F2ECE3]">
                   {result.rows.map((row, index) => (
                     <tr
                       key={row.id}
                       data-testid="service-row"
-                      className="border-t border-[#E8E1D7]"
+                      className="transition-colors hover:bg-[#FAF8F4]"
                     >
                       <td className={reportCellClass.numeric}>
                         {(page - 1) * pageSize + index + 1}
@@ -602,18 +651,18 @@ function downloadWorkbook(fileName: string, base64: string) {
 
 function Summary({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#E8E1D7] bg-white px-4 py-2 shadow-sm">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-[#7A7167]">{label}</p>
-      <p className="text-lg font-semibold tabular-nums text-[#251605]">{value}</p>
+    <div className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-2xs transition-all hover:border-[#C89933]/60 hover:shadow-sm">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</p>
+      <p className="mt-1 font-display text-xl font-bold tabular-nums text-[#251605]">{value}</p>
     </div>
   );
 }
 
 function Filter({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="flex w-40 min-w-36 flex-col gap-1">
-      <span className="text-[11px] font-medium text-[#7A7167]">{label}</span>
+    <div className="flex w-44 min-w-36 flex-col gap-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</span>
       {children}
-    </label>
+    </div>
   );
 }

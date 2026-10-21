@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Download } from "lucide-react";
 
 import {
   bindReportExport,
@@ -38,12 +38,13 @@ export function ReportExportMenu({
       <DropdownMenuTrigger
         type="button"
         data-testid="reports-export-menu"
-        className="report-print-hide inline-flex h-9 items-center gap-1 rounded-lg border border-[#E8E1D7] bg-white px-3 text-xs font-medium text-[#251605]"
+        className="report-print-hide inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#DDD4C5] bg-white px-3 text-xs font-semibold text-[#251605] shadow-2xs transition-colors hover:border-[#C89933] hover:bg-[#FAF8F4]"
       >
-        Export
-        <ChevronDown className="size-3.5" />
+        <Download className="size-3.5 text-[#8A6A24]" />
+        <span>Export</span>
+        <ChevronDown className="size-3.5 text-[#7A7167]" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="report-print-hide">
+      <DropdownMenuContent align="end" className="report-print-hide min-w-[12rem] rounded-xl border border-[#DDD4C5] bg-white p-1 shadow-md">
         <ExportItem
           testId="reports-export-print"
           label="Print"
@@ -110,7 +111,11 @@ function ExportItem({
       data-testid={testId}
       aria-disabled={action ? undefined : true}
       title={reason}
-      className={action ? undefined : "opacity-60"}
+      className={
+        action
+          ? "cursor-pointer rounded-lg text-xs font-medium text-[#251605] hover:bg-[#FAF8F4] hover:text-[#8A6A24]"
+          : "cursor-not-allowed rounded-lg text-xs opacity-60"
+      }
       onSelect={(event) => {
         if (!action) {
           event.preventDefault();
@@ -119,9 +124,9 @@ function ExportItem({
         action();
       }}
     >
-      <span>{label}</span>
+      <span className="flex-1">{label}</span>
       {reason ? (
-        <span className="ml-3 text-[11px] text-muted-foreground">Not available yet</span>
+        <span className="ml-3 text-[10px] font-medium text-[#A89F91]">Not available yet</span>
       ) : null}
     </DropdownMenuItem>
   );

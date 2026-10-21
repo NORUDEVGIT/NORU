@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Calendar } from "lucide-react";
 
 import { ReportExportMenu } from "@/packages/pms/components/reports/report-export-menu";
 import { ReportPagination } from "@/packages/pms/components/reports/report-pagination";
@@ -28,6 +29,7 @@ export function ReportPageShell({
   phase,
   businessDate,
   timezone,
+  kpis,
   filters,
   page,
   pageSize,
@@ -46,6 +48,7 @@ export function ReportPageShell({
   phase: ReportPhase;
   businessDate?: string | null;
   timezone?: string | null;
+  kpis?: ReactNode;
   filters?: ReactNode;
   page: number;
   pageSize: ReportPageSize;
@@ -67,25 +70,33 @@ export function ReportPageShell({
 
   return (
     <section
-      className="report-print-root space-y-4 bg-[#F7F4EE]"
+      className="report-print-root space-y-4"
       data-testid={`reports-row-${definition.id}`}
     >
-      <header className="report-print-hide flex flex-wrap items-start justify-between gap-3">
+      <header className="report-print-hide flex flex-wrap items-start justify-between gap-4 rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-2xs">
         <div className="min-w-0">
           {group ? (
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7A7167]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8A6A24]">
               {group.label}
             </p>
           ) : null}
-          <h2 className="mt-0.5 font-display text-xl font-semibold tracking-tight text-[#251605]">
+          <h2 className="mt-0.5 font-display text-xl font-bold tracking-tight text-[#251605]">
             {definition.title}
           </h2>
-          <p className="mt-1 max-w-2xl text-sm text-[#7A7167]">{definition.description}</p>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[#7A7167]">
+            {definition.description}
+          </p>
           {businessDate ? (
-            <p className="mt-2 text-xs text-[#7A7167]" data-testid="reports-house-date">
-              Property house date {businessDate}
-              {timezone ? ` · ${timezone}` : ""}
-            </p>
+            <div
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[#DDD4C5] bg-[#FAF8F4] px-2.5 py-1 text-xs text-[#7A7167]"
+              data-testid="reports-house-date"
+            >
+              <Calendar className="size-3.5 text-[#8A6A24]" />
+              <span>
+                Property house date <strong className="font-semibold text-[#251605]">{businessDate}</strong>
+              </span>
+              {timezone ? <span className="text-[#A89F91]">· {timezone}</span> : null}
+            </div>
           ) : null}
         </div>
         {blocked ? null : (
@@ -103,6 +114,7 @@ export function ReportPageShell({
         <ReportNoAccessState />
       ) : (
         <>
+          {kpis ? <div className="report-print-hide">{kpis}</div> : null}
           {filters}
           {phase === "loading" ? <ReportLoadingState /> : null}
           {phase === "error" ? (

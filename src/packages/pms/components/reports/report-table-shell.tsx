@@ -12,7 +12,7 @@ export function ReportCell({ kind, children }: { kind: ReportCellKind; children:
 
 export function ReportStatusBadge({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border border-[#E8E1D7] bg-[#F7F4EE] px-2 py-0.5 text-[11px] font-medium text-[#251605]">
+    <span className="inline-flex items-center rounded-full border border-[#DDD4C5] bg-[#FAF8F4] px-2.5 py-0.5 text-[11px] font-semibold text-[#8A6A24]">
       {children}
     </span>
   );
@@ -35,7 +35,7 @@ export function ReportTableShell({
 }) {
   return (
     <div
-      className="report-print-table overflow-x-auto rounded-xl border border-[#E8E1D7] bg-white shadow-sm"
+      className="report-print-table overflow-x-auto rounded-xl border border-[#DDD4C5] bg-white shadow-2xs"
       data-testid="reports-table-shell"
       aria-busy={busy}
     >
@@ -44,7 +44,7 @@ export function ReportTableShell({
       </table>
       {footer ? (
         <div
-          className="border-t border-[#E8E1D7] px-4 py-3 text-sm"
+          className="border-t border-[#DDD4C5] bg-[#FAF8F4] px-5 py-3 text-xs font-medium text-[#7A7167]"
           data-testid="reports-table-footer"
         >
           {footer}
@@ -68,7 +68,7 @@ export function ReportTableHeaderCell({
     <th
       scope="col"
       className={cn(
-        "bg-[#F7F4EE] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#7A7167]",
+        "border-b border-[#DDD4C5] bg-[#FAF8F4] px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-[#7A7167]",
         align === "right" ? "text-right" : "text-left",
         className,
       )}

@@ -11,6 +11,13 @@ import {
 } from "@/packages/pms/components/reports/report-table-shell";
 import { reportCellClass } from "@/packages/pms/components/reports/report-columns";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import {
   exportFiscalRegistrationWorkbook,
   getFiscalRegistrationReport,
 } from "@/packages/pms/lib/fiscal-registration-report.functions";
@@ -51,6 +58,8 @@ import {
   fiscalReportRequest,
   fiscalTotalsCaption,
 } from "@/packages/pms/lib/fiscal-registration-report-view";
+import { FileSpreadsheet, Search } from "lucide-react";
+import { cn } from "@/shared/lib/utils";
 import {
   DEFAULT_REPORT_PAGE_SIZE,
   parseReportPage,
@@ -61,7 +70,7 @@ import {
 } from "@/packages/pms/lib/reports-shell";
 
 const FIELD =
-  "h-9 w-full rounded-lg border border-[#E8E1D7] bg-white px-2.5 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden";
+  "h-9 w-full rounded-lg border border-[#DDD4C5] bg-white px-3 text-xs text-[#251605] placeholder:text-[#A89F91] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] focus:outline-hidden transition-all shadow-2xs";
 
 /**
  * Fiscal Registration Report screen. Rows come only from getFiscalRegistrationReport.
@@ -270,6 +279,20 @@ export function FiscalRegistrationReportScreen({
       {...(failure === "load" || failure === "too-large"
         ? { onRetry: () => void query.refetch(), ...(errorMessage ? { errorMessage } : {}) }
         : {})}
+      kpis={
+        phase === "ready" && result ? (
+          <div className="report-print-hide flex flex-wrap gap-2" data-testid="fiscal-summary-kpis">
+            {result.totals.map((total) => (
+              <KpiStrip
+                key={total.currency}
+                total={total}
+                documentType={documentType}
+                multiCurrency={result.totals.length > 1}
+              />
+            ))}
+          </div>
+        ) : null
+      }
       filters={
         <ReportFilterBar
           onClear={() =>
@@ -298,59 +321,88 @@ export function FiscalRegistrationReportScreen({
             />
           </Filter>
           <Filter label="Document Type">
-            <select
-              className={FIELD}
-              data-testid="fiscal-document-type"
+            <Select
               value={documentType}
-              onChange={(event) =>
+              onValueChange={(val) =>
                 writeFilters({
-                  documentType: fiscalReportDocumentType(event.target.value),
+                  documentType: fiscalReportDocumentType(val),
                   resetPage: true,
                 })
               }
             >
-              <option value="INV">Invoices</option>
-              <option value="CRE">Credit Notes</option>
-              <option value="DEB">Debit Notes</option>
-              <option value="SR">Sales Receipts</option>
-              <option value="ALL">All</option>
-            </select>
+              <SelectTrigger className={FIELD} data-testid="fiscal-document-type">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
+                <SelectItem value="INV" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Invoices
+                </SelectItem>
+                <SelectItem value="CRE" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Credit Notes
+                </SelectItem>
+                <SelectItem value="DEB" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Debit Notes
+                </SelectItem>
+                <SelectItem value="SR" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Sales Receipts
+                </SelectItem>
+                <SelectItem value="ALL" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  All
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </Filter>
           <Filter label="Mode">
-            <select
-              className={FIELD}
-              data-testid="fiscal-mode"
+            <Select
               value={mode}
-              onChange={(event) =>
+              onValueChange={(val) =>
                 writeFilters({
-                  mode: fiscalReportMode(event.target.value),
+                  mode: fiscalReportMode(val),
                   resetPage: true,
                 })
               }
             >
-              <option value="ALL">All</option>
-              <option value="CASH">Cash</option>
-              <option value="CREDIT">Credit</option>
-            </select>
+              <SelectTrigger className={FIELD} data-testid="fiscal-mode">
+                <SelectValue placeholder="Select mode" />
+              </SelectTrigger>
+              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
+                <SelectItem value="ALL" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  All
+                </SelectItem>
+                <SelectItem value="CASH" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Cash
+                </SelectItem>
+                <SelectItem value="CREDIT" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Credit
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </Filter>
           <Filter label="Status">
-            <select
-              className={FIELD}
-              data-testid="fiscal-status"
+            <Select
               value={status}
-              onChange={(event) =>
+              onValueChange={(val) =>
                 writeFilters({
-                  status: fiscalReportStatus(event.target.value),
+                  status: fiscalReportStatus(val),
                   resetPage: true,
                 })
               }
             >
-              {FISCAL_REPORT_STATUSES.map((token) => (
-                <option key={token} value={token}>
-                  {token === "ALL" ? "All" : token.replaceAll("_", " ")}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className={FIELD} data-testid="fiscal-status">
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
+                {FISCAL_REPORT_STATUSES.map((token) => (
+                  <SelectItem
+                    key={token}
+                    value={token}
+                    className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5"
+                  >
+                    {token === "ALL" ? "All" : token.replaceAll("_", " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Filter>
           <DraftField
             label="Search"
@@ -364,16 +416,6 @@ export function FiscalRegistrationReportScreen({
     >
       {phase === "ready" && result ? (
         <div className="space-y-3">
-          <div className="report-print-hide flex flex-wrap gap-2" data-testid="fiscal-summary-kpis">
-            {result.totals.map((total) => (
-              <KpiStrip
-                key={total.currency}
-                total={total}
-                documentType={documentType}
-                multiCurrency={result.totals.length > 1}
-              />
-            ))}
-          </div>
           {printState.kind === "loading" ? (
             <p
               className="report-print-hide text-xs text-[#7A7167]"
@@ -430,11 +472,14 @@ export function FiscalRegistrationReportScreen({
           ) : null}
           {result.rows.length === 0 ? (
             <div
-              className="report-print-hide rounded-xl border border-[#E8E1D7] bg-white px-5 py-8 shadow-sm"
+              className="report-print-hide flex flex-col items-center justify-center rounded-xl border border-dashed border-[#DDD4C5] bg-white px-6 py-12 text-center shadow-2xs"
               data-testid="fiscal-empty"
             >
-              <h3 className="text-sm font-semibold text-[#251605]">{FISCAL_EMPTY_TITLE}</h3>
-              <p className="mt-1 text-sm text-[#7A7167]">{FISCAL_EMPTY_BODY}</p>
+              <div className="grid size-11 place-items-center rounded-full bg-[#FAF3E3] text-[#8A6A24]">
+                <FileSpreadsheet className="size-5" />
+              </div>
+              <h3 className="mt-3 font-display text-sm font-semibold text-[#251605]">{FISCAL_EMPTY_TITLE}</h3>
+              <p className="mt-1 max-w-md text-xs text-[#7A7167]">{FISCAL_EMPTY_BODY}</p>
             </div>
           ) : (
             <div className="report-print-hide">
@@ -446,14 +491,14 @@ export function FiscalRegistrationReportScreen({
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[#F2ECE3]">
                   {result.rows.map((row) => (
                     <tr
                       key={row.id}
                       data-testid="fiscal-summary-row"
                       data-document-type={row.documentType}
                       data-mode={row.mode ?? ""}
-                      className="border-t border-[#E8E1D7]"
+                      className="transition-colors hover:bg-[#FAF8F4]"
                     >
                       <td className={reportCellClass.text}>
                         {row.fiscalDocumentNumber}
@@ -699,9 +744,18 @@ function printNoteAmount(amount: number | null): string {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const isRegistered = status === "REGISTERED";
+  const isFailed = status === "FAILED";
   return (
     <span
-      className="inline-flex rounded-md border border-[#E8E1D7] bg-[#FBF8F2] px-1.5 py-0.5 text-[11px] font-medium text-[#251605]"
+      className={cn(
+        "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+        isRegistered
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          : isFailed
+            ? "border-rose-200 bg-rose-50 text-rose-700"
+            : "border-amber-200 bg-amber-50 text-amber-700",
+      )}
       data-testid="fiscal-status-badge"
     >
       {status}
@@ -735,19 +789,19 @@ function downloadFiscalWorkbook(fileName: string, base64: string) {
 
 function Summary({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#E8E1D7] bg-white px-4 py-2 shadow-sm">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-[#7A7167]">{label}</p>
-      <p className="text-lg font-semibold tabular-nums text-[#251605]">{value}</p>
+    <div className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-2xs transition-all hover:border-[#C89933]/60 hover:shadow-sm">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</p>
+      <p className="mt-1 font-display text-xl font-bold tabular-nums text-[#251605]">{value}</p>
     </div>
   );
 }
 
 function Filter({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="flex w-40 min-w-36 flex-col gap-1">
-      <span className="text-[11px] font-medium text-[#7A7167]">{label}</span>
+    <div className="flex w-44 min-w-36 flex-col gap-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</span>
       {children}
-    </label>
+    </div>
   );
 }
 
@@ -773,13 +827,16 @@ function DraftField({
   }, [draft, onCommit, value]);
   return (
     <Filter label={label}>
-      <input
-        className={FIELD}
-        data-testid={testId}
-        placeholder={placeholder}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-      />
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#A89F91]" />
+        <input
+          className={cn(FIELD, "pl-8")}
+          data-testid={testId}
+          placeholder={placeholder}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+      </div>
     </Filter>
   );
 }

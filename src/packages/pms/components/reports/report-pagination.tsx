@@ -21,18 +21,19 @@ export function ReportPagination({
 
   return (
     <div
-      className="report-print-hide flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E8E1D7] bg-white px-4 py-2.5 text-xs text-[#7A7167]"
+      className="report-print-hide flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#DDD4C5] bg-white px-4 py-2.5 text-xs text-[#7A7167] shadow-2xs"
       data-testid="reports-pagination"
     >
-      <span>
-        Showing {from}–{to} of {totalRows}
+      <span className="font-medium">
+        Showing <strong className="text-[#251605]">{from}–{to}</strong> of{" "}
+        <strong className="text-[#251605]">{totalRows}</strong> records
       </span>
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 border-[#E8E1D7] bg-white px-2.5 text-xs text-[#251605] hover:border-[#C89933]/60"
+          className="h-8 border-[#DDD4C5] bg-white px-2.5 text-xs font-medium text-[#251605] hover:border-[#C89933] hover:bg-[#FAF8F4]"
           disabled={safePage <= 1 || totalRows === 0}
           onClick={() => onPageChange(safePage - 1, pageSize)}
           data-testid="reports-page-prev"
@@ -40,14 +41,14 @@ export function ReportPagination({
           <ChevronLeft className="mr-1 size-3.5" />
           Previous
         </Button>
-        <span className="tabular-nums text-[#251605]">
+        <span className="tabular-nums font-semibold text-[#251605]">
           Page {safePage} of {pageCount}
         </span>
         <Button
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 border-[#E8E1D7] bg-white px-2.5 text-xs text-[#251605] hover:border-[#C89933]/60"
+          className="h-8 border-[#DDD4C5] bg-white px-2.5 text-xs font-medium text-[#251605] hover:border-[#C89933] hover:bg-[#FAF8F4]"
           disabled={safePage >= pageCount || totalRows === 0}
           onClick={() => onPageChange(safePage + 1, pageSize)}
           data-testid="reports-page-next"
@@ -60,7 +61,7 @@ export function ReportPagination({
           data-testid="reports-page-size"
           value={pageSize}
           onChange={(event) => onPageChange(1, Number(event.target.value) as ReportPageSize)}
-          className="h-8 rounded-md border border-[#E8E1D7] bg-white px-2 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden"
+          className="h-8 rounded-lg border border-[#DDD4C5] bg-white px-2.5 text-xs font-medium text-[#251605] focus:border-[#C89933] focus:outline-hidden"
         >
           {REPORT_PAGE_SIZES.map((size) => (
             <option key={size} value={size}>

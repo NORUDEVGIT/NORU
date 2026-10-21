@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -10,6 +10,15 @@ import {
   ReportTableShell,
 } from "@/packages/pms/components/reports/report-table-shell";
 import { reportCellClass } from "@/packages/pms/components/reports/report-columns";
+import { cn } from "@/shared/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import { ISO_COUNTRIES } from "@/packages/pms/lib/pms-geography";
 import {
   exportPoliceStayWorkbook,
   getPoliceStayReport,
@@ -51,6 +60,20 @@ import {
 } from "@/packages/pms/lib/police-stay-report-view";
 import { POLICE_STAY_TOO_LARGE_MESSAGE } from "@/packages/pms/lib/police-stay-report";
 import {
+  AlertCircle,
+  Calendar,
+  Check,
+  ChevronDown,
+  DoorClosed,
+  Globe,
+  Info,
+  RotateCcw,
+  Search,
+  ShieldAlert,
+  Users,
+  X,
+} from "lucide-react";
+import {
   DEFAULT_REPORT_PAGE_SIZE,
   parseReportPage,
   parseReportPageSize,
@@ -60,7 +83,7 @@ import {
 } from "@/packages/pms/lib/reports-shell";
 
 const FIELD =
-  "h-9 w-full rounded-lg border border-[#E8E1D7] bg-white px-2.5 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden";
+  "h-9 w-full rounded-lg border border-[#DDD4C5] bg-white px-3 text-xs text-[#251605] placeholder:text-[#A89F91] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] focus:outline-hidden transition-all shadow-2xs";
 
 /**
  * Police / Guest Stay screen. Rows come only from getPoliceStayReport.
@@ -254,6 +277,101 @@ export function PoliceStayReportScreen({
   const warning = policeUnnamedWarning(unnamed);
   const errorMessage = failure === "too-large" ? POLICE_STAY_TOO_LARGE_MESSAGE : undefined;
 
+  const [knownGuests, setKnownGuests] = useState<Map<string, { label: string; room?: string }>>(
+    new Map(),
+  );
+  const [knownRooms, setKnownRooms] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (result?.rows) {
+      setKnownGuests((prev) => {
+        const next = new Map(prev);
+        for (const row of result.rows) {
+          const name = row.guestName?.trim();
+          if (name && name !== "—" && !next.has(name.toLowerCase())) {
+            next.set(name.toLowerCase(), {
+              label: name,
+              room: row.roomNumber ? `Rm ${row.roomNumber}` : undefined,
+            });
+          }
+        }
+        return next;
+      });
+    }
+  }, [result?.rows]);
+
+  useEffect(() => {
+    if (result?.summary?.rooms || result?.rows) {
+      setKnownRooms((prev) => {
+        const next = new Set(prev);
+        for (const r of result?.summary?.rooms ?? []) {
+          if (r.roomNumber?.trim()) next.add(r.roomNumber.trim());
+        }
+        for (const row of result?.rows ?? []) {
+          if (row.roomNumber?.trim()) next.add(row.roomNumber.trim());
+        }
+        return next;
+      });
+    }
+  }, [result?.rows, result?.summary?.rooms]);
+
+  const guestOptions = useMemo(() => {
+    return Array.from(knownGuests.values())
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .map((item) => ({
+        value: item.label,
+        label: item.label,
+        subLabel: item.room,
+      }));
+  }, [knownGuests]);
+
+  const nationalityOptions = useMemo(() => {
+    const activeNationalities = new Set<string>();
+    if (result?.rows) {
+      for (const row of result.rows) {
+        const nat = row.nationality?.trim();
+        if (nat && nat !== "—") {
+          activeNationalities.add(nat);
+        }
+      }
+    }
+
+    const items: Array<{ value: string; label: string; subLabel?: string }> = [];
+
+    if (activeNationalities.size > 0) {
+      for (const nat of Array.from(activeNationalities).sort()) {
+        items.push({
+          value: nat,
+          label: nat,
+          subLabel: "In house",
+        });
+      }
+    }
+
+    const activeLower = new Set(Array.from(activeNationalities).map((n) => n.toLowerCase()));
+    for (const country of ISO_COUNTRIES) {
+      if (!activeLower.has(country.name.toLowerCase())) {
+        items.push({
+          value: country.name,
+          label: country.name,
+          subLabel: country.code,
+        });
+      }
+    }
+
+    return items;
+  }, [result?.rows]);
+
+  const roomOptions = useMemo(() => {
+    const sorted = Array.from(knownRooms).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
+    );
+    return sorted.map((room) => ({
+      value: room,
+      label: `Room ${room}`,
+    }));
+  }, [knownRooms]);
+
   return (
     <ReportPageShell
       definition={definition}
@@ -273,6 +391,18 @@ export function PoliceStayReportScreen({
       {...(failure === "load" || failure === "too-large"
         ? { onRetry: () => void query.refetch(), ...(errorMessage ? { errorMessage } : {}) }
         : {})}
+      kpis={
+        phase === "ready" && result ? (
+          <div className="report-print-hide flex flex-wrap gap-2" data-testid="police-summary">
+            <Summary
+              label="Named Guests"
+              value={result.summary.namedGuestCount}
+              testId="police-named-count"
+            />
+            <Summary label="Unnamed Occupancy" value={unnamed} testId="police-unnamed-count" />
+          </div>
+        ) : null
+      }
       filters={
         <ReportFilterBar
           onClear={() =>
@@ -291,63 +421,67 @@ export function PoliceStayReportScreen({
               onChange={(event) => writeFilters({ stayDate: event.target.value, resetPage: true })}
             />
           </Filter>
-          <Filter
-            label="Presence"
-            hint={
-              presence === "HISTORICAL"
-                ? "Completed and checked-in stays overlapping this date"
-                : "Guests currently checked in for the selected stay date"
-            }
-          >
-            <select
-              className={FIELD}
-              data-testid="police-presence"
+          <Filter label="Presence">
+            <Select
               value={presence}
-              onChange={(event) =>
+              onValueChange={(val) =>
                 writeFilters({
-                  presence: event.target.value === "HISTORICAL" ? "HISTORICAL" : "IN_HOUSE",
+                  presence: val === "HISTORICAL" ? "HISTORICAL" : "IN_HOUSE",
                   resetPage: true,
                 })
               }
             >
-              <option value="IN_HOUSE">In House</option>
-              <option value="HISTORICAL">Historical</option>
-            </select>
+              <SelectTrigger className={FIELD} data-testid="police-presence">
+                <SelectValue placeholder="Presence" />
+              </SelectTrigger>
+              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
+                <SelectItem value="IN_HOUSE" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  In House
+                </SelectItem>
+                <SelectItem value="HISTORICAL" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Historical
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </Filter>
-          <DraftField
+          <SearchableComboboxField
             label="Guest"
             testId="police-guest-name"
             placeholder="Search guest name"
             value={search.name ?? ""}
+            options={guestOptions}
+            leftIcon={Search}
             onCommit={(name) => writeFilters({ name, resetPage: true })}
+            emptyMessage="No matching guests"
+            widthClass="w-52"
           />
-          <DraftField
+          <SearchableComboboxField
             label="Nationality"
             testId="police-nationality"
-            placeholder="Nationality"
+            placeholder="Select nationality"
             value={search.nationality ?? ""}
+            options={nationalityOptions}
+            leftIcon={Globe}
             onCommit={(nationality) => writeFilters({ nationality, resetPage: true })}
+            emptyMessage="No matching countries"
+            widthClass="w-48"
           />
-          <DraftField
+          <SearchableComboboxField
             label="Room"
             testId="police-room"
-            placeholder="Room number"
+            placeholder="Select room"
             value={search.room ?? ""}
+            options={roomOptions}
+            leftIcon={DoorClosed}
             onCommit={(room) => writeFilters({ room, resetPage: true })}
+            emptyMessage="No matching rooms"
+            widthClass="w-44"
           />
         </ReportFilterBar>
       }
     >
       {phase === "ready" && result ? (
         <div className="space-y-3">
-          <div className="report-print-hide flex flex-wrap gap-2" data-testid="police-summary">
-            <Summary
-              label="Named Guests"
-              value={result.summary.namedGuestCount}
-              testId="police-named-count"
-            />
-            <Summary label="Unnamed Occupancy" value={unnamed} testId="police-unnamed-count" />
-          </div>
           {presence === "HISTORICAL" ? (
             <p
               className="report-print-hide rounded-xl border border-[#E8E1D7] bg-white px-4 py-3 text-xs text-[#7A7167]"
@@ -420,11 +554,14 @@ export function PoliceStayReportScreen({
           ) : null}
           {result.rows.length === 0 ? (
             <div
-              className="report-print-hide rounded-xl border border-[#E8E1D7] bg-white px-5 py-8 shadow-sm"
+              className="report-print-hide flex flex-col items-center justify-center rounded-xl border border-dashed border-[#DDD4C5] bg-white px-6 py-12 text-center shadow-2xs"
               data-testid="police-empty"
             >
-              <h3 className="text-sm font-semibold text-[#251605]">{POLICE_EMPTY_TITLE}</h3>
-              <p className="mt-1 text-sm text-[#7A7167]">{POLICE_EMPTY_BODY}</p>
+              <div className="grid size-11 place-items-center rounded-full bg-[#FAF3E3] text-[#8A6A24]">
+                <Users className="size-5" />
+              </div>
+              <h3 className="mt-3 font-display text-sm font-semibold text-[#251605]">{POLICE_EMPTY_TITLE}</h3>
+              <p className="mt-1 max-w-md text-xs text-[#7A7167]">{POLICE_EMPTY_BODY}</p>
             </div>
           ) : (
             <div className="report-print-hide">
@@ -446,20 +583,28 @@ export function PoliceStayReportScreen({
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[#F2ECE3]">
                   {result.rows.map((row, index) => (
                     <tr
                       key={`${row.reservationRoomId}-${row.guestProfileId}`}
                       data-testid="police-row"
-                      className="border-t border-[#E8E1D7]"
+                      className="transition-colors hover:bg-[#FAF8F4]"
                     >
                       <td className={reportCellClass.numeric}>
                         {policeRowNumber(result.page, result.pageSize, index)}
                       </td>
                       <td className={reportCellClass.text} data-testid="police-screen-room">
-                        {policeBlank(row.roomNumber)}
+                        {row.roomNumber ? (
+                          <span className="inline-flex items-center rounded-md border border-[#DDD4C5] bg-[#FAF8F4] px-2 py-0.5 text-xs font-semibold text-[#8A6A24]">
+                            {row.roomNumber}
+                          </span>
+                        ) : (
+                          <span className="text-[#A89F91]">—</span>
+                        )}
                       </td>
-                      <td className={reportCellClass.text}>{policeBlank(row.guestName)}</td>
+                      <td className={cn(reportCellClass.text, "font-medium text-[#251605]")}>
+                        {policeBlank(row.guestName)}
+                      </td>
                       <td className={reportCellClass.text}>{policeBlank(row.phone)}</td>
                       <td className={reportCellClass.text}>{policeBlank(row.nationality)}</td>
                       <td className={reportCellClass.text}>{policeBlank(row.email)}</td>
@@ -470,9 +615,9 @@ export function PoliceStayReportScreen({
                         {policeStayDateLabel(row.checkOutDate)}
                       </td>
                       <td className={reportCellClass.text}>
-                        <span>{policeScreenIdentity(row.idDocumentNumber)}</span>
+                        <span className="font-mono text-xs text-[#251605]">{policeScreenIdentity(row.idDocumentNumber)}</span>
                         {row.idDocumentType ? (
-                          <span className="mt-0.5 block text-[11px] text-[#7A7167]">
+                          <span className="mt-0.5 block text-[10px] font-medium text-[#7A7167]">
                             {row.idDocumentType}
                           </span>
                         ) : null}
@@ -608,56 +753,214 @@ function downloadPoliceWorkbook(fileName: string, base64: string) {
 }
 
 function Summary({ label, value, testId }: { label: string; value: number; testId: string }) {
+  const isNamed = testId.includes("named");
   return (
     <div
-      className="rounded-xl border border-[#E8E1D7] bg-white px-4 py-2 shadow-sm"
+      className={cn(
+        "flex items-center gap-3 rounded-xl border p-3 shadow-2xs transition-all",
+        isNamed
+          ? "border-emerald-200/90 bg-white hover:border-emerald-300"
+          : "border-amber-200/90 bg-white hover:border-amber-300",
+      )}
       data-testid={testId}
     >
-      <p className="text-[11px] font-medium uppercase tracking-wide text-[#7A7167]">{label}</p>
-      <p className="text-lg font-semibold tabular-nums text-[#251605]">{value}</p>
+      <div
+        className={cn(
+          "grid size-9 place-items-center rounded-lg border",
+          isNamed
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+            : "border-amber-200 bg-amber-50 text-amber-700",
+        )}
+      >
+        {isNamed ? <Users className="size-4" /> : <ShieldAlert className="size-4" />}
+      </div>
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#7A7167]">{label}</p>
+        <p className="font-display text-xl font-bold tabular-nums text-[#251605]">{value}</p>
+      </div>
     </div>
   );
 }
 
-function Filter({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+function Filter({
+  label,
+  hint,
+  className,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <label className="flex w-40 min-w-36 flex-col gap-1">
-      <span className="text-[11px] font-medium text-[#7A7167]">{label}</span>
+    <div className={cn("relative flex w-44 min-w-36 flex-col gap-1.5", className)}>
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</span>
       {children}
       {hint ? <span className="text-[10px] leading-snug text-[#7A7167]">{hint}</span> : null}
-    </label>
+    </div>
   );
 }
 
-function DraftField({
+function SearchableComboboxField({
   label,
   testId,
   placeholder,
   value,
+  options,
+  leftIcon: LeftIcon,
   onCommit,
+  emptyMessage = "No matches found",
+  widthClass = "w-48",
 }: {
   label: string;
   testId: string;
   placeholder: string;
   value: string;
+  options: Array<{ value: string; label: string; subLabel?: string }>;
+  leftIcon: typeof Search;
   onCommit: (value: string) => void;
+  emptyMessage?: string;
+  widthClass?: string;
 }) {
   const [draft, setDraft] = useState(value);
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => setDraft(value), [value]);
+
   useEffect(() => {
     if (draft.trim() === value.trim()) return;
     const timer = window.setTimeout(() => onCommit(draft.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [draft, onCommit, value]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const query = draft.trim().toLowerCase();
+  const filteredOptions = useMemo(() => {
+    if (!query) return options;
+    return options.filter(
+      (opt) =>
+        opt.label.toLowerCase().includes(query) ||
+        opt.value.toLowerCase().includes(query) ||
+        (opt.subLabel && opt.subLabel.toLowerCase().includes(query)),
+    );
+  }, [options, query]);
+
   return (
-    <Filter label={label}>
-      <input
-        className={FIELD}
-        data-testid={testId}
-        placeholder={placeholder}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-      />
+    <Filter label={label} className={widthClass}>
+      <div ref={containerRef} className="relative w-full">
+        <LeftIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#A89F91]" />
+        <input
+          className={cn(FIELD, "pl-8 pr-12")}
+          data-testid={testId}
+          placeholder={placeholder}
+          value={draft}
+          onFocus={() => setIsOpen(true)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setIsOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              onCommit(draft.trim());
+              setIsOpen(false);
+            } else if (event.key === "Escape") {
+              setIsOpen(false);
+            }
+          }}
+        />
+        <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+          {draft ? (
+            <button
+              type="button"
+              className="grid size-5 place-items-center rounded text-[#A89F91] transition-colors hover:bg-[#F2ECE3] hover:text-[#251605]"
+              onClick={() => {
+                setDraft("");
+                onCommit("");
+                setIsOpen(false);
+              }}
+              title="Clear"
+            >
+              <X className="size-3" />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="grid size-5 place-items-center rounded text-[#A89F91] transition-colors hover:bg-[#F2ECE3] hover:text-[#251605]"
+            onClick={() => setIsOpen((prev) => !prev)}
+            title="Toggle list"
+          >
+            <ChevronDown
+              className={cn("size-3 transition-transform duration-150", isOpen && "rotate-180")}
+            />
+          </button>
+        </div>
+
+        {isOpen ? (
+          <div className="absolute left-0 top-full z-50 mt-1 max-h-52 w-full min-w-56 overflow-y-auto rounded-xl border border-[#DDD4C5] bg-white p-1 shadow-xl">
+            {options.length > 0 && draft ? (
+              <button
+                type="button"
+                className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-[#8A6A24] transition-colors hover:bg-[#FAF3E3]"
+                onClick={() => {
+                  setDraft("");
+                  onCommit("");
+                  setIsOpen(false);
+                }}
+              >
+                <span>Clear filter (Show all)</span>
+                <RotateCcw className="size-3 text-[#A89F91]" />
+              </button>
+            ) : null}
+
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-center text-xs text-[#A89F91]">
+                {emptyMessage}
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = value.trim().toLowerCase() === opt.value.trim().toLowerCase();
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors",
+                      isSelected
+                        ? "bg-[#FAF3E3] font-medium text-[#8A6A24]"
+                        : "text-[#251605] hover:bg-[#F9F7F2] hover:text-[#8A6A24]",
+                    )}
+                    onClick={() => {
+                      setDraft(opt.value);
+                      onCommit(opt.value);
+                      setIsOpen(false);
+                    }}
+                  >
+                    <span className="truncate">{opt.label}</span>
+                    {opt.subLabel ? (
+                      <span className="ml-1.5 shrink-0 rounded bg-[#F2ECE3] px-1 py-0.5 text-[9px] font-medium text-[#7A7167]">
+                        {opt.subLabel}
+                      </span>
+                    ) : isSelected ? (
+                      <Check className="size-3.5 shrink-0 text-[#C89933]" />
+                    ) : null}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        ) : null}
+      </div>
     </Filter>
   );
 }

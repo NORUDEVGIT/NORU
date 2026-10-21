@@ -11,6 +11,13 @@ import {
 } from "@/packages/pms/components/reports/report-table-shell";
 import { reportCellClass } from "@/packages/pms/components/reports/report-columns";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import {
   exportCashierInvoiceWorkbook,
   getCashierInvoiceReport,
 } from "@/packages/pms/lib/cashier-invoice-report.functions";
@@ -53,6 +60,8 @@ import {
   isCashierDetailRow,
   isCashierSummaryRow,
 } from "@/packages/pms/lib/cashier-invoice-report-view";
+import { Receipt, Search } from "lucide-react";
+import { cn } from "@/shared/lib/utils";
 import {
   DEFAULT_REPORT_PAGE_SIZE,
   parseReportPage,
@@ -63,7 +72,7 @@ import {
 } from "@/packages/pms/lib/reports-shell";
 
 const FIELD =
-  "h-9 w-full rounded-lg border border-[#E8E1D7] bg-white px-2.5 text-xs text-[#251605] focus:border-[#C89933] focus:outline-hidden";
+  "h-9 w-full rounded-lg border border-[#DDD4C5] bg-white px-3 text-xs text-[#251605] placeholder:text-[#A89F91] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] focus:outline-hidden transition-all shadow-2xs";
 
 /**
  * Cashier Invoice Report screen. Rows come only from getCashierInvoiceReport.
@@ -282,6 +291,23 @@ export function CashierInvoiceReportScreen({
       {...(failure === "load" || failure === "too-large"
         ? { onRetry: () => void query.refetch(), ...(errorMessage ? { errorMessage } : {}) }
         : {})}
+      kpis={
+        phase === "ready" && result ? (
+          <div
+            className="report-print-hide flex flex-wrap gap-2"
+            data-testid="cashier-summary-kpis"
+          >
+            {result.totals.map((total) => (
+              <KpiStrip
+                key={total.currency}
+                total={total}
+                documentType={documentType}
+                multiCurrency={result.totals.length > 1}
+              />
+            ))}
+          </div>
+        ) : null
+      }
       filters={
         <ReportFilterBar
           onClear={() =>
@@ -310,58 +336,85 @@ export function CashierInvoiceReportScreen({
             />
           </Filter>
           <Filter label="Document Type">
-            <select
-              className={FIELD}
-              data-testid="cashier-document-type"
+            <Select
               value={documentType}
-              onChange={(event) =>
+              onValueChange={(val) =>
                 writeFilters({
-                  documentType: cashierDocumentType(event.target.value),
+                  documentType: cashierDocumentType(val),
                   resetPage: true,
                 })
               }
             >
-              <option value="INV">Invoices</option>
-              <option value="CRE">Credit Notes</option>
-              <option value="DEB">Debit Notes</option>
-              <option value="ALL">All</option>
-            </select>
+              <SelectTrigger className={FIELD} data-testid="cashier-document-type">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
+                <SelectItem value="INV" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Invoices
+                </SelectItem>
+                <SelectItem value="CRE" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Credit Notes
+                </SelectItem>
+                <SelectItem value="DEB" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Debit Notes
+                </SelectItem>
+                <SelectItem value="ALL" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  All
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </Filter>
           <Filter label="View">
-            <select
-              className={FIELD}
-              data-testid="cashier-grain"
+            <Select
               value={grain}
-              onChange={(event) =>
+              onValueChange={(val) =>
                 writeFilters({
-                  grain: cashierReportGrain(event.target.value),
+                  grain: cashierReportGrain(val),
                   resetPage: true,
                 })
               }
             >
-              <option value="summary">Summary</option>
-              <option value="detail">Detail</option>
-            </select>
+              <SelectTrigger className={FIELD} data-testid="cashier-grain">
+                <SelectValue placeholder="Select view" />
+              </SelectTrigger>
+              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
+                <SelectItem value="summary" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Summary
+                </SelectItem>
+                <SelectItem value="detail" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  Detail
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </Filter>
           <Filter label="Issued By">
-            <select
-              className={FIELD}
-              data-testid="cashier-issuer"
-              value={search.issuer ?? ""}
-              onChange={(event) =>
+            <Select
+              value={search.issuer || "__all__"}
+              onValueChange={(val) =>
                 writeFilters({
-                  issuer: event.target.value,
+                  issuer: val === "__all__" ? "" : val,
                   resetPage: true,
                 })
               }
             >
-              <option value="">All issuers</option>
-              {issuers.map((issuer) => (
-                <option key={issuer.id} value={issuer.id}>
-                  {issuer.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className={FIELD} data-testid="cashier-issuer">
+                <SelectValue placeholder="All issuers" />
+              </SelectTrigger>
+              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
+                <SelectItem value="__all__" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
+                  All issuers
+                </SelectItem>
+                {issuers.map((issuer) => (
+                  <SelectItem
+                    key={issuer.id}
+                    value={issuer.id}
+                    className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5"
+                  >
+                    {issuer.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Filter>
           <DraftField
             label="Search"
@@ -375,19 +428,6 @@ export function CashierInvoiceReportScreen({
     >
       {phase === "ready" && result ? (
         <div className="space-y-3">
-          <div
-            className="report-print-hide flex flex-wrap gap-2"
-            data-testid="cashier-summary-kpis"
-          >
-            {result.totals.map((total) => (
-              <KpiStrip
-                key={total.currency}
-                total={total}
-                documentType={documentType}
-                multiCurrency={result.totals.length > 1}
-              />
-            ))}
-          </div>
           {result.legacyExcludedCount > 0 ? (
             <p
               className="report-print-hide rounded-xl border border-[#E8E1D7] bg-white px-4 py-3 text-xs text-[#7A7167]"
@@ -452,11 +492,14 @@ export function CashierInvoiceReportScreen({
           ) : null}
           {result.rows.length === 0 ? (
             <div
-              className="report-print-hide rounded-xl border border-[#E8E1D7] bg-white px-5 py-8 shadow-sm"
+              className="report-print-hide flex flex-col items-center justify-center rounded-xl border border-dashed border-[#DDD4C5] bg-white px-6 py-12 text-center shadow-2xs"
               data-testid="cashier-empty"
             >
-              <h3 className="text-sm font-semibold text-[#251605]">{CASHIER_EMPTY_TITLE}</h3>
-              <p className="mt-1 text-sm text-[#7A7167]">{CASHIER_EMPTY_BODY}</p>
+              <div className="grid size-11 place-items-center rounded-full bg-[#FAF3E3] text-[#8A6A24]">
+                <Receipt className="size-5" />
+              </div>
+              <h3 className="mt-3 font-display text-sm font-semibold text-[#251605]">{CASHIER_EMPTY_TITLE}</h3>
+              <p className="mt-1 max-w-md text-xs text-[#7A7167]">{CASHIER_EMPTY_BODY}</p>
             </div>
           ) : grain === "detail" ? (
             <div className="report-print-hide">
@@ -468,7 +511,7 @@ export function CashierInvoiceReportScreen({
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[#F2ECE3]">
                   {(result.rows as CashierInvoiceDetailRow[])
                     .filter(isCashierDetailRow)
                     .map((row) => (
@@ -476,7 +519,7 @@ export function CashierInvoiceReportScreen({
                         key={row.id}
                         data-testid="cashier-detail-row"
                         data-document-type={row.documentType}
-                        className="border-t border-[#E8E1D7]"
+                        className="transition-colors hover:bg-[#FAF8F4]"
                       >
                         <td className={reportCellClass.text}>{row.documentNumber}</td>
                         <td className={reportCellClass.date}>
@@ -534,14 +577,14 @@ export function CashierInvoiceReportScreen({
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[#F2ECE3]">
                   {(result.rows as CashierInvoiceSummaryRow[])
                     .filter(isCashierSummaryRow)
                     .map((row) => (
                       <tr
                         key={row.id}
                         data-testid="cashier-summary-row"
-                        className="border-t border-[#E8E1D7]"
+                        className="transition-colors hover:bg-[#FAF8F4]"
                       >
                         <td className={reportCellClass.text}>{row.documentNumber}</td>
                         <td className={reportCellClass.date}>
@@ -816,9 +859,18 @@ function printNoteAmount(amount: number | null): string {
 }
 
 function FiscalBadge({ status }: { status: string }) {
+  const isRegistered = status === "REGISTERED";
+  const isFailed = status === "FAILED";
   return (
     <span
-      className="inline-flex rounded-md border border-[#E8E1D7] bg-[#FBF8F2] px-1.5 py-0.5 text-[11px] font-medium text-[#251605]"
+      className={cn(
+        "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+        isRegistered
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          : isFailed
+            ? "border-rose-200 bg-rose-50 text-rose-700"
+            : "border-amber-200 bg-amber-50 text-amber-700",
+      )}
       data-testid="cashier-fiscal-status"
     >
       {status}
@@ -852,19 +904,19 @@ function downloadCashierWorkbook(fileName: string, base64: string) {
 
 function Summary({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#E8E1D7] bg-white px-4 py-2 shadow-sm">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-[#7A7167]">{label}</p>
-      <p className="text-lg font-semibold tabular-nums text-[#251605]">{value}</p>
+    <div className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-2xs transition-all hover:border-[#C89933]/60 hover:shadow-sm">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</p>
+      <p className="mt-1 font-display text-xl font-bold tabular-nums text-[#251605]">{value}</p>
     </div>
   );
 }
 
 function Filter({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="flex w-40 min-w-36 flex-col gap-1">
-      <span className="text-[11px] font-medium text-[#7A7167]">{label}</span>
+    <div className="flex w-44 min-w-36 flex-col gap-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</span>
       {children}
-    </label>
+    </div>
   );
 }
 
@@ -890,13 +942,16 @@ function DraftField({
   }, [draft, onCommit, value]);
   return (
     <Filter label={label}>
-      <input
-        className={FIELD}
-        data-testid={testId}
-        placeholder={placeholder}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-      />
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#A89F91]" />
+        <input
+          className={cn(FIELD, "pl-8")}
+          data-testid={testId}
+          placeholder={placeholder}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+      </div>
     </Filter>
   );
 }
