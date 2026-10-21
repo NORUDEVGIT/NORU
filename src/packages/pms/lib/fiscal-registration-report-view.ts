@@ -150,6 +150,7 @@ export function fiscalEventLabel(eventAt: string, timezone: string): string {
 export function fiscalDocumentTypeLabel(value: FiscalReportDocumentTypeFilter): string {
   if (value === "CRE") return "Credit Notes";
   if (value === "DEB") return "Debit Notes";
+  if (value === "SR") return "Sales Receipts";
   if (value === "ALL") return "All";
   return "Invoices";
 }
@@ -179,6 +180,9 @@ export function fiscalTotalsCaption(
     }
     if (documentType === "DEB") {
       return `${prefix}${total.debitCount} debit note(s) · ${fiscalMoney(total.debitTotal)}`;
+    }
+    if (documentType === "SR") {
+      return `${prefix}${total.salesReceiptCount} sales receipt(s) · ${fiscalMoney(total.salesReceiptTotal)}`;
     }
     const net = total.invoiceTotal + total.creditTotal + total.debitTotal;
     return `${prefix}INV ${fiscalMoney(total.invoiceTotal)} · CRE ${fiscalMoney(total.creditTotal)} · DEB ${fiscalMoney(total.debitTotal)} · Net ${fiscalMoney(net)} · SR ${fiscalMoney(total.salesReceiptTotal)} · Registered ${total.registeredCount}`;

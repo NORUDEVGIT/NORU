@@ -79,6 +79,7 @@ export function fiscalAccessSnapshot(filters: {
     documentType:
       filters.documentType === "CRE" ||
       filters.documentType === "DEB" ||
+      filters.documentType === "SR" ||
       filters.documentType === "ALL"
         ? filters.documentType
         : "INV",

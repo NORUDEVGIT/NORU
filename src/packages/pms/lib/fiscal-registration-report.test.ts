@@ -354,6 +354,41 @@ describe("Fiscal registration report read model", () => {
     assert.equal(result.rows[0]?.fiscalDocumentNumber, "FS-CREDIT");
   });
 
+  it("lists sales receipts on their own when document type is SR", () => {
+    const result = report(
+      [
+        doc({ id: "inv-1", externalDocumentNumber: "FS-1" }),
+        doc({
+          id: "sr-1",
+          documentType: "SALES_RECEIPT",
+          sourceType: "guest_allocation",
+          relatedRegistrationId: "inv-1",
+          externalDocumentNumber: "SR-1",
+          invoiceTotal: 250,
+          requestSnapshot: { InvoicePaidAmount: 250, info: {} },
+        }),
+      ],
+      { documentType: "SR" },
+    );
+    assert.equal(result.rows.length, 1);
+    assert.equal(result.rows[0]?.documentType, "SALES_RECEIPT");
+    assert.equal(result.rows[0]?.salesReceiptTotal, 250);
+    assert.equal(result.context.documentType, "SR");
+    const cashOnly = report(
+      [
+        doc({
+          id: "sr-2",
+          documentType: "SALES_RECEIPT",
+          sourceType: "guest_allocation",
+          externalDocumentNumber: "SR-2",
+          invoiceTotal: 10,
+        }),
+      ],
+      { documentType: "SR", mode: "CASH" },
+    );
+    assert.equal(cashOnly.rows.length, 0);
+  });
+
   it("shows orphan CRE/DEB rows when document type is ALL", () => {
     const result = report(
       [

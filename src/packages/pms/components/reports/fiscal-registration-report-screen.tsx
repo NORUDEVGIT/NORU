@@ -312,6 +312,7 @@ export function FiscalRegistrationReportScreen({
               <option value="INV">Invoices</option>
               <option value="CRE">Credit Notes</option>
               <option value="DEB">Debit Notes</option>
+              <option value="SR">Sales Receipts</option>
               <option value="ALL">All</option>
             </select>
           </Filter>
@@ -609,6 +610,17 @@ function KpiStrip({
       <>
         <Summary label={`Debit Notes${currencyLabel}`} value={String(total.debitCount)} />
         <Summary label={`Debit Amount${currencyLabel}`} value={fiscalMoney(total.debitTotal)} />
+      </>
+    );
+  }
+  if (documentType === "SR") {
+    return (
+      <>
+        <Summary label={`Sales Receipts${currencyLabel}`} value={String(total.salesReceiptCount)} />
+        <Summary
+          label={`Sales Receipt Amount${currencyLabel}`}
+          value={fiscalMoney(total.salesReceiptTotal)}
+        />
       </>
     );
   }

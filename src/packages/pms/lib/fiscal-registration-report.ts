@@ -21,7 +21,7 @@ export const FISCAL_REGISTRATION_TOO_LARGE_MESSAGE =
 export const FISCAL_REGISTRATION_LOAD_FAILED =
   "The Fiscal Registration Report could not be loaded.";
 
-export const FISCAL_REPORT_DOCUMENT_TYPES = ["INV", "CRE", "DEB", "ALL"] as const;
+export const FISCAL_REPORT_DOCUMENT_TYPES = ["INV", "CRE", "DEB", "SR", "ALL"] as const;
 export type FiscalReportDocumentTypeFilter = (typeof FISCAL_REPORT_DOCUMENT_TYPES)[number];
 export type FiscalReportDocumentType = "INV" | "CRE" | "DEB" | "SALES_RECEIPT";
 
@@ -145,7 +145,7 @@ export class FiscalRegistrationReportError extends Error {
 export function fiscalReportDocumentType(
   value: string | undefined,
 ): FiscalReportDocumentTypeFilter {
-  if (value === "CRE" || value === "DEB" || value === "ALL") return value;
+  if (value === "CRE" || value === "DEB" || value === "SR" || value === "ALL") return value;
   return "INV";
 }
 
@@ -240,17 +240,23 @@ export function assembleFiscalRegistrationReport(input: {
     byParent.set(parentId, list);
   }
 
-  if (documentType === "CRE" || documentType === "DEB") {
-    const typedNotes = notesInRange
+  if (documentType === "CRE" || documentType === "DEB" || documentType === "SR") {
+    const typed = (documentType === "SR" ? receiptsInRange : notesInRange)
       .filter((doc) => !doc.detailAnchorOnly)
-      .filter((doc) => doc.documentType === documentType)
+      .filter((doc) =>
+        documentType === "SR"
+          ? doc.documentType === "SALES_RECEIPT"
+          : doc.documentType === documentType,
+      )
       .filter((doc) => matchesMode(doc, mode))
       .filter((doc) => matchesStatus(doc, status))
       .filter((doc) => matchesQuery(doc, query))
       .sort(compareDocs);
     return finish({
-      rows: typedNotes.map((doc) => toNoteRow(doc)),
-      totalsDocs: typedNotes,
+      rows: typed.map((doc) =>
+        doc.documentType === "SALES_RECEIPT" ? toSalesReceiptRow(doc) : toNoteRow(doc),
+      ),
+      totalsDocs: typed,
       input,
       documentType,
       mode,
@@ -491,6 +497,8 @@ function documentList(docs: readonly FiscalRegistrationSource[]): string | null 
 
 function matchesMode(doc: FiscalRegistrationSource, mode: FiscalReportModeFilter): boolean {
   if (mode === "ALL") return true;
+  // Sales receipts are only issued against a CREDIT invoice, and their payload has no Mode.
+  if (doc.documentType === "SALES_RECEIPT") return mode === "CREDIT";
   return frozenFiscalMode(doc.requestSnapshot) === mode;
 }
 
