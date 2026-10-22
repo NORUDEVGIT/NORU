@@ -17,7 +17,6 @@ import {
 import { callerMembership } from "@/core/lib/workforce.server";
 import { requireReservationManager } from "./reservations.server";
 import { requirePmsPackage } from "./pms-package.server";
-import { propertyToday } from "./reservation-dates";
 import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
 import { evaluateNa1Blockers } from "./na1.server";
 import {
@@ -25,6 +24,7 @@ import {
   canConfirmNightAudit,
   canEnableConfirm,
   integrityBlockerCounts,
+  nightAuditFeedCounts,
   nextBusinessDate,
   persistedNightAuditExceptions,
   remainingBlockerCount,
@@ -37,6 +37,8 @@ import {
   type NaLastClosed,
   type NaWorkspaceStatus,
 } from "./na1";
+import { planExceptionSync } from "./night-audit-exceptions";
+import { selectAll } from "./night-audit-read";
 import type { OtbCaptureResult } from "./revenue/demand-snapshot";
 import {
   NON_IGNORABLE_TYPES,
@@ -80,6 +82,8 @@ export interface AuditSummary {
   warnings: number;
   blockingResolved: number;
   inHouse: number;
+  /** Present on closes after NA-P1. Older summaries omit it; do not treat inHouse as overstays. */
+  overstays?: number;
   checks: AreaCheck[];
   blockers?: Na1BlockerSnapshot[];
   previousBusinessDate?: string;
@@ -155,10 +159,6 @@ type ExceptionRow = {
   resolution_note: string | null;
 };
 
-function exceptionKey(type: string, referenceId: string | null): string {
-  return `${type}::${referenceId ?? ""}`;
-}
-
 async function syncRunExceptions(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
@@ -166,67 +166,63 @@ async function syncRunExceptions(
   runId: string,
   derived: readonly NaDerivedException[],
 ): Promise<void> {
-  const { data: existingRows } = await admin
-    .from("night_audit_exceptions")
-    .select("*")
-    .eq("night_audit_run_id", runId);
-  const existing = (existingRows ?? []) as ExceptionRow[];
-  const derivedKeys = new Set(derived.map((row) => exceptionKey(row.exceptionType, row.referenceId)));
-
-  const inserts = derived
-    .filter(
-      (row) =>
-        !existing.some(
-          (current) =>
-            exceptionKey(current.exception_type, current.reference_id) ===
-            exceptionKey(row.exceptionType, row.referenceId),
-        ),
-    )
-    .map((row) => ({
-      restaurant_id: restaurantId,
-      night_audit_run_id: runId,
-      exception_type: row.exceptionType,
+  const existingRows = await selectAll<ExceptionRow>((from, to) =>
+    admin
+      .from("night_audit_exceptions")
+      .select("*")
+      .eq("night_audit_run_id", runId)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  const plan = planExceptionSync(
+    existingRows.map((row) => ({
+      id: row.id,
+      exceptionType: row.exception_type,
       severity: row.severity,
-      reference_type: row.referenceType,
-      reference_id: row.referenceId,
+      referenceId: row.reference_id,
       message: row.message,
-    }));
-  if (inserts.length > 0) await admin.from("night_audit_exceptions").insert(inserts);
+      status: row.status,
+    })),
+    derived,
+  );
 
-  for (const row of derived) {
-    const current = existing.find(
-      (item) =>
-        exceptionKey(item.exception_type, item.reference_id) ===
-        exceptionKey(row.exceptionType, row.referenceId),
+  if (plan.inserts.length > 0) {
+    const inserted = await admin.from("night_audit_exceptions").insert(
+      plan.inserts.map((row) => ({
+        restaurant_id: restaurantId,
+        night_audit_run_id: runId,
+        exception_type: row.exceptionType,
+        severity: row.severity,
+        reference_type: row.referenceType,
+        reference_id: row.referenceId,
+        message: row.message,
+      })),
     );
-    if (!current) continue;
-    const severityChanged = current.severity !== row.severity || current.message !== row.message;
-    const reopen = row.severity === "blocking" && current.status !== "open";
-    if (!severityChanged && !reopen) continue;
-    await admin
+    if (inserted.error) throw inserted.error;
+  }
+
+  for (const row of plan.updates) {
+    const updated = await admin
       .from("night_audit_exceptions")
       .update({
         severity: row.severity,
         message: row.message,
-        ...(reopen ? { status: "open", resolved_at: null, resolution_note: null } : {}),
+        ...(row.reopen ? { status: "open", resolved_at: null, resolution_note: null } : {}),
       })
-      .eq("id", current.id);
+      .eq("id", row.id);
+    if (updated.error) throw updated.error;
   }
 
-  const cleared = existing
-    .filter(
-      (row) => row.status === "open" && !derivedKeys.has(exceptionKey(row.exception_type, row.reference_id)),
-    )
-    .map((row) => row.id);
-  if (cleared.length > 0) {
-    await admin
+  if (plan.resolveIds.length > 0) {
+    const resolved = await admin
       .from("night_audit_exceptions")
       .update({
         status: "resolved",
         resolved_at: new Date().toISOString(),
         resolution_note: "Cleared automatically — the underlying issue was fixed.",
       })
-      .in("id", cleared);
+      .in("id", plan.resolveIds);
+    if (resolved.error) throw resolved.error;
   }
 }
 
@@ -382,6 +378,7 @@ export const runNightAudit = createServerFn({ method: "POST" })
       data.restaurantId,
       property.businessDate,
       property.currency,
+      property.timezone,
     );
     const blockers = await evaluateNa1Blockers(
       supabaseAdmin,
@@ -389,6 +386,7 @@ export const runNightAudit = createServerFn({ method: "POST" })
       property.businessDate,
       folioLane,
       integrityBlockerCounts(evaluation.exceptions),
+      nightAuditFeedCounts(evaluation.exceptions),
     );
 
     // A closed business date is immutable — report it, never re-derive it.
@@ -402,13 +400,18 @@ export const runNightAudit = createServerFn({ method: "POST" })
       );
     }
 
-    const { data: finalRows } = await supabaseAdmin
-      .from("night_audit_exceptions")
-      .select("*")
-      .eq("night_audit_run_id", run.id)
-      .order("severity", { ascending: true })
-      .order("created_at", { ascending: true });
-    const exceptions = ((finalRows ?? []) as ExceptionRow[]).map(toException);
+    const finalRows = await selectAll<ExceptionRow>((from, to) =>
+      supabaseAdmin
+        .from("night_audit_exceptions")
+        .select("*")
+        .eq("night_audit_run_id", run.id)
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+    const exceptions = finalRows
+      .slice()
+      .sort((a, b) => a.severity.localeCompare(b.severity) || a.id.localeCompare(b.id))
+      .map(toException);
 
     const blockingCount = exceptions.filter(
       (e) => e.severity === "blocking" && e.status === "open",
@@ -617,13 +620,16 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
       if (run.status !== "open" && run.status !== "ready") {
         return { ok: false, message: "This night audit run cannot be closed." };
       }
-      const { data: laterClosed } = await supabaseAdmin
+      const { data: laterClosed, error: laterClosedError } = await supabaseAdmin
         .from("night_audit_runs")
         .select("id")
         .eq("restaurant_id", data.restaurantId)
         .eq("status", "closed")
         .gt("business_date", runDate)
         .limit(1);
+      if (laterClosedError) {
+        return { ok: false, message: "Night Audit could not confirm this business date. Close stays unavailable." };
+      }
       if ((laterClosed ?? []).length > 0) {
         return { ok: false, message: NA1_STALE_BUSINESS_DATE };
       }
@@ -634,6 +640,7 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         data.restaurantId,
         runDate,
         property.currency,
+        property.timezone,
       );
       const blockers = await evaluateNa1Blockers(
         supabaseAdmin,
@@ -641,6 +648,7 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         runDate,
         folioLaneForRole(me.role),
         integrityBlockerCounts(evaluation.exceptions),
+        nightAuditFeedCounts(evaluation.exceptions),
       );
       await syncRunExceptions(
         supabaseAdmin,
@@ -655,28 +663,46 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         };
       }
 
-      const { data: openBlocking } = await supabaseAdmin
-        .from("night_audit_exceptions")
-        .select("id")
-        .eq("night_audit_run_id", run.id)
-        .eq("severity", "blocking")
-        .eq("status", "open");
-      if ((openBlocking ?? []).length > 0) {
+      let openBlocking: Array<{ id: string }> = [];
+      try {
+        openBlocking = await selectAll<{ id: string }>((from, to) =>
+          supabaseAdmin
+            .from("night_audit_exceptions")
+            .select("id")
+            .eq("night_audit_run_id", run.id)
+            .eq("severity", "blocking")
+            .eq("status", "open")
+            .order("id", { ascending: true })
+            .range(from, to),
+        );
+      } catch {
+        return { ok: false, message: "Blocking exceptions could not be confirmed. Close stays unavailable." };
+      }
+      if (openBlocking.length > 0) {
         return { ok: false, message: "Blocking exceptions are still open for this business date." };
       }
 
-      const { data: allExceptions } = await supabaseAdmin
-        .from("night_audit_exceptions")
-        .select("severity, status")
-        .eq("night_audit_run_id", run.id);
-      const rows = (allExceptions ?? []) as Array<{ severity: string; status: string }>;
+      let rows: Array<{ severity: string; status: string }> = [];
+      try {
+        rows = await selectAll<{ severity: string; status: string }>((from, to) =>
+          supabaseAdmin
+            .from("night_audit_exceptions")
+            .select("severity, status")
+            .eq("night_audit_run_id", run.id)
+            .order("id", { ascending: true })
+            .range(from, to),
+        );
+      } catch {
+        return { ok: false, message: "Night Audit could not confirm this business date. Close stays unavailable." };
+      }
 
       const rolledTo = nextBusinessDate(runDate);
       const summary = {
         finance: evaluation.finance,
         warnings: rows.filter((r) => r.severity === "warning").length,
         blockingResolved: rows.filter((r) => r.severity === "blocking").length,
-        inHouse: evaluation.overstays.length,
+        inHouse: evaluation.inHouseUnits,
+        overstays: evaluation.overstays.length,
         checks: evaluation.checks,
         blockers: snapshotBlockers(blockers),
         previousBusinessDate: runDate,

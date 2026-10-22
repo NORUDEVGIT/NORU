@@ -21,7 +21,7 @@ import { assertCreateReservationPricing } from "./create-reservation-phase1-sect
 import { assertReservationCreateSourceChannel } from "./reservation-source-channel.server";
 import { assertRoomTypeOccupancy } from "./create-reservation-phase1-section4";
 import { buildStayAmendmentResult, type StayAmendmentResult } from "./reservation-stay-amendment";
-import { propertyToday } from "@/shared/lib/property-dates";
+import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
 
 async function assertExplicitOverbookingAllowed(
@@ -1892,9 +1892,14 @@ export const amendReservation = createServerFn({ method: "POST" })
           .eq("id", data.restaurantId)
           .maybeSingle();
         if (propertyError) throw new Error(propertyError.message);
-        const businessDate =
-          (property as { business_date?: string | null } | null)?.business_date ??
-          propertyToday((property as { timezone?: string | null } | null)?.timezone || "UTC");
+        const propertyRow = property as { business_date?: string | null; timezone?: string | null } | null;
+        const persistedBusinessDate = propertyRow?.business_date
+          ? String(propertyRow.business_date).slice(0, 10)
+          : null;
+        const businessDate = resolvePropertyBusinessDate(
+          persistedBusinessDate,
+          propertyRow?.timezone || "",
+        );
         if (
           (stayRow.status === "pending" || stayRow.status === "confirmed") &&
           (stayRow.departure_date ?? "") < businessDate

@@ -49,10 +49,6 @@ type OperationalFilter = "all" | "available" | "low" | "sold_out" | "blocked";
 const GOLD = "#C89933";
 const INK = "#251605";
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function dateSpan(start: string, end: string): number {
   const from = new Date(`${start}T00:00:00Z`).valueOf();
   const to = new Date(`${end}T00:00:00Z`).valueOf();
@@ -106,14 +102,14 @@ export function RoomInventoryAvailabilityView({
   const loadBlocks = useServerFn(listOperationalBlocks);
   const loadEvents = useServerFn(listRoomInventoryEvents);
 
-  const [arrival, setArrival] = useState(today());
-  const [departure, setDeparture] = useState(addDays(today(), 7));
+  const [arrival, setArrival] = useState<string | null>(null);
+  const [departure, setDeparture] = useState<string | null>(null);
   const [roomTypeFilter, setRoomTypeFilter] = useState("all");
   const [building, setBuilding] = useState("all");
   const [floor, setFloor] = useState("all");
   const [operational, setOperational] = useState<OperationalFilter>("all");
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(today());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("overview");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
@@ -124,7 +120,7 @@ export function RoomInventoryAvailabilityView({
     queryFn: () => loadBusinessDate({ data: { restaurantId } }),
     staleTime: 60_000,
   });
-  const businessDate = businessDateQuery.data?.businessDate ?? today();
+  const businessDate = businessDateQuery.data?.businessDate ?? "";
 
   useEffect(() => {
     if (!businessDateQuery.data || initializedFromBusinessDate.current) return;
@@ -137,10 +133,13 @@ export function RoomInventoryAvailabilityView({
 
   const availabilityQuery = useQuery({
     queryKey: ["room-inventory-availability", restaurantId, arrival, departure],
-    queryFn: () => loadAvailability({ data: { restaurantId, arrival, departure } }),
+    queryFn: () => {
+      if (!arrival || !departure) throw new Error("Property business date is not ready.");
+      return loadAvailability({ data: { restaurantId, arrival, departure } });
+    },
     staleTime: 60_000,
     placeholderData: (previousData) => previousData,
-    enabled: departure > arrival && businessDateQuery.isSuccess,
+    enabled: Boolean(arrival && departure && departure > arrival && businessDateQuery.isSuccess),
   });
   const tonightQuery = useQuery({
     queryKey: ["room-inventory-availability-tonight", restaurantId, businessDate],
@@ -153,7 +152,7 @@ export function RoomInventoryAvailabilityView({
         },
       }),
     staleTime: 60_000,
-    enabled: businessDateQuery.isSuccess,
+    enabled: Boolean(businessDate),
   });
   const roomsQuery = useQuery({
     queryKey: ["room-inventory-room-options", restaurantId],
@@ -235,9 +234,12 @@ export function RoomInventoryAvailabilityView({
   );
   const dates =
     rows[0]?.nightly.map((night) => night.date) ??
-    Array.from({ length: dateSpan(arrival, departure) }, (_, index) => addDays(arrival, index));
+    (arrival && departure
+      ? Array.from({ length: dateSpan(arrival, departure) }, (_, index) => addDays(arrival, index))
+      : []);
   const selectedRow = rows.find((row) => row.roomTypeId === selectedTypeId) ?? rows[0] ?? null;
-  const effectiveSelectedDate = dates.includes(selectedDate) ? selectedDate : (dates[0] ?? arrival);
+  const effectiveSelectedDate =
+    selectedDate && dates.includes(selectedDate) ? selectedDate : (dates[0] ?? arrival ?? "");
   const selectedNight =
     selectedRow?.nightly.find((night) => night.date === effectiveSelectedDate) ?? null;
   const selectedType =
@@ -254,17 +256,21 @@ export function RoomInventoryAvailabilityView({
       selectedRow?.roomTypeId,
       effectiveSelectedDate,
     ],
-    queryFn: () =>
-      loadBlocks({
+    queryFn: () => {
+      if (!selectedRow || !effectiveSelectedDate) {
+        throw new Error("Property business date is not ready.");
+      }
+      return loadBlocks({
         data: {
           restaurantId,
-          roomTypeId: selectedRow!.roomTypeId,
+          roomTypeId: selectedRow.roomTypeId,
           fromDate: effectiveSelectedDate,
           toDate: addDays(effectiveSelectedDate, 1),
           limit: 100,
         },
-      }),
-    enabled: Boolean(selectedRow),
+      });
+    },
+    enabled: Boolean(selectedRow && effectiveSelectedDate),
     retry: false,
     staleTime: 60_000,
   });
@@ -314,11 +320,13 @@ export function RoomInventoryAvailabilityView({
   }
 
   function setRange(days: number) {
+    if (!arrival) return;
     setDeparture(addDays(arrival, days));
     setSelectedDate(arrival);
   }
 
   function moveRange(direction: -1 | 1) {
+    if (!arrival || !departure) return;
     const span = dateSpan(arrival, departure);
     const nextArrival = addDays(arrival, span * direction);
     setArrival(nextArrival);
@@ -359,6 +367,12 @@ export function RoomInventoryAvailabilityView({
     availabilityQuery.isLoading ||
     roomsQuery.isLoading ||
     roomTypesQuery.isLoading;
+
+  if (!arrival || !departure || !selectedDate) {
+    return (
+      <p className="px-5 py-6 text-sm text-muted-foreground">Loading the property business date…</p>
+    );
+  }
 
   return (
     <div className="-mx-3 -mt-2 lg:-mx-5">
