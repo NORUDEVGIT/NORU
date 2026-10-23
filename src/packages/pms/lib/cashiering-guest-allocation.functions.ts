@@ -3,13 +3,12 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
-  guestInvoiceEffectiveNet,
+  classifyIssuedGuestInvoice,
   guestInvoiceOriginalAmount,
-  guestInvoiceOutstanding,
   guestPaymentAvailable,
   guestPaymentFace,
-  guestSettlementState,
   roundGuestMoney,
+  snapshotParentChargeIds,
   type GuestSettlementState,
 } from "./cashiering-guest-allocation";
 import { fiscalSnapshotMode, registeredCashDebitCover } from "./cashiering-cash-debit-cover";
@@ -490,19 +489,6 @@ export const reverseGuestPaymentInvoiceAllocation = createServerFn({ method: "PO
     return reversed;
   });
 
-function snapshotParentIds(snapshot: unknown): string[] {
-  const groups =
-    snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)
-      ? (snapshot as { groups?: unknown[] }).groups
-      : null;
-  if (!Array.isArray(groups)) return [];
-  return groups.flatMap((value) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-    const id = (value as { parentTransactionId?: unknown }).parentTransactionId;
-    return typeof id === "string" && id.length > 0 ? [id] : [];
-  });
-}
-
 async function loadFolio(supabaseAdmin: ServiceClient, restaurantId: string, folioId: string) {
   const result = await supabaseAdmin
     .from("guest_folios")
@@ -550,7 +536,7 @@ async function loadGuestSettlements(
   const chargeIds = [
     ...new Set(
       ((invoices.data ?? []) as Array<{ snapshot: unknown }>).flatMap((invoice) =>
-        snapshotParentIds(invoice.snapshot),
+        snapshotParentChargeIds(invoice.snapshot),
       ),
     ),
   ];
@@ -647,7 +633,7 @@ async function loadGuestSettlements(
           .reduce((sum, row) => sum + Number(row.amount), 0) +
           chargeRows
             .filter((row) =>
-              snapshotParentIds(invoice.snapshot).includes(row.charge_transaction_id),
+              snapshotParentChargeIds(invoice.snapshot).includes(row.charge_transaction_id),
             )
             .reduce((sum, row) => sum + Number(row.amount), 0),
       );
@@ -682,8 +668,14 @@ async function loadGuestSettlements(
           currency: invoice.snapshot?.property?.currencyCode || folio.currency,
         } satisfies GuestInvoiceSettlementRow;
       }
-      const effectiveNet = guestInvoiceEffectiveNet(original, deltas);
-      const settled = roundGuestMoney(allocated + depositApplied + cashDebitCovered);
+      const classified = classifyIssuedGuestInvoice({
+        eligible: true,
+        invoiceTotal: original,
+        noteDeltas: deltas,
+        paymentAllocated: allocated,
+        depositApplied,
+        cashDebitCovered,
+      });
       return {
         invoiceId: invoice.id,
         number: invoice.issued_number,
@@ -695,10 +687,10 @@ async function loadGuestSettlements(
         debitNoteTotal,
         cashDebitCovered,
         depositApplied,
-        effectiveNet,
-        allocated,
-        outstanding: Math.max(0, guestInvoiceOutstanding(effectiveNet, settled)),
-        settlementState: guestSettlementState(effectiveNet, settled),
+        effectiveNet: classified.effectiveNet,
+        allocated: classified.allocated,
+        outstanding: classified.outstanding,
+        settlementState: classified.settlementState,
         currency: invoice.snapshot?.property?.currencyCode || folio.currency,
       } satisfies GuestInvoiceSettlementRow;
     })

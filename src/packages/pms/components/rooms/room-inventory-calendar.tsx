@@ -59,10 +59,6 @@ interface RestrictionNote {
 
 const INK = "#251605";
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function monthStart(value: string): string {
   return `${value.slice(0, 7)}-01`;
 }
@@ -158,22 +154,22 @@ export function RoomInventoryCalendarView({
   const loadRooms = useServerFn(listRooms);
   const loadBlocks = useServerFn(listOperationalBlocks);
 
-  const [periodStart, setPeriodStart] = useState(monthStart(today()));
+  const [periodStart, setPeriodStart] = useState<string | null>(null);
   const [building, setBuilding] = useState("all");
   const [roomTypeId, setRoomTypeId] = useState("all");
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(today());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const initializedFromBusinessDate = useRef(false);
-  const periodEnd = monthEnd(periodStart);
+  const periodEnd = periodStart ? monthEnd(periodStart) : "";
 
   const businessDateQuery = useQuery({
     queryKey: ["property-business-date", restaurantId],
     queryFn: () => loadBusinessDate({ data: { restaurantId } }),
     staleTime: 60_000,
   });
-  const businessDate = businessDateQuery.data?.businessDate ?? today();
+  const businessDate = businessDateQuery.data?.businessDate ?? "";
 
   useEffect(() => {
     if (!businessDateQuery.data || initializedFromBusinessDate.current) return;
@@ -185,12 +181,14 @@ export function RoomInventoryCalendarView({
 
   const availabilityQuery = useQuery({
     queryKey: ["room-inventory-calendar", restaurantId, periodStart, periodEnd],
-    queryFn: () =>
-      loadAvailability({
+    queryFn: () => {
+      if (!periodStart || !periodEnd) throw new Error("Property business date is not ready.");
+      return loadAvailability({
         data: { restaurantId, arrival: periodStart, departure: periodEnd },
-      }),
+      });
+    },
     staleTime: 60_000,
-    enabled: businessDateQuery.isSuccess,
+    enabled: Boolean(periodStart && periodEnd),
   });
   const roomsQuery = useQuery({
     queryKey: ["room-inventory-room-options", restaurantId],
@@ -258,19 +256,23 @@ export function RoomInventoryCalendarView({
   }, [visibleRows, typeBuildings, building, rooms]);
   const dates =
     visibleRows[0]?.nightly.map((night) => night.date) ??
-    Array.from(
-      {
-        length: Math.round(
-          (new Date(`${periodEnd}T00:00:00Z`).valueOf() -
-            new Date(`${periodStart}T00:00:00Z`).valueOf()) /
-            86_400_000,
-        ),
-      },
-      (_, index) => addDays(periodStart, index),
-    );
-  const effectiveSelectedDate = dates.includes(selectedDate)
-    ? selectedDate
-    : (dates[0] ?? periodStart);
+    (periodStart
+      ? Array.from(
+          {
+            length: Math.max(
+              0,
+              Math.round(
+                (new Date(`${periodEnd}T00:00:00Z`).valueOf() -
+                  new Date(`${periodStart}T00:00:00Z`).valueOf()) /
+                  86_400_000,
+              ),
+            ),
+          },
+          (_, index) => addDays(periodStart, index),
+        )
+      : []);
+  const effectiveSelectedDate =
+    selectedDate && dates.includes(selectedDate) ? selectedDate : (dates[0] ?? periodStart ?? "");
   const selectedRow =
     visibleRows.find((row) => row.roomTypeId === selectedTypeId) ?? visibleRows[0] ?? null;
   const selectedNight =
@@ -366,6 +368,7 @@ export function RoomInventoryCalendarView({
   }, [businessDate, selectedRooms, showCurrentRestrictions]);
 
   function movePeriod(amount: number) {
+    if (!periodStart) return;
     const next = shiftMonth(periodStart, amount);
     setPeriodStart(next);
     setSelectedDate(next);
@@ -405,6 +408,12 @@ export function RoomInventoryCalendarView({
 
   const loading =
     businessDateQuery.isLoading || availabilityQuery.isLoading || roomsQuery.isLoading;
+
+  if (!periodStart || !selectedDate) {
+    return (
+      <p className="px-5 py-6 text-sm text-muted-foreground">Loading the property business date…</p>
+    );
+  }
 
   return (
     <div className="-mx-3 -mt-2 lg:-mx-5">

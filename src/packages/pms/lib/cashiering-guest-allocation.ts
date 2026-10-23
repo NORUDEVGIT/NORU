@@ -60,6 +60,59 @@ export function guestInvoiceOutstanding(effectiveNet: number, allocatedNet: numb
   return roundGuestMoney(effectiveNet - allocatedNet);
 }
 
+/**
+ * Same settlement numbers Cashiering stores on an issued guest invoice.
+ * Payment allocation, deposit cover, and registered cash-debit cover are one settled amount.
+ * Credit and debit note deltas are already inside `noteDeltas` via `total_delta`.
+ */
+export function classifyIssuedGuestInvoice(input: {
+  eligible: boolean;
+  invoiceTotal: number | null;
+  noteDeltas: readonly number[];
+  paymentAllocated: number;
+  depositApplied: number;
+  cashDebitCovered: number;
+}): {
+  effectiveNet: number | null;
+  allocated: number;
+  settled: number;
+  outstanding: number | null;
+  settlementState: GuestSettlementState | null;
+} {
+  if (!input.eligible || input.invoiceTotal == null) {
+    return {
+      effectiveNet: null,
+      allocated: 0,
+      settled: 0,
+      outstanding: null,
+      settlementState: null,
+    };
+  }
+  const effectiveNet = guestInvoiceEffectiveNet(input.invoiceTotal, input.noteDeltas);
+  const allocated = roundGuestMoney(input.paymentAllocated);
+  const settled = roundGuestMoney(allocated + input.depositApplied + input.cashDebitCovered);
+  return {
+    effectiveNet,
+    allocated,
+    settled,
+    outstanding: Math.max(0, guestInvoiceOutstanding(effectiveNet, settled)),
+    settlementState: guestSettlementState(effectiveNet, settled),
+  };
+}
+
+export function snapshotParentChargeIds(snapshot: unknown): string[] {
+  const groups =
+    snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)
+      ? (snapshot as { groups?: unknown[] }).groups
+      : null;
+  if (!Array.isArray(groups)) return [];
+  return groups.flatMap((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+    const id = (value as { parentTransactionId?: unknown }).parentTransactionId;
+    return typeof id === "string" && id.length > 0 ? [id] : [];
+  });
+}
+
 export function guestSettlementState(
   effectiveNet: number,
   allocatedNet: number,

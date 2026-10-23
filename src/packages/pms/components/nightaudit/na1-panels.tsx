@@ -17,6 +17,7 @@ import {
   nextBusinessDate,
   remainingBlockerCount,
   remainingBlockersCopy,
+  summaryRoomUnitCount,
   type NaBlockerRow,
   type NaBlockerState,
   type NaLastClosed,
@@ -108,6 +109,7 @@ export function NaClosePanel({
   onNoteChange,
   onConfirm,
   error,
+  notice,
 }: {
   businessDate: string;
   rows: NaBlockerRow[];
@@ -119,6 +121,7 @@ export function NaClosePanel({
   onNoteChange: (value: string) => void;
   onConfirm: () => void;
   error: string | null;
+  notice?: string | null;
 }) {
   const remaining = remainingBlockerCount(rows);
   const enabled = !closed && !busy && !phone && canConfirmNightAudit(role) && remaining === 0;
@@ -177,6 +180,11 @@ export function NaClosePanel({
       ) : null}
 
       {closed ? <p className="mt-3 text-sm text-muted-foreground">This business date is closed.</p> : null}
+      {notice ? (
+        <p className="mt-3 text-sm text-amber-800" data-testid="night-audit-otb-notice">
+          {notice}
+        </p>
+      ) : null}
       {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
     </aside>
   );
@@ -219,8 +227,16 @@ export function NaCloseSummary({
           <dd className="text-sm font-medium">{arrivals == null ? "—" : arrivals}</dd>
         </div>
         <div>
+          <dt className="text-xs text-muted-foreground">In-house room units</dt>
+          <dd className="text-sm font-medium">
+            {summaryRoomUnitCount(run?.summary) ?? "—"}
+          </dd>
+        </div>
+        <div>
           <dt className="text-xs text-muted-foreground">Overstays</dt>
-          <dd className="text-sm font-medium">{overstays == null ? "—" : overstays}</dd>
+          <dd className="text-sm font-medium">
+            {typeof run?.summary?.overstays === "number" ? run.summary.overstays : overstays == null ? "—" : overstays}
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">Unpaid folios</dt>

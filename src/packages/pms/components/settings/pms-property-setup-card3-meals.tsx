@@ -72,6 +72,28 @@ import {
 
 } from "@/packages/pms/lib/meals-card3.functions";
 
+import { PmsCard3FoServices } from "@/packages/pms/components/settings/pms-card3-fo-services";
+
+import { PmsCard3MealServiceRules } from "@/packages/pms/components/settings/pms-card3-meal-service-rules";
+
+import {
+
+  saveFoServiceCard3,
+
+  saveMealApplicabilityPolicyCard3,
+
+} from "@/packages/pms/lib/meals-card3.functions";
+
+import {
+
+  SERVICE_TIMING_LABELS,
+
+  type MealApplicabilityCard3,
+
+} from "@/packages/pms/lib/meals-card3.server";
+
+import type { ServiceDateRule } from "@/packages/pms/lib/service-entitlement";
+
 import {
 
   CARD3_MEALS_TABS,
@@ -300,6 +322,10 @@ export function PmsPropertySetupCard3Meals({
 
   const deleteComponent = useServerFn(deletePackageComponentCard3);
 
+const saveMealRules = useServerFn(saveMealApplicabilityPolicyCard3);
+
+const saveFoService = useServerFn(saveFoServiceCard3);
+
   const [mealSearch, setMealSearch] = useState("");
 
   const [packageSearch, setPackageSearch] = useState("");
@@ -515,6 +541,52 @@ export function PmsPropertySetupCard3Meals({
 
   void CARD3_MEALS_TABS;
 
+const mealRulesMutation = useMutation({
+
+  mutationFn: (policy: MealApplicabilityCard3) =>
+
+    saveMealRules({ data: { restaurantId, ...policy } }),
+
+  onSuccess: () => {
+
+    toast.success("Meal service rules saved.");
+
+    invalidate();
+
+  },
+
+  onError: (error: Error) => toast.error(error.message),
+
+});
+
+const foServiceMutation = useMutation({
+
+  mutationFn: (input: {
+
+    id?: string;
+
+    name: string;
+
+    defaultAmount: number;
+
+    active: boolean;
+
+    sortOrder: number;
+
+  }) => saveFoService({ data: { restaurantId, ...input } }),
+
+  onSuccess: () => {
+
+    toast.success("Front-office service saved.");
+
+    invalidate();
+
+  },
+
+  onError: (error: Error) => toast.error(error.message),
+
+});
+
   void componentDraft;
 
 
@@ -543,9 +615,9 @@ export function PmsPropertySetupCard3Meals({
 
             Room types are inherited from Card 2. Rate plans are inherited from Phase 3. Room
 
-            amenities and front-office services are reused from their owning modules; this workspace
+            room amenities are reused from Rooms & Operations. Front-office services used by packages
 
-            does not create or edit those catalogues. This configuration makes no reservation or
+            are maintained in this workspace. This configuration makes no reservation or
 
             folio operational changes.
 
@@ -620,6 +692,32 @@ export function PmsPropertySetupCard3Meals({
 
 
           {/* ── Package Master list — unified entry point (Phase B) ── */}
+
+<PmsCard3MealServiceRules
+
+  policy={snapshot.mealPolicy}
+
+  departments={snapshot.departments}
+
+  canEdit={canEdit}
+
+  pending={mealRulesMutation.isPending}
+
+  onSave={(policy) => mealRulesMutation.mutate(policy)}
+
+/>
+
+<PmsCard3FoServices
+
+  services={snapshot.foServices}
+
+  canEdit={canEdit}
+
+  pending={foServiceMutation.isPending}
+
+  onSave={(input) => foServiceMutation.mutate(input)}
+
+/>
 
           {/* "Package rate plan types" and "Package components" are retired as
 
@@ -742,6 +840,8 @@ export function PmsPropertySetupCard3Meals({
             roomAmenities={snapshot.roomAmenities}
 
             foServices={snapshot.foServices}
+
+            departments={snapshot.departments}
 
             value={packageDraft === "new" || packageDraft === null ? null : packageDraft}
 
@@ -1381,6 +1481,8 @@ function PackageMasterEditor({
 
   foServices,
 
+  departments,
+
   value,
 
   pending,
@@ -1416,6 +1518,8 @@ function PackageMasterEditor({
   roomAmenities: MealsCard3Snapshot["roomAmenities"];
 
   foServices: MealsCard3Snapshot["foServices"];
+
+  departments: MealsCard3Snapshot["departments"];
 
   value: PackageCard3Row | null;
 
@@ -1547,6 +1651,12 @@ function PackageMasterEditor({
 
     sortOrder: number;
 
+    requiresFulfillment: boolean;
+
+    departmentId: string | null;
+
+    serviceDateRule: ServiceDateRule | null;
+
   } | null>(null);
 
 
@@ -1643,6 +1753,12 @@ function PackageMasterEditor({
 
       sortOrder: nextSortOrder,
 
+      requiresFulfillment: false,
+
+      departmentId: null,
+
+      serviceDateRule: null,
+
     });
 
   }
@@ -1665,6 +1781,12 @@ function PackageMasterEditor({
 
       sortOrder: comp.sortOrder,
 
+      requiresFulfillment: comp.requiresFulfillment,
+
+      departmentId: comp.departmentId,
+
+      serviceDateRule: comp.serviceDateRule,
+
     });
 
   }
@@ -1679,6 +1801,22 @@ function PackageMasterEditor({
 
 
 
+    if (inclusionDraft.requiresFulfillment && !inclusionDraft.departmentId) return;
+
+    if (
+
+      inclusionDraft.requiresFulfillment &&
+
+      inclusionDraft.kind !== "meal_plan" &&
+
+      !inclusionDraft.serviceDateRule
+
+    ) {
+
+      return;
+
+    }
+
     const base = {
 
       ...(inclusionDraft.id ? { id: inclusionDraft.id } : {}),
@@ -1688,6 +1826,18 @@ function PackageMasterEditor({
       quantity: inclusionDraft.quantity,
 
       sortOrder: inclusionDraft.sortOrder,
+
+      requiresFulfillment: inclusionDraft.requiresFulfillment,
+
+      departmentId: inclusionDraft.requiresFulfillment ? inclusionDraft.departmentId : null,
+
+      serviceDateRule:
+
+        inclusionDraft.requiresFulfillment && inclusionDraft.kind !== "meal_plan"
+
+          ? inclusionDraft.serviceDateRule
+
+          : null,
 
     };
 
@@ -2399,6 +2549,95 @@ function PackageMasterEditor({
                   </div>
 
 
+                  <div className="space-y-3 rounded-xl border px-3 py-3" data-testid="pkg-comp-fulfillment">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label htmlFor="pkg-comp-fulfillment">Requires Fulfillment</Label>
+                        <p className="text-[11px] text-muted-foreground">
+                          Enable when this package component must appear on an operational delivery/service list.
+                        </p>
+                      </div>
+                      <Switch
+                        id="pkg-comp-fulfillment"
+                        checked={inclusionDraft.requiresFulfillment}
+                        disabled={!canEdit || componentPending}
+                        onCheckedChange={(checked) =>
+                          setInclusionDraft((prev) =>
+                            prev ? { ...prev, requiresFulfillment: checked === true } : null,
+                          )
+                        }
+                      />
+                    </div>
+                    {inclusionDraft.requiresFulfillment ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <Label htmlFor="pkg-comp-department">Responsible Department</Label>
+                          <Select
+                            value={inclusionDraft.departmentId ?? "none"}
+                            disabled={!canEdit || componentPending}
+                            onValueChange={(next) =>
+                              setInclusionDraft((prev) =>
+                                prev ? { ...prev, departmentId: next === "none" ? null : next } : null,
+                              )
+                            }
+                          >
+                            <SelectTrigger id="pkg-comp-department">
+                              <SelectValue placeholder="Select a department" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Select a department</SelectItem>
+                              {departments
+                                .filter((row) => row.active)
+                                .map((row) => (
+                                  <SelectItem key={row.id} value={row.id}>
+                                    {row.code} — {row.name}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {inclusionDraft.kind === "meal_plan" ? (
+                          <div className="space-y-1" data-testid="pkg-comp-meal-timing">
+                            <Label>Service Timing</Label>
+                            <p className="text-sm text-[#251605]">Uses Property Meal Service Rules</p>
+                            <p className="text-[11px] text-muted-foreground">
+                              Meal dates are determined by the property's Breakfast, Lunch, and Dinner rules.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <Label htmlFor="pkg-comp-timing">Service Timing</Label>
+                            <Select
+                              value={inclusionDraft.serviceDateRule ?? "none"}
+                              disabled={!canEdit || componentPending}
+                              onValueChange={(next) =>
+                                setInclusionDraft((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        serviceDateRule: next === "none" ? null : (next as ServiceDateRule),
+                                      }
+                                    : null,
+                                )
+                              }
+                            >
+                              <SelectTrigger id="pkg-comp-timing" data-testid="pkg-comp-timing">
+                                <SelectValue placeholder="Select timing" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Select timing</SelectItem>
+                                {(Object.keys(SERVICE_TIMING_LABELS) as ServiceDateRule[]).map((rule) => (
+                                  <SelectItem key={rule} value={rule}>
+                                    {SERVICE_TIMING_LABELS[rule]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
 
                   <div className="flex justify-end gap-2 border-t border-[#E6E1D8] pt-2">
 
@@ -2440,7 +2679,15 @@ function PackageMasterEditor({
 
                         inclusionDraft.quantity <= 0 ||
 
-                        inclusionDraft.sortOrder < 0
+                        inclusionDraft.sortOrder < 0 ||
+
+                        (inclusionDraft.requiresFulfillment && !inclusionDraft.departmentId) ||
+
+                        (inclusionDraft.requiresFulfillment &&
+
+                          inclusionDraft.kind !== "meal_plan" &&
+
+                          !inclusionDraft.serviceDateRule)
 
                       }
 

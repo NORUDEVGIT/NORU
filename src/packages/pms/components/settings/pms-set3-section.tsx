@@ -23,11 +23,10 @@ import {
 } from "@/shared/components/ui/dialog";
 import { ReadinessChip } from "@/packages/pms/components/settings/pms-set1-section";
 import type { Set1Checklist } from "@/packages/pms/lib/pms-set1-foundation";
+import { CARD3_PACKAGES_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
 import {
   MEAL_PLAN_TYPE_LABELS,
-  MEAL_PLAN_TYPES,
   PACKAGE_TYPE_LABELS,
-  PACKAGE_TYPES,
   SET3_GUESTS_HREF,
   SET3_GUEST_RULES_UNAVAILABLE,
   SET3_GUEST_RULES_UNSAVED,
@@ -39,17 +38,10 @@ import {
   SET3_RATES_REVENUE_HREF,
   SET3_RATES_UNAVAILABLE,
   SET3_VIP_WARNING,
-  TAX_POSTURE_LABELS,
-  TAX_POSTURES,
   type GuestProfileRules,
-  type MealPlanType,
-  type PackageType,
   type PmsGuestIdType,
   type PmsGuestVipLevel,
-  type PmsMealPlan,
-  type PmsPackage,
   type Set3Snapshot,
-  type TaxPosture,
 } from "@/packages/pms/lib/pms-set3-rates-guest";
 import {
   savePmsGuestIdType,
@@ -63,13 +55,6 @@ import { PmsPreferenceOptionsEditor } from "@/packages/pms/components/settings/p
 function refreshSet3(queryClient: ReturnType<typeof useQueryClient>, restaurantId: string) {
   void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
   void queryClient.invalidateQueries({ queryKey: ["pms-set1-audit", restaurantId] });
-}
-
-function linesToList(value: string): string[] {
-  return value
-    .split(/\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 function SummaryStat({ label, value }: { label: string; value: number }) {
@@ -94,24 +79,21 @@ export function Set3RatesSection({
 }) {
   const queryClient = useQueryClient();
   const saveMeal = useServerFn(savePmsMealPlan);
-  const [mealOpen, setMealOpen] = useState(false);
-  const [editingMeal, setEditingMeal] = useState<PmsMealPlan | null>(null);
 
   const mealMutation = useMutation({
     mutationFn: (input: {
-      id?: string;
+      id: string;
       code: string;
       name: string;
-      type: MealPlanType;
+      type: Set3Snapshot["mealPlans"][number]["type"];
       active: boolean;
       included: string[];
       chargeable: string[];
       applicableOutletIds: string[];
-      taxPosture: TaxPosture;
+      taxPosture: Set3Snapshot["mealPlans"][number]["taxPosture"];
     }) => saveMeal({ data: { restaurantId, ...input } }),
     onSuccess: () => {
-      toast.success("Meal plan saved.");
-      setMealOpen(false);
+      toast.success("Meal plan updated.");
       refreshSet3(queryClient, restaurantId);
     },
     onError: (error: Error) => toast.error(error.message),
@@ -127,8 +109,8 @@ export function Set3RatesSection({
         <div>
           <h2 className="font-display text-lg text-[#251605]">Rates &amp; meal plans</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Rate plan masters are configured in Property Setup. Meal and package catalogues are
-            edited here. Daily rates and restrictions stay in Rate &amp; Revenue.
+            Rate plan masters are configured in Property Setup. Meal plans and packages are edited
+            in Meal Plans &amp; Packages. Daily rates and restrictions stay in Rate &amp; Revenue.
           </p>
         </div>
         <ReadinessChip readiness={checklist.domains.rates.readiness} />
@@ -161,15 +143,10 @@ export function Set3RatesSection({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-medium text-[#251605]">Meal plans</h3>
           {canEdit && snapshot.mealPlansAvailable ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setEditingMeal(null);
-                setMealOpen(true);
-              }}
-            >
-              Add meal plan
+            <Button variant="outline" size="sm" asChild>
+              <a href={CARD3_PACKAGES_HREF} data-testid="set3-meals-card3-redirect">
+                Edit in Meal Plans
+              </a>
             </Button>
           ) : null}
         </div>
@@ -196,16 +173,6 @@ export function Set3RatesSection({
                 </div>
                 {canEdit ? (
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setEditingMeal(meal);
-                        setMealOpen(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -271,7 +238,7 @@ export function Set3RatesSection({
             <p className="text-xs text-muted-foreground" data-testid="set3-packages-card3-redirect">
               To add or edit packages, use{" "}
               <a
-                href={SET3_RATES_HREF}
+                href={CARD3_PACKAGES_HREF}
                 className="font-medium text-[#C89933] underline-offset-2 hover:underline"
               >
                 Meal Plans &amp; Packages
@@ -281,161 +248,7 @@ export function Set3RatesSection({
           </>
         )}
       </div>
-
-      <MealDialog
-        open={mealOpen}
-        onOpenChange={setMealOpen}
-        meal={editingMeal}
-        saving={mealMutation.isPending}
-        onSubmit={(values) => mealMutation.mutate(values)}
-      />
     </section>
-  );
-}
-
-function MealDialog({
-  open,
-  onOpenChange,
-  meal,
-  saving,
-  onSubmit,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  meal: PmsMealPlan | null;
-  saving: boolean;
-  onSubmit: (values: {
-    id?: string;
-    code: string;
-    name: string;
-    type: MealPlanType;
-    active: boolean;
-    included: string[];
-    chargeable: string[];
-    applicableOutletIds: string[];
-    taxPosture: TaxPosture;
-  }) => void;
-}) {
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [type, setType] = useState<MealPlanType>("breakfast");
-  const [active, setActive] = useState(true);
-  const [included, setIncluded] = useState("");
-  const [chargeable, setChargeable] = useState("");
-  const [taxPosture, setTaxPosture] = useState<TaxPosture>("inherit");
-  useEffect(() => {
-    if (!open) return;
-    setName(meal?.name ?? "");
-    setCode(meal?.code ?? "");
-    setType(meal?.type ?? "breakfast");
-    setActive(meal?.active ?? true);
-    setIncluded((meal?.included ?? []).join("\n"));
-    setChargeable((meal?.chargeable ?? []).join("\n"));
-    setTaxPosture(meal?.taxPosture ?? "inherit");
-  }, [open, meal]);
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{meal ? "Edit meal plan" : "Add meal plan"}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="set3-meal-name">Name</Label>
-            <Input
-              id="set3-meal-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="set3-meal-code">Code</Label>
-              <Input
-                id="set3-meal-code"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <Select value={type} onValueChange={(value) => setType(value as MealPlanType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MEAL_PLAN_TYPES.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {MEAL_PLAN_TYPE_LABELS[item]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="set3-meal-included">Included items (one per line)</Label>
-            <textarea
-              id="set3-meal-included"
-              className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={included}
-              onChange={(event) => setIncluded(event.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="set3-meal-chargeable">Chargeable extras (one per line)</Label>
-            <textarea
-              id="set3-meal-chargeable"
-              className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={chargeable}
-              onChange={(event) => setChargeable(event.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Tax posture</Label>
-            <Select
-              value={taxPosture}
-              onValueChange={(value) => setTaxPosture(value as TaxPosture)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TAX_POSTURES.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {TAX_POSTURE_LABELS[item]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!name.trim() || !code.trim() || saving}
-            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-            onClick={() =>
-              onSubmit({
-                ...(meal?.id ? { id: meal.id } : {}),
-                name,
-                code,
-                type,
-                active,
-                included: linesToList(included),
-                chargeable: linesToList(chargeable),
-                applicableOutletIds: meal?.applicableOutletIds ?? [],
-                taxPosture,
-              })
-            }
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 

@@ -4,14 +4,11 @@ import { PmsReportsWorkspace } from "@/packages/pms/components/workspaces/pms-re
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { SharedModuleLinks } from "@/packages/pms/components/pms/shared-module-links";
+import { parseReportsRouteSearch } from "@/packages/pms/lib/reports-shell";
 
 export const Route = createFileRoute("/restaurant/pms/reports")({
   ssr: false,
-  validateSearch: (search: Record<string, unknown>) => ({
-    ...(typeof search.tab === "string" ? { tab: search.tab } : {}),
-    ...(typeof search.report === "string" ? { report: search.report } : {}),
-    ...(typeof search.category === "string" ? { category: search.category } : {}),
-  }),
+  validateSearch: (search: Record<string, unknown>) => parseReportsRouteSearch(search),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
@@ -26,9 +23,15 @@ export const Route = createFileRoute("/restaurant/pms/reports")({
   head: () => ({
     meta: [
       { title: "Reports & Analytics — NORU PMS" },
-      { name: "description", content: "Occupancy, ADR, RevPAR and room revenue reporting for your property." },
+      {
+        name: "description",
+        content: "Occupancy, ADR, RevPAR and room revenue reporting for your property.",
+      },
       { property: "og:title", content: "Reports & Analytics — NORU PMS" },
-      { property: "og:description", content: "Occupancy, ADR, RevPAR and room revenue reporting for your property." },
+      {
+        property: "og:description",
+        content: "Occupancy, ADR, RevPAR and room revenue reporting for your property.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -38,7 +41,7 @@ export const Route = createFileRoute("/restaurant/pms/reports")({
 });
 
 function ReportsPmsRoute() {
-  const search = Route.useSearch() as { tab?: string; report?: string; category?: string };
+  const search = Route.useSearch();
   return (
     <RestaurantShell
       active="Reports"
@@ -50,13 +53,10 @@ function ReportsPmsRoute() {
     >
       {(m) => (
         <div className="space-y-8">
-          <PmsReportsWorkspace
-            membership={m}
-            initialTab={search.tab}
-            initialReport={search.report}
-            initialCategory={search.category}
-          />
-          <SharedModuleLinks restaurantId={m.restaurantId} modules={["reports_analytics"]} />
+          <PmsReportsWorkspace membership={m} search={search} />
+          <div className="print:hidden">
+            <SharedModuleLinks restaurantId={m.restaurantId} modules={["reports_analytics"]} />
+          </div>
         </div>
       )}
     </RestaurantShell>

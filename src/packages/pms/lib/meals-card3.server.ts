@@ -5,6 +5,11 @@
 
 import type { PropertySetupCardStatus } from "./pms-property-setup-card1.ts";
 import {
+  EXPLICIT_DEFAULT_MEAL_POLICY,
+  SERVICE_DATE_RULES,
+  type ServiceDateRule,
+} from "./service-entitlement.ts";
+import {
   PACKAGE_INCLUSION_TYPE_LABELS,
   PACKAGE_INCLUSION_TYPES,
   type PackageInclusionType,
@@ -158,7 +163,101 @@ export type PackageComponentCard3Row = {
   sourceLabel: string;
   quantity: number;
   sortOrder: number;
+  requiresFulfillment: boolean;
+  departmentId: string | null;
+  serviceDateRule: ServiceDateRule | null;
 };
+
+export type Card3DepartmentRef = {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+};
+
+export type MealServiceRuleCard3 = {
+  includeArrival: boolean;
+  includeStay: boolean;
+  includeDeparture: boolean;
+  departmentId: string | null;
+};
+
+export type MealApplicabilityCard3 = {
+  breakfast: MealServiceRuleCard3;
+  lunch: MealServiceRuleCard3;
+  dinner: MealServiceRuleCard3;
+  countInfants: boolean;
+};
+
+export const DEFAULT_MEAL_APPLICABILITY_CARD3: MealApplicabilityCard3 = {
+  breakfast: { ...EXPLICIT_DEFAULT_MEAL_POLICY.breakfast, departmentId: null },
+  lunch: { ...EXPLICIT_DEFAULT_MEAL_POLICY.lunch, departmentId: null },
+  dinner: { ...EXPLICIT_DEFAULT_MEAL_POLICY.dinner, departmentId: null },
+  countInfants: EXPLICIT_DEFAULT_MEAL_POLICY.countInfants,
+};
+
+export const SERVICE_TIMING_LABELS: Record<ServiceDateRule, string> = {
+  ON_ARRIVAL: "On Arrival",
+  ON_DEPARTURE: "On Departure",
+  EACH_STAY_DATE: "Every Stay Date",
+  ONCE_PER_STAY: "Once Per Stay",
+};
+
+export function isServiceDateRule(value: unknown): value is ServiceDateRule {
+  return (SERVICE_DATE_RULES as readonly string[]).includes(String(value));
+}
+
+export function mealApplicabilityFromRow(
+  row: Record<string, unknown> | null,
+): MealApplicabilityCard3 {
+  if (!row) return DEFAULT_MEAL_APPLICABILITY_CARD3;
+  const rule = (
+    arrival: string,
+    stay: string,
+    departure: string,
+    department: string,
+  ): MealServiceRuleCard3 => ({
+    includeArrival: row[arrival] === true,
+    includeStay: row[stay] === true,
+    includeDeparture: row[departure] === true,
+    departmentId: typeof row[department] === "string" ? row[department] : null,
+  });
+  return {
+    breakfast: rule(
+      "breakfast_include_arrival",
+      "breakfast_include_stay",
+      "breakfast_include_departure",
+      "breakfast_department_id",
+    ),
+    lunch: rule(
+      "lunch_include_arrival",
+      "lunch_include_stay",
+      "lunch_include_departure",
+      "lunch_department_id",
+    ),
+    dinner: rule(
+      "dinner_include_arrival",
+      "dinner_include_stay",
+      "dinner_include_departure",
+      "dinner_department_id",
+    ),
+    countInfants: row.count_infants === true,
+  };
+}
+
+export function validatePackageFulfillment(input: {
+  kind: PackageComponentKind;
+  requiresFulfillment: boolean;
+  departmentId: string | null;
+  serviceDateRule: ServiceDateRule | null;
+}): string | null {
+  if (!input.requiresFulfillment) return null;
+  if (!input.departmentId) return "Choose a responsible department.";
+  if (input.kind !== "meal_plan" && !input.serviceDateRule) {
+    return "Choose when this service is delivered.";
+  }
+  return null;
+}
 
 export type Card3RoomTypeRef = {
   id: string;
@@ -185,6 +284,8 @@ export type Card3RatePlanRef = {
 export type Card3FoServiceRef = {
   id: string;
   name: string;
+  defaultAmount: number;
+  sortOrder: number;
   active: boolean;
 };
 
@@ -197,6 +298,8 @@ export type MealsCard3Snapshot = {
   roomAmenities: Card3RoomAmenityRef[];
   ratePlans: Card3RatePlanRef[];
   foServices: Card3FoServiceRef[];
+  departments: Card3DepartmentRef[];
+  mealPolicy: MealApplicabilityCard3;
 };
 
 export type MealsCard3Readiness = {

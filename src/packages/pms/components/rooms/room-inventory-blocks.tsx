@@ -87,10 +87,6 @@ interface BlockForm {
 
 const INK = "#251605";
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function titleCase(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
@@ -180,19 +176,19 @@ export function RoomInventoryBlocksView({
   const [detailBlock, setDetailBlock] = useState<OperationalInventoryBlock | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [confirmNote, setConfirmNote] = useState("");
-  const [form, setForm] = useState<BlockForm>(() => initialForm(today()));
+  const [form, setForm] = useState<BlockForm>(() => initialForm(""));
 
   const businessDateQuery = useQuery({
     queryKey: ["property-business-date", restaurantId],
     queryFn: () => loadBusinessDate({ data: { restaurantId } }),
     staleTime: 60_000,
   });
-  const businessDate = businessDateQuery.data?.businessDate ?? today();
+  const businessDate = businessDateQuery.data?.businessDate ?? "";
 
   useEffect(() => {
     if (!businessDateQuery.data) return;
     setForm((current) => {
-      if (current.startDate !== today() || current.endDate !== addDays(today(), 1)) return current;
+      if (current.startDate) return current;
       return {
         ...current,
         startDate: businessDateQuery.data.businessDate,

@@ -7,7 +7,10 @@ import { fileURLToPath } from "node:url";
 import {
   CARD3_MEALS_AUDIT_SECTION,
   CARD3_MEALS_TABS,
+  DEFAULT_MEAL_APPLICABILITY_CARD3,
   evaluateMealsCard3Readiness,
+  mealApplicabilityFromRow,
+  validatePackageFulfillment,
   isOwnedPackageCoverPath,
   isValidPackageComponent,
   PACKAGE_CHARGE_BASIS_DEFAULT,
@@ -46,7 +49,14 @@ function snapshot(partial?: Partial<MealsCard3Snapshot>): MealsCard3Snapshot {
     roomTypes: [{ id: "rt1", code: "DLX", name: "Deluxe", active: true }],
     roomAmenities: [{ id: "ra1", code: "WIFI", name: "Wi-Fi", category: "general", active: true }],
     ratePlans: [{ id: "rp1", code: "BAR", name: "Best available", active: true }],
-    foServices: [{ id: "fs1", name: "Airport transfer", active: true }],
+    foServices: [{ id: "fs1", name: "Airport transfer", defaultAmount: 0, sortOrder: 0, active: true }],
+    departments: [{ id: "dep1", code: "HK", name: "Housekeeping", active: true }],
+    mealPolicy: {
+      breakfast: { includeArrival: false, includeStay: true, includeDeparture: true, departmentId: null },
+      lunch: { includeArrival: true, includeStay: true, includeDeparture: false, departmentId: null },
+      dinner: { includeArrival: true, includeStay: true, includeDeparture: false, departmentId: null },
+      countInfants: false,
+    },
     ...partial,
   };
 }
@@ -94,6 +104,9 @@ const validComponent = {
   sourceLabel: "Bed and breakfast",
   quantity: 1,
   sortOrder: 0,
+  requiresFulfillment: false,
+  departmentId: null,
+  serviceDateRule: null,
 };
 
 describe("Card 3 Phase 4 meal plans and packages", () => {
@@ -225,7 +238,8 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
     assert.doesNotMatch(fns, /from\("room_types"\)\.(?:insert|update|delete)/);
     assert.doesNotMatch(fns, /from\("room_amenities"\)\.(?:insert|update|delete)/);
     assert.doesNotMatch(fns, /from\("hotel_rate_plans"\)\.(?:insert|update|delete)/);
-    assert.doesNotMatch(fns, /from\("fo_service_catalogue"\)\.(?:insert|update|delete)/);
+    assert.match(fns, /export const saveFoServiceCard3/);
+    assert.match(fns, /from\("fo_service_catalogue"\)\.insert/);
     assert.match(fns, /Package room types must belong to this property/);
     assert.match(fns, /Package rate plans must belong to this property/);
     assert.match(fns, /meal_plan_id: data\.kind === "meal_plan"/);
@@ -616,5 +630,113 @@ describe("Card 3 Phase D package charge basis", () => {
       "Per room",
       "Per unit",
     ]);
+  });
+});
+
+describe("meal service rules and package fulfillment", () => {
+  it("keeps the documented property defaults and maps a saved row", () => {
+    assert.equal(DEFAULT_MEAL_APPLICABILITY_CARD3.breakfast.includeArrival, false);
+    assert.equal(DEFAULT_MEAL_APPLICABILITY_CARD3.breakfast.includeDeparture, true);
+    assert.equal(DEFAULT_MEAL_APPLICABILITY_CARD3.lunch.includeDeparture, false);
+    assert.equal(DEFAULT_MEAL_APPLICABILITY_CARD3.countInfants, false);
+    assert.deepEqual(mealApplicabilityFromRow(null), DEFAULT_MEAL_APPLICABILITY_CARD3);
+    const saved = mealApplicabilityFromRow({
+      breakfast_include_arrival: true,
+      breakfast_include_stay: false,
+      breakfast_include_departure: false,
+      breakfast_department_id: "dep-1",
+      lunch_include_arrival: false,
+      lunch_include_stay: true,
+      lunch_include_departure: false,
+      dinner_include_arrival: true,
+      dinner_include_stay: true,
+      dinner_include_departure: true,
+      count_infants: true,
+    });
+    assert.equal(saved.breakfast.includeArrival, true);
+    assert.equal(saved.breakfast.departmentId, "dep-1");
+    assert.equal(saved.countInfants, true);
+  });
+
+  it("requires a department and timing only when fulfillment is enabled", () => {
+    assert.equal(
+      validatePackageFulfillment({
+        kind: "fo_service",
+        requiresFulfillment: false,
+        departmentId: null,
+        serviceDateRule: null,
+      }),
+      null,
+    );
+    assert.match(
+      validatePackageFulfillment({
+        kind: "room_amenity",
+        requiresFulfillment: true,
+        departmentId: null,
+        serviceDateRule: "EACH_STAY_DATE",
+      }) ?? "",
+      /department/,
+    );
+    assert.match(
+      validatePackageFulfillment({
+        kind: "fo_service",
+        requiresFulfillment: true,
+        departmentId: "dep-1",
+        serviceDateRule: null,
+      }) ?? "",
+      /delivered/,
+    );
+    assert.equal(
+      validatePackageFulfillment({
+        kind: "meal_plan",
+        requiresFulfillment: true,
+        departmentId: "dep-1",
+        serviceDateRule: null,
+      }),
+      null,
+    );
+    assert.equal(
+      validatePackageFulfillment({
+        kind: "fo_service",
+        requiresFulfillment: true,
+        departmentId: "dep-1",
+        serviceDateRule: "ON_ARRIVAL",
+      }),
+      null,
+    );
+  });
+
+  it("saves meal rules and fulfillment through the Card 3 owner and manager path", () => {
+    assert.match(fns, /export const saveMealApplicabilityPolicyCard3/);
+    assert.match(fns, /export const getMealApplicabilityPolicyCard3/);
+    assert.match(fns, /onConflict: "restaurant_id"/);
+    assert.match(fns, /requires_fulfillment: data\.requiresFulfillment === true/);
+    assert.match(fns, /That department doesn't belong to this property/);
+    assert.match(fns, /reconcileOpenServiceEntitlements/);
+    assert.match(fns, /z\.enum\(\["ON_ARRIVAL", "ON_DEPARTURE", "EACH_STAY_DATE", "ONCE_PER_STAY"\]\)/);
+    const entitlementServer = readFileSync(
+      new URL("./service-entitlement.server.ts", import.meta.url),
+      "utf8",
+    );
+    assert.match(entitlementServer, /scope === "open"/);
+    assert.match(entitlementServer, /departure_date", serviceDate/);
+    assert.match(entitlementServer, /serviceDate >= property\.businessDate/);
+    assert.match(
+      readFileSync(new URL("./service-entitlement.ts", import.meta.url), "utf8"),
+      /stored\.status === "PENDING" \|\| stored\.status === "IN_PROGRESS"/,
+    );
+    const legacyMeals = readFileSync(
+      new URL("./pms-set3-rates-guest.functions.ts", import.meta.url),
+      "utf8",
+    );
+    assert.match(legacyMeals, /Create meal plans in Meal Plans & Packages/);
+    assert.doesNotMatch(legacyMeals, /from\("pms_meal_plans"\)\.insert/);
+    const policySave = fns.slice(fns.indexOf("export const saveMealApplicabilityPolicyCard3"));
+    assert.match(policySave, /requireRoomManager/);
+    assert.match(ui, /Meal Service Rules/);
+    assert.match(ui, /Requires Fulfillment/);
+    assert.match(ui, /Uses Property Meal Service Rules/);
+    assert.match(set3, /set3-meals-card3-redirect/);
+    assert.doesNotMatch(set3, /Add meal plan/);
   });
 });
