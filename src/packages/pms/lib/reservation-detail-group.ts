@@ -15,7 +15,7 @@ export const GROUP_PROFILE_PREFERENCE_NOTE =
   "These are saved guest-profile preferences, not booked room configuration.";
 
 export const GROUP_PACKAGE_NOTE =
-  "Package availability is currently evaluated using the primary room's room type and rate plan.";
+  "Choose a room to manage its packages. Stay packages are labeled separately and apply to the whole reservation.";
 
 export type GroupOccupantSlice = {
   guestId: string;

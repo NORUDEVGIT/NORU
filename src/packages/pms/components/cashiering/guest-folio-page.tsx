@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
 import { CashieringChrome } from "@/packages/pms/components/cashiering/cashiering-chrome";
 import {
   FolioSearchFolioStatusBadge,
@@ -179,6 +180,7 @@ export function GuestFolioPage({
     void queryClient.invalidateQueries({
       queryKey: ["guest-invoice-settlement", restaurantId, folioId],
     });
+    invalidateFrontOfficeOwnerReads(queryClient);
   }
 
   function go(tab: CashieringTabId) {

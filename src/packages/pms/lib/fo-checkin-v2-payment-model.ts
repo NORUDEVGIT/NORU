@@ -18,7 +18,7 @@ export type CheckInPaymentSummary = {
   folioScope: string;
 };
 
-export const GUARANTEE_NOT_EVALUATED = "Not evaluated by current property rules";
+export const GUARANTEE_NOT_EVALUATED = "No guarantee rule configured for this property";
 
 export const DEPOSIT_WAIVER_ROLES = ["owner", "manager"] as const;
 

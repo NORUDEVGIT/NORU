@@ -183,6 +183,7 @@ export type CreateRoomUnitInput = {
   children: number;
   infants: number;
   ratePlanId: string | null;
+  pmsGroupBlockId?: string | null;
 };
 
 /** One room keeps the existing rooms multiplier. Extra rooms price the master as one room. */
@@ -194,22 +195,25 @@ export function createReservationRoomUnitPayload(input: {
   ratePlanId: string | null;
   roomsRequested: number;
   extraUnits: CreateRoomUnitInput[];
+  pmsGroupBlockId?: string | null;
 }): { rooms: number; roomUnits: CreateRoomUnitInput[] | null } {
   if (input.extraUnits.length === 0) {
     return { rooms: input.roomsRequested, roomUnits: null };
   }
+  const includeBlock =
+    input.pmsGroupBlockId !== undefined ||
+    input.extraUnits.some((unit) => "pmsGroupBlockId" in unit);
+  const first: CreateRoomUnitInput = {
+    roomTypeId: input.roomTypeId,
+    adults: input.adults,
+    children: input.children,
+    infants: input.infants,
+    ratePlanId: input.ratePlanId,
+    ...(includeBlock ? { pmsGroupBlockId: input.pmsGroupBlockId ?? null } : {}),
+  };
   return {
     rooms: 1,
-    roomUnits: [
-      {
-        roomTypeId: input.roomTypeId,
-        adults: input.adults,
-        children: input.children,
-        infants: input.infants,
-        ratePlanId: input.ratePlanId,
-      },
-      ...input.extraUnits,
-    ],
+    roomUnits: [first, ...input.extraUnits],
   };
 }
 

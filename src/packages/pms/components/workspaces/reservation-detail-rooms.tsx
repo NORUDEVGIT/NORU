@@ -104,6 +104,7 @@ export function ReservationDetailRoomsTab({
   businessDate,
   money,
   paymentReceived = null,
+  paymentRefunded = null,
   guestDeposit = null,
   coverUrl,
   occupancyLabel,
@@ -118,6 +119,7 @@ export function ReservationDetailRoomsTab({
   businessDate: string;
   money: (value: number) => string;
   paymentReceived?: number | null;
+  paymentRefunded?: number | null;
   guestDeposit?: number | null;
   coverUrl: string | null;
   occupancyLabel: string | null;
@@ -275,6 +277,9 @@ export function ReservationDetailRoomsTab({
           reservationId: reservation.id,
           roomId: input.roomId,
           ...(input.reservationRoomId ? { reservationRoomId: input.reservationRoomId } : {}),
+          expectedRoomId:
+            units.find((unit) => unit.id === input.reservationRoomId)?.roomId ?? reservation.roomId,
+          expectedUpdatedAt: reservation.updatedAt,
         },
       }),
     onSuccess: () => {
@@ -284,6 +289,8 @@ export function ReservationDetailRoomsTab({
       onSaved();
     },
     onError: (error: Error, input) => {
+      void assignableQuery.refetch();
+      void displayQuery.refetch();
       if (input.roomId) {
         const controlled = assignmentAvailabilityMessage(error.message);
         if (controlled) {
@@ -506,6 +513,7 @@ export function ReservationDetailRoomsTab({
           money={money}
           coverUrl={coverUrl}
           paymentReceived={paymentReceived}
+          paymentRefunded={paymentRefunded}
           guestDeposit={guestDeposit}
           nights={nights}
         />
@@ -1002,6 +1010,7 @@ function RoomsSummaryRail({
   coverUrl,
   nights,
   paymentReceived,
+  paymentRefunded,
   guestDeposit,
 }: {
   reservation: ReservationDetail;
@@ -1009,6 +1018,7 @@ function RoomsSummaryRail({
   coverUrl: string | null;
   nights: number;
   paymentReceived: number | null;
+  paymentRefunded: number | null;
   guestDeposit: number | null;
 }) {
   return (
@@ -1019,6 +1029,7 @@ function RoomsSummaryRail({
       coverUrl={coverUrl}
       nights={nights}
       paymentReceived={paymentReceived}
+      paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
     />
   );

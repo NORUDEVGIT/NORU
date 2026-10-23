@@ -97,6 +97,7 @@ describe("check-in readiness blockers", () => {
     ]);
     expect(codes({ agreementSigned: false })).toEqual(["SIGNATURE_REQUIRED"]);
     expect(codes({ keyRecorded: false })).toEqual(["KEY_REQUIRED"]);
+    expect(codes({ keyRecorded: true, keyWaived: false }).includes("KEY_REQUIRED")).toBe(false);
     expect(codes({ registrationComplete: false })).toEqual(["REGISTRATION_INCOMPLETE"]);
     for (const code of CHECK_IN_BLOCKER_CODES) {
       expect(codes({})).not.toContain(code);

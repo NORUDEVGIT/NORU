@@ -29,4 +29,20 @@ describe("completeFoCheckIn", () => {
     expect(complete).not.toContain("recordReservationEvent");
     expect(complete).not.toContain("data.roomId");
   });
+
+  it("lets the check-in RPC record history and apply the housekeeping transition", () => {
+    const sql = readFileSync(
+      resolve(process.cwd(), "drizzle/migrations/0156_room_unit_front_office.sql"),
+      "utf8",
+    );
+    const checkIn = sql.slice(
+      sql.indexOf("CREATE OR REPLACE FUNCTION public.check_in_hotel_reservation"),
+      sql.indexOf("CREATE OR REPLACE FUNCTION public.check_out_hotel_reservation"),
+    );
+    expect(checkIn).toContain("'check_in'");
+    expect(checkIn).toContain("hotel_reservation_history");
+    expect(checkIn).toContain("'guest_check_in'");
+    expect(checkIn).toContain("housekeeping_history");
+    expect(checkIn).toContain("pms_housekeeping_transition_target");
+  });
 });

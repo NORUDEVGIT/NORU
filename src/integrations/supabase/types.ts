@@ -14734,6 +14734,8 @@ export type Database = {
       }
       assign_hotel_reservation_room_unit: {
         Args: {
+          _expected_room_id?: string
+          _expected_updated_at?: string
           _membership_id: string
           _reservation_id: string
           _reservation_room_id?: string

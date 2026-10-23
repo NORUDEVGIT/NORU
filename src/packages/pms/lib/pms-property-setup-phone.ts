@@ -304,3 +304,20 @@ export function composeSetupPhone(iso: string | null, localNumber: string): stri
   if (!country) return local;
   return `+${country.dialCode}${local}`;
 }
+
+/**
+ * One E.164 value for registration. A number that already includes its
+ * calling code is not prefixed again. Flags and spaces are not stored.
+ */
+export function canonicalRegistrationPhone(value: string | null | undefined): string {
+  const raw = (value ?? "").trim();
+  if (!raw) return "";
+  if (!raw.startsWith("+")) return filterPhoneDigits(raw);
+  const parsed = decomposeSetupPhone(raw);
+  if (!parsed.iso || !parsed.dialCode) return `+${filterPhoneDigits(raw)}`;
+  let local = filterPhoneDigits(parsed.localNumber);
+  if (local.startsWith(parsed.dialCode) && local.length > parsed.dialCode.length) {
+    local = local.slice(parsed.dialCode.length);
+  }
+  return composeSetupPhone(parsed.iso, local);
+}

@@ -7,7 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   AlertTriangle,
@@ -119,6 +119,7 @@ import { addDays, formatStayDate } from "@/packages/pms/lib/reservation-dates";
 import { cn } from "@/shared/lib/utils";
 import { deriveOpsStrip, type FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
 import { listFoExceptionFeeds } from "@/packages/pms/lib/fo-exceptions.functions";
+import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
 
 type Viewport = "phone" | "wide";
 
@@ -167,6 +168,7 @@ export function RoomRackCalendar({
         }
       : EMPTY_RACK_FILTERS,
   );
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState<RackConfirmDraft | null>(null);
   const [preview, setPreview] = useState<RackConfirmDraft | null>(null);
 
@@ -199,6 +201,7 @@ export function RoomRackCalendar({
   const occupancyQuery = useQuery({
     queryKey: ["front-office", "occupancy", restaurantId],
     queryFn: () => fetchOccupancy({ data: { restaurantId } }),
+    ...foOperationalQueryOptions(),
     retry: false,
   });
   const reservationsQuery = useQuery({
@@ -212,21 +215,25 @@ export function RoomRackCalendar({
         pageSize,
       ),
     enabled: liveHorizon,
+    ...foOperationalQueryOptions(),
     retry: false,
   });
   const dashboardQuery = useQuery({
     queryKey: ["front-office", "dashboard", restaurantId, today],
     queryFn: () => fetchDashboard({ data: { restaurantId, today } }),
+    ...foOperationalQueryOptions(),
     retry: false,
   });
   const hkQuery = useQuery({
     queryKey: ["front-office", "hk-status-feed", restaurantId],
     queryFn: () => fetchHk({ data: { restaurantId } }),
+    ...foOperationalQueryOptions(),
     retry: false,
   });
   const feedsQuery = useQuery({
     queryKey: ["front-office", "exception-feeds", restaurantId, today],
     queryFn: () => fetchFeeds({ data: { restaurantId, businessDate: today } }),
+    ...foOperationalQueryOptions(),
     retry: false,
   });
 
@@ -330,6 +337,16 @@ export function RoomRackCalendar({
         <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
           <Button variant="outline" size="sm" className="h-9" onClick={() => setFocusDate(today)}>
             Today
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9"
+            data-testid="fo-rack-refresh"
+            onClick={() => void queryClient.invalidateQueries({ queryKey: ["front-office"] })}
+          >
+            Refresh
           </Button>
           <Button
             variant="outline"

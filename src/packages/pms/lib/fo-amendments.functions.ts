@@ -564,6 +564,19 @@ export const upgradeReservationType = createServerFn({ method: "POST" })
       room_subtotal: row.room_subtotal === null || row.room_subtotal === undefined ? null : Number(row.room_subtotal),
     };
 
+    const { assertExistingReservationGroupPickup, resyncGroupBlockInventoryForReservation } =
+      await import("./groups.functions");
+    await assertExistingReservationGroupPickup(supabaseAdmin, {
+      restaurantId: data.restaurantId,
+      reservationId: data.reservationId,
+      overlay: {
+        roomTypeId: data.roomTypeId,
+        arrivalDate: stay.arrivalDate,
+        departureDate: stay.departureDate,
+        status: stay.status,
+      },
+    });
+
     // Persist the new type first. Same-type room move is not used.
     // After the type is the NEW type, a pending/confirmed room uses the same
     // assignReservationRoom / listAssignableRooms honesty (available, same-type
@@ -617,6 +630,12 @@ export const upgradeReservationType = createServerFn({ method: "POST" })
       notes: data.reason,
       actorMembershipId: me.id,
     });
+    await resyncGroupBlockInventoryForReservation(
+      supabaseAdmin,
+      me.id,
+      data.restaurantId,
+      data.reservationId,
+    );
     return { id: data.reservationId };
   });
 

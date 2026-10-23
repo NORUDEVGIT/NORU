@@ -106,6 +106,8 @@ export function CreateReservationBookingDetails({
   showAdHocGroupNote = false,
   showLinkedGroupCaption = false,
   leadGuestPreferences = false,
+  lockOperationalGroup = false,
+  unitBlockLines,
   salesChannel,
   onSalesChannelChange,
   salesChannelOptions,
@@ -185,6 +187,8 @@ export function CreateReservationBookingDetails({
   showAdHocGroupNote?: boolean;
   showLinkedGroupCaption?: boolean;
   leadGuestPreferences?: boolean;
+  lockOperationalGroup?: boolean;
+  unitBlockLines?: string[];
 }) {
   const loadBilling = useServerFn(getBillingCard3);
   const loadCompanyContacts = useServerFn(listCompanyContacts);
@@ -784,19 +788,25 @@ export function CreateReservationBookingDetails({
                     <span className="shrink-0 rounded-full bg-[#FBF6EE] px-2 py-0.5 text-[10px] font-medium text-[#8A6A24]">
                       Group
                     </span>
-                    <button
-                      type="button"
-                      data-testid="change-group"
-                      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[6px] border border-[#E4D3A8] bg-white px-2 text-xs font-medium text-[#8A6A24]"
-                      onClick={() => {
-                        focusGroupSearch.current = true;
-                        onLinkedGroupChange(null, null);
-                        setGroupQuery("");
-                      }}
-                    >
-                      <RefreshCw className="size-3" aria-hidden />
-                      Change Group
-                    </button>
+                    {lockOperationalGroup ? (
+                      <span className="shrink-0 rounded-full bg-[#F4E9D0] px-2 py-0.5 text-[10px] font-medium text-[#765719]">
+                        Group-linked
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        data-testid="change-group"
+                        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[6px] border border-[#E4D3A8] bg-white px-2 text-xs font-medium text-[#8A6A24]"
+                        onClick={() => {
+                          focusGroupSearch.current = true;
+                          onLinkedGroupChange(null, null);
+                          setGroupQuery("");
+                        }}
+                      >
+                        <RefreshCw className="size-3" aria-hidden />
+                        Change Group
+                      </button>
+                    )}
                   </div>
                   <div className="mt-3 grid gap-3 border-t border-[#E7E0D4] pt-3 sm:grid-cols-2">
                     <SummaryChoice
@@ -831,6 +841,18 @@ export function CreateReservationBookingDetails({
                       {`${pickupPicked} of ${pickupBlocked || "—"} rooms picked up`}
                     </p>
                   </div>
+                  {unitBlockLines && unitBlockLines.length > 0 ? (
+                    <ul className="mt-3 space-y-1 text-xs text-[#251605]" data-testid="booking-details-unit-blocks">
+                      {unitBlockLines.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {selectedGroup?.companyMasterId ? (
+                    <p className="mt-2 text-xs text-[#6B5E4E]">
+                      This group has a company on file. It is not copied onto the reservation.
+                    </p>
+                  ) : null}
                 </div>
               ) : (
                 <>

@@ -7,6 +7,7 @@ import { VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
 import { getFrontOfficeArrivalQuickView, type FoArrivalQuickView } from "@/packages/pms/lib/fo-arrival.functions";
+import type { FoArrivalExceptionKey } from "@/packages/pms/lib/fo-arrival";
 import { FoGuestServicesPanel } from "@/packages/pms/components/frontoffice/fo-guest-services-panel";
 import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
 import { useMoney } from "@/core/state/property-format";
@@ -19,6 +20,35 @@ import {
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { cn } from "@/shared/lib/utils";
+
+function openArrivalException(
+  key: FoArrivalExceptionKey,
+  qv: FoArrivalQuickView,
+  actions: {
+    onAssign: (qv: FoArrivalQuickView) => void;
+    onEta: (qv: FoArrivalQuickView) => void;
+    onRegister: (qv: FoArrivalQuickView) => void;
+    onCheckIn: (qv: FoArrivalQuickView) => void;
+  },
+) {
+  if (key === "unassigned" || key === "room_unavailable") {
+    actions.onAssign(qv);
+    return;
+  }
+  if (key === "early_arrival") {
+    actions.onEta(qv);
+    return;
+  }
+  if (key === "missing_guest_data") {
+    actions.onRegister(qv);
+    return;
+  }
+  if (key === "special_request") {
+    document.getElementById("fo-arrival-requests")?.scrollIntoView({ block: "nearest" });
+    return;
+  }
+  actions.onCheckIn(qv);
+}
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
@@ -44,6 +74,7 @@ function etaCopy(qv: FoArrivalQuickView): string {
 export function ArrivalQuickViewSheet({
   restaurantId,
   reservationId,
+  reservationRoomId = null,
   open,
   phone = false,
   onOpenChange,
@@ -55,6 +86,7 @@ export function ArrivalQuickViewSheet({
 }: {
   restaurantId: string;
   reservationId: string | null;
+  reservationRoomId?: string | null;
   open: boolean;
   phone?: boolean;
   onOpenChange: (open: boolean) => void;
@@ -67,9 +99,15 @@ export function ArrivalQuickViewSheet({
   const money = useMoney();
   const fetchQv = useServerFn(getFrontOfficeArrivalQuickView);
   const query = useQuery({
-    queryKey: ["fo-arrival-qv", restaurantId, reservationId],
+    queryKey: ["fo-arrival-qv", restaurantId, reservationId, reservationRoomId],
     queryFn: () =>
-      fetchQv({ data: { restaurantId, reservationId: reservationId as string } }),
+      fetchQv({
+        data: {
+          restaurantId,
+          reservationId: reservationId as string,
+          ...(reservationRoomId ? { reservationRoomId } : {}),
+        },
+      }),
     enabled: open && Boolean(reservationId),
     retry: false,
   });
@@ -242,14 +280,18 @@ export function ArrivalQuickViewSheet({
                 ) : (
                   <ul className="space-y-1">
                     {qv.exceptions.map((item) => (
-                      <li
-                        key={item.key}
-                        className={cn(
-                          "rounded-lg px-2.5 py-1.5 text-xs",
-                          item.blocking ? "bg-destructive/10 text-destructive" : "bg-[#F4E9D0] text-[#251605]",
-                        )}
-                      >
-                        {item.label}
+                      <li key={item.key}>
+                        <button
+                          type="button"
+                          data-testid={`fo-arrival-exception-${item.key}`}
+                          className={cn(
+                            "w-full rounded-lg px-2.5 py-1.5 text-left text-xs",
+                            item.blocking ? "bg-destructive/10 text-destructive" : "bg-[#F4E9D0] text-[#251605]",
+                          )}
+                          onClick={() => openArrivalException(item.key, qv, { onAssign, onEta, onRegister, onCheckIn })}
+                        >
+                          {item.label}
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -276,12 +318,14 @@ export function ArrivalQuickViewSheet({
                 ) : null}
               </section>
 
-              <FoGuestServicesPanel
-                restaurantId={restaurantId}
-                reservationId={qv.stay.id}
-                guestId={qv.stay.guestId}
-                compact
-              />
+              <div id="fo-arrival-requests">
+                <FoGuestServicesPanel
+                  restaurantId={restaurantId}
+                  reservationId={qv.stay.id}
+                  guestId={qv.stay.guestId}
+                  compact
+                />
+              </div>
 
               <div className="flex flex-wrap gap-2 border-t border-border pt-4">
                 {qv.hints.canAssignRoom ? (

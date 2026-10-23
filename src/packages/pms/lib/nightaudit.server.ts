@@ -175,7 +175,7 @@ export async function evaluateAudit(
   const overstays: OverstayStay[] = [];
 
   for (const r of reservations) {
-    if (r.status === "confirmed" && r.arrival_date <= businessDate) {
+    if (r.status === "confirmed" && r.arrival_date < businessDate) {
       noShows.push({
         id: r.id,
         confirmationNumber: r.confirmation_number,

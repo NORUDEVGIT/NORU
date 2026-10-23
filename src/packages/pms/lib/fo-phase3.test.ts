@@ -142,7 +142,8 @@ describe("FO Phase 3 — writers and ownership", () => {
     assert.match(workspace, /StayDatesDialog/);
     assert.match(dialogs, /changeStayDates|FoRackConfirmSheet/);
     const change = fns.slice(fns.indexOf("export const changeStayDates"));
-    assert.match(change, /change_hotel_stay_dates/);
+    assert.match(change, /apply_inhouse_stay_date_change/);
+    assert.doesNotMatch(change.slice(0, change.indexOf("export const markNoShow")), /folio_transactions/);
     assert.doesNotMatch(workspace, /\.update\(\{[^}]*departure_date/);
   });
 

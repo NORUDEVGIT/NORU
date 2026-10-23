@@ -14,9 +14,10 @@ import {
 } from "@/shared/components/ui/select";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { DepartureQuickViewSheet, type DepartureQuickViewAction } from "@/packages/pms/components/frontoffice/departure-quick-view";
-import { CheckOutDialog, StayDatesDialog } from "@/packages/pms/components/frontoffice/front-office-dialogs";
+import { CheckOutDialog, NoShowDialog, RoomMoveDialog, StayDatesDialog } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { LateCheckoutDialog } from "@/packages/pms/components/workspaces/arrivals-departures-dialogs";
 import { FO_DEPARTURE_EXCEPTION_LABELS } from "@/packages/pms/lib/fo-departure";
+import { siblingUnitSummary } from "@/packages/pms/lib/fo-unit-desk";
 import {
   listFrontOfficeDeparturesDesk,
   type FoDepartureDeskRow,
@@ -29,6 +30,8 @@ import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-busines
 import { useMoney, useRestaurantTimezone } from "@/core/state/property-format";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading } from "@/core/state/pms-context";
+import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
+import { MAINTENANCE_HREF } from "@/packages/pms/lib/front-office-room-operations";
 import { cn } from "@/shared/lib/utils";
 
 const ALL = "all";
@@ -90,6 +93,7 @@ function folioLabel(row: FoDepartureDeskRow, money: (n: number) => string): stri
 }
 
 function readinessLabel(row: FoDepartureDeskRow): string {
+  if (row.stay.status === "pending" || row.stay.status === "confirmed") return "Not checked in";
   if (row.stay.status !== "checked_in") return "Not in-house";
   if (row.readiness.needsSettlement) return "Needs settlement";
   if (row.readiness.missingFolio) return "Folio required";
@@ -125,8 +129,11 @@ export function DeparturesWorkspace({
   const [blocker, setBlocker] = useState(ALL);
   const [overdue, setOverdue] = useState(ALL);
   const [qvId, setQvId] = useState<string | null>(null);
+  const [qvRoomId, setQvRoomId] = useState<string | null>(null);
   const [datesStay, setDatesStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
   const [checkOutStay, setCheckOutStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
+  const [moveStay, setMoveStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
+  const [unarrivedStay, setUnarrivedStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
   const [lateQv, setLateQv] = useState<FoDepartureQuickView | null>(null);
 
   const fetchAccess = useServerFn(getBookingsAccess);
@@ -143,6 +150,7 @@ export function DeparturesWorkspace({
     queryKey: ["front-office", "departures-desk", restaurantId, today],
     queryFn: () => fetchDesk({ data: { restaurantId, date: today } }),
     enabled: canManage,
+    ...foOperationalQueryOptions(),
     retry: false,
   });
 
@@ -186,13 +194,27 @@ export function DeparturesWorkspace({
     }
     if (action === "open_folio") {
       closeOverlays();
+      if (qv.financial.folioId) {
+        void navigate({
+          to: "/restaurant/pms/cashiering/folios/$folioId",
+          params: { folioId: qv.financial.folioId },
+        });
+        return;
+      }
       void navigate({ to: "/restaurant/pms/cashiering", search: { tab: "folios" } });
+      return;
+    }
+    if (action === "open_maintenance") {
+      closeOverlays();
+      void navigate({ to: MAINTENANCE_HREF });
       return;
     }
     closeOverlays();
     if (action === "amend_stay") setDatesStay(qv.stay);
     if (action === "late_checkout") setLateQv(qv);
     if (action === "check_out") setCheckOutStay(qv.stay);
+    if (action === "room_move") setMoveStay(qv.stay);
+    if (action === "unarrived") setUnarrivedStay(qv.stay);
   }
 
   return (
@@ -213,6 +235,14 @@ export function DeparturesWorkspace({
       ) : null}
 
       <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          data-testid="fo-departures-refresh"
+          onClick={() => void queryClient.invalidateQueries({ queryKey: ["front-office"] })}
+        >
+          Refresh
+        </Button>
         <Input
           className="w-56"
           placeholder="Search guest, confirmation, room"
@@ -306,9 +336,12 @@ export function DeparturesWorkspace({
             <tbody>
               {visible.map((row) => (
                 <tr
-                  key={row.stay.id}
+                  key={row.stay.reservationRoomId ? `${row.stay.id}:${row.stay.reservationRoomId}` : row.stay.id}
                   className={cn("cursor-pointer border-b border-border last:border-0 hover:bg-muted/40")}
-                  onClick={() => setQvId(row.stay.id)}
+                  onClick={() => {
+                    setQvId(row.stay.id);
+                    setQvRoomId(row.stay.reservationRoomId ?? null);
+                  }}
                 >
                   <td className="px-3 py-2">
                     <p className="font-medium">
@@ -320,6 +353,11 @@ export function DeparturesWorkspace({
                   <td className="px-3 py-2">
                     {row.stay.roomNumber ? `Room ${row.stay.roomNumber}` : "Unassigned"}
                     <span className="block text-xs text-muted-foreground">{row.stay.roomTypeName}</span>
+                    {siblingUnitSummary(row.stay) ? (
+                      <span className="block text-xs text-muted-foreground">
+                        Also {siblingUnitSummary(row.stay)}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">
                     {formatStayDate(row.stay.arrivalDate)} → {formatStayDate(row.stay.departureDate)}
@@ -349,9 +387,13 @@ export function DeparturesWorkspace({
       <DepartureQuickViewSheet
         restaurantId={restaurantId}
         reservationId={qvId}
-        open={Boolean(qvId) && !datesStay && !checkOutStay && !lateQv}
+        reservationRoomId={qvRoomId}
+        open={Boolean(qvId) && !datesStay && !checkOutStay && !lateQv && !moveStay && !unarrivedStay}
         onOpenChange={(open) => {
-          if (!open) setQvId(null);
+          if (!open) {
+            setQvId(null);
+            setQvRoomId(null);
+          }
         }}
         onAction={onAction}
       />
@@ -373,10 +415,40 @@ export function DeparturesWorkspace({
         <CheckOutDialog
           restaurantId={restaurantId}
           stay={checkOutStay}
+          initialReservationRoomId={checkOutStay.reservationRoomId ?? undefined}
           open
           onOpenChange={(open) => {
             if (!open) {
               setCheckOutStay(null);
+              refreshDesk();
+            }
+          }}
+        />
+      ) : null}
+      {moveStay ? (
+        <RoomMoveDialog
+          restaurantId={restaurantId}
+          stay={moveStay}
+          initialReservationRoomId={moveStay.reservationRoomId ?? undefined}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setMoveStay(null);
+              refreshDesk();
+            }
+          }}
+        />
+      ) : null}
+      {unarrivedStay ? (
+        <NoShowDialog
+          restaurantId={restaurantId}
+          stay={unarrivedStay}
+          today={today}
+          initialReservationRoomId={unarrivedStay.reservationRoomId ?? undefined}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setUnarrivedStay(null);
               refreshDesk();
             }
           }}

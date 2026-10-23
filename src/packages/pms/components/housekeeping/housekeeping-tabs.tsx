@@ -79,6 +79,7 @@ import {
   type HkExceptionKind,
 } from "@/packages/pms/lib/housekeeping-ops";
 import { HK_HREF, INVENTORY_HREF } from "@/packages/pms/lib/front-office-room-operations";
+import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
 
 type Props = { restaurantId: string; today: string };
 type CleaningProps = Props & { scope: HousekeepingScope; membershipId: string };
@@ -100,6 +101,7 @@ function useInvalidateHousekeeping(restaurantId: string) {
     ]) {
       void qc.invalidateQueries({ queryKey: [key, restaurantId] });
     }
+    invalidateFrontOfficeOwnerReads(qc);
   };
 }
 

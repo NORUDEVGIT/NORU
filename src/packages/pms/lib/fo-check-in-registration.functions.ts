@@ -9,6 +9,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   checkInIdentityVerification,
+  registrationIssuingCountry,
   registrationProfileColumns,
 } from "@/packages/pms/lib/fo-check-in-registration";
 import {
@@ -46,6 +47,7 @@ export type CheckInRegistrationDocument = {
   documentNumber: string | null;
   issuingCountry: string | null;
   expiryDate: string | null;
+  issueDate: string | null;
   verificationStatus: string;
   hasFile: boolean;
 };
@@ -114,7 +116,7 @@ export const getCheckInRegistration = createServerFn({ method: "POST" })
     const documentQuery = await supabaseAdmin
       .from("guest_documents")
       .select(
-        "id, id_type_id, kind, document_number, issuing_country, expiry_date, verification_status, storage_path",
+        "id, id_type_id, kind, document_number, issuing_country, issue_date, expiry_date, verification_status, storage_path",
       )
       .eq("restaurant_id", data.restaurantId)
       .eq("guest_id", target.primaryGuestId);
@@ -126,6 +128,7 @@ export const getCheckInRegistration = createServerFn({ method: "POST" })
       documentNumber: row.document_number,
       issuingCountry: row.issuing_country,
       expiryDate: row.expiry_date,
+      issueDate: row.issue_date,
       verificationStatus: row.verification_status ?? "unverified",
       hasFile: Boolean(row.storage_path),
     }));
@@ -162,7 +165,7 @@ export const saveCheckInUnitRegistration = createServerFn({ method: "POST" })
             documentId: idSchema.optional(),
             idTypeId: idSchema,
             documentNumber: z.string().max(120).optional().nullable(),
-            issuingCountry: z.string().max(8).optional().nullable(),
+            issuingCountry: z.string().max(80).optional().nullable(),
             issueDate: z.string().max(20).optional().nullable(),
             expiryDate: z.string().max(20).optional().nullable(),
             issuingAuthority: z.string().max(200).optional().nullable(),
@@ -225,7 +228,7 @@ export const saveCheckInUnitRegistration = createServerFn({ method: "POST" })
             ? { documentNumber: data.document.documentNumber }
             : {}),
           ...(data.document.issuingCountry !== undefined
-            ? { issuingCountry: data.document.issuingCountry }
+            ? { issuingCountry: registrationIssuingCountry(data.document.issuingCountry) }
             : {}),
           ...(data.document.issueDate !== undefined ? { issueDate: data.document.issueDate } : {}),
           ...(data.document.expiryDate !== undefined
@@ -240,18 +243,27 @@ export const saveCheckInUnitRegistration = createServerFn({ method: "POST" })
       if (!saved.ok) throw new Error(saved.message);
     }
 
-    await writeCheckInUnitProgress({
-      restaurantId: data.restaurantId,
-      reservationId: data.reservationId,
-      reservationRoomId: target.reservationRoomId,
-      patch: {
-        registration_snapshot: {
-          guestId,
-          guestSource: target.guestSource,
-          fields: columns,
+    try {
+      await writeCheckInUnitProgress({
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        reservationRoomId: target.reservationRoomId,
+        patch: {
+          registration_snapshot: {
+            guestId,
+            guestSource: target.guestSource,
+            fields: columns,
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      throw new Error(
+        message
+          ? `Guest profile was saved, but the room registration could not be stored. ${message}`
+          : "Guest profile was saved, but the room registration could not be stored. Try again.",
+      );
+    }
     await recordReservationEvent({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,

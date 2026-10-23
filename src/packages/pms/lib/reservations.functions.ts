@@ -82,11 +82,8 @@ import {
 import { DEPOSIT_POLICY_TYPE_LABELS, type DepositPolicyCard3Row } from "./payments-card3.server";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
-import {
-  callPostFolioTransaction,
-  requireCashierOperator,
-} from "./cashiering.server";
-import { mapCashierShiftError } from "./fo-check-in";
+import { callPostFolioTransaction, requireCashierOperator } from "./cashiering.server";
+import { isRoomReady, mapCashierShiftError } from "./fo-check-in";
 import {
   createMoneyNeedsFolio,
   createReceiptShapeError,
@@ -111,6 +108,8 @@ import {
   type AssignmentEligibilityResult,
 } from "./room-inventory-compat";
 import { signRoomImages } from "./rooms.server";
+import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
+import { assignmentIneligibilityReason } from "./fo-checkin-v2-model";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -664,6 +663,105 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
           housekeepingStatus: room.housekeepingStatus,
         });
       }
+    }
+    return output;
+  });
+
+export type CheckInRoomCandidate = {
+  id: string;
+  roomNumber: string;
+  floor: string | null;
+  building: string | null;
+  physicalStatus: string | null;
+  housekeepingStatus: string | null;
+  maintenanceStatus: string | null;
+  eligible: boolean;
+  ineligibilityReason: string | null;
+  readyForCheckIn: boolean;
+  readyReason: string | null;
+};
+
+/**
+ * Check-In room picker. Includes ineligible rooms and policy-aware readiness.
+ * Assignment still goes through assignReservationRoom. This list does not assign.
+ */
+export const listCheckInRoomCandidates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        roomTypeId: idSchema,
+        arrival: dateSchema,
+        departure: dateSchema,
+        excludeReservationId: idSchema.optional(),
+        adults: z.number().int().min(0).max(20).optional(),
+        children: z.number().int().min(0).max(20).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<CheckInRoomCandidate[]> => {
+    await requireReservationManager(context as never, data.restaurantId);
+    const { arrival, departure } = assertStayDates(data.arrival, data.departure);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: rooms, error } = await supabaseAdmin
+      .from("hotel_rooms")
+      .select("id, room_number, floor, building, housekeeping_status, maintenance_status, status")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("room_type_id", data.roomTypeId)
+      .eq("active", true)
+      .order("room_number");
+    if (error) throw new Error(error.message);
+
+    const housekeeping = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
+    const output: CheckInRoomCandidate[] = [];
+    for (const room of rooms ?? []) {
+      const eligibility = await getAssignmentEligibilityCompat(
+        supabaseAdmin,
+        {
+          restaurantId: data.restaurantId,
+          roomId: room.id,
+          roomTypeId: data.roomTypeId,
+          arrival,
+          departure,
+          excludeReservationId: data.excludeReservationId ?? null,
+          adults: data.adults,
+          children: data.children,
+        },
+        () => ({
+          source: "legacy" as const,
+          eligible: room.status === "available",
+          blockers: room.status === "available" ? [] : [{ code: "ROOM_OPERATIONALLY_UNAVAILABLE" }],
+          warnings: [],
+          preferenceScore: 0,
+          preferenceReasons: [],
+        }),
+      );
+      const ready = isRoomReady(
+        {
+          status: room.status,
+          housekeepingStatus: room.housekeeping_status,
+          maintenanceStatus: room.maintenance_status,
+        },
+        housekeeping.settings,
+      );
+      output.push({
+        id: room.id,
+        roomNumber: room.room_number,
+        floor: room.floor,
+        building: room.building,
+        physicalStatus: room.status,
+        housekeepingStatus: room.housekeeping_status,
+        maintenanceStatus: room.maintenance_status,
+        eligible: eligibility.eligible,
+        ineligibilityReason: assignmentIneligibilityReason(
+          eligibility.eligible,
+          eligibility.blockers,
+        ),
+        readyForCheckIn: ready.ready,
+        readyReason: ready.reason,
+      });
     }
     return output;
   });
@@ -1273,6 +1371,7 @@ const stayInputSchema = z.object({
         children: z.number().int().min(0).max(20),
         infants: z.number().int().min(0).max(20),
         ratePlanId: idSchema.nullable().optional(),
+        pmsGroupBlockId: idSchema.nullable().optional(),
       }),
     )
     .max(20)
@@ -1405,7 +1504,13 @@ export const createReservation = createServerFn({ method: "POST" })
         travelAgentContactId: idSchema.nullable().optional(),
         bookerGuestId: idSchema.nullable().optional(),
         depositTenderCode: z.string().max(80).nullable().optional(),
-        paymentReceivedAmount: z.number().finite().nonnegative().max(999999999).nullable().optional(),
+        paymentReceivedAmount: z
+          .number()
+          .finite()
+          .nonnegative()
+          .max(999999999)
+          .nullable()
+          .optional(),
         paymentReceivedTender: z.string().max(80).nullable().optional(),
         paymentReceivedReference: z.string().max(80).nullable().optional(),
         paymentReceivedIdempotencyKey: z.string().max(80).nullable().optional(),
@@ -1547,23 +1652,42 @@ export const createReservation = createServerFn({ method: "POST" })
         const activeTenderCodes = polish.paymentMethodsAvailable
           ? polish.paymentMethods.filter((row) => row.active).map((row) => row.code)
           : null;
-        if (paymentReceipt.tender) assertReservationTenderCode(paymentReceipt.tender, activeTenderCodes);
+        if (paymentReceipt.tender)
+          assertReservationTenderCode(paymentReceipt.tender, activeTenderCodes);
         if (guestDepositReceipt.tender)
           assertReservationTenderCode(guestDepositReceipt.tender, activeTenderCodes);
       }
-      let groupLink: { groupId: string; blockId: string | null } | null = null;
-      if (data.pmsGroupBlockId || data.pmsGroupId) {
-        const { assertGroupStayPickup } = await import("./groups.functions");
-        groupLink = await assertGroupStayPickup(supabaseAdmin, {
+      let groupLink: {
+        groupId: string;
+        blockId: string | null;
+        unitBlockIds: Array<string | null>;
+      } | null = null;
+      const plannedGroupUnits = (
+        data.roomUnits && data.roomUnits.length > 0
+          ? data.roomUnits
+          : Array.from({ length: roomUnitPayload.rooms }, () => ({
+              roomTypeId: data.roomTypeId,
+              pmsGroupBlockId: data.pmsGroupBlockId ?? null,
+            }))
+      ).map((unit) => ({
+        roomTypeId: unit.roomTypeId,
+        blockId: unit.pmsGroupBlockId ?? data.pmsGroupBlockId ?? null,
+        proposed: {
+          arrivalDate: arrival,
+          departureDate: departure,
+          status,
+        },
+      }));
+      if (
+        data.pmsGroupBlockId ||
+        data.pmsGroupId ||
+        plannedGroupUnits.some((unit) => unit.blockId)
+      ) {
+        const { assertGroupUnitsPickup } = await import("./groups.functions");
+        groupLink = await assertGroupUnitsPickup(supabaseAdmin, {
           restaurantId: data.restaurantId,
           pmsGroupId: data.pmsGroupId ?? null,
-          pmsGroupBlockId: data.pmsGroupBlockId ?? null,
-          roomTypeId: data.roomTypeId,
-          proposed: {
-            arrivalDate: arrival,
-            departureDate: departure,
-            status,
-          },
+          units: plannedGroupUnits,
         });
       }
       if (data.travelAgentMasterId) {
@@ -1685,6 +1809,10 @@ export const createReservation = createServerFn({ method: "POST" })
           reservationId: row.id,
           groupId: groupLink.groupId,
           blockId: groupLink.blockId,
+          unitBlockIds: groupLink.unitBlockIds.map((blockId, index) => ({
+            unitSequence: index + 1,
+            blockId,
+          })),
         });
       }
       if (data.source === "walk_in") {
@@ -1825,6 +1953,362 @@ export const copyReservation = createServerFn({ method: "POST" })
 
 /* ------------------------------------------------------------------- amend */
 
+type EditQueryResult<T> = Promise<{ data: T; error: { message: string } | null }>;
+type EditFilter = EditQueryResult<unknown> & {
+  eq: (column: string, value: string) => EditFilter;
+  order: (column: string, options: { ascending: boolean }) => EditFilter;
+  maybeSingle: () => EditQueryResult<unknown>;
+};
+type EditDb = {
+  rpc: (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>;
+  from: (table: string) => {
+    select: (columns: string) => EditFilter;
+    update: (values: Record<string, string | number | null>) => EditFilter;
+  };
+};
+
+async function applyUnitScopedReservationEdit(input: {
+  supabaseAdmin: EditDb;
+  membershipId: string;
+  restaurantId: string;
+  reservationId: string;
+  reservationRoomId: string | null;
+  guestId: string;
+  roomTypeId: string;
+  roomId: string | null;
+  arrival: string;
+  departure: string;
+  adults: number;
+  children: number;
+  specialRequests: string | null;
+  notes: string | null;
+  ratePlanId: string | null;
+  commercialBookingSource: string | null | undefined;
+  marketSegment: string | null | undefined;
+  externalReference: string | null | undefined;
+  guaranteeMethod: string | null | undefined;
+}): Promise<{ id: string; amendment: StayAmendmentResult | null }> {
+  const db = input.supabaseAdmin;
+  const { arrival, departure } = assertStayDates(input.arrival, input.departure);
+  const stayRead = await db
+    .from("hotel_reservations")
+    .select(
+      "id, guest_id, room_type_id, room_id, status, arrival_date, departure_date, adults, children, infants, room_subtotal, currency, rate_plan_id, special_requests, notes, commercial_booking_source, market_segment, external_reference, guarantee_method, updated_at",
+    )
+    .eq("restaurant_id", input.restaurantId)
+    .eq("id", input.reservationId)
+    .maybeSingle();
+  if (stayRead.error) throw new Error(stayRead.error.message);
+  if (!stayRead.data) throw reservationError("RESERVATION_NOT_FOUND");
+  const master = stayRead.data as {
+    guest_id: string;
+    room_type_id: string;
+    room_id: string | null;
+    status: string;
+    arrival_date: string;
+    departure_date: string;
+    adults: number;
+    children: number;
+    infants: number | null;
+    room_subtotal: number | string | null;
+    currency: string | null;
+    rate_plan_id: string | null;
+    special_requests: string | null;
+    notes: string | null;
+    commercial_booking_source: string | null;
+    market_segment: string | null;
+    external_reference: string | null;
+    guarantee_method: string | null;
+    updated_at: string | null;
+  };
+  const unitsRead = await db
+    .from("hotel_reservation_rooms")
+    .select(
+      "id, unit_sequence, room_type_id, room_id, arrival_date, departure_date, adults, children, rate_plan_id, status, room_subtotal",
+    )
+    .eq("restaurant_id", input.restaurantId)
+    .eq("reservation_id", input.reservationId)
+    .order("unit_sequence", { ascending: true });
+  if (unitsRead.error) throw new Error(unitsRead.error.message);
+  const units = (unitsRead.data ?? []) as Array<{
+    id: string;
+    unit_sequence: number;
+    room_type_id: string;
+    room_id: string | null;
+    arrival_date: string;
+    departure_date: string;
+    adults: number;
+    children: number;
+    rate_plan_id: string | null;
+    status: string | null;
+    room_subtotal: number | string | null;
+  }>;
+  const multi = units.length > 1;
+  const unit = input.reservationRoomId
+    ? units.find((row) => row.id === input.reservationRoomId)
+    : units.length === 1
+      ? units[0]
+      : undefined;
+  if (input.reservationRoomId && !unit) throw reservationError("ROOM_UNIT_NOT_FOUND");
+  if (multi && !unit) {
+    const roomFieldsDiffer =
+      master.room_type_id !== input.roomTypeId ||
+      (master.room_id ?? null) !== input.roomId ||
+      master.arrival_date !== arrival ||
+      master.departure_date !== departure ||
+      master.adults !== input.adults ||
+      master.children !== input.children ||
+      (master.rate_plan_id ?? null) !== input.ratePlanId;
+    if (roomFieldsDiffer) throw reservationError("ROOM_UNIT_REQUIRED");
+  }
+
+  const scope = unit ?? {
+    id: input.reservationRoomId,
+    room_type_id: master.room_type_id,
+    room_id: master.room_id,
+    arrival_date: master.arrival_date,
+    departure_date: master.departure_date,
+    adults: master.adults,
+    children: master.children,
+    rate_plan_id: master.rate_plan_id,
+    status: master.status,
+    room_subtotal: master.room_subtotal,
+  };
+  const datesChanging = scope.arrival_date !== arrival || scope.departure_date !== departure;
+  const occupancyChanging = scope.adults !== input.adults || scope.children !== input.children;
+  const stayChanged = datesChanging || occupancyChanging;
+  const roomTypeChanged = scope.room_type_id !== input.roomTypeId;
+  const assignmentChanged = (scope.room_id ?? null) !== input.roomId;
+  const rateChanged = (scope.rate_plan_id ?? null) !== input.ratePlanId;
+  const notesChanged = (master.notes ?? null) !== input.notes;
+  const requestsChanged = (master.special_requests ?? null) !== input.specialRequests;
+  const masterOnly = units.length === 0;
+  if (multi && (stayChanged || roomTypeChanged)) {
+    throw reservationError("MULTI_ROOM_AMEND_UNSUPPORTED");
+  }
+  if (assignmentChanged && scope.status === "checked_in") {
+    throw reservationError(
+      "In-house room changes use the Front Office room move. Direct assign and unassign are not available after check-in.",
+    );
+  }
+  if (datesChanging && scope.status !== "pending" && scope.status !== "confirmed") {
+    throw reservationError("INVALID_TRANSITION");
+  }
+  if (datesChanging && (scope.status === "pending" || scope.status === "confirmed")) {
+    const propertyRead = await db
+      .from("restaurants")
+      .select("timezone, business_date")
+      .eq("id", input.restaurantId)
+      .maybeSingle();
+    if (propertyRead.error) throw new Error(propertyRead.error.message);
+    const property = propertyRead.data as {
+      business_date?: string | null;
+      timezone?: string | null;
+    } | null;
+    const businessDate = property?.business_date ?? propertyToday(property?.timezone || "UTC");
+    if ((scope.departure_date ?? "") < businessDate) {
+      throw reservationError("INVALID_TRANSITION");
+    }
+  }
+  const roomTypeRead = await db
+    .from("room_types")
+    .select("max_occupancy")
+    .eq("restaurant_id", input.restaurantId)
+    .eq("id", input.roomTypeId)
+    .maybeSingle();
+  if (roomTypeRead.error) throw new Error(roomTypeRead.error.message);
+  const roomType = roomTypeRead.data as { max_occupancy?: number | null } | null;
+  if (!roomType) throw new Error("Room type not found for this property.");
+  assertRoomTypeOccupancy(input.adults, input.children, roomType.max_occupancy ?? null);
+
+  if (datesChanging || roomTypeChanged) {
+    const { assertExistingReservationGroupPickup } = await import("./groups.functions");
+    await assertExistingReservationGroupPickup(input.supabaseAdmin, {
+      restaurantId: input.restaurantId,
+      reservationId: input.reservationId,
+      overlay: {
+        reservationRoomId: unit?.id ?? input.reservationRoomId,
+        roomTypeId: input.roomTypeId,
+        arrivalDate: arrival,
+        departureDate: departure,
+        status: scope.status ?? master.status,
+      },
+    });
+  }
+
+  const commercialMoneyChange = stayChanged || roomTypeChanged || rateChanged;
+  const unitId = unit?.id ?? null;
+  if (commercialMoneyChange && unitId) {
+    const gate = await db.rpc("assert_reservation_unit_room_charge_reconcilable", {
+      _restaurant_id: input.restaurantId,
+      _reservation_id: input.reservationId,
+      _reservation_room_id: unitId,
+    });
+    if (gate.error) throw reservationError(gate.error.message);
+  }
+
+  const pricedRoomId = masterOnly || roomTypeChanged ? input.roomId : (scope.room_id ?? null);
+  const pricedRatePlanId = scope.rate_plan_id;
+  const needPriced =
+    (!multi && (stayChanged || roomTypeChanged || (masterOnly && assignmentChanged))) ||
+    notesChanged ||
+    requestsChanged;
+  if (needPriced) {
+    const priced = await db.rpc("amend_hotel_reservation_priced", {
+      _restaurant_id: input.restaurantId,
+      _reservation_id: input.reservationId,
+      _room_type_id: multi ? master.room_type_id : input.roomTypeId,
+      _room_id: (multi ? master.room_id : pricedRoomId) as unknown as string,
+      _arrival: multi ? master.arrival_date : arrival,
+      _departure: multi ? master.departure_date : departure,
+      _adults: multi ? master.adults : input.adults,
+      _children: multi ? master.children : input.children,
+      _special_requests: input.specialRequests as unknown as string,
+      _notes: input.notes as unknown as string,
+      _rate_plan_id: (multi ? master.rate_plan_id : pricedRatePlanId) as unknown as string,
+      _membership_id: input.membershipId,
+      _infants: null,
+    });
+    if (priced.error) throw rateError(reservationError(priced.error.message).message);
+  }
+  if (assignmentChanged && !roomTypeChanged && unitId) {
+    const assigned = await db.rpc("assign_hotel_reservation_room_unit", {
+      _restaurant_id: input.restaurantId,
+      _reservation_id: input.reservationId,
+      _room_id: input.roomId as unknown as string,
+      _membership_id: input.membershipId,
+      _reservation_room_id: unitId,
+      _expected_room_id: scope.room_id,
+      _expected_updated_at: master.updated_at,
+    });
+    if (assigned.error) throw assignmentWriteError(assigned.error);
+  }
+  if (rateChanged && input.ratePlanId && unitId) {
+    const repriced = await db.rpc("reprice_hotel_reservation_room", {
+      _restaurant_id: input.restaurantId,
+      _reservation_id: input.reservationId,
+      _reservation_room_id: unitId,
+      _rate_plan_id: input.ratePlanId,
+      _membership_id: input.membershipId,
+    });
+    if (repriced.error) throw rateError(reservationError(repriced.error.message).message);
+  } else if (rateChanged && input.ratePlanId && masterOnly) {
+    const repriced = await db.rpc("reprice_hotel_reservation", {
+      _restaurant_id: input.restaurantId,
+      _reservation_id: input.reservationId,
+      _rate_plan_id: input.ratePlanId,
+      _membership_id: input.membershipId,
+    });
+    if (repriced.error) throw rateError(reservationError(repriced.error.message).message);
+  }
+  if (commercialMoneyChange && unitId) {
+    const reconciled = await db.rpc("reconcile_reservation_unit_room_charge", {
+      _restaurant_id: input.restaurantId,
+      _reservation_id: input.reservationId,
+      _reservation_room_id: unitId,
+      _membership_id: input.membershipId,
+    });
+    if (reconciled.error) throw reservationError(reconciled.error.message);
+  }
+
+  const commercialPatch: Record<string, string | null> = {};
+  if (input.guestId !== master.guest_id) commercialPatch.guest_id = input.guestId;
+  if (
+    input.commercialBookingSource !== undefined &&
+    input.commercialBookingSource !== master.commercial_booking_source
+  ) {
+    commercialPatch.commercial_booking_source = input.commercialBookingSource;
+  }
+  if (input.marketSegment !== undefined && input.marketSegment !== master.market_segment) {
+    commercialPatch.market_segment = input.marketSegment;
+  }
+  if (
+    input.externalReference !== undefined &&
+    input.externalReference !== master.external_reference
+  ) {
+    commercialPatch.external_reference = input.externalReference;
+  }
+  if (input.guaranteeMethod !== undefined && input.guaranteeMethod !== master.guarantee_method) {
+    commercialPatch.guarantee_method = input.guaranteeMethod;
+  }
+  if (Object.keys(commercialPatch).length > 0) {
+    const patched = await db
+      .from("hotel_reservations")
+      .update(commercialPatch)
+      .eq("id", input.reservationId)
+      .eq("restaurant_id", input.restaurantId);
+    if (patched.error) throw new Error(patched.error.message);
+    await recordReservationEvent({
+      restaurantId: input.restaurantId,
+      reservationId: input.reservationId,
+      eventType: "amended",
+      previousValues: {
+        guest_id: master.guest_id,
+        commercial_booking_source: master.commercial_booking_source,
+        market_segment: master.market_segment,
+        external_reference: master.external_reference,
+        guarantee_method: master.guarantee_method,
+      },
+      newValues: {
+        guest_id: commercialPatch.guest_id ?? master.guest_id,
+        commercial_booking_source:
+          commercialPatch.commercial_booking_source ?? master.commercial_booking_source,
+        market_segment: commercialPatch.market_segment ?? master.market_segment,
+        external_reference: commercialPatch.external_reference ?? master.external_reference,
+        guarantee_method: commercialPatch.guarantee_method ?? master.guarantee_method,
+      },
+      actorMembershipId: input.membershipId,
+    });
+  }
+
+  const afterRead = await db
+    .from("hotel_reservations")
+    .select("arrival_date, departure_date, adults, children, infants, room_subtotal, currency")
+    .eq("restaurant_id", input.restaurantId)
+    .eq("id", input.reservationId)
+    .maybeSingle();
+  if (afterRead.error) throw new Error(afterRead.error.message);
+  const updated = (afterRead.data ?? null) as {
+    arrival_date?: string;
+    departure_date?: string;
+    adults?: number;
+    children?: number;
+    infants?: number | null;
+    room_subtotal?: number | string | null;
+    currency?: string | null;
+  } | null;
+  if (datesChanging || roomTypeChanged) {
+    const { resyncGroupBlockInventoryForReservation } = await import("./groups.functions");
+    await resyncGroupBlockInventoryForReservation(
+      input.supabaseAdmin,
+      input.membershipId,
+      input.restaurantId,
+      input.reservationId,
+    );
+  }
+  return {
+    id: input.reservationId,
+    amendment: buildStayAmendmentResult({
+      previousArrival: master.arrival_date,
+      nextArrival: updated?.arrival_date ?? arrival,
+      previousDeparture: master.departure_date,
+      nextDeparture: updated?.departure_date ?? departure,
+      previousAdults: Number(master.adults),
+      nextAdults: Number(updated?.adults ?? input.adults),
+      previousChildren: Number(master.children),
+      nextChildren: Number(updated?.children ?? input.children),
+      previousInfants: Number(master.infants ?? 0),
+      nextInfants: Number(updated?.infants ?? master.infants ?? 0),
+      currency: updated?.currency ?? master.currency,
+      previousRoomSubtotal: master.room_subtotal,
+      nextRoomSubtotal: updated?.room_subtotal,
+    }),
+  };
+}
+
 export const amendReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
@@ -1836,6 +2320,7 @@ export const amendReservation = createServerFn({ method: "POST" })
         externalReference: z.string().max(120).nullable().optional(),
         guaranteeMethod: z.string().max(80).nullable().optional(),
         purposeOfStay: z.string().max(40).nullable().optional(),
+        reservationRoomId: idSchema.nullable().optional(),
         arrivalTransport: z.string().max(200).nullable().optional(),
         pickupNote: z.string().max(200).nullable().optional(),
         specialOccasion: z.string().max(80).nullable().optional(),
@@ -1847,11 +2332,40 @@ export const amendReservation = createServerFn({ method: "POST" })
       const me = await requireReservationManager(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
+      if (data.reservationRoomId !== undefined) {
+        return applyUnitScopedReservationEdit({
+          supabaseAdmin: supabaseAdmin as unknown as EditDb,
+          membershipId: me.id,
+          restaurantId: data.restaurantId,
+          reservationId: data.reservationId,
+          reservationRoomId: data.reservationRoomId,
+          guestId: data.guestId,
+          roomTypeId: data.roomTypeId,
+          roomId: data.roomId ?? null,
+          arrival: data.arrival,
+          departure: data.departure,
+          adults: data.adults,
+          children: data.children,
+          specialRequests: blankToNull(data.specialRequests),
+          notes: blankToNull(data.notes),
+          ratePlanId: data.ratePlanId ?? null,
+          commercialBookingSource:
+            data.commercialBookingSource !== undefined
+              ? blankToNull(data.commercialBookingSource)
+              : undefined,
+          marketSegment:
+            data.marketSegment !== undefined ? blankToNull(data.marketSegment) : undefined,
+          externalReference:
+            data.externalReference !== undefined ? blankToNull(data.externalReference) : undefined,
+          guaranteeMethod:
+            data.guaranteeMethod !== undefined ? blankToNull(data.guaranteeMethod) : undefined,
+        });
+      }
       const { arrival, departure } = assertStayDates(data.arrival, data.departure);
       const { data: existing, error: readError } = await supabaseAdmin
         .from("hotel_reservations")
         .select(
-          "id, guest_id, room_type_id, status, arrival_date, departure_date, adults, children, infants, room_subtotal, currency, commercial_booking_source, market_segment, external_reference, guarantee_method, travel_agent_master_id, purpose_of_stay, arrival_transport, pickup_note, special_occasion",
+          "id, guest_id, room_type_id, status, arrival_date, departure_date, adults, children, infants, room_subtotal, currency, commercial_booking_source, market_segment, external_reference, guarantee_method, travel_agent_master_id, purpose_of_stay, arrival_transport, pickup_note, special_occasion, pms_group_id, pms_group_block_id",
         )
         .eq("restaurant_id", data.restaurantId)
         .eq("id", data.reservationId)
@@ -1912,6 +2426,21 @@ export const amendReservation = createServerFn({ method: "POST" })
       if (occupancyError) throw new Error(occupancyError.message);
       if (!roomType) throw new Error("Room type not found for this property.");
       assertRoomTypeOccupancy(data.adults, data.children, roomType.max_occupancy);
+
+      const typeChanging = existing.room_type_id !== data.roomTypeId;
+      if (datesChanging || typeChanging) {
+        const { assertExistingReservationGroupPickup } = await import("./groups.functions");
+        await assertExistingReservationGroupPickup(supabaseAdmin, {
+          restaurantId: data.restaurantId,
+          reservationId: data.reservationId,
+          overlay: {
+            roomTypeId: data.roomTypeId,
+            arrivalDate: arrival,
+            departureDate: departure,
+            status: stayRow.status,
+          },
+        });
+      }
 
       const travelAgentMasterId = (existing as { travel_agent_master_id?: string | null })
         .travel_agent_master_id;
@@ -2117,8 +2646,16 @@ export const amendReservation = createServerFn({ method: "POST" })
         nextRoomSubtotal: updatedRow?.room_subtotal,
       });
 
-      return { id: (updated as unknown as { id: string }).id, amendment };
       const amendedId = (updated as unknown as { id: string }).id;
+      if (datesChanging || typeChanging) {
+        const { resyncGroupBlockInventoryForReservation } = await import("./groups.functions");
+        await resyncGroupBlockInventoryForReservation(
+          supabaseAdmin,
+          me.id,
+          data.restaurantId,
+          amendedId,
+        );
+      }
       if (travelAgentMasterId) {
         const { syncTravelAgentCommission } = await import("./guest-travel-agent-booking");
         const { notifyTravelAgentBookingEvent } =
@@ -2136,15 +2673,20 @@ export const amendReservation = createServerFn({ method: "POST" })
           body: `Reservation ${amendedId} was modified for this travel agency.`,
         });
       }
-      return { id: amendedId };
+      return { id: amendedId, amendment };
     },
   );
 
-const ROOM_ASSIGNMENT_UNAVAILABLE =
+export const ROOM_ASSIGNMENT_UNAVAILABLE =
   "This room is no longer available. Select another eligible room.";
+export const ROOM_ASSIGNMENT_STALE =
+  "This room assignment changed. Refresh room availability and try again.";
 
 function assignmentWriteError(error: { message: string }): Error {
   const mapped = reservationError(error.message);
+  if (/ASSIGNMENT_STALE/i.test(`${error.message} ${mapped.message}`)) {
+    return new Error(ROOM_ASSIGNMENT_STALE);
+  }
   if (
     /ROOM_NOT_ASSIGNABLE|ROOM_ALREADY_BOOKED|NO_AVAILABILITY|eligible|available|booked|occupied|blocked/i.test(
       `${error.message} ${mapped.message}`,
@@ -2165,6 +2707,8 @@ export const assignReservationRoom = createServerFn({ method: "POST" })
         reservationId: idSchema,
         roomId: idSchema.nullable(),
         reservationRoomId: idSchema.optional(),
+        expectedRoomId: idSchema.nullable().optional(),
+        expectedUpdatedAt: z.string().min(1).nullable().optional(),
       })
       .parse(input),
   )
@@ -2240,6 +2784,8 @@ export const assignReservationRoom = createServerFn({ method: "POST" })
         _room_id: data.roomId as unknown as string,
         _membership_id: me.id,
         _reservation_room_id: targetUnit.id,
+        _expected_room_id: data.expectedRoomId as unknown as string,
+        _expected_updated_at: data.expectedUpdatedAt as unknown as string,
       });
       if (assignError) throw assignmentWriteError(assignError);
       return { id: data.reservationId };
@@ -2428,6 +2974,20 @@ export const setReservationStatus = createServerFn({ method: "POST" })
       .maybeSingle();
     const agencyId = (bound.data as { travel_agent_master_id?: string | null } | null)
       ?.travel_agent_master_id;
+    if (
+      data.status === "cancelled" ||
+      data.status === "confirmed" ||
+      existing.status === "cancelled"
+    ) {
+      const { resyncGroupBlockInventoryForReservation } = await import("./groups.functions");
+      await resyncGroupBlockInventoryForReservation(
+        supabaseAdmin,
+        me.id,
+        data.restaurantId,
+        data.reservationId,
+      );
+    }
+
     if (agencyId) {
       const { syncTravelAgentCommission } = await import("./guest-travel-agent-booking");
       const { notifyTravelAgentBookingEvent } =

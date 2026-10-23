@@ -176,6 +176,16 @@ describe("DB-04I-05 Booking Calendar read model", () => {
     assert.equal(cancelled.exceptionKeys.includes("unassigned"), false);
     assert.match(source, /bar\.status === "pending" \|\| bar\.status === "confirmed"/);
     assert.deepEqual([...CALENDAR_BAR_STATUSES], ["pending", "confirmed", "checked_in"]);
+    const unit = mapCalendarBar({
+      ...summary({ roomId: null, confirmationNumber: "NR-000020" }),
+      reservationRoomId: "unit-2",
+      unitSequence: 2,
+    });
+    assert.equal(unit.reservationRoomId, "unit-2");
+    assert.equal(unit.unitSequence, 2);
+    assert.equal(unit.confirmationNumber, "NR-000020");
+    assert.match(source, /uniqueReservationRoomUnits/);
+    assert.match(source, /reservationRoomId: unit\?\.id \?\? null/);
   });
 
   it("flags overlapping assignments on the same room without inventing lock schema", () => {

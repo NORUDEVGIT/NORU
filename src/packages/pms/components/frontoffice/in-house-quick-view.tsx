@@ -11,7 +11,8 @@ import {
   getFrontOfficeInHouseQuickView,
   type FoInHouseQuickView,
 } from "@/packages/pms/lib/fo-inhouse.functions";
-import { inHouseMenuItems } from "@/packages/pms/lib/fo-inhouse";
+import { inHouseMenuItems, inHouseExceptionOwner } from "@/packages/pms/lib/fo-inhouse";
+import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
 import { FoGuestServicesPanel } from "@/packages/pms/components/frontoffice/fo-guest-services-panel";
 import { useMoney } from "@/core/state/property-format";
 import { Button } from "@/shared/components/ui/button";
@@ -49,17 +50,20 @@ export type InHouseQuickViewAction =
   | "guest_request"
   | "open_guest"
   | "open_folio"
+  | "open_maintenance"
   | "check_out";
 
 export function InHouseQuickViewSheet({
   restaurantId,
   reservationId,
+  reservationRoomId = null,
   open,
   onOpenChange,
   onAction,
 }: {
   restaurantId: string;
   reservationId: string | null;
+  reservationRoomId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAction: (action: InHouseQuickViewAction, qv: FoInHouseQuickView) => void;
@@ -67,9 +71,17 @@ export function InHouseQuickViewSheet({
   const money = useMoney();
   const fetchQv = useServerFn(getFrontOfficeInHouseQuickView);
   const qvQuery = useQuery({
-    queryKey: ["front-office", "inhouse-qv", restaurantId, reservationId],
-    queryFn: () => fetchQv({ data: { restaurantId, reservationId: reservationId! } }),
+    queryKey: ["front-office", "inhouse-qv", restaurantId, reservationId, reservationRoomId],
+    queryFn: () =>
+      fetchQv({
+        data: {
+          restaurantId,
+          reservationId: reservationId!,
+          ...(reservationRoomId ? { reservationRoomId } : {}),
+        },
+      }),
     enabled: open && Boolean(reservationId),
+    ...foOperationalQueryOptions(),
     retry: false,
   });
 
@@ -147,8 +159,38 @@ export function InHouseQuickViewSheet({
               </dl>
             </section>
 
-            <section className="space-y-2">
+            <section className="space-y-2" data-testid="fo-inhouse-stay-actions">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Stay</h3>
+              <div className="flex flex-wrap gap-2">
+                {qv.hints.canMoveRoom ? (
+                  <Button type="button" size="sm" variant="outline" onClick={() => onAction("room_move", qv)}>
+                    Move room
+                  </Button>
+                ) : null}
+                {qv.hints.canAmendStay ? (
+                  <>
+                    <Button type="button" size="sm" variant="outline" data-testid="fo-inhouse-extend" onClick={() => onAction("amend_stay", qv)}>
+                      Extend stay
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" data-testid="fo-inhouse-early-departure" onClick={() => onAction("amend_stay", qv)}>
+                      Early departure
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => onAction("guests", qv)}>
+                      Occupancy
+                    </Button>
+                  </>
+                ) : null}
+                {qv.hints.canOpenGuest ? (
+                  <Button type="button" size="sm" variant="outline" onClick={() => onAction("open_guest", qv)}>
+                    Update guest
+                  </Button>
+                ) : null}
+                {qv.hints.canCheckOut ? (
+                  <Button type="button" size="sm" onClick={() => onAction("check_out", qv)}>
+                    Check out
+                  </Button>
+                ) : null}
+              </div>
               <dl className="space-y-1.5">
                 <Field
                   label="Dates"
@@ -212,6 +254,15 @@ export function InHouseQuickViewSheet({
               guestId={qv.stay.guestId}
             />
 
+            <section className="space-y-2" id="fo-inhouse-notes">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notes</h3>
+              <p className="text-sm">{qv.notes?.trim() || "No internal note."}</p>
+              <p className="text-sm text-muted-foreground">{qv.stay.specialRequests?.trim() || "No special request."}</p>
+              <Button type="button" size="sm" variant="outline" onClick={() => onAction("special", qv)}>
+                Update special request
+              </Button>
+            </section>
+
             <section className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Stay controls</h3>
               <dl className="space-y-1.5">
@@ -235,10 +286,21 @@ export function InHouseQuickViewSheet({
               {qv.exceptions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No operational exceptions.</p>
               ) : (
-                <ul className="space-y-1 text-sm">
+                <ul className="space-y-1">
                   {qv.exceptions.map((item) => (
-                    <li key={item.key} className={item.blocking ? "text-destructive" : "text-foreground"}>
-                      {item.label}
+                    <li key={item.key}>
+                      <button
+                        type="button"
+                        data-testid={`fo-inhouse-exception-${item.key}`}
+                        className={
+                          item.blocking
+                            ? "w-full rounded-lg bg-destructive/10 px-2.5 py-1.5 text-left text-sm text-destructive"
+                            : "w-full rounded-lg bg-[#F4E9D0] px-2.5 py-1.5 text-left text-sm text-[#251605]"
+                        }
+                        onClick={() => onAction(inHouseExceptionOwner(item.key), qv)}
+                      >
+                        {item.label}
+                      </button>
                     </li>
                   ))}
                 </ul>

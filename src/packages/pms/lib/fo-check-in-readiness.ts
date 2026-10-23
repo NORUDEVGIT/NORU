@@ -180,11 +180,77 @@ export function registrationSnapshotIsComplete(snapshot: unknown): boolean {
   }
   const fields = record.fields;
   if (!fields || typeof fields !== "object") return false;
-  const profile = fields as Record<string, unknown>;
-  const name = `${snapshotText(profile.first_name)} ${snapshotText(profile.last_name)}`.trim();
+  return registrationSnapshotGaps(snapshot).length === 0;
+}
+
+/** Same fields as registrationSnapshotIsComplete. Does not add a new rule. */
+export function registrationSnapshotGaps(snapshot: unknown): string[] {
+  if (!snapshot || typeof snapshot !== "object") {
+    return ["First and last name are required.", "Phone or email is required."];
+  }
+  const record = snapshot as Record<string, unknown>;
+  const profile =
+    record.fields && typeof record.fields === "object"
+      ? (record.fields as Record<string, unknown>)
+      : record;
+  const name = `${snapshotText(profile.first_name) || snapshotText(profile.firstName)} ${
+    snapshotText(profile.last_name) || snapshotText(profile.lastName)
+  }`.trim();
   const phone = snapshotText(profile.phone).trim();
   const email = snapshotText(profile.email).trim();
-  return name.length > 0 && (phone.length > 0 || email.length > 0);
+  const gaps: string[] = [];
+  if (!name) gaps.push("First and last name are required.");
+  if (!phone && !email) gaps.push("Phone or email is required.");
+  return gaps;
+}
+
+export type RegistrationCompletionState = "complete" | "incomplete" | "waived";
+
+export type RegistrationCompletionProjection = {
+  state: RegistrationCompletionState;
+  label: "Complete" | "Incomplete" | "Waived";
+  detail: string | null;
+  missingRequirements: string[];
+  identitySatisfied: boolean;
+  savedSnapshotExists: boolean;
+};
+
+/**
+ * Presentation of the readiness registration result.
+ * A saved snapshot does not make this complete. A waiver does not either.
+ */
+export function registrationCompletionProjection(input: {
+  complete: boolean;
+  waived: boolean;
+  savedSnapshotExists?: boolean;
+  identitySatisfied?: boolean;
+  missingRequirements?: readonly string[];
+}): RegistrationCompletionProjection {
+  const missing = (input.missingRequirements ?? [])
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  const shared = {
+    missingRequirements: input.complete || input.waived ? [] : missing,
+    identitySatisfied: Boolean(input.identitySatisfied),
+    savedSnapshotExists: Boolean(input.savedSnapshotExists),
+  };
+  if (input.complete) {
+    return { state: "complete", label: "Complete", detail: null, ...shared };
+  }
+  if (input.waived) {
+    return {
+      state: "waived",
+      label: "Waived",
+      detail: "Registration data incomplete — Waived",
+      ...shared,
+    };
+  }
+  return {
+    state: "incomplete",
+    label: "Incomplete",
+    detail: missing.length > 0 ? missing.join("; ") : REGISTRATION_INCOMPLETE_BANNER,
+    ...shared,
+  };
 }
 
 /**

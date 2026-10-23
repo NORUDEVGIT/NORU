@@ -57,7 +57,10 @@ import { ReservationDetailRoomsTab } from "@/packages/pms/components/workspaces/
 import { ReservationDetailPackagesTab } from "@/packages/pms/components/workspaces/reservation-detail-packages";
 import { ReservationDetailFolioTab } from "@/packages/pms/components/workspaces/reservation-detail-folio";
 import { getReservationFolio, getFolio } from "@/packages/pms/lib/cashiering.functions";
-import { folioLedgerSummary } from "@/packages/pms/lib/reservation-detail-folio";
+import {
+  NO_FOLIO_LABEL,
+  projectReservationCashieringSummary,
+} from "@/packages/pms/lib/reservation-cashiering-summary";
 import { reservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle";
 import { ReservationDetailRequestsTab } from "@/packages/pms/components/workspaces/reservation-detail-requests";
 import { ReservationDetailNotesTab } from "@/packages/pms/components/workspaces/reservation-detail-notes";
@@ -567,16 +570,36 @@ export function ReservationDetailWorkspace({
 
   if (embedded) {
     const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
-    const folioSummary = folioLedgerSummary(folioQuery.data ?? null);
-    const paymentReceived = folioSummary?.payments ?? null;
-    const guestDepositCredits = folioSummary?.depositCredits ?? null;
-    const guestDepositReceived =
-      guestDepositCredits != null && guestDepositCredits > 0 ? guestDepositCredits : null;
-    const paymentHasCredit = paymentReceived != null && paymentReceived > 0;
-    const paymentPercentage =
-      paymentReceived != null && headerRoomTotal != null && headerRoomTotal > 0
-        ? Math.round((paymentReceived / headerRoomTotal) * 100)
-        : null;
+    const ledgerPending =
+      !previewFolioQuery.isFetched || (previewFolioQuery.data?.id != null && !folioQuery.isFetched);
+    const cashieringSummary = projectReservationCashieringSummary({
+      reservationRoomTotal: headerRoomTotal,
+      depositRequirementSnapshot: reservation.depositRequirementSnapshot,
+      folio:
+        previewFolioQuery.data == null
+          ? null
+          : folioQuery.data
+            ? {
+                balance: folioQuery.data.balance,
+                transactions: folioQuery.data.transactions,
+              }
+            : null,
+    });
+    const paymentReceived = ledgerPending ? undefined : cashieringSummary.paymentReceived;
+    const guestDepositReceived = ledgerPending ? undefined : cashieringSummary.depositReceived;
+    const paymentRefunded = ledgerPending ? undefined : cashieringSummary.refunded;
+    const paymentFigure =
+      paymentReceived === undefined
+        ? DETAIL_DASH
+        : paymentReceived === null
+          ? NO_FOLIO_LABEL
+          : money(paymentReceived);
+    const depositFigure =
+      guestDepositReceived === undefined
+        ? DETAIL_DASH
+        : guestDepositReceived === null
+          ? NO_FOLIO_LABEL
+          : money(guestDepositReceived);
     const roomType = (availabilityQuery.data ?? []).find(
       (row) => row.roomTypeId === reservation.roomTypeId,
     );
@@ -721,7 +744,8 @@ export function ReservationDetailWorkspace({
         timezone={timezone}
         money={money}
         coverUrl={roomType?.coverUrl ?? null}
-        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        paymentReceived={paymentReceived}
+        paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
         totalAmount={headerRoomTotal}
         onBackToOverview={() => setDetailTab("overview")}
@@ -737,7 +761,8 @@ export function ReservationDetailWorkspace({
         canManage={stayMutable}
         money={money}
         coverUrl={roomType?.coverUrl ?? null}
-        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        paymentReceived={paymentReceived}
+        paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
         totalAmount={headerRoomTotal}
         onBackToOverview={() => setDetailTab("overview")}
@@ -768,7 +793,8 @@ export function ReservationDetailWorkspace({
         canManage={stayMutable}
         businessDate={businessDate}
         money={money}
-        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        paymentReceived={paymentReceived}
+        paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
         coverUrl={roomType?.coverUrl ?? null}
         occupancyLabel={
@@ -788,22 +814,21 @@ export function ReservationDetailWorkspace({
         reservation={reservation}
         canManage={stayMutable}
         money={money}
-        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        paymentReceived={paymentReceived}
+        paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
         coverUrl={roomType?.coverUrl ?? null}
-        onBackToRates={() => setDetailTab("rates")}
       />
     );
     const folioPanel = (
       <ReservationDetailFolioTab
         restaurantId={restaurantId}
         reservation={reservation}
-        canManage={canManage && !cancelled}
         money={money}
-        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        paymentReceived={paymentReceived}
+        paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
         coverUrl={roomType?.coverUrl ?? null}
-        onBackToPackages={() => setDetailTab("packages")}
       />
     );
     const requestsPanel = (
@@ -815,7 +840,8 @@ export function ReservationDetailWorkspace({
         history={history}
         canManage={stayMutable}
         money={money}
-        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        paymentReceived={paymentReceived}
+        paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
         coverUrl={roomType?.coverUrl ?? null}
         onBackToFolio={() => setDetailTab("folio")}
@@ -831,7 +857,8 @@ export function ReservationDetailWorkspace({
         history={history}
         canManage={stayMutable}
         money={money}
-        paymentReceived={paymentHasCredit ? paymentReceived : null}
+        paymentReceived={paymentReceived}
+        paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
         coverUrl={roomType?.coverUrl ?? null}
         onBackToRequests={() => setDetailTab("requests")}
@@ -927,22 +954,34 @@ export function ReservationDetailWorkspace({
             },
             reservationHeaderRoomKpi(reservation),
             {
-              label: "Total Amount",
+              label: detailTab === "folio" ? "Reservation room total" : "Total Amount",
               value: headerRoomTotal == null ? DETAIL_DASH : money(headerRoomTotal),
             },
             {
               label: "Payment Received",
-              value: paymentHasCredit ? money(paymentReceived) : "—",
-              hint: paymentHasCredit
-                ? paymentPercentage != null
-                  ? `${paymentPercentage}% of total`
-                  : null
-                : "No payment received",
+              value: paymentFigure,
+              hint:
+                paymentReceived === undefined
+                  ? null
+                  : paymentReceived === null
+                    ? NO_FOLIO_LABEL
+                    : paymentReceived === 0
+                      ? "No payment received"
+                      : paymentRefunded != null && paymentRefunded > 0
+                        ? `Refunded ${money(paymentRefunded)}`
+                        : null,
             },
             {
               label: "Guest Deposit",
-              value: guestDepositReceived == null ? "—" : money(guestDepositReceived),
-              hint: guestDepositReceived == null ? "No deposit received" : null,
+              value: depositFigure,
+              hint:
+                guestDepositReceived === undefined
+                  ? null
+                  : guestDepositReceived === null
+                    ? NO_FOLIO_LABEL
+                    : guestDepositReceived === 0
+                      ? "No deposit received"
+                      : null,
             },
           ]}
         />
@@ -2040,8 +2079,8 @@ function PricingSection({
 
       {canManage && multiRoom ? (
         <p className="mt-4 text-xs text-muted-foreground">
-          Rate plan changes apply to one room at a time on the Rates tab. The booking total rolls
-          up from the room units.
+          Rate plan changes apply to one room at a time on the Rates tab. The booking total rolls up
+          from the room units.
         </p>
       ) : null}
       {canManage && !multiRoom ? (

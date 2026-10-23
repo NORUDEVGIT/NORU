@@ -26,6 +26,7 @@ import { listAssignableRooms } from "@/packages/pms/lib/reservations.functions";
 import { GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
 import { guestListItems, listGuests, type GuestSummary } from "@/packages/pms/lib/guests.functions";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
+import { stayDateTargetsOneRoom } from "@/packages/pms/lib/fo-unit-desk";
 import { assignableListUi, formatRoomTypeLabel } from "@/packages/pms/lib/fo-room-assignment";
 import { AssignableRoomsHint } from "@/packages/pms/components/frontoffice/assignable-rooms-hint";
 import { useMoney } from "@/core/state/property-format";
@@ -301,8 +302,13 @@ export function FoAmendUpgradeSheet({
   });
 
   const mutation = useMutation({
-    mutationFn: () =>
-      upgrade({
+    mutationFn: () => {
+      if (!stayDateTargetsOneRoom(stay)) {
+        throw new Error(
+          "This room is one of several on the reservation. This desk will not change every room from this row.",
+        );
+      }
+      return upgrade({
         data: {
           restaurantId,
           reservationId: stay.id,
@@ -310,7 +316,8 @@ export function FoAmendUpgradeSheet({
           roomId: roomId || null,
           reason: reason.trim(),
         },
-      }),
+      });
+    },
     onSuccess: () => {
       toast.success("Room type updated.");
       refreshKeys(queryClient);
@@ -548,6 +555,11 @@ export function FoAmendGuestsSheet({
   const mutation = useMutation({
     mutationFn: async () => {
       if (occupancyChanged) {
+        if (!stayDateTargetsOneRoom(stay)) {
+          throw new Error(
+            "This room is one of several on the reservation. This desk will not change every room from this row.",
+          );
+        }
         await save({
           data: {
             restaurantId,

@@ -21,6 +21,8 @@ function bar(overrides: Partial<CalendarBar> = {}): CalendarBar {
   return {
     reservationId: "res-1",
     confirmationNumber: "NR-000001",
+    reservationRoomId: null,
+    unitSequence: null,
     guestId: "guest-1",
     guestName: "Ada Lovelace",
     guestVip: false,
@@ -112,7 +114,16 @@ describe("Booking Calendar helpers", () => {
     const row = calendarBarToDeskRow(
       bar({ roomId: null, exceptionKeys: ["unassigned"] }),
       [],
-      [{ roomTypeId: "type-1", roomTypeName: "Deluxe", physicalCapacity: 2, available: 4, reserved: 1, source: "canonical" }],
+      [
+        {
+          roomTypeId: "type-1",
+          roomTypeName: "Deluxe",
+          physicalCapacity: 2,
+          available: 4,
+          reserved: 1,
+          source: "canonical",
+        },
+      ],
     );
     expect(row.hints.canAssignRoom).toBe(true);
     expect(row.guestPhone).toBeNull();

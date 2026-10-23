@@ -228,6 +228,17 @@ describe("check-in v2 agreement", () => {
     assert.match(workspace, /Complete Check-In/);
   });
 
+  it("keeps the property version, unit instance, signature, and history", () => {
+    const writer = readRel("./fo-check-in-agreement.functions.ts");
+    assert.match(writer, /pms_registration_agreement_versions/);
+    assert.match(writer, /fo_checkin_agreement_instances/);
+    assert.match(writer, /reservation_room_id: target\.reservationRoomId/);
+    assert.match(writer, /signature_storage_path: data\.storagePath/);
+    assert.match(writer, /notes: "Registration agreement saved\."/);
+    assert.match(writer, /notes: "Registration agreement signed\."/);
+    assert.match(writer, /reservationRoomId: target\.reservationRoomId/);
+  });
+
   it("does not use profile consent or email signature fields", () => {
     assert.doesNotMatch(agreement, /data_processing_consent|marketing_consent/);
     assert.doesNotMatch(agreement, /pms_communication_sender_settings|pms_communication_defaults/);

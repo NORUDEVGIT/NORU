@@ -9,12 +9,14 @@ import {
 export function CreateReservationConfirmation({
   view,
   onOpenReservation,
+  onContinueToCheckIn,
   onReturnToDesk,
   onCreateAnother,
   returnToLabel,
 }: {
   view: CreatedReservationConfirmation;
   onOpenReservation?: ((reservationId: string) => void) | undefined;
+  onContinueToCheckIn?: (() => void) | undefined;
   onReturnToDesk?: (() => void) | undefined;
   onCreateAnother?: (() => void) | undefined;
   returnToLabel?: string | undefined;
@@ -113,6 +115,22 @@ export function CreateReservationConfirmation({
             <dd>{view.marketSegment}</dd>
           </div>
         ) : null}
+        {view.operationalGroupName ? (
+          <div className="sm:col-span-2" data-testid="confirmation-linked-group">
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Linked to</dt>
+            <dd>
+              {view.operationalGroupName}
+              {view.operationalGroupCode ? ` · ${view.operationalGroupCode}` : ""}
+            </dd>
+            {view.operationalUnitLines?.length ? (
+              <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+                {view.operationalUnitLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
         {view.externalReference ? (
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -170,6 +188,15 @@ export function CreateReservationConfirmation({
       </dl>
 
       <div className="create-reservation-confirmation-actions mt-6 flex flex-wrap gap-3">
+        {onContinueToCheckIn ? (
+          <Button
+            type="button"
+            data-testid="fo-walk-in-continue-check-in"
+            onClick={onContinueToCheckIn}
+          >
+            Continue to Check-In
+          </Button>
+        ) : null}
         <Button type="button" data-testid="create-reservation-print" onClick={() => window.print()}>
           {CREATE_RESERVATION_PRINT_LABEL} Confirmation
         </Button>

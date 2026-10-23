@@ -8,6 +8,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { loadFoStaySignals } from "./fo-exceptions.functions";
 import type { FolioSignalLane, StayMoneySignal } from "./fo-exceptions";
+import { focusFrontOfficeStay } from "./fo-unit-desk";
 import {
   loadFrontOfficeInHouse,
   loadFrontOfficeStay,
@@ -100,6 +101,7 @@ export type FoInHouseQuickView = {
   exceptions: FoInHouseExceptionItem[];
   hints: FoInHouseActionHints;
   history: FoInHouseHistoryItem[];
+  notes: string | null;
   businessDate: string;
   settings: FoInHousePropertySettings;
 };
@@ -250,21 +252,32 @@ export const listFrontOfficeInHouseDesk = createServerFn({ method: "POST" })
 export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
-    z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
+    z
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        reservationRoomId: idSchema.optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<FoInHouseQuickView> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadInHouseSettings(supabaseAdmin, data.restaurantId);
     const today = resolvePropertyBusinessDate(settings.businessDate, settings.timezone);
-    const stay = await loadFrontOfficeStay(context.supabase, {
+    let stay = await loadFrontOfficeStay(context.supabase, {
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
       today,
     });
     if (!stay) throw new Error("Reservation not found for this property.");
+    const focused = focusFrontOfficeStay(stay, data.reservationRoomId, today);
+    if (data.reservationRoomId && focused.reservationRoomId !== data.reservationRoomId) {
+      throw new Error("ROOM_UNIT_NOT_FOUND");
+    }
+    stay = focused;
 
-    const [{ data: guestRow }, { data: roomRow }, signals, { data: historyRows }] = await Promise.all([
+    const [{ data: guestRow }, { data: roomRow }, { data: noteRow }, signals, { data: historyRows }] = await Promise.all([
       supabaseAdmin
         .from("guest_profiles")
         .select("first_name, last_name, phone, email, vip_status")
@@ -279,6 +292,12 @@ export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
             .eq("id", stay.roomId)
             .maybeSingle()
         : Promise.resolve({ data: null }),
+      supabaseAdmin
+        .from("hotel_reservations")
+        .select("notes")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", stay.id)
+        .maybeSingle(),
       loadFoStaySignals({
         context: context as never,
         restaurantId: data.restaurantId,
@@ -369,6 +388,7 @@ export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
         blocking: blocking.includes(key),
       })),
       hints,
+      notes: (noteRow?.notes as string | null) ?? null,
       history: ((historyRows ?? []) as Array<{ event_type: string; notes: string | null; created_at: string }>).map(
         (row) => ({
           eventType: row.event_type,

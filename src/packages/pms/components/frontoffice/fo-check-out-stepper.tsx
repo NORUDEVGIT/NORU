@@ -112,7 +112,9 @@ export function FoCheckOutStepper({
   const [payRef, setPayRef] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
   const [emailTo, setEmailTo] = useState("");
-  const [reservationRoomId, setReservationRoomId] = useState("");
+  const [reservationRoomId, setReservationRoomId] = useState(
+    () => stay.reservationRoomId ?? initialReservationRoomId ?? "",
+  );
   const multiRoom = (stay.roomUnits?.length ?? 0) > 1;
 
   const fetchContext = useServerFn(getCheckOutContext);
@@ -155,8 +157,10 @@ export function FoCheckOutStepper({
     setPayMethod("cash");
     setPayRef("");
     setOverrideReason("");
-    setReservationRoomId(multiRoom ? (initialReservationRoomId ?? "") : "");
-  }, [open, stay.id, multiRoom, initialReservationRoomId]);
+    setReservationRoomId(
+      stay.reservationRoomId ?? (multiRoom ? (initialReservationRoomId ?? "") : ""),
+    );
+  }, [open, stay.id, stay.reservationRoomId, multiRoom, initialReservationRoomId]);
 
   useEffect(() => {
     if (!ctx) return;
@@ -296,7 +300,7 @@ export function FoCheckOutStepper({
         data: {
           restaurantId,
           reservationId: stay.id,
-          ...(multiRoom ? { reservationRoomId } : {}),
+          ...(reservationRoomId ? { reservationRoomId } : {}),
         },
       }),
     onSuccess: (result) => {
@@ -466,6 +470,7 @@ export function FoCheckOutStepper({
                       units={stay.roomUnits}
                       value={reservationRoomId}
                       onChange={setReservationRoomId}
+                      locked={Boolean(stay.reservationRoomId)}
                     />
                     <RoomUnitOccupantContext
                       stayGuestId={stay.guestId}

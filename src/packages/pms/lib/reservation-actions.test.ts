@@ -151,7 +151,7 @@ describe("reservation action eligibility", () => {
     );
     assert.equal(
       eligible.actions.some((action) => action.id === "no_show"),
-      true,
+      false,
     );
     assert.equal(
       eligible.actions.some((action) => action.id === "confirm"),

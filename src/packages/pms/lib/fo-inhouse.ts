@@ -166,3 +166,21 @@ export function inHouseMenuItems(hints: FoInHouseActionHints): { id: string; lab
 export function differentRoomTypeNeedsAmendment(currentTypeId: string, targetTypeId: string): boolean {
   return currentTypeId !== targetTypeId;
 }
+
+export type InHouseExceptionOwner =
+  | "room_move"
+  | "amend_stay"
+  | "late_checkout"
+  | "special"
+  | "open_folio"
+  | "open_maintenance";
+
+/** Each derived flag opens the owner that can change it. */
+export function inHouseExceptionOwner(key: FoInHouseExceptionKey): InHouseExceptionOwner {
+  if (key === "unassigned" || key === "room_unavailable") return "room_move";
+  if (key === "maintenance") return "open_maintenance";
+  if (key === "overstay" || key === "missing_stay_data") return "amend_stay";
+  if (key === "folio_warning") return "open_folio";
+  if (key === "late_checkout_conflict") return "late_checkout";
+  return "special";
+}

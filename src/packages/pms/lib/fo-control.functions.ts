@@ -18,7 +18,9 @@ import { loadFrontOfficeRoomOpsQueue } from "./front-office-room-operations.serv
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 import { financialFromSignal, outstandingBalance, parseLateCheckoutPolicy } from "./reservation-workspace/arrivals-departures";
 import { normalizeClock } from "./pms-set1-foundation";
-import { foArrivalExceptionKeys, guestVerificationMissing, etaTiming, checkInPaymentGate, depositOkFromSignals } from "./fo-arrival";
+import { arrivalProgressKey, foArrivalExceptionKeys, guestVerificationMissing, etaTiming, checkInPaymentGate, depositOkFromSignals, registrationOkFromProgress } from "./fo-arrival";
+import { loadArrivalProgressByStay } from "./fo-arrival.functions";
+import type { RegistrationDraft } from "./fo-check-in";
 import { foInHouseExceptionKeys } from "./fo-inhouse";
 import { foDepartureExceptionKeys } from "./fo-departure";
 import { foGuestServiceSignals, isActiveGuestServiceStatus } from "./fo-guest-services";
@@ -59,6 +61,7 @@ function stayContext(stay: FrontOfficeStay): FoControlStayContext {
     roomId: stay.roomId,
     roomNumber: stay.roomNumber,
     status: stay.status,
+    reservationRoomId: stay.reservationRoomId ?? null,
   };
 }
 
@@ -165,7 +168,11 @@ export const getFrontOfficeExceptions = createServerFn({ method: "POST" })
     }
 
     const stays = [...arrivals, ...inHouse, ...departures].filter(
-      (stay, index, list) => list.findIndex((row) => row.id === stay.id) === index,
+      (stay, index, list) =>
+        list.findIndex(
+          (row) =>
+            row.id === stay.id && (row.reservationRoomId ?? null) === (stay.reservationRoomId ?? null),
+        ) === index,
     );
 
     let rooms = new Map<string, RoomState>();
@@ -182,7 +189,7 @@ export const getFrontOfficeExceptions = createServerFn({ method: "POST" })
     const signals = await loadFoStaySignals({
       context: context as never,
       restaurantId: data.restaurantId,
-      reservationIds: stays.map((stay) => stay.id),
+        reservationIds: [...new Set(stays.map((stay) => stay.id))],
     });
     if (signals.folioLane === "permission_denied") {
       partialSources.push({
@@ -199,6 +206,7 @@ export const getFrontOfficeExceptions = createServerFn({ method: "POST" })
     }
 
     const guestRules = await loadGuestProfileRules(supabaseAdmin, data.restaurantId).catch(() => null);
+    const arrivalProgress = await loadArrivalProgressByStay(supabaseAdmin, data.restaurantId, arrivals);
 
     const arrivalRows = arrivals.map((stay) => {
       const room = stay.roomId ? rooms.get(stay.roomId) : undefined;
@@ -210,11 +218,13 @@ export const getFrontOfficeExceptions = createServerFn({ method: "POST" })
         phone: stay.guestPhone,
         email: stay.guestEmail,
       });
+      const progress = arrivalProgress.get(arrivalProgressKey(stay));
+      const depositWaived = progress?.depositWaived === true || signals.byStay[stay.id]?.depositWaived === true;
       const depositOk = depositOkFromSignals(
         checkInPaymentGate({
           folioLane: signals.folioLane,
           signal: signals.byStay[stay.id],
-          waived: signals.byStay[stay.id]?.depositWaived === true,
+          waived: depositWaived,
         }),
       );
       const keys = foArrivalExceptionKeys({
@@ -226,7 +236,17 @@ export const getFrontOfficeExceptions = createServerFn({ method: "POST" })
         outstandingBalance: outstandingBalance(signals.byStay[stay.id]),
         specialRequests: stay.specialRequests,
         missingGuestFields: missing,
-        registrationOk: false,
+        registrationOk: registrationOkFromProgress({
+          snapshot: (progress?.registrationSnapshot as RegistrationDraft | null) ?? null,
+          waived: progress?.registrationWaived === true,
+          guest: {
+            fullName: stay.guestName,
+            phone: stay.guestPhone,
+            email: stay.guestEmail,
+            idDocumentType: null,
+            idDocumentNumber: null,
+          },
+        }),
         etaTiming: etaTiming({
           expectedArrivalAt: stay.expectedArrivalAt ?? null,
           checkInTime: normalizeClock(String(property.check_in_time ?? "")) || null,

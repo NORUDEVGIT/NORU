@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 
+import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
   Select,
@@ -24,12 +25,14 @@ import {
   type FoArrivalDeskRow,
   type FoArrivalQuickView,
 } from "@/packages/pms/lib/fo-arrival.functions";
+import { siblingUnitSummary } from "@/packages/pms/lib/fo-unit-desk";
 import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
 import type { ArrivalRow } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useRestaurantTimezone } from "@/core/state/property-format";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading } from "@/core/state/pms-context";
+import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
 import { cn } from "@/shared/lib/utils";
 
 const ALL = "all";
@@ -136,6 +139,7 @@ export function ArrivalsWorkspace({
   const [roomType, setRoomType] = useState(ALL);
   const [blocker, setBlocker] = useState(ALL);
   const [qvId, setQvId] = useState<string | null>(null);
+  const [qvRoomId, setQvRoomId] = useState<string | null>(null);
   const [checkIn, setCheckIn] = useState<FoArrivalQuickView | null>(null);
   const [assignStay, setAssignStay] = useState<FoArrivalDeskRow["stay"] | null>(null);
   const [etaQv, setEtaQv] = useState<FoArrivalQuickView | null>(null);
@@ -163,6 +167,7 @@ export function ArrivalsWorkspace({
         },
       }),
     enabled: canManage,
+    ...foOperationalQueryOptions(),
   });
 
   const rows = deskQuery.data?.rows ?? [];
@@ -241,6 +246,9 @@ export function ArrivalsWorkspace({
       )}
 
       <div className="flex flex-wrap items-center gap-3">
+        <Button type="button" variant="outline" data-testid="fo-arrivals-refresh" onClick={refreshDesk}>
+          Refresh
+        </Button>
         <Input type="date" className="w-44" value={date} onChange={(e) => setDate(e.target.value)} />
         <Input
           className="w-56"
@@ -344,9 +352,12 @@ export function ArrivalsWorkspace({
             <tbody>
               {visible.map((row) => (
                 <tr
-                  key={row.stay.id}
+                  key={row.stay.reservationRoomId ? `${row.stay.id}:${row.stay.reservationRoomId}` : row.stay.id}
                   className={cn("cursor-pointer border-b border-border last:border-0 hover:bg-muted/40")}
-                  onClick={() => setQvId(row.stay.id)}
+                  onClick={() => {
+                    setQvId(row.stay.id);
+                    setQvRoomId(row.stay.reservationRoomId ?? null);
+                  }}
                 >
                   <td className="px-3 py-2">
                     <p className="font-medium">
@@ -363,6 +374,11 @@ export function ArrivalsWorkspace({
                     <span className="block text-xs text-muted-foreground">
                       {row.stay.roomNumber ? `Room ${row.stay.roomNumber}` : "Unassigned"}
                     </span>
+                    {siblingUnitSummary(row.stay) ? (
+                      <span className="block text-xs text-muted-foreground">
+                        Also {siblingUnitSummary(row.stay)}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2">
                     <ReservationStatusBadge status={row.stay.status} />
@@ -393,9 +409,13 @@ export function ArrivalsWorkspace({
       <ArrivalQuickViewSheet
         restaurantId={restaurantId}
         reservationId={qvId}
+        reservationRoomId={qvRoomId}
         open={Boolean(qvId) && !checkIn}
         onOpenChange={(open) => {
-          if (!open) setQvId(null);
+          if (!open) {
+            setQvId(null);
+            setQvRoomId(null);
+          }
         }}
         onAssign={(qv) => {
           setQvId(null);
@@ -415,7 +435,14 @@ export function ArrivalsWorkspace({
           setCheckInStep(qv.hints.needsDeposit && qv.registration.complete ? "deposit" : "stay");
           setCheckIn(qv);
         }}
-        onOpenFolio={() => {
+        onOpenFolio={(qv) => {
+          if (qv.financial.folioId) {
+            void navigate({
+              to: "/restaurant/pms/cashiering/folios/$folioId",
+              params: { folioId: qv.financial.folioId },
+            });
+            return;
+          }
           void navigate({ to: "/restaurant/pms/cashiering", search: { tab: "folios" } });
         }}
       />
@@ -424,6 +451,7 @@ export function ArrivalsWorkspace({
         <AssignRoomDialog
           restaurantId={restaurantId}
           stay={assignStay}
+          initialReservationRoomId={assignStay.reservationRoomId ?? undefined}
           open
           onOpenChange={(v) => {
             if (!v) {
@@ -439,6 +467,7 @@ export function ArrivalsWorkspace({
           stay={checkIn.stay}
           open
           initialStep={checkInStep}
+          initialReservationRoomId={checkIn.stay.reservationRoomId ?? undefined}
           onOpenChange={(v) => {
             if (!v) {
               setCheckIn(null);

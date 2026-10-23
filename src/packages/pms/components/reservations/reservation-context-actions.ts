@@ -91,7 +91,7 @@ export function getReservationContextActions(
     actions.push({ id: "check_out", label: "Check Out", group: "front_office" });
   }
 
-  if (input.canManage && input.status === "confirmed" && input.arrivalDate <= input.businessDate) {
+  if (input.canManage && input.status === "confirmed" && input.arrivalDate < input.businessDate) {
     actions.push({ id: "no_show", label: "Mark No-Show", group: "front_office" });
   }
 

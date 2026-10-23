@@ -2,11 +2,17 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { reservationError } from "@/packages/pms/lib/reservations.server";
 import {
+  appliedPackageAmountDisplay,
   appliedPackagesTotal,
   buildAvailablePackageCards,
+  buildUnitPackageCards,
   canBindCreatePackage,
   createPackageUnselectableReason,
+  finalizeUnitPackageEligibility,
+  managementPackagesForUnit,
+  packageEligibilityMessage,
   selectedCreatePackageRows,
   chargeBasisHonestyCopy,
   chargeTypeLabel,
@@ -16,6 +22,7 @@ import {
   packageAppliesToStay,
   packageApplicabilitySummary,
   packageInclusionLabel,
+  unitPackageCommercialTotals,
 } from "@/packages/pms/lib/reservation-detail-packages";
 import type { PackageComponentCard3Row } from "@/packages/pms/lib/meals-card3.server";
 import type { PackageCard3Row } from "@/packages/pms/lib/meals-card3.server";
@@ -115,16 +122,20 @@ describe("Reservation Detail Packages tab", () => {
   it("wires the Packages workspace into the existing overlay", () => {
     expect(workspace).toContain("<ReservationDetailPackagesTab");
     expect(workspace).toContain('detailTab === "packages"');
-    expect(workspace).toContain('onBackToRates={() => setDetailTab("rates")}');
+    expect(workspace).not.toContain('onBackToRates={() => setDetailTab("rates")}');
     expect(workspace).not.toContain("PACKAGES_DEFERRED_COPY");
     expect(overview).toContain('{ id: "packages", label: "Packages" }');
     expect(packagesUi).toContain("Applied Packages");
     expect(packagesUi).toContain("Available Packages");
-    expect(packagesUi).toContain("Package Notes");
-    expect(packagesUi).toContain("Back to Rates");
+    expect(packagesUi).not.toContain("Package Notes");
+    expect(packagesUi).not.toContain("Back to Rates");
+    expect(packagesUi).not.toContain("Save Changes");
     expect(packagesUi).toContain("getMealsCard3");
-    expect(packagesUi).toContain("getReservationCommercialAttribution");
-    expect(packagesUi).toContain("listEligiblePackageActivations");
+    expect(packagesUi).toContain("getReservationUnitPackages");
+    expect(packagesUi).toContain("packages-selected-unit");
+    expect(packagesUi).toContain("package-commercial-facts");
+    expect(packagesUi).not.toContain("getReservationCommercialAttribution");
+    expect(packagesUi).not.toContain("listEligiblePackageActivations");
   });
 
   it("filters catalogue by stay applicability and uses stored prices only", () => {
@@ -229,16 +240,191 @@ describe("Reservation Detail Packages tab", () => {
     expect(unevaluated[0]?.components).toEqual(["Meal Plan"]);
   });
 
-  it("does not persist attach/remove or package notes", () => {
+  it("applies from the card and removes only the selected room or a labeled stay row", () => {
     expect(packagesUi).toContain("applyReservationRoomPackage");
     expect(packagesUi).toContain("releaseReservationRoomPackage");
+    expect(packagesUi).toContain('stayScope: row.scope === "stay"');
+    expect(packagesUi).toContain("card.addAllowed !== true");
+    expect(packagesUi).toContain("configuredOnly");
     expect(packagesUi).not.toContain("PACKAGE_BIND_GAP_COPY");
-    expect(packagesUi).toContain("PACKAGE_NOTES_GAP_COPY");
+    expect(packagesUi).not.toContain("PACKAGE_NOTES_GAP_COPY");
+    expect(packagesUi).not.toContain("Pencil");
+    expect(packagesUi).not.toContain("packages-rate-plan-unevaluated");
+    expect(packagesUi).not.toContain("reservation.ratePlanId");
+    expect(packagesUi).not.toContain("reservation.roomTypeId");
     expect(packagesUi).toContain("applied-packages-empty");
     expect(packagesUi).toContain("ReservationPackageMerchandiseGrid");
-    expect(packagesUi).toContain("packages-rate-plan-unevaluated");
     expect(packagesUi).not.toContain("amendReservation");
     expect(packagesUi).not.toContain("hotel_reservation_packages");
+  });
+
+  it("keeps the selected room and labeled stay packages, and splits snapshot totals", () => {
+    const managed = managementPackagesForUnit({
+      selectedRoomId: "unit-1",
+      currency: "ETB",
+      unitLabel: "Room 1 · 101",
+      rows: [
+        {
+          id: "row-unit",
+          packageId: "pkg-1",
+          packageActivationId: "act-1",
+          packageName: "Bed & Breakfast",
+          packageCode: "BB",
+          chargeBasis: "per_stay",
+          quantity: 1,
+          unitAmount: 500,
+          appliedAmount: 500,
+          appliedAt: "2026-10-20T00:00:00Z",
+          reservationRoomId: "unit-1",
+          components: [],
+          snapshot: { appliedByMembershipId: "member-1" },
+        },
+        {
+          id: "row-stay",
+          packageId: "pkg-stay",
+          packageActivationId: "act-stay",
+          packageName: "Stay",
+          packageCode: "STAY",
+          chargeBasis: "per_stay",
+          quantity: 1,
+          unitAmount: 200,
+          appliedAmount: 200,
+          appliedAt: "2026-10-20T00:00:00Z",
+          reservationRoomId: null,
+          components: [],
+          snapshot: {},
+        },
+        {
+          id: "row-sibling",
+          packageId: "pkg-2",
+          packageActivationId: "act-2",
+          packageName: "Sibling",
+          packageCode: "SIB",
+          chargeBasis: "per_stay",
+          quantity: 1,
+          unitAmount: 80,
+          appliedAmount: 80,
+          appliedAt: "2026-10-20T00:00:00Z",
+          reservationRoomId: "unit-2",
+          components: [],
+        },
+      ],
+    });
+    expect(managed.map((row) => row.id)).toEqual(["row-unit", "row-stay"]);
+    expect(managed[0]).toMatchObject({
+      scope: "unit",
+      unitLabel: "Room 1 · 101",
+      actorMembershipId: "member-1",
+      removeAllowed: true,
+      currency: "ETB",
+    });
+    expect(managed[1]).toMatchObject({ scope: "stay", unitLabel: null, removeAllowed: true });
+    expect(unitPackageCommercialTotals(managed)).toEqual({
+      unitPackageTotal: 500,
+      stayPackageTotal: 200,
+    });
+    expect(
+      appliedPackageAmountDisplay({
+        chargeBasis: "per_person",
+        unitAmount: 40,
+        appliedAmount: 120,
+      }),
+    ).toEqual({ amount: 40, configuredOnly: true });
+    expect(
+      appliedPackageAmountDisplay({ chargeBasis: "per_stay", unitAmount: 40, appliedAmount: 40 }),
+    ).toEqual({ amount: 40, configuredOnly: false });
+  });
+
+  it("disables add from the server decision and surfaces duplicate rules", () => {
+    const eligibility = finalizeUnitPackageEligibility({
+      decisions: [
+        {
+          packageId: "pkg-1",
+          activationId: "act-1",
+          status: "ELIGIBLE",
+          reasonCode: "PACKAGE_ELIGIBLE",
+          chargeBasis: "per_stay",
+          configuredPrice: 500,
+          code: "BB",
+          name: "Bed & Breakfast",
+        },
+        {
+          packageId: "pkg-2",
+          activationId: "act-2",
+          status: "INELIGIBLE",
+          reasonCode: "PACKAGE_RATE_PLAN_MISMATCH",
+          chargeBasis: "per_night",
+          configuredPrice: 80,
+          code: "NIGHT",
+          name: "Nightly",
+        },
+        {
+          packageId: "pkg-3",
+          activationId: null,
+          status: "INELIGIBLE",
+          reasonCode: "PACKAGE_ACTIVATION_NOT_FOUND",
+          chargeBasis: "per_stay",
+          configuredPrice: 10,
+          code: "CAT",
+          name: "Catalogue",
+        },
+      ],
+      applied: [{ packageActivationId: "act-1", scope: "unit" }],
+    });
+    expect(eligibility.find((row) => row.activationId === "act-1")).toMatchObject({
+      status: "INELIGIBLE",
+      reasonCode: "PACKAGE_ALREADY_ROOM_SCOPED",
+      addAllowed: false,
+    });
+    const cards = buildUnitPackageCards({
+      catalogue,
+      components: [],
+      eligibility,
+      ratePlanId: "plan-a",
+    });
+    expect(cards.map((row) => row.code)).toEqual(["BB", "CAT", "NIGHT"]);
+    expect(cards.find((row) => row.code === "NIGHT")?.addAllowed).toBe(false);
+    expect(cards.find((row) => row.code === "NIGHT")?.reasonMessage).toBe(
+      "That package does not apply to this rate plan.",
+    );
+    expect(cards.find((row) => row.code === "NIGHT")?.chargeBasisHonesty).toContain("Per night");
+    expect(cards.find((row) => row.code === "CAT")?.addAllowed).toBe(false);
+    expect(packageEligibilityMessage("PACKAGE_ALREADY_RESERVATION_SCOPED")).toBe(
+      reservationError("PACKAGE_ALREADY_RESERVATION_SCOPED").message,
+    );
+    expect(packageEligibilityMessage("PACKAGE_RATE_PLAN_MISMATCH")).toBe(
+      reservationError("PACKAGE_RATE_PLAN_MISMATCH").message,
+    );
+  });
+
+  it("reevaluates stay packages from unit rate plans and rejects a sibling remove", () => {
+    const migration = readFileSync(
+      resolve(process.cwd(), "drizzle/migrations/0176_reservation_unit_packages.sql"),
+      "utf8",
+    );
+    const supabase = readFileSync(
+      resolve(process.cwd(), "supabase/migrations/0176_reservation_unit_packages.sql"),
+      "utf8",
+    );
+    expect(migration).toBe(supabase);
+    expect(migration).toContain("COALESCE(stay_unit.rate_plan_id, reservation.rate_plan_id)");
+    expect(migration).toContain("AND reservation_room_id IS NULL");
+    expect(migration).toContain("PACKAGE_ALREADY_RESERVATION_SCOPED");
+    expect(migration).toContain("PACKAGE_ALREADY_ROOM_SCOPED");
+    expect(migration).toContain("PACKAGE_SIBLING_UNIT");
+    expect(migration).toContain("PACKAGE_STAY_SCOPE_REQUIRED");
+    expect(migration).toContain("package_removed");
+    expect(migration).toContain("RESERVATION_CLOSED");
+    expect(migration).toContain("ARRIVAL_PASSED");
+    expect(migration).not.toContain("checked_in");
+    expect(migration).not.toMatch(/UPDATE public\.hotel_reservations[\s\S]*room_subtotal/);
+    expect(migration).not.toContain("post_folio");
+    const prior = readFileSync(
+      resolve(process.cwd(), "drizzle/migrations/0157_room_unit_folio_packages.sql"),
+      "utf8",
+    );
+    expect(prior).toContain("hotel_reservation_packages_room_scope_unique");
+    expect(prior).toContain("hotel_reservation_packages_reservation_scope_unique");
   });
 
   it("sends bindable activation ids from New Reservation without inventing a second writer", () => {

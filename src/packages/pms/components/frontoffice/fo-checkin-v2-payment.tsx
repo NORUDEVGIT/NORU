@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, ShieldAlert, Wallet } from "lucide-react";
+import { CheckCircle2, MoreHorizontal, ShieldAlert, Wallet } from "lucide-react";
 
 import { useAuth } from "@/core/state/auth-store";
 import { getMyRestaurants } from "@/core/lib/restaurant.functions";
@@ -15,7 +15,9 @@ import {
   waiveCheckInDeposit,
 } from "@/packages/pms/lib/fo-check-in.functions";
 import type { CheckInDepositReadiness } from "@/packages/pms/lib/fo-check-in";
+import { FO_CHECK_IN_POLL_MS } from "@/packages/pms/lib/fo-freshness";
 import type { CheckInUnitRead } from "@/packages/pms/lib/fo-check-in-unit.functions";
+import type { ReservationCashieringSummary } from "@/packages/pms/lib/reservation-cashiering-summary";
 import {
   buildCheckInPaymentSummary,
   canAuthorizeCheckInDepositWaiver,
@@ -37,6 +39,7 @@ import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
 
@@ -46,6 +49,8 @@ export function FoCheckInV2Payment({
   reservationRoomId,
   unit,
   reservation,
+  cashiering,
+  cashieringPending,
   onReady,
   onSummary,
   onRefresh,
@@ -55,6 +60,8 @@ export function FoCheckInV2Payment({
   reservationRoomId: string | null;
   unit: CheckInUnitRead;
   reservation: ReservationDetail | null;
+  cashiering: ReservationCashieringSummary | null;
+  cashieringPending: boolean;
   onReady: (satisfied: boolean) => void;
   onSummary: (summary: CheckInPaymentSummary) => void;
   onRefresh: () => void;
@@ -77,6 +84,7 @@ export function FoCheckInV2Payment({
   const [reason, setReason] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [postedTransactionId, setPostedTransactionId] = useState<string | null>(null);
+  const [showWaiverForm, setShowWaiverForm] = useState(false);
 
   const membershipQuery = useQuery({
     queryKey: ["my-restaurants", user?.id],
@@ -97,6 +105,9 @@ export function FoCheckInV2Payment({
           ...(reservationRoomId ? { reservationRoomId } : {}),
         },
       }),
+    refetchOnWindowFocus: "always",
+    refetchInterval: FO_CHECK_IN_POLL_MS,
+    refetchIntervalInBackground: false,
     retry: false,
   });
   const readiness = readinessQuery.data ?? null;
@@ -125,6 +136,16 @@ export function FoCheckInV2Payment({
   useEffect(() => {
     if (!tenders.some((row) => row.code === method)) setMethod(tenders[0]?.code ?? "");
   }, [method, tenders]);
+
+  useEffect(() => {
+    if (readiness && !readiness.satisfied && readiness.outstanding > 0 && amount === "") {
+      setAmount(String(readiness.outstanding));
+    }
+  }, [readiness?.satisfied, readiness?.outstanding, amount]);
+
+  useEffect(() => {
+    if (readiness?.satisfied) setShowWaiverForm(false);
+  }, [readiness?.satisfied]);
 
   function refreshState() {
     void readinessQuery.refetch();
@@ -259,14 +280,14 @@ export function FoCheckInV2Payment({
       />
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Section title="Deposit Requirement" testId="fo-ci-v2-deposit-requirement">
+        <Section title="Deposit" testId="fo-ci-v2-deposit-requirement">
           <AmountRow
             label="Required amount"
             value={summary.required}
             testId="fo-ci-v2-deposit-required"
           />
           <AmountRow
-            label="Deposit received"
+            label="Received amount"
             value={summary.received}
             testId="fo-ci-v2-deposit-received"
           />
@@ -276,22 +297,34 @@ export function FoCheckInV2Payment({
             testId="fo-ci-v2-deposit-outstanding"
           />
           <div className="mt-3 flex items-center justify-between gap-3">
-            <p className="text-xs font-medium text-[#6B5E4E]">Status</p>
-            <span
-              className={cn(
-                "rounded-full px-2 py-0.5 text-xs font-semibold",
-                status === "Satisfied" || status === "Not required"
-                  ? "bg-[#436436]/15 text-[#436436]"
-                  : status === "Waived"
-                    ? "bg-[#C89933]/20 text-[#8B6914]"
-                    : status === "Partially paid"
-                      ? "bg-[#C89933]/15 text-[#8B6914]"
-                      : "bg-red-50 text-red-800",
-              )}
-              data-testid="fo-ci-v2-deposit-status"
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={refreshState}
+              data-testid="fo-ci-v2-refresh-cashiering"
             >
-              {status}
-            </span>
+              Refresh from Cashiering
+            </Button>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-medium text-[#6B5E4E]">Status</p>
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-xs font-semibold",
+                  status === "Satisfied" || status === "Not required"
+                    ? "bg-[#436436]/15 text-[#436436]"
+                    : status === "Waived"
+                      ? "bg-[#C89933]/20 text-[#8B6914]"
+                      : status === "Partially paid"
+                        ? "bg-[#C89933]/15 text-[#8B6914]"
+                        : "bg-red-50 text-red-800",
+                )}
+                data-testid="fo-ci-v2-deposit-status"
+              >
+                {status}
+              </span>
+            </div>
           </div>
           <p className="mt-3 text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-deposit-not-payment">
             Ordinary payments do not satisfy this deposit.
@@ -306,27 +339,86 @@ export function FoCheckInV2Payment({
           ) : null}
         </Section>
 
-        <Section title="Payment / Folio Status" testId="fo-ci-v2-folio">
+        <Section title="Folio / Payment Status" testId="fo-ci-v2-folio">
           <AmountRow
-            label="Folio reference"
-            value={readiness.folioId ?? "No folio open"}
-            testId="fo-ci-v2-folio-id"
+            label="Folio number"
+            value={
+              readiness.folioNumber ?? (readiness.folioId ? "Open Folio" : "No folio open")
+            }
+            testId="fo-ci-v2-folio-number"
           />
-          <AmountRow
-            label="Folio status"
-            value={readiness.folioStatus ?? "Not opened"}
-            testId="fo-ci-v2-folio-status"
-          />
+          <div className="flex items-baseline justify-between gap-3 py-1">
+            <p className="text-xs text-[#6B5E4E]">Status</p>
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-xs font-semibold",
+                readiness.folioStatus === "open"
+                  ? "bg-[#C89933]/15 text-[#8B6914]"
+                  : readiness.folioStatus === "closed"
+                    ? "bg-[#436436]/15 text-[#436436]"
+                    : "bg-[#F3EEE6] text-[#6B5E4E]",
+              )}
+              data-testid="fo-ci-v2-folio-status"
+            >
+              {readiness.folioStatus === "open"
+                ? "Open"
+                : readiness.folioStatus === "closed"
+                  ? "Closed"
+                  : "Not opened"}
+            </span>
+          </div>
           <AmountRow
             label="Currency"
             value={readiness.currency?.trim() || "Currency unavailable"}
             testId="fo-ci-v2-folio-currency"
           />
+
+          {cashiering && cashiering.folioBalance != null ? (
+            <div className="mt-3 border-t border-[#E8DFD0] pt-3" data-testid="fo-ci-v2-folio-breakdown">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
+                Charge breakdown (stay to date)
+              </p>
+              <AmountRow
+                label="Room charge"
+                value={formatDepositAmount(cashiering.postedRoomCharges, readiness.currency)}
+                testId="fo-ci-v2-folio-room-charge"
+              />
+              {cashiering.postedTax != null && cashiering.postedTax !== 0 ? (
+                <AmountRow
+                  label="Tax"
+                  value={formatDepositAmount(cashiering.postedTax, readiness.currency)}
+                  testId="fo-ci-v2-folio-tax"
+                />
+              ) : null}
+              <AmountRow
+                label="Total charges"
+                value={formatDepositAmount(cashiering.postedTotalCharges, readiness.currency)}
+                testId="fo-ci-v2-folio-total-charges"
+              />
+              <AmountRow
+                label="Deposit applied"
+                value={
+                  cashiering.depositReceived && cashiering.depositReceived > 0
+                    ? `-${formatDepositAmount(cashiering.depositReceived, readiness.currency)}`
+                    : formatDepositAmount(0, readiness.currency)
+                }
+                testId="fo-ci-v2-folio-deposit-applied"
+              />
+              <AmountRow
+                label="Remaining balance"
+                value={formatDepositAmount(cashiering.folioBalance, readiness.currency)}
+                testId="fo-ci-v2-folio-remaining-balance"
+              />
+            </div>
+          ) : cashieringPending ? (
+            <p className="mt-3 text-xs text-[#6B5E4E]">Loading charge breakdown…</p>
+          ) : null}
+
           <p className="mt-3 text-sm font-medium text-[#251605]" data-testid="fo-ci-v2-folio-scope">
             Folio scope: {summary.folioScope}
           </p>
           <p className="mt-1 text-xs text-[#6B5E4E]">
-            Financial scope: Reservation. Waiver scope: this room.
+            Payments apply to the whole reservation. Any deposit waiver applies only to this room.
           </p>
           {sharedFolio ? (
             <p className="mt-2 text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-shared-folio">
@@ -356,141 +448,194 @@ export function FoCheckInV2Payment({
           >
             Status: {GUARANTEE_NOT_EVALUATED}
           </p>
+          <p className="mt-1 text-xs text-[#6B5E4E]">
+            This is informational only and does not change the deposit requirement.
+          </p>
         </Section>
         <BillingContext readiness={readiness} reservation={reservation} />
       </div>
 
-      <Section title="Deposit Actions" testId="fo-ci-v2-deposit-actions">
-        {postedTransactionId ? (
-          <div
-            className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-3 py-3 text-sm text-[#251605]"
-            data-testid="fo-ci-v2-deposit-reconciliation"
-          >
-            <p className="font-semibold">Deposit posted. Room progress still needs a refresh.</p>
-            <p className="mt-1 text-xs text-[#6B5E4E]">
-              Transaction {postedTransactionId} is on the reservation folio. Do not submit this
-              deposit again.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-3 h-8 text-xs"
-              onClick={refreshState}
-              data-testid="fo-ci-v2-refresh-deposit"
+      {postedTransactionId || !ready ? (
+        <Section title="Deposit Actions" testId="fo-ci-v2-deposit-actions">
+          {postedTransactionId ? (
+            <div
+              className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-3 py-3 text-sm text-[#251605]"
+              data-testid="fo-ci-v2-deposit-reconciliation"
             >
-              Refresh status
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-[160px_minmax(0,1fr)]">
-              <label className="block text-xs font-medium text-[#6B5E4E]">
-                Amount
-                <Input
-                  className="mt-1 h-9"
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  data-testid="fo-ci-v2-deposit-amount"
-                />
-              </label>
-              <div>
-                <p className="text-xs font-medium text-[#6B5E4E]">Payment method</p>
-                {tenders.length === 0 ? (
-                  <p className="mt-2 text-xs text-[#8B6914]">No payment method is available.</p>
-                ) : (
-                  <div className="mt-1 flex flex-wrap gap-2" data-testid="fo-ci-v2-deposit-method">
-                    {tenders.map((tender) => (
-                      <button
-                        key={tender.code}
-                        type="button"
-                        className={cn(
-                          "rounded-full border px-3 py-1 text-xs",
-                          method === tender.code
-                            ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
-                            : "border-[#DDD4C5] text-[#6B5E4E]",
-                        )}
-                        onClick={() => setMethod(tender.code)}
-                      >
-                        {tender.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <label className="block text-xs font-medium text-[#6B5E4E]">
-              Reference
-              <Input
-                className="mt-1 h-9"
-                value={reference}
-                onChange={(event) => setReference(event.target.value)}
-                data-testid="fo-ci-v2-deposit-reference"
-              />
-            </label>
-            <Button
-              type="button"
-              className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-              disabled={postMut.isPending || tenders.length === 0}
-              onClick={collectDeposit}
-              data-testid="fo-ci-v2-collect-deposit"
-            >
-              <Wallet className="mr-2 size-4" />
-              {postMut.isPending ? "Posting…" : "Collect Deposit"}
-            </Button>
-          </div>
-        )}
-
-        <div className="mt-4 border-t border-[#E8DFD0] pt-4">
-          <p className="text-sm font-semibold text-[#251605]">Deposit waiver</p>
-          <p className="mt-1 text-xs text-[#6B5E4E]">
-            A waiver clears only this room&apos;s deposit requirement. It does not change the amount
-            received on the reservation folio.
-          </p>
-          {waived ? (
-            <p className="mt-2 text-sm text-[#8B6914]">
-              This room&apos;s deposit requirement is already waived.
-            </p>
-          ) : membershipQuery.isLoading ? (
-            <p className="mt-2 text-sm text-[#6B5E4E]">Checking who can authorize this waiver…</p>
-          ) : canWaive ? (
-            <div className="mt-3 space-y-2">
-              <label
-                className="block text-xs font-medium text-[#6B5E4E]"
-                htmlFor="fo-ci-v2-waiver-reason"
-              >
-                Reason
-              </label>
-              <Textarea
-                id="fo-ci-v2-waiver-reason"
-                rows={2}
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                data-testid="fo-ci-v2-waiver-reason"
-              />
+              <p className="font-semibold">Deposit posted. Room progress still needs a refresh.</p>
+              <p className="mt-1 text-xs text-[#6B5E4E]">
+                Transaction {postedTransactionId} is on the reservation folio. Do not submit this
+                deposit again.
+              </p>
               <Button
                 type="button"
                 variant="outline"
-                disabled={!reason.trim() || waiveMut.isPending}
-                onClick={() => waiveMut.mutate()}
-                data-testid="fo-ci-v2-waive-deposit"
+                size="sm"
+                className="mt-3 h-8 text-xs"
+                onClick={refreshState}
+                data-testid="fo-ci-v2-refresh-deposit"
               >
-                {waiveMut.isPending ? "Saving…" : "Authorize Deposit Waiver"}
+                Refresh status
               </Button>
             </div>
           ) : (
-            <p className="mt-2 text-sm text-[#6B5E4E]" data-testid="fo-ci-v2-waiver-denied">
-              An owner or manager must authorize a deposit waiver for this room.
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-[#251605]">Collect Deposit</p>
+              <p className="-mt-1 text-xs text-[#6B5E4E]">
+                Collect the outstanding deposit to continue.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)_160px]">
+                <label className="block text-xs font-medium text-[#6B5E4E]">
+                  Amount<span className="text-[#8B4513] font-semibold"> *</span>
+                  <Input
+                    className="mt-1 h-9"
+                    inputMode="decimal"
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    aria-required="true"
+                    data-testid="fo-ci-v2-deposit-amount"
+                  />
+                </label>
+                <div>
+                  <p className="text-xs font-medium text-[#6B5E4E]">
+                    Payment method<span className="text-[#8B4513] font-semibold"> *</span>
+                  </p>
+                  {tenders.length === 0 ? (
+                    <p className="mt-2 text-xs text-[#8B6914]">No payment method is available.</p>
+                  ) : (
+                    <div
+                      className="mt-1 flex flex-wrap gap-1 rounded-[6px] border border-[#CCCCCC] bg-white p-1"
+                      role="radiogroup"
+                      aria-label="Payment method"
+                      data-testid="fo-ci-v2-deposit-method"
+                    >
+                      {tenders.map((tender) => (
+                        <button
+                          key={tender.code}
+                          type="button"
+                          role="radio"
+                          aria-checked={method === tender.code}
+                          aria-pressed={method === tender.code}
+                          className={cn(
+                            "flex-1 rounded-[4px] px-3 py-1 text-xs font-medium transition-colors",
+                            method === tender.code
+                              ? "bg-[#C89933] text-white"
+                              : "text-[#6B5E4E] hover:bg-[#FAF8F5]",
+                          )}
+                          onClick={() => setMethod(tender.code)}
+                        >
+                          {tender.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <label className="block text-xs font-medium text-[#6B5E4E]">
+                  Reference
+                  <Input
+                    className="mt-1 h-9"
+                    value={reference}
+                    onChange={(event) => setReference(event.target.value)}
+                    data-testid="fo-ci-v2-deposit-reference"
+                  />
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                  disabled={postMut.isPending || tenders.length === 0}
+                  onClick={collectDeposit}
+                  data-testid="fo-ci-v2-collect-deposit"
+                >
+                  <Wallet className="mr-2 size-4" />
+                  {postMut.isPending ? "Posting…" : "Collect Deposit"}
+                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs text-[#6B5E4E]"
+                      data-testid="fo-ci-v2-more-actions"
+                    >
+                      <MoreHorizontal className="mr-1 size-3.5" />
+                      More actions
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="z-[90] w-56 p-1" align="end">
+                    <button
+                      type="button"
+                      className="w-full rounded-[4px] px-2 py-1.5 text-left text-xs text-[#251605] hover:bg-[#FAF8F5]"
+                      onClick={() => setShowWaiverForm((value) => !value)}
+                      data-testid="fo-ci-v2-waive-deposit-toggle"
+                    >
+                      Waive deposit requirement
+                    </button>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {showWaiverForm ? (
+                <div className="rounded-[6px] border border-[#E8DFD0] bg-[#FAF8F5] p-3">
+                  <p className="text-sm font-semibold text-[#251605]">Deposit waiver</p>
+                  <p className="mt-1 text-xs text-[#6B5E4E]">
+                    A waiver clears only this room&apos;s deposit requirement. It does not change
+                    the amount received on the reservation folio.
+                  </p>
+                  {membershipQuery.isLoading ? (
+                    <p className="mt-2 text-sm text-[#6B5E4E]">
+                      Checking who can authorize this waiver…
+                    </p>
+                  ) : canWaive ? (
+                    <div className="mt-3 space-y-2">
+                      <label
+                        className="block text-xs font-medium text-[#6B5E4E]"
+                        htmlFor="fo-ci-v2-waiver-reason"
+                      >
+                        Reason<span className="text-[#8B4513] font-semibold"> *</span>
+                      </label>
+                      <Textarea
+                        id="fo-ci-v2-waiver-reason"
+                        rows={2}
+                        value={reason}
+                        onChange={(event) => setReason(event.target.value)}
+                        aria-required="true"
+                        data-testid="fo-ci-v2-waiver-reason"
+                        autoFocus
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!reason.trim() || waiveMut.isPending}
+                        onClick={() => waiveMut.mutate()}
+                        data-testid="fo-ci-v2-waive-deposit"
+                      >
+                        {waiveMut.isPending ? "Saving…" : "Authorize Deposit Waiver"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-[#6B5E4E]" data-testid="fo-ci-v2-waiver-denied">
+                      An owner or manager must authorize a deposit waiver for this room.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </div>
           )}
-        </div>
-        {formError ? (
-          <p className="mt-3 text-sm text-red-800" data-testid="fo-ci-v2-payment-form-error">
-            {formError}
-          </p>
-        ) : null}
-      </Section>
+
+          {formError ? (
+            <p
+              className="mt-3 text-sm text-red-800"
+              role="alert"
+              data-testid="fo-ci-v2-payment-form-error"
+            >
+              {formError}
+            </p>
+          ) : null}
+        </Section>
+      ) : null}
     </div>
   );
 }
@@ -526,19 +671,20 @@ function ReadinessBanner({
         )}
         <div>
           <p className="text-sm font-semibold text-[#251605]">
-            {status === "Waived"
-              ? "Deposit requirement waived"
-              : status === "Not required"
-                ? "No deposit is required"
-                : ready
-                  ? "Deposit requirement satisfied"
-                  : "Deposit requirement outstanding"}
+            {ready ? "Payment & Guarantee ready" : "Payment & Guarantee — Action required"}
           </p>
           <p className={cn("text-xs", ready ? "text-[#436436]" : "text-[#8B6914]")}>
             {ready
-              ? "Ready to continue"
-              : `${required} required · ${received} received · ${outstanding} outstanding`}
+              ? "Deposit requirement is satisfied. You can continue to the next step."
+              : `Deposit outstanding: ${outstanding}`}
           </p>
+          {!ready ? (
+            <p className="mt-1 text-xs text-[#8B6914]">
+              {required} required · {received} received
+            </p>
+          ) : status === "Waived" ? (
+            <p className="mt-1 text-xs text-[#436436]">Satisfied by an approved waiver for this room.</p>
+          ) : null}
           {currencyMissing ? (
             <p className="mt-1 text-xs text-[#8B6914]">Currency unavailable</p>
           ) : null}
@@ -558,19 +704,32 @@ function BillingContext({
   const company = reservation?.companyName ?? readiness.companyMasterId;
   const group = reservation?.groupName ?? readiness.groupAccountMasterId;
   const agency = reservation?.travelAgentName ?? null;
+  const allEmpty = !company && !group && !agency;
   return (
     <Section title="Company / Group Billing" testId="fo-ci-v2-billing">
-      <AmountRow
-        label="Company"
-        value={company || "None recorded"}
-        testId="fo-ci-v2-billing-company"
-      />
-      <AmountRow label="Group" value={group || "None recorded"} testId="fo-ci-v2-billing-group" />
-      <AmountRow
-        label="Travel agency"
-        value={agency || "None recorded"}
-        testId="fo-ci-v2-billing-agency"
-      />
+      {allEmpty ? (
+        <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-billing-empty">
+          Company, Group, and Travel agency: None recorded
+        </p>
+      ) : (
+        <>
+          <AmountRow
+            label="Company"
+            value={company || "None recorded"}
+            testId="fo-ci-v2-billing-company"
+          />
+          <AmountRow
+            label="Group"
+            value={group || "None recorded"}
+            testId="fo-ci-v2-billing-group"
+          />
+          <AmountRow
+            label="Travel agency"
+            value={agency || "None recorded"}
+            testId="fo-ci-v2-billing-agency"
+          />
+        </>
+      )}
       <p className="mt-3 text-xs text-[#6B5E4E]">
         Informational only. This does not change the deposit requirement.
       </p>

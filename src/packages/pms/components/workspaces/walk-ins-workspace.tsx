@@ -18,7 +18,6 @@ import {
   AssignRoomDialog,
   CheckInDialog,
   StayDatesDialog,
-  WalkInDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
 import { WalkInsHistoryFrame } from "@/packages/pms/components/frontoffice/walk-ins-history-frame";
@@ -50,9 +49,11 @@ function readinessLabel(row: FoWalkInDeskRow): string {
 export function WalkInsWorkspace({
   membership,
   embedded = false,
+  onCreateWalkIn,
 }: {
   membership: RestaurantMembership;
   embedded?: boolean;
+  onCreateWalkIn: () => void;
 }) {
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
@@ -63,7 +64,6 @@ export function WalkInsWorkspace({
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState(ALL);
-  const [openCreate, setOpenCreate] = useState(false);
   const [qvId, setQvId] = useState<string | null>(null);
   const [assignStay, setAssignStay] = useState<FoWalkInDeskRow["stay"] | null>(null);
   const [checkInStay, setCheckInStay] = useState<FoWalkInDeskRow["stay"] | null>(null);
@@ -147,7 +147,7 @@ export function WalkInsWorkspace({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" onClick={() => setOpenCreate(true)}>
+        <Button type="button" onClick={onCreateWalkIn}>
           Walk-in
         </Button>
         <Input
@@ -266,16 +266,6 @@ export function WalkInsWorkspace({
         onAction={onAction}
       />
 
-      <WalkInDialog
-        restaurantId={restaurantId}
-        today={today}
-        open={openCreate}
-        onOpenChange={setOpenCreate}
-        onCreated={(stay) => {
-          refreshDesk();
-          setCheckInStay(stay);
-        }}
-      />
       {assignStay ? (
         <AssignRoomDialog
           restaurantId={restaurantId}

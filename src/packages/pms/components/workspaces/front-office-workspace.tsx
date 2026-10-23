@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { FrontOfficeChrome } from "@/packages/pms/components/frontoffice/front-office-chrome";
@@ -38,7 +38,6 @@ import {
   NoShowDialog,
   RoomMoveDialog,
   StayDatesDialog,
-  WalkInDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import {
   FoAmendKindSheet,
@@ -83,6 +82,12 @@ import {
   guestProfileSearch,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { SET2_RI_ROOMS_HREF } from "@/packages/pms/lib/pms-set2-structure";
+import { CreateReservationPage } from "@/packages/pms/components/bookings/create-reservation-page";
+import {
+  ReservationWorkspaceOverlay,
+  type ReservationWorkspaceOverlayState,
+} from "@/packages/pms/components/reservations/reservation-workspace-overlay";
+import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useRestaurantTimezone } from "@/core/state/property-format";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -103,6 +108,34 @@ const SHEET_AMEND: Record<string, FoAmendKind> = {
  * is Room Rack + Calendar. Existing list workspaces stay mounted under the
  * new nav. No new backend.
  */
+function walkInContinueStay(
+  created: { id: string; confirmationNumber: string; guestName: string },
+  businessDate: string,
+): FrontOfficeStay {
+  return {
+    id: created.id,
+    confirmationNumber: created.confirmationNumber,
+    guestId: "",
+    guestName: created.guestName,
+    guestVip: false,
+    guestPhone: null,
+    guestEmail: null,
+    roomTypeId: "",
+    roomTypeName: "",
+    roomId: null,
+    roomNumber: null,
+    arrivalDate: businessDate,
+    departureDate: businessDate,
+    nights: 0,
+    adults: 1,
+    children: 0,
+    status: "confirmed",
+    specialRequests: null,
+    source: "walk_in",
+    overstay: false,
+  };
+}
+
 export function FrontOfficeWorkspace({
   membership,
   search,
@@ -114,11 +147,13 @@ export function FrontOfficeWorkspace({
   const timezone = useRestaurantTimezone();
   const today = usePropertyBusinessDate(restaurantId, timezone);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const initialTab = search.tab;
 
   const [view, setView] = useState<FoNavId>(() => resolveFoNav(initialTab));
   const [phone, setPhone] = useState(false);
-  const [walkIn, setWalkIn] = useState(false);
+  const [reservationOverlay, setReservationOverlay] =
+    useState<ReservationWorkspaceOverlayState>(null);
   const [checkInStep, setCheckInStep] = useState<"stay" | "registration">("stay");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -364,6 +399,14 @@ export function FrontOfficeWorkspace({
     setDialog(kind);
   }
 
+  function openWalkInCreate() {
+    setReservationOverlay({ type: "new-reservation", mode: "walk-in" });
+  }
+
+  function closeReservationOverlay() {
+    setReservationOverlay(null);
+  }
+
   function onQuickAction(actionId: string) {
     const result = invokeFoAction(actionId, {});
     if (result.lane === "coming_soon") {
@@ -375,7 +418,7 @@ export function FrontOfficeWorkspace({
       return;
     }
     if (actionId === "walk_in") {
-      setWalkIn(true);
+      openWalkInCreate();
       return;
     }
     if (actionId === "guest_search") {
@@ -595,7 +638,7 @@ export function FrontOfficeWorkspace({
             onSelectStay={openStayQuickView}
             onSelectRoom={openRoomQuickView}
             onRackSearchChange={onRackSearchChange}
-            onWalkIn={() => setWalkIn(true)}
+            onWalkIn={() => openWalkInCreate()}
           />
         </div>
       ) : null}
@@ -616,7 +659,11 @@ export function FrontOfficeWorkspace({
       ) : null}
       {view === "walkins" ? (
         <ListFrame title="Walk-ins">
-          <WalkInsWorkspace membership={membership} embedded />
+          <WalkInsWorkspace
+            membership={membership}
+            embedded
+            onCreateWalkIn={openWalkInCreate}
+          />
         </ListFrame>
       ) : null}
       {view === "amendments" ? <AmendmentsFrame restaurantId={restaurantId} today={today} /> : null}
@@ -677,16 +724,54 @@ export function FrontOfficeWorkspace({
         />
       ) : null}
 
-      <WalkInDialog
-        restaurantId={restaurantId}
-        today={today}
-        open={walkIn}
-        onOpenChange={setWalkIn}
-        onCreated={(created) => {
-          setCheckInStep("registration");
-          openDialog("checkin", created);
+      <ReservationWorkspaceOverlay
+        open={reservationOverlay !== null}
+        title={reservationOverlay?.type === "new-reservation" ? "New Reservation" : "Reservation"}
+        description={
+          reservationOverlay?.type === "new-reservation"
+            ? "Create a walk-in reservation. Arrival starts on the property business date."
+            : "Review the reservation created from Front Office."
+        }
+        hideVisualHeader={reservationOverlay?.type === "reservation-detail"}
+        showCreateIcon={reservationOverlay?.type === "new-reservation"}
+        onOpenChange={(open) => {
+          if (!open) closeReservationOverlay();
         }}
-      />
+      >
+        {reservationOverlay?.type === "new-reservation" ? (
+          <CreateReservationPage
+            membership={membership}
+            embedded
+            mode="walk-in"
+            businessDate={today}
+            returnToLabel="Return to Front Office"
+            onCancel={closeReservationOverlay}
+            onCreated={() => {
+              void queryClient.invalidateQueries({ queryKey: ["front-office"] });
+            }}
+            onContinueToCheckIn={(created) => {
+              closeReservationOverlay();
+              setCheckInStep("stay");
+              openDialog("checkin", walkInContinueStay(created, today));
+            }}
+            onOpenCreatedReservation={(reservationId) => {
+              setReservationOverlay({ type: "reservation-detail", reservationId });
+            }}
+            onReturnToDesk={closeReservationOverlay}
+          />
+        ) : null}
+        {reservationOverlay?.type === "reservation-detail" ? (
+          <ReservationDetailWorkspace
+            membership={membership}
+            reservationId={reservationOverlay.reservationId}
+            embedded
+            onBackToList={closeReservationOverlay}
+            onCopiedReservation={(reservationId) => {
+              setReservationOverlay({ type: "reservation-detail", reservationId });
+            }}
+          />
+        ) : null}
+      </ReservationWorkspaceOverlay>
       <GuestSearchDialog
         restaurantId={restaurantId}
         today={today}
