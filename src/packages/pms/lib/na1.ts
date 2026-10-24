@@ -16,7 +16,7 @@ function addDays(date: string, days: number): string {
 
 export const NA1_TITLE = "Night Audit";
 export const NA1_FO_TITLE_LOCK = FO_PRIMARY_TITLE;
-export const NA1_CONFIRM_LABEL = "Confirm close";
+export const NA1_CONFIRM_LABEL = "Close Business Date";
 export const NA1_PHONE_CLOSE_COPY = "Use desktop to close";
 export const NA1_ALL_CLEAR = "All clear";
 export const NA1_NOTE_HINT = "Optional note for the audit trail. This is not a waive.";

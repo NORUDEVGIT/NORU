@@ -1,102 +1,48 @@
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Textarea } from "@/shared/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import {
-  NA1_ALL_CLEAR,
   NA1_CHROME,
   NA1_CONFIRM_GOLD,
   NA1_CONFIRM_LABEL,
   NA1_NOTE_HINT,
-  NA1_PASS_COLOR,
   NA1_PHONE_CLOSE_COPY,
   canConfirmNightAudit,
   formatNa1Date,
   liveCountFromSnapshot,
-  nextBusinessDate,
   remainingBlockerCount,
-  remainingBlockersCopy,
   summaryRoomUnitCount,
   type NaBlockerRow,
-  type NaBlockerState,
   type NaLastClosed,
-  type NaWorkspaceStatus,
 } from "@/packages/pms/lib/na1";
+import {
+  ALREADY_CLOSED_COPY,
+  CLOSE_CONFIRM_COPY,
+  closeGate,
+  closeTargetDates,
+  domainStatusLabel,
+  formatSummaryCount,
+  summaryCount,
+  type CloseResultView,
+  type DomainStatus,
+} from "@/packages/pms/lib/night-audit-workflow";
+import type { NightAuditOverallStatus } from "@/packages/pms/lib/night-audit-operational";
 import type { NightAuditRunRow } from "@/packages/pms/lib/nightaudit.functions";
 import { useRestaurantTime } from "@/core/state/property-format";
-
-const STATE_LABEL: Record<NaBlockerState, string> = {
-  pass: "Pass",
-  block: "Block",
-  na: "N/A",
-  unavailable: "Unavailable",
-};
-
-function stateChipClass(state: NaBlockerState): string {
-  if (state === "pass") return "border-transparent text-white";
-  if (state === "block") return "border-[#C89933]/50 bg-[#C89933]/10 text-[#251605]";
-  return "border-border bg-muted/50 text-muted-foreground";
-}
-
-export function NaStatusChip({ status }: { status: NaWorkspaceStatus }) {
-  const label =
-    status === "in_progress" ? "In progress" : status === "closed" ? "Closed" : status === "blocked" ? "Blocked" : "Open";
-  const closed = status === "closed";
-  return (
-    <span
-      className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize"
-      style={
-        closed
-          ? { backgroundColor: NA1_PASS_COLOR, color: "#fff", borderColor: NA1_PASS_COLOR }
-          : status === "blocked"
-            ? { backgroundColor: "rgba(200,153,51,0.12)", color: NA1_CHROME, borderColor: "rgba(200,153,51,0.45)" }
-            : undefined
-      }
-    >
-      {label}
-    </span>
-  );
-}
-
-export function NaBlockerBoard({ rows, readOnly = false }: { rows: NaBlockerRow[]; readOnly?: boolean }) {
-  return (
-    <section className="rounded-2xl border border-border bg-card p-5">
-      <h2 className="font-display text-lg text-[#251605]">Blockers</h2>
-      <ul className="mt-3 divide-y divide-border">
-        {rows.map((row) => (
-          <li key={row.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-[#251605]">{row.label}</p>
-              <p className={`text-xs ${row.state === "unavailable" ? "text-muted-foreground" : "text-muted-foreground"}`}>
-                {row.state === "pass" || row.state === "block"
-                  ? `${row.count ?? 0} · ${row.detail}`
-                  : row.detail}
-              </p>
-              {!readOnly && row.clear.length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {row.clear.map((link) => (
-                    <Button key={`${row.id}-${link.to}-${link.label}`} asChild size="sm" variant="outline">
-                      <Link to={link.to as never} search={link.search as never}>
-                        {link.label}
-                      </Link>
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            <span
-              className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium ${stateChipClass(row.state)}`}
-              style={row.state === "pass" ? { backgroundColor: NA1_PASS_COLOR } : undefined}
-            >
-              {STATE_LABEL[row.state]}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
 
 export function NaClosePanel({
   businessDate,
@@ -110,6 +56,17 @@ export function NaClosePanel({
   onConfirm,
   error,
   notice,
+  financialGate = "ready",
+  financialBlockers = 0,
+  operationalGate = "ready",
+  operationalBlockers = 0,
+  overallStatus = null,
+  openBlockingExceptions = 0,
+  warningCount = 0,
+  runStatus = "open",
+  rechecked = false,
+  rechecking = false,
+  onRecheck,
 }: {
   businessDate: string;
   rows: NaBlockerRow[];
@@ -122,35 +79,77 @@ export function NaClosePanel({
   onConfirm: () => void;
   error: string | null;
   notice?: string | null;
+  financialGate?: DomainStatus;
+  financialBlockers?: number;
+  operationalGate?: DomainStatus;
+  operationalBlockers?: number;
+  /** Server status shared with closeBusinessDate. Null while the run loads. */
+  overallStatus?: NightAuditOverallStatus | null;
+  openBlockingExceptions?: number;
+  warningCount?: number;
+  runStatus?: "open" | "ready" | "closed" | "failed";
+  rechecked?: boolean;
+  rechecking?: boolean;
+  onRecheck?: () => void;
 }) {
-  const remaining = remainingBlockerCount(rows);
-  const enabled = !closed && !busy && !phone && canConfirmNightAudit(role) && remaining === 0;
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const submitted = useRef(false);
+  const dates = closeTargetDates(businessDate);
+  const gate = closeGate({
+    overall: overallStatus,
+    financial: financialGate,
+    operational: operationalGate,
+    openBlockingExceptions,
+    boardBlockers: remainingBlockerCount(rows),
+    canClose: canConfirmNightAudit(role),
+    busy: busy || rechecking,
+    runStatus: closed ? "closed" : runStatus,
+    rechecked,
+    phone,
+  });
   const showConfirm = !phone && canConfirmNightAudit(role) && !closed;
   const receptionist = role === "receptionist";
 
+  function submit() {
+    if (submitted.current || busy || !gate.enabled) return;
+    submitted.current = true;
+    setConfirmOpen(false);
+    onConfirm();
+  }
+  useEffect(() => {
+    if (!busy) submitted.current = false;
+  }, [busy]);
+
   return (
-    <aside className="rounded-2xl border border-border bg-card p-5">
+    <aside className="rounded-2xl border border-border bg-card p-5" data-testid="night-audit-close-panel">
       <h2 className="font-display text-lg text-[#251605]">Close business date</h2>
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
         <div>
-          <p className="text-xs text-muted-foreground">Before</p>
-          <p className="font-medium">{formatNa1Date(businessDate)}</p>
+          <p className="text-xs text-muted-foreground">Current business date</p>
+          <p className="font-medium">{formatNa1Date(dates.current)}</p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">After</p>
-          <p className="font-medium">{formatNa1Date(nextBusinessDate(businessDate))}</p>
+          <p className="text-xs text-muted-foreground">Next business date</p>
+          <p className="font-medium">{formatNa1Date(dates.next)}</p>
         </div>
       </div>
-      <p className="mt-3 text-sm font-medium text-[#251605]">
-        {remaining > 0 ? remainingBlockersCopy(remaining) : NA1_ALL_CLEAR}
+      <p className="mt-3 text-sm font-medium text-[#251605]" data-testid="night-audit-close-gate">
+        {financialGate === "blocked"
+          ? `${financialBlockers} financial blocker(s) must be cleared in the owner module.`
+          : operationalGate === "blocked"
+            ? `${operationalBlockers} operational blocker(s) must be cleared in the owner module.`
+            : gate.reason}
       </p>
+      {warningCount > 0 && gate.enabled ? (
+        <p className="mt-1 text-xs text-amber-800">{warningCount} warning(s) remain. Warnings do not block close.</p>
+      ) : null}
 
       {phone ? <p className="mt-3 text-sm text-muted-foreground">{NA1_PHONE_CLOSE_COPY}</p> : null}
 
       {!phone && receptionist ? (
         <PermissionDeniedPanel
           className="mt-4"
-          message="Front Office agents cannot confirm Night Audit. Ask an owner or manager to close."
+          message="Front Office agents cannot close Night Audit. Ask an owner or manager to close."
         />
       ) : null}
 
@@ -169,12 +168,25 @@ export function NaClosePanel({
             placeholder={NA1_NOTE_HINT}
           />
           <Button
+            type="button"
+            variant="outline"
             className="mt-4 w-full"
-            disabled={!enabled}
-            style={enabled ? { backgroundColor: NA1_CONFIRM_GOLD, color: NA1_CHROME } : undefined}
-            onClick={onConfirm}
+            disabled={rechecking || busy || !onRecheck}
+            onClick={onRecheck}
+            data-testid="night-audit-final-recheck"
           >
-            {busy ? "In progress…" : NA1_CONFIRM_LABEL}
+            <RefreshCw className={rechecking ? "size-4 animate-spin" : "size-4"} />
+            {rechecking ? "Rechecking…" : rechecked ? "Final Recheck again" : "Final Recheck"}
+          </Button>
+          <Button
+            type="button"
+            className="mt-2 w-full"
+            disabled={!gate.enabled}
+            style={gate.enabled ? { backgroundColor: NA1_CONFIRM_GOLD, color: NA1_CHROME } : undefined}
+            onClick={() => setConfirmOpen(true)}
+            data-testid="night-audit-close-button"
+          >
+            {busy ? "Closing…" : NA1_CONFIRM_LABEL}
           </Button>
         </>
       ) : null}
@@ -186,7 +198,139 @@ export function NaClosePanel({
         </p>
       ) : null}
       {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+
+      <AlertDialog open={confirmOpen} onOpenChange={(open) => !busy && setConfirmOpen(open)}>
+        <AlertDialogContent data-testid="night-audit-close-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close business date?</AlertDialogTitle>
+            <AlertDialogDescription>{CLOSE_CONFIRM_COPY}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <dl className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <dt className="text-xs text-muted-foreground">Current business date</dt>
+              <dd className="font-medium">{formatNa1Date(dates.current)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Next business date</dt>
+              <dd className="font-medium">{formatNa1Date(dates.next)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Financial blockers</dt>
+              <dd className="font-medium">{financialBlockers}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Operational blockers</dt>
+              <dd className="font-medium">{operationalBlockers}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Warnings</dt>
+              <dd className="font-medium">{warningCount}</dd>
+            </div>
+            <div className="col-span-2">
+              <dt className="text-xs text-muted-foreground">Audit note</dt>
+              <dd className="whitespace-pre-wrap">{note.trim() || "—"}</dd>
+            </div>
+          </dl>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy || !gate.enabled}
+              onClick={(event) => {
+                event.preventDefault();
+                submit();
+              }}
+              data-testid="night-audit-close-confirm-submit"
+            >
+              {NA1_CONFIRM_LABEL}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
+  );
+}
+
+/** Replaces the close form after a successful close. It does not depend on the next date's run. */
+export function NaCloseResult({
+  result,
+  onViewRun,
+  onRetryOtb,
+  retryingOtb = false,
+  onDone,
+}: {
+  result: CloseResultView & {
+    closedBy: string | null;
+    closedAt: string | null;
+    financialStatus: DomainStatus | null;
+    operationalStatus: DomainStatus | null;
+    warningCount: number | null;
+    noteSaved?: boolean;
+  };
+  onViewRun: () => void;
+  onRetryOtb?: (() => void) | null;
+  retryingOtb?: boolean;
+  onDone: () => void;
+}) {
+  const { dateTime } = useRestaurantTime();
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5" data-testid="night-audit-close-result">
+      <div className="flex items-center gap-2">
+        <CheckCircle2 className="size-5 text-emerald-700" />
+        <h2 className="font-display text-lg text-[#251605]">{result.title}</h2>
+      </div>
+      {result.alreadyClosed ? (
+        <p className="mt-1 text-sm text-muted-foreground" data-testid="night-audit-already-closed">
+          {ALREADY_CLOSED_COPY} The close below is the original record; nothing was closed twice.
+        </p>
+      ) : null}
+      {!result.alreadyClosed && result.noteSaved === false ? (
+        <p className="mt-1 text-xs text-amber-800">The business date closed, but the audit note could not be saved.</p>
+      ) : null}
+      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+        <ResultItem label="Closed business date" value={formatNa1Date(result.closedBusinessDate)} />
+        <ResultItem label="New business date" value={formatNa1Date(result.newBusinessDate)} />
+        <ResultItem label="Closed by" value={result.closedBy ?? "—"} />
+        <ResultItem label="Closed at" value={result.closedAt ? dateTime(result.closedAt) : "—"} />
+        <ResultItem label="Financial" value={result.financialStatus ? domainStatusLabel(result.financialStatus) : "—"} />
+        <ResultItem label="Operations" value={result.operationalStatus ? domainStatusLabel(result.operationalStatus) : "—"} />
+        <ResultItem label="Warnings" value={result.warningCount == null ? "—" : String(result.warningCount)} />
+        <ResultItem label="OTB snapshot" value={result.otb} />
+      </dl>
+      {result.otbNotice ? (
+        <p className="mt-3 flex items-center gap-2 text-sm text-amber-800" data-testid="night-audit-close-result-otb">
+          <AlertTriangle className="size-4" />
+          {result.otbNotice}
+        </p>
+      ) : null}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button type="button" onClick={onViewRun}>
+          View Closed Run
+        </Button>
+        <Button asChild variant="outline">
+          <Link to="/restaurant/pms/front-office">Go to Front Office</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link to="/restaurant/pms/reports">Open Reports</Link>
+        </Button>
+        {result.otbFailed && onRetryOtb ? (
+          <Button type="button" variant="outline" disabled={retryingOtb} onClick={onRetryOtb}>
+            {retryingOtb ? "Retrying…" : "Retry OTB Snapshot"}
+          </Button>
+        ) : null}
+        <Button type="button" variant="ghost" onClick={onDone}>
+          Done
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function ResultItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="font-medium text-[#251605]">{value}</dd>
+    </div>
   );
 }
 
@@ -210,10 +354,11 @@ export function NaCloseSummary({
   const arrivals = liveCountFromSnapshot(blockers, "arrivals_pending");
   const overstays = liveCountFromSnapshot(blockers, "overstays");
   const unpaid = liveCountFromSnapshot(blockers, "unpaid_folios");
+  const summary = run?.summary ?? null;
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-5">
-      <h2 className="font-display text-lg text-[#251605]">Latest close</h2>
+    <section className="rounded-2xl border border-border bg-card p-5" data-testid="night-audit-close-summary">
+      <h2 className="font-display text-lg text-[#251605]">{run ? "Close record" : "Last successful Night Audit"}</h2>
       <p className="mt-2 text-sm">
         {formatNa1Date(previous)} → {formatNa1Date(next)}
       </p>
@@ -221,72 +366,64 @@ export function NaCloseSummary({
         {who ?? "—"}
         {when ? ` · ${dateTime(when)}` : ""}
       </p>
-      <dl className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div>
-          <dt className="text-xs text-muted-foreground">Arrivals left</dt>
-          <dd className="text-sm font-medium">{arrivals == null ? "—" : arrivals}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground">In-house room units</dt>
-          <dd className="text-sm font-medium">
-            {summaryRoomUnitCount(run?.summary) ?? "—"}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground">Overstays</dt>
-          <dd className="text-sm font-medium">
-            {typeof run?.summary?.overstays === "number" ? run.summary.overstays : overstays == null ? "—" : overstays}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground">Unpaid folios</dt>
-          <dd className="text-sm font-medium">{unpaid == null ? "—" : unpaid}</dd>
-        </div>
-      </dl>
+      {run ? (
+        <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-muted-foreground">Arrivals left</dt>
+            <dd className="text-sm font-medium">{arrivals == null ? "—" : arrivals}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">In-house room units</dt>
+            <dd className="text-sm font-medium">{summaryRoomUnitCount(run.summary) ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Overstays</dt>
+            <dd className="text-sm font-medium">
+              {typeof run.summary?.overstays === "number" ? run.summary.overstays : overstays == null ? "—" : overstays}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Unpaid folios</dt>
+            <dd className="text-sm font-medium">{unpaid == null ? "—" : unpaid}</dd>
+          </div>
+        </dl>
+      ) : null}
+      {typeof run?.summary?.financialBlockerCount === "number" ? (
+        <dl className="mt-4 grid gap-3 sm:grid-cols-4" data-testid="night-audit-close-financial-summary">
+          <SummaryItem label="Financial blockers" value={summaryCount(summary, "financialBlockerCount")} />
+          <SummaryItem label="Financial warnings" value={summaryCount(summary, "financialWarningCount")} />
+          <SummaryItem label="Open drawers" value={summaryCount(summary, "openDrawerCount")} />
+          <SummaryItem label="Fiscal problems" value={summaryCount(summary, "fiscalProblemCount")} />
+        </dl>
+      ) : null}
+      {typeof run?.summary?.operationalBlockerCount === "number" ? (
+        <dl className="mt-4 grid gap-3 sm:grid-cols-3" data-testid="night-audit-close-operational-summary">
+          <SummaryItem label="Operational blockers" value={summaryCount(summary, "operationalBlockerCount")} />
+          <SummaryItem label="Operational warnings" value={summaryCount(summary, "operationalWarningCount")} />
+          <SummaryItem label="Unresolved arrivals" value={summaryCount(summary, "unresolvedArrivalCount")} />
+          <SummaryItem label="Overstays" value={summaryCount(summary, "overstayCount")} />
+          <SummaryItem label="Room conflicts" value={summaryCount(summary, "roomConflictCount")} />
+          <SummaryItem label="Overbooking issues" value={summaryCount(summary, "overbookingIssueCount")} />
+        </dl>
+      ) : null}
+      {run?.summary?.taxByCurrency && run.summary.taxByCurrency.length > 0 ? (
+        <ul className="mt-3 space-y-1 text-xs text-muted-foreground" data-testid="night-audit-close-tax-summary">
+          {run.summary.taxByCurrency.map((row) => (
+            <li key={row.currency}>
+              {row.currency} tax {row.tax.toFixed(2)} · service {row.serviceCharge.toFixed(2)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </section>
   );
 }
 
-export function NaHistoryList({ runs }: { runs: NightAuditRunRow[] }) {
-  const { dateTime } = useRestaurantTime();
-  if (runs.length === 0) {
-    return <p className="mt-2 text-sm text-muted-foreground">No audit history yet.</p>;
-  }
+function SummaryItem({ label, value }: { label: string; value: number | null }) {
   return (
-    <div className="mt-3 overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="text-left text-xs uppercase text-muted-foreground">
-          <tr>
-            <th className="py-2">Date</th>
-            <th>Status</th>
-            <th>Who</th>
-            <th>When</th>
-            <th className="text-right">Arrivals</th>
-            <th className="text-right">Overstays</th>
-            <th className="text-right">Unpaid</th>
-          </tr>
-        </thead>
-        <tbody>
-          {runs.map((run) => {
-            const blockers = run.summary?.blockers;
-            return (
-              <tr key={run.id} className="border-t border-border">
-                <td className="py-2">{formatNa1Date(run.businessDate)}</td>
-                <td className="capitalize">{run.status === "ready" ? "open" : run.status}</td>
-                <td>{run.closedBy ?? run.startedBy ?? "—"}</td>
-                <td>{run.closedAt ? dateTime(run.closedAt) : dateTime(run.startedAt)}</td>
-                <td className="text-right">{formatLiveCount(liveCountFromSnapshot(blockers, "arrivals_pending"))}</td>
-                <td className="text-right">{formatLiveCount(liveCountFromSnapshot(blockers, "overstays"))}</td>
-                <td className="text-right">{formatLiveCount(liveCountFromSnapshot(blockers, "unpaid_folios"))}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-sm font-medium">{formatSummaryCount(value)}</dd>
     </div>
   );
-}
-
-function formatLiveCount(value: number | null): string {
-  return value == null ? "—" : String(value);
 }

@@ -1,6 +1,7 @@
 /**
  * Pure plan for night_audit_exceptions sync.
- * The source module stays authoritative: a cleared condition resolves, a returning blocker reopens.
+ * The source module stays authoritative: a cleared condition resolves and a returning condition reopens.
+ * A legacy ignored warning stays ignored; a blocker never does.
  */
 
 export type ExceptionSyncExisting = {
@@ -59,7 +60,8 @@ export function planExceptionSync(
     );
     if (!current) continue;
     const severityChanged = current.severity !== row.severity || current.message !== row.message;
-    const reopen = row.severity === "blocking" && current.status !== "open";
+    const reopen =
+      current.status === "resolved" || (row.severity === "blocking" && current.status !== "open");
     if (!severityChanged && !reopen) continue;
     updates.push({
       id: current.id,
