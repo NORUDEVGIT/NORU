@@ -5,9 +5,26 @@ import { FinancialAccountWorkspacePage } from "@/packages/pms/components/cashier
 export function AccountInvoicePage({
   membership,
   accountId,
+  initialTab,
+  initialAction,
+  invoiceId,
+  paymentId,
 }: {
   membership: RestaurantMembership;
   accountId: string;
+  initialTab?: string | undefined;
+  initialAction?: string | undefined;
+  invoiceId?: string | undefined;
+  paymentId?: string | undefined;
 }) {
-  return <FinancialAccountWorkspacePage membership={membership} accountId={accountId} />;
+  return (
+    <FinancialAccountWorkspacePage
+      membership={membership}
+      accountId={accountId}
+      initialTab={initialTab}
+      initialAction={initialAction}
+      invoiceId={invoiceId}
+      paymentId={paymentId}
+    />
+  );
 }

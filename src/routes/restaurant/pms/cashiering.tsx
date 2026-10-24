@@ -10,6 +10,7 @@ export const Route = createFileRoute("/restaurant/pms/cashiering")({
     ...(typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {}),
     ...(typeof search["folio"] === "string" ? { folio: search["folio"] as string } : {}),
     ...(typeof search["shift"] === "string" ? { shift: search["shift"] as string } : {}),
+    ...(typeof search["action"] === "string" ? { action: search["action"] as string } : {}),
     ...(typeof search["account"] === "string" ? { account: search["account"] as string } : {}),
     ...(typeof search["q"] === "string" ? { q: search["q"] as string } : {}),
     ...(typeof search["page"] === "number"

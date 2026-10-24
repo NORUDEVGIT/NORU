@@ -7,6 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/restaurant/pms/cashiering/accounts/$accountId")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>) => ({
+    ...(typeof search.tab === "string" ? { tab: search.tab } : {}),
+    ...(typeof search.action === "string" ? { action: search.action } : {}),
+    ...(typeof search.invoice === "string" ? { invoice: search.invoice } : {}),
+    ...(typeof search.payment === "string" ? { payment: search.payment } : {}),
+  }),
   beforeLoad: async ({ params }) => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
@@ -32,6 +38,7 @@ export const Route = createFileRoute("/restaurant/pms/cashiering/accounts/$accou
 
 function AccountInvoiceRoute() {
   const { accountId } = Route.useParams();
+  const search = Route.useSearch();
   return (
     <RestaurantShell
       active="Cashiering"
@@ -41,7 +48,16 @@ function AccountInvoiceRoute() {
       hidePackageRail
       hideTopHeader
     >
-      {(membership) => <AccountInvoicePage membership={membership} accountId={accountId} />}
+      {(membership) => (
+        <AccountInvoicePage
+          membership={membership}
+          accountId={accountId}
+          initialTab={search.tab}
+          initialAction={search.action}
+          invoiceId={search.invoice}
+          paymentId={search.payment}
+        />
+      )}
     </RestaurantShell>
   );
 }

@@ -669,6 +669,7 @@ export async function loadNightAuditFinancialReconciliation(
       .filter((txn) => !txn.financial_account_id)
       .map((txn) => ({
         id: txn.id,
+        folioId: txn.folio_id,
         kind: txn.transaction_type === "deposit" ? ("deposit" as const) : ("payment" as const),
         reference: txn.payment_method ? `${txn.transaction_type} · ${txn.payment_method}` : txn.transaction_type,
         guestName: folioGuest(txn.folio_id),

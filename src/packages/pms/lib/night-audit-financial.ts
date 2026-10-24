@@ -137,6 +137,7 @@ export type GuestInvoiceFact = {
 
 export type GuestSourceFact = {
   id: string;
+  folioId?: string | null;
   kind: "payment" | "deposit";
   reference: string;
   guestName: string;
@@ -565,6 +566,21 @@ export function reconcileNightAuditFinancials(
   });
 
   for (const row of ledger.exceptions) {
+    const isStay = row.referenceType === "reservation";
+    const targetRoute = isStay && row.referenceId
+      ? `/restaurant/pms/reservations/${row.referenceId}`
+      : row.referenceId
+        ? `/restaurant/pms/cashiering/folios/${row.referenceId}`
+        : CASHIERING;
+    const targetSearch = isStay
+      ? {}
+      : row.exceptionType === "closed_folio_nonzero_balance"
+        ? { tab: "settlement" }
+        : row.exceptionType === "closed_folio_post_activity"
+          ? { tab: "history" }
+          : row.referenceId
+            ? { tab: "charges" }
+            : cashieringSearch();
     issues.push(
       issue({
         code: row.exceptionType,
@@ -574,14 +590,15 @@ export function reconcileNightAuditFinancials(
         description: row.message,
         referenceType: row.referenceType ?? "folio",
         referenceId: row.referenceId ?? "",
-        route: CASHIERING,
-        search: cashieringSearch(),
+        route: targetRoute,
+        search: targetSearch,
         createdAt: facts.checkedAt,
       }),
     );
   }
   for (const row of settlement) {
     const category = row.exceptionType === "folio_invoice_contradiction" ? "invoices" : "payments_deposits";
+    const targetRoute = row.referenceId ? `/restaurant/pms/cashiering/folios/${row.referenceId}` : CASHIERING;
     issues.push(
       issue({
         code: row.exceptionType,
@@ -594,8 +611,8 @@ export function reconcileNightAuditFinancials(
         description: row.message,
         referenceType: row.referenceType ?? "allocation",
         referenceId: row.referenceId ?? "",
-        route: CASHIERING,
-        search: cashieringSearch(),
+        route: targetRoute,
+        search: category === "invoices" ? { tab: "invoices" } : { tab: "payments" },
         createdAt: facts.checkedAt,
       }),
     );
@@ -604,6 +621,12 @@ export function reconcileNightAuditFinancials(
   for (const source of facts.sources) {
     const available = guestPaymentAvailable(source.face, source.refunded, source.allocated);
     if (available > GUEST_ALLOCATION_TOLERANCE) {
+      const targetRoute = source.folioId
+        ? `/restaurant/pms/cashiering/folios/${source.folioId}`
+        : CASHIERING;
+      const targetSearch = source.folioId
+        ? { tab: "payments", action: "allocate", payment: source.id }
+        : { tab: "folios", q: source.reference || source.guestName };
       issues.push(
         issue({
           code: source.kind === "deposit" ? "unallocated_guest_deposit" : "unallocated_guest_payment",
@@ -613,8 +636,8 @@ export function reconcileNightAuditFinancials(
           description: `${source.reference} still has ${available.toFixed(2)} ${source.currency} available. Unallocated cash is not corruption.`,
           referenceType: "folio_transaction",
           referenceId: source.id,
-          route: CASHIERING,
-          search: cashieringSearch(),
+          route: targetRoute,
+          search: targetSearch,
           currency: source.currency,
           amount: available,
           createdAt: facts.checkedAt,
@@ -682,6 +705,10 @@ function guestFolioRows(
       (row) => row.invoice.folioId === folio.id && (row.result.outstanding ?? 0) > GUEST_ALLOCATION_TOLERANCE,
     );
     const anyInvoice = classified.some((row) => row.invoice.folioId === folio.id);
+    const isClosedWithBalance =
+      folio.status === "closed" && Math.abs(balances.get(folio.id) ?? 0) > 0.009;
+    const targetTab = isClosedWithBalance ? "settlement" : outstanding ? "invoices" : "charges";
+    const actionLabel = isClosedWithBalance ? "Settle Folio" : outstanding ? "Review Invoices" : "Open Folio";
     return {
       id: folio.id,
       guest: folio.guestName,
@@ -693,9 +720,9 @@ function guestFolioRows(
       invoiceState: !anyInvoice ? "No invoice" : outstanding ? "Outstanding" : "Settled",
       status: rowStatus(top?.severity ?? null),
       issue: top?.description ?? "",
-      action: "Open Cashiering",
-      route: CASHIERING,
-      search: cashieringSearch(),
+      action: actionLabel,
+      route: `/restaurant/pms/cashiering/folios/${folio.id}`,
+      search: { tab: targetTab },
     };
   });
   for (const stay of facts.missingFolios) {
@@ -711,9 +738,9 @@ function guestFolioRows(
       invoiceState: "No folio",
       status: "warning",
       issue: top?.description ?? "Priced stay has no folio.",
-      action: "Open Cashiering",
-      route: CASHIERING,
-      search: cashieringSearch(),
+      action: "Open Reservation",
+      route: `/restaurant/pms/reservations/${stay.id}`,
+      search: {},
     });
   }
   for (const row of issues) {
@@ -729,9 +756,9 @@ function guestFolioRows(
       invoiceState: "—",
       status: "blocker",
       issue: row.description,
-      action: "Open Cashiering",
+      action: "Search Folios",
       route: CASHIERING,
-      search: cashieringSearch(),
+      search: { tab: "folios", q: row.referenceId },
     });
   }
   return rows;
@@ -768,9 +795,9 @@ function invoiceRows(
         : outstanding > GUEST_ALLOCATION_TOLERANCE
           ? "Outstanding remains on an open stay. This does not block close."
           : "",
-      action: "Open Cashiering",
-      route: CASHIERING,
-      search: cashieringSearch(),
+      action: invoice.folioId ? "Open Folio Invoices" : "Open Cashiering",
+      route: invoice.folioId ? `/restaurant/pms/cashiering/folios/${invoice.folioId}` : CASHIERING,
+      search: invoice.folioId ? { tab: "invoices" } : { tab: "folios", q: invoice.number },
     };
   });
 }
@@ -783,6 +810,7 @@ function allocationRows(
     const available = guestPaymentAvailable(source.face, source.refunded, source.allocated);
     const related = issues.filter((row) => row.referenceId === source.id);
     const top = worst(related);
+    const hasFolio = Boolean(source.folioId);
     return {
       id: source.id,
       type: source.kind === "deposit" ? "Deposit" : "Payment",
@@ -795,9 +823,11 @@ function allocationRows(
       targetInvoice: source.targetInvoice,
       status: rowStatus(top?.severity ?? null),
       issue: top?.description ?? "",
-      action: "Open Cashiering",
-      route: CASHIERING,
-      search: cashieringSearch(),
+      action: hasFolio ? "Allocate in Folio" : "Search Cashiering",
+      route: hasFolio ? `/restaurant/pms/cashiering/folios/${source.folioId}` : CASHIERING,
+      search: hasFolio
+        ? { tab: "payments", action: "allocate", payment: source.id }
+        : { tab: "folios", q: source.reference || source.guestName },
     };
   });
   for (const allocation of facts.allocations) {
@@ -817,9 +847,9 @@ function allocationRows(
       targetInvoice: allocation.invoiceId,
       status: "blocker",
       issue: orphan.description,
-      action: "Open Cashiering",
+      action: "Search Cashiering",
       route: CASHIERING,
-      search: cashieringSearch(),
+      search: { tab: "folios", q: allocation.invoiceId },
     });
   }
   return rows;
@@ -856,8 +886,8 @@ function reconcileAccounts(facts: NightAuditFinancialFacts): {
             description: `${account.name} invoice ${invoice.number} stores withholding that does not match the active certificates.`,
             referenceType: "account_invoice",
             referenceId: invoice.id,
-            route: CASHIERING,
-            search: cashieringSearch(),
+            route: `/restaurant/pms/cashiering/accounts/${account.id}`,
+            search: { tab: "invoices", invoice: invoice.id },
             currency: invoice.currency,
             amount: invoice.withholdingNet,
             createdAt: facts.checkedAt,
@@ -878,8 +908,8 @@ function reconcileAccounts(facts: NightAuditFinancialFacts): {
             description: `${account.name} has an allocation above the payment still available.`,
             referenceType: "folio_transaction",
             referenceId: payment.id,
-            route: CASHIERING,
-            search: cashieringSearch(),
+            route: `/restaurant/pms/cashiering/accounts/${account.id}`,
+            search: { tab: "payments", payment: payment.id },
             currency: payment.currency,
             amount: available,
             createdAt: facts.checkedAt,
@@ -902,8 +932,8 @@ function reconcileAccounts(facts: NightAuditFinancialFacts): {
             description: `${account.name} has an allocation whose invoice is not on this property.`,
             referenceType: "account_allocation",
             referenceId: allocation.id,
-            route: CASHIERING,
-            search: cashieringSearch(),
+            route: `/restaurant/pms/cashiering/accounts/${account.id}`,
+            search: { tab: "invoices" },
             createdAt: facts.checkedAt,
           }),
         );
@@ -917,8 +947,8 @@ function reconcileAccounts(facts: NightAuditFinancialFacts): {
             description: `${account.name} has an allocation on a void or unissued invoice.`,
             referenceType: "account_allocation",
             referenceId: allocation.id,
-            route: CASHIERING,
-            search: cashieringSearch(),
+            route: `/restaurant/pms/cashiering/accounts/${account.id}`,
+            search: { tab: "invoices" },
             createdAt: facts.checkedAt,
           }),
         );
@@ -934,8 +964,8 @@ function reconcileAccounts(facts: NightAuditFinancialFacts): {
           description: `${account.name} still has payment available while an invoice is outstanding.`,
           referenceType: "financial_account",
           referenceId: account.id,
-          route: CASHIERING,
-          search: cashieringSearch(),
+          route: `/restaurant/pms/cashiering/accounts/${account.id}`,
+          search: { tab: "payments" },
           currency: account.currency,
           amount: unallocated,
           createdAt: facts.checkedAt,
@@ -952,8 +982,8 @@ function reconcileAccounts(facts: NightAuditFinancialFacts): {
           description: `${account.name} has a valid outstanding balance. Receivables do not block close.`,
           referenceType: "financial_account",
           referenceId: account.id,
-          route: CASHIERING,
-          search: cashieringSearch(),
+          route: `/restaurant/pms/cashiering/accounts/${account.id}`,
+          search: { tab: "invoices" },
           currency: account.currency,
           amount: outstanding,
           createdAt: facts.checkedAt,
@@ -963,6 +993,8 @@ function reconcileAccounts(facts: NightAuditFinancialFacts): {
     const top = worst(local);
     const transferBlocked = transfers.accountIds.has(account.id);
     issues.push(...local);
+    const targetTab = unallocated > 0 ? "payments" : outstanding > 0 ? "invoices" : "overview";
+    const actionLabel = unallocated > 0 ? "Allocate Payment" : outstanding > 0 ? "Review Invoices" : "Open Account";
     return {
       id: account.id,
       account: account.name,
@@ -975,9 +1007,9 @@ function reconcileAccounts(facts: NightAuditFinancialFacts): {
       issue: transferBlocked
         ? "A cross-ledger movement does not match its transfer pair."
         : (top?.description ?? ""),
-      action: "Open Account",
-      route: CASHIERING,
-      search: cashieringSearch(),
+      action: actionLabel,
+      route: `/restaurant/pms/cashiering/accounts/${account.id}`,
+      search: { tab: targetTab },
     };
   });
   return { issues, rows };
@@ -1061,7 +1093,7 @@ function reconcileDrawers(facts: NightAuditFinancialFacts): {
           referenceType: "cashier_shift",
           referenceId: drawer.id,
           route: CASHIERING,
-          search: { tab: "cashier-shift" },
+          search: { tab: "cashier-shift", shift: drawer.id, action: "close" },
           createdAt: facts.checkedAt,
         }),
       );
@@ -1078,7 +1110,7 @@ function reconcileDrawers(facts: NightAuditFinancialFacts): {
           referenceType: "cashier_shift",
           referenceId: drawer.id,
           route: CASHIERING,
-          search: { tab: "cashier-shift" },
+          search: { tab: "cashier-shift", shift: drawer.id },
           currency: drawer.currency,
           amount: drawer.variance,
           createdAt: facts.checkedAt,
@@ -1097,9 +1129,17 @@ function reconcileDrawers(facts: NightAuditFinancialFacts): {
       status,
       state: drawer.state,
       issue: text,
-      action: drawer.state === "open" ? "Open Cashiering" : "",
+      action:
+        drawer.state === "open"
+          ? "Close Cashier Shift"
+          : drawer.variance != null && Math.abs(drawer.variance) >= 0.01
+            ? "Inspect Shift"
+            : "",
       route: CASHIERING,
-      search: { tab: "cashier-shift" },
+      search:
+        drawer.state === "open"
+          ? { tab: "cashier-shift", shift: drawer.id, action: "close" }
+          : { tab: "cashier-shift", shift: drawer.id },
     };
   });
   const state = hotel.length === 0 ? "na" : rows.some((row) => row.state === "open") ? "blocked" : "clear";

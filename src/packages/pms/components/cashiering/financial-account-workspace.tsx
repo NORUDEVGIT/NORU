@@ -83,17 +83,30 @@ function profileStatusLabel(status: string | null): string {
 export function FinancialAccountWorkspacePage({
   membership,
   accountId,
+  initialTab,
+  initialAction,
+  invoiceId,
+  paymentId,
 }: {
   membership: RestaurantMembership;
   accountId: string;
+  initialTab?: string | undefined;
+  initialAction?: string | undefined;
+  invoiceId?: string | undefined;
+  paymentId?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const money = useMoney();
   const { dateTime, date } = useRestaurantTime();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<WorkspaceTab>("overview");
-  const [invoicesMounted, setInvoicesMounted] = useState(false);
+  const [tab, setTab] = useState<WorkspaceTab>(() => {
+    if (initialTab && TABS.some((t) => t.id === initialTab)) {
+      return initialTab as WorkspaceTab;
+    }
+    return "overview";
+  });
+  const [invoicesMounted, setInvoicesMounted] = useState(() => initialTab === "invoices");
   const [chargeFolioId, setChargeFolioId] = useState<string | null>(null);
   const [chargeFolioLabel, setChargeFolioLabel] = useState<string | null>(null);
   const [compose, setCompose] = useState<"payment" | "writeoff" | null>(null);
@@ -103,6 +116,20 @@ export function FinancialAccountWorkspacePage({
   const [receipt, setReceipt] = useState<TenderReceipt | null>(null);
   const fetchWorkspace = useServerFn(getFinancialAccountWorkspace);
   const closeAccount = useServerFn(closeFinancialAccount);
+
+  useEffect(() => {
+    if (initialTab && TABS.some((t) => t.id === initialTab)) {
+      setTab(initialTab as WorkspaceTab);
+      if (initialTab === "invoices") setInvoicesMounted(true);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (initialAction === "payment") {
+      setPaymentKind("payment");
+      setPaymentDialogOpen(true);
+    }
+  }, [initialAction]);
   const workspaceQuery = useQuery({
     queryKey: ["financial-account-workspace", restaurantId, accountId],
     queryFn: () => fetchWorkspace({ data: { restaurantId, accountId } }),

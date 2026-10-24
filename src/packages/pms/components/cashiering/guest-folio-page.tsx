@@ -141,11 +141,15 @@ export function GuestFolioPage({
   folioId,
   initialAction,
   initialTab,
+  initialPaymentId,
+  initialInvoiceId,
 }: {
   membership: RestaurantMembership;
   folioId: string;
   initialAction?: string | undefined;
   initialTab?: string | undefined;
+  initialPaymentId?: string | undefined;
+  initialInvoiceId?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -220,6 +224,8 @@ export function GuestFolioPage({
           workspace={workspace}
           initialAction={initialAction}
           initialTab={initialTab}
+          initialPaymentId={initialPaymentId}
+          initialInvoiceId={initialInvoiceId}
           depositPolicySummary={depositPolicyQuery.data?.summary ?? null}
           correctionNotice={correctionNoticeQuery.data ?? null}
           onChanged={refresh}
@@ -324,6 +330,8 @@ function FolioWorkspaceBody({
   workspace,
   initialAction,
   initialTab,
+  initialPaymentId,
+  initialInvoiceId,
   depositPolicySummary,
   correctionNotice,
   onChanged,
@@ -335,6 +343,8 @@ function FolioWorkspaceBody({
   workspace: FolioWorkspace;
   initialAction?: string | undefined;
   initialTab?: string | undefined;
+  initialPaymentId?: string | undefined;
+  initialInvoiceId?: string | undefined;
   depositPolicySummary: string | null;
   correctionNotice: {
     authorizer?: string | null;
@@ -408,6 +418,12 @@ function FolioWorkspaceBody({
   }, []);
 
   useEffect(() => {
+    if (initialAction === "allocate" || initialPaymentId) {
+      if (initialPaymentId) setAllocatePaymentId(initialPaymentId);
+      if (initialInvoiceId) setAllocateInvoiceId(initialInvoiceId);
+      setAllocateOpen(true);
+      return;
+    }
     if (!isFolioAction(initialAction)) return;
     if (initialAction === "close") {
       if (caps.canClose) setCloseOpen(true);
@@ -422,7 +438,7 @@ function FolioWorkspaceBody({
       adjustment: caps.canAdjust,
     };
     if (allowed[initialAction]) openEntry(initialAction);
-  }, [initialAction, caps]);
+  }, [initialAction, initialPaymentId, initialInvoiceId, caps]);
 
   function selectTab(next: FolioWorkspaceTabId) {
     setTab(next);
