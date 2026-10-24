@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -92,6 +93,7 @@ export function FinancialAccountPayments({
   compose,
   onComposeHandled,
   onPosted,
+  initialPaymentId,
 }: {
   restaurantId: string;
   accountId: string;
@@ -107,6 +109,7 @@ export function FinancialAccountPayments({
   compose: Compose;
   onComposeHandled: () => void;
   onPosted: () => void;
+  initialPaymentId?: string | undefined;
 }) {
   const queryClient = useQueryClient();
   const fetchPayments = useServerFn(listFinancialAccountPayments);
@@ -126,7 +129,13 @@ export function FinancialAccountPayments({
   const [writeOffKey, setWriteOffKey] = useState("");
   const [refundRow, setRefundRow] = useState<AccountPaymentRow | null>(null);
   const [refundKey, setRefundKey] = useState("");
-  const [allocatePaymentId, setAllocatePaymentId] = useState<string | null>(null);
+  const [allocatePaymentId, setAllocatePaymentId] = useState<string | null>(() => initialPaymentId ?? null);
+
+  useEffect(() => {
+    if (initialPaymentId) {
+      setAllocatePaymentId(initialPaymentId);
+    }
+  }, [initialPaymentId]);
   const [reverseAllocation, setReverseAllocation] = useState<{
     id: string;
     invoiceNumber: string;

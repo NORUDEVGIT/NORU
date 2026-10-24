@@ -123,6 +123,8 @@ export function GuestInvoiceWorkspace({
   onAllocate,
   autoStartIssue = false,
   onIssued,
+  initialInvoiceId,
+  initialModalTab,
 }: {
   restaurantId: string;
   workspace: FolioWorkspace;
@@ -135,6 +137,8 @@ export function GuestInvoiceWorkspace({
   onAllocate?: ((invoiceId: string, paymentId?: string) => void) | undefined;
   autoStartIssue?: boolean;
   onIssued?: ((invoice: IssuedFolioInvoiceRow) => void) | undefined;
+  initialInvoiceId?: string | undefined;
+  initialModalTab?: string | undefined;
 }) {
   const folio = workspace.folio;
   const canManage = workspace.canManage && workspace.capabilities.canIssueInvoice;
@@ -196,6 +200,16 @@ export function GuestInvoiceWorkspace({
   const [invoicePage, setInvoicePage] = useState(1);
   const [invoicePageSize, setInvoicePageSize] = useState(5);
   const issueStarted = useRef(false);
+
+  useEffect(() => {
+    if (!initialInvoiceId) return;
+    const match = folio.issuedInvoices.find(
+      (inv) => inv.id === initialInvoiceId || inv.issuedNumber === initialInvoiceId,
+    );
+    if (match) {
+      setViewingInvoice(match);
+    }
+  }, [initialInvoiceId, folio.issuedInvoices]);
 
   useEffect(() => {
     if (!board?.draft || !editing) return;
@@ -891,6 +905,7 @@ export function GuestInvoiceWorkspace({
       <GuestInvoiceModal
         open={currentViewingInvoice !== null}
         invoice={currentViewingInvoice}
+        initialTab={initialModalTab}
         restaurantId={restaurantId}
         folio={folio}
         workspace={workspace}

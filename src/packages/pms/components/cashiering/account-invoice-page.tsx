@@ -9,6 +9,9 @@ export function AccountInvoicePage({
   initialAction,
   invoiceId,
   paymentId,
+  modalTab,
+  returnTo,
+  returnToLabel,
 }: {
   membership: RestaurantMembership;
   accountId: string;
@@ -16,6 +19,9 @@ export function AccountInvoicePage({
   initialAction?: string | undefined;
   invoiceId?: string | undefined;
   paymentId?: string | undefined;
+  modalTab?: string | undefined;
+  returnTo?: string | undefined;
+  returnToLabel?: string | undefined;
 }) {
   return (
     <FinancialAccountWorkspacePage
@@ -25,6 +31,9 @@ export function AccountInvoicePage({
       initialAction={initialAction}
       invoiceId={invoiceId}
       paymentId={paymentId}
+      modalTab={modalTab}
+      returnTo={returnTo}
+      returnToLabel={returnToLabel}
     />
   );
 }

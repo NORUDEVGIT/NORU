@@ -12,6 +12,9 @@ export const Route = createFileRoute("/restaurant/pms/cashiering/folios/$folioId
     ...(typeof search.tab === "string" ? { tab: search.tab } : {}),
     ...(typeof search.payment === "string" ? { payment: search.payment } : {}),
     ...(typeof search.invoice === "string" ? { invoice: search.invoice } : {}),
+    ...(typeof search.modalTab === "string" ? { modalTab: search.modalTab } : {}),
+    ...(typeof search.returnTo === "string" ? { returnTo: search.returnTo } : {}),
+    ...(typeof search.returnToLabel === "string" ? { returnToLabel: search.returnToLabel } : {}),
   }),
   beforeLoad: async ({ params }) => {
     const { data, error } = await supabase.auth.getUser();
@@ -57,6 +60,9 @@ function GuestFolioRoute() {
           initialTab={search.tab}
           initialPaymentId={search.payment}
           initialInvoiceId={search.invoice}
+          initialModalTab={search.modalTab}
+          returnTo={search.returnTo}
+          returnToLabel={search.returnToLabel}
         />
       )}
     </RestaurantShell>

@@ -141,9 +141,29 @@ function getDestinationMeta(row: {
     };
   }
   if (row.category === "fiscal") {
+    const isFolio = typeof row.route === "string" && row.route.includes("/folios/");
+    const isAccount = typeof row.route === "string" && row.route.includes("/accounts/");
+    const modalTab = (row.search as Record<string, string> | undefined)?.modalTab;
+    const tabName =
+      modalTab === "withholding"
+        ? "Withholding Tab"
+        : modalTab === "settlement"
+          ? "Settlement Tab"
+          : "Fiscal Registration Tab";
     return {
-      destination: "Fiscal Integration → Document Audit",
-      actionText: "Inspect Fiscal Record",
+      destination: isFolio
+        ? `Guest Folio → ${tabName}`
+        : isAccount
+          ? `Financial Account → ${tabName}`
+          : "Fiscal Integration → Document Audit",
+      actionText:
+        modalTab === "withholding"
+          ? "Review Withholding Tax"
+          : modalTab === "settlement"
+            ? "Review Settlement & Receipts"
+            : isFolio || isAccount
+              ? "Inspect Fiscal Registration"
+              : "Inspect Fiscal Record",
       icon: FileCheck,
     };
   }
@@ -712,7 +732,13 @@ export function NightAuditFinancialPanel({
 
                       <Link
                         to={row.route as never}
-                        search={row.search as never}
+                        search={
+                          ({
+                            ...(row.search as Record<string, unknown> ?? {}),
+                            returnTo: "/restaurant/pms/night-audit",
+                            returnToLabel: "Return to Night Audit",
+                          }) as never
+                        }
                         className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-2xs hover:bg-primary/90 transition-all"
                       >
                         <span>{meta.actionText}</span>
@@ -1052,7 +1078,13 @@ export function NightAuditFinancialPanel({
                 <div className="mt-3 flex items-center gap-2">
                   <Link
                     to={selected.route as never}
-                    search={selected.search as never}
+                    search={
+                      ({
+                        ...(selected.search as Record<string, unknown> ?? {}),
+                        returnTo: "/restaurant/pms/night-audit",
+                        returnToLabel: "Return to Night Audit",
+                      }) as never
+                    }
                     className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90 transition-colors"
                   >
                     <span>Open the owner module ({getDestinationMeta(selected).actionText})</span>
@@ -1193,10 +1225,15 @@ function StatusBadge({ status }: { status: NightAuditRowStatus }) {
 }
 
 function DirectLink({ label, route, search }: { label: string; route: string; search?: Record<string, string> }) {
+  const enrichedSearch = {
+    ...(search ?? {}),
+    returnTo: "/restaurant/pms/night-audit",
+    returnToLabel: "Return to Night Audit",
+  };
   return (
     <Link
       to={route as never}
-      search={search as never}
+      search={enrichedSearch as never}
       className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
     >
       <span>{label}</span>

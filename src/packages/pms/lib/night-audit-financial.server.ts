@@ -470,11 +470,121 @@ export async function loadNightAuditFinancialReconciliation(
     ),
   );
   const registeredKeys = new Set(fiscalRows.map((row) => `${row.source_type}:${row.source_id}`));
+  const guestInvoiceById = new Map(invoices.map((inv) => [inv.id, inv]));
+  const accountInvoiceById = new Map(accountInvoices.map((inv) => [inv.id, inv]));
+  const noteById = new Map(notes.map((n) => [n.id, n]));
+  const paymentAllocById = new Map(paymentAllocations.map((a) => [a.id, a]));
+  const depositAllocById = new Map(depositAllocations.map((a) => [a.id, a]));
+  const accountAllocById = new Map(accountAllocations.map((a) => [a.id, a]));
+  const certById = new Map(certificates.map((c) => [c.id, c]));
+
   const fiscalDocuments: FiscalDocumentFact[] = [];
   for (const row of fiscalRows) {
     const onDate = onAuditDate(row.created_at);
     const terminal = row.status === "REGISTERED" || row.status === "CANCELLED";
     if (terminal && !onDate) continue;
+
+    let folioId: string | null = null;
+    let accountId: string | null = null;
+    let invoiceId: string | null = null;
+
+    if (row.source_type === "guest_invoice") {
+      const inv = guestInvoiceById.get(row.source_id);
+      if (inv) {
+        folioId = inv.folio_id;
+        invoiceId = inv.id;
+      }
+    } else if (row.source_type === "account_invoice") {
+      const inv = accountInvoiceById.get(row.source_id);
+      if (inv) {
+        accountId = inv.financial_account_id;
+        invoiceId = inv.id;
+      }
+    } else if (row.source_type === "credit_note" || row.source_type === "debit_note") {
+      const n = noteById.get(row.source_id);
+      if (n?.guest_invoice_id) {
+        const inv = guestInvoiceById.get(n.guest_invoice_id);
+        if (inv) {
+          folioId = inv.folio_id;
+          invoiceId = inv.id;
+        }
+      } else if (n?.account_invoice_id) {
+        const inv = accountInvoiceById.get(n.account_invoice_id);
+        if (inv) {
+          accountId = inv.financial_account_id;
+          invoiceId = inv.id;
+        }
+      }
+    } else if (row.source_type === "guest_allocation") {
+      const a = paymentAllocById.get(row.source_id);
+      if (a) {
+        const inv = guestInvoiceById.get(a.invoice_id);
+        folioId = inv?.folio_id ?? null;
+        invoiceId = a.invoice_id;
+      } else {
+        const dep = depositAllocById.get(row.source_id);
+        if (dep) {
+          const inv = guestInvoiceById.get(dep.invoice_id);
+          folioId = inv?.folio_id ?? null;
+          invoiceId = dep.invoice_id;
+        }
+      }
+    } else if (row.source_type === "account_allocation") {
+      const a = accountAllocById.get(row.source_id);
+      if (a) {
+        accountId = a.financial_account_id ?? accountInvoiceById.get(a.invoice_id)?.financial_account_id ?? null;
+        invoiceId = a.invoice_id;
+      }
+    } else if (
+      row.source_type === "withholding" ||
+      row.source_type === "withholding_certificate" ||
+      row.fiscal_document_type === "WITHHOLDING"
+    ) {
+      const c = certById.get(row.source_id);
+      if (c) {
+        accountId = c.financial_account_id ?? accountInvoiceById.get(c.invoice_id)?.financial_account_id ?? null;
+        invoiceId = c.invoice_id;
+      } else if (accountInvoiceById.has(row.source_id)) {
+        const inv = accountInvoiceById.get(row.source_id)!;
+        accountId = inv.financial_account_id;
+        invoiceId = inv.id;
+      } else {
+        const certMatch = certificates.find((item) => item.id === row.source_id || item.invoice_id === row.source_id);
+        if (certMatch) {
+          accountId = certMatch.financial_account_id ?? accountInvoiceById.get(certMatch.invoice_id)?.financial_account_id ?? null;
+          invoiceId = certMatch.invoice_id;
+        }
+      }
+    } else if (row.source_type === "sales_receipt" || row.fiscal_document_type === "SALES_RECEIPT") {
+      const a = paymentAllocById.get(row.source_id);
+      if (a) {
+        const inv = guestInvoiceById.get(a.invoice_id);
+        folioId = inv?.folio_id ?? null;
+        invoiceId = a.invoice_id;
+      } else {
+        const dep = depositAllocById.get(row.source_id);
+        if (dep) {
+          const inv = guestInvoiceById.get(dep.invoice_id);
+          folioId = inv?.folio_id ?? null;
+          invoiceId = dep.invoice_id;
+        } else {
+          const accA = accountAllocById.get(row.source_id);
+          if (accA) {
+            accountId = accA.financial_account_id ?? accountInvoiceById.get(accA.invoice_id)?.financial_account_id ?? null;
+            invoiceId = accA.invoice_id;
+          } else if (guestInvoiceById.has(row.source_id)) {
+            const inv = guestInvoiceById.get(row.source_id)!;
+            folioId = inv.folio_id;
+            invoiceId = inv.id;
+          } else if (accountInvoiceById.has(row.source_id)) {
+            const inv = accountInvoiceById.get(row.source_id)!;
+            accountId = inv.financial_account_id;
+            invoiceId = inv.id;
+          }
+        }
+      }
+    }
+
     fiscalDocuments.push({
       id: row.source_id,
       number: row.external_document_number || row.trnx_id || row.source_id,
@@ -484,6 +594,9 @@ export async function loadNightAuditFinancialReconciliation(
       status: row.status,
       externalReference: row.external_document_number || row.external_irn || row.external_rrn,
       mode: fiscalSnapshotMode(row.request_snapshot),
+      folioId,
+      accountId,
+      invoiceId,
     });
   }
   const pushMissing = (document: FiscalDocumentFact, at: string | null) => {
@@ -503,6 +616,8 @@ export async function loadNightAuditFinancialReconciliation(
         status: "NOT_REGISTERED",
         externalReference: null,
         mode: null,
+        folioId: invoice.folio_id,
+        invoiceId: invoice.id,
       },
       invoice.issued_at,
     );
@@ -519,11 +634,15 @@ export async function loadNightAuditFinancialReconciliation(
         status: "NOT_REGISTERED",
         externalReference: null,
         mode: null,
+        accountId: invoice.financial_account_id,
+        invoiceId: invoice.id,
       },
       invoice.issued_at,
     );
   }
   for (const note of notes) {
+    const gInv = note.guest_invoice_id ? guestInvoiceById.get(note.guest_invoice_id) : null;
+    const aInv = note.account_invoice_id ? accountInvoiceById.get(note.account_invoice_id) : null;
     pushMissing(
       {
         id: note.id,
@@ -534,11 +653,15 @@ export async function loadNightAuditFinancialReconciliation(
         status: "NOT_REGISTERED",
         externalReference: null,
         mode: null,
+        folioId: gInv?.folio_id ?? null,
+        accountId: aInv?.financial_account_id ?? null,
+        invoiceId: gInv?.id ?? aInv?.id ?? null,
       },
       note.issued_at,
     );
   }
   for (const row of paymentAllocations) {
+    const inv = guestInvoiceById.get(row.invoice_id);
     pushMissing(
       {
         id: row.id,
@@ -549,6 +672,26 @@ export async function loadNightAuditFinancialReconciliation(
         status: "NOT_REGISTERED",
         externalReference: null,
         mode: null,
+        folioId: inv?.folio_id ?? null,
+        invoiceId: row.invoice_id,
+      },
+      row.created_at ?? null,
+    );
+  }
+  for (const row of depositAllocations) {
+    const inv = guestInvoiceById.get(row.invoice_id);
+    pushMissing(
+      {
+        id: row.id,
+        number: row.id,
+        documentType: "SALES_RECEIPT",
+        sourceType: "guest_deposit_allocation",
+        issuedAt: row.created_at ?? null,
+        status: "NOT_REGISTERED",
+        externalReference: null,
+        mode: null,
+        folioId: inv?.folio_id ?? null,
+        invoiceId: row.invoice_id,
       },
       row.created_at ?? null,
     );
@@ -564,6 +707,8 @@ export async function loadNightAuditFinancialReconciliation(
         status: "NOT_REGISTERED",
         externalReference: null,
         mode: null,
+        accountId: row.financial_account_id ?? accountInvoiceById.get(row.invoice_id)?.financial_account_id ?? null,
+        invoiceId: row.invoice_id,
       },
       row.created_at ?? null,
     );
@@ -579,6 +724,8 @@ export async function loadNightAuditFinancialReconciliation(
         status: "NOT_REGISTERED",
         externalReference: null,
         mode: null,
+        accountId: row.financial_account_id ?? accountInvoiceById.get(row.invoice_id)?.financial_account_id ?? null,
+        invoiceId: row.invoice_id,
       },
       row.created_at ?? null,
     );
@@ -686,6 +833,7 @@ export async function loadNightAuditFinancialReconciliation(
         amount: num(row.amount),
         sourceId: row.payment_transaction_id,
         kind: "payment" as const,
+        folioId: row.folio_id,
       })),
       ...depositAllocations.map((row) => ({
         id: row.id,
@@ -693,6 +841,7 @@ export async function loadNightAuditFinancialReconciliation(
         amount: num(row.amount),
         sourceId: row.deposit_transaction_id,
         kind: "deposit" as const,
+        folioId: row.folio_id,
       })),
     ],
     accounts: accountFacts,

@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import * as React from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -44,8 +45,7 @@ import {
 } from "@/packages/pms/lib/cashiering-account-workspace";
 import { getFinancialAccountWorkspace } from "@/packages/pms/lib/cashiering-account-workspace.functions";
 import { closeFinancialAccount } from "@/packages/pms/lib/cashiering-phases.functions";
-import { cashieringTabSearch, type CashieringTabId } from "@/packages/pms/lib/cashiering-shell";
-import type { FinancialAccountRow } from "@/packages/pms/lib/cashiering-phases.functions";
+import { cashieringTabSearch, resolveCashieringReturnTo, type CashieringTabId } from "@/packages/pms/lib/cashiering-shell";
 import { guestProfileSearch } from "@/packages/pms/lib/guest-profile-wave1";
 import { formatBalance } from "@/packages/pms/components/cashiering/folio-workspace-panels";
 import {
@@ -87,6 +87,9 @@ export function FinancialAccountWorkspacePage({
   initialAction,
   invoiceId,
   paymentId,
+  modalTab,
+  returnTo,
+  returnToLabel,
 }: {
   membership: RestaurantMembership;
   accountId: string;
@@ -94,19 +97,28 @@ export function FinancialAccountWorkspacePage({
   initialAction?: string | undefined;
   invoiceId?: string | undefined;
   paymentId?: string | undefined;
+  modalTab?: string | undefined;
+  returnTo?: string | undefined;
+  returnToLabel?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const money = useMoney();
   const { dateTime, date } = useRestaurantTime();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { hasPrevious, computedLabel, handleReturn } = resolveCashieringReturnTo({
+    returnTo,
+    returnToLabel,
+  });
   const [tab, setTab] = useState<WorkspaceTab>(() => {
+    if (invoiceId) return "invoices";
+    if (paymentId || initialAction === "allocate") return "payments";
     if (initialTab && TABS.some((t) => t.id === initialTab)) {
       return initialTab as WorkspaceTab;
     }
     return "overview";
   });
-  const [invoicesMounted, setInvoicesMounted] = useState(() => initialTab === "invoices");
+  const [invoicesMounted, setInvoicesMounted] = useState(() => initialTab === "invoices" || Boolean(invoiceId));
   const [chargeFolioId, setChargeFolioId] = useState<string | null>(null);
   const [chargeFolioLabel, setChargeFolioLabel] = useState<string | null>(null);
   const [compose, setCompose] = useState<"payment" | "writeoff" | null>(null);
@@ -117,14 +129,23 @@ export function FinancialAccountWorkspacePage({
   const fetchWorkspace = useServerFn(getFinancialAccountWorkspace);
   const closeAccount = useServerFn(closeFinancialAccount);
 
-  useEffect(() => {
+  React.useEffect(() => {
+    if (invoiceId) {
+      setTab("invoices");
+      setInvoicesMounted(true);
+      return;
+    }
+    if (paymentId || initialAction === "allocate") {
+      setTab("payments");
+      return;
+    }
     if (initialTab && TABS.some((t) => t.id === initialTab)) {
       setTab(initialTab as WorkspaceTab);
       if (initialTab === "invoices") setInvoicesMounted(true);
     }
-  }, [initialTab]);
+  }, [initialTab, invoiceId, paymentId, initialAction]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (initialAction === "payment") {
       setPaymentKind("payment");
       setPaymentDialogOpen(true);
@@ -193,6 +214,8 @@ export function FinancialAccountWorkspacePage({
       onNavigate={goDesk}
       onSearch={() => goDesk("folios")}
       onPostPayment={() => goDesk("overview")}
+      returnTo={returnTo}
+      returnToLabel={returnToLabel}
     >
       <div className="space-y-4" data-testid="financial-account-workspace">
         {workspaceQuery.isLoading ? (
@@ -203,8 +226,8 @@ export function FinancialAccountWorkspacePage({
           </p>
         ) : (
           <>
-            {/* Back Button */}
-            <div className="flex items-center gap-2">
+            {/* Back / Return Buttons */}
+            <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() => goDesk("accounts")}
@@ -213,6 +236,18 @@ export function FinancialAccountWorkspacePage({
                 <ArrowLeft className="size-3.5" />
                 Back to Accounts
               </button>
+
+              {hasPrevious ? (
+                <button
+                  type="button"
+                  onClick={handleReturn}
+                  data-testid="account-return-to-previous"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[#D6CDBF] bg-white px-2.5 py-1 text-xs font-semibold text-[#5C5346] shadow-2xs hover:bg-[#FAF8F4] hover:text-[#251605] transition-all"
+                >
+                  <ArrowLeft className="size-3 text-[#8A6A24]" />
+                  {computedLabel}
+                </button>
+              ) : null}
             </div>
 
             {/* Workspace Header Card */}
@@ -802,6 +837,8 @@ export function FinancialAccountWorkspacePage({
                   accountId={accountId}
                   money={money}
                   dateTime={dateTime}
+                  initialInvoiceId={invoiceId}
+                  initialModalTab={modalTab}
                 />
               </div>
             ) : null}
@@ -853,6 +890,7 @@ export function FinancialAccountWorkspacePage({
                 compose={compose}
                 onComposeHandled={clearCompose}
                 onPosted={refresh}
+                initialPaymentId={paymentId}
               />
             ) : null}
 

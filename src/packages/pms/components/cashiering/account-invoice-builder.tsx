@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -39,6 +40,7 @@ import {
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { cn } from "@/shared/lib/utils";
+import { useRestaurantTime } from "@/core/state/property-format";
 
 const CARD = "rounded-xl border border-[#E8E1D7] bg-white shadow-sm";
 const HEAD =
@@ -105,13 +107,19 @@ export function AccountInvoiceWorkspace({
   restaurantId,
   accountId,
   money,
-  dateTime,
+  dateTime: propDateTime,
+  initialInvoiceId,
+  initialModalTab,
 }: {
   restaurantId: string;
   accountId: string;
   money: (value: number) => string;
-  dateTime: (iso: string | null | undefined) => string;
+  dateTime?: ((iso: string | null | undefined) => string) | undefined;
+  initialInvoiceId?: string | undefined;
+  initialModalTab?: string | undefined;
 }) {
+  const { dateTime: contextDateTime } = useRestaurantTime();
+  const dateTime = propDateTime ?? contextDateTime;
   const fetchBoard = useServerFn(getFinancialAccountInvoiceBoard);
   const fetchInvoices = useServerFn(listFinancialAccountInvoices);
   const fetchSettlements = useServerFn(listFinancialAccountOutstandingInvoices);
@@ -147,6 +155,16 @@ export function AccountInvoiceWorkspace({
   const board = boardQuery.data;
   const invoices = useMemo(() => invoicesQuery.data ?? [], [invoicesQuery.data]);
   const issuedInvoiceIds = useMemo(() => invoices.map((invoice) => invoice.id), [invoices]);
+
+  React.useEffect(() => {
+    if (!initialInvoiceId || invoices.length === 0) return;
+    const match = invoices.find(
+      (inv) => inv.id === initialInvoiceId || inv.issuedNumber === initialInvoiceId,
+    );
+    if (match) {
+      setViewingInvoice(match);
+    }
+  }, [initialInvoiceId, invoices]);
   const fetchFiscalStatuses = useServerFn(listInvoiceFiscalStatuses);
   const fiscalQuery = useQuery({
     queryKey: ["invoice-fiscal-status", restaurantId, "account_invoice", issuedInvoiceIds],
@@ -173,7 +191,7 @@ export function AccountInvoiceWorkspace({
   const [stateFilter, setStateFilter] = useState("uninvoiced");
   const [printInvoice, setPrintInvoice] = useState<IssuedAccountInvoice | null>(null);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!board?.draft || !editing) return;
     setSelectedIds(board.draft.selectedIds);
     setNotes(board.draft.notes ?? "");
@@ -826,6 +844,7 @@ export function AccountInvoiceWorkspace({
       <AccountInvoiceModal
         open={currentViewingInvoice !== null}
         invoice={currentViewingInvoice}
+        initialTab={initialModalTab}
         restaurantId={restaurantId}
         accountId={accountId}
         accountOpen={board?.account.status === "open"}

@@ -75,6 +75,8 @@ export type CashieringSearchParams = {
   activity?: CashieringActivityFilter;
   sort?: string;
   returnToTab?: CashieringTabId;
+  returnTo?: string;
+  returnToLabel?: string;
 };
 
 export function cashieringTabSearch(
@@ -86,4 +88,84 @@ export function cashieringTabSearch(
   if (folio) next.folio = folio;
   else if (folio === null) delete next.folio;
   return next;
+}
+
+export function resolveCashieringReturnTo(props?: {
+  returnTo?: string;
+  returnToLabel?: string;
+}): {
+  effectiveReturnTo?: string;
+  computedLabel: string;
+  hasPrevious: boolean;
+  handleReturn: () => void;
+} {
+  const searchParams =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : null;
+  const effectiveReturnTo =
+    props?.returnTo || searchParams?.get("returnTo") || undefined;
+  const effectiveReturnToLabel =
+    props?.returnToLabel || searchParams?.get("returnToLabel") || undefined;
+
+  let computedLabel = effectiveReturnToLabel;
+  if (!computedLabel) {
+    if (
+      effectiveReturnTo?.includes("night-audit") ||
+      (typeof document !== "undefined" && document.referrer?.includes("night-audit"))
+    ) {
+      computedLabel = "Return to Night Audit";
+    } else if (
+      effectiveReturnTo?.includes("reports") ||
+      (typeof document !== "undefined" && document.referrer?.includes("reports"))
+    ) {
+      computedLabel = "Return to Reports";
+    } else if (
+      effectiveReturnTo?.includes("reservations") ||
+      (typeof document !== "undefined" && document.referrer?.includes("reservations"))
+    ) {
+      computedLabel = "Return to Reservations";
+    } else if (
+      effectiveReturnTo?.includes("front-office") ||
+      (typeof document !== "undefined" && document.referrer?.includes("front-office"))
+    ) {
+      computedLabel = "Return to Front Desk";
+    } else {
+      computedLabel = "Return to previous";
+    }
+  }
+
+  const hasPrevious = Boolean(
+    effectiveReturnTo ||
+      (typeof window !== "undefined" &&
+        (window.history.length > 1 || Boolean(document.referrer))),
+  );
+
+  const handleReturn = () => {
+    if (effectiveReturnTo) {
+      window.location.href = effectiveReturnTo;
+      return;
+    }
+    if (
+      typeof window !== "undefined" &&
+      window.history.length > 1 &&
+      document.referrer &&
+      document.referrer.includes("/restaurant/")
+    ) {
+      window.history.back();
+      return;
+    }
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    window.location.href = "/restaurant/pms/night-audit";
+  };
+
+  return {
+    effectiveReturnTo,
+    computedLabel,
+    hasPrevious,
+    handleReturn,
+  };
 }

@@ -154,6 +154,7 @@ export type GuestAllocationFact = {
   amount: number;
   sourceId: string;
   kind: "payment" | "deposit";
+  folioId?: string | null;
 };
 
 export type AccountInvoiceFact = {
@@ -224,6 +225,9 @@ export type FiscalDocumentFact = {
   status: string;
   externalReference: string | null;
   mode: string | null;
+  folioId?: string | null;
+  accountId?: string | null;
+  invoiceId?: string | null;
 };
 
 export type TaxLineFact = {
@@ -795,9 +799,11 @@ function invoiceRows(
         : outstanding > GUEST_ALLOCATION_TOLERANCE
           ? "Outstanding remains on an open stay. This does not block close."
           : "",
-      action: invoice.folioId ? "Open Folio Invoices" : "Open Cashiering",
+      action: invoice.folioId ? "Open Invoice Settlement" : "Open Cashiering",
       route: invoice.folioId ? `/restaurant/pms/cashiering/folios/${invoice.folioId}` : CASHIERING,
-      search: invoice.folioId ? { tab: "invoices" } : { tab: "folios", q: invoice.number },
+      search: invoice.folioId
+        ? { tab: "invoices", invoice: invoice.id, modalTab: "settlement", action: "view-invoice" }
+        : { tab: "folios", q: invoice.number },
     };
   });
 }
@@ -847,9 +853,11 @@ function allocationRows(
       targetInvoice: allocation.invoiceId,
       status: "blocker",
       issue: orphan.description,
-      action: "Search Cashiering",
-      route: CASHIERING,
-      search: { tab: "folios", q: allocation.invoiceId },
+      action: allocation.folioId ? "Allocate in Folio" : "Search Cashiering",
+      route: allocation.folioId ? `/restaurant/pms/cashiering/folios/${allocation.folioId}` : CASHIERING,
+      search: allocation.folioId
+        ? { tab: "payments", action: "allocate", payment: allocation.sourceId }
+        : { tab: "folios", q: allocation.invoiceId },
     });
   }
   return rows;
@@ -887,7 +895,7 @@ function reconcileAccounts(facts: NightAuditFinancialFacts): {
             referenceType: "account_invoice",
             referenceId: invoice.id,
             route: `/restaurant/pms/cashiering/accounts/${account.id}`,
-            search: { tab: "invoices", invoice: invoice.id },
+            search: { tab: "invoices", invoice: invoice.id, modalTab: "withholding", action: "view-invoice" },
             currency: invoice.currency,
             amount: invoice.withholdingNet,
             createdAt: facts.checkedAt,
@@ -1034,8 +1042,10 @@ function transferProblems(
           description: "A cross-ledger movement does not have a matching transfer record.",
           referenceType: "folio_transaction",
           referenceId: row.id,
-          route: CASHIERING,
-          search: cashieringSearch(),
+          route: row.accountId
+            ? `/restaurant/pms/cashiering/accounts/${row.accountId}`
+            : CASHIERING,
+          search: row.accountId ? { tab: "charges" } : { tab: "accounts" },
           createdAt: checkedAt,
         }),
       );
@@ -1050,6 +1060,7 @@ function transferProblems(
     const directions = new Set(rows.map((row) => transferDirection(row.direction)));
     const sum = signed(rows.map((row) => row.amount));
     if (directions.size < 2 || Math.abs(sum) > ALLOCATION_TOLERANCE) {
+      const targetAccountId = rows.find((r) => r.accountId)?.accountId;
       issues.push(
         issue({
           code: "transfer_unbalanced",
@@ -1059,8 +1070,10 @@ function transferProblems(
           description: "A cross-ledger movement does not match its transfer pair.",
           referenceType: "transfer",
           referenceId: transferId,
-          route: CASHIERING,
-          search: cashieringSearch(),
+          route: targetAccountId
+            ? `/restaurant/pms/cashiering/accounts/${targetAccountId}`
+            : CASHIERING,
+          search: targetAccountId ? { tab: "charges" } : { tab: "accounts" },
           createdAt: checkedAt,
         }),
       );
@@ -1159,6 +1172,87 @@ function reconcileFiscal(facts: NightAuditFinancialFacts): {
     const code = fiscalCode(document.status);
     const problem = severity === "blocking" || severity === "warning";
     if (problem || severity === "info") {
+      let targetRoute: string;
+      let targetSearch: Record<string, string>;
+      let modalTab = "fiscal";
+      let actionLabel = "Inspect Fiscal Registration";
+
+      if (document.documentType === "WITHHOLDING" || document.sourceType.includes("withholding")) {
+        modalTab = "withholding";
+        actionLabel = "Review Withholding Tax";
+      } else if (
+        document.documentType === "SALES_RECEIPT" ||
+        document.sourceType.includes("allocation") ||
+        document.sourceType === "sales_receipt"
+      ) {
+        modalTab = "settlement";
+        actionLabel = "Review Settlement & Receipts";
+      } else if (document.documentType === "CRE" || document.sourceType === "credit_note") {
+        modalTab = "credit-notes";
+        actionLabel = "Inspect Credit Note";
+      } else if (document.documentType === "DEB" || document.sourceType === "debit_note") {
+        modalTab = "debit-notes";
+        actionLabel = "Inspect Debit Note";
+      }
+
+      let resolvedFolioId = document.folioId ?? null;
+      let resolvedAccountId = document.accountId ?? null;
+      let resolvedInvoiceId = document.invoiceId ?? null;
+
+      if (!resolvedFolioId && !resolvedAccountId) {
+        const gInv = facts.invoices.find((inv) => inv.id === resolvedInvoiceId || inv.id === document.id);
+        if (gInv) {
+          resolvedFolioId = gInv.folioId;
+          resolvedInvoiceId = gInv.id;
+        } else {
+          const accMatch = facts.accounts.find((acc) =>
+            acc.invoices.some((inv) => inv.id === resolvedInvoiceId || inv.id === document.id),
+          );
+          if (accMatch) {
+            resolvedAccountId = accMatch.id;
+            const inv = accMatch.invoices.find((i) => i.id === resolvedInvoiceId || i.id === document.id);
+            if (inv) resolvedInvoiceId = inv.id;
+          } else {
+            const gAlloc = facts.allocations.find((a) => a.id === document.id || a.sourceId === document.id);
+            if (gAlloc) {
+              resolvedInvoiceId = gAlloc.invoiceId;
+              resolvedFolioId = gAlloc.folioId ?? facts.invoices.find((i) => i.id === gAlloc.invoiceId)?.folioId ?? null;
+            } else {
+              for (const acc of facts.accounts) {
+                const aAlloc = acc.allocations.find((a) => a.id === document.id || a.paymentId === document.id);
+                if (aAlloc) {
+                  resolvedAccountId = acc.id;
+                  resolvedInvoiceId = aAlloc.invoiceId;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (resolvedFolioId) {
+        targetRoute = `/restaurant/pms/cashiering/folios/${resolvedFolioId}`;
+        targetSearch = {
+          tab: "invoices",
+          invoice: resolvedInvoiceId || document.id,
+          modalTab,
+          action: "view-invoice",
+        };
+      } else if (resolvedAccountId) {
+        targetRoute = `/restaurant/pms/cashiering/accounts/${resolvedAccountId}`;
+        targetSearch = {
+          tab: "invoices",
+          invoice: resolvedInvoiceId || document.id,
+          modalTab,
+          action: "view-invoice",
+        };
+      } else {
+        targetRoute = FISCAL_QUEUE;
+        targetSearch = { report: "fiscal-registration" };
+        actionLabel = "Open Fiscal Queue";
+      }
+
       const created = issue({
         code,
         category: "fiscal",
@@ -1169,8 +1263,8 @@ function reconcileFiscal(facts: NightAuditFinancialFacts): {
           : `${document.documentType} ${document.number} is ${document.status}.`,
         referenceType: document.sourceType,
         referenceId: document.id,
-        route: FISCAL_QUEUE,
-        search: { report: "fiscal-registration" },
+        route: targetRoute,
+        search: targetSearch,
         createdAt: facts.checkedAt,
       });
       if (problem) issues.push(created);
@@ -1184,9 +1278,9 @@ function reconcileFiscal(facts: NightAuditFinancialFacts): {
         mode: document.mode,
         status: rowStatus(problem ? severity : null),
         issue: problem ? created.description : "",
-        action: "Open Fiscal Queue",
-        route: FISCAL_QUEUE,
-        search: { report: "fiscal-registration" },
+        action: actionLabel,
+        route: targetRoute,
+        search: targetSearch,
       });
     }
   }

@@ -12,6 +12,9 @@ export const Route = createFileRoute("/restaurant/pms/cashiering/accounts/$accou
     ...(typeof search.action === "string" ? { action: search.action } : {}),
     ...(typeof search.invoice === "string" ? { invoice: search.invoice } : {}),
     ...(typeof search.payment === "string" ? { payment: search.payment } : {}),
+    ...(typeof search.modalTab === "string" ? { modalTab: search.modalTab } : {}),
+    ...(typeof search.returnTo === "string" ? { returnTo: search.returnTo } : {}),
+    ...(typeof search.returnToLabel === "string" ? { returnToLabel: search.returnToLabel } : {}),
   }),
   beforeLoad: async ({ params }) => {
     const { data, error } = await supabase.auth.getUser();
@@ -56,6 +59,9 @@ function AccountInvoiceRoute() {
           initialAction={search.action}
           invoiceId={search.invoice}
           paymentId={search.payment}
+          modalTab={search.modalTab}
+          returnTo={search.returnTo}
+          returnToLabel={search.returnToLabel}
         />
       )}
     </RestaurantShell>
