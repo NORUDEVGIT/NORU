@@ -35,6 +35,13 @@ import {
 } from "@/packages/pms/lib/night-audit-financial";
 import { NIGHT_AUDIT_PAGE_SIZE, paginateRows } from "@/packages/pms/lib/night-audit-shell";
 import { Button } from "@/shared/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/shared/components/ui/sheet";
 import { cn } from "@/shared/lib/utils";
 
@@ -609,33 +616,42 @@ export function NightAuditFinancialPanel({
                 className="h-8.5 w-full rounded-lg border border-input bg-card pl-8 pr-2.5 text-xs placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
               />
             </div>
-            <select
-              aria-label="Severity"
-              data-testid="night-audit-financial-severity"
-              value={severity}
-              onChange={(event) => setSeverity(event.target.value as typeof severity)}
-              className="h-8.5 rounded-lg border border-input bg-card px-2 text-xs font-medium focus:outline-hidden"
-            >
-              <option value="all">All severities</option>
-              <option value="blocker">Blockers</option>
-              <option value="warning">Warnings</option>
-              <option value="info">Info</option>
-              <option value="pass">Pass</option>
-            </select>
-            <select
-              aria-label="Category"
-              data-testid="night-audit-financial-category"
-              value={category}
-              onChange={(event) => setCategory(event.target.value as typeof category)}
-              className="hidden h-8.5 rounded-lg border border-input bg-card px-2 text-xs font-medium sm:block focus:outline-hidden"
-            >
-              <option value="all">All categories</option>
-              {NIGHT_AUDIT_FINANCIAL_CATEGORIES.map((item) => (
-                <option key={item} value={item}>
-                  {CATEGORY_LABEL[item]}
-                </option>
-              ))}
-            </select>
+            <Select value={severity} onValueChange={(val) => setSeverity(val as typeof severity)}>
+              <SelectTrigger
+                aria-label="Severity"
+                data-testid="night-audit-financial-severity"
+                className="h-8.5 w-[135px] rounded-lg border border-input bg-card px-2.5 text-xs font-medium shadow-2xs hover:bg-muted/40 transition-colors focus:ring-1 focus:ring-primary"
+              >
+                <SelectValue placeholder="All severities" />
+              </SelectTrigger>
+              <SelectContent className="text-xs">
+                <SelectItem value="all">All severities</SelectItem>
+                <SelectItem value="blocker">Blockers</SelectItem>
+                <SelectItem value="warning">Warnings</SelectItem>
+                <SelectItem value="info">Info</SelectItem>
+                <SelectItem value="pass">Pass</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="hidden sm:block">
+              <Select value={category} onValueChange={(val) => setCategory(val as typeof category)}>
+                <SelectTrigger
+                  aria-label="Category"
+                  data-testid="night-audit-financial-category"
+                  className="h-8.5 w-[150px] rounded-lg border border-input bg-card px-2.5 text-xs font-medium shadow-2xs hover:bg-muted/40 transition-colors focus:ring-1 focus:ring-primary"
+                >
+                  <SelectValue placeholder="All categories" />
+                </SelectTrigger>
+                <SelectContent className="text-xs">
+                  <SelectItem value="all">All categories</SelectItem>
+                  {NIGHT_AUDIT_FINANCIAL_CATEGORIES.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {CATEGORY_LABEL[item]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 

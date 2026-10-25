@@ -559,6 +559,8 @@ export function FrontOfficeWorkspace({
     <FrontOfficeChrome
       membership={membership}
       active={view}
+      returnTo={search.returnTo}
+      returnToLabel={search.returnToLabel}
       onNavigate={goToFoTab}
       onQuickAction={onQuickAction}
       onGuestSearch={(term) => {

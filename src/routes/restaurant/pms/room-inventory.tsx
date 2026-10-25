@@ -52,7 +52,7 @@ export const Route = createFileRoute("/restaurant/pms/room-inventory")({
 });
 
 function RoomInventoryPmsRoute() {
-  const searchTab = (Route.useSearch() as { tab?: string }).tab;
+  const search = Route.useSearch() as { tab?: string; returnTo?: string; returnToLabel?: string };
 
   return (
     <RestaurantShell
@@ -63,7 +63,14 @@ function RoomInventoryPmsRoute() {
       hidePackageRail
       hideTopHeader
     >
-      {(m) => <RoomsWorkspace membership={m} initialTab={searchTab ?? "room-board"} />}
+      {(m) => (
+        <RoomsWorkspace
+          membership={m}
+          initialTab={search.tab ?? "room-board"}
+          returnTo={search.returnTo}
+          returnToLabel={search.returnToLabel}
+        />
+      )}
     </RestaurantShell>
   );
 }

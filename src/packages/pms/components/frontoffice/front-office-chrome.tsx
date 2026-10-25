@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
+import { ArrowLeft } from "lucide-react";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { FoHelpSheet } from "@/packages/pms/components/frontoffice/fo-help-sheet";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
+import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
 import {
   FO_DESK_DESCRIPTION,
   FO_DESK_TITLE,
@@ -10,6 +12,7 @@ import {
   actionsForMenu,
   type FoNavId,
 } from "@/packages/pms/lib/front-office-shell";
+import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
 
 export function FrontOfficeChrome({
@@ -24,6 +27,8 @@ export function FrontOfficeChrome({
   helpOpen,
   onHelpOpenChange,
   canOpenCashiering = false,
+  returnTo,
+  returnToLabel,
   children,
 }: {
   membership: RestaurantMembership;
@@ -37,8 +42,15 @@ export function FrontOfficeChrome({
   helpOpen?: boolean;
   onHelpOpenChange?: (open: boolean) => void;
   canOpenCashiering?: boolean;
+  returnTo?: string | undefined;
+  returnToLabel?: string | undefined;
   children: ReactNode;
 }) {
+  const { hasPrevious, computedLabel, handleReturn } = resolvePmsReturnTo({
+    returnTo,
+    returnToLabel,
+  });
+
   const overflowItems = [
     { label: "FO activity", testId: "fo-activity", onSelect: () => onFoActivity?.() },
     { label: "Exceptions", onSelect: () => onNotifications?.() ?? onNavigate("exceptions") },
@@ -59,17 +71,35 @@ export function FrontOfficeChrome({
       onRoomSearch={(value) => onGuestSearch(value)}
       onHelpClick={() => onHelpOpenChange?.(true)}
       overflowItems={overflowItems}
+      suppressReturnButton
     >
       <div className="min-w-0 bg-[#F7F4EE]" data-testid="fo-desk">
         <header className="border-b border-border bg-background" data-testid="fo-desk-header">
-          <div className="px-5 pt-4 sm:px-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              Operations
-            </p>
-            <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
-              {FO_DESK_TITLE}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">{FO_DESK_DESCRIPTION}</p>
+          <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4 sm:px-6">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Operations
+              </p>
+              <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
+                {FO_DESK_TITLE}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">{FO_DESK_DESCRIPTION}</p>
+            </div>
+
+            {hasPrevious ? (
+              <div className="flex items-center gap-2 pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReturn}
+                  data-testid="fo-return-to-previous"
+                  className="h-8 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs hover:bg-[#FAF8F4] transition-all"
+                >
+                  <ArrowLeft className="size-3.5 text-[#8A6A24]" />
+                  {computedLabel}
+                </Button>
+              </div>
+            ) : null}
           </div>
           <nav
             data-testid="fo-workspace-nav"

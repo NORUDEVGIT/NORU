@@ -39,7 +39,12 @@ export const Route = createFileRoute("/restaurant/pms/housekeeping")({
 });
 
 function HousekeepingPmsRoute() {
-  const search = Route.useSearch() as { tab?: string; room?: string };
+  const search = Route.useSearch() as {
+    tab?: string;
+    room?: string;
+    returnTo?: string;
+    returnToLabel?: string;
+  };
   return (
     <RestaurantShell
       active="Housekeeping"
@@ -54,6 +59,8 @@ function HousekeepingPmsRoute() {
           membership={m}
           initialTab={search.tab ?? HK_LANDING_TAB}
           initialRoomId={search.room}
+          returnTo={search.returnTo}
+          returnToLabel={search.returnToLabel}
         />
       )}
     </RestaurantShell>

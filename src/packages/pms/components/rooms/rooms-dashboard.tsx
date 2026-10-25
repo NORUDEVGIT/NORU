@@ -111,6 +111,10 @@ export function RoomsDashboardTab({
     setPage(1);
   }, [commandSearch]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [building, floor, roomType, operational, housekeeping, maintenance, search]);
+
   const dashboardQuery = useQuery({
     queryKey: ["rooms-dashboard", restaurantId],
     queryFn: () => fetchDashboard({ data: { restaurantId } }),
@@ -242,7 +246,7 @@ export function RoomsDashboardTab({
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
   const totalPages = Math.max(1, Math.ceil(filteredRooms.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const listRoomsPage = filteredRooms.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagedRooms = filteredRooms.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const restrictionMutation = useMutation({
     mutationFn: async () => {
@@ -482,22 +486,53 @@ export function RoomsDashboardTab({
               </div>
             </div>
           ) : viewMode === "grid" ? (
-            <div className="grid gap-2.5 p-3 sm:grid-cols-2 2xl:grid-cols-4">
-              {filteredRooms.map((room) => (
-                <RoomCard
-                  key={room.id}
-                  room={room}
-                  occupancy={occupancyByRoom.get(room.id)}
-                  block={blockByRoom.get(room.id)}
-                  selected={room.id === selectedRoomId}
-                  onSelect={() => selectRoom(room)}
-                  onInspect={() => onInspectAssignment?.(room)}
-                />
-              ))}
+            <div>
+              <div className="grid gap-2.5 p-3 sm:grid-cols-2 2xl:grid-cols-4">
+                {pagedRooms.map((room) => (
+                  <RoomCard
+                    key={room.id}
+                    room={room}
+                    occupancy={occupancyByRoom.get(room.id)}
+                    block={blockByRoom.get(room.id)}
+                    selected={room.id === selectedRoomId}
+                    onSelect={() => selectRoom(room)}
+                    onInspect={() => onInspectAssignment?.(room)}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center justify-between border-t border-[#E5DED4] px-4 py-3 bg-white rounded-b-xl">
+                <p className="text-xs text-muted-foreground">
+                  Showing {filteredRooms.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–
+                  {Math.min(safePage * PAGE_SIZE, filteredRooms.length)} of {filteredRooms.length} rooms
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3 text-xs font-medium"
+                    disabled={safePage <= 1}
+                    onClick={() => setPage(safePage - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Page {safePage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3 text-xs font-medium"
+                    disabled={safePage >= totalPages}
+                    onClick={() => setPage(safePage + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             </div>
           ) : (
             <RoomList
-              rooms={listRoomsPage}
+              rooms={pagedRooms}
               occupancyByRoom={occupancyByRoom}
               blockByRoom={blockByRoom}
               onSelect={selectRoom}

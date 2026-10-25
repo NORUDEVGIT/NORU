@@ -36,9 +36,16 @@ export const Route = createFileRoute("/restaurant/pms/distribution")({
 });
 
 function DistributionPmsRoute() {
+  const search = Route.useSearch() as { returnTo?: string; returnToLabel?: string };
   return (
     <RestaurantShell active="Distribution" module="configuration" pms pmsModule="distribution">
-      {(m) => <DistributionWorkspace membership={m} />}
+      {(m) => (
+        <DistributionWorkspace
+          membership={m}
+          returnTo={search.returnTo}
+          returnToLabel={search.returnToLabel}
+        />
+      )}
     </RestaurantShell>
   );
 }
