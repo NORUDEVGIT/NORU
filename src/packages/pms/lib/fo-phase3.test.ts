@@ -43,9 +43,10 @@ describe("FO Phase 3 — in-house read model", () => {
     assert.match(workspace, /InHouseQuickViewSheet/);
     assert.match(workspace, /listFrontOfficeInHouseDesk/);
     assert.match(qv, /data-testid="fo-inhouse-qv"/);
-    assert.match(qv, /What does Front Desk need to know/);
-    assert.match(qv, /Open Reservation/);
-    assert.match(qv, /More stay actions/);
+    assert.match(qv, /Check Out/);
+    assert.match(qv, /Move Room/);
+    assert.match(qv, /More actions/);
+    assert.doesNotMatch(qv, /Open Reservation/);
     assert.match(fo, /view === "inhouse"/);
     assert.match(fo, /InHouseWorkspace/);
   });
@@ -117,8 +118,14 @@ describe("FO Phase 3 — exceptions and hints", () => {
     assert.equal(done.canMoveRoom, false);
     assert.equal(done.canAmendStay, false);
     assert.equal(done.canCheckOut, false);
-    assert.equal(inHouseMenuItems(done).some((item) => item.id === "check_out"), false);
-    assert.equal(inHouseMenuItems(live).some((item) => item.id === "room_move"), true);
+    assert.equal(
+      inHouseMenuItems(done).some((item) => item.id === "check_out"),
+      false,
+    );
+    assert.equal(
+      inHouseMenuItems(live).some((item) => item.id === "room_move"),
+      true,
+    );
   });
 });
 
@@ -142,7 +149,11 @@ describe("FO Phase 3 — writers and ownership", () => {
     assert.match(workspace, /StayDatesDialog/);
     assert.match(dialogs, /changeStayDates|FoRackConfirmSheet/);
     const change = fns.slice(fns.indexOf("export const changeStayDates"));
-    assert.match(change, /change_hotel_stay_dates/);
+    assert.match(change, /apply_inhouse_stay_date_change/);
+    assert.doesNotMatch(
+      change.slice(0, change.indexOf("export const markNoShow")),
+      /folio_transactions/,
+    );
     assert.doesNotMatch(workspace, /\.update\(\{[^}]*departure_date/);
   });
 
@@ -174,9 +185,10 @@ describe("FO Phase 3 — writers and ownership", () => {
       assert.doesNotMatch(src, /folio_transactions/);
     }
     const repoRoot = join(here, "../../../..");
-    const extra = [...readdirSync(join(repoRoot, "drizzle/migrations")), ...readdirSync(join(repoRoot, "supabase/migrations"))].filter(
-      (name) => name.startsWith("0101_") || name.startsWith("0102_"),
-    );
+    const extra = [
+      ...readdirSync(join(repoRoot, "drizzle/migrations")),
+      ...readdirSync(join(repoRoot, "supabase/migrations")),
+    ].filter((name) => name.startsWith("0101_") || name.startsWith("0102_"));
     assert.equal(extra.length, 0);
   });
 });

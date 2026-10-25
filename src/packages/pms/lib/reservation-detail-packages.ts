@@ -61,7 +61,221 @@ export type AvailablePackageCard = {
   eligible: boolean;
   /** Operational activation id. Null when the card is catalogue-only. */
   activationId: string | null;
+  /** Server decision for the selected room. Create-reservation cards leave this unset. */
+  outcome?: "ELIGIBLE" | "INELIGIBLE";
+  reasonCode?: string | null;
+  reasonMessage?: string | null;
+  addAllowed?: boolean;
 };
+
+export const PACKAGE_ELIGIBILITY_MESSAGES: Record<string, string> = {
+  PACKAGE_NOT_FOUND: "Package not found for this property.",
+  PACKAGE_ACTIVATION_NOT_FOUND: "Package activation not found.",
+  PACKAGE_INACTIVE: "That package is not active.",
+  PACKAGE_STAY_WINDOW_MISMATCH: "That package is outside this stay.",
+  PACKAGE_ROOM_TYPE_MISMATCH: "That package does not apply to this room type.",
+  PACKAGE_RATE_PLAN_MISMATCH: "That package does not apply to this rate plan.",
+  PACKAGE_CHARGE_BASIS_UNSUPPORTED: "Only a per-stay package can be applied.",
+  PACKAGE_PRICE_INVALID: "That package does not have a valid price.",
+  PACKAGE_WRONG_PROPERTY: "That package belongs to another property.",
+  PACKAGE_ALREADY_RESERVATION_SCOPED: "That package is already applied to the whole reservation.",
+  PACKAGE_ALREADY_ROOM_SCOPED: "That package is already applied to a room on this reservation.",
+  PACKAGE_SIBLING_UNIT: "That package belongs to another room.",
+  PACKAGE_STAY_SCOPE_REQUIRED: "Remove a stay package from the stay row.",
+  FOLIO_CLOSED: "This folio is closed. Nothing more can be posted to it.",
+  CORRECTION_INVOICED: "This charge is already on an issued invoice, so it cannot be corrected.",
+  PACKAGE_CURRENCY_MISMATCH: "The reservation currency does not match the guest folio.",
+};
+
+export function packageEligibilityMessage(code: string | null | undefined): string | null {
+  if (!code || code === "PACKAGE_ELIGIBLE") return null;
+  return PACKAGE_ELIGIBILITY_MESSAGES[code] ?? null;
+}
+
+export type UnitPackageScope = "unit" | "stay";
+
+export type UnitPackageManagementRow = {
+  id: string;
+  packageId: string;
+  packageActivationId: string;
+  packageName: string;
+  packageCode: string;
+  scope: UnitPackageScope;
+  reservationRoomId: string | null;
+  unitLabel: string | null;
+  chargeBasis: string;
+  quantity: number;
+  unitAmount: number;
+  appliedAmount: number;
+  currency: string;
+  appliedAt: string;
+  actorMembershipId: string | null;
+  removeAllowed: boolean;
+  components: Array<{ componentType?: string }>;
+};
+
+export type ReservationUnitPackageEligibility = {
+  packageId: string;
+  activationId: string | null;
+  status: "ELIGIBLE" | "INELIGIBLE";
+  reasonCode: string;
+  message: string | null;
+  addAllowed: boolean;
+  chargeBasis: string;
+  configuredPrice: number | null;
+  code: string;
+  name: string;
+};
+
+export type ReservationUnitPackageRead = {
+  reservationRoomId: string;
+  unitSequence: number;
+  unitLabel: string;
+  roomTypeId: string;
+  ratePlanId: string | null;
+  currency: string;
+  packages: UnitPackageManagementRow[];
+  eligibility: ReservationUnitPackageEligibility[];
+  unitPackageTotal: number;
+  stayPackageTotal: number;
+};
+
+export function reservationUnitPackageLabel(
+  unitSequence: number,
+  roomNumber: string | null | undefined,
+): string {
+  const base = unitSequence >= 1 ? `Room ${unitSequence}` : "Room";
+  const number = roomNumber?.trim();
+  return number ? `${base} · ${number}` : base;
+}
+
+export function packageScopeLabel(scope: UnitPackageScope): string {
+  return scope === "stay" ? "Stay" : "This room";
+}
+
+function roundPackageSnapshot(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+export function managementPackagesForUnit(input: {
+  selectedRoomId: string;
+  currency: string;
+  unitLabel: string;
+  rows: Array<{
+    id: string;
+    packageId: string;
+    packageActivationId: string;
+    packageName: string;
+    packageCode: string;
+    chargeBasis: string;
+    quantity: number;
+    unitAmount: number;
+    appliedAmount: number;
+    appliedAt: string;
+    reservationRoomId: string | null;
+    components: Array<{ componentType?: string }>;
+    snapshot?: Record<string, unknown> | null;
+  }>;
+}): UnitPackageManagementRow[] {
+  const managed: UnitPackageManagementRow[] = [];
+  for (const row of input.rows) {
+    const stayScoped = row.reservationRoomId == null;
+    const selectedUnit = row.reservationRoomId === input.selectedRoomId;
+    if (!stayScoped && !selectedUnit) continue;
+    const actor = row.snapshot?.["appliedByMembershipId"];
+    managed.push({
+      id: row.id,
+      packageId: row.packageId,
+      packageActivationId: row.packageActivationId,
+      packageName: row.packageName,
+      packageCode: row.packageCode,
+      scope: stayScoped ? "stay" : "unit",
+      reservationRoomId: stayScoped ? null : row.reservationRoomId,
+      unitLabel: stayScoped ? null : input.unitLabel,
+      chargeBasis: row.chargeBasis,
+      quantity: row.quantity,
+      unitAmount: row.unitAmount,
+      appliedAmount: row.appliedAmount,
+      currency: input.currency,
+      appliedAt: row.appliedAt,
+      actorMembershipId: typeof actor === "string" && actor.trim() ? actor : null,
+      removeAllowed: true,
+      components: row.components,
+    });
+  }
+  return managed;
+}
+
+/** Snapshot sums for the selected room and labeled stay rows. Not a room or folio total. */
+export function unitPackageCommercialTotals(
+  rows: Array<{ scope: UnitPackageScope; appliedAmount: number }>,
+): { unitPackageTotal: number; stayPackageTotal: number } {
+  let unitPackageTotal = 0;
+  let stayPackageTotal = 0;
+  for (const row of rows) {
+    const amount = Number.isFinite(row.appliedAmount) ? row.appliedAmount : 0;
+    if (row.scope === "stay") stayPackageTotal += amount;
+    else unitPackageTotal += amount;
+  }
+  return {
+    unitPackageTotal: roundPackageSnapshot(unitPackageTotal),
+    stayPackageTotal: roundPackageSnapshot(stayPackageTotal),
+  };
+}
+
+export function appliedPackageAmountDisplay(row: {
+  chargeBasis: string;
+  unitAmount: number;
+  appliedAmount: number;
+}): { amount: number; configuredOnly: boolean } {
+  if (parsePackageChargeBasis(row.chargeBasis) === "per_stay") {
+    return { amount: row.appliedAmount, configuredOnly: false };
+  }
+  return { amount: row.unitAmount, configuredOnly: true };
+}
+
+export function finalizeUnitPackageEligibility(input: {
+  decisions: Array<{
+    packageId: string;
+    activationId: string | null;
+    status: "ELIGIBLE" | "INELIGIBLE";
+    reasonCode: string;
+    chargeBasis: string;
+    configuredPrice: number | null;
+    code: string;
+    name: string;
+  }>;
+  applied: Array<{ packageActivationId: string; scope: UnitPackageScope }>;
+}): ReservationUnitPackageEligibility[] {
+  const stayActivations = new Set(
+    input.applied.filter((row) => row.scope === "stay").map((row) => row.packageActivationId),
+  );
+  const unitActivations = new Set(
+    input.applied.filter((row) => row.scope === "unit").map((row) => row.packageActivationId),
+  );
+  return input.decisions
+    .map((decision) => {
+      let status = decision.status;
+      let reasonCode = decision.reasonCode;
+      if (decision.activationId && stayActivations.has(decision.activationId)) {
+        status = "INELIGIBLE";
+        reasonCode = "PACKAGE_ALREADY_RESERVATION_SCOPED";
+      } else if (decision.activationId && unitActivations.has(decision.activationId)) {
+        status = "INELIGIBLE";
+        reasonCode = "PACKAGE_ALREADY_ROOM_SCOPED";
+      }
+      return {
+        ...decision,
+        status,
+        reasonCode,
+        message: packageEligibilityMessage(reasonCode),
+        addAllowed: status === "ELIGIBLE" && Boolean(decision.activationId),
+      };
+    })
+    .sort(
+      (left, right) => left.name.localeCompare(right.name) || left.code.localeCompare(right.code),
+    );
+}
 
 export const PACKAGE_CHARGE_BASIS_OPERATIONAL_HONESTY =
   "Automatic operational charging currently uses Per stay only.";
@@ -226,6 +440,55 @@ export function buildAvailablePackageCards(input: {
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function buildUnitPackageCards(input: {
+  catalogue: PackageCard3Row[];
+  components: PackageComponentCard3Row[];
+  eligibility: ReservationUnitPackageEligibility[];
+  ratePlanId: string | null;
+}): AvailablePackageCard[] {
+  return input.eligibility.map((decision) => {
+    const pkg = cataloguePackageById(input.catalogue, decision.packageId);
+    const configuredBasis = parsePackageChargeBasis(decision.chargeBasis || pkg?.chargeBasis);
+    const price =
+      decision.configuredPrice != null && Number.isFinite(decision.configuredPrice)
+        ? decision.configuredPrice
+        : pkg && Number.isFinite(pkg.packagePrice)
+          ? pkg.packagePrice
+          : null;
+    const applicability = pkg
+      ? packageApplicabilitySummary(pkg)
+      : { room: "All room types", rate: "All rate plans" };
+    const eligibilityStatus: PackageEligibilityStatus = !decision.activationId
+      ? "catalogue_only"
+      : decision.status === "ELIGIBLE"
+        ? "activation_eligible"
+        : "catalogue_only";
+    return {
+      id: decision.activationId ?? decision.packageId,
+      name: decision.name || pkg?.name || "",
+      code: decision.code || pkg?.code || "",
+      description: pkg?.description ?? "",
+      category: pkg?.typeLabel || pkg?.type || "",
+      chargeType: chargeTypeLabel(configuredBasis),
+      chargeBasis: configuredBasis,
+      chargeBasisHonesty: chargeBasisHonestyCopy(configuredBasis),
+      price,
+      coverUrl: pkg?.coverUrl ?? null,
+      components: pkg ? componentLabelsForPackage(input.components, pkg.id) : [],
+      inclusionLabel: pkg ? packageInclusionLabel(pkg, input.ratePlanId) : null,
+      applicabilityRoom: applicability.room,
+      applicabilityRate: applicability.rate,
+      eligibilityStatus,
+      eligible: decision.status === "ELIGIBLE",
+      activationId: decision.activationId,
+      outcome: decision.status,
+      reasonCode: decision.reasonCode,
+      reasonMessage: decision.message,
+      addAllowed: decision.addAllowed,
+    };
+  });
 }
 
 export function filterAvailablePackages(

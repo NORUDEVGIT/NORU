@@ -17,6 +17,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { CheckCircle2, Pencil } from "lucide-react";
 
 import { useAuth } from "@/core/state/auth-store";
+import { FO_CHECK_IN_POLL_MS } from "@/packages/pms/lib/fo-freshness";
 import { getMyRestaurants } from "@/core/lib/restaurant.functions";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -31,6 +32,10 @@ import {
 } from "@/packages/pms/components/frontoffice/fo-checkin-v2-review-panels";
 import { RegistrationPrintLayer } from "@/packages/pms/components/frontoffice/fo-checkin-v2-review-print";
 import { completeFoCheckIn } from "@/packages/pms/lib/fo-check-in.functions";
+import {
+  registrationCompletionProjection,
+  type CheckInReadiness,
+} from "@/packages/pms/lib/fo-check-in-readiness";
 import { getCheckInAgreement } from "@/packages/pms/lib/fo-check-in-agreement.functions";
 import { getCheckInRegistration } from "@/packages/pms/lib/fo-check-in-registration.functions";
 import { getCheckInReadiness } from "@/packages/pms/lib/fo-check-in-readiness.functions";
@@ -152,6 +157,9 @@ export const FoCheckInV2Review = forwardRef<
         data: checkInCommandTarget({ restaurantId, reservationId, reservationRoomId }),
       }),
     refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchInterval: FO_CHECK_IN_POLL_MS,
+    refetchIntervalInBackground: false,
     retry: false,
   });
   const registrationQuery = useQuery({
@@ -554,13 +562,7 @@ export const FoCheckInV2Review = forwardRef<
               onEdit={() => onEdit("registration")}
             >
               <IdentityTone readiness={readiness} />
-              <p className="mt-1 text-xs text-[#6B5E4E]">
-                {readiness.registration.waived
-                  ? "Registration completeness was waived."
-                  : readiness.registration.complete
-                    ? "Registration is complete."
-                    : "Registration is not complete."}
-              </p>
+              <RegistrationCompletionCopy readiness={readiness} unit={unit} />
               <dl className="mt-3 grid gap-2 sm:grid-cols-2">
                 <Fact label="Full Name" value={fullName} />
                 <Fact label="Date of Birth" value={draft?.dateOfBirth || "—"} />
@@ -704,6 +706,34 @@ export const FoCheckInV2Review = forwardRef<
     </div>
   );
 });
+
+function RegistrationCompletionCopy({
+  readiness,
+  unit,
+}: {
+  readiness: CheckInReadiness;
+  unit: CheckInUnitRead;
+}) {
+  const registration = registrationCompletionProjection({
+    complete: readiness.registration.complete,
+    waived: readiness.registration.waived,
+    savedSnapshotExists: Boolean(unit.progress.registrationSnapshot),
+    identitySatisfied:
+      readiness.identity.valid &&
+      !readiness.blockers.some((item) => item.code === "IDENTITY_DOCUMENT"),
+    missingRequirements: readiness.blockers
+      .filter((item) => item.code === "GUEST_FIELDS")
+      .map((item) => item.message),
+  });
+  return (
+    <div className="mt-1" data-testid="fo-ci-v2-review-registration-state">
+      <p className="text-sm font-medium text-[#251605]">{registration.label}</p>
+      {registration.detail ? (
+        <p className="mt-1 text-xs text-[#6B5E4E]">{registration.detail}</p>
+      ) : null}
+    </div>
+  );
+}
 
 function ReviewCard({
   title,

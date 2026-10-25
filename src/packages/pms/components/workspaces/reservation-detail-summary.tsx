@@ -30,6 +30,7 @@ import {
   snapshotDisplayName,
   snapshotField,
 } from "@/packages/pms/lib/reservation-detail-overview";
+import { NO_FOLIO_LABEL } from "@/packages/pms/lib/reservation-cashiering-summary";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 
 export function ReservationDetailSummary({
@@ -42,9 +43,10 @@ export function ReservationDetailSummary({
   folioBalance,
   showFolioBalance = false,
   paymentReceived,
+  paymentRefunded = null,
   guestDeposit,
   totalAmount,
-  paymentPercentage,
+  roomTotalLabel = "Total Amount",
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -55,9 +57,10 @@ export function ReservationDetailSummary({
   folioBalance?: number | null;
   showFolioBalance?: boolean;
   paymentReceived?: number | null;
+  paymentRefunded?: number | null;
   guestDeposit?: number | null;
   totalAmount?: number | null;
-  paymentPercentage?: number | null;
+  roomTotalLabel?: string;
 }) {
   const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
   const assigned = Boolean(reservation.roomId && reservation.roomNumber);
@@ -75,14 +78,22 @@ export function ReservationDetailSummary({
   const combined = groupCombinedSubtotal(reservation);
   const computedRoomTotal = group ? combined : reservation.roomSubtotal;
   const effectiveTotal = totalAmount !== undefined ? totalAmount : computedRoomTotal;
-  const effectivePaymentPct =
-    paymentPercentage !== undefined
-      ? paymentPercentage
-      : paymentReceived != null && effectiveTotal != null && effectiveTotal > 0
-        ? Math.round((paymentReceived / effectiveTotal) * 100)
-        : null;
-  const effectiveGuestDeposit = guestDeposit != null && guestDeposit > 0 ? guestDeposit : null;
-  const paymentHasCredit = paymentReceived != null && paymentReceived > 0;
+  const paymentFigure =
+    paymentReceived === undefined
+      ? DETAIL_DASH
+      : paymentReceived === null
+        ? NO_FOLIO_LABEL
+        : money(paymentReceived);
+  const depositFigure =
+    guestDeposit === undefined
+      ? DETAIL_DASH
+      : guestDeposit === null
+        ? NO_FOLIO_LABEL
+        : money(guestDeposit);
+  const netPaid =
+    paymentReceived != null && paymentRefunded != null
+      ? Math.round((paymentReceived - paymentRefunded) * 100) / 100
+      : null;
 
   return (
     <aside
@@ -189,7 +200,7 @@ export function ReservationDetailSummary({
               {occupancy.rooms} room unit{occupancy.rooms === 1 ? "" : "s"}
             </p>
             <p className="font-medium text-[#251605]">
-              Total Amount {effectiveTotal == null ? DETAIL_DASH : money(effectiveTotal)}
+              {roomTotalLabel} {effectiveTotal == null ? DETAIL_DASH : money(effectiveTotal)}
             </p>
           </>
         ) : (
@@ -197,7 +208,7 @@ export function ReservationDetailSummary({
             <p>Room Rate {effectiveTotal == null ? DETAIL_DASH : money(effectiveTotal)}</p>
             {packagesTotal != null ? <p>Packages {money(packagesTotal)}</p> : null}
             <p className="font-medium text-[#251605]">
-              Total Amount {effectiveTotal == null ? DETAIL_DASH : money(effectiveTotal)}
+              {roomTotalLabel} {effectiveTotal == null ? DETAIL_DASH : money(effectiveTotal)}
             </p>
           </>
         )}
@@ -216,15 +227,21 @@ export function ReservationDetailSummary({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-1 text-xs font-semibold text-[#1F542C]">
               <span>Payment Received</span>
-              <span>{paymentHasCredit ? money(paymentReceived) : "—"}</span>
+              <span>{paymentFigure}</span>
             </div>
             <p className="text-[11px] text-[#2F7B42]">
-              {paymentHasCredit
-                ? effectivePaymentPct != null
-                  ? `${effectivePaymentPct}% of total`
-                  : null
-                : "No payment received"}
+              {paymentReceived === 0
+                ? "No payment received"
+                : paymentReceived === null
+                  ? NO_FOLIO_LABEL
+                  : null}
             </p>
+            {paymentRefunded != null ? (
+              <p className="text-[11px] text-[#2F7B42]">
+                Refunded {money(paymentRefunded)}
+                {netPaid != null ? ` · Net paid ${money(netPaid)}` : ""}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -235,10 +252,14 @@ export function ReservationDetailSummary({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-1 text-xs font-semibold text-[#7A4B0C]">
               <span>Guest Deposit</span>
-              <span>{effectiveGuestDeposit != null ? money(effectiveGuestDeposit) : "—"}</span>
+              <span>{depositFigure}</span>
             </div>
             <p className="text-[11px] font-medium text-[#C2410C]">
-              {effectiveGuestDeposit == null ? "No deposit received" : null}
+              {guestDeposit === 0
+                ? "No deposit received"
+                : guestDeposit === null
+                  ? NO_FOLIO_LABEL
+                  : null}
             </p>
           </div>
         </div>

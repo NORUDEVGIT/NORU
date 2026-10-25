@@ -8,10 +8,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { rateError } from "../rates.server";
-import { requireReservationManager } from "../reservations.server";
+import { requireReservationManager, reservationError } from "../reservations.server";
 import {
   getReservationCommercialAttribution as loadReservationCommercialAttribution,
   getReservationPackageAttributions as loadReservationPackageAttributions,
+  getReservationUnitPackageRead,
   listStoredEligiblePackages,
 } from "./commercial-package.server.ts";
 
@@ -51,14 +52,37 @@ export const getReservationPackageAttributions = createServerFn({ method: "POST"
     return loadReservationPackageAttributions(supabaseAdmin, data);
   });
 
+export const getReservationUnitPackages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        reservationRoomId: idSchema,
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireReservationManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    try {
+      return await getReservationUnitPackageRead(supabaseAdmin, data);
+    } catch (error) {
+      throw reservationError(error instanceof Error ? error.message : String(error));
+    }
+  });
+
 export const getReservationCommercialAttribution = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
-    z.object({
-      restaurantId: idSchema,
-      reservationId: idSchema,
-      roomSubtotal: z.number().nonnegative().nullable().optional(),
-    }).parse(input),
+    z
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        roomSubtotal: z.number().nonnegative().nullable().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     await requireReservationManager(context as never, data.restaurantId);

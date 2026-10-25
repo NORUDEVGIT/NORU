@@ -19,12 +19,15 @@ export function RoomUnitTargetSelect({
   units,
   value,
   onChange,
+  locked = false,
 }: {
   units: FrontOfficeRoomTarget[] | undefined;
   value: string;
   onChange: (id: string) => void;
+  /** The desk row already selected this room. */
+  locked?: boolean;
 }) {
-  if (!units || units.length < 2) return null;
+  if (locked || !units || units.length < 2) return null;
   return (
     <div className="space-y-2">
       <Label>Room on this reservation</Label>

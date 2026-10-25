@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { FrontOfficeChrome } from "@/packages/pms/components/frontoffice/front-office-chrome";
@@ -17,6 +17,7 @@ import { FoCheckInWorkspaceSheet } from "@/packages/pms/components/frontoffice/f
 import {
   foCheckInWorkspaceInitialStep,
   foOpensPreArrivalCheckInWorkspace,
+  type FoRackInHouseTarget,
 } from "@/packages/pms/lib/fo-check-in-workspace";
 import { cashieringRefundHref } from "@/packages/pms/lib/fo-check-out";
 import {
@@ -38,7 +39,6 @@ import {
   NoShowDialog,
   RoomMoveDialog,
   StayDatesDialog,
-  WalkInDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import {
   FoAmendKindSheet,
@@ -48,6 +48,13 @@ import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel
 import { ArrivalsWorkspace } from "@/packages/pms/components/workspaces/arrivals-workspace";
 import { DeparturesWorkspace } from "@/packages/pms/components/workspaces/departures-workspace";
 import { InHouseWorkspace } from "@/packages/pms/components/workspaces/in-house-workspace";
+import {
+  InHouseQuickViewSheet,
+  type InHouseQuickViewAction,
+} from "@/packages/pms/components/frontoffice/in-house-quick-view";
+import { LateCheckoutDialog } from "@/packages/pms/components/workspaces/arrivals-departures-dialogs";
+import type { FoInHouseQuickView } from "@/packages/pms/lib/fo-inhouse.functions";
+import type { DepartureRow } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
 import { WalkInsWorkspace } from "@/packages/pms/components/workspaces/walk-ins-workspace";
 import {
   RoomQuickViewSheet,
@@ -83,6 +90,12 @@ import {
   guestProfileSearch,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { SET2_RI_ROOMS_HREF } from "@/packages/pms/lib/pms-set2-structure";
+import { CreateReservationPage } from "@/packages/pms/components/bookings/create-reservation-page";
+import {
+  ReservationWorkspaceOverlay,
+  type ReservationWorkspaceOverlayState,
+} from "@/packages/pms/components/reservations/reservation-workspace-overlay";
+import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useRestaurantTimezone } from "@/core/state/property-format";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -103,6 +116,86 @@ const SHEET_AMEND: Record<string, FoAmendKind> = {
  * is Room Rack + Calendar. Existing list workspaces stay mounted under the
  * new nav. No new backend.
  */
+function walkInContinueStay(
+  created: { id: string; confirmationNumber: string; guestName: string },
+  businessDate: string,
+): FrontOfficeStay {
+  return {
+    id: created.id,
+    confirmationNumber: created.confirmationNumber,
+    guestId: "",
+    guestName: created.guestName,
+    guestVip: false,
+    guestPhone: null,
+    guestEmail: null,
+    roomTypeId: "",
+    roomTypeName: "",
+    roomId: null,
+    roomNumber: null,
+    arrivalDate: businessDate,
+    departureDate: businessDate,
+    nights: 0,
+    adults: 1,
+    children: 0,
+    status: "confirmed",
+    specialRequests: null,
+    source: "walk_in",
+    overstay: false,
+  };
+}
+
+function lateRowFromInHouse(qv: FoInHouseQuickView): DepartureRow {
+  return {
+    reservationId: qv.stay.id,
+    confirmationNumber: qv.stay.confirmationNumber,
+    guest: { id: qv.stay.guestId, name: qv.guest.fullName, vip: qv.guest.vip },
+    stay: {
+      arrivalDate: qv.stay.arrivalDate,
+      departureDate: qv.stay.departureDate,
+      status: qv.stay.status,
+      inHouse: qv.stay.status === "checked_in",
+      overstay: qv.stay.overstay,
+    },
+    room: {
+      roomTypeId: qv.stay.roomTypeId,
+      roomTypeName: qv.stay.roomTypeName,
+      roomId: qv.stay.roomId,
+      roomNumber: qv.stay.roomNumber,
+      housekeepingStatus: qv.room.housekeepingStatus,
+      operationalStatus: qv.room.status,
+    },
+    financial: {
+      state:
+        qv.financial.lane === "live"
+          ? "available"
+          : qv.financial.lane === "permission_denied"
+            ? "permission_denied"
+            : "not_available",
+      folioId: qv.financial.folioId,
+      balance: qv.financial.balance,
+      depositPosted: null,
+      depositWaived: null,
+    },
+    operational: {
+      specialRequests: qv.stay.specialRequests,
+      lateCheckout: {
+        granted: qv.lateCheckout.granted,
+        until: qv.lateCheckout.until,
+        note: qv.lateCheckout.note,
+        policy: qv.lateCheckout.policy,
+      },
+      exceptionKeys: qv.stay.overstay ? ["overstay"] : [],
+    },
+    hints: {
+      canOpen: true,
+      canCheckOut: qv.hints.canCheckOut,
+      canExtendStay: qv.hints.canAmendStay,
+      canGrantLateCheckout: qv.hints.canSetLateCheckout,
+      canOpenFolio: qv.hints.canOpenFolio,
+    },
+  };
+}
+
 export function FrontOfficeWorkspace({
   membership,
   search,
@@ -114,11 +207,13 @@ export function FrontOfficeWorkspace({
   const timezone = useRestaurantTimezone();
   const today = usePropertyBusinessDate(restaurantId, timezone);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const initialTab = search.tab;
 
   const [view, setView] = useState<FoNavId>(() => resolveFoNav(initialTab));
   const [phone, setPhone] = useState(false);
-  const [walkIn, setWalkIn] = useState(false);
+  const [reservationOverlay, setReservationOverlay] =
+    useState<ReservationWorkspaceOverlayState>(null);
   const [checkInStep, setCheckInStep] = useState<"stay" | "registration">("stay");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -135,6 +230,15 @@ export function FrontOfficeWorkspace({
   const [searchCancelStay, setSearchCancelStay] = useState<FrontOfficeStay | null>(null);
   const [roomQvId, setRoomQvId] = useState<string | null>(null);
   const [historyRoomId, setHistoryRoomId] = useState<string | null>(null);
+  const [inHouseQv, setInHouseQv] = useState<FoRackInHouseTarget | null>(null);
+  const [inHouseMove, setInHouseMove] = useState<FrontOfficeStay | null>(null);
+  const [inHouseDates, setInHouseDates] = useState<FrontOfficeStay | null>(null);
+  const [inHouseCheckOut, setInHouseCheckOut] = useState<FrontOfficeStay | null>(null);
+  const [inHouseLate, setInHouseLate] = useState<FoInHouseQuickView | null>(null);
+  const [inHouseAmend, setInHouseAmend] = useState<{
+    stay: FrontOfficeStay;
+    kind: FoAmendKind;
+  } | null>(null);
 
   const onRackSearchChange = useCallback(
     (next: {
@@ -171,13 +275,63 @@ export function FrontOfficeWorkspace({
   function openStayQuickView(stay: FrontOfficeStay) {
     setRoomQvId(null);
     setHistoryRoomId(null);
+    setInHouseQv(null);
     setSheetStay(stay);
   }
 
   function openRoomQuickView(roomId: string) {
     setSheetStay(null);
     setHistoryRoomId(null);
+    setInHouseQv(null);
     setRoomQvId(roomId);
+  }
+
+  function openInHouseFromRack(target: FoRackInHouseTarget) {
+    setSheetStay(null);
+    setRoomQvId(null);
+    setHistoryRoomId(null);
+    setInHouseQv(target);
+  }
+
+  function refreshInHouseRack() {
+    void queryClient.invalidateQueries({ queryKey: ["front-office", "inhouse-qv"] });
+    void queryClient.invalidateQueries({ queryKey: ["front-office", "inhouse-desk"] });
+    void queryClient.invalidateQueries({ queryKey: ["front-office", "occupancy"] });
+    void queryClient.invalidateQueries({ queryKey: ["front-office", "rack-reservations"] });
+  }
+
+  function onInHouseRackAction(action: InHouseQuickViewAction, qv: FoInHouseQuickView) {
+    if (action === "open_guest") {
+      void navigate({ to: GUEST_PROFILE_DETAIL_PATH, params: { guestId: qv.stay.guestId } });
+      return;
+    }
+    if (action === "open_folio") {
+      setInHouseQv(null);
+      if (qv.financial.folioId) {
+        void navigate({
+          to: "/restaurant/pms/cashiering/folios/$folioId",
+          params: { folioId: qv.financial.folioId },
+        });
+        return;
+      }
+      void navigate({ to: "/restaurant/pms/cashiering", search: { tab: "folios" } });
+      return;
+    }
+    if (action === "open_maintenance") {
+      setInHouseQv(null);
+      void navigate({ to: MAINTENANCE_HREF });
+      return;
+    }
+    setInHouseQv(null);
+    if (action === "room_move") setInHouseMove(qv.stay);
+    if (action === "amend_stay") setInHouseDates(qv.stay);
+    if (action === "late_checkout") setInHouseLate(qv);
+    if (action === "check_out") setInHouseCheckOut(qv.stay);
+    if (action === "upgrade") setInHouseAmend({ stay: qv.stay, kind: "upgrade" });
+    if (action === "guests") setInHouseAmend({ stay: qv.stay, kind: "guests" });
+    if (action === "special") setInHouseAmend({ stay: qv.stay, kind: "special" });
+    if (action === "add_service") setInHouseAmend({ stay: qv.stay, kind: "service" });
+    if (action === "guest_request") setInHouseAmend({ stay: qv.stay, kind: "guest_request" });
   }
 
   function runAfterRoomQuickView(fn: () => void) {
@@ -364,6 +518,14 @@ export function FrontOfficeWorkspace({
     setDialog(kind);
   }
 
+  function openWalkInCreate() {
+    setReservationOverlay({ type: "new-reservation", mode: "walk-in" });
+  }
+
+  function closeReservationOverlay() {
+    setReservationOverlay(null);
+  }
+
   function onQuickAction(actionId: string) {
     const result = invokeFoAction(actionId, {});
     if (result.lane === "coming_soon") {
@@ -375,7 +537,7 @@ export function FrontOfficeWorkspace({
       return;
     }
     if (actionId === "walk_in") {
-      setWalkIn(true);
+      openWalkInCreate();
       return;
     }
     if (actionId === "guest_search") {
@@ -593,9 +755,10 @@ export function FrontOfficeWorkspace({
             initialFocusDate={search.date}
             initialGroup={search.group ?? "none"}
             onSelectStay={openStayQuickView}
+            onSelectInHouse={openInHouseFromRack}
             onSelectRoom={openRoomQuickView}
             onRackSearchChange={onRackSearchChange}
-            onWalkIn={() => setWalkIn(true)}
+            onWalkIn={() => openWalkInCreate()}
           />
         </div>
       ) : null}
@@ -616,7 +779,7 @@ export function FrontOfficeWorkspace({
       ) : null}
       {view === "walkins" ? (
         <ListFrame title="Walk-ins">
-          <WalkInsWorkspace membership={membership} embedded />
+          <WalkInsWorkspace membership={membership} embedded onCreateWalkIn={openWalkInCreate} />
         </ListFrame>
       ) : null}
       {view === "amendments" ? <AmendmentsFrame restaurantId={restaurantId} today={today} /> : null}
@@ -668,6 +831,23 @@ export function FrontOfficeWorkspace({
           onAction={onRoomQuickViewAction}
         />
       ) : null}
+      <InHouseQuickViewSheet
+        restaurantId={restaurantId}
+        reservationId={inHouseQv?.reservationId ?? null}
+        reservationRoomId={inHouseQv?.reservationRoomId ?? null}
+        open={
+          Boolean(inHouseQv) &&
+          !inHouseMove &&
+          !inHouseDates &&
+          !inHouseCheckOut &&
+          !inHouseLate &&
+          !inHouseAmend
+        }
+        onOpenChange={(open) => {
+          if (!open) setInHouseQv(null);
+        }}
+        onAction={onInHouseRackAction}
+      />
       {historyRoomId ? (
         <RoomOperationsHistorySheet
           restaurantId={restaurantId}
@@ -677,16 +857,54 @@ export function FrontOfficeWorkspace({
         />
       ) : null}
 
-      <WalkInDialog
-        restaurantId={restaurantId}
-        today={today}
-        open={walkIn}
-        onOpenChange={setWalkIn}
-        onCreated={(created) => {
-          setCheckInStep("registration");
-          openDialog("checkin", created);
+      <ReservationWorkspaceOverlay
+        open={reservationOverlay !== null}
+        title={reservationOverlay?.type === "new-reservation" ? "New Reservation" : "Reservation"}
+        description={
+          reservationOverlay?.type === "new-reservation"
+            ? "Create a walk-in reservation. Arrival starts on the property business date."
+            : "Review the reservation created from Front Office."
+        }
+        hideVisualHeader={reservationOverlay?.type === "reservation-detail"}
+        showCreateIcon={reservationOverlay?.type === "new-reservation"}
+        onOpenChange={(open) => {
+          if (!open) closeReservationOverlay();
         }}
-      />
+      >
+        {reservationOverlay?.type === "new-reservation" ? (
+          <CreateReservationPage
+            membership={membership}
+            embedded
+            mode="walk-in"
+            businessDate={today}
+            returnToLabel="Return to Front Office"
+            onCancel={closeReservationOverlay}
+            onCreated={() => {
+              void queryClient.invalidateQueries({ queryKey: ["front-office"] });
+            }}
+            onContinueToCheckIn={(created) => {
+              closeReservationOverlay();
+              setCheckInStep("stay");
+              openDialog("checkin", walkInContinueStay(created, today));
+            }}
+            onOpenCreatedReservation={(reservationId) => {
+              setReservationOverlay({ type: "reservation-detail", reservationId });
+            }}
+            onReturnToDesk={closeReservationOverlay}
+          />
+        ) : null}
+        {reservationOverlay?.type === "reservation-detail" ? (
+          <ReservationDetailWorkspace
+            membership={membership}
+            reservationId={reservationOverlay.reservationId}
+            embedded
+            onBackToList={closeReservationOverlay}
+            onCopiedReservation={(reservationId) => {
+              setReservationOverlay({ type: "reservation-detail", reservationId });
+            }}
+          />
+        ) : null}
+      </ReservationWorkspaceOverlay>
       <GuestSearchDialog
         restaurantId={restaurantId}
         today={today}
@@ -825,6 +1043,74 @@ export function FrontOfficeWorkspace({
             if (!v) {
               setAmendKind(null);
               setAmendStay(null);
+            }
+          }}
+        />
+      ) : null}
+      {inHouseMove ? (
+        <RoomMoveDialog
+          restaurantId={restaurantId}
+          stay={inHouseMove}
+          initialReservationRoomId={inHouseMove.reservationRoomId ?? undefined}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setInHouseMove(null);
+              refreshInHouseRack();
+            }
+          }}
+        />
+      ) : null}
+      {inHouseDates ? (
+        <StayDatesDialog
+          restaurantId={restaurantId}
+          stay={inHouseDates}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setInHouseDates(null);
+              refreshInHouseRack();
+            }
+          }}
+        />
+      ) : null}
+      {inHouseCheckOut ? (
+        <CheckOutDialog
+          restaurantId={restaurantId}
+          stay={inHouseCheckOut}
+          initialReservationRoomId={inHouseCheckOut.reservationRoomId ?? undefined}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setInHouseCheckOut(null);
+              refreshInHouseRack();
+            }
+          }}
+        />
+      ) : null}
+      <LateCheckoutDialog
+        restaurantId={restaurantId}
+        timezone={timezone}
+        row={inHouseLate ? lateRowFromInHouse(inHouseLate) : null}
+        open={Boolean(inHouseLate)}
+        onOpenChange={(open) => {
+          if (!open) setInHouseLate(null);
+        }}
+        onSaved={() => {
+          setInHouseLate(null);
+          refreshInHouseRack();
+        }}
+      />
+      {inHouseAmend ? (
+        <FoAmendKindSheet
+          kind={inHouseAmend.kind}
+          restaurantId={restaurantId}
+          stay={inHouseAmend.stay}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setInHouseAmend(null);
+              refreshInHouseRack();
             }
           }}
         />

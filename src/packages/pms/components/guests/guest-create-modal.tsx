@@ -159,7 +159,12 @@ function hasNestedModalLayer(): boolean {
   const nodes = document.querySelectorAll<HTMLElement>(
     '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]',
   );
-  return [...nodes].some((node) => node.dataset["testid"] !== MODAL_TEST_ID);
+  return [...nodes].some(
+    (node) =>
+      node.dataset["testid"] !== MODAL_TEST_ID &&
+      node.dataset["testid"] !== "fo-ci-v2-workspace" &&
+      !node.closest('[data-testid="fo-ci-v2-workspace"]'),
+  );
 }
 
 function guestProfileToCreateDraft(
@@ -252,6 +257,8 @@ export function GuestCreateModal({
   guest = null,
   onSaved,
   ignoreDraft = false,
+  overlayClassName,
+  contentClassName,
 }: {
   restaurantId: string;
   open: boolean;
@@ -262,6 +269,8 @@ export function GuestCreateModal({
   guest?: GuestProfile | null;
   onSaved?: (guestId: string) => void;
   ignoreDraft?: boolean;
+  overlayClassName?: string;
+  contentClassName?: string;
 }) {
   const isEdit = mode === "edit" || Boolean(guest);
   const navigate = useNavigate();
@@ -1154,10 +1163,12 @@ export function GuestCreateModal({
       >
         <DialogContent
           data-testid="guest-create-modal"
+          overlayClassName={overlayClassName ?? "z-[80]"}
           className={cn(
-            "z-50 flex h-[min(92vh,960px)] w-[min(98vw,1550px)] max-w-none sm:max-w-none flex-col gap-0 overflow-hidden p-0",
+            "z-[80] flex h-[min(92vh,960px)] w-[min(98vw,1550px)] max-w-none sm:max-w-none flex-col gap-0 overflow-hidden p-0",
             "rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] shadow-2xl",
             "[&>button]:hidden",
+            contentClassName,
           )}
           onEscapeKeyDown={(e) => {
             if (hasNestedModalLayer()) {
@@ -1558,7 +1569,7 @@ export function GuestCreateModal({
 
       {/* Discard Confirmation Dialog */}
       <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
-        <AlertDialogContent className="rounded-2xl border border-[#DDD4C5] bg-white">
+        <AlertDialogContent className="z-[90] rounded-2xl border border-[#DDD4C5] bg-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-lg text-[#251605]">Discard new guest?</AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-muted-foreground">
@@ -1583,7 +1594,7 @@ export function GuestCreateModal({
       {/* Start Over Confirmation Dialog */}
       {startOverOpen ? (
         <AlertDialog open={startOverOpen} onOpenChange={setStartOverOpen}>
-          <AlertDialogContent className="rounded-2xl border border-[#DDD4C5] bg-white">
+          <AlertDialogContent className="z-[90] rounded-2xl border border-[#DDD4C5] bg-white">
             <AlertDialogHeader>
               <AlertDialogTitle className="font-display text-lg text-[#251605]">
                 {GUEST_CREATE_START_OVER}?

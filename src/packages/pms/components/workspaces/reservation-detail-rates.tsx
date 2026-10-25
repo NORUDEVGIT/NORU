@@ -1082,9 +1082,9 @@ function RatesSummaryRail({
             ? read.packageTotal
             : undefined
         }
-        paymentReceived={payment != null && payment > 0 ? payment : null}
-        guestDeposit={deposit != null && deposit > 0 ? deposit : null}
-        paymentPercentage={null}
+        paymentReceived={payment}
+        paymentRefunded={refund}
+        guestDeposit={deposit}
         totalAmount={groupStay ? undefined : read.unit.roomSubtotal}
       />
       <section
@@ -1098,10 +1098,7 @@ function RatesSummaryRail({
         </p>
         <dl className="space-y-1 text-sm">
           <Info label="Refund" value={refund != null && refund > 0 ? money(refund) : DETAIL_DASH} />
-          <Info
-            label="Posted tax"
-            value={postedTax == null ? DETAIL_DASH : money(postedTax)}
-          />
+          <Info label="Posted tax" value={postedTax == null ? DETAIL_DASH : money(postedTax)} />
           <Info
             label="Posted service charge"
             value={postedService == null ? DETAIL_DASH : money(postedService)}

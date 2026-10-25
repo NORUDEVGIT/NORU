@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { CalendarDays, CheckCircle2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -13,23 +14,33 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/shared/components/ui/sheet";
+import { getReservationCashieringSummary } from "@/packages/pms/lib/fo-check-in.functions";
+import { ROOM_LEGEND } from "@/packages/pms/lib/front-office-shell";
+import { HK_STATUS_CODES, HK_STATUS_LABELS, type HkStatusCode } from "@/packages/pms/lib/pms-set4-hk-inventory";
 import { listAssignableRooms } from "@/packages/pms/lib/reservations.functions";
 import {
   changeStayDates,
   listOccupancy,
   moveReservationRoom,
+  quoteInHouseStayChange,
 } from "@/packages/pms/lib/frontoffice.functions";
+import {
+  authoritativeRoomChargeDelta,
+  extensionSummary,
+  stayDateChangeKind,
+  stayDateConfirmationTitle,
+  stayNightLabel,
+  stayNights,
+} from "@/packages/pms/lib/fo-stay-date-finance";
 import { useMoney } from "@/core/state/property-format";
 import {
   RACK_CONFIRM_WIDTH_PX,
   RACK_MOVE_REASON,
-  RATE_IMPACT_UNAVAILABLE_LABEL,
   UNAVAILABLE_TO_VERIFY,
   canConfirmRackChecks,
   confirmSheetTitle,
   evaluateRackChecks,
   formatFoDate,
-  rackRateImpact,
   roomHasOverlap,
   stayDateWriteInput,
   type AssignableLookup,
@@ -39,6 +50,19 @@ import {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
+}
+
+function roomStatusLabel(status: string | null): string | null {
+  if (!status) return null;
+  return ROOM_LEGEND.find((row) => row.key === status)?.label ?? null;
+}
+
+function housekeepingLabel(status: string | null, known: boolean): string | null {
+  if (!known || !status) return null;
+  if ((HK_STATUS_CODES as readonly string[]).includes(status)) {
+    return HK_STATUS_LABELS[status as HkStatusCode];
+  }
+  return null;
 }
 
 export function FoRackConfirmSheet({
@@ -68,6 +92,9 @@ export function FoRackConfirmSheet({
   const fetchOccupancy = useServerFn(listOccupancy);
   const move = useServerFn(moveReservationRoom);
   const change = useServerFn(changeStayDates);
+  const quoteStayChange = useServerFn(quoteInHouseStayChange);
+  const fetchCashiering = useServerFn(getReservationCashieringSummary);
+  const [showChecks, setShowChecks] = useState(false);
   const [editArrival, setEditArrival] = useState(draft?.kind === "change_dates" ? draft.nextArrivalDate : "");
   const [editDeparture, setEditDeparture] = useState(
     draft?.kind === "change_dates" ? draft.nextDepartureDate : "",
@@ -127,6 +154,38 @@ export function FoRackConfirmSheet({
     retry: false,
   });
 
+  const quoteQuery = useQuery({
+    queryKey: [
+      "front-office",
+      "stay-date-quote",
+      restaurantId,
+      draft?.reservationId,
+      arrival,
+      departure,
+    ],
+    queryFn: () =>
+      quoteStayChange({
+        data: {
+          restaurantId,
+          reservationId: draft!.reservationId,
+          arrival: arrival!,
+          departure: departure!,
+        },
+      }),
+    enabled: open && !!dateDraft && !!arrival && !!departure && departure > arrival,
+    retry: false,
+  });
+
+  const folioQuery = useQuery({
+    queryKey: ["fo-stay-date-folio", restaurantId, draft?.reservationId],
+    queryFn: () =>
+      fetchCashiering({
+        data: { restaurantId, reservationId: draft!.reservationId },
+      }),
+    enabled: open && !!dateDraft && !!draft?.reservationId,
+    retry: false,
+  });
+
   const occupancyQuery = useQuery({
     queryKey: ["front-office", "occupancy", restaurantId],
     queryFn: () => fetchOccupancy({ data: { restaurantId } }),
@@ -172,8 +231,14 @@ export function FoRackConfirmSheet({
       : activeDraft;
 
   const checks = evaluatedDraft ? evaluateRackChecks(evaluatedDraft, lookup, localOverlap) : [];
-  const canConfirm = canConfirmRackChecks(checks);
-  const rate = dateDraft ? rackRateImpact(dateDraft) : null;
+  const dateKind =
+    dateDraft && arrival && departure
+      ? stayDateChangeKind(dateDraft.arrivalDate, dateDraft.departureDate, arrival, departure)
+      : null;
+  const quoteReady = !dateDraft || (quoteQuery.isSuccess && !quoteQuery.isFetching);
+  const canConfirm = canConfirmRackChecks(checks) && quoteReady;
+  const checksPassed = checks.length > 0 && checks.every((item) => item.state === "pass");
+  const failedChecks = checks.filter((item) => item.state !== "pass");
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -215,11 +280,27 @@ export function FoRackConfirmSheet({
 
   if (!draft) return null;
 
-  const currentDates = `${formatFoDate(draft.arrivalDate)} → ${formatFoDate(draft.departureDate)}`;
+  const roomLabel = draft.currentRoomNumber ? `Room ${draft.currentRoomNumber}` : "Unassigned";
   const subtitle =
     draft.kind === "move_room"
-      ? `${draft.guestName} · ${draft.confirmationNumber} · ${draft.currentRoomNumber ? `Room ${draft.currentRoomNumber}` : "Unassigned"}`
-      : `${draft.guestName} · ${draft.confirmationNumber} · ${currentDates}`;
+      ? `${draft.guestName} · ${draft.confirmationNumber} · ${
+          draft.currentRoomNumber ? `Current room ${draft.currentRoomNumber}` : "Unassigned"
+        }`
+      : `${draft.guestName} · ${draft.confirmationNumber} · ${roomLabel}`;
+  const currentNights = dateDraft ? stayNights(dateDraft.arrivalDate, dateDraft.departureDate) : 0;
+  const nextNights = dateDraft && arrival && departure ? stayNights(arrival, departure) : currentNights;
+  const extensionLine = dateKind === "extend" ? extensionSummary(currentNights, nextNights) : null;
+  const chargeDelta =
+    quoteQuery.data == null
+      ? null
+      : authoritativeRoomChargeDelta(quoteQuery.data.previousSubtotal, quoteQuery.data.quotedSubtotal);
+  const confirmLabel =
+    draft.kind === "move_room"
+      ? "Confirm Room Move"
+      : dateKind === "extend"
+        ? "Confirm Extension"
+        : "Confirm";
+  const folioBalance = folioQuery.data?.folioBalance;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -231,7 +312,9 @@ export function FoRackConfirmSheet({
       >
         <div className="mx-auto flex h-full w-full max-w-[560px] flex-col sm:min-w-[480px]">
           <SheetHeader className="shrink-0 border-b border-[#CCCCCC] px-5 py-4 text-left">
-            <SheetTitle className="text-[#251605]">{confirmSheetTitle(draft.kind)}</SheetTitle>
+            <SheetTitle className="text-[#251605]">
+              {dateKind ? stayDateConfirmationTitle(dateKind) : confirmSheetTitle(draft.kind)}
+            </SheetTitle>
             <SheetDescription>{subtitle}</SheetDescription>
           </SheetHeader>
 
@@ -258,76 +341,314 @@ export function FoRackConfirmSheet({
                 </div>
               </div>
             ) : null}
-            <div className="rounded-xl border border-border p-3" data-testid="fo-rack-before-after">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Before → After</p>
-              {draft.kind === "move_room" ? (
-                <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Previous room</dt>
-                    <dd>{draft.currentRoomNumber ?? "Unassigned"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">New room</dt>
-                    <dd>{draft.targetRoomNumber}</dd>
-                  </div>
-                </dl>
-              ) : (
-                <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Previous dates</dt>
-                    <dd>
-                      {formatFoDate(draft.arrivalDate)} → {formatFoDate(draft.departureDate)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">New dates</dt>
-                    <dd>
-                      {formatFoDate(dateDraft?.nextArrivalDate ?? draft.nextArrivalDate)} →{" "}
-                      {formatFoDate(dateDraft?.nextDepartureDate ?? draft.nextDepartureDate)}
-                    </dd>
-                  </div>
-                </dl>
-              )}
-              {rate ? (
-                rate.kind === "available" ? (
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Previous rate</p>
-                      <p>{money(rate.previous)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">New rate</p>
-                      <p>{rate.next == null ? RATE_IMPACT_UNAVAILABLE_LABEL : money(rate.next)}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <p
-                    className="mt-3 inline-flex rounded-full bg-[#C89933]/20 px-2.5 py-1 text-xs font-semibold text-[#251605]"
-                    data-testid="fo-rate-impact-unavailable"
-                  >
-                    {RATE_IMPACT_UNAVAILABLE_LABEL}
-                  </p>
-                )
-              ) : null}
-            </div>
-
-            <ul className="space-y-2" data-testid="fo-rack-checklist">
-              {checks.map((item) => (
-                <li
-                  key={item.id}
-                  data-state={item.state}
-                  className="rounded-xl border border-border px-3 py-2 text-sm"
+            {draft.kind === "move_room" ? (
+              <div className="space-y-3">
+                <section
+                  className="rounded-xl border border-[#E8DFD0] bg-white p-3"
+                  data-testid="fo-room-change"
                 >
-                  <p className="font-medium text-[#251605]">
-                    <span className="mr-2 text-xs uppercase tracking-wide text-muted-foreground">
-                      {item.state === "pass" ? "Pass" : item.state === "fail" ? "Fail" : UNAVAILABLE_TO_VERIFY}
-                    </span>
-                    {item.label}
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+                    Room change
                   </p>
-                  {item.detail ? <p className="mt-1 text-xs text-muted-foreground">{item.detail}</p> : null}
-                </li>
-              ))}
-            </ul>
+                  <div className="mt-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-[1fr_auto_1fr]">
+                    <div>
+                      <p className="text-xs text-[#6B5E4E]">Current room</p>
+                      <p className="text-lg font-semibold text-[#251605]">
+                        {draft.currentRoomNumber ?? "Unassigned"}
+                      </p>
+                      {draft.currentRoomTypeName ? (
+                        <p className="text-sm text-[#6B5E4E]">{draft.currentRoomTypeName}</p>
+                      ) : null}
+                    </div>
+                    <p className="hidden pt-6 text-[#8C7E72] sm:block" aria-hidden>
+                      →
+                    </p>
+                    <p className="text-center text-[#8C7E72] sm:hidden" aria-hidden>
+                      ↓
+                    </p>
+                    <div data-testid="fo-room-change-destination">
+                      <p className="text-xs text-[#6B5E4E]">New room</p>
+                      <p className="text-lg font-semibold text-[#251605]">{draft.targetRoomNumber}</p>
+                      {draft.targetRoomTypeName ? (
+                        <p className="text-sm text-[#6B5E4E]">{draft.targetRoomTypeName}</p>
+                      ) : null}
+                      {roomStatusLabel(draft.targetStatus) ? (
+                        <p className="mt-1 text-sm text-[#251605]" data-testid="fo-room-change-status">
+                          {roomStatusLabel(draft.targetStatus)}
+                        </p>
+                      ) : null}
+                      {housekeepingLabel(draft.targetHousekeeping, draft.hkKnown) ? (
+                        <p className="text-xs text-[#6B5E4E]" data-testid="fo-room-change-housekeeping">
+                          Housekeeping: {housekeepingLabel(draft.targetHousekeeping, draft.hkKnown)}
+                        </p>
+                      ) : null}
+                      {checksPassed ? (
+                        <p className="mt-1 text-sm font-medium text-[#436436]">Ready for move</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </section>
+
+                <section
+                  className="rounded-xl border border-[#E8DFD0] bg-white p-3"
+                  data-testid="fo-move-validation"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+                        Validation
+                      </p>
+                      {lookup?.state === "error" ? (
+                        <div className="mt-2" role="alert">
+                          <p className="text-sm font-medium text-red-800">
+                            Could not validate this room move.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 h-8 text-xs"
+                            onClick={() => void assignableQuery.refetch()}
+                          >
+                            Retry
+                          </Button>
+                        </div>
+                      ) : checksPassed ? (
+                        <div role="status">
+                          <p className="mt-2 flex items-center gap-1.5 text-sm font-medium text-[#436436]">
+                            <CheckCircle2 className="size-4" aria-hidden />
+                            All move checks passed
+                          </p>
+                          <p className="mt-1 text-xs text-[#6B5E4E]">
+                            The destination room is eligible for this in-house move.
+                          </p>
+                        </div>
+                      ) : failedChecks.length > 0 ? (
+                        <div role="alert">
+                          <p className="mt-2 text-sm font-medium text-red-800">Room move cannot continue</p>
+                          <p className="mt-1 text-sm text-[#251605]">
+                            {failedChecks[0]?.label}
+                            {failedChecks[0]?.detail ? `. ${failedChecks[0].detail}` : ""}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-[#6B5E4E]">Checking this room…</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-[#6B5E4E]"
+                      onClick={() => setShowChecks((value) => !value)}
+                      aria-expanded={showChecks}
+                      data-testid="fo-move-validation-details"
+                    >
+                      View details
+                      <ChevronDown className={showChecks ? "size-3.5 rotate-180" : "size-3.5"} />
+                    </button>
+                  </div>
+                  {showChecks || failedChecks.length > 0 ? (
+                    <ul className="mt-3 space-y-2" data-testid="fo-rack-checklist">
+                      {(checksPassed ? checks : failedChecks).map((item) => (
+                        <li key={item.id} data-state={item.state} className="text-sm text-[#251605]">
+                          <span className="mr-2 text-xs uppercase tracking-wide text-[#6B5E4E]">
+                            {item.state === "pass"
+                              ? "Pass"
+                              : item.state === "fail"
+                                ? "Fail"
+                                : UNAVAILABLE_TO_VERIFY}
+                          </span>
+                          {item.label}
+                          {item.detail ? (
+                            <span className="mt-0.5 block text-xs text-[#6B5E4E]">{item.detail}</span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </section>
+
+                <p className="text-xs text-[#6B5E4E]" data-testid="fo-move-note">
+                  The guest will be reassigned to the new room using the existing in-house room-move
+                  workflow.
+                </p>
+              </div>
+            ) : dateDraft ? (
+              <div className="space-y-3">
+                <section className="rounded-xl border border-[#E8DFD0] bg-white p-3" data-testid="fo-stay-change">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+                    <CalendarDays className="size-3.5" />
+                    Stay change
+                  </p>
+                  <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-start gap-2 text-sm">
+                    <div>
+                      <p className="text-xs text-[#6B5E4E]">Current stay</p>
+                      <p className="font-medium text-[#251605]">
+                        {formatFoDate(dateDraft.arrivalDate)} → {formatFoDate(dateDraft.departureDate)}
+                      </p>
+                      <p className="text-xs text-[#6B5E4E]">{stayNightLabel(currentNights)}</p>
+                    </div>
+                    <p className="pt-4 text-[#8C7E72]">→</p>
+                    <div>
+                      <p className="text-xs text-[#6B5E4E]">New stay</p>
+                      <p className="font-medium text-[#251605]">
+                        {formatFoDate(dateDraft.nextArrivalDate)} → {formatFoDate(dateDraft.nextDepartureDate)}
+                      </p>
+                      <p className="text-xs text-[#6B5E4E]">{stayNightLabel(nextNights)}</p>
+                    </div>
+                  </div>
+                  {extensionLine ? (
+                    <p className="mt-3 text-sm font-medium text-[#436436]" data-testid="fo-stay-extension">
+                      {extensionLine}
+                    </p>
+                  ) : null}
+                </section>
+
+                <section
+                  className="rounded-xl border border-[#E8DFD0] bg-white p-3"
+                  data-testid="fo-stay-date-finance"
+                  data-stay-kind={dateKind ?? "dates_changed"}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+                    Financial impact
+                  </p>
+                  <p className="text-[11px] text-[#8C7E72]">Room charges</p>
+                  {quoteQuery.isPending ? (
+                    <p className="mt-3 text-sm text-[#6B5E4E]" data-testid="fo-stay-date-quote-loading">
+                      Calculating the updated room price…
+                    </p>
+                  ) : quoteQuery.isError ? (
+                    <div className="mt-3" role="alert" data-testid="fo-stay-date-quote-error">
+                      <p className="text-sm text-red-800">Could not calculate the updated room price.</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 h-8 text-xs"
+                        onClick={() => void quoteQuery.refetch()}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  ) : quoteQuery.data ? (
+                    <dl className="mt-3 space-y-1.5 text-sm">
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-[#6B5E4E]">Current room total</dt>
+                        <dd className="font-medium text-[#251605]">
+                          {money(quoteQuery.data.previousSubtotal)}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-[#6B5E4E]">New room total</dt>
+                        <dd className="font-medium text-[#251605]" data-testid="fo-stay-date-quoted">
+                          {money(quoteQuery.data.quotedSubtotal)}
+                        </dd>
+                      </div>
+                      {chargeDelta != null ? (
+                        <div className="flex justify-between gap-3 border-t border-[#E8DFD0] pt-2">
+                          <dt className="font-medium text-[#251605]">
+                            {dateKind === "extend" ? "Additional room charge" : "Room charge change"}
+                          </dt>
+                          <dd className="font-semibold text-[#436436]" data-testid="fo-stay-date-delta">
+                            {chargeDelta > 0 ? `+ ${money(chargeDelta)}` : money(chargeDelta)}
+                          </dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                  ) : null}
+
+                  <div className="mt-4 border-t border-[#E8DFD0] pt-3" data-testid="fo-stay-folio-impact">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+                      Folio impact
+                    </p>
+                    {folioQuery.isPending ? (
+                      <p className="mt-2 text-sm text-[#6B5E4E]">Loading folio balance…</p>
+                    ) : folioQuery.isError ? (
+                      <p className="mt-2 text-sm text-[#8B4513]">Folio balance could not be loaded.</p>
+                    ) : folioBalance == null ? (
+                      <p className="mt-2 text-sm text-[#6B5E4E]">No folio is open.</p>
+                    ) : (
+                      <dl className="mt-2 space-y-1.5 text-sm">
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-[#6B5E4E]">Current folio balance</dt>
+                          <dd className="font-medium text-[#251605]" data-testid="fo-stay-folio-balance">
+                            {money(folioBalance)}
+                          </dd>
+                        </div>
+                        {chargeDelta != null ? (
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-[#6B5E4E]">Room charge adjustment</dt>
+                            <dd className="font-medium text-[#251605]">
+                              {chargeDelta > 0 ? `+ ${money(chargeDelta)}` : money(chargeDelta)}
+                            </dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                    )}
+                  </div>
+
+                  {dateKind === "early_departure" && quoteQuery.data ? (
+                    <p className="mt-3 text-xs text-[#6B5E4E]" data-testid="fo-stay-date-policy">
+                      {quoteQuery.data.policyLine}
+                    </p>
+                  ) : null}
+                  <p className="mt-3 text-xs text-[#6B5E4E]">
+                    The room charge on the open folio will be adjusted automatically. A closed or
+                    invoiced folio cannot be changed.
+                  </p>
+                </section>
+
+                <section className="rounded-xl border border-[#E8DFD0] bg-white p-3" data-testid="fo-stay-validation">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+                        Validation
+                      </p>
+                      {checksPassed ? (
+                        <p className="mt-2 flex items-center gap-1.5 text-sm font-medium text-[#436436]">
+                          <CheckCircle2 className="size-4" />
+                          All checks passed
+                        </p>
+                      ) : failedChecks.length > 0 ? (
+                        <p className="mt-2 text-sm font-medium text-red-800">
+                          {failedChecks[0]?.detail || failedChecks[0]?.label}
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-sm text-[#6B5E4E]">Checking the stay…</p>
+                      )}
+                      {checksPassed && dateKind === "extend" ? (
+                        <p className="mt-1 text-xs text-[#6B5E4E]">Stay extension is valid and eligible.</p>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 text-xs text-[#6B5E4E]"
+                      onClick={() => setShowChecks((value) => !value)}
+                      data-testid="fo-stay-validation-details"
+                    >
+                      View details
+                      <ChevronDown className={showChecks ? "size-3.5 rotate-180" : "size-3.5"} />
+                    </button>
+                  </div>
+                  {showChecks || !checksPassed ? (
+                    <ul className="mt-3 space-y-2" data-testid="fo-rack-checklist">
+                      {(checksPassed ? checks : failedChecks).map((item) => (
+                        <li key={item.id} data-state={item.state} className="text-sm text-[#251605]">
+                          <span className="mr-2 text-xs uppercase tracking-wide text-[#6B5E4E]">
+                            {item.state === "pass"
+                              ? "Pass"
+                              : item.state === "fail"
+                                ? "Fail"
+                                : UNAVAILABLE_TO_VERIFY}
+                          </span>
+                          {item.label}
+                          {item.detail ? <span className="mt-0.5 block text-xs text-[#6B5E4E]">{item.detail}</span> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </section>
+              </div>
+            ) : null}
           </div>
 
           <div className="shrink-0 border-t border-[#CCCCCC] px-5 py-4">
@@ -337,11 +658,16 @@ export function FoRackConfirmSheet({
               </Button>
               <Button
                 data-testid="fo-rack-confirm"
-                className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+                className="h-auto bg-[#C89933] py-2 text-[#251605] hover:bg-[#C89933]/90"
                 disabled={!canConfirm || mutation.isPending}
                 onClick={() => mutation.mutate()}
               >
-                {mutation.isPending ? "Saving…" : "Confirm"}
+                <span className="block">{mutation.isPending ? "Saving…" : confirmLabel}</span>
+                {dateKind === "extend" && chargeDelta != null && chargeDelta > 0 ? (
+                  <span className="block text-[11px] font-normal">
+                    Adds {money(chargeDelta)} to room charges
+                  </span>
+                ) : null}
               </Button>
             </div>
           </div>

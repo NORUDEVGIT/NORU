@@ -73,6 +73,7 @@ export function FoCancelNoShowStepper({
   kind,
   open,
   onOpenChange,
+  initialReservationRoomId,
 }: {
   restaurantId: string;
   stay: FrontOfficeStay;
@@ -80,6 +81,7 @@ export function FoCancelNoShowStepper({
   kind: CancelNoShowKind;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  initialReservationRoomId?: string;
 }) {
   const queryClient = useQueryClient();
   const money = useMoney();
@@ -92,7 +94,9 @@ export function FoCancelNoShowStepper({
   const [feeAmount, setFeeAmount] = useState("");
   const [waiveReason, setWaiveReason] = useState("");
   const [ledgerOpen, setLedgerOpen] = useState(false);
-  const [reservationRoomId, setReservationRoomId] = useState("");
+  const [reservationRoomId, setReservationRoomId] = useState(
+    stay.reservationRoomId ?? initialReservationRoomId ?? "",
+  );
   const multiRoom = (stay.roomUnits?.length ?? 0) > 1;
 
   const fetchContext = useServerFn(getCancelNoShowContext);
@@ -103,8 +107,16 @@ export function FoCancelNoShowStepper({
   const completeNoShow = useServerFn(completeFoNoShow);
 
   const contextQuery = useQuery({
-    queryKey: ["fo-cancel-noshow", kind, restaurantId, stay.id],
-    queryFn: () => fetchContext({ data: { restaurantId, reservationId: stay.id, kind } }),
+    queryKey: ["fo-cancel-noshow", kind, restaurantId, stay.id, reservationRoomId],
+    queryFn: () =>
+      fetchContext({
+        data: {
+          restaurantId,
+          reservationId: stay.id,
+          kind,
+          ...(reservationRoomId ? { reservationRoomId } : {}),
+        },
+      }),
     enabled: open,
     retry: false,
   });
@@ -134,8 +146,8 @@ export function FoCancelNoShowStepper({
     setFeeAmount("");
     setWaiveReason("");
     setLedgerOpen(false);
-    setReservationRoomId("");
-  }, [open, stay.id, kind]);
+    setReservationRoomId(stay.reservationRoomId ?? initialReservationRoomId ?? "");
+  }, [open, stay.id, stay.reservationRoomId, initialReservationRoomId, kind]);
 
   useEffect(() => {
     if (!ctx) return;
@@ -243,7 +255,7 @@ export function FoCancelNoShowStepper({
 
   const completeMut = useMutation({
     mutationFn: async (): Promise<{ id: string; status: string }> => {
-      const room = multiRoom ? { reservationRoomId } : {};
+      const room = reservationRoomId ? { reservationRoomId } : {};
       if (kind === "cancel") {
         return completeCancel({
           data: { restaurantId, reservationId: stay.id, reason: reason.trim(), ...room },
@@ -372,6 +384,7 @@ export function FoCancelNoShowStepper({
                       units={stay.roomUnits}
                       value={reservationRoomId}
                       onChange={setReservationRoomId}
+                      locked={Boolean(stay.reservationRoomId)}
                     />
                     <dl className="grid grid-cols-2 gap-3 text-sm">
                       <div>

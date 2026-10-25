@@ -88,7 +88,7 @@ describe("assign room persistence", () => {
     expect(roomType).toContain("price_hotel_stay");
     expect(confirmFn).toContain("release_hotel_reservation_room_package");
     expect(confirmFn).toContain("if (line.kept) continue");
-    expect(confirmFn).toContain("pointer?.id === data.reservationRoomId");
+    expect(confirmFn).not.toContain("pointer?.id === data.reservationRoomId");
     expect(confirmFn).toContain("sync_hotel_reservation_packages");
     expect(confirmFn).not.toContain("apply_hotel_reservation_room_package");
     expect(roomTypeUi).toContain("package-incompatible");

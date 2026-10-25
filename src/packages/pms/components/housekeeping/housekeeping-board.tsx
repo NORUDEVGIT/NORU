@@ -55,6 +55,7 @@ import {
   type HkBoardColumn,
 } from "@/packages/pms/lib/housekeeping-shell";
 import { hkDemandLabels, sortRoomsByHkDemand } from "@/packages/pms/lib/housekeeping-ops";
+import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
 import { HK_HREF, INVENTORY_HREF, MAINTENANCE_HREF } from "@/packages/pms/lib/front-office-room-operations";
 import { HkStatusBadge, PriorityBadge, formatWhen, labelTaskType } from "./housekeeping-bits";
 import { NewTaskDialog } from "./housekeeping-tabs";
@@ -120,6 +121,7 @@ function invalidateHk(qc: ReturnType<typeof useQueryClient>, restaurantId: strin
   for (const key of ["hk-dashboard", "hk-rack", "hk-tasks", "hk-inspections", "hk-discrepancies", "hk-maintenance", "hk-history", "hk-staff", "hk-requests"]) {
     void qc.invalidateQueries({ queryKey: [key, restaurantId] });
   }
+  invalidateFrontOfficeOwnerReads(qc);
 }
 
 export function HousekeepingBoardTab({

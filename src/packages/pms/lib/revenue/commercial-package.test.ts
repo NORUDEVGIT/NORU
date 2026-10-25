@@ -16,6 +16,7 @@ import {
   evaluatePackageEligibility,
   evaluateSelectedPackages,
   listEligiblePackageItems,
+  listPackageEligibilityDecisions,
   summarizePackagePerformance,
   uniquePackageActivationIds,
   type PackageEligibilityInput,
@@ -354,6 +355,17 @@ describe("P5A-03 — commercial quote", () => {
       { activation: activation({ active: false, packageCode: "OFF" }), master: master() },
     ]);
     assert.deepEqual(listed.map((row) => row.code), ["BB500"]);
+    const decisions = listPackageEligibilityDecisions(input(), [
+      { activation: breakfast, master: master() },
+      { activation: activation({ active: false, packageCode: "OFF" }), master: master() },
+    ]);
+    assert.deepEqual(
+      decisions.map((row) => [row.code, row.status, row.reasonCode]),
+      [
+        ["BB500", "ELIGIBLE", "PACKAGE_ELIGIBLE"],
+        ["OFF", "INELIGIBLE", "PACKAGE_INACTIVE"],
+      ],
+    );
     assert.equal(listed[0]?.components[0]?.label, "Breakfast");
   });
 });
@@ -464,6 +476,7 @@ describe("P5A-03 — create, reprice, snapshot, and cashiering contracts", () =>
     assert.match(packageFns, /listEligiblePackageActivations/);
     assert.match(packageFns, /getReservationPackageAttributions/);
     assert.match(packageFns, /getReservationCommercialAttribution/);
+    assert.match(packageFns, /getReservationUnitPackages/);
   });
 
   it("supports post-launch package performance from attribution only", () => {

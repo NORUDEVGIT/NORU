@@ -47,6 +47,10 @@ import {
   writeCheckInUnitProgress,
 } from "./fo-check-in-unit.functions";
 import { commitCheckInUnitWaiver } from "./fo-check-in-waiver.functions";
+import {
+  projectReservationCashieringSummary,
+  type ReservationCashieringSummary,
+} from "./reservation-cashiering-summary";
 import { guestCreateBlocked } from "./pms-set3-rates-guest";
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
@@ -709,7 +713,7 @@ export const getCheckInDepositReadiness = createServerFn({ method: "POST" })
 
     const { data: folio, error: folioError } = await supabaseAdmin
       .from("guest_folios")
-      .select("id, status, currency")
+      .select("id, folio_number, status, currency")
       .eq("restaurant_id", data.restaurantId)
       .eq("reservation_id", data.reservationId)
       .maybeSingle();
@@ -763,6 +767,7 @@ export const getCheckInDepositReadiness = createServerFn({ method: "POST" })
 
     return projectCheckInDepositReadiness({
       folioId: folio?.id ?? null,
+      folioNumber: folio?.folio_number ?? null,
       folioStatus: folio?.status ?? null,
       currency: folio?.currency ?? stay.currency,
       requiredAmount: snapshotRequiredAmount(stay.deposit_requirement_snapshot),
@@ -771,6 +776,71 @@ export const getCheckInDepositReadiness = createServerFn({ method: "POST" })
       guaranteeMethod: stay.guarantee_method,
       companyMasterId: stay.company_master_id,
       groupAccountMasterId: stay.group_account_master_id,
+    });
+  });
+
+function storedMoney(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return null;
+  return Math.round(amount * 100) / 100;
+}
+
+/** Reservation ledger summary for Check-In. Front Office uses the reservation manager gate. */
+export const getReservationCashieringSummary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<ReservationCashieringSummary> => {
+    await requireReservationManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: stay, error: stayError } = await supabaseAdmin
+      .from("hotel_reservations")
+      .select("room_subtotal, deposit_requirement_snapshot")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.reservationId)
+      .maybeSingle();
+    if (stayError) throw new Error(stayError.message);
+    if (!stay) throw new Error("Reservation not found for this property.");
+
+    const { data: folio, error: folioError } = await supabaseAdmin
+      .from("guest_folios")
+      .select("id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("reservation_id", data.reservationId)
+      .maybeSingle();
+    if (folioError) throw new Error(folioError.message);
+
+    if (!folio) {
+      return projectReservationCashieringSummary({
+        reservationRoomTotal: storedMoney(stay.room_subtotal),
+        depositRequirementSnapshot: stay.deposit_requirement_snapshot,
+        folio: null,
+      });
+    }
+
+    const { data: txns, error: txnError } = await supabaseAdmin
+      .from("folio_transactions")
+      .select("id, amount, transaction_type, category, original_transaction_id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("folio_id", folio.id);
+    if (txnError) throw new Error(txnError.message);
+    const transactions = (txns ?? []).map((line) => ({
+      id: line.id as string,
+      type: line.transaction_type as string,
+      category: (line.category as string | null) ?? "",
+      amount: Number(line.amount),
+      originalTransactionId: (line.original_transaction_id as string | null) ?? null,
+    }));
+    const balance =
+      Math.round(transactions.reduce((sum, line) => sum + (Number(line.amount) || 0), 0) * 100) /
+      100;
+
+    return projectReservationCashieringSummary({
+      reservationRoomTotal: storedMoney(stay.room_subtotal),
+      depositRequirementSnapshot: stay.deposit_requirement_snapshot,
+      folio: { balance, transactions },
     });
   });
 
@@ -922,37 +992,67 @@ export const recordCheckInKey = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         reservationId: idSchema,
+        reservationRoomId: idSchema.optional(),
         accessType: z.enum(KEY_ACCESS_TYPES),
         identifier: z.string().trim().min(1).max(120),
         keyCount: z.number().int().min(1).max(20).optional(),
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ ok: true; issuedAt: string; issuedBy: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const issuedAt = new Date().toISOString();
-    await patchProgress(supabaseAdmin, data.restaurantId, data.reservationId, {
-      key_access_type: data.accessType,
-      key_identifier: data.identifier.trim(),
-      key_count: data.keyCount ?? 1,
-      key_issued_at: issuedAt,
-      key_issued_by: me.id,
-    });
-    await recordReservationEvent({
-      restaurantId: data.restaurantId,
-      reservationId: data.reservationId,
-      eventType: "amended",
-      newValues: {
-        key_access_type: data.accessType,
-        key_identifier: data.identifier.trim(),
-        key_count: data.keyCount ?? 1,
-      },
-      notes: "Check-in key recorded.",
-      actorMembershipId: me.id,
-    });
-    return { ok: true, issuedAt, issuedBy: me.id };
-  });
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{
+      ok: true;
+      issuedAt: string;
+      issuedBy: string;
+      reservationRoomId: string | null;
+    }> => {
+      const me = await requireReservationManager(context as never, data.restaurantId);
+      const target = await loadCheckInUnitTarget({
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        ...(data.reservationRoomId ? { reservationRoomId: data.reservationRoomId } : {}),
+      });
+      const issuedAt = new Date().toISOString();
+      const keyCount = data.keyCount ?? 1;
+      const identifier = data.identifier.trim();
+      await writeCheckInUnitProgress({
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        reservationRoomId: target.reservationRoomId,
+        patch: {
+          key_access_type: data.accessType,
+          key_identifier: identifier,
+          key_count: keyCount,
+          key_issued_at: issuedAt,
+          key_issued_by: me.id,
+        },
+      });
+      await recordReservationEvent({
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        eventType: "amended",
+        newValues: {
+          reservation_room_id: target.reservationRoomId,
+          key_access_type: data.accessType,
+          key_identifier: identifier,
+          key_count: keyCount,
+          key_issued_at: issuedAt,
+          key_issued_by: me.id,
+        },
+        notes: "Check-in key recorded.",
+        actorMembershipId: me.id,
+      });
+      return {
+        ok: true,
+        issuedAt,
+        issuedBy: me.id,
+        reservationRoomId: target.reservationRoomId,
+      };
+    },
+  );
 
 export const waiveCheckInKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

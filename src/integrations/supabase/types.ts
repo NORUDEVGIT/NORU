@@ -23117,6 +23117,8 @@ export type Database = {
       }
       pms_enforce_explicit_overbooking: {
         Args: {
+          _expected_room_id?: string
+          _expected_updated_at?: string
           _membership_id: string
           _reason: string
           _reservation_id: string

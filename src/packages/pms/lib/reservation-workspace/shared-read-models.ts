@@ -93,6 +93,8 @@ export interface ReservationDeskActionHints {
 
 export type ReservationDeskRow = ReservationOperationalSummary & {
   hints: ReservationDeskActionHints;
+  /** Set when the row was selected from a room unit, such as a calendar bar. */
+  reservationRoomId?: string | null;
 };
 
 export interface ReservationDeskKpis {
@@ -220,6 +222,12 @@ export interface ReservationQuickView {
   };
 
   actionHints: ReservationQuickViewActionHints;
+
+  /** Null when Quick View is the reservation header. Set when a room unit was requested. */
+  selectedUnit: {
+    reservationRoomId: string;
+    unitSequence: number;
+  } | null;
 }
 
 export const ARRIVAL_EXCEPTION_KEYS = [
@@ -445,6 +453,9 @@ export interface CalendarRoomType {
 export interface CalendarBar {
   reservationId: string;
   confirmationNumber: string;
+  /** Room-unit id when the bar comes from hotel_reservation_rooms. Null for a header-only stay. */
+  reservationRoomId: string | null;
+  unitSequence: number | null;
   guestId: string;
   guestName: string;
   guestVip: boolean;

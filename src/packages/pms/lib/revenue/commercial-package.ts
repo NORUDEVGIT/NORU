@@ -188,7 +188,9 @@ export function computePackageAmount(input: {
   packagePrice: number;
   chargeBasis: string;
   quantity?: number;
-}): { ok: true; quantity: number; unitAmount: number; appliedAmount: number } | { ok: false; reasonCode: PackageReasonCode } {
+}):
+  | { ok: true; quantity: number; unitAmount: number; appliedAmount: number }
+  | { ok: false; reasonCode: PackageReasonCode } {
   if (!isV1ExecutablePackageChargeBasis(input.chargeBasis)) {
     return { ok: false, reasonCode: "PACKAGE_CHARGE_BASIS_UNSUPPORTED" };
   }
@@ -208,7 +210,9 @@ export function computePackageAmount(input: {
   };
 }
 
-export function uniquePackageActivationIds(ids: string[]): { ok: true; ids: string[] } | { ok: false; reasonCode: "PACKAGE_DUPLICATE_SELECTION" } {
+export function uniquePackageActivationIds(
+  ids: string[],
+): { ok: true; ids: string[] } | { ok: false; reasonCode: "PACKAGE_DUPLICATE_SELECTION" } {
   const unique = [...new Set(ids)];
   if (unique.length !== ids.length) return { ok: false, reasonCode: "PACKAGE_DUPLICATE_SELECTION" };
   return { ok: true, ids };
@@ -245,7 +249,10 @@ export function evaluatePackageEligibility(
   }
   if (!activation.active) return ineligible("PACKAGE_INACTIVE", activation, quantity);
   if (!context.master) return ineligible("PACKAGE_NOT_FOUND", activation, quantity);
-  if (context.master.restaurantId !== input.restaurantId || context.master.id !== activation.packageId) {
+  if (
+    context.master.restaurantId !== input.restaurantId ||
+    context.master.id !== activation.packageId
+  ) {
     return ineligible("PACKAGE_WRONG_PROPERTY", activation, quantity);
   }
   if (!context.master.active) return ineligible("PACKAGE_INACTIVE", activation, quantity);
@@ -317,11 +324,51 @@ export function listEligiblePackageItems(
   return items.sort((left, right) => left.code.localeCompare(right.code));
 }
 
+export type PackageEligibilityDecision = {
+  packageId: string;
+  activationId: string;
+  status: "ELIGIBLE" | "INELIGIBLE";
+  reasonCode: PackageReasonCode;
+  chargeBasis: string;
+  configuredPrice: number;
+  code: string;
+  name: string;
+};
+
+/** Every activation, including ones the stay cannot use. Quote listing stays eligible-only. */
+export function listPackageEligibilityDecisions(
+  input: Omit<PackageEligibilityInput, "packageActivationId">,
+  records: PackageEligibilityContext[],
+): PackageEligibilityDecision[] {
+  const items: PackageEligibilityDecision[] = [];
+  for (const context of records) {
+    if (!context.activation) continue;
+    const result = evaluatePackageEligibility(
+      { ...input, packageActivationId: context.activation.id },
+      context,
+    );
+    const activation = result.activation ?? context.activation;
+    items.push({
+      packageId: activation.packageId,
+      activationId: activation.id,
+      status: result.eligible ? "ELIGIBLE" : "INELIGIBLE",
+      reasonCode: result.reasonCode,
+      chargeBasis: activation.chargeBasis,
+      configuredPrice: activation.packagePrice,
+      code: activation.packageCode,
+      name: activation.packageName,
+    });
+  }
+  return items.sort((left, right) => left.code.localeCompare(right.code));
+}
+
 export function evaluateSelectedPackages(
   input: Omit<PackageEligibilityInput, "packageActivationId">,
   selectedIds: string[],
   records: PackageEligibilityContext[],
-): { ok: true; applied: AppliedPackageQuoteItem[]; results: PackageEligibilityResult[] } | { ok: false; reasonCode: PackageReasonCode; results: PackageEligibilityResult[] } {
+):
+  | { ok: true; applied: AppliedPackageQuoteItem[]; results: PackageEligibilityResult[] }
+  | { ok: false; reasonCode: PackageReasonCode; results: PackageEligibilityResult[] } {
   const unique = uniquePackageActivationIds(selectedIds);
   if (!unique.ok) return { ok: false, reasonCode: unique.reasonCode, results: [] };
 
@@ -352,7 +399,9 @@ export function evaluateSelectedPackages(
   return { ok: true, applied, results };
 }
 
-export function buildPackageAttributionSnapshot(activation: PackageActivation): PackageAttributionSnapshot {
+export function buildPackageAttributionSnapshot(
+  activation: PackageActivation,
+): PackageAttributionSnapshot {
   return {
     activationId: activation.id,
     packageId: activation.packageId,
@@ -390,7 +439,9 @@ export function composeCommercialQuote<TRoom extends { subtotal: number }>(
   commercialWarnings: string[];
 } {
   const promo = composePromotionQuote(room, selectedPromotion, eligiblePromotions);
-  const packagesSubtotal = roundPackageMoney(selectedPackages.reduce((sum, row) => sum + row.appliedAmount, 0));
+  const packagesSubtotal = roundPackageMoney(
+    selectedPackages.reduce((sum, row) => sum + row.appliedAmount, 0),
+  );
   return {
     ...promo,
     packages: selectedPackages,

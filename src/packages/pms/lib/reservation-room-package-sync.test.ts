@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   previousStayDate,
+  stayScopedRatePlanKept,
   unitPackageKept,
   type RoomPackageScope,
 } from "@/packages/pms/lib/reservation-room-package-sync";
@@ -52,5 +53,36 @@ describe("unit package compatibility", () => {
         scope: scope({ activationRatePlanIds: ["plan-a"] }),
       }).reason,
     ).toBe("PACKAGE_RATE_PLAN_MISMATCH");
+  });
+
+  it("keeps a stay package only when every unit rate plan is allowed", () => {
+    expect(
+      stayScopedRatePlanKept({
+        unitRatePlanIds: ["plan-a", "plan-a"],
+        reservationRatePlanId: "plan-b",
+        allowedRatePlanIds: ["plan-a"],
+      }),
+    ).toBe(true);
+    expect(
+      stayScopedRatePlanKept({
+        unitRatePlanIds: ["plan-a", "plan-b"],
+        reservationRatePlanId: "plan-a",
+        allowedRatePlanIds: ["plan-a"],
+      }),
+    ).toBe(false);
+    expect(
+      stayScopedRatePlanKept({
+        unitRatePlanIds: [],
+        reservationRatePlanId: "plan-a",
+        allowedRatePlanIds: ["plan-a"],
+      }),
+    ).toBe(true);
+    expect(
+      stayScopedRatePlanKept({
+        unitRatePlanIds: ["plan-b"],
+        reservationRatePlanId: "plan-a",
+        allowedRatePlanIds: [],
+      }),
+    ).toBe(true);
   });
 });

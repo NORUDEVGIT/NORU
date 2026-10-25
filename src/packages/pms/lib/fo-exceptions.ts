@@ -70,6 +70,7 @@ export type ExceptionStayLike = {
   departureDate: string;
   status: string;
   overstay: boolean;
+  reservationRoomId?: string | null;
 };
 
 export type ExceptionRoomLike = {
@@ -244,11 +245,16 @@ export function discrepancyBrief(row: {
   return "open";
 }
 
+function exceptionStayKey(stay: ExceptionStayLike): string {
+  return stay.reservationRoomId ? `${stay.id}:${stay.reservationRoomId}` : stay.id;
+}
+
 function uniqueStays(groups: ExceptionStayLike[][]): ExceptionStayLike[] {
   const byId = new Map<string, ExceptionStayLike>();
   for (const group of groups) {
     for (const stay of group) {
-      if (!byId.has(stay.id)) byId.set(stay.id, stay);
+      const key = exceptionStayKey(stay);
+      if (!byId.has(key)) byId.set(key, stay);
     }
   }
   return [...byId.values()];
@@ -363,7 +369,7 @@ export function deriveExceptionRows(input: {
   for (const stay of input.arrivals) {
     if (stay.roomId) continue;
     rows.push({
-      id: `unassigned:${stay.id}`,
+      id: `unassigned:${exceptionStayKey(stay)}`,
       type: "unassigned",
       label: "Unassigned",
       severity: "standard",
@@ -386,7 +392,7 @@ export function deriveExceptionRows(input: {
     const room = roomById.get(stay.roomId);
     if (!room || !isOooOrOos(room.status)) continue;
     rows.push({
-      id: `room_unavailable:${stay.id}`,
+      id: `room_unavailable:${exceptionStayKey(stay)}`,
       type: "room_unavailable",
       label: "Room unavailable",
       severity: "high",
@@ -413,7 +419,7 @@ export function deriveExceptionRows(input: {
         (stay.status === "checked_in" || stay.overstay) && outstandingBalance(signal);
       if (!unpaidDeposit && !dueBalance) continue;
       rows.push({
-        id: `payment_issue:${stay.id}`,
+        id: `payment_issue:${exceptionStayKey(stay)}`,
         type: "payment_issue",
         label: "Payment issue",
         severity: "high",
@@ -437,7 +443,7 @@ export function deriveExceptionRows(input: {
   for (const stay of overstaySource) {
     if (!stay.overstay) continue;
     rows.push({
-      id: `overstay:${stay.id}`,
+      id: `overstay:${exceptionStayKey(stay)}`,
       type: "overstay",
       label: "Overstay",
       severity: "high",

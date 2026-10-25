@@ -38,6 +38,7 @@ import {
 import { COMING_SOON_EXCEPTION_TYPES, type FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
 import { FO_BRAND, isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
 import { cn } from "@/shared/lib/utils";
+import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
 
 export type { FoRackFocus };
 
@@ -46,6 +47,7 @@ export function useFoExceptionDesk(restaurantId: string, today: string, enabled 
   const query = useQuery({
     queryKey: ["front-office", "exceptions", restaurantId, today],
     queryFn: () => fetchExceptions({ data: { restaurantId, businessDate: today } }),
+    ...foOperationalQueryOptions(),
     retry: false,
     enabled,
   });
@@ -161,6 +163,7 @@ export function ExceptionsFrame({
           type="button"
           variant="outline"
           size="sm"
+          data-testid="fo-exceptions-refresh"
           onClick={() => void queryClient.invalidateQueries({ queryKey: ["front-office", "exceptions", restaurantId, today] })}
         >
           Refresh

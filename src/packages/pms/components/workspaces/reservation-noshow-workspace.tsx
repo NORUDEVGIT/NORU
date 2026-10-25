@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -24,10 +24,7 @@ import {
   NOSHOW_COMM_GAP,
   NOSHOW_REASON_OPTIONS,
   NOSHOW_RESERVATION_STEPS,
-  canConfirmNoShowReservation,
-  canContinueNoShowReview,
   composeNoShowReason,
-  isDeskNoShowEligible,
   noShowFinanceRows,
   noShowPolicyLabel,
   persistedNoShowUpdates,
@@ -39,11 +36,12 @@ import {
 import { FEE_REQUIRED_BANNER, cashieringRefundHref } from "@/packages/pms/lib/fo-cancel-noshow";
 import {
   completeFoNoShow,
-  getCancelNoShowContext,
+  ensureCancelNoShowFolio,
+  postCancelOrNoShowFee,
   waiveCancelOrNoShowFee,
 } from "@/packages/pms/lib/fo-cancel-noshow.functions";
-import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
-import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
+import { getNoShowReadiness } from "@/packages/pms/lib/fo-no-show-readiness.functions";
+import { RoomUnitTargetSelect } from "@/packages/pms/components/frontoffice/room-unit-target-select";
 import {
   getBookingsAccess,
   getReservation,
@@ -99,19 +97,24 @@ export function ReservationNoShowWorkspace({
   const queryClient = useQueryClient();
   const money = useMoney();
   const { dateTime, timezone } = useRestaurantTime();
-  const businessDate = usePropertyBusinessDate(restaurantId, timezone);
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchReservation = useServerFn(getReservation);
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
-  const fetchCommercial = useServerFn(getReservationCommercialAttribution);
-  const fetchCtx = useServerFn(getCancelNoShowContext);
+  const fetchReadiness = useServerFn(getNoShowReadiness);
   const submitNoShow = useServerFn(completeFoNoShow);
   const submitWaive = useServerFn(waiveCancelOrNoShowFee);
+  const submitEnsureFolio = useServerFn(ensureCancelNoShowFolio);
+  const submitFee = useServerFn(postCancelOrNoShowFee);
 
   const [step, setStep] = useState<NoShowReservationStepId>("details");
   const [reason, setReason] = useState(NOSHOW_REASON_OPTIONS[0].value);
   const [notes, setNotes] = useState("");
   const [assignedBefore, setAssignedBefore] = useState<string | null>(null);
+  const [reservationRoomId, setReservationRoomId] = useState("");
+  const [completion, setCompletion] = useState<Awaited<ReturnType<typeof submitNoShow>> | null>(
+    null,
+  );
+  const feeIdempotencyKey = useRef(crypto.randomUUID());
 
   const accessQuery = useQuery({
     queryKey: ["bookings-access", restaurantId],
@@ -132,6 +135,9 @@ export function ReservationNoShowWorkspace({
   useEffect(() => {
     if (!reservation) return;
     setAssignedBefore((current) => current ?? reservation.roomNumber);
+    if (reservation.rooms?.length === 1) {
+      setReservationRoomId(reservation.rooms[0].id);
+    }
   }, [reservation]);
 
   const availabilityQuery = useQuery({
@@ -156,38 +162,29 @@ export function ReservationNoShowWorkspace({
     retry: false,
   });
 
-  const commercialQuery = useQuery({
-    queryKey: ["reservation-commercial", restaurantId, reservationId, reservation?.roomSubtotal],
+  const readinessQuery = useQuery({
+    queryKey: ["fo-no-show-readiness", restaurantId, reservationId, reservationRoomId],
     queryFn: () =>
-      fetchCommercial({
+      fetchReadiness({
         data: {
           restaurantId,
           reservationId,
-          roomSubtotal: reservation?.roomSubtotal ?? null,
+          ...(reservationRoomId ? { reservationRoomId } : {}),
         },
       }),
-    enabled: canManage && Boolean(reservation),
-    retry: false,
-  });
-
-  const ctxQuery = useQuery({
-    queryKey: ["fo-cancel-noshow", "noshow", restaurantId, reservationId],
-    queryFn: () => fetchCtx({ data: { restaurantId, reservationId, kind: "noshow" } }),
     enabled: canManage,
     retry: false,
   });
 
   const composedReason = composeNoShowReason(reason, notes);
-  const ctx = ctxQuery.data;
-  const feeRequired = ctx?.policy.required ?? true;
-  const posted = ctx?.posted ?? false;
-  const waived = ctx?.waived ?? false;
+  const readiness = readinessQuery.data;
+  const businessDate = readiness?.businessDate ?? "";
+  const ctx = readiness?.context;
+  const feeRequired = readiness?.fee.required ?? true;
+  const posted = readiness?.fee.posted ?? false;
+  const waived = readiness?.fee.waived ?? false;
   const moneyFmt = (value: number) => money(value, reservation?.currency ?? ctx?.folio.currency);
-  const eligible = Boolean(
-    reservation &&
-    businessDate &&
-    isDeskNoShowEligible(reservation.status, reservation.arrivalDate, businessDate),
-  );
+  const eligible = readiness?.eligible ?? false;
   const cancelPolicy = reservation
     ? cancelPolicyView(
         reservation.cancellationPolicySnapshot,
@@ -196,42 +193,34 @@ export function ReservationNoShowWorkspace({
         new Date(),
       )
     : null;
-  const deposit = reservation
-    ? parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot)
-    : null;
+  const deposit = parseDepositRequirementSnapshot(
+    readiness?.commercial.depositRequirementSnapshot ??
+      reservation?.depositRequirementSnapshot ??
+      null,
+  );
   const financeRows = noShowFinanceRows({
-    roomSubtotal: reservation?.roomSubtotal ?? null,
-    packageAmount: commercialQuery.data?.packagesSubtotal ?? null,
+    roomSubtotal: readiness?.commercial.roomSubtotal ?? reservation?.roomSubtotal ?? null,
+    packageAmount: readiness?.commercial.packageAmount ?? null,
     additionalServices: null,
     postedNoShowFee: postedNoShowFeeAmount(ctx?.folio.transactions),
     feeRequired,
     feeSatisfied: posted || waived,
     depositAmount: deposit?.amount ?? null,
-    folioBalance: ctx?.folio.balance ?? null,
+    folioBalance: ctx?.folio.folioId ? ctx.folio.balance : null,
     money: moneyFmt,
   });
   const reviewOk = Boolean(
-    reservation &&
-    businessDate &&
-    canContinueNoShowReview({
-      status: reservation.status,
-      arrivalDate: reservation.arrivalDate,
-      businessDate,
-      reason: composedReason,
-    }),
+    readiness?.eligible &&
+    composedReason.trim().length >= 3 &&
+    composedReason.length <= 500 &&
+    !readiness.blockers.some((item) =>
+      ["ROOM_UNIT_REQUIRED", "INVALID_TRANSITION", "NOT_PAST_DUE", "CHECK_IN_PROGRESS"].includes(
+        item.code,
+      ),
+    ),
   );
   const confirmOk = Boolean(
-    reservation &&
-    businessDate &&
-    canConfirmNoShowReservation({
-      status: reservation.status,
-      arrivalDate: reservation.arrivalDate,
-      businessDate,
-      reason: composedReason,
-      feeRequired,
-      posted,
-      waived,
-    }),
+    readiness?.canComplete && composedReason.trim().length >= 3 && composedReason.length <= 500,
   );
 
   const waive = useMutation({
@@ -242,32 +231,78 @@ export function ReservationNoShowWorkspace({
           reservationId,
           kind: "noshow",
           reason: composedReason || "Fee waived for no-show.",
+          ...(reservationRoomId ? { reservationRoomId } : {}),
         },
       }),
     onSuccess: () => {
       toast.success("No-show charge waived.");
-      void ctxQuery.refetch();
+      void readinessQuery.refetch();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const ensureFolio = useMutation({
+    mutationFn: () =>
+      submitEnsureFolio({
+        data: { restaurantId, reservationId },
+      }),
+    onSuccess: () => {
+      toast.success("Folio is ready.");
+      void readinessQuery.refetch();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const postFee = useMutation({
+    mutationFn: () => {
+      const amount = readiness?.fee.penalty.amount;
+      if (amount == null || amount <= 0) {
+        throw new Error("The no-show policy does not provide a charge amount.");
+      }
+      return submitFee({
+        data: {
+          restaurantId,
+          reservationId,
+          kind: "noshow",
+          amount,
+          idempotencyKey: feeIdempotencyKey.current,
+          ...(reservationRoomId ? { reservationRoomId } : {}),
+        },
+      });
+    },
+    onSuccess: () => {
+      feeIdempotencyKey.current = crypto.randomUUID();
+      toast.success("No-show charge posted.");
+      void readinessQuery.refetch();
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   const mutateNoShow = useMutation({
     mutationFn: () => {
-      if (!businessDate) throw new Error("Business date is not available.");
+      setAssignedBefore(selectedTarget?.roomNumber ?? reservation?.roomNumber ?? null);
       return submitNoShow({
         data: {
           restaurantId,
           reservationId,
-          today: businessDate,
-          reason: composedReason,
+          reason,
+          ...(notes.trim() ? { additionalNotes: notes.trim() } : {}),
+          ...(reservationRoomId ? { reservationRoomId } : {}),
         },
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      setCompletion(result);
       await queryClient.invalidateQueries({
         queryKey: ["reservation", restaurantId, reservationId],
       });
-      await queryClient.invalidateQueries({ queryKey: ["fo-cancel-noshow"] });
+      await queryClient.invalidateQueries({ queryKey: ["fo-no-show-readiness"] });
+      await queryClient.invalidateQueries({ queryKey: ["reservation-folio"] });
+      await queryClient.invalidateQueries({ queryKey: ["folio"] });
+      await queryClient.invalidateQueries({ queryKey: ["night-audit"] });
+      await queryClient.invalidateQueries({ queryKey: ["reservation-desk"] });
+      await queryClient.invalidateQueries({ queryKey: ["property-business-date"] });
+      await queryClient.invalidateQueries({ queryKey: ["room-inventory"] });
       toast.success("Reservation marked no-show.");
       setStep("complete");
     },
@@ -292,17 +327,26 @@ export function ReservationNoShowWorkspace({
   const coverUrl =
     (availabilityQuery.data ?? []).find((row) => row.roomTypeId === reservation.roomTypeId)
       ?.coverUrl ?? null;
+  const selectedTarget = readiness?.target ?? null;
   const audit = pickNoShowHistory(history);
-  const roomReleased = step === "complete" && Boolean(assignedBefore) && !reservation.roomId;
+  const roomReleased = step === "complete" && Boolean(completion?.releasedRoomId);
   const systemRows =
     step === "complete"
       ? persistedNoShowUpdates({
-          status: reservation.status,
+          status: completion?.status ?? reservation.status,
           roomReleased,
           assignedBefore,
-          historyRecorded: Boolean(audit),
+          historyRecorded: Boolean(completion?.historyId ?? audit),
+          unitLabel: completion?.reservationRoomId
+            ? `Room ${selectedTarget?.unitSequence ?? ""}`.trim()
+            : null,
         })
-      : predictedNoShowUpdates({ assignedRoom: reservation.roomNumber, feeRequired });
+      : predictedNoShowUpdates({
+          assignedRoom: selectedTarget?.roomNumber ?? reservation.roomNumber,
+          feeRequired,
+          unitLabel: selectedTarget?.unitSequence ? `Room ${selectedTarget.unitSequence}` : null,
+          predictedReservationStatus: readiness?.predictedReservationStatus ?? null,
+        });
 
   return (
     <div
@@ -322,8 +366,10 @@ export function ReservationNoShowWorkspace({
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {step === "complete"
-                ? "The reservation has been marked as No-Show."
-                : "Process guest no-show using the existing Front Office no-show writer."}
+                ? completion?.reservationRoomId
+                  ? `The selected room was marked No-Show. Reservation status is ${completion.status.replaceAll("_", " ")}.`
+                  : "The reservation has been marked as No-Show."
+                : "Review eligibility, policy, Cashiering readiness, and room release."}
             </p>
             {step === "complete" ? (
               <p className="mt-1 text-xs text-muted-foreground">
@@ -378,8 +424,8 @@ export function ReservationNoShowWorkspace({
         <div className="mx-5 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           <p className="font-semibold">No-Show Completed</p>
           <p>
-            The reservation was marked no-show with completeFoNoShow. Only events that writer
-            actually performs are listed below.
+            The selected room status, reservation rollup, assignment release, and audit event were
+            saved together.
           </p>
         </div>
       ) : null}
@@ -390,6 +436,15 @@ export function ReservationNoShowWorkspace({
             <SectionCard
               title={step === "complete" ? "Reservation Details (No-Show)" : "Reservation Details"}
             >
+              {step !== "complete" ? (
+                <div className="mb-3">
+                  <RoomUnitTargetSelect
+                    units={readiness?.targets}
+                    value={reservationRoomId}
+                    onChange={setReservationRoomId}
+                  />
+                </div>
+              ) : null}
               <div className="flex gap-3">
                 {coverUrl ? (
                   <img src={coverUrl} alt="" className="h-24 w-32 rounded-lg object-cover" />
@@ -404,8 +459,12 @@ export function ReservationNoShowWorkspace({
                     {reviewDash(reservation.ratePlanName)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {reservation.adults} Adults · {reservation.nights} nights
-                    {reservation.roomNumber ? ` · Room ${reservation.roomNumber}` : " · Unassigned"}
+                    {selectedTarget
+                      ? `Room ${selectedTarget.unitSequence ?? 1} · ${selectedTarget.status.replaceAll("_", " ")}`
+                      : `${reservation.adults} Adults · ${reservation.nights} nights`}
+                    {selectedTarget?.roomNumber
+                      ? ` · Room ${selectedTarget.roomNumber}`
+                      : " · Unassigned"}
                   </p>
                 </div>
               </div>
@@ -469,7 +528,19 @@ export function ReservationNoShowWorkspace({
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">Reference</dt>
-                    <dd>{reservation.confirmationNumber}</dd>
+                    <dd>{completion?.historyId ?? reservation.confirmationNumber}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Affected Room</dt>
+                    <dd>
+                      {completion?.reservationRoomId
+                        ? `Room ${selectedTarget?.unitSequence ?? ""}`.trim()
+                        : "Whole reservation"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Business Date</dt>
+                    <dd>{completion?.businessDate ?? businessDate ?? DETAIL_DASH}</dd>
                   </div>
                 </dl>
               </SectionCard>
@@ -485,10 +556,18 @@ export function ReservationNoShowWorkspace({
                     {eligible ? "Guest has not arrived" : "Not eligible to mark No-Show from Desk"}
                   </p>
                   <p className="mt-1 text-xs">
-                    Desk eligibility is confirmed + arrival on or before the property business date.
-                    Status is still {reservation.status.replaceAll("_", " ")}.
+                    Eligibility requires a confirmed room with arrival before the property business
+                    date. Status is{" "}
+                    {(selectedTarget?.status ?? reservation.status).replaceAll("_", " ")}.
                   </p>
                   <p className="mt-1 text-xs">Business date: {businessDate || DETAIL_DASH}</p>
+                  {readiness?.blockers
+                    .filter((item) => item.code !== "FEE_REQUIRED")
+                    .map((item) => (
+                      <p key={item.code} className="mt-1 text-xs">
+                        {item.message}
+                      </p>
+                    ))}
                 </div>
               </SectionCard>
             )}
@@ -502,8 +581,8 @@ export function ReservationNoShowWorkspace({
                 <p className="mt-2 text-sm">
                   No-show policy:{" "}
                   {noShowPolicyLabel(
-                    reservation.refundabilitySnapshot,
-                    reservation.cancellationPolicySnapshot,
+                    readiness?.commercial.noShowPolicySnapshot ?? reservation.noShowPolicySnapshot,
+                    null,
                   )}
                 </p>
                 <div
@@ -514,8 +593,11 @@ export function ReservationNoShowWorkspace({
                       : "bg-[#F7F4EE] text-muted-foreground",
                   )}
                 >
-                  {cancelPolicy?.outcomeLabel ?? "Not evaluated"}. This screen does not calculate a
-                  no-show fee from the policy snapshot.
+                  {readiness?.fee.penalty.calculable
+                    ? readiness.fee.penalty.amount === 0
+                      ? "The frozen no-show policy has no charge."
+                      : `Frozen policy charge: ${moneyFmt(readiness.fee.penalty.amount ?? 0)}.`
+                    : "The frozen no-show policy cannot produce an authoritative charge amount."}
                 </div>
               </SectionCard>
             ) : null}
@@ -553,8 +635,8 @@ export function ReservationNoShowWorkspace({
                   <ul className="space-y-2 text-sm">
                     <li className="flex gap-2">
                       <Check className="mt-0.5 size-4 text-emerald-600" />
-                      {reservation.roomNumber
-                        ? `If room ${reservation.roomNumber} is still assigned after the RPC, completeFoNoShow clears room_id.`
+                      {selectedTarget?.roomNumber
+                        ? `Room ${selectedTarget.roomNumber} will be released from this reservation room.`
                         : "No assigned room to release."}
                     </li>
                   </ul>
@@ -609,14 +691,14 @@ export function ReservationNoShowWorkspace({
                         <Label>Additional Notes (Optional)</Label>
                         <Textarea
                           rows={3}
-                          maxLength={500}
+                          maxLength={Math.max(0, 498 - reason.trim().length)}
                           value={notes}
                           onChange={(event) => setNotes(event.target.value)}
                         />
                       </div>
                       <label className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Checkbox disabled checked />
-                        Mark reservation as No-Show (completeFoNoShow sets reservation status)
+                        Mark selected reservation room as No-Show
                       </label>
                       <label className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Checkbox disabled checked={false} />
@@ -651,7 +733,7 @@ export function ReservationNoShowWorkspace({
             <SectionCard
               className="mt-4"
               title="Confirm no-show"
-              subtitle="Nothing is written until you confirm."
+              subtitle="Review the selected room, reason, policy charge, and final blockers."
             >
               <dl className="grid gap-2 text-sm sm:grid-cols-2">
                 <div>
@@ -665,7 +747,9 @@ export function ReservationNoShowWorkspace({
                 <div>
                   <dt className="text-xs text-muted-foreground">Room release</dt>
                   <dd>
-                    {reservation.roomNumber ? `Room ${reservation.roomNumber}` : "Unassigned"}
+                    {selectedTarget?.roomNumber
+                      ? `Room ${selectedTarget.roomNumber}`
+                      : "Unassigned"}
                   </dd>
                 </div>
                 <div>
@@ -684,19 +768,57 @@ export function ReservationNoShowWorkspace({
               {feeRequired && !posted && !waived ? (
                 <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
                   <p>{FEE_REQUIRED_BANNER}</p>
-                  {ctx?.canWaive ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      disabled={waive.isPending}
-                      onClick={() => waive.mutate()}
-                    >
-                      Waive no-show charge
-                    </Button>
-                  ) : null}
+                  <p className="mt-1 text-xs">
+                    {readiness?.fee.penalty.calculable && (readiness.fee.penalty.amount ?? 0) > 0
+                      ? `Frozen policy amount: ${moneyFmt(readiness.fee.penalty.amount ?? 0)}`
+                      : "An authoritative charge amount is unavailable. A supervisor waiver is required."}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {!ctx?.folio.folioId ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={ensureFolio.isPending}
+                        onClick={() => ensureFolio.mutate()}
+                      >
+                        Open Folio
+                      </Button>
+                    ) : null}
+                    {ctx?.folio.status === "open" &&
+                    readiness?.fee.penalty.calculable &&
+                    (readiness.fee.penalty.amount ?? 0) > 0 ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={postFee.isPending}
+                        onClick={() => postFee.mutate()}
+                      >
+                        Post No-Show Charge
+                      </Button>
+                    ) : null}
+                    {ctx?.canWaive ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        disabled={waive.isPending}
+                        onClick={() => waive.mutate()}
+                      >
+                        Waive no-show charge
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
+              ) : null}
+              {readiness?.blockers.length ? (
+                <ul className="mt-3 space-y-1 text-sm text-destructive">
+                  {readiness.blockers.map((item) => (
+                    <li key={item.code}>{item.message}</li>
+                  ))}
+                </ul>
               ) : null}
             </SectionCard>
           ) : null}
@@ -706,8 +828,10 @@ export function ReservationNoShowWorkspace({
           <h2 className="text-sm font-semibold text-[#251605]">Reservation Summary</h2>
           <p className="mb-4 text-xs text-muted-foreground">
             {step === "complete"
-              ? "This reservation is marked as No-Show."
-              : "This reservation will be marked as No-Show."}
+              ? completion?.reservationRoomId
+                ? `Selected room saved. Reservation is ${completion.status.replaceAll("_", " ")}.`
+                : "This reservation is marked as No-Show."
+              : "The selected reservation room will be marked as No-Show."}
           </p>
           <div className="space-y-4 text-sm">
             <div className="flex gap-2">

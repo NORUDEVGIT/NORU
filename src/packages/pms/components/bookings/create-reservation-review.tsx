@@ -110,7 +110,12 @@ export type CreateReservationReviewProps = {
     totalLabel: string | null;
     incomplete: boolean;
   } | null;
-  linkedGroup?: { name: string; code: string | null; block: string | null } | null;
+  linkedGroup?: {
+    name: string;
+    code: string | null;
+    block: string | null;
+    units?: Array<{ label: string; roomTypeName: string; block: string; pickup: string }>;
+  } | null;
   depositNote?: string | null;
   sharedPolicyNote?: string | null;
   policyRooms?: Array<{
@@ -460,6 +465,18 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
             ) : null}
             {props.linkedGroup.block ? (
               <p className="text-xs text-[#6B5E4E]">Block {props.linkedGroup.block}</p>
+            ) : null}
+            {props.linkedGroup.units?.length ? (
+              <ul className="mt-2 space-y-1 text-xs text-[#251605]" data-testid="review-group-units">
+                {props.linkedGroup.units.map((unit) => (
+                  <li key={unit.label}>
+                    {unit.label}
+                    {` · Room type: ${unit.roomTypeName}`}
+                    {` · Block: ${unit.block}`}
+                    {` · Pickup: ${unit.pickup}`}
+                  </li>
+                ))}
+              </ul>
             ) : null}
           </section>
         ) : null}

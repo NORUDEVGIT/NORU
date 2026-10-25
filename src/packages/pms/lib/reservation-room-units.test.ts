@@ -619,8 +619,8 @@ describe("STAY-08F folio and package attribution", () => {
     expect(folioRead).toContain("reservation_room_id");
     expect(folioSelect).not.toContain("reservation_room_id");
     expect(folioPage).toContain("roomUnitLabel");
-    expect(packagesUi).toContain("roomUnitLabel");
-    expect(packagesUi).toContain("PACKAGE_BIND_GAP_COPY");
+    expect(packagesUi).toContain("unitLabel");
+    expect(packagesUi).not.toContain("PACKAGE_BIND_GAP_COPY");
     expect(reservations).toContain("apply_hotel_reservation_room_package");
     expect(checkIn).toContain("open_folio_for_reservation");
     expect(frontOffice).not.toContain("folio_transactions");

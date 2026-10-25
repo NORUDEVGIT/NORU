@@ -8,7 +8,7 @@ import type { AvailablePackageCard } from "@/packages/pms/lib/reservation-detail
 export function PackageCoverThumb({
   coverUrl,
   name,
-  className = "h-16",
+  className = "h-28 object-contain",
 }: {
   coverUrl: string | null;
   name: string;
@@ -19,7 +19,7 @@ export function PackageCoverThumb({
       <img
         src={coverUrl}
         alt=""
-        className={`w-full rounded-md object-cover ${className}`}
+        className={`w-full rounded-md bg-[#EFE8DC] ${className}`}
         loading="lazy"
       />
     );
@@ -35,6 +35,8 @@ export function PackageCoverThumb({
 }
 
 function packageEligibilityBadge(card: AvailablePackageCard): string | null {
+  if (card.outcome === "INELIGIBLE") return card.reasonMessage || "Not available for this room";
+  if (card.outcome === "ELIGIBLE") return null;
   if (card.eligibilityStatus === "unevaluated") return "Select a rate plan to evaluate";
   if (card.eligibilityStatus === "activation_eligible") return "Available (activation)";
   if (card.eligibilityStatus === "catalogue_only") return "Catalogue only";

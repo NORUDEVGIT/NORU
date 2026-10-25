@@ -2,6 +2,7 @@ import { cloneElement, useEffect, useId, useMemo, useState, type ReactNode } fro
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
 import { AlertTriangle, ChevronDown, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
@@ -284,6 +285,8 @@ export function GuestFormDialog(props: {
   /** Optional Wave 2 merge entry — still requires a separate confirm dialog. */
   onMergeRequested?: (duplicateId: string) => void;
   ignoreDraft?: boolean;
+  overlayClassName?: string;
+  contentClassName?: string;
 }) {
   if (!props.guest) {
     return (
@@ -295,6 +298,8 @@ export function GuestFormDialog(props: {
         ignoreDraft={props.ignoreDraft}
         onCreated={(id) => props.onSaved?.(id)}
         onCancel={() => props.onOpenChange(false)}
+        overlayClassName={props.overlayClassName}
+        contentClassName={props.contentClassName}
       />
     );
   }
@@ -309,6 +314,8 @@ function GuestEditFormDialog(props: {
   onSaved?: (guestId: string) => void;
   onOpenExisting?: (guestId: string) => void;
   onMergeRequested?: (duplicateId: string) => void;
+  overlayClassName?: string;
+  contentClassName?: string;
 }) {
   return (
     <GuestCreateModal
@@ -320,6 +327,8 @@ function GuestEditFormDialog(props: {
       guest={props.guest}
       onSaved={props.onSaved}
       onCancel={() => props.onOpenChange(false)}
+      overlayClassName={props.overlayClassName}
+      contentClassName={props.contentClassName}
     />
   );
 }
@@ -585,6 +594,7 @@ function LegacyGuestEditFormDialog({
     },
     onSuccess: (result) => {
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
+      invalidateFrontOfficeOwnerReads(queryClient);
       void queryClient.invalidateQueries({ queryKey: ["guest", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["guest-documents", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["guest-account-links", restaurantId] });

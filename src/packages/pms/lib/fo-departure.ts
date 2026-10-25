@@ -56,6 +56,8 @@ export type FoDepartureActionHints = FoCheckoutReadiness & {
   canOpenGuest: boolean;
   canOpenReservation: boolean;
   lateCheckoutRequiresApproval: boolean;
+  /** Confirmed or pending due-out. Checkout does not apply. */
+  canHandoffUnarrived: boolean;
 };
 
 export type FoDepartureHistoryItem = {
@@ -177,6 +179,7 @@ export function foDepartureActionHints(params: {
     canOpenReservation: true,
     lateCheckoutRequiresApproval:
       inHouse && foLateCheckoutRequiresApproval(params.lateCheckoutNeedsApproval === true, params.staffRole ?? ""),
+    canHandoffUnarrived: params.status === "pending" || params.status === "confirmed",
   };
 }
 
@@ -191,6 +194,32 @@ export function departureMenuItems(hints: FoDepartureActionHints): { id: string;
   }
   if (hints.canAmendStay) items.push({ id: "amend_stay", label: "Amend Stay" });
   if (hints.canOpenGuest) items.push({ id: "open_guest", label: "Open Guest Profile" });
+  if (hints.canHandoffUnarrived) items.push({ id: "unarrived", label: "Did not arrive" });
   if (hints.canSetLateCheckout) items.push({ id: "check_out", label: "Check Out" });
   return items;
+}
+
+export type DepartureExceptionOwner =
+  | "check_out"
+  | "open_folio"
+  | "late_checkout"
+  | "amend_stay"
+  | "room_move"
+  | "open_maintenance"
+  | "guest_request";
+
+/** Credit leaves Front Office. A balance due stays inside check-out settlement. */
+export function departureExceptionOwner(
+  key: FoDepartureExceptionKey,
+  balance: number | null,
+): DepartureExceptionOwner {
+  if (key === "unsettled_folio") {
+    return balance != null && balance <= -FOLIO_ZERO_EPSILON ? "open_folio" : "check_out";
+  }
+  if (key === "missing_folio" || key === "overdue_departure") return "check_out";
+  if (key === "unassigned" || key === "room_unavailable") return "room_move";
+  if (key === "maintenance") return "open_maintenance";
+  if (key === "late_checkout_conflict") return "late_checkout";
+  if (key === "missing_stay_data") return "amend_stay";
+  return "guest_request";
 }

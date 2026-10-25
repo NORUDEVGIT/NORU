@@ -7,12 +7,14 @@ export function FoNoShowStepper({
   today,
   open,
   onOpenChange,
+  initialReservationRoomId,
 }: {
   restaurantId: string;
   stay: FrontOfficeStay;
   today: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  initialReservationRoomId?: string;
 }) {
   return (
     <FoCancelNoShowStepper
@@ -22,6 +24,7 @@ export function FoNoShowStepper({
       kind="noshow"
       open={open}
       onOpenChange={onOpenChange}
+      {...(initialReservationRoomId ? { initialReservationRoomId } : {})}
     />
   );
 }

@@ -5,15 +5,16 @@ import {
   isFeeSatisfied,
   isReasonComplete,
 } from "@/packages/pms/lib/fo-cancel-noshow";
+import { isNoShowPastDue } from "@/packages/pms/lib/fo-no-show-readiness";
 import { composeCancelReason } from "@/packages/pms/lib/reservation-cancel-workspace";
 import type { ReservationHistoryEntry } from "@/packages/pms/lib/reservations.functions";
 
 export const NOSHOW_DASH = REVIEW_DASH;
 export const NOSHOW_NOT_EVALUATED = "Not evaluated";
 export const NOSHOW_COMM_GAP =
-  "This workspace does not send guest, company, or staff messages. completeFoNoShow does not email or notify housekeeping.";
+  "No guest, company, staff, housekeeping, or distribution notification is sent by this action.";
 export const NOSHOW_BLACKLIST_GAP =
-  "Blacklist is owned by Guest Profile (setGuestRestriction). completeFoNoShow does not blacklist the guest.";
+  "Guest restrictions are managed separately in Guest Profile and are unchanged by this action.";
 export const NOSHOW_COLLECT_CASHIERING =
   "Any amount to collect stays in Cashiering. This action does not post a no-show charge unless one is already on the folio.";
 
@@ -51,7 +52,7 @@ export function isDeskNoShowEligible(
   arrivalDate: string,
   businessDate: string,
 ): boolean {
-  return status === "confirmed" && Boolean(arrivalDate) && arrivalDate <= businessDate;
+  return isNoShowPastDue(status, arrivalDate, businessDate);
 }
 
 export function composeNoShowReason(reason: string, notes: string): string {
@@ -99,7 +100,7 @@ export function noShowFinanceRows(input: {
     {
       description: "Room Charges",
       amount: input.roomSubtotal == null ? NOSHOW_DASH : input.money(input.roomSubtotal),
-      status: input.roomSubtotal == null ? NOSHOW_DASH : "Stored on reservation",
+      status: input.roomSubtotal == null ? NOSHOW_DASH : "Reservation quote — not posted money",
     },
     {
       description: "Package Charges",
@@ -109,13 +110,14 @@ export function noShowFinanceRows(input: {
           : input.packageAmount === 0
             ? "Included"
             : input.money(input.packageAmount),
-      status: input.packageAmount == null ? NOSHOW_DASH : "Stored on reservation",
+      status: input.packageAmount == null ? NOSHOW_DASH : "Package snapshot — ledger unchanged",
     },
     {
       description: "Additional Services",
       amount:
         input.additionalServices == null ? NOSHOW_DASH : input.money(input.additionalServices),
-      status: input.additionalServices == null ? NOSHOW_DASH : "Stored on folio",
+      status:
+        input.additionalServices == null ? "Not available in this workflow" : "Posted on folio",
     },
     {
       description: "No-Show Charge",
@@ -136,7 +138,8 @@ export function noShowFinanceRows(input: {
     {
       description: "Deposit / Guarantee",
       amount: input.depositAmount == null ? NOSHOW_DASH : input.money(input.depositAmount),
-      status: input.depositAmount == null ? NOSHOW_DASH : "Stored requirement — not applied here",
+      status:
+        input.depositAmount == null ? NOSHOW_DASH : "Stored requirement — not a received deposit",
     },
     {
       description: "Amount to Collect",
@@ -160,12 +163,18 @@ export function noShowFinanceRows(input: {
 export function predictedNoShowUpdates(input: {
   assignedRoom: string | null;
   feeRequired: boolean;
+  unitLabel?: string | null;
+  predictedReservationStatus?: string | null;
 }): NoShowSystemRow[] {
   return [
     {
       id: "status",
-      title: "Reservation status will be set to No-Show",
-      detail: "mark_hotel_reservation_no_show is called by completeFoNoShow.",
+      title: input.unitLabel
+        ? `${input.unitLabel} will be marked No-Show`
+        : "Reservation status will be set to No-Show",
+      detail: input.predictedReservationStatus
+        ? `The reservation will roll up to ${input.predictedReservationStatus.replaceAll("_", " ")}.`
+        : "The reservation status will be updated.",
       guaranteed: true,
     },
     {
@@ -174,7 +183,7 @@ export function predictedNoShowUpdates(input: {
         ? `Room ${input.assignedRoom} will be released if still assigned after the RPC`
         : "No assigned room to release",
       detail: input.assignedRoom
-        ? "completeFoNoShow clears room_id when the RPC leaves it set."
+        ? "The selected booking assignment will be released."
         : "This stay is already unassigned.",
       guaranteed: true,
     },
@@ -200,13 +209,16 @@ export function persistedNoShowUpdates(input: {
   roomReleased: boolean;
   assignedBefore: string | null;
   historyRecorded: boolean;
+  unitLabel?: string | null;
 }): NoShowSystemRow[] {
   return [
     {
       id: "status",
-      title: "Reservation status set to No-Show",
-      detail: input.status === "no_show" ? "Live status is no_show." : NOSHOW_NOT_EVALUATED,
-      guaranteed: input.status === "no_show",
+      title: input.unitLabel
+        ? `${input.unitLabel} marked No-Show`
+        : "Reservation status set to No-Show",
+      detail: `Reservation status is ${input.status.replaceAll("_", " ")}.`,
+      guaranteed: Boolean(input.unitLabel) || input.status === "no_show",
     },
     {
       id: "inventory",
@@ -271,6 +283,8 @@ export function pickNoShowHistory(
   history: ReservationHistoryEntry[] | null | undefined,
 ): ReservationHistoryEntry | null {
   const rows = history ?? [];
+  const completed = rows.find((row) => row.eventType === "no_show");
+  if (completed) return completed;
   const withReason = rows.find((row) => {
     const values = row.newValues as { no_show_reason?: unknown } | null;
     return Boolean(

@@ -162,6 +162,7 @@ export const GUARANTEE_UNRULED = "No guarantee satisfaction rule is configured."
 export type CheckInDepositReadiness = {
   scope: "reservation";
   folioId: string | null;
+  folioNumber: string | null;
   folioStatus: string | null;
   currency: string | null;
   requiredAmount: number | null;
@@ -178,6 +179,7 @@ export type CheckInDepositReadiness = {
 /** Reservation folio numbers. Company and group ids are echoed and do not change the sum. */
 export function projectCheckInDepositReadiness(input: {
   folioId: string | null;
+  folioNumber?: string | null;
   folioStatus: string | null;
   currency: string | null;
   requiredAmount: number | null;
@@ -196,6 +198,7 @@ export function projectCheckInDepositReadiness(input: {
   return {
     scope: "reservation",
     folioId: input.folioId,
+    folioNumber: input.folioNumber ?? null,
     folioStatus: input.folioStatus,
     currency: input.currency,
     requiredAmount: input.requiredAmount,

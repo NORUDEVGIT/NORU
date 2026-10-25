@@ -9,12 +9,21 @@ import {
   GROUP_STATUSES,
   GROUP_TYPES,
   allotmentTotals,
+  effectiveGroupBlockCutoff,
+  headerGroupBlockIdFromUnits,
   isAllowedGroupStatusTransition,
   nightlyAllotment,
-  stayFitsAllotment,
+  staysFitAllotment,
   type GroupPickupStay,
   type GroupStatus,
 } from "./groups";
+import {
+  GROUP_OPERATIONAL_UNIT_LIMIT,
+  guestDisplayName,
+  mapGroupOperationalUnit,
+  type GroupOperationalIdentity,
+  type GroupOperationalUnit,
+} from "./groups-operational-detail";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -33,6 +42,7 @@ interface LooseQuery extends PromiseLike<LooseResult> {
   ilike(column: string, value: string): LooseQuery;
   gte(column: string, value: unknown): LooseQuery;
   lte(column: string, value: unknown): LooseQuery;
+  is(column: string, value: unknown): LooseQuery;
   order(column: string, options?: { ascending?: boolean }): LooseQuery;
   limit(value: number): LooseQuery;
   maybeSingle(): PromiseLike<LooseResult>;
@@ -162,21 +172,150 @@ async function recordHistory(
     restaurantId: string;
     groupId: string;
     eventType: string;
-    actorId: string;
+    actorId: string | null;
     previous?: Record<string, unknown> | null;
     next?: Record<string, unknown> | null;
     notes?: string | null;
   },
 ) {
-  await db(client).from("pms_group_history").insert({
-    restaurant_id: input.restaurantId,
-    group_id: input.groupId,
-    event_type: input.eventType,
-    previous_values: input.previous ?? null,
-    new_values: input.next ?? null,
-    notes: input.notes ?? null,
-    actor_membership_id: input.actorId,
-  });
+  await db(client)
+    .from("pms_group_history")
+    .insert({
+      restaurant_id: input.restaurantId,
+      group_id: input.groupId,
+      event_type: input.eventType,
+      previous_values: input.previous ?? null,
+      new_values: input.next ?? null,
+      notes: input.notes ?? null,
+      actor_membership_id: input.actorId || null,
+    });
+}
+
+type PickupUnitRow = {
+  id: string;
+  reservation_id: string;
+  arrival_date: string;
+  departure_date: string;
+  status: string | null;
+  pms_group_block_id: string | null;
+};
+
+type PickupHeaderRow = {
+  id: string;
+  arrival_date: string;
+  departure_date: string;
+  status: string;
+  pms_group_block_id: string | null;
+};
+
+export async function loadPickupStaysForBlocks(
+  client: unknown,
+  restaurantId: string,
+  blockIds: string[],
+): Promise<Map<string, GroupPickupStay[]>> {
+  const byBlock = new Map<string, GroupPickupStay[]>();
+  for (const blockId of blockIds) byBlock.set(blockId, []);
+  if (blockIds.length === 0) return byBlock;
+
+  const unitResult = await db(client)
+    .from("hotel_reservation_rooms")
+    .select("id, reservation_id, arrival_date, departure_date, status, pms_group_block_id")
+    .eq("restaurant_id", restaurantId)
+    .in("pms_group_block_id", blockIds);
+  if (unitResult.error) throw new Error(unitResult.error.message || "Could not load group pickup.");
+  const unitRows = (unitResult.data ?? []) as PickupUnitRow[];
+
+  const headerResult = await db(client)
+    .from("hotel_reservations")
+    .select("id, arrival_date, departure_date, status, pms_group_block_id")
+    .eq("restaurant_id", restaurantId)
+    .in("pms_group_block_id", blockIds);
+  if (headerResult.error)
+    throw new Error(headerResult.error.message || "Could not load group pickup.");
+  const headerRows = (headerResult.data ?? []) as PickupHeaderRow[];
+
+  const reservationIds = [
+    ...new Set([...unitRows.map((row) => row.reservation_id), ...headerRows.map((row) => row.id)]),
+  ];
+  const headerById = new Map(headerRows.map((row) => [row.id, row]));
+  if (reservationIds.length > 0) {
+    const extraHeaders = await db(client)
+      .from("hotel_reservations")
+      .select("id, arrival_date, departure_date, status, pms_group_block_id")
+      .eq("restaurant_id", restaurantId)
+      .in("id", reservationIds);
+    if (extraHeaders.error)
+      throw new Error(extraHeaders.error.message || "Could not load group pickup.");
+    for (const row of (extraHeaders.data ?? []) as PickupHeaderRow[]) {
+      headerById.set(row.id, row);
+    }
+  }
+
+  const seenUnits = new Set<string>();
+  const pushStay = (blockId: string, stay: GroupPickupStay) => {
+    const list = byBlock.get(blockId);
+    if (list) list.push(stay);
+  };
+
+  for (const unit of unitRows) {
+    if (!unit.pms_group_block_id) continue;
+    const header = headerById.get(unit.reservation_id);
+    pushStay(unit.pms_group_block_id, {
+      arrivalDate: unit.arrival_date,
+      departureDate: unit.departure_date,
+      status: unit.status ?? header?.status ?? "pending",
+      reservationId: unit.reservation_id,
+      reservationRoomId: unit.id,
+    });
+    seenUnits.add(unit.id);
+  }
+
+  const headerIds = headerRows.map((row) => row.id);
+  if (headerIds.length > 0) {
+    const fallbackUnits = await db(client)
+      .from("hotel_reservation_rooms")
+      .select("id, reservation_id, arrival_date, departure_date, status, pms_group_block_id")
+      .eq("restaurant_id", restaurantId)
+      .in("reservation_id", headerIds);
+    if (fallbackUnits.error)
+      throw new Error(fallbackUnits.error.message || "Could not load group pickup.");
+    const fallbackRows = (fallbackUnits.data ?? []) as PickupUnitRow[];
+    const unitsByReservation = new Map<string, PickupUnitRow[]>();
+    for (const unit of fallbackRows) {
+      const list = unitsByReservation.get(unit.reservation_id) ?? [];
+      list.push(unit);
+      unitsByReservation.set(unit.reservation_id, list);
+    }
+    for (const header of headerRows) {
+      if (!header.pms_group_block_id) continue;
+      const rooms = unitsByReservation.get(header.id) ?? [];
+      const unmatched = rooms.filter((unit) => !unit.pms_group_block_id);
+      if (unmatched.length > 0) {
+        for (const unit of unmatched) {
+          if (seenUnits.has(unit.id)) continue;
+          pushStay(header.pms_group_block_id, {
+            arrivalDate: unit.arrival_date,
+            departureDate: unit.departure_date,
+            status: unit.status ?? header.status,
+            reservationId: header.id,
+            reservationRoomId: unit.id,
+          });
+          seenUnits.add(unit.id);
+        }
+        continue;
+      }
+      if (rooms.length === 0) {
+        pushStay(header.pms_group_block_id, {
+          arrivalDate: header.arrival_date,
+          departureDate: header.departure_date,
+          status: header.status,
+          reservationId: header.id,
+        });
+      }
+    }
+  }
+
+  return byBlock;
 }
 
 export async function loadPickupStays(
@@ -184,19 +323,85 @@ export async function loadPickupStays(
   restaurantId: string,
   blockId: string,
 ): Promise<GroupPickupStay[]> {
-  const { data, error } = await db(client)
-    .from("hotel_reservations")
-    .select("arrival_date, departure_date, status")
+  const loaded = await loadPickupStaysForBlocks(client, restaurantId, [blockId]);
+  return loaded.get(blockId) ?? [];
+}
+
+function filterPickupStays(
+  stays: GroupPickupStay[],
+  exclude?: { reservationId?: string | null; reservationRoomIds?: string[] },
+): GroupPickupStay[] {
+  const roomIds = new Set(exclude?.reservationRoomIds ?? []);
+  return stays.filter((stay) => {
+    if (
+      exclude?.reservationId &&
+      stay.reservationId === exclude.reservationId &&
+      !stay.reservationRoomId
+    ) {
+      return false;
+    }
+    if (stay.reservationRoomId && roomIds.has(stay.reservationRoomId)) return false;
+    return true;
+  });
+}
+
+type LoadedGroupBlock = {
+  id: string;
+  groupId: string;
+  roomTypeId: string;
+  startDate: string;
+  endDate: string;
+  allotted: number;
+  status: string;
+};
+
+async function loadGroupBlock(
+  client: unknown,
+  restaurantId: string,
+  blockId: string,
+): Promise<LoadedGroupBlock> {
+  const loaded = await db(client)
+    .from("pms_group_blocks")
+    .select("id, group_id, room_type_id, start_date, end_date, allotted, status")
     .eq("restaurant_id", restaurantId)
-    .eq("pms_group_block_id", blockId);
-  if (error) throw new Error(error.message || "Could not load group pickup.");
-  return ((data ?? []) as Array<{ arrival_date: string; departure_date: string; status: string }>).map(
-    (row) => ({
-      arrivalDate: row.arrival_date,
-      departureDate: row.departure_date,
-      status: row.status,
+    .eq("id", blockId)
+    .maybeSingle();
+  if (loaded.error) throw new Error(loaded.error.message || "Could not load room block.");
+  if (!loaded.data) throw new Error("Room block not found for this property.");
+  const block = loaded.data as {
+    id: string;
+    group_id: string;
+    room_type_id: string;
+    start_date: string;
+    end_date: string;
+    allotted: number;
+    status: string;
+  };
+  return {
+    id: block.id,
+    groupId: block.group_id,
+    roomTypeId: block.room_type_id,
+    startDate: block.start_date,
+    endDate: block.end_date,
+    allotted: block.allotted,
+    status: block.status,
+  };
+}
+
+async function remainingForBlock(
+  client: unknown,
+  restaurantId: string,
+  block: { id: string; allotted: number; startDate: string; endDate: string },
+): Promise<number> {
+  const stays = await loadPickupStays(client, restaurantId, block.id);
+  return allotmentTotals(
+    nightlyAllotment({
+      allotted: block.allotted,
+      startDate: block.startDate,
+      endDate: block.endDate,
+      stays,
     }),
-  );
+  ).remaining;
 }
 
 async function syncBlockInventory(
@@ -279,7 +484,9 @@ async function syncBlockInventory(
           _membership_id: membershipId,
         });
         if (activated.error) {
-          throw new Error(activated.error.message || "Could not activate remaining allotment hold.");
+          throw new Error(
+            activated.error.message || "Could not activate remaining allotment hold.",
+          );
         }
       }
     }
@@ -296,6 +503,90 @@ async function syncBlockInventory(
 const GROUP_SELECT =
   "id, confirmation_number, name, code, group_type, status, company_master_id, travel_agent_master_id, group_account_master_id, leader_guest_id, arrival_date, departure_date, cutoff_date, external_reference, notes, source, market_segment, rate_plan_id, created_at, updated_at";
 
+export type GroupUnitPickupInput = {
+  roomTypeId: string;
+  blockId: string | null;
+  proposed: GroupPickupStay;
+};
+
+async function assertGroupExists(client: unknown, restaurantId: string, groupId: string) {
+  const group = await db(client)
+    .from("pms_groups")
+    .select("id")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", groupId)
+    .maybeSingle();
+  if (group.error) throw new Error(group.error.message || "Could not load group.");
+  if (!group.data) throw new Error("Group not found for this property.");
+}
+
+export async function assertGroupUnitsPickup(
+  client: unknown,
+  input: {
+    restaurantId: string;
+    pmsGroupId: string | null;
+    units: GroupUnitPickupInput[];
+    excludeReservationId?: string | null;
+    excludeReservationRoomIds?: string[];
+  },
+): Promise<{ groupId: string; blockId: string | null; unitBlockIds: Array<string | null> }> {
+  if (input.units.length === 0) throw new Error("Group or room block is required.");
+
+  const unitBlockIds = input.units.map((unit) => unit.blockId);
+  let groupId = input.pmsGroupId;
+  const byBlock = new Map<string, GroupUnitPickupInput[]>();
+
+  for (const unit of input.units) {
+    if (!unit.blockId) continue;
+    const block = await loadGroupBlock(client, input.restaurantId, unit.blockId);
+    if (groupId && groupId !== block.groupId) {
+      throw new Error("That room block does not belong to the selected group.");
+    }
+    if (!groupId) groupId = block.groupId;
+    if (block.status !== "active") throw new Error("That room block is not open for pickup.");
+    if (block.roomTypeId !== unit.roomTypeId) {
+      throw new Error("Stay room type must match the group room block.");
+    }
+    if (
+      unit.proposed.arrivalDate < block.startDate ||
+      unit.proposed.departureDate > block.endDate
+    ) {
+      throw new Error("Stay dates must fall inside the group room block.");
+    }
+    const list = byBlock.get(block.id) ?? [];
+    list.push(unit);
+    byBlock.set(block.id, list);
+  }
+
+  if (!groupId) throw new Error("Group or room block is required.");
+  await assertGroupExists(client, input.restaurantId, groupId);
+
+  for (const [blockId, units] of byBlock) {
+    const block = await loadGroupBlock(client, input.restaurantId, blockId);
+    const stays = filterPickupStays(await loadPickupStays(client, input.restaurantId, block.id), {
+      reservationId: input.excludeReservationId,
+      reservationRoomIds: input.excludeReservationRoomIds,
+    });
+    if (
+      !staysFitAllotment({
+        allotted: block.allotted,
+        startDate: block.startDate,
+        endDate: block.endDate,
+        stays,
+        proposed: units.map((unit) => unit.proposed),
+      })
+    ) {
+      throw new Error("This stay would over-pick the group room block.");
+    }
+  }
+
+  return {
+    groupId,
+    blockId: headerGroupBlockIdFromUnits(unitBlockIds),
+    unitBlockIds,
+  };
+}
+
 export async function assertGroupStayPickup(
   client: unknown,
   input: {
@@ -304,61 +595,200 @@ export async function assertGroupStayPickup(
     pmsGroupBlockId: string | null;
     roomTypeId: string;
     proposed: GroupPickupStay;
+    excludeReservationId?: string | null;
+    excludeReservationRoomIds?: string[];
   },
 ): Promise<{ groupId: string; blockId: string | null }> {
-  if (input.pmsGroupBlockId) {
-    const loaded = await db(client)
-      .from("pms_group_blocks")
-      .select("id, group_id, room_type_id, start_date, end_date, allotted, status")
-      .eq("restaurant_id", input.restaurantId)
-      .eq("id", input.pmsGroupBlockId)
-      .maybeSingle();
-    if (loaded.error) throw new Error(loaded.error.message || "Could not load room block.");
-    if (!loaded.data) throw new Error("Room block not found for this property.");
-    const block = loaded.data as {
-      id: string;
-      group_id: string;
-      room_type_id: string;
-      start_date: string;
-      end_date: string;
-      allotted: number;
-      status: string;
-    };
-    if (input.pmsGroupId && input.pmsGroupId !== block.group_id) {
-      throw new Error("That room block does not belong to the selected group.");
-    }
-    if (block.status !== "active") throw new Error("That room block is not open for pickup.");
-    if (block.room_type_id !== input.roomTypeId) {
-      throw new Error("Stay room type must match the group room block.");
-    }
-    if (input.proposed.arrivalDate < block.start_date || input.proposed.departureDate > block.end_date) {
-      throw new Error("Stay dates must fall inside the group room block.");
-    }
-    const stays = await loadPickupStays(client, input.restaurantId, block.id);
-    if (
-      !stayFitsAllotment({
-        allotted: block.allotted,
-        startDate: block.start_date,
-        endDate: block.end_date,
-        stays,
+  const result = await assertGroupUnitsPickup(client, {
+    restaurantId: input.restaurantId,
+    pmsGroupId: input.pmsGroupId,
+    excludeReservationId: input.excludeReservationId,
+    excludeReservationRoomIds: input.excludeReservationRoomIds,
+    units: [
+      {
+        roomTypeId: input.roomTypeId,
+        blockId: input.pmsGroupBlockId,
         proposed: input.proposed,
-      })
-    ) {
-      throw new Error("This stay would over-pick the group room block.");
-    }
-    return { groupId: block.group_id, blockId: block.id };
+      },
+    ],
+  });
+  return { groupId: result.groupId, blockId: result.blockId };
+}
+
+export async function assertExistingReservationGroupPickup(
+  client: unknown,
+  input: {
+    restaurantId: string;
+    reservationId: string;
+    overlay?: {
+      reservationRoomId?: string | null;
+      roomTypeId?: string;
+      arrivalDate?: string;
+      departureDate?: string;
+      status?: string;
+    };
+  },
+) {
+  const headerRead = await db(client)
+    .from("hotel_reservations")
+    .select(
+      "id, status, arrival_date, departure_date, room_type_id, pms_group_id, pms_group_block_id",
+    )
+    .eq("restaurant_id", input.restaurantId)
+    .eq("id", input.reservationId)
+    .maybeSingle();
+  if (headerRead.error) throw new Error(headerRead.error.message || "Could not load reservation.");
+  if (!headerRead.data) throw new Error("Reservation not found for this property.");
+  const header = headerRead.data as {
+    id: string;
+    status: string;
+    arrival_date: string;
+    departure_date: string;
+    room_type_id: string;
+    pms_group_id: string | null;
+    pms_group_block_id: string | null;
+  };
+
+  const unitsRead = await db(client)
+    .from("hotel_reservation_rooms")
+    .select("id, room_type_id, arrival_date, departure_date, status, pms_group_block_id")
+    .eq("restaurant_id", input.restaurantId)
+    .eq("reservation_id", input.reservationId);
+  if (unitsRead.error)
+    throw new Error(unitsRead.error.message || "Could not load reservation rooms.");
+  const units = (unitsRead.data ?? []) as Array<{
+    id: string;
+    room_type_id: string;
+    arrival_date: string;
+    departure_date: string;
+    status: string | null;
+    pms_group_block_id: string | null;
+  }>;
+
+  const overlay = input.overlay;
+  const overlayAll = Boolean(overlay && !overlay.reservationRoomId);
+  const overlayRoomId = overlay?.reservationRoomId ?? null;
+  const excludeRoomIds = overlayRoomId
+    ? [overlayRoomId]
+    : overlayAll
+      ? units.map((unit) => unit.id)
+      : [];
+
+  const planned: GroupUnitPickupInput[] =
+    units.length > 0
+      ? units.map((unit) => {
+          const match = overlay && (overlayAll || overlay.reservationRoomId === unit.id);
+          return {
+            roomTypeId: match && overlay.roomTypeId ? overlay.roomTypeId : unit.room_type_id,
+            blockId: unit.pms_group_block_id ?? header.pms_group_block_id,
+            proposed: {
+              arrivalDate: match && overlay.arrivalDate ? overlay.arrivalDate : unit.arrival_date,
+              departureDate:
+                match && overlay.departureDate ? overlay.departureDate : unit.departure_date,
+              status: match
+                ? (overlay.status ?? unit.status ?? header.status)
+                : (unit.status ?? header.status),
+              reservationId: header.id,
+              reservationRoomId: unit.id,
+            },
+          };
+        })
+      : [
+          {
+            roomTypeId: overlay?.roomTypeId ?? header.room_type_id,
+            blockId: header.pms_group_block_id,
+            proposed: {
+              arrivalDate: overlay?.arrivalDate ?? header.arrival_date,
+              departureDate: overlay?.departureDate ?? header.departure_date,
+              status: overlay?.status ?? header.status,
+              reservationId: header.id,
+            },
+          },
+        ];
+
+  const linked = planned.filter((unit) => unit.blockId);
+  if (linked.length === 0) {
+    if (header.pms_group_id)
+      await assertGroupExists(client, input.restaurantId, header.pms_group_id);
+    return;
   }
 
-  if (!input.pmsGroupId) throw new Error("Group or room block is required.");
-  const group = await db(client)
-    .from("pms_groups")
-    .select("id")
-    .eq("restaurant_id", input.restaurantId)
-    .eq("id", input.pmsGroupId)
+  await assertGroupUnitsPickup(client, {
+    restaurantId: input.restaurantId,
+    pmsGroupId: header.pms_group_id,
+    units: linked,
+    excludeReservationId: units.length === 0 ? input.reservationId : null,
+    excludeReservationRoomIds: excludeRoomIds,
+  });
+}
+
+export async function collectReservationGroupBlockIds(
+  client: unknown,
+  restaurantId: string,
+  reservationId: string,
+): Promise<{ groupId: string | null; blockIds: string[] }> {
+  const headerRead = await db(client)
+    .from("hotel_reservations")
+    .select("pms_group_id, pms_group_block_id")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", reservationId)
     .maybeSingle();
-  if (group.error) throw new Error(group.error.message || "Could not load group.");
-  if (!group.data) throw new Error("Group not found for this property.");
-  return { groupId: input.pmsGroupId, blockId: null };
+  if (headerRead.error) throw new Error(headerRead.error.message || "Could not load reservation.");
+  const header = (headerRead.data ?? null) as {
+    pms_group_id: string | null;
+    pms_group_block_id: string | null;
+  } | null;
+  const unitsRead = await db(client)
+    .from("hotel_reservation_rooms")
+    .select("pms_group_block_id")
+    .eq("restaurant_id", restaurantId)
+    .eq("reservation_id", reservationId);
+  if (unitsRead.error)
+    throw new Error(unitsRead.error.message || "Could not load reservation rooms.");
+  const unitBlocks = ((unitsRead.data ?? []) as Array<{ pms_group_block_id: string | null }>)
+    .map((row) => row.pms_group_block_id)
+    .filter((id): id is string => Boolean(id));
+  const blockIds = [
+    ...new Set(
+      [header?.pms_group_block_id, ...unitBlocks].filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  return { groupId: header?.pms_group_id ?? null, blockIds };
+}
+
+export async function resyncGroupBlockInventoryForReservation(
+  client: unknown,
+  membershipId: string | null,
+  restaurantId: string,
+  reservationId: string,
+) {
+  const { blockIds } = await collectReservationGroupBlockIds(client, restaurantId, reservationId);
+  if (blockIds.length === 0) return;
+  const actorId = membershipId;
+
+  for (const blockId of blockIds) {
+    const block = await loadGroupBlock(client, restaurantId, blockId);
+    const beforeRemaining = await remainingForBlock(client, restaurantId, block);
+    await syncBlockInventory(client, actorId ?? "", restaurantId, {
+      id: block.id,
+      roomTypeId: block.roomTypeId,
+      startDate: block.startDate,
+      endDate: block.endDate,
+      allotted: block.allotted,
+      status: block.status,
+      groupId: block.groupId,
+    });
+    const afterRemaining = await remainingForBlock(client, restaurantId, block);
+    await recordHistory(client, {
+      restaurantId,
+      groupId: block.groupId,
+      eventType: "inventory_resync",
+      actorId,
+      previous: { remaining: beforeRemaining },
+      next: { remaining: afterRemaining, reservationId, blockId: block.id },
+      notes: "Linked stay pickup resync.",
+    });
+  }
 }
 
 export async function attachReservationToGroup(
@@ -369,44 +799,67 @@ export async function attachReservationToGroup(
     reservationId: string;
     groupId: string;
     blockId: string | null;
+    unitBlockIds?: Array<{
+      reservationRoomId?: string;
+      unitSequence?: number;
+      blockId: string | null;
+    }>;
   },
 ) {
+  const roomsRead = await db(client)
+    .from("hotel_reservation_rooms")
+    .select("id, unit_sequence")
+    .eq("restaurant_id", input.restaurantId)
+    .eq("reservation_id", input.reservationId)
+    .order("unit_sequence", { ascending: true });
+  if (roomsRead.error)
+    throw new Error(roomsRead.error.message || "Could not load reservation rooms.");
+  const rooms = (roomsRead.data ?? []) as Array<{ id: string; unit_sequence: number }>;
+  const assigned = rooms.map((room) => {
+    const mapped =
+      input.unitBlockIds?.find((row) => row.reservationRoomId === room.id) ??
+      input.unitBlockIds?.find((row) => row.unitSequence === room.unit_sequence);
+    return { id: room.id, blockId: mapped?.blockId ?? input.blockId };
+  });
+  const headerBlockId =
+    headerGroupBlockIdFromUnits(assigned.map((row) => row.blockId)) ?? input.blockId;
+
   const updated = await db(client)
     .from("hotel_reservations")
     .update({
       pms_group_id: input.groupId,
-      pms_group_block_id: input.blockId,
+      pms_group_block_id: headerBlockId,
     })
     .eq("restaurant_id", input.restaurantId)
     .eq("id", input.reservationId);
   if (updated.error) throw new Error(updated.error.message || "Could not link the group stay.");
 
-  if (input.blockId) {
-    const block = await db(client)
-      .from("pms_group_blocks")
-      .select("id, room_type_id, start_date, end_date, allotted, status")
+  for (const room of assigned) {
+    const unitWrite = await db(client)
+      .from("hotel_reservation_rooms")
+      .update({ pms_group_block_id: room.blockId })
       .eq("restaurant_id", input.restaurantId)
-      .eq("id", input.blockId)
-      .maybeSingle();
-    const row = block.data as {
-      id: string;
-      room_type_id: string;
-      start_date: string;
-      end_date: string;
-      allotted: number;
-      status: string;
-    } | null;
-    if (row) {
-      await syncBlockInventory(client, membershipId, input.restaurantId, {
-        id: row.id,
-        roomTypeId: row.room_type_id,
-        startDate: row.start_date,
-        endDate: row.end_date,
-        allotted: row.allotted,
-        status: row.status,
-        groupId: input.groupId,
-      });
-    }
+      .eq("id", room.id);
+    if (unitWrite.error)
+      throw new Error(unitWrite.error.message || "Could not link the group room unit.");
+  }
+
+  const distinctBlocks = [
+    ...new Set(assigned.map((row) => row.blockId).filter((id): id is string => Boolean(id))),
+  ];
+  if (headerBlockId && !distinctBlocks.includes(headerBlockId)) distinctBlocks.push(headerBlockId);
+
+  for (const blockId of distinctBlocks) {
+    const block = await loadGroupBlock(client, input.restaurantId, blockId);
+    await syncBlockInventory(client, membershipId, input.restaurantId, {
+      id: block.id,
+      roomTypeId: block.roomTypeId,
+      startDate: block.startDate,
+      endDate: block.endDate,
+      allotted: block.allotted,
+      status: block.status,
+      groupId: input.groupId,
+    });
   }
 
   await recordHistory(client, {
@@ -414,8 +867,120 @@ export async function attachReservationToGroup(
     groupId: input.groupId,
     eventType: "reservation_linked",
     actorId: membershipId,
-    next: { reservationId: input.reservationId, blockId: input.blockId },
+    next: {
+      reservationId: input.reservationId,
+      blockId: headerBlockId,
+      unitBlockIds: assigned.map((row) => row.blockId),
+    },
   });
+}
+
+export async function applyGroupBlockRelease(
+  client: unknown,
+  membershipId: string,
+  input: {
+    restaurantId: string;
+    groupId: string;
+    blockId: string;
+    allotted: number;
+    notes?: string | null;
+  },
+) {
+  const row = await loadGroupBlock(client, input.restaurantId, input.blockId);
+  if (row.groupId !== input.groupId) throw new Error("Room block not found.");
+  const nextAllotted = Math.max(input.allotted, 0);
+  const nextStatus = nextAllotted === 0 ? "released" : "active";
+  const updated = await db(client)
+    .from("pms_group_blocks")
+    .update({ allotted: nextAllotted, status: nextStatus })
+    .eq("restaurant_id", input.restaurantId)
+    .eq("id", input.blockId);
+  if (updated.error) throw new Error(updated.error.message || "Could not release block.");
+  await syncBlockInventory(client, membershipId, input.restaurantId, {
+    id: row.id,
+    roomTypeId: row.roomTypeId,
+    startDate: row.startDate,
+    endDate: row.endDate,
+    allotted: nextAllotted,
+    status: nextStatus,
+    groupId: input.groupId,
+  });
+  await recordHistory(client, {
+    restaurantId: input.restaurantId,
+    groupId: input.groupId,
+    eventType: nextStatus === "released" ? "block_released" : "block_amended",
+    actorId: membershipId,
+    previous: { allotted: row.allotted },
+    next: { allotted: nextAllotted, status: nextStatus },
+    notes: input.notes ?? "Linked reservations were not cancelled.",
+  });
+  return { blockId: input.blockId, status: nextStatus, allotted: nextAllotted };
+}
+
+export async function releaseGroupBlocksPastCutoff(
+  client: unknown,
+  membershipId: string,
+  restaurantId: string,
+  businessDate: string,
+) {
+  const blocksRead = await db(client)
+    .from("pms_group_blocks")
+    .select("id, group_id, allotted, cutoff_date, status, start_date, end_date")
+    .eq("restaurant_id", restaurantId)
+    .eq("status", "active");
+  if (blocksRead.error) throw new Error(blocksRead.error.message || "Could not load group blocks.");
+  const blocks = (blocksRead.data ?? []) as Array<{
+    id: string;
+    group_id: string;
+    allotted: number;
+    cutoff_date: string | null;
+    status: string;
+    start_date: string;
+    end_date: string;
+  }>;
+  if (blocks.length === 0) return { released: 0 };
+
+  const groupIds = [...new Set(blocks.map((block) => block.group_id))];
+  const groupsRead = await db(client)
+    .from("pms_groups")
+    .select("id, cutoff_date")
+    .eq("restaurant_id", restaurantId)
+    .in("id", groupIds);
+  if (groupsRead.error) throw new Error(groupsRead.error.message || "Could not load groups.");
+  const groupCutoff = new Map(
+    ((groupsRead.data ?? []) as Array<{ id: string; cutoff_date: string | null }>).map((group) => [
+      group.id,
+      group.cutoff_date,
+    ]),
+  );
+
+  let released = 0;
+  for (const block of blocks) {
+    const cutoff = effectiveGroupBlockCutoff(
+      block.cutoff_date,
+      groupCutoff.get(block.group_id) ?? null,
+    );
+    if (!cutoff || cutoff > businessDate) continue;
+    const stays = await loadPickupStays(client, restaurantId, block.id);
+    const totals = allotmentTotals(
+      nightlyAllotment({
+        allotted: block.allotted,
+        startDate: block.start_date,
+        endDate: block.end_date,
+        stays,
+      }),
+    );
+    if (totals.remaining <= 0) continue;
+    await applyGroupBlockRelease(client, membershipId, {
+      restaurantId,
+      groupId: block.group_id,
+      blockId: block.id,
+      allotted: totals.pickedUp,
+      notes: `cutoff_auto_release ${businessDate}. Linked reservations were not cancelled.`,
+    });
+    released += 1;
+  }
+  return { released };
 }
 
 export const listGroups = createServerFn({ method: "POST" })
@@ -469,28 +1034,29 @@ export const listGroups = createServerFn({ method: "POST" })
       end_date: string;
       status: string;
     }>;
-    const stayResult =
-      blocks.length === 0
+    const pickupByBlock = await loadPickupStaysForBlocks(
+      context.supabase,
+      data.restaurantId,
+      blocks.map((block) => block.id),
+    );
+    const linkedCount =
+      groups.length === 0
         ? { data: [], error: null }
         : await db(context.supabase)
             .from("hotel_reservations")
-            .select("pms_group_id, pms_group_block_id, arrival_date, departure_date, status")
+            .select("id, pms_group_id")
             .eq("restaurant_id", data.restaurantId)
             .in(
-              "pms_group_block_id",
-              blocks.map((block) => block.id),
+              "pms_group_id",
+              groups.map((group) => group.id),
             );
-    if (stayResult.error) throw new Error(stayResult.error.message || "Could not load pickup.");
-    const stays = (stayResult.data ?? []) as Array<{
-      pms_group_id: string | null;
-      pms_group_block_id: string | null;
-      arrival_date: string;
-      departure_date: string;
-      status: string;
-    }>;
+    if (linkedCount.error) throw new Error(linkedCount.error.message || "Could not load pickup.");
+    const linked = (linkedCount.data ?? []) as Array<{ id: string; pms_group_id: string | null }>;
 
     const rowsOut: GroupListRow[] = groups.map((group) => {
-      const groupBlocks = blocks.filter((block) => block.group_id === group.id && block.status === "active");
+      const groupBlocks = blocks.filter(
+        (block) => block.group_id === group.id && block.status === "active",
+      );
       let blockedRooms = 0;
       let pickedUp = 0;
       let remaining = 0;
@@ -499,13 +1065,7 @@ export const listGroups = createServerFn({ method: "POST" })
           allotted: block.allotted,
           startDate: block.start_date,
           endDate: block.end_date,
-          stays: stays
-            .filter((stay) => stay.pms_group_block_id === block.id)
-            .map((stay) => ({
-              arrivalDate: stay.arrival_date,
-              departureDate: stay.departure_date,
-              status: stay.status,
-            })),
+          stays: pickupByBlock.get(block.id) ?? [],
         });
         const totals = allotmentTotals(nights);
         blockedRooms += totals.allotted;
@@ -517,7 +1077,7 @@ export const listGroups = createServerFn({ method: "POST" })
         blockedRooms,
         pickedUp,
         remaining,
-        reservationCount: stays.filter((stay) => stay.pms_group_id === group.id).length,
+        reservationCount: linked.filter((stay) => stay.pms_group_id === group.id).length,
       };
     });
 
@@ -556,7 +1116,9 @@ export const getGroup = createServerFn({ method: "POST" })
         .eq("group_id", data.groupId),
       db(context.supabase)
         .from("pms_group_history")
-        .select("id, event_type, previous_values, new_values, notes, created_at, actor_membership_id")
+        .select(
+          "id, event_type, previous_values, new_values, notes, created_at, actor_membership_id",
+        )
         .eq("restaurant_id", data.restaurantId)
         .eq("group_id", data.groupId)
         .order("created_at", { ascending: false })
@@ -576,7 +1138,10 @@ export const getGroup = createServerFn({ method: "POST" })
 
     if (blockResult.error) throw new Error(blockResult.error.message || "Could not load blocks.");
     const typeNames = new Map(
-      ((typesResult.data ?? []) as Array<{ id: string; name: string }>).map((type) => [type.id, type.name]),
+      ((typesResult.data ?? []) as Array<{ id: string; name: string }>).map((type) => [
+        type.id,
+        type.name,
+      ]),
     );
     const stays = (stayResult.data ?? []) as Array<{
       id: string;
@@ -586,28 +1151,26 @@ export const getGroup = createServerFn({ method: "POST" })
       status: string;
       pms_group_block_id: string | null;
     }>;
-    const blocks: GroupBlockRead[] = (
-      (blockResult.data ?? []) as Array<{
-        id: string;
-        room_type_id: string;
-        start_date: string;
-        end_date: string;
-        allotted: number;
-        cutoff_date: string | null;
-        status: string;
-      }>
-    ).map((block) => {
+    const blockRows = (blockResult.data ?? []) as Array<{
+      id: string;
+      room_type_id: string;
+      start_date: string;
+      end_date: string;
+      allotted: number;
+      cutoff_date: string | null;
+      status: string;
+    }>;
+    const pickupByBlock = await loadPickupStaysForBlocks(
+      context.supabase,
+      data.restaurantId,
+      blockRows.map((block) => block.id),
+    );
+    const blocks: GroupBlockRead[] = blockRows.map((block) => {
       const nights = nightlyAllotment({
         allotted: block.allotted,
         startDate: block.start_date,
         endDate: block.end_date,
-        stays: stays
-          .filter((stay) => stay.pms_group_block_id === block.id)
-          .map((stay) => ({
-            arrivalDate: stay.arrival_date,
-            departureDate: stay.departure_date,
-            status: stay.status,
-          })),
+        stays: pickupByBlock.get(block.id) ?? [],
       });
       return {
         id: block.id,
@@ -630,6 +1193,278 @@ export const getGroup = createServerFn({ method: "POST" })
       history: historyResult.data ?? [],
       reservations: stays,
     };
+  });
+
+export interface GroupOperationalDetail {
+  group: GroupOperationalIdentity;
+  blocks: GroupBlockRead[];
+  units: GroupOperationalUnit[];
+  generatedAt: string;
+  truncated: boolean;
+  totalUnits: number;
+}
+
+type OperationalHeaderRow = {
+  id: string;
+  confirmation_number: string;
+  guest_id: string | null;
+  arrival_date: string;
+  departure_date: string;
+  status: string;
+  room_type_id: string | null;
+  pms_group_id: string | null;
+  pms_group_block_id: string | null;
+};
+
+type OperationalUnitRow = {
+  id: string;
+  reservation_id: string;
+  room_type_id: string | null;
+  room_id: string | null;
+  arrival_date: string;
+  departure_date: string;
+  status: string | null;
+  pms_group_block_id: string | null;
+};
+
+function mergeOperationalUnits(batches: OperationalUnitRow[][]): OperationalUnitRow[] {
+  const seen = new Set<string>();
+  const merged: OperationalUnitRow[] = [];
+  for (const batch of batches) {
+    for (const unit of batch) {
+      if (seen.has(unit.id)) continue;
+      seen.add(unit.id);
+      merged.push(unit);
+    }
+  }
+  return merged;
+}
+
+export async function loadGroupOperationalDetail(
+  client: unknown,
+  restaurantId: string,
+  groupId: string,
+): Promise<GroupOperationalDetail> {
+  const { data: row, error } = await db(client)
+    .from("pms_groups")
+    .select(GROUP_SELECT)
+    .eq("restaurant_id", restaurantId)
+    .eq("id", groupId)
+    .maybeSingle();
+  if (error) throw new Error(error.message || "Could not load group.");
+  if (!row) throw new Error("Group not found for this property.");
+  const groupRecord = mapGroup(row as GroupRow);
+  const group: GroupOperationalIdentity = {
+    id: groupRecord.id,
+    confirmationNumber: groupRecord.confirmationNumber,
+    name: groupRecord.name,
+    code: groupRecord.code,
+  };
+
+  const [blockResult, headerResult, typesResult] = await Promise.all([
+    db(client)
+      .from("pms_group_blocks")
+      .select("id, room_type_id, start_date, end_date, allotted, cutoff_date, status")
+      .eq("restaurant_id", restaurantId)
+      .eq("group_id", groupId),
+    db(client)
+      .from("hotel_reservations")
+      .select(
+        "id, confirmation_number, guest_id, arrival_date, departure_date, status, room_type_id, pms_group_id, pms_group_block_id",
+      )
+      .eq("restaurant_id", restaurantId)
+      .eq("pms_group_id", groupId),
+    db(client).from("room_types").select("id, name").eq("restaurant_id", restaurantId),
+  ]);
+  if (blockResult.error) throw new Error(blockResult.error.message || "Could not load blocks.");
+  if (headerResult.error)
+    throw new Error(headerResult.error.message || "Could not load group reservations.");
+  if (typesResult.error) throw new Error(typesResult.error.message || "Could not load room types.");
+
+  const blockRows = (blockResult.data ?? []) as Array<{
+    id: string;
+    room_type_id: string;
+    start_date: string;
+    end_date: string;
+    allotted: number;
+    cutoff_date: string | null;
+    status: string;
+  }>;
+  const typeNames = new Map(
+    ((typesResult.data ?? []) as Array<{ id: string; name: string }>).map((type) => [
+      type.id,
+      type.name,
+    ]),
+  );
+  const groupBlockIds = new Set(blockRows.map((block) => block.id));
+  const headersById = new Map(
+    ((headerResult.data ?? []) as OperationalHeaderRow[]).map((stay) => [stay.id, stay]),
+  );
+
+  const unitBatches: OperationalUnitRow[][] = [];
+  const headerIds = [...headersById.keys()];
+  if (headerIds.length > 0) {
+    const unitsByReservation = await db(client)
+      .from("hotel_reservation_rooms")
+      .select(
+        "id, reservation_id, room_type_id, room_id, arrival_date, departure_date, status, pms_group_block_id",
+      )
+      .eq("restaurant_id", restaurantId)
+      .in("reservation_id", headerIds);
+    if (unitsByReservation.error)
+      throw new Error(unitsByReservation.error.message || "Could not load reservation units.");
+    unitBatches.push((unitsByReservation.data ?? []) as OperationalUnitRow[]);
+  }
+  if (blockRows.length > 0) {
+    const unitsByBlock = await db(client)
+      .from("hotel_reservation_rooms")
+      .select(
+        "id, reservation_id, room_type_id, room_id, arrival_date, departure_date, status, pms_group_block_id",
+      )
+      .eq("restaurant_id", restaurantId)
+      .in(
+        "pms_group_block_id",
+        blockRows.map((block) => block.id),
+      );
+    if (unitsByBlock.error)
+      throw new Error(unitsByBlock.error.message || "Could not load block units.");
+    unitBatches.push((unitsByBlock.data ?? []) as OperationalUnitRow[]);
+  }
+
+  const allUnits = mergeOperationalUnits(unitBatches);
+  const totalUnits = allUnits.length;
+  const truncated = totalUnits > GROUP_OPERATIONAL_UNIT_LIMIT;
+  const unitRows = truncated ? allUnits.slice(0, GROUP_OPERATIONAL_UNIT_LIMIT) : allUnits;
+
+  const missingHeaderIds = [
+    ...new Set(unitRows.map((unit) => unit.reservation_id).filter((id) => !headersById.has(id))),
+  ];
+  if (missingHeaderIds.length > 0) {
+    const extraHeaders = await db(client)
+      .from("hotel_reservations")
+      .select(
+        "id, confirmation_number, guest_id, arrival_date, departure_date, status, room_type_id, pms_group_id, pms_group_block_id",
+      )
+      .eq("restaurant_id", restaurantId)
+      .in("id", missingHeaderIds);
+    if (extraHeaders.error)
+      throw new Error(extraHeaders.error.message || "Could not load reservation headers.");
+    for (const stay of (extraHeaders.data ?? []) as OperationalHeaderRow[]) {
+      headersById.set(stay.id, stay);
+    }
+  }
+
+  const guestIds = [
+    ...new Set(
+      [...headersById.values()]
+        .map((stay) => stay.guest_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const roomIds = [
+    ...new Set(unitRows.map((unit) => unit.room_id).filter((id): id is string => Boolean(id))),
+  ];
+  const [guestResult, roomResult] = await Promise.all([
+    guestIds.length === 0
+      ? Promise.resolve({ data: [], error: null })
+      : db(client)
+          .from("guest_profiles")
+          .select("id, first_name, last_name")
+          .eq("restaurant_id", restaurantId)
+          .in("id", guestIds),
+    roomIds.length === 0
+      ? Promise.resolve({ data: [], error: null })
+      : db(client)
+          .from("hotel_rooms")
+          .select("id, room_number")
+          .eq("restaurant_id", restaurantId)
+          .in("id", roomIds),
+  ]);
+  if (guestResult.error) throw new Error(guestResult.error.message || "Could not load guests.");
+  if (roomResult.error) throw new Error(roomResult.error.message || "Could not load rooms.");
+  const guestNames = new Map(
+    (
+      (guestResult.data ?? []) as Array<{
+        id: string;
+        first_name: string | null;
+        last_name: string | null;
+      }>
+    ).map((guest) => [guest.id, guestDisplayName(guest.first_name, guest.last_name)]),
+  );
+  const roomNumbers = new Map(
+    ((roomResult.data ?? []) as Array<{ id: string; room_number: string }>).map((room) => [
+      room.id,
+      room.room_number,
+    ]),
+  );
+
+  const pickupByBlock = await loadPickupStaysForBlocks(
+    client,
+    restaurantId,
+    blockRows.map((block) => block.id),
+  );
+  const blocks: GroupBlockRead[] = blockRows.map((block) => {
+    const nights = nightlyAllotment({
+      allotted: block.allotted,
+      startDate: block.start_date,
+      endDate: block.end_date,
+      stays: pickupByBlock.get(block.id) ?? [],
+    });
+    return {
+      id: block.id,
+      roomTypeId: block.room_type_id,
+      roomTypeName: typeNames.get(block.room_type_id) ?? null,
+      startDate: block.start_date,
+      endDate: block.end_date,
+      allotted: block.allotted,
+      cutoffDate: block.cutoff_date,
+      status: block.status,
+      nights,
+      totals: allotmentTotals(nights),
+    };
+  });
+  const blockLabels = new Map(
+    blocks.map((block) => [block.id, block.roomTypeName ?? "Room block"]),
+  );
+
+  const units: GroupOperationalUnit[] = [];
+  for (const unit of unitRows) {
+    const header = headersById.get(unit.reservation_id);
+    if (!header) continue;
+    units.push(
+      mapGroupOperationalUnit({
+        unit,
+        header,
+        groupId,
+        groupBlockIds,
+        blockLabel: unit.pms_group_block_id
+          ? (blockLabels.get(unit.pms_group_block_id) ?? null)
+          : null,
+        guestName: header.guest_id ? (guestNames.get(header.guest_id) ?? null) : null,
+        roomNumber: unit.room_id ? (roomNumbers.get(unit.room_id) ?? null) : null,
+        roomTypeName: unit.room_type_id ? (typeNames.get(unit.room_type_id) ?? null) : null,
+      }),
+    );
+  }
+
+  return {
+    group,
+    blocks,
+    units,
+    generatedAt: new Date().toISOString(),
+    truncated,
+    totalUnits,
+  };
+}
+
+export const getGroupOperationalDetail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireReservationManager(context as never, data.restaurantId);
+    return loadGroupOperationalDetail(context.supabase, data.restaurantId, data.groupId);
   });
 
 const groupWriteSchema = z.object({
@@ -836,50 +1671,12 @@ export const releaseGroupBlock = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const me = await requireGroupWriter(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const current = await db(supabaseAdmin)
-      .from("pms_group_blocks")
-      .select("id, room_type_id, start_date, end_date, allotted, status")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("id", data.blockId)
-      .eq("group_id", data.groupId)
-      .maybeSingle();
-    if (current.error) throw new Error(current.error.message || "Could not load block.");
-    if (!current.data) throw new Error("Room block not found.");
-    const row = current.data as {
-      id: string;
-      room_type_id: string;
-      start_date: string;
-      end_date: string;
-      allotted: number;
-      status: string;
-    };
-    const nextAllotted = data.allotted ?? 0;
-    const nextStatus = nextAllotted === 0 ? "released" : "active";
-    const updated = await db(supabaseAdmin)
-      .from("pms_group_blocks")
-      .update({ allotted: Math.max(nextAllotted, 0), status: nextStatus })
-      .eq("restaurant_id", data.restaurantId)
-      .eq("id", data.blockId);
-    if (updated.error) throw new Error(updated.error.message || "Could not release block.");
-    await syncBlockInventory(supabaseAdmin, me.id, data.restaurantId, {
-      id: row.id,
-      roomTypeId: row.room_type_id,
-      startDate: row.start_date,
-      endDate: row.end_date,
-      allotted: nextAllotted,
-      status: nextStatus,
-      groupId: data.groupId,
-    });
-    await recordHistory(supabaseAdmin, {
+    return applyGroupBlockRelease(supabaseAdmin, me.id, {
       restaurantId: data.restaurantId,
       groupId: data.groupId,
-      eventType: nextStatus === "released" ? "block_released" : "block_amended",
-      actorId: me.id,
-      previous: { allotted: row.allotted },
-      next: { allotted: nextAllotted, status: nextStatus },
-      notes: "Linked reservations were not cancelled.",
+      blockId: data.blockId,
+      allotted: data.allotted ?? 0,
     });
-    return { blockId: data.blockId, status: nextStatus };
   });
 
 export const addRoomingRow = createServerFn({ method: "POST" })
@@ -984,9 +1781,8 @@ export const convertRoomingRow = createServerFn({ method: "POST" })
         adults: row.adults,
         children: row.children,
         specialRequests: row.special_requests,
-        ratePlanId: ((group.data as { rate_plan_id: string | null } | null)?.rate_plan_id ?? null) as
-          | string
-          | null,
+        ratePlanId: ((group.data as { rate_plan_id: string | null } | null)?.rate_plan_id ??
+          null) as string | null,
         status: "pending",
         pmsGroupId: data.groupId,
         pmsGroupBlockId: row.group_block_id,

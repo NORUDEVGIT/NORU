@@ -10,10 +10,12 @@ import {
 } from "@/shared/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/components/ui/sheet";
 import { cn } from "@/shared/lib/utils";
+import type { ReservationCreateMode } from "@/packages/pms/lib/walk-in-reservation-context";
 
 export type ReservationWorkspaceOverlayState =
   | {
       type: "new-reservation";
+      mode?: ReservationCreateMode;
       initialGuestId?: string | null;
       initialCompanyMasterId?: string | null;
       initialTravelAgentMasterId?: string | null;

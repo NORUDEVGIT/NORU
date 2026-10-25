@@ -53,6 +53,21 @@ describe("GROUP-RES-06 room occupant operations", () => {
     expect(handler).toContain("requireReservationManager");
   });
 
+  it("rejects removal of the primary guest, including the sole primary", () => {
+    const guard = read("drizzle/migrations/0181_room_guest_primary_guard.sql");
+    const guardCopy = read("supabase/migrations/0181_room_guest_primary_guard.sql");
+    const body = guard.slice(
+      guard.indexOf("IF _action = 'remove'"),
+      guard.indexOf("DELETE FROM public.hotel_reservation_room_guests"),
+    );
+    expect(guardCopy).toBe(guard);
+    expect(body).toContain("IF occupant.is_primary THEN");
+    expect(body).toContain("RAISE EXCEPTION 'ROOM_GUEST_PRIMARY_REQUIRED'");
+    expect(body).not.toContain("other_occupant");
+    expect(guard).not.toContain("UPDATE public.hotel_reservations");
+    expect(guard).toContain("unit.adults + unit.children");
+  });
+
   it("keeps one primary, changes it atomically, and does not delete the guest profile", () => {
     expect(read("drizzle/migrations/0160_reservation_room_guests.sql")).toContain(
       "CREATE UNIQUE INDEX hotel_reservation_room_guests_one_primary",

@@ -312,8 +312,9 @@ describe("reservation detail group projection", () => {
     expect(workspace).toContain("<CheckInDialog");
     expect(workspace).toContain("initialReservationRoomId");
     expect(workspace).toContain('reservationKind: persistedGroup ? "group" : "single"');
-    expect(packages).toContain("reservation.roomTypeId");
-    expect(packages).toContain("reservation.ratePlanId");
+    expect(packages).toContain("getReservationUnitPackages");
+    expect(packages).not.toContain("reservation.roomTypeId");
+    expect(packages).not.toContain("reservation.ratePlanId");
     expect(packages).toContain("GROUP_PACKAGE_NOTE");
     expect(folio).toContain("reservationId: reservation.id");
     expect(folio).not.toContain("one folio per room");

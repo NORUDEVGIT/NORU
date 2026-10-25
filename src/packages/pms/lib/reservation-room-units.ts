@@ -183,6 +183,7 @@ export type CreateRoomUnitInput = {
   children: number;
   infants: number;
   ratePlanId: string | null;
+  pmsGroupBlockId?: string | null;
 };
 
 /** One room keeps the existing rooms multiplier. Extra rooms price the master as one room. */
@@ -194,22 +195,25 @@ export function createReservationRoomUnitPayload(input: {
   ratePlanId: string | null;
   roomsRequested: number;
   extraUnits: CreateRoomUnitInput[];
+  pmsGroupBlockId?: string | null;
 }): { rooms: number; roomUnits: CreateRoomUnitInput[] | null } {
   if (input.extraUnits.length === 0) {
     return { rooms: input.roomsRequested, roomUnits: null };
   }
+  const includeBlock =
+    input.pmsGroupBlockId !== undefined ||
+    input.extraUnits.some((unit) => "pmsGroupBlockId" in unit);
+  const first: CreateRoomUnitInput = {
+    roomTypeId: input.roomTypeId,
+    adults: input.adults,
+    children: input.children,
+    infants: input.infants,
+    ratePlanId: input.ratePlanId,
+    ...(includeBlock ? { pmsGroupBlockId: input.pmsGroupBlockId ?? null } : {}),
+  };
   return {
     rooms: 1,
-    roomUnits: [
-      {
-        roomTypeId: input.roomTypeId,
-        adults: input.adults,
-        children: input.children,
-        infants: input.infants,
-        ratePlanId: input.ratePlanId,
-      },
-      ...input.extraUnits,
-    ],
+    roomUnits: [first, ...input.extraUnits],
   };
 }
 
@@ -452,6 +456,7 @@ export type StayRoomSlice = {
   arrivalDate: string;
   departureDate: string;
   unitSequence: number | null;
+  reservationRoomId: string | null;
 };
 
 /**
@@ -467,6 +472,7 @@ export function expandStayRooms(
     departureDate: string;
   }>,
   units: ReadonlyArray<{
+    id?: string;
     reservationId: string;
     roomId: string | null;
     status: string | null;
@@ -483,6 +489,7 @@ export function expandStayRooms(
       arrivalDate: row.arrivalDate,
       departureDate: row.departureDate,
       unitSequence: null,
+      reservationRoomId: null,
     }));
   }
   const byReservation = new Map<string, Array<(typeof units)[number]>>();
@@ -502,6 +509,7 @@ export function expandStayRooms(
         arrivalDate: reservation.arrivalDate,
         departureDate: reservation.departureDate,
         unitSequence: null,
+        reservationRoomId: null,
       });
       continue;
     }
@@ -515,6 +523,7 @@ export function expandStayRooms(
         arrivalDate: unit.arrivalDate,
         departureDate: unit.departureDate,
         unitSequence: unit.unitSequence,
+        reservationRoomId: unit.id ?? null,
       });
     }
   }

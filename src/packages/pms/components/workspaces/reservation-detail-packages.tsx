@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import {
   GROUP_PACKAGE_NOTE,
@@ -7,18 +7,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import {
-  BedDouble,
-  CalendarDays,
-  CreditCard,
-  FileText,
-  Pencil,
-  Plus,
-  Search,
-  Shield,
-  Trash2,
-  UserRound,
-} from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -30,37 +19,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { Textarea } from "@/shared/components/ui/textarea";
-import {
-  formatStayDate,
-  ReservationStatusBadge,
-} from "@/packages/pms/components/bookings/reservation-bits";
-import { guestInitials, reviewDash } from "@/packages/pms/lib/create-reservation-review";
+import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import { reviewDash } from "@/packages/pms/lib/create-reservation-review";
 import { getMealsCard3 } from "@/packages/pms/lib/meals-card3.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
-import {
-  DETAIL_DASH,
-  depositStatusLabel,
-  parseDepositRequirementSnapshot,
-  snapshotDisplayName,
-  snapshotField,
-} from "@/packages/pms/lib/reservation-detail-overview";
-import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
 import { ReservationPackageMerchandiseGrid } from "@/packages/pms/components/bookings/reservation-package-merchandise";
 import {
+  appliedPackageAmountDisplay,
   appliedPackageDescription,
-  appliedPackagesTotal,
-  buildAvailablePackageCards,
+  buildUnitPackageCards,
   cataloguePackageById,
   chargeBasisHonestyCopy,
   chargeTypeLabel,
   emptyPackageFilters,
   filterAvailablePackages,
   packageInclusionLabel,
-  PACKAGE_NOTES_GAP_COPY,
-  PACKAGE_NOTES_MAX,
+  packageScopeLabel,
+  reservationUnitPackageLabel,
   uniquePackageFilterOptions,
   type PackageFilters,
+  type UnitPackageManagementRow,
 } from "@/packages/pms/lib/reservation-detail-packages";
 import { parsePackageChargeBasis } from "@/packages/pms/lib/meals-card3.server";
 import { stayRoomUnitId } from "@/packages/pms/lib/reservation-detail-guest";
@@ -69,10 +47,7 @@ import {
   applyReservationRoomPackage,
   type ReservationDetail,
 } from "@/packages/pms/lib/reservations.functions";
-import {
-  getReservationCommercialAttribution,
-  listEligiblePackageActivations,
-} from "@/packages/pms/lib/revenue/commercial-package.functions";
+import { getReservationUnitPackages } from "@/packages/pms/lib/revenue/commercial-package.functions";
 
 const FIELD =
   "h-8 w-full rounded-md border border-[#DDD4C5] bg-white px-2 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#F7F2EA]";
@@ -84,27 +59,25 @@ export function ReservationDetailPackagesTab({
   canManage,
   money,
   paymentReceived = null,
+  paymentRefunded = null,
   guestDeposit = null,
   coverUrl,
-  onBackToRates,
 }: {
   restaurantId: string;
   reservation: ReservationDetail;
   canManage: boolean;
   money: (value: number) => string;
   paymentReceived?: number | null;
+  paymentRefunded?: number | null;
   guestDeposit?: number | null;
   coverUrl: string | null;
-  onBackToRates: () => void;
 }) {
   const fetchCatalogue = useServerFn(getMealsCard3);
-  const fetchEligible = useServerFn(listEligiblePackageActivations);
-  const fetchCommercial = useServerFn(getReservationCommercialAttribution);
+  const fetchUnitPackages = useServerFn(getReservationUnitPackages);
   const submitApply = useServerFn(applyReservationRoomPackage);
   const submitRelease = useServerFn(releaseReservationRoomPackage);
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<PackageFilters>(emptyPackageFilters);
-  const [notes, setNotes] = useState("");
   const [unitId, setUnitId] = useState(stayRoomUnitId(reservation) ?? "");
   useEffect(() => {
     setUnitId((current) =>
@@ -117,94 +90,93 @@ export function ReservationDetailPackagesTab({
   const editable = canManage && !cancelled;
   const currency = reservation.currency?.trim() || "ETB";
   const nights = nightsBetween(reservation.arrivalDate, reservation.departureDate);
+  const selectedUnit = (reservation.rooms ?? []).find((unit) => unit.id === unitId) ?? null;
 
   const catalogueQuery = useQuery({
     queryKey: ["meals-card3", restaurantId, "reservation-detail-packages"],
     queryFn: () => fetchCatalogue({ data: { restaurantId } }),
     retry: false,
   });
-  const eligibleQuery = useQuery({
-    queryKey: [
-      "eligible-packages",
-      restaurantId,
-      reservation.ratePlanId,
-      reservation.roomTypeId,
-      reservation.arrivalDate,
-      reservation.departureDate,
-    ],
+  const unitQuery = useQuery({
+    queryKey: ["reservation-unit-packages", restaurantId, reservation.id, unitId],
     queryFn: () =>
-      fetchEligible({
-        data: {
-          restaurantId,
-          ratePlanId: reservation.ratePlanId!,
-          roomTypeId: reservation.roomTypeId,
-          arrivalDate: reservation.arrivalDate,
-          departureDate: reservation.departureDate,
-          reservationId: reservation.id,
-        },
-      }),
-    enabled: Boolean(reservation.ratePlanId),
-    retry: false,
-  });
-  const commercialQuery = useQuery({
-    queryKey: ["reservation-commercial", restaurantId, reservation.id, "packages"],
-    queryFn: () =>
-      fetchCommercial({
+      fetchUnitPackages({
         data: {
           restaurantId,
           reservationId: reservation.id,
-          roomSubtotal: reservation.roomSubtotal,
+          reservationRoomId: unitId,
         },
       }),
+    enabled: Boolean(unitId),
     retry: false,
   });
 
   const catalogue = catalogueQuery.data?.snapshot.packages ?? [];
   const components = catalogueQuery.data?.snapshot.components ?? [];
-  const applied = commercialQuery.data?.packages ?? [];
-  const cards = buildAvailablePackageCards({
+  const unitRead = unitQuery.data;
+  const applied = unitRead?.packages ?? [];
+  const cards = buildUnitPackageCards({
     catalogue,
     components,
-    eligible: eligibleQuery.data ?? [],
-    roomTypeId: reservation.roomTypeId,
-    ratePlanId: reservation.ratePlanId,
+    eligibility: unitRead?.eligibility ?? [],
+    ratePlanId: unitRead?.ratePlanId ?? null,
   });
   const options = uniquePackageFilterOptions(cards);
   const visible = filterAvailablePackages(cards, filters);
-  const appliedTotal = appliedPackagesTotal(applied);
+  const unitPackageTotal = unitRead?.unitPackageTotal ?? 0;
+  const stayPackageTotal = unitRead?.stayPackageTotal ?? 0;
+  const unitLabel =
+    unitRead?.unitLabel ??
+    (selectedUnit
+      ? reservationUnitPackageLabel(selectedUnit.unitSequence, selectedUnit.roomNumber)
+      : "Room");
+
+  function refreshPackages() {
+    void queryClient.invalidateQueries({
+      queryKey: ["reservation-unit-packages", restaurantId, reservation.id],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["reservation-commercial", restaurantId, reservation.id],
+    });
+  }
 
   const bindPackage = useMutation({
     mutationFn: (activationId: string) => {
-      const roomId = unitId || stayRoomUnitId(reservation);
-      if (!roomId) throw new Error("This stay has no room unit for a package.");
+      if (!unitId) throw new Error("This stay has no room unit for a package.");
       return submitApply({
         data: {
           restaurantId,
           reservationId: reservation.id,
-          reservationRoomId: roomId,
+          reservationRoomId: unitId,
           packageActivationId: activationId,
         },
       });
     },
     onSuccess: () => {
       toast.success("Package applied to this room.");
-      void queryClient.invalidateQueries({
-        queryKey: ["reservation-commercial", restaurantId, reservation.id],
-      });
+      refreshPackages();
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   const releasePackage = useMutation({
-    mutationFn: (packageRowId: string) =>
-      submitRelease({
-        data: { restaurantId, reservationId: reservation.id, packageRowId },
-      }),
-    onSuccess: () => {
-      toast.success("Package removed from this room.");
-      void queryClient.invalidateQueries({
-        queryKey: ["reservation-commercial", restaurantId, reservation.id],
+    mutationFn: (row: UnitPackageManagementRow) => {
+      if (!unitId || !row.removeAllowed) {
+        throw new Error("That package cannot be removed from this room.");
+      }
+      return submitRelease({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          packageRowId: row.id,
+          reservationRoomId: unitId,
+          stayScope: row.scope === "stay",
+        },
       });
+    },
+    onSuccess: () => {
+      toast.success("Package removed.");
+      refreshPackages();
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -216,7 +188,11 @@ export function ReservationDetailPackagesTab({
           <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
             <h2 className="font-display text-base text-[#251605]">Packages for this Reservation</h2>
             <p className="text-xs text-muted-foreground">
-              Add or manage packages and special offers to enhance the guest stay.
+              Add or manage packages for the selected room. Stay packages are labeled and apply to
+              the whole reservation.
+            </p>
+            <p className="mt-3 text-sm text-[#251605]" data-testid="packages-selected-unit">
+              {unitLabel}
             </p>
             {(reservation.rooms ?? []).length > 1 ? (
               <label className="mt-3 block text-xs text-muted-foreground">
@@ -228,8 +204,7 @@ export function ReservationDetailPackagesTab({
                 >
                   {(reservation.rooms ?? []).map((unit) => (
                     <option key={unit.id} value={unit.id}>
-                      Room {unit.unitSequence}
-                      {unit.roomNumber ? ` · ${unit.roomNumber}` : ""}
+                      {reservationUnitPackageLabel(unit.unitSequence, unit.roomNumber)}
                     </option>
                   ))}
                 </select>
@@ -243,82 +218,51 @@ export function ReservationDetailPackagesTab({
                 {GROUP_PACKAGE_NOTE}
               </p>
             ) : null}
+            {!unitId ? (
+              <p className="mt-2 text-xs text-muted-foreground" data-testid="packages-no-unit">
+                This stay has no room unit for a package.
+              </p>
+            ) : null}
           </section>
           <AppliedPackagesCard
             applied={applied}
             catalogue={catalogue}
-            ratePlanId={reservation.ratePlanId}
+            ratePlanId={unitRead?.ratePlanId ?? null}
             money={money}
-            currency={currency}
+            currency={unitRead?.currency || currency}
             arrival={reservation.arrivalDate}
             departure={reservation.departureDate}
-            total={appliedTotal}
+            unitPackageTotal={unitPackageTotal}
+            stayPackageTotal={stayPackageTotal}
+            loading={unitQuery.isLoading}
             editable={editable}
-            onAdd={() => toast.message("Choose a package from the list below.")}
-            onEdit={() => toast.message("Package quantity stays on the applied row.")}
-            onRemove={(row) => releasePackage.mutate(row.id)}
+            onRemove={(row) => releasePackage.mutate(row)}
           />
-          {!reservation.ratePlanId ? (
-            <p
-              className="text-xs text-muted-foreground"
-              data-testid="packages-rate-plan-unevaluated"
-            >
-              Package activation eligibility needs a rate plan on this reservation.
-            </p>
-          ) : null}
           <AvailablePackagesCard
             cards={visible}
             filters={filters}
             options={options}
             money={money}
-            currency={currency}
+            currency={unitRead?.currency || currency}
             editable={editable}
+            loading={Boolean(unitId) && unitQuery.isLoading}
             onFilters={setFilters}
             onAdd={(card) => {
-              if (!card.activationId) {
-                toast.error("That package is not eligible for this stay.");
-                return;
-              }
+              if (!card.addAllowed || !card.activationId) return;
               bindPackage.mutate(card.activationId);
             }}
           />
-          <PackageNotesCard value={notes} editable={editable} onChange={setNotes} />
         </div>
         <PackagesSummaryRail
           reservation={reservation}
           paymentReceived={paymentReceived}
+          paymentRefunded={paymentRefunded}
           guestDeposit={guestDeposit}
           money={money}
           coverUrl={coverUrl}
           nights={nights}
-          packagesTotal={appliedTotal}
+          packagesTotal={unitPackageTotal + stayPackageTotal}
         />
-      </div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white py-3">
-        <Button type="button" variant="outline" size="sm" onClick={onBackToRates}>
-          Back to Rates
-        </Button>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            disabled={!editable}
-            onClick={() => toast.message(PACKAGE_NOTES_GAP_COPY)}
-          >
-            Save Changes
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setNotes("");
-              setFilters(emptyPackageFilters());
-            }}
-          >
-            Cancel
-          </Button>
-        </div>
       </div>
     </div>
   );
@@ -332,67 +276,56 @@ function AppliedPackagesCard({
   currency,
   arrival,
   departure,
-  total,
+  unitPackageTotal,
+  stayPackageTotal,
+  loading,
   editable,
-  onAdd,
-  onEdit,
   onRemove,
 }: {
-  applied: Array<{
-    id: string;
-    packageId: string;
-    packageName: string;
-    packageCode: string;
-    chargeBasis: string;
-    quantity: number;
-    unitAmount: number;
-    appliedAmount: number;
-    components: Array<{ componentType?: string }>;
-    roomUnitLabel?: string | null;
-  }>;
+  applied: UnitPackageManagementRow[];
   catalogue: Parameters<typeof appliedPackageDescription>[1];
   ratePlanId: string | null;
   money: (value: number) => string;
   currency: string;
   arrival: string;
   departure: string;
-  total: number;
+  unitPackageTotal: number;
+  stayPackageTotal: number;
+  loading: boolean;
   editable: boolean;
-  onAdd: () => void;
-  onEdit: () => void;
-  onRemove: (row: { id: string }) => void;
+  onRemove: (row: UnitPackageManagementRow) => void;
 }) {
   return (
     <section
       className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
       data-testid="applied-packages"
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="font-display text-base text-[#251605]">Applied Packages</h2>
-        <Button type="button" size="sm" disabled={!editable} onClick={onAdd}>
-          <Plus className="mr-1 size-3.5" />
-          Add Package
-        </Button>
-      </div>
-      {applied.length === 0 ? (
+      <h2 className="font-display text-base text-[#251605]">Applied Packages</h2>
+      <p className="mb-3 text-xs text-muted-foreground">
+        This room, plus stay packages labeled for the whole reservation.
+      </p>
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading packages…</p>
+      ) : applied.length === 0 ? (
         <div
           className="rounded-lg border border-dashed border-[#E4D6B8] px-4 py-8 text-center text-sm text-muted-foreground"
           data-testid="applied-packages-empty"
         >
-          No packages attached to this reservation.
+          No packages on this room or for the stay.
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="border-b border-[#EEE6D8] text-[11px] uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="py-2 pr-2">#</th>
                 <th className="py-2 pr-2">Package Name</th>
+                <th className="py-2 pr-2">Scope</th>
                 <th className="py-2 pr-2">Description</th>
                 <th className="py-2 pr-2">Charge Type</th>
                 <th className="py-2 pr-2 text-right">Price ({currency})</th>
                 <th className="py-2 pr-2 text-right">Quantity</th>
-                <th className="py-2 pr-2 text-right">Total ({currency})</th>
+                <th className="py-2 pr-2 text-right">Amount ({currency})</th>
                 <th className="py-2 pr-2">Stay Dates</th>
                 <th className="py-2">Action</th>
               </tr>
@@ -405,6 +338,11 @@ function AppliedPackagesCard({
                 );
                 const honesty = chargeBasisHonestyCopy(configuredBasis);
                 const inclusion = master ? packageInclusionLabel(master, ratePlanId) : null;
+                const amount = appliedPackageAmountDisplay({
+                  chargeBasis: configuredBasis,
+                  unitAmount: row.unitAmount,
+                  appliedAmount: row.appliedAmount,
+                });
                 return (
                   <tr key={row.id} className="border-b border-[#F4EEE4]">
                     <td className="py-2 pr-2">{index + 1}</td>
@@ -413,10 +351,16 @@ function AppliedPackagesCard({
                       <p className="text-[11px] text-muted-foreground">
                         {reviewDash(row.packageCode)}
                       </p>
-                      {row.roomUnitLabel ? (
-                        <p className="text-[11px] text-muted-foreground">{row.roomUnitLabel}</p>
-                      ) : null}
                       {inclusion ? <p className="text-[10px] text-[#5C4A2A]">{inclusion}</p> : null}
+                      {row.actorMembershipId ? (
+                        <p className="text-[10px] text-muted-foreground">Recorded by staff</p>
+                      ) : null}
+                    </td>
+                    <td className="py-2 pr-2">
+                      <p>{packageScopeLabel(row.scope)}</p>
+                      {row.scope === "unit" && row.unitLabel ? (
+                        <p className="text-[11px] text-muted-foreground">{row.unitLabel}</p>
+                      ) : null}
                     </td>
                     <td className="py-2 pr-2">
                       {reviewDash(appliedPackageDescription(row, catalogue))}
@@ -427,48 +371,42 @@ function AppliedPackagesCard({
                     <td className="py-2 pr-2">{reviewDash(chargeTypeLabel(configuredBasis))}</td>
                     <td className="py-2 pr-2 text-right">{money(row.unitAmount)}</td>
                     <td className="py-2 pr-2 text-right">{row.quantity}</td>
-                    <td className="py-2 pr-2 text-right">{money(row.appliedAmount)}</td>
+                    <td className="py-2 pr-2 text-right">
+                      {money(amount.amount)}
+                      {amount.configuredOnly ? (
+                        <p className="text-[10px] font-normal text-muted-foreground">Configured</p>
+                      ) : null}
+                    </td>
                     <td className="py-2 pr-2">
                       {formatStayDate(arrival)} – {formatStayDate(departure)}
                     </td>
                     <td className="py-2">
-                      <div className="flex gap-1">
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          disabled={!editable}
-                          onClick={onEdit}
-                          aria-label="Edit package"
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          disabled={!editable}
-                          onClick={() => onRemove(row)}
-                          aria-label="Remove package"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        disabled={!editable || !row.removeAllowed}
+                        onClick={() => onRemove(row)}
+                        aria-label={row.scope === "stay" ? "Remove stay package" : "Remove package"}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
                     </td>
                   </tr>
                 );
               })}
-              <tr className="font-medium">
-                <td className="py-2 pr-2" colSpan={6}>
-                  Total
-                </td>
-                <td className="py-2 pr-2 text-right">{money(total)}</td>
-                <td colSpan={2} />
-              </tr>
             </tbody>
           </table>
         </div>
       )}
+      <div className="mt-3 space-y-1 text-sm" data-testid="package-commercial-facts">
+        <p>Room package snapshot {money(unitPackageTotal)}</p>
+        <p>Stay package snapshot {money(stayPackageTotal)}</p>
+        <p className="text-[11px] text-muted-foreground">
+          These amounts are stored package snapshots. They stay separate from the room subtotal and
+          from posted folio charges, payments, deposits, refunds, and balance.
+        </p>
+      </div>
     </section>
   );
 }
@@ -480,6 +418,7 @@ function AvailablePackagesCard({
   money,
   currency,
   editable,
+  loading,
   onFilters,
   onAdd,
 }: {
@@ -489,6 +428,7 @@ function AvailablePackagesCard({
   money: (value: number) => string;
   currency: string;
   editable: boolean;
+  loading: boolean;
   onFilters: (next: PackageFilters) => void;
   onAdd: (card: ReturnType<typeof filterAvailablePackages>[number]) => void;
 }) {
@@ -502,7 +442,8 @@ function AvailablePackagesCard({
     >
       <h2 className="font-display text-base text-[#251605]">Available Packages</h2>
       <p className="mb-3 text-xs text-muted-foreground">
-        Select from available packages for this property.
+        Eligibility is for the selected room. Add is available only when that room can take the
+        package.
       </p>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <FilterSelect
@@ -536,25 +477,27 @@ function AvailablePackagesCard({
           </div>
         </div>
       </div>
-      {cards.length === 0 ? (
+      {loading ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">Loading packages…</p>
+      ) : cards.length === 0 ? (
         <p
           className="py-6 text-center text-sm text-muted-foreground"
           data-testid="available-packages-empty"
         >
-          No active packages match this stay.
+          No packages are listed for this room.
         </p>
       ) : (
         <ReservationPackageMerchandiseGrid
           cards={cards}
           currency={currency}
           money={money}
-          emptyCopy="No active packages match this stay."
+          emptyCopy="No packages are listed for this room."
           renderFooter={(card) => (
             <Button
               type="button"
               size="sm"
               variant="outline"
-              disabled={!editable}
+              disabled={!editable || card.addAllowed !== true}
               onClick={() => onAdd(card)}
             >
               Add Package
@@ -597,41 +540,6 @@ function FilterSelect({
   );
 }
 
-function PackageNotesCard({
-  value,
-  editable,
-  onChange,
-}: {
-  value: string;
-  editable: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="package-notes"
-    >
-      <h2 className="font-display text-base text-[#251605]">Package Notes</h2>
-      <p className="mb-2 text-xs text-muted-foreground">
-        Internal notes about packages for this reservation (visible to hotel staff only).
-      </p>
-      <Textarea
-        id="package-tab-notes"
-        maxLength={PACKAGE_NOTES_MAX}
-        disabled={!editable}
-        value={value}
-        onChange={(e) => onChange(e.target.value.slice(0, PACKAGE_NOTES_MAX))}
-        placeholder="Add package notes here…"
-        className="min-h-24"
-      />
-      <p className="mt-1 text-right text-[11px] text-muted-foreground">
-        {value.length}/{PACKAGE_NOTES_MAX}
-      </p>
-      <p className="mt-1 text-[11px] text-muted-foreground">{PACKAGE_NOTES_GAP_COPY}</p>
-    </section>
-  );
-}
-
 function PackagesSummaryRail({
   reservation,
   money,
@@ -639,6 +547,7 @@ function PackagesSummaryRail({
   nights,
   packagesTotal,
   paymentReceived,
+  paymentRefunded,
   guestDeposit,
 }: {
   reservation: ReservationDetail;
@@ -647,6 +556,7 @@ function PackagesSummaryRail({
   nights: number;
   packagesTotal: number;
   paymentReceived: number | null;
+  paymentRefunded: number | null;
   guestDeposit: number | null;
 }) {
   return (
@@ -658,6 +568,7 @@ function PackagesSummaryRail({
       nights={nights}
       packagesTotal={packagesTotal}
       paymentReceived={paymentReceived}
+      paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
     />
   );

@@ -61,8 +61,9 @@ const ENTRY_POINTS = [
   "../components/workspaces/arrivals-workspace.tsx",
   "../components/workspaces/arrivals-departures-workspace.tsx",
   "../components/frontoffice/walk-ins-history-frame.tsx",
-  "../components/frontoffice/front-office-frames.tsx",
 ];
+
+const RETIRED_WALK_IN_HOST = "../components/frontoffice/front-office-frames.tsx";
 
 describe("Check-In Step 1 workspace", () => {
   const workspace = readRel("../components/frontoffice/fo-checkin-v2-workspace.tsx");
@@ -80,6 +81,11 @@ describe("Check-In Step 1 workspace", () => {
     for (const entry of ENTRY_POINTS) {
       assert.match(readRel(entry), /<CheckInDialog/);
     }
+    const frames = readRel(RETIRED_WALK_IN_HOST);
+    assert.doesNotMatch(frames, /function WalkInsFrame/);
+    assert.doesNotMatch(frames, /WalkInDialog/);
+    assert.doesNotMatch(frames, /<CheckInDialog/);
+    assert.doesNotMatch(frames, /FoCheckInStepper/);
   });
 
   it("uses getCheckInUnit and not the legacy context read", () => {
@@ -196,10 +202,11 @@ describe("Check-In Step 1 workspace", () => {
       }),
     );
     assert.equal(view.progressReservationRoomId, "unit-205");
-    assert.equal(view.registrationComplete, true);
+    assert.equal(view.registrationComplete, false);
     assert.equal(view.reviewComplete, false);
     assert.match(workspace, /data-testid="fo-ci-v2-progress"/);
-    assert.match(workspace, /view\.registrationComplete/);
+    assert.match(workspace, /registrationProgressLabel/);
+    assert.doesNotMatch(workspace, /view\.registrationComplete/);
     assert.doesNotMatch(workspace, /unit\.status === "checked_in"/);
     assert.match(workspace, /unitAlreadyCheckedIn\(unit\.status\)/);
   });
@@ -207,6 +214,13 @@ describe("Check-In Step 1 workspace", () => {
   it("changes the room through the existing assignment command", () => {
     assert.match(workspace, /assignReservationRoom/);
     assert.match(workspace, /data-testid="fo-ci-v2-change-room"/);
+    assert.match(workspace, /listCheckInRoomCandidates/);
+    assert.match(workspace, /projectCheckInStep1Readiness/);
+    assert.match(workspace, /getReservationCashieringSummary/);
+    assert.match(workspace, /occupant.isPrimary && view.occupants.length === 1/);
+    assert.doesNotMatch(workspace, /View Guest Profile/);
+    assert.doesNotMatch(workspace, /Reservation Found/);
+    assert.match(workspace, /Reservation loaded/);
     assert.doesNotMatch(workspace, /listAssignableRooms/);
     assert.doesNotMatch(workspace, /forCheckIn/);
     assert.doesNotMatch(workspace, /pms_evaluate_room_assignment/);
@@ -274,6 +288,9 @@ describe("Check-In Step 1 workspace", () => {
       assert.doesNotMatch(source, /FoCheckInStepper/);
       assert.doesNotMatch(source, /to:\s*["'][^"']*check-in/);
     }
+    const frames = readRel(RETIRED_WALK_IN_HOST);
+    assert.doesNotMatch(frames, /FoCheckInStepper/);
+    assert.doesNotMatch(frames, /to:\s*["'][^"']*check-in/);
   });
 
   it("maps the other read failures to friendly states", () => {
@@ -297,20 +314,26 @@ describe("Check-In Step 1 workspace", () => {
     assert.match(workspace, /Room status unavailable/);
   });
 
-  it("shows room chips only from eligibility and housekeeping for that room", () => {
+  it("shows room chips from eligibility, housekeeping, and the server ready flag", () => {
     const ready = checkInRoomReadiness({
       roomId: "room-205",
       display: [{ id: "room-205", eligible: true }],
       assignedRoom: { floor: "2", building: "A", housekeepingStatus: "inspected" },
-      operationalStatus: "available",
+      readyForCheckIn: true,
     });
     assert.deepEqual(ready.chips, ["Available", "Inspected", "Ready"]);
     assert.equal(ready.floor, "2");
+    const cleanButNotPolicyReady = checkInRoomReadiness({
+      roomId: "room-205",
+      display: [{ id: "room-205", eligible: true }],
+      assignedRoom: { floor: "2", building: "A", housekeepingStatus: "clean" },
+      readyForCheckIn: false,
+    });
+    assert.deepEqual(cleanButNotPolicyReady.chips, ["Available", "Clean"]);
     const unknown = checkInRoomReadiness({
       roomId: "room-205",
       display: [],
       assignedRoom: null,
-      operationalStatus: null,
     });
     assert.deepEqual(unknown.chips, []);
     assert.equal(unknown.statusUnavailable, true);

@@ -1,24 +1,12 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import {
-  BedDouble,
-  CalendarDays,
-  CreditCard,
-  FileText,
-  MoreHorizontal,
-  Plus,
-  Shield,
-  UserRound,
-  Wallet,
-} from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
-import { Label } from "@/shared/components/ui/label";
-import { Textarea } from "@/shared/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,21 +35,18 @@ import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departu
 import {
   depositPaidFromLedger,
   depositRemainder,
+  folioActorLabel,
   folioLineQuantity,
   folioRunningBalances,
   guestDepositCreditFromLedger,
-  FOLIO_BILLING_EDIT_GAP_COPY,
-  FOLIO_ADD_FOLIO_GAP_COPY,
-  FOLIO_INVOICE_GAP_COPY,
   FOLIO_MISSING_COPY,
-  FOLIO_NOTES_GAP_COPY,
-  FOLIO_NOTES_MAX,
   folioDepositStatus,
   folioKpiCards,
   folioLedgerSummary,
   ledgerReference,
   paymentMethodLabel,
   paymentRows,
+  paymentTenderStatus,
   snapshotDueDate,
 } from "@/packages/pms/lib/reservation-detail-folio";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
@@ -74,27 +59,26 @@ import {
   getReservationFolio,
   type FolioDetail,
 } from "@/packages/pms/lib/cashiering.functions";
+import { issueGuestFolioInvoice } from "@/packages/pms/lib/cashiering-invoices.functions";
 import type { TransactionType } from "@/packages/pms/lib/cashiering.server";
 import { useRestaurantTime } from "@/core/state/property-format";
 
 export function ReservationDetailFolioTab({
   restaurantId,
   reservation,
-  canManage,
   money,
   paymentReceived = null,
+  paymentRefunded = null,
   guestDeposit = null,
   coverUrl,
-  onBackToPackages,
 }: {
   restaurantId: string;
   reservation: ReservationDetail;
-  canManage: boolean;
   money: (value: number) => string;
   paymentReceived?: number | null;
+  paymentRefunded?: number | null;
   guestDeposit?: number | null;
   coverUrl: string | null;
-  onBackToPackages: () => void;
 }) {
   const queryClient = useQueryClient();
   const { dateTime } = useRestaurantTime();
@@ -104,11 +88,10 @@ export function ReservationDetailFolioTab({
   const fetchRemainder = useServerFn(getReservationDepositRemainder);
   const fetchDepositPolicy = useServerFn(getDefaultDepositPolicy);
   const fetchCorrectionNotice = useServerFn(getCashieringCorrectionNotice);
-  const [notes, setNotes] = useState("");
+  const issueInvoice = useServerFn(issueGuestFolioInvoice);
+  const [issuingInvoice, setIssuingInvoice] = useState(false);
   const [entryType, setEntryType] = useState<TransactionType | null>(null);
   const [closeOpen, setCloseOpen] = useState(false);
-  const cancelled = reservation.status === "cancelled";
-  const editable = canManage && !cancelled;
   const currency = reservation.currency?.trim() || "ETB";
   const nights = nightsBetween(reservation.arrivalDate, reservation.departureDate);
 
@@ -148,7 +131,8 @@ export function ReservationDetailFolioTab({
 
   const folio = folioQuery.data ?? null;
   const summary = folioLedgerSummary(folio);
-  const cards = folioKpiCards(folio, summary);
+  const cards = folioKpiCards(folio);
+  const issuedInvoice = folio?.issuedInvoice ?? folio?.issuedInvoices[0] ?? null;
   const cashierCanOperate = accessQuery.data?.canOperate ?? false;
   const cashierCanManage = accessQuery.data?.canManage ?? false;
   const open = folio?.status === "open";
@@ -163,6 +147,37 @@ export function ReservationDetailFolioTab({
 
   function refuseMissingFolio() {
     toast.message(FOLIO_MISSING_COPY);
+  }
+
+  async function createInvoice() {
+    if (!folio) {
+      refuseMissingFolio();
+      return;
+    }
+    if (issuedInvoice) {
+      toast.message(`Invoice ${issuedInvoice.issuedNumber} is already issued.`);
+      return;
+    }
+    setIssuingInvoice(true);
+    try {
+      const result = await issueInvoice({
+        data: {
+          restaurantId,
+          folioId: folio.id,
+          idempotencyKey: crypto.randomUUID(),
+        },
+      });
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(`Invoice ${result.invoice.issuedNumber} issued.`);
+      refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Invoice could not be issued.");
+    } finally {
+      setIssuingInvoice(false);
+    }
   }
 
   function startEntry(type: TransactionType) {
@@ -191,22 +206,12 @@ export function ReservationDetailFolioTab({
               <div>
                 <h2 className="font-display text-base text-[#251605]">Folio & Payments</h2>
                 <p className="text-xs text-muted-foreground">
-                  View folio(s), charges, payments and balance for this reservation.
+                  Charges, payments, deposits, refunds, and balance for this reservation.
                 </p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={!editable}
-                onClick={() => toast.message(FOLIO_ADD_FOLIO_GAP_COPY)}
-              >
-                <Plus className="mr-1 size-3.5" />
-                Add Folio
-              </Button>
             </div>
             {accessError ? <p className="mb-3 text-sm text-destructive">{accessError}</p> : null}
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-2 sm:grid-cols-2 xl:max-w-sm">
               {cards.map((card) => (
                 <article
                   key={card.id}
@@ -216,12 +221,15 @@ export function ReservationDetailFolioTab({
                   <p className="text-sm font-medium text-[#251605]">{card.name}</p>
                   <p
                     className={`mt-1 text-[11px] font-semibold ${
-                      card.status === "Active" ? "text-emerald-700" : "text-muted-foreground"
+                      card.status === "Open" ? "text-emerald-700" : "text-muted-foreground"
                     }`}
                   >
                     {card.status}
                   </p>
-                  <p className="mt-2 font-display text-lg text-[#251605]">
+                  <p className="mt-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                    {card.amountLabel}
+                  </p>
+                  <p className="font-display text-lg text-[#251605]">
                     {card.amount == null ? DETAIL_DASH : money(card.amount)}
                   </p>
                 </article>
@@ -235,9 +243,12 @@ export function ReservationDetailFolioTab({
             dateTime={dateTime}
             canPostCharge={Boolean(open && cashierCanManage)}
             canPostPayment={Boolean(open && cashierCanOperate)}
+            canIssueInvoice={Boolean(folio && cashierCanManage && !issuedInvoice)}
+            issuingInvoice={issuingInvoice}
+            issuedNumber={issuedInvoice?.issuedNumber ?? null}
             onCharge={() => startEntry("charge")}
             onPayment={() => startEntry("payment")}
-            onInvoice={() => toast.message(FOLIO_INVOICE_GAP_COPY)}
+            onInvoice={() => void createInvoice()}
             onOverflow={(type) => startEntry(type)}
             onClose={() => {
               if (!folio || !open) return refuseMissingFolio();
@@ -255,45 +266,27 @@ export function ReservationDetailFolioTab({
               onAdd={() => startEntry("payment")}
             />
           </div>
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 lg:grid-cols-2">
             <DepositInfoCard
               reservation={reservation}
               summary={summary}
               money={money}
               applied={remainderQuery.data?.applied ?? null}
             />
-            <BillingRoutingCard reservation={reservation} editable={editable} />
-            <FolioNotesCard value={notes} editable={editable} onChange={setNotes} />
+            <BillingRoutingCard reservation={reservation} />
           </div>
         </div>
         <FolioSummaryRail
           reservation={reservation}
           paymentReceived={paymentReceived}
+          paymentRefunded={paymentRefunded ?? summary?.refunds ?? null}
           guestDeposit={guestDeposit}
           money={money}
           coverUrl={coverUrl}
           nights={nights}
           packagesTotal={summary?.packageCharges ?? 0}
-          folioBalance={folio?.balance ?? null}
+          folioBalance={summary?.balance ?? folio?.balance ?? null}
         />
-      </div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white py-3">
-        <Button type="button" variant="outline" size="sm" onClick={onBackToPackages}>
-          Back to Packages
-        </Button>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            disabled={!editable}
-            onClick={() => toast.message(FOLIO_NOTES_GAP_COPY)}
-          >
-            Save Changes
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => setNotes("")}>
-            Cancel
-          </Button>
-        </div>
       </div>
       {folio ? (
         <>
@@ -340,6 +333,9 @@ function RoomFolioCard({
   dateTime,
   canPostCharge,
   canPostPayment,
+  canIssueInvoice,
+  issuingInvoice,
+  issuedNumber,
   onCharge,
   onPayment,
   onInvoice,
@@ -352,6 +348,9 @@ function RoomFolioCard({
   dateTime: (iso: string | null | undefined) => string;
   canPostCharge: boolean;
   canPostPayment: boolean;
+  canIssueInvoice: boolean;
+  issuingInvoice: boolean;
+  issuedNumber: string | null;
   onCharge: () => void;
   onPayment: () => void;
   onInvoice: () => void;
@@ -368,10 +367,14 @@ function RoomFolioCard({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="font-display text-base text-[#251605]">
-            Room Folio{" "}
+            Guest Folio{" "}
             {folio ? (
-              <span className="ml-2 text-xs font-semibold text-emerald-700">
-                {folio.status === "open" ? "Active" : "Inactive"}
+              <span
+                className={`ml-2 text-xs font-semibold ${
+                  folio.status === "open" ? "text-emerald-700" : "text-muted-foreground"
+                }`}
+              >
+                {folio.status === "open" ? "Open" : "Closed"}
               </span>
             ) : (
               <span className="ml-2 text-xs font-semibold text-muted-foreground">Inactive</span>
@@ -395,8 +398,18 @@ function RoomFolioCard({
           >
             Post Payment
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={onInvoice}>
-            Create Invoice
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={issuingInvoice || !canIssueInvoice}
+            onClick={onInvoice}
+          >
+            {issuedNumber
+              ? `Invoice ${issuedNumber}`
+              : issuingInvoice
+                ? "Issuing…"
+                : "Create Invoice"}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -471,7 +484,7 @@ function RoomFolioCard({
                   <td className="py-2 pr-2 text-right">
                     {balances.has(row.id) ? money(balances.get(row.id) ?? 0) : DETAIL_DASH}
                   </td>
-                  <td className="py-2 pr-2">{reviewDash(row.postedBy)}</td>
+                  <td className="py-2 pr-2">{folioActorLabel(row)}</td>
                   <td className="py-2">
                     {folio ? (
                       <Button
@@ -518,18 +531,21 @@ function FolioSummaryCard({
     >
       <h2 className="mb-3 font-display text-base text-[#251605]">Folio Summary</h2>
       {summary ? (
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+        <div className="grid gap-y-1 text-sm sm:grid-cols-2 sm:gap-x-6">
           <SummaryLine label="Room Charges" value={value(summary.roomCharges)} />
           <SummaryLine label="Payments" value={value(summary.payments)} />
           <SummaryLine label="Package Charges" value={value(summary.packageCharges)} />
-          <SummaryLine label="Adjustments" value={value(summary.adjustments)} />
+          <SummaryLine label="Refunds" value={value(summary.refunds)} />
           <SummaryLine label="Other Charges" value={value(summary.otherCharges)} />
-          <SummaryLine label="Total Payments" value={value(summary.totalPayments)} />
+          <SummaryLine label="Adjustments" value={value(summary.adjustments)} />
           <SummaryLine label="Discounts" value={value(summary.discounts)} />
-          <SummaryLine label="Balance" value={value(summary.balance)} emphasize />
-          <SummaryLine label="Taxes & Fees" value={value(summary.taxes)} />
+          <SummaryLine label="Deposits" value={value(summary.depositCredits)} />
+          <SummaryLine label="Tax" value={value(summary.tax)} />
+          <span />
+          <SummaryLine label="Service Charge" value={value(summary.serviceCharge)} />
           <span />
           <SummaryLine label="Total Charges" value={value(summary.totalCharges)} />
+          <SummaryLine label="Balance" value={value(summary.balance)} emphasize />
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">{FOLIO_MISSING_COPY}</p>
@@ -604,7 +620,9 @@ function PaymentMethodsCard({
                   <td className="py-2 pr-2">{reviewDash(paymentMethodLabel(row.paymentMethod))}</td>
                   <td className="py-2 pr-2">{reviewDash(row.referenceType)}</td>
                   <td className="py-2 pr-2 text-right">{money(Math.abs(row.amount))}</td>
-                  <td className="py-2 pr-2">Posted</td>
+                  <td className="py-2 pr-2">
+                    {folio ? paymentTenderStatus(row, folio.transactions) : "Posted"}
+                  </td>
                   <td className="py-2">
                     {folio ? (
                       <Button
@@ -685,29 +703,17 @@ function DepositInfoCard({
   );
 }
 
-function BillingRoutingCard({
-  reservation,
-  editable,
-}: {
-  reservation: ReservationDetail;
-  editable: boolean;
-}) {
+function BillingRoutingCard({ reservation }: { reservation: ReservationDetail }) {
   return (
     <section
       className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
       data-testid="billing-routing"
     >
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3">
         <h2 className="font-display text-base text-[#251605]">Billing & Routing</h2>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={!editable}
-          onClick={() => toast.message(FOLIO_BILLING_EDIT_GAP_COPY)}
-        >
-          Edit
-        </Button>
+        <p className="text-[11px] text-muted-foreground">
+          Company and travel agent stay on the reservation. Routing is not a posting rule.
+        </p>
       </div>
       <dl className="space-y-1 text-sm">
         <InfoRow label="Bill To" value={reservation.guestName} />
@@ -716,46 +722,6 @@ function BillingRoutingCard({
         <InfoRow label="Travel Agent" value={reviewDash(reservation.travelAgentName)} />
         <InfoRow label="Special Instructions" value={reviewDash(reservation.specialRequests)} />
       </dl>
-    </section>
-  );
-}
-
-function FolioNotesCard({
-  value,
-  editable,
-  onChange,
-}: {
-  value: string;
-  editable: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="folio-notes"
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-display text-base text-[#251605]">Notes</h2>
-        <Button type="button" size="sm" variant="ghost" disabled={!editable}>
-          Edit
-        </Button>
-      </div>
-      <Label htmlFor="folio-tab-notes" className="sr-only">
-        Folio or payment notes
-      </Label>
-      <Textarea
-        id="folio-tab-notes"
-        maxLength={FOLIO_NOTES_MAX}
-        disabled={!editable}
-        value={value}
-        onChange={(e) => onChange(e.target.value.slice(0, FOLIO_NOTES_MAX))}
-        placeholder="Add folio or payment notes…"
-        className="min-h-24"
-      />
-      <p className="mt-1 text-right text-[11px] text-muted-foreground">
-        {value.length}/{FOLIO_NOTES_MAX}
-      </p>
-      <p className="mt-1 text-[11px] text-muted-foreground">{FOLIO_NOTES_GAP_COPY}</p>
     </section>
   );
 }
@@ -777,6 +743,7 @@ function FolioSummaryRail({
   packagesTotal,
   folioBalance,
   paymentReceived,
+  paymentRefunded,
   guestDeposit,
 }: {
   reservation: ReservationDetail;
@@ -786,6 +753,7 @@ function FolioSummaryRail({
   packagesTotal: number;
   folioBalance: number | null;
   paymentReceived: number | null;
+  paymentRefunded: number | null;
   guestDeposit: number | null;
 }) {
   return (
@@ -798,7 +766,9 @@ function FolioSummaryRail({
       packagesTotal={packagesTotal}
       folioBalance={folioBalance}
       paymentReceived={paymentReceived}
+      paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
+      roomTotalLabel="Reservation room total"
       showFolioBalance
     />
   );

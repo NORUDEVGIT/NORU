@@ -98,6 +98,7 @@ export type FoControlStayContext = {
   roomId: string | null;
   roomNumber: string | null;
   status: string;
+  reservationRoomId?: string | null;
 };
 
 const SEVERITY_RANK: Record<FoControlSeverity, number> = {
@@ -115,6 +116,7 @@ function stayIdKey(key: string, stayId: string): string {
 }
 
 export function foControlDedupKey(item: { key: string; reservationId: string | null; roomId: string | null }): string {
+  if (item.reservationId && item.roomId) return `${item.key}:${item.reservationId}:${item.roomId}`;
   if (item.reservationId) return `${item.key}:${item.reservationId}`;
   if (item.roomId) return `${item.key}:room:${item.roomId}`;
   return item.key;
