@@ -667,8 +667,9 @@ export function RatesWorkspace({
               ) : null}
             </div>
           </div>
+        </div>
 
-          <div className="relative mt-3 flex items-end gap-3 overflow-x-auto px-5 sm:px-6">
+        <div className="relative mt-3 flex items-end gap-3 overflow-x-auto px-5 sm:px-6">
             {primarySections.map((section) =>
               section.id === "more" ? (
                 <DropdownMenu key={section.id} open={moreOpen} onOpenChange={setMoreOpen}>
