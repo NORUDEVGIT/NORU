@@ -67,8 +67,12 @@ import {
   canRetryOtbSnapshot,
   canSyncRunExceptions,
   closedByThisRequest,
+  FISCAL_OVERRIDE_REASON_CATEGORIES,
+  fiscalStatusForException,
+  isFiscalOverrideableException,
   persistedCloseFacts,
   type PersistedCloseRow,
+  type FiscalOverride,
   canViewNightAuditOperationalDetail,
   historyRange,
   historySearchDates,
@@ -106,6 +110,10 @@ export interface AuditException {
   createdAt: string | null;
   /** Live owner-module link from the current reconciliation. Null on rows no longer derived. */
   source: ExceptionSource | null;
+  /** The currently ACTIVE fiscal-only close exemption. The underlying source remains open. */
+  fiscalOverride: FiscalOverride | null;
+  /** Every override event ever authorized for this exception row, oldest first. History only. */
+  fiscalOverrideHistory: FiscalOverride[];
 }
 
 export type NightAuditOtbState = "captured" | "not_captured" | "unknown";
@@ -139,6 +147,7 @@ export interface AuditSummary {
   financialWarningCount?: number;
   openDrawerCount?: number;
   fiscalProblemCount?: number;
+  fiscalOverrideCount?: number;
   taxByCurrency?: Array<{ currency: string; tax: number; serviceCharge: number }>;
   /** Present on closes after NA-P3. Older summaries omit them. */
   operationalBlockerCount?: number;
@@ -330,6 +339,126 @@ type ExceptionRow = {
   created_at?: string | null;
 };
 
+type FiscalOverrideRow = {
+  id: string;
+  exception_id: string;
+  fiscal_status: string;
+  fiscal_reference: string | null;
+  reason: string;
+  reason_category: FiscalOverride["reasonCategory"];
+  overridden_by_membership_id: string;
+  overridden_at: string;
+  invalidated_at: string | null;
+  invalidated_reason: string | null;
+};
+
+const FISCAL_OVERRIDE_COLUMNS =
+  "id, exception_id, fiscal_status, fiscal_reference, reason, reason_category, overridden_by_membership_id, overridden_at, invalidated_at, invalidated_reason";
+
+/** Only the ACTIVE override per exception. This is what the close gate and current-state UI must use. */
+async function fiscalOverridesForRun(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  restaurantId: string,
+  runId: string,
+): Promise<Map<string, FiscalOverrideRow>> {
+  const rows = await selectAll<FiscalOverrideRow>((from, to) =>
+    admin
+      .from("night_audit_fiscal_overrides")
+      .select(FISCAL_OVERRIDE_COLUMNS)
+      .eq("restaurant_id", restaurantId)
+      .eq("night_audit_run_id", runId)
+      .is("invalidated_at", null)
+      .order("overridden_at", { ascending: true })
+      .range(from, to),
+  );
+  // The partial unique index guarantees at most one active row per exception_id.
+  return new Map(rows.map((row) => [row.exception_id, row]));
+}
+
+/** Every override event ever authorized on this run, active or invalidated. History display only. */
+async function fiscalOverrideHistoryForRun(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  restaurantId: string,
+  runId: string,
+): Promise<Map<string, FiscalOverrideRow[]>> {
+  const rows = await selectAll<FiscalOverrideRow>((from, to) =>
+    admin
+      .from("night_audit_fiscal_overrides")
+      .select(FISCAL_OVERRIDE_COLUMNS)
+      .eq("restaurant_id", restaurantId)
+      .eq("night_audit_run_id", runId)
+      .order("overridden_at", { ascending: true })
+      .range(from, to),
+  );
+  const byException = new Map<string, FiscalOverrideRow[]>();
+  for (const row of rows) {
+    const list = byException.get(row.exception_id) ?? [];
+    list.push(row);
+    byException.set(row.exception_id, list);
+  }
+  return byException;
+}
+
+function effectiveFinancialStatus(
+  financial: NightAuditFinancialReconciliation,
+  exceptionRows: readonly ExceptionRow[],
+  overrides: ReadonlyMap<string, FiscalOverrideRow>,
+): NightAuditFinancialStatus {
+  const overridden = new Set(
+    exceptionRows.filter((row) => overrides.has(row.id)).map((row) => exceptionSyncKey(row.exception_type, row.reference_id)),
+  );
+  const remainingFinancialBlockers = financial.issues.some((issue) => {
+    if (issue.severity !== "blocking") return false;
+    const exception = financialIssuesToExceptions([issue])[0];
+    return !exception || !overridden.has(exceptionSyncKey(exception.exceptionType, exception.referenceId));
+  });
+  if (remainingFinancialBlockers) return "blocked";
+  return financial.summary.warningCount > 0 ? "warning" : "ready";
+}
+
+function presentFinancialWithFiscalOverrides(
+  financial: NightAuditFinancialReconciliation,
+  exceptionRows: readonly ExceptionRow[],
+  overrides: ReadonlyMap<string, FiscalOverrideRow>,
+  names: ReadonlyMap<string, string>,
+): NightAuditFinancialReconciliation {
+  const byKey = new Map(exceptionRows.map((row) => [exceptionSyncKey(row.exception_type, row.reference_id), row]));
+  const overridesByFiscalReference = new Map<string, FiscalOverrideRow>();
+  for (const issue of financial.issues) {
+    const exception = financialIssuesToExceptions([issue])[0];
+    if (!exception) continue;
+    const persisted = byKey.get(exceptionSyncKey(exception.exceptionType, exception.referenceId));
+    const override = persisted ? overrides.get(persisted.id) : undefined;
+    if (override && exception.referenceId) overridesByFiscalReference.set(exception.referenceId, override);
+  }
+  const fiscalOverrideCount = overrides.size;
+  return {
+    ...financial,
+    status: effectiveFinancialStatus(financial, exceptionRows, overrides) as Exclude<NightAuditFinancialStatus, "unavailable">,
+    summary: {
+      ...financial.summary,
+      blockerCount: Math.max(0, financial.summary.blockerCount - fiscalOverrideCount),
+      fiscalOverrideCount,
+    },
+    fiscal: financial.fiscal.map((row) => {
+      const override = overridesByFiscalReference.get(row.id);
+      return {
+        ...row,
+        nightAuditOverride: override
+          ? {
+              reason: override.reason,
+              reasonCategory: override.reason_category,
+              overriddenBy: names.get(override.overridden_by_membership_id) ?? null,
+              overriddenAt: override.overridden_at,
+            }
+          : null,
+      };
+    }),
+  };
+}
+
 async function syncRunExceptions(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
@@ -404,14 +533,48 @@ async function syncRunExceptions(
       })
       .in("id", plan.resolveIds);
     if (resolved.error) throw resolved.error;
+
+    // The source condition is actually gone: any active fiscal override for
+    // these exact exceptions is invalidated. A later reopen of the same row
+    // starts with no active override and requires a fresh authorization.
+    // Scoped to these ids only — unrelated exceptions are never touched.
+    const invalidated = await admin
+      .from("night_audit_fiscal_overrides")
+      .update({
+        invalidated_at: new Date().toISOString(),
+        invalidated_reason: "Source fiscal condition resolved.",
+      })
+      .in("exception_id", plan.resolveIds)
+      .is("invalidated_at", null);
+    if (invalidated.error) throw invalidated.error;
   }
+}
+
+function toFiscalOverride(row: FiscalOverrideRow, names: ReadonlyMap<string, string>): FiscalOverride {
+  return {
+    id: row.id,
+    fiscalStatus: row.fiscal_status,
+    fiscalReference: row.fiscal_reference,
+    reason: row.reason,
+    reasonCategory: row.reason_category,
+    overriddenBy: names.get(row.overridden_by_membership_id) ?? null,
+    overriddenAt: row.overridden_at,
+    invalidatedAt: row.invalidated_at,
+    invalidatedReason: row.invalidated_reason,
+  };
 }
 
 function toException(
   row: ExceptionRow,
   role: string,
   sources: ReadonlyMap<string, ExceptionSource> = new Map(),
+  /** ACTIVE override only — never an invalidated one. */
+  overrides: ReadonlyMap<string, FiscalOverrideRow> = new Map(),
+  names: ReadonlyMap<string, string> = new Map(),
+  /** All override events (active + invalidated) for this exception. History screens only. */
+  history: ReadonlyMap<string, FiscalOverrideRow[]> = new Map(),
 ): AuditException {
+  const override = overrides.get(row.id);
   return {
     id: row.id,
     exceptionType: row.exception_type,
@@ -426,6 +589,8 @@ function toException(
     createdAt: row.created_at ?? null,
     source:
       row.status === "open" ? (sources.get(exceptionSyncKey(row.exception_type, row.reference_id)) ?? null) : null,
+    fiscalOverride: override ? toFiscalOverride(override, names) : null,
+    fiscalOverrideHistory: (history.get(row.id) ?? []).map((item) => toFiscalOverride(item, names)),
   };
 }
 
@@ -544,7 +709,32 @@ export const getNightAuditFinancials = createServerFn({ method: "GET" })
         property.timezone,
         property.currency,
       );
-      return presentNightAuditFinancials(result, me.role);
+      const { data: runRow } = await supabaseAdmin
+        .from("night_audit_runs")
+        .select("id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("business_date", property.businessDate)
+        .maybeSingle();
+      if (!runRow) return presentNightAuditFinancials(result, me.role);
+      const runId = (runRow as { id: string }).id;
+      const exceptionRows = await selectAll<ExceptionRow>((from, to) =>
+        supabaseAdmin
+          .from("night_audit_exceptions")
+          .select("*")
+          .eq("night_audit_run_id", runId)
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
+      const overrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, runId);
+      const names = await staffNames(
+        supabaseAdmin,
+        data.restaurantId,
+        [...overrides.values()].map((override) => override.overridden_by_membership_id),
+      );
+      return presentNightAuditFinancials(
+        presentFinancialWithFiscalOverrides(result, exceptionRows, overrides, names),
+        me.role,
+      );
     } catch (error) {
       throw nightAuditError(error instanceof Error ? error.message : FINANCIAL_UNAVAILABLE_MESSAGE);
     }
@@ -678,6 +868,12 @@ export const runNightAudit = createServerFn({ method: "POST" })
         .order("id", { ascending: true })
         .range(from, to),
     );
+    const overrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, run.id);
+    const overrideNames = await staffNames(
+      supabaseAdmin,
+      data.restaurantId,
+      [...overrides.values()].map((row) => row.overridden_by_membership_id),
+    );
     const sources =
       run.status !== "closed"
         ? liveExceptionSources(financial.ok ? financial.result : null, operational.ok ? operational.result : null)
@@ -685,16 +881,18 @@ export const runNightAudit = createServerFn({ method: "POST" })
     const exceptions = finalRows
       .slice()
       .sort((a, b) => a.severity.localeCompare(b.severity) || a.id.localeCompare(b.id))
-      .map((row) => toException(row, me.role, sources));
+      .map((row) => toException(row, me.role, sources, overrides, overrideNames));
 
     const blockingCount = exceptions.filter(
-      (e) => e.severity === "blocking" && e.status === "open",
+      (e) => e.severity === "blocking" && e.status === "open" && !e.fiscalOverride,
     ).length;
     const warningCount = exceptions.filter(
       (e) => e.severity === "warning" && e.status === "open",
     ).length;
 
-    const financialStatus: NightAuditFinancialStatus = financial.ok ? financial.result.status : "unavailable";
+    const financialStatus: NightAuditFinancialStatus = financial.ok
+      ? effectiveFinancialStatus(financial.result, finalRows, overrides)
+      : "unavailable";
     const operationalStatus: NightAuditOperationalStatus = operational.ok
       ? operational.result.status
       : "unavailable";
@@ -811,6 +1009,97 @@ export const runNightAudit = createServerFn({ method: "POST" })
   });
 
 /* --------------------------------------------------------- exception admin */
+
+/**
+ * A deliberately narrow authorization: owner/manager may exempt one canonical
+ * fiscal blocker from the close gate for this open business-date run. It never
+ * updates the fiscal document, its exception severity/status, or a non-fiscal
+ * finding.
+ */
+export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator(
+    (d: {
+      restaurantId: string;
+      exceptionId: string;
+      reason: string;
+      reasonCategory?: (typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number];
+    }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          exceptionId: idSchema,
+          reason: z.string().trim().min(1, "An override reason is required.").max(500),
+          reasonCategory: z.enum(FISCAL_OVERRIDE_REASON_CATEGORIES).optional(),
+        })
+        .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
+    // requireCashierManager is owner/manager only and verifies property membership.
+    const me = await requireCashierManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const property = await loadProperty(supabaseAdmin, data.restaurantId);
+    const { data: row } = await supabaseAdmin
+      .from("night_audit_exceptions")
+      .select("id, exception_type, severity, status, reference_type, reference_id, night_audit_run_id")
+      .eq("id", data.exceptionId)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (!row) return { ok: false, message: "Fiscal exception not found for this property." };
+    const exception = row as {
+      id: string;
+      exception_type: string;
+      severity: "warning" | "blocking";
+      status: "open" | "resolved" | "ignored";
+      reference_type: string | null;
+      reference_id: string | null;
+      night_audit_run_id: string;
+    };
+    if (!isFiscalOverrideableException({
+      exceptionType: exception.exception_type,
+      severity: exception.severity,
+      status: exception.status,
+    })) {
+      return { ok: false, message: "Only an open canonical fiscal blocker can receive a fiscal close override." };
+    }
+    const { data: run } = await supabaseAdmin
+      .from("night_audit_runs")
+      .select("id, restaurant_id, business_date, status")
+      .eq("id", exception.night_audit_run_id)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (!run) return { ok: false, message: "Night Audit run not found for this property." };
+    const runRow = run as { id: string; business_date: string; status: string };
+    if (runRow.status === "closed") return { ok: false, message: "Closed Night Audit runs cannot be modified." };
+    if (runRow.status !== "open" && runRow.status !== "ready") {
+      return { ok: false, message: "This Night Audit run cannot receive an override." };
+    }
+    // Match the authoritative effective date used to create and display the
+    // run. A property's first close has no persisted business_date yet, so
+    // comparing the raw nullable column would incorrectly reject today's run.
+    if (property.businessDate !== runRow.business_date.slice(0, 10)) {
+      return { ok: false, message: NA1_STALE_BUSINESS_DATE };
+    }
+    const fiscalStatus = fiscalStatusForException(exception.exception_type);
+    if (!fiscalStatus) return { ok: false, message: "This fiscal status is not overrideable." };
+    const inserted = await (supabaseAdmin as any).from("night_audit_fiscal_overrides").insert({
+      restaurant_id: data.restaurantId,
+      night_audit_run_id: runRow.id,
+      exception_id: exception.id,
+      business_date: runRow.business_date,
+      exception_type: exception.exception_type,
+      fiscal_status: fiscalStatus,
+      fiscal_reference: exception.reference_id ?? exception.reference_type,
+      reason: data.reason.trim(),
+      ...(data.reasonCategory ? { reason_category: data.reasonCategory } : {}),
+      overridden_by_membership_id: me.id,
+    });
+    if (inserted.error) {
+      if (/duplicate key/i.test(inserted.error.message)) return { ok: true };
+      return { ok: false, message: nightAuditError(inserted.error.message).message };
+    }
+    return { ok: true };
+  });
 
 export const updateException = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1051,9 +1340,19 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         run.id,
         auditExceptionSet(blockers, evaluation.exceptions, financial.result, operational.result),
       );
+      const closeExceptionRows = await selectAll<ExceptionRow>((from, to) =>
+        supabaseAdmin
+          .from("night_audit_exceptions")
+          .select("*")
+          .eq("night_audit_run_id", run.id)
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
+      const closeOverrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, run.id);
+      const closeFinancialStatus = effectiveFinancialStatus(financial.result, closeExceptionRows, closeOverrides);
       if (
         remainingBlockerCount(blockers) > 0 ||
-        !financialAllowsClose(financial.result.status) ||
+        !financialAllowsClose(closeFinancialStatus) ||
         !operationalAllowsClose(operational.result.status)
       ) {
         return rejected(
@@ -1061,9 +1360,9 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         );
       }
 
-      let openBlocking: Array<{ id: string }> = [];
+      let openBlockingRows: Array<{ id: string }> = [];
       try {
-        openBlocking = await selectAll<{ id: string }>((from, to) =>
+        openBlockingRows = await selectAll<{ id: string }>((from, to) =>
           supabaseAdmin
             .from("night_audit_exceptions")
             .select("id")
@@ -1076,6 +1375,7 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
       } catch {
         return rejected("Blocking exceptions could not be confirmed. Close stays unavailable.");
       }
+      const openBlocking = openBlockingRows.filter((row) => !closeOverrides.has(row.id));
       if (openBlocking.length > 0) {
         return rejected("Blocking exceptions are still open for this business date.");
       }
@@ -1084,7 +1384,7 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         boardBlockers: remainingBlockerCount(blockers),
         boardUnavailable: boardUnavailable(blockers),
         openBlockingExceptions: openBlocking.length,
-        financial: financial.result.status,
+        financial: closeFinancialStatus,
         operational: operational.result.status,
         warnings: 0,
       });
@@ -1118,7 +1418,8 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         blockers: snapshotBlockers(blockers),
         previousBusinessDate: runDate,
         nextBusinessDate: rolledTo,
-        financialBlockerCount: financial.result.summary.blockerCount,
+        financialBlockerCount: Math.max(0, financial.result.summary.blockerCount - closeOverrides.size),
+        fiscalOverrideCount: closeOverrides.size,
         financialWarningCount: financial.result.summary.warningCount,
         openDrawerCount: financial.result.summary.openDrawerCount,
         fiscalProblemCount: financial.result.summary.fiscalProblemCount,
@@ -1452,10 +1753,17 @@ export const getNightAuditRun = createServerFn({ method: "GET" })
         r.status === "closed"
           ? ((await otbStates(supabaseAdmin, data.restaurantId, [r])).get(r.business_date.slice(0, 10)) ?? "unknown")
           : undefined;
+      const overrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, r.id);
+      const history = await fiscalOverrideHistoryForRun(supabaseAdmin, data.restaurantId, r.id);
+      const overrideNames = await staffNames(
+        supabaseAdmin,
+        data.restaurantId,
+        [...history.values()].flat().map((override) => override.overridden_by_membership_id),
+      );
       return {
         currency: property.currency,
         run: toRunRow(r, names, me.role, otb),
-        exceptions: exRows.map((ex) => toException(ex, me.role)),
+        exceptions: exRows.map((ex) => toException(ex, me.role, new Map(), overrides, overrideNames, history)),
       };
     },
   );

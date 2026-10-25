@@ -15,6 +15,7 @@ import { NightAuditFinancialPanel } from "@/packages/pms/components/nightaudit/n
 import { NightAuditOperationalPanel } from "@/packages/pms/components/nightaudit/night-audit-operational-panel";
 import {
   closeBusinessDate,
+  authorizeFiscalCloseOverride,
   getNightAuditAccess,
   getNightAuditFinancials,
   getNightAuditOperations,
@@ -88,6 +89,7 @@ export function NightAuditWorkspace({
   const run = useServerFn(runNightAudit);
   const history = useServerFn(listNightAuditHistory);
   const close = useServerFn(closeBusinessDate);
+  const authorizeFiscalOverride = useServerFn(authorizeFiscalCloseOverride);
   const retryOtb = useServerFn(retryNightAuditOtbSnapshot);
   const fetchRun = useServerFn(getNightAuditRun);
   const fetchFinancials = useServerFn(getNightAuditFinancials);
@@ -265,6 +267,21 @@ export function NightAuditWorkspace({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const fiscalOverrideMutation = useMutation({
+    mutationFn: (input: { exceptionId: string; reason: string; reasonCategory?: "fiscal_device_offline" | "hardware_failure" | "network_failure" | "fiscal_authority_unavailable" | "integration_failure" | "vendor_support_pending" | "other" }) =>
+      authorizeFiscalOverride({ data: { restaurantId, ...input } }),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success("Fiscal close override authorized. The fiscal document remains unresolved.");
+      void recheck();
+      void queryClient.invalidateQueries({ queryKey: ["night-audit-financial", restaurantId] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   if (auditQuery.isLoading) return <p className="text-sm text-muted-foreground">Running night audit…</p>;
   if (auditQuery.isError || !auditQuery.data) {
     return (
@@ -282,7 +299,7 @@ export function NightAuditWorkspace({
 
   const financialSummary: FinancialSummaryView =
     financialQuery.isError
-      ? { status: "unavailable", blockerCount: 0, warningCount: 0, openDrawerCount: 0, fiscalProblemCount: 0 }
+      ? { status: "unavailable", blockerCount: 0, warningCount: 0, openDrawerCount: 0, fiscalProblemCount: 0, fiscalOverrideCount: 0 }
       : financialQuery.data
         ? {
             status: financialQuery.data.status,
@@ -290,8 +307,9 @@ export function NightAuditWorkspace({
             warningCount: financialQuery.data.summary.warningCount,
             openDrawerCount: financialQuery.data.summary.openDrawerCount,
             fiscalProblemCount: financialQuery.data.summary.fiscalProblemCount,
+            fiscalOverrideCount: financialQuery.data.summary.fiscalOverrideCount ?? 0,
           }
-        : { status: "loading", blockerCount: 0, warningCount: 0, openDrawerCount: 0, fiscalProblemCount: 0 };
+        : { status: "loading", blockerCount: 0, warningCount: 0, openDrawerCount: 0, fiscalProblemCount: 0, fiscalOverrideCount: 0 };
 
   const operationalSummary: OperationalSummaryView =
     operationsQuery.isError
@@ -376,6 +394,10 @@ export function NightAuditWorkspace({
         dateTime={dateTime}
         time={time}
         moduleSearch={moduleSearch}
+        authorizingFiscalOverride={fiscalOverrideMutation.isPending}
+        onAuthorizeFiscalOverride={(exceptionId, reason, reasonCategory) =>
+          fiscalOverrideMutation.mutate({ exceptionId, reason, ...(reasonCategory ? { reasonCategory } : {}) })
+        }
         operations={
           <NightAuditOperationalPanel
             loading={operationsQuery.isLoading || (operationsQuery.isFetching && !operationsQuery.data)}

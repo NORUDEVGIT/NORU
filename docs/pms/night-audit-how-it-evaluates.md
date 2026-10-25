@@ -154,6 +154,14 @@ Only documents whose type is handled by the property’s fiscal integration are 
 
 A device fault that was later fixed does not clear this by itself. The document status has to change. After the document is registered, Recheck drops the blocker. While it is still failed or not registered, the date cannot be closed. Night Audit does not retry the fiscal device.
 
+### Fiscal close override
+
+For an exceptional fiscal outage, an **Owner** or **Manager** may authorize a close override only for one of these fiscal blockers: `fiscal_failed`, `fiscal_cancel_pending`, `fiscal_not_registered`, `fiscal_blocked`, or `fiscal_unrecognized`. The authorization requires a reason, is recorded against that run and business date, and applies only to that Night Audit close.
+
+The override does not repair, cancel, register, retry, or otherwise change the fiscal document. Its actual status remains visible as FAILED, NOT_REGISTERED, BLOCKED, or the original status. It remains in the fiscal queue and will naturally be considered by later reconciliations if their ordinary scope includes it. All non-fiscal blockers — including folio integrity, allocations, arrivals, room conflicts, unavailable reconciliations, and operational issues — remain non-overrideable.
+
+An overridden issue is shown as **Overridden** in Exceptions, Financial, Run & Close, and the permanently retained closed-run history, with its fiscal status, reason, authorizer, and timestamp. It no longer counts as a blocking exception for that one run; it does not become resolved.
+
 ### Tax and service charge
 
 Compares the tax and service-charge amounts frozen on the documents with the amounts the same rules produce from those snapshots.

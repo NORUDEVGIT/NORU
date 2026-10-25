@@ -7,7 +7,12 @@ import { planExceptionSync, type ExceptionSyncExisting } from "./night-audit-exc
 import {
   ALREADY_CLOSED_COPY,
   ALREADY_CLOSED_TITLE,
+  FISCAL_OVERRIDEABLE_EXCEPTION_TYPES,
+  FISCAL_OVERRIDE_REASON_CATEGORIES,
   closedByThisRequest,
+  fiscalStatusForException,
+  isActiveFiscalOverride,
+  isFiscalOverrideableException,
   persistedCloseFacts,
   type PersistedCloseRow,
   DEFAULT_EXCEPTION_FILTER,
@@ -54,6 +59,7 @@ import { parseReportsRouteSearch } from "./reports-shell.ts";
 
 const DATE = "2026-10-21";
 const NEXT = "2026-10-22";
+const NOW = "2026-10-21T23:42:00.000Z";
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const functions = read("./nightaudit.functions.ts");
@@ -64,6 +70,11 @@ const history = read("../components/nightaudit/night-audit-history.tsx");
 const closePanel = read("../components/nightaudit/na1-panels.tsx");
 const workspace = read("../components/workspaces/night-audit-workspace.tsx");
 const migration = readFileSync("supabase/migrations/0115_night_audit_phase0_close_guard.sql", "utf8");
+const fiscalOverrideMigration = readFileSync("supabase/migrations/0178_night_audit_fiscal_close_overrides.sql", "utf8");
+const fiscalOverrideLifecycleMigration = readFileSync(
+  "supabase/migrations/0179_night_audit_fiscal_override_lifecycle.sql",
+  "utf8",
+);
 
 function handler(name: string): string {
   const start = functions.indexOf(`export const ${name} =`);
@@ -137,7 +148,7 @@ describe("NA-P4 exceptions", () => {
 
   it("3. a warning is visible and counted separately", () => {
     const rows = [ex({ severity: "warning" }), ex({ exceptionType: "overstay", severity: "blocking" })];
-    assert.deepEqual(exceptionCounts(rows), { blocking: 1, warnings: 1, open: 2, resolved: 0 });
+    assert.deepEqual(exceptionCounts(rows), { blocking: 1, warnings: 1, open: 2, resolved: 0, fiscalOverrides: 0 });
     assert.equal(filterExceptions(rows, { ...DEFAULT_EXCEPTION_FILTER, severity: "warning" }).length, 1);
   });
 
@@ -358,7 +369,7 @@ describe("NA-P4 Run & Close", () => {
 
   it("26. a blocker appearing between page load and click rejects the close", () => {
     const body = handler("closeBusinessDate");
-    assert.match(body, /!financialAllowsClose\(financial\.result\.status\)/);
+    assert.match(body, /!financialAllowsClose\(closeFinancialStatus\)/);
     assert.match(body, /!operationalAllowsClose\(operational\.result\.status\)/);
     assert.match(body, /Blocking exceptions are still open for this business date\./);
     assert.match(migration, /BLOCKING_EXCEPTIONS_OPEN/);
@@ -624,7 +635,7 @@ describe("NA-P4 redaction", () => {
     assert.match(functions, /summary: presentRunSummary\(\(r\.summary as AuditSummary \| null\) \?\? null, role\)/);
     assert.match(functions, /finance: financialDetail \? evaluation\.finance : null/);
     assert.match(functions, /shifts: financialDetail \? evaluation\.shifts : \[\]/);
-    assert.match(handler("getNightAuditRun"), /toException\(ex, me\.role\)/);
+    assert.match(handler("getNightAuditRun"), /toException\(ex, me\.role, new Map\(\), overrides, overrideNames, history\)/);
     assert.match(handler("listNightAuditRuns"), /toRunRow\(r, names, me\.role\)/);
   });
 });
@@ -795,6 +806,291 @@ describe("NA-P4 concurrent close", () => {
 });
 
 /* ---------------------------------------------------------- navigation */
+
+describe("NA-P4 fiscal close override", () => {
+  const authorize = handler("authorizeFiscalCloseOverride");
+  const fiscal = ex({ exceptionType: "fiscal_failed", severity: "blocking", status: "open", referenceId: "doc-1" });
+
+  it("1–5. only owner and manager see/use the fiscal-only action", () => {
+    assert.equal(isFiscalOverrideableException(fiscal), true);
+    assert.deepEqual([...FISCAL_OVERRIDEABLE_EXCEPTION_TYPES], [
+      "fiscal_failed", "fiscal_cancel_pending", "fiscal_not_registered", "fiscal_blocked",
+    ]);
+    assert.ok(!(FISCAL_OVERRIDEABLE_EXCEPTION_TYPES as readonly string[]).includes("fiscal_unrecognized"));
+    assert.match(queue, /Authorize Fiscal Close Override/);
+    assert.match(queue, /role === "owner" \|\| role === "manager"/);
+    assert.match(authorize, /requireCashierManager/);
+    assert.doesNotMatch(queue, /Override Blocker/);
+  });
+
+  it("6–10. canonical fiscal blockers require a reason and stop blocking only after authorization", () => {
+    assert.equal(fiscalStatusForException("fiscal_failed"), "FAILED");
+    assert.equal(fiscalStatusForException("fiscal_not_registered"), "NOT_REGISTERED");
+    assert.match(authorize, /reason: z\.string\(\)\.trim\(\)\.min\(1, "An override reason is required\."\)\.max\(500\)/);
+    const overridden = [{ ...fiscal, fiscalOverride: {
+      id: "override-1", fiscalStatus: "FAILED", fiscalReference: "INV-1045", reason: "Device offline",
+      reasonCategory: "fiscal_device_offline" as const, overriddenBy: "Manager A", overriddenAt: NOW,
+      invalidatedAt: null, invalidatedReason: null,
+    } }];
+    assert.equal(exceptionCounts(overridden).blocking, 0);
+    assert.equal(exceptionCounts(overridden).fiscalOverrides, 1);
+    assert.equal(overridden[0]!.fiscalOverride?.fiscalStatus, "FAILED");
+    assert.match(functions, /effectiveFinancialStatus/);
+    assert.match(functions, /!financialAllowsClose\(closeFinancialStatus\)/);
+  });
+
+  it("11–14. override stays visible in Exceptions, Financial, Run/Close, and History", () => {
+    assert.match(queue, /data-testid="night-audit-fiscal-override"/);
+    assert.match(queue, /Fiscal status remains \{row\.fiscalOverride\.fiscalStatus\}/);
+    assert.match(read("../components/nightaudit/night-audit-financial-panel.tsx"), /Night Audit Override/);
+    assert.match(desk, /Fiscal overrides/);
+    assert.match(history, /Fiscal Override/);
+  });
+
+  it("15–20. no other blocker and no unavailable read can be overridden", () => {
+    for (const row of [
+      ex({ exceptionType: "closed_folio_nonzero_balance", severity: "blocking" }),
+      ex({ exceptionType: "allocation_exceeds_source", severity: "blocking" }),
+      ex({ exceptionType: "arrival_not_processed", severity: "blocking" }),
+      ex({ exceptionType: "room_double_occupancy", severity: "blocking" }),
+      ex({ exceptionType: "open_folio_balance", severity: "warning" }),
+    ]) {
+      assert.equal(isFiscalOverrideableException(row), false, row.exceptionType);
+    }
+    assert.equal(isFiscalOverrideableException({ ...fiscal, status: "resolved" }), false);
+    assert.match(authorize, /Only an open canonical fiscal blocker can receive a fiscal close override\./);
+    assert.doesNotMatch(authorize, /unavailable.*override/i);
+  });
+
+  it("21–23. server rejects unauthorized, cross-property, stale, and closed-run changes", () => {
+    assert.match(authorize, /requireCashierManager\(context as never, data\.restaurantId\)/);
+    assert.match(authorize, /\.eq\("restaurant_id", data\.restaurantId\)/);
+    assert.match(authorize, /Closed Night Audit runs cannot be modified\./);
+    assert.match(authorize, /property\.businessDate !== runRow\.business_date\.slice\(0, 10\)/);
+    assert.doesNotMatch(authorize, /property\.persistedBusinessDate !== runRow\.business_date\.slice\(0, 10\)/);
+  });
+
+  it("24–27. close still rechecks and never writes or retries fiscal documents", () => {
+    const close = handler("closeBusinessDate");
+    assert.ok(close.indexOf("readFinancialReconciliation(") < close.indexOf('rpc("close_business_date"'));
+    assert.match(close, /await syncRunExceptions/);
+    assert.match(close, /fiscalOverridesForRun/);
+    assert.doesNotMatch(authorize + close, /fiscal.*retry|registerFiscal|fiscal.*update/i);
+    assert.match(fiscalOverrideMigration, /night_audit_fiscal_overrides/);
+    assert.match(fiscalOverrideMigration, /NOT EXISTS \(\s*SELECT 1\s*FROM public\.night_audit_fiscal_overrides/);
+    assert.match(fiscalOverrideMigration, /UPDATE public\.restaurants\s*SET business_date = _run\.business_date \+ 1/);
+    assert.deepEqual([...FISCAL_OVERRIDE_REASON_CATEGORIES], [
+      "fiscal_device_offline", "hardware_failure", "network_failure", "fiscal_authority_unavailable",
+      "integration_failure", "vendor_support_pending", "other",
+    ]);
+  });
+});
+
+/**
+ * In-memory model mirroring the lifecycle implemented in syncRunExceptions +
+ * fiscalOverridesForRun: an override is valid only for the exact exception
+ * occurrence it was authorized for. The source condition resolving
+ * invalidates the active override; reopening never reactivates a historical
+ * row, and a new authorization creates a brand new row (never overwrites
+ * the old one), matching the partial unique index (at most one ACTIVE row
+ * per exception).
+ */
+function fakeFiscalHouse() {
+  const exceptionStatus = new Map<string, "open" | "resolved">();
+  const overrides: Array<{
+    id: string;
+    exceptionId: string;
+    reason: string;
+    overriddenBy: string;
+    invalidatedAt: string | null;
+    invalidatedReason: string | null;
+  }> = [];
+  let seq = 0;
+
+  return {
+    overrides,
+    /** Mirrors planExceptionSync + syncRunExceptions for one fiscal exception row. */
+    recheck(exceptionId: string, conditionPresent: boolean) {
+      const was = exceptionStatus.get(exceptionId);
+      if (conditionPresent) {
+        exceptionStatus.set(exceptionId, "open");
+        return;
+      }
+      if (was === "open") {
+        exceptionStatus.set(exceptionId, "resolved");
+        for (const o of overrides) {
+          if (o.exceptionId === exceptionId && o.invalidatedAt === null) {
+            o.invalidatedAt = "2026-10-21T23:45:00.000Z";
+            o.invalidatedReason = "Source fiscal condition resolved.";
+          }
+        }
+      }
+    },
+    /** Mirrors authorizeFiscalCloseOverride: rejects unless open, and is idempotent under a race. */
+    authorize(exceptionId: string, by: string, reason: string): { ok: true } | { ok: false; message: string } {
+      if (exceptionStatus.get(exceptionId) !== "open") {
+        return { ok: false, message: "Only an open canonical fiscal blocker can receive a fiscal close override." };
+      }
+      if (overrides.some((o) => o.exceptionId === exceptionId && o.invalidatedAt === null)) {
+        return { ok: true }; // duplicate-key race: the winning override is kept, not replaced.
+      }
+      seq += 1;
+      overrides.push({ id: `override-${seq}`, exceptionId, reason, overriddenBy: by, invalidatedAt: null, invalidatedReason: null });
+      return { ok: true };
+    },
+    activeOverride(exceptionId: string) {
+      return overrides.find((o) => o.exceptionId === exceptionId && o.invalidatedAt === null) ?? null;
+    },
+    historyFor(exceptionId: string) {
+      return overrides.filter((o) => o.exceptionId === exceptionId);
+    },
+    isBlocking(exceptionId: string) {
+      return exceptionStatus.get(exceptionId) === "open" && this.activeOverride(exceptionId) === null;
+    },
+  };
+}
+
+describe("NA-P4 fiscal override lifecycle", () => {
+  it("1–15. an override is valid only for its own exception occurrence; reopen requires a fresh authorization", () => {
+    const house = fakeFiscalHouse();
+    const exceptionId = "ex-fiscal-1";
+
+    // 1. fiscal blocker appears
+    house.recheck(exceptionId, true);
+    assert.equal(house.isBlocking(exceptionId), true);
+
+    // 2. Owner authorizes override
+    const first = house.authorize(exceptionId, "Owner A", "Fiscal machine offline");
+    assert.deepEqual(first, { ok: true });
+
+    // 3. active override suppresses blocker
+    assert.equal(house.activeOverride(exceptionId)?.overriddenBy, "Owner A");
+    assert.equal(house.isBlocking(exceptionId), false);
+
+    // 4–5. source condition resolves -> exception auto-resolves
+    house.recheck(exceptionId, false);
+
+    // 6. active override gets invalidated
+    assert.equal(house.activeOverride(exceptionId), null);
+    assert.equal(house.historyFor(exceptionId)[0]?.invalidatedAt, "2026-10-21T23:45:00.000Z");
+    assert.equal(house.historyFor(exceptionId)[0]?.invalidatedReason, "Source fiscal condition resolved.");
+
+    // 7. historical override remains stored
+    assert.equal(house.historyFor(exceptionId).length, 1);
+    assert.equal(house.historyFor(exceptionId)[0]?.id, "override-1");
+
+    // 8–9. source condition returns -> same exception row reopens
+    house.recheck(exceptionId, true);
+
+    // 10. old override remains invalidated
+    assert.equal(house.historyFor(exceptionId)[0]?.invalidatedAt, "2026-10-21T23:45:00.000Z");
+
+    // 11. reopened exception blocks again
+    assert.equal(house.isBlocking(exceptionId), true);
+    assert.equal(house.activeOverride(exceptionId), null);
+
+    // 12. Owner/Manager sees override action again (nothing active blocks a fresh authorize call)
+    const second = house.authorize(exceptionId, "Manager B", "Device failed again");
+    assert.deepEqual(second, { ok: true });
+
+    // 13–14. second authorization creates a new override row that is the only active one
+    assert.equal(house.historyFor(exceptionId).length, 2);
+    assert.equal(house.activeOverride(exceptionId)?.id, "override-2");
+    assert.equal(house.activeOverride(exceptionId)?.overriddenBy, "Manager B");
+    assert.equal(house.isBlocking(exceptionId), false);
+
+    // 15. both override events remain in history
+    assert.deepEqual(house.historyFor(exceptionId).map((o) => o.id), ["override-1", "override-2"]);
+    assert.equal(house.historyFor(exceptionId)[0]?.invalidatedAt !== null, true);
+    assert.equal(house.historyFor(exceptionId)[1]?.invalidatedAt, null);
+
+    // Matches the exported active/invalidated predicate.
+    assert.equal(isActiveFiscalOverride({ invalidatedAt: null }), true);
+    assert.equal(isActiveFiscalOverride({ invalidatedAt: "2026-10-21T23:45:00.000Z" }), false);
+  });
+
+  it("16–20. the close gate counts only the active override, in the app and in the database", () => {
+    const house = fakeFiscalHouse();
+    const exceptionId = "ex-fiscal-2";
+    house.recheck(exceptionId, true);
+    house.authorize(exceptionId, "Owner A", "Device offline");
+
+    // 16. active override allows the fiscal blocker to be excluded from the blocking count
+    assert.equal(house.isBlocking(exceptionId), false);
+
+    // 17. invalidated override does not suppress the blocker
+    house.recheck(exceptionId, false); // resolves + invalidates
+    house.recheck(exceptionId, true); // reopens with no active override
+    assert.equal(house.isBlocking(exceptionId), true);
+
+    // 18. the reopened fiscal exception prevents close
+    assert.equal(
+      [exceptionId].some((id) => house.isBlocking(id)),
+      true,
+    );
+
+    // 19. a fresh second override permits close again
+    house.authorize(exceptionId, "Manager B", "Device failed again");
+    assert.equal(house.isBlocking(exceptionId), false);
+
+    // 20. close_business_date (0179) follows the same active-override rule at the database level
+    assert.match(
+      fiscalOverrideLifecycleMigration,
+      /NOT EXISTS \(\s*SELECT 1\s*FROM public\.night_audit_fiscal_overrides o\s*WHERE o\.exception_id = e\.id\s*AND o\.restaurant_id = _restaurant_id\s*AND o\.night_audit_run_id = _run\.id\s*AND o\.invalidated_at IS NULL\s*\)/,
+    );
+    assert.match(functions, /\.is\("invalidated_at", null\)/);
+  });
+
+  it("21–26. fiscal_unrecognized remains a hard blocker and is never overrideable", () => {
+    const unrecognized = ex({ exceptionType: "fiscal_unrecognized", severity: "blocking", status: "open" });
+
+    // 21. fiscal_unrecognized remains a blocker
+    assert.equal(exceptionCounts([unrecognized]).blocking, 1);
+
+    // 22–23. Owner/Manager do not get the override action for it
+    assert.equal(isFiscalOverrideableException(unrecognized), false);
+    assert.doesNotMatch(FISCAL_OVERRIDEABLE_EXCEPTION_TYPES.join(","), /fiscal_unrecognized/);
+
+    // 24. direct server authorization is rejected the same way as any non-overrideable fiscal issue
+    assert.match(
+      handler("authorizeFiscalCloseOverride"),
+      /Only an open canonical fiscal blocker can receive a fiscal close override\./,
+    );
+
+    // 25. fiscal_unrecognized still appears in Financial (never silently dropped) —
+    // removing override eligibility never touches financial reconciliation itself.
+    assert.match(read("./night-audit-financial.ts"), /"fiscal_unrecognized"/);
+    assert.doesNotMatch(workflow.slice(workflow.indexOf("fiscalStatusForException")), /"fiscal_unrecognized"/);
+
+    // 26. it still prevents close (no override can exempt it)
+    assert.equal(exceptionCounts([unrecognized]).blocking, 1);
+  });
+
+  it("27–33. non-fiscal, security, and concurrency guarantees are unchanged", () => {
+    // 27. non-fiscal blocker remains non-overrideable
+    assert.equal(isFiscalOverrideableException(ex({ exceptionType: "room_double_occupancy", severity: "blocking" })), false);
+
+    // 28–30. unauthorized role, cross-property, and closed-run rejections stay enforced server-side
+    const authorize = handler("authorizeFiscalCloseOverride");
+    assert.match(authorize, /requireCashierManager\(context as never, data\.restaurantId\)/);
+    assert.match(authorize, /\.eq\("restaurant_id", data\.restaurantId\)/);
+    assert.match(authorize, /Closed Night Audit runs cannot be modified\./);
+
+    // 31. historical invalidated overrides remain visible in History
+    assert.match(history, /fiscalOverrideHistory/);
+    assert.match(history, /invalidatedAt/);
+    assert.match(history, /Invalidated:/);
+
+    // 32. current-state UI (Exceptions/Financial/Control Center) reads only the active override
+    assert.match(functions, /ACTIVE override only — never an invalidated one\./);
+    assert.match(functions, /\.is\("invalidated_at", null\)/);
+
+    // 33. concurrent override attempts leave exactly one active override
+    assert.match(fiscalOverrideLifecycleMigration, /CREATE UNIQUE INDEX night_audit_fiscal_overrides_active_exception_idx/);
+    assert.match(fiscalOverrideLifecycleMigration, /WHERE invalidated_at IS NULL/);
+    assert.match(functions, /duplicate key/i);
+  });
+});
 
 describe("NA-P4 navigation", () => {
   it("final top-level workspaces and legacy aliases", () => {

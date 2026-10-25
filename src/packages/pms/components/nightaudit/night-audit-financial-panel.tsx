@@ -986,7 +986,7 @@ export function NightAuditFinancialPanel({
           {result.fiscalConfigured ? (
             <>
               <SimpleTable
-                headers={["Document", "Type", "Issued", "Fiscal Status", "External Reference", "Mode", "Audit Note", "Action"]}
+                headers={["Document", "Type", "Issued", "Fiscal Status", "External Reference", "Mode", "Audit Note", "Night Audit Override", "Action"]}
                 rows={fiscalPage.rows.map((row) => [
                   <span className="font-mono font-semibold">{row.document}</span>,
                   row.type,
@@ -995,6 +995,12 @@ export function NightAuditFinancialPanel({
                   row.externalReference ?? "—",
                   row.mode ?? "—",
                   <span className="text-muted-foreground">{row.issue || "Compliant"}</span>,
+                  row.nightAuditOverride ? (
+                    <span className="text-xs text-amber-900">
+                      Authorized · {row.nightAuditOverride.overriddenBy ?? "—"}<br />
+                      {row.nightAuditOverride.reason}
+                    </span>
+                  ) : "—",
                   <DirectLink label={row.action || "Open Fiscal"} route={row.route} search={row.search} />,
                 ])}
                 empty="No fiscal documents need attention."

@@ -351,6 +351,13 @@ export type FiscalRow = {
   action: string;
   route: string;
   search?: Record<string, string>;
+  /** Night Audit close authorization only; it never changes fiscalStatus. */
+  nightAuditOverride?: {
+    reason: string;
+    reasonCategory: string | null;
+    overriddenBy: string | null;
+    overriddenAt: string;
+  } | null;
 };
 
 export type TaxCurrencyRow = {
@@ -371,6 +378,7 @@ export type NightAuditFinancialReconciliation = {
     warningCount: number;
     openDrawerCount: number;
     fiscalProblemCount: number;
+    fiscalOverrideCount?: number;
     infoCount: number;
   };
   guestFolios: GuestFolioRow[];

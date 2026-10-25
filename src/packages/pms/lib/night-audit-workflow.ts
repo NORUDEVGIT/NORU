@@ -199,6 +199,70 @@ export function exceptionStatusLabel(status: ExceptionStatus): string {
   return "Ignored (legacy)";
 }
 
+/**
+ * Only canonical fiscal reconciliation blockers that are known external
+ * machine/API failures can be authorized for one close. `fiscal_unrecognized`
+ * is deliberately excluded: an unknown fiscal state is not the same as a
+ * known device/API outage, so NORU cannot safely say an override is sound.
+ */
+export const FISCAL_OVERRIDEABLE_EXCEPTION_TYPES = [
+  "fiscal_failed",
+  "fiscal_cancel_pending",
+  "fiscal_not_registered",
+  "fiscal_blocked",
+] as const;
+
+export const FISCAL_OVERRIDE_REASON_CATEGORIES = [
+  "fiscal_device_offline",
+  "hardware_failure",
+  "network_failure",
+  "fiscal_authority_unavailable",
+  "integration_failure",
+  "vendor_support_pending",
+  "other",
+] as const;
+
+export function fiscalStatusForException(exceptionType: string): string | null {
+  switch (exceptionCode(exceptionType)) {
+    case "fiscal_failed":
+      return "FAILED";
+    case "fiscal_cancel_pending":
+      return "CANCEL_PENDING";
+    case "fiscal_not_registered":
+      return "NOT_REGISTERED";
+    case "fiscal_blocked":
+      return "BLOCKED";
+    default:
+      return null;
+  }
+}
+
+export type FiscalOverride = {
+  id: string;
+  fiscalStatus: string;
+  fiscalReference: string | null;
+  reason: string;
+  reasonCategory: (typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number] | null;
+  overriddenBy: string | null;
+  overriddenAt: string;
+  /** Null while this override is the active one suppressing the close gate. */
+  invalidatedAt: string | null;
+  invalidatedReason: string | null;
+};
+
+/** True only while this exact override still suppresses the close gate. */
+export function isActiveFiscalOverride(override: Pick<FiscalOverride, "invalidatedAt">): boolean {
+  return override.invalidatedAt === null;
+}
+
+export function isFiscalOverrideableException(row: Pick<WorkflowException, "exceptionType" | "severity" | "status">): boolean {
+  return (
+    row.severity === "blocking" &&
+    row.status === "open" &&
+    (FISCAL_OVERRIDEABLE_EXCEPTION_TYPES as readonly string[]).includes(exceptionCode(row.exceptionType))
+  );
+}
+
 export type WorkflowException = {
   id: string;
   exceptionType: string;
@@ -209,6 +273,10 @@ export type WorkflowException = {
   status: ExceptionStatus;
   createdAt?: string | null;
   resolvedAt: string | null;
+  /** The currently ACTIVE fiscal override, if any. Null once invalidated or never authorized. */
+  fiscalOverride?: FiscalOverride | null;
+  /** Every override event ever authorized for this exact exception row, oldest first. History only. */
+  fiscalOverrideHistory?: FiscalOverride[];
 };
 
 export type ExceptionFilter = {
@@ -261,13 +329,15 @@ export function exceptionCounts(rows: readonly WorkflowException[]): {
   warnings: number;
   open: number;
   resolved: number;
+  fiscalOverrides: number;
 } {
   const open = rows.filter((row) => row.status === "open");
   return {
-    blocking: open.filter((row) => row.severity === "blocking").length,
+    blocking: open.filter((row) => row.severity === "blocking" && !row.fiscalOverride).length,
     warnings: open.filter((row) => row.severity === "warning").length,
     open: open.length,
     resolved: rows.filter((row) => row.status === "resolved").length,
+    fiscalOverrides: open.filter((row) => row.fiscalOverride != null).length,
   };
 }
 

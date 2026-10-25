@@ -40,10 +40,22 @@ import {
   exceptionMeta,
   exceptionStatusLabel,
   filterExceptions,
+  FISCAL_OVERRIDE_REASON_CATEGORIES,
+  isFiscalOverrideableException,
   type ExceptionFilter,
 } from "@/packages/pms/lib/night-audit-workflow";
 import type { AuditException } from "@/packages/pms/lib/nightaudit.functions";
 import { Button } from "@/shared/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -132,6 +144,9 @@ export function NightAuditExceptionQueue({
   focus,
   moduleSearch,
   dateTime,
+  role,
+  authorizingFiscalOverride,
+  onAuthorizeFiscalOverride,
 }: {
   exceptions: AuditException[];
   businessDate: string;
@@ -140,6 +155,13 @@ export function NightAuditExceptionQueue({
   focus?: string | undefined;
   moduleSearch: string;
   dateTime: (value: string) => string;
+  role: string;
+  authorizingFiscalOverride: boolean;
+  onAuthorizeFiscalOverride: (
+    exceptionId: string,
+    reason: string,
+    reasonCategory?: (typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number],
+  ) => void;
 }) {
   const [filter, setFilter] = useState<ExceptionFilter>(() => exceptionFilterForFocus(focus));
   const [page, setPage] = useState(1);
@@ -401,7 +423,7 @@ export function NightAuditExceptionQueue({
                               row.severity === "blocking" ? "bg-red-500" : "bg-amber-500",
                             )}
                           />
-                          {row.severity === "blocking" ? "Blocker" : "Warning"}
+                          {row.fiscalOverride ? "Fiscal override" : row.severity === "blocking" ? "Blocker" : "Warning"}
                         </span>
                       </td>
                       <td className="px-3.5 py-3 align-middle text-muted-foreground">
@@ -425,14 +447,16 @@ export function NightAuditExceptionQueue({
                         <span
                           className={cn(
                             "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                            row.status === "open"
+                            row.fiscalOverride
+                              ? "bg-amber-100 text-amber-950"
+                              : row.status === "open"
                               ? "bg-amber-100/80 text-amber-950"
                               : row.status === "resolved"
                                 ? "bg-emerald-100 text-emerald-900"
                                 : "bg-muted text-muted-foreground",
                           )}
                         >
-                          {exceptionStatusLabel(row.status)}
+                          {row.fiscalOverride ? "Overridden" : exceptionStatusLabel(row.status)}
                         </span>
                       </td>
                       <td className="px-3.5 py-3 whitespace-nowrap text-muted-foreground align-middle">
@@ -515,6 +539,9 @@ export function NightAuditExceptionQueue({
               businessDate={businessDate}
               checkedAt={runClosed ? null : checkedAt}
               dateTime={dateTime}
+              role={role}
+              authorizingFiscalOverride={authorizingFiscalOverride}
+              onAuthorizeFiscalOverride={onAuthorizeFiscalOverride}
             />
           ) : null}
         </SheetContent>
@@ -1010,11 +1037,21 @@ function ExceptionDetail({
   businessDate,
   checkedAt,
   dateTime,
+  role,
+  authorizingFiscalOverride,
+  onAuthorizeFiscalOverride,
 }: {
   row: AuditException;
   businessDate: string;
   checkedAt: string | null;
   dateTime: (value: string) => string;
+  role: string;
+  authorizingFiscalOverride: boolean;
+  onAuthorizeFiscalOverride: (
+    exceptionId: string,
+    reason: string,
+    reasonCategory?: (typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number],
+  ) => void;
 }) {
   const meta = exceptionMeta(row.exceptionType);
   const source = getExceptionSource(row, businessDate);
@@ -1101,7 +1138,104 @@ function ExceptionDetail({
           </Button>
         </div>
       ) : null}
+      {row.fiscalOverride ? (
+        <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs" data-testid="night-audit-fiscal-override">
+          <p className="font-semibold text-amber-950">Overridden for close</p>
+          <p className="mt-1">Fiscal status remains {row.fiscalOverride.fiscalStatus}.</p>
+          <p className="mt-1">Authorized by {row.fiscalOverride.overriddenBy ?? "—"} · {dateTime(row.fiscalOverride.overriddenAt)}</p>
+          <p className="mt-1">Reason: {row.fiscalOverride.reason}</p>
+        </section>
+      ) : null}
+      {canAuthorizeFiscalOverride(role, row) ? (
+        <FiscalOverrideAction
+          row={row}
+          businessDate={businessDate}
+          busy={authorizingFiscalOverride}
+          onAuthorize={onAuthorizeFiscalOverride}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function canAuthorizeFiscalOverride(role: string, row: AuditException): boolean {
+  return (role === "owner" || role === "manager") && isFiscalOverrideableException(row) && !row.fiscalOverride;
+}
+
+function FiscalOverrideAction({
+  row,
+  businessDate,
+  busy,
+  onAuthorize,
+}: {
+  row: AuditException;
+  businessDate: string;
+  busy: boolean;
+  onAuthorize: (
+    exceptionId: string,
+    reason: string,
+    reasonCategory?: (typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number],
+  ) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [category, setCategory] = useState<(typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number] | "">("");
+  const meta = exceptionMeta(row.exceptionType);
+  const fiscalStatus = meta.code.replace(/^fiscal_/, "").replaceAll("_", " ").toUpperCase();
+  const submit = () => {
+    if (!reason.trim()) return;
+    onAuthorize(row.id, reason.trim(), category || undefined);
+    setOpen(false);
+  };
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <Button type="button" variant="outline" className="border-amber-300 text-amber-950" onClick={() => setOpen(true)}>
+        Authorize Fiscal Close Override
+      </Button>
+      <AlertDialogContent data-testid="night-audit-fiscal-override-dialog">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Authorize fiscal close override?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This allows this business date to close while the fiscal issue remains unresolved. It does not change fiscal registration.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <dl className="grid grid-cols-2 gap-3 text-sm">
+          <Field label="Fiscal document / reference" value={row.referenceId ?? row.referenceType ?? "—"} />
+          <Field label="Fiscal status" value={fiscalStatus} />
+          <Field label="Business date" value={formatNa1Date(businessDate)} />
+          <Field label="Fiscal error" value={row.message} />
+        </dl>
+        <label className="block text-sm font-medium">
+          Override reason *
+          <textarea
+            className="mt-1 min-h-24 w-full rounded-md border border-input bg-background p-2 text-sm"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={500}
+            required
+          />
+        </label>
+        <label className="block text-sm font-medium">
+          Reason category
+          <select
+            className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+            value={category}
+            onChange={(event) => setCategory(event.target.value as typeof category)}
+          >
+            <option value="">Select a category</option>
+            {FISCAL_OVERRIDE_REASON_CATEGORIES.map((value) => (
+              <option key={value} value={value}>{value.replaceAll("_", " ")}</option>
+            ))}
+          </select>
+        </label>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction disabled={busy || !reason.trim()} onClick={(event) => { event.preventDefault(); submit(); }}>
+            {busy ? "Authorizing…" : "Authorize Fiscal Override"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

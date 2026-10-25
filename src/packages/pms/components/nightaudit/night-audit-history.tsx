@@ -319,6 +319,32 @@ function RunDetail({
                     {row.severity === "blocking" ? "Blocker" : "Warning"} · {exceptionStatusLabel(row.status)}
                   </span>
                   <p className="text-muted-foreground">{row.message}</p>
+                  {row.fiscalOverrideHistory.length > 0 ? (
+                    <div className="mt-1 space-y-1">
+                      {row.fiscalOverrideHistory.map((override, index) => (
+                        <div
+                          key={override.id}
+                          className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-950"
+                        >
+                          <strong>
+                            Fiscal Override #{index + 1}
+                            {override.invalidatedAt ? null : " (active at close)"}
+                          </strong>{" "}
+                          · status: {override.fiscalStatus}
+                          <br />
+                          Authorized: {dateTime(override.overriddenAt)} by {override.overriddenBy ?? "—"} ·{" "}
+                          {override.reason}
+                          {override.invalidatedAt ? (
+                            <>
+                              <br />
+                              Invalidated: {dateTime(override.invalidatedAt)}
+                              {override.invalidatedReason ? ` · ${override.invalidatedReason}` : ""}
+                            </>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </li>
               );
             })}

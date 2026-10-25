@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -61,6 +61,7 @@ export type FinancialSummaryView = {
   warningCount: number;
   openDrawerCount: number;
   fiscalProblemCount: number;
+  fiscalOverrideCount: number;
 };
 
 export type OperationalSummaryView = {
@@ -489,6 +490,8 @@ export function NightAuditDesk({
   dateTime,
   time,
   moduleSearch,
+  authorizingFiscalOverride,
+  onAuthorizeFiscalOverride,
 }: {
   tab: NightAuditTabId;
   focus?: string | undefined;
@@ -540,6 +543,8 @@ export function NightAuditDesk({
   dateTime: (value: string) => string;
   time: (value: string) => string;
   moduleSearch: string;
+  authorizingFiscalOverride: boolean;
+  onAuthorizeFiscalOverride: (exceptionId: string, reason: string, reasonCategory?: "fiscal_device_offline" | "hardware_failure" | "network_failure" | "fiscal_authority_unavailable" | "integration_failure" | "vendor_support_pending" | "other") => void;
 }) {
   const clock = usePropertyClock(time);
   const closed = runStatus === "closed";
@@ -619,6 +624,9 @@ export function NightAuditDesk({
           focus={focus}
           moduleSearch={moduleSearch}
           dateTime={dateTime}
+          role={role}
+          authorizingFiscalOverride={authorizingFiscalOverride}
+          onAuthorizeFiscalOverride={onAuthorizeFiscalOverride}
         />
       ) : null}
 
@@ -714,6 +722,14 @@ export function NightAuditDesk({
               icon={<CalendarDays className="size-3.5" />}
               tone={financialSummary.openDrawerCount > 0 ? "red" : "green"}
               onClick={() => onOpenFinancial?.("drawers")}
+            />
+            <KpiCard
+              label="Fiscal overrides"
+              value={countText(financialSummary.status, financialSummary.fiscalOverrideCount)}
+              detail="Authorized for this close only"
+              icon={<ShieldAlert className="size-3.5" />}
+              tone={financialSummary.fiscalOverrideCount > 0 ? "amber" : "green"}
+              onClick={() => onNavigate("exceptions")}
             />
           </div>
 
