@@ -44,6 +44,8 @@ import {
   anchoredNatures,
   manualChargeNature,
   manualFiscalMapping,
+  manualIdentityNature,
+  manualNatureBlocksInvoice,
   MANUAL_NATURE_MIXED,
 } from "./fiscal-manual-item.ts";
 import {
@@ -191,6 +193,7 @@ type FrozenGroup = {
   grossTotal: number;
   taxLines: FrozenTax[];
   serviceLineCount: number;
+  natureOfSupplies: string | null;
 };
 
 export function guestInvoiceTrnxId(invoiceId: string): string {
@@ -271,10 +274,16 @@ export function assessGuestInvoiceFiscal(
       .filter((nature): nature is string => Boolean(nature)),
   );
   const manualNature = manualChargeNature(anchored);
-  const needsManualIdentity = parsed.groups.some(
-    (group) => group.chargeSource === "manual" && !resolveItem(group, input.itemMappings),
-  );
-  if (needsManualIdentity && manualNature === "mixed") {
+  if (
+    manualNatureBlocksInvoice(
+      parsed.groups.map((group) => ({
+        chargeSource: group.chargeSource,
+        natureOfSupplies: group.natureOfSupplies,
+        mapped: resolveItem(group, input.itemMappings) != null,
+      })),
+      manualNature,
+    )
+  ) {
     reasons.push(MANUAL_NATURE_MIXED);
     return { ok: false, reasons, missingTaxes, missingItems, missingMode, missingDevice };
   }
@@ -289,10 +298,11 @@ export function assessGuestInvoiceFiscal(
       (group.chargeSource === "manual" && input.allowPreviewManualCode
         ? String(previewSerial++)
         : null);
+    const chosenNature = manualIdentityNature(group.natureOfSupplies, manualNature);
     const item =
       mapped ??
-      (group.chargeSource === "manual" && manualCode && manualNature !== "mixed"
-        ? manualFiscalMapping(manualCode, manualNature)
+      (group.chargeSource === "manual" && manualCode && chosenNature
+        ? manualFiscalMapping(manualCode, chosenNature)
         : null);
     if (!item) {
       missingItems.push(group.description);
@@ -622,6 +632,7 @@ function parseGroup(value: unknown): FrozenGroup | null {
     chargeSource: textOrNull(row.chargeSource),
     serviceTypeId: textOrNull(chargeSnapshot?.serviceTypeId),
     departmentId: textOrNull(chargeSnapshot?.departmentId),
+    natureOfSupplies: textOrNull(chargeSnapshot?.natureOfSupplies),
     quantity: positiveOrNull(row.quantity),
     unitAmount: row.unitAmount == null ? null : numberValue(row.unitAmount),
     subtotal: fiscalMoney(numberValue(row.subtotal)),

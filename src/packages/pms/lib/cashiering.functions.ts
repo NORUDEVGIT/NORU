@@ -1304,6 +1304,7 @@ export const postFolioEntry = createServerFn({ method: "POST" })
       receivedFrom?: string;
       idempotencyKey: string;
       originalTransactionId?: string;
+      natureOfSupplies?: "goods" | "service";
     }) =>
       z
         .object({
@@ -1316,6 +1317,7 @@ export const postFolioEntry = createServerFn({ method: "POST" })
           receivedFrom: z.string().trim().min(1).max(120).optional(),
           idempotencyKey: z.string().min(8).max(80),
           originalTransactionId: idSchema.optional(),
+          natureOfSupplies: z.enum(["goods", "service"]).optional(),
         })
         .parse(d),
   )
@@ -1420,6 +1422,23 @@ export const postFolioEntry = createServerFn({ method: "POST" })
         }
       }
       originalTransactionId = data.originalTransactionId;
+    }
+
+    if (data.type === "charge" && data.natureOfSupplies) {
+      const { data: txn, error } = await supabaseAdmin.rpc("post_folio_manual_charge", {
+        _restaurant_id: data.restaurantId,
+        _folio_id: data.folioId,
+        _description: description,
+        _amount: Math.round(data.amount * 100) / 100,
+        _membership_id: me.id,
+        _idempotency_key: idempotencyKey,
+        _nature_of_supplies: data.natureOfSupplies,
+      });
+      if (error) return { ok: false, message: cashierError(error.message).message };
+      const id =
+        txn && typeof txn === "object" && "id" in txn ? String((txn as { id: string }).id) : "";
+      if (!id) return { ok: false, message: "The charge did not post." };
+      return { ok: true, id };
     }
 
     try {

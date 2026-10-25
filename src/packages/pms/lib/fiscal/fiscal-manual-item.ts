@@ -20,6 +20,40 @@ export function manualChargeNature(
   return unique[0] ?? "service";
 }
 
+/** Nature chosen when the manual charge was posted. Older charges have none. */
+export function statedManualNature(
+  value: string | null | undefined,
+): FiscalNatureOfSupplies | null {
+  if (!value) return null;
+  return fiscalNatureOfSupplies(value.trim());
+}
+
+/**
+ * A stored goods/service choice wins. Otherwise the line follows the other
+ * mapped lines. A mixed invoice cannot invent one nature for an unstated line.
+ */
+export function manualIdentityNature(
+  stated: string | null | undefined,
+  fallback: FiscalNatureOfSupplies | "mixed",
+): FiscalNatureOfSupplies | null {
+  return statedManualNature(stated) ?? (fallback === "mixed" ? null : fallback);
+}
+
+export function manualNatureBlocksInvoice(
+  groups: readonly {
+    chargeSource: string | null;
+    natureOfSupplies?: string | null;
+    mapped: boolean;
+  }[],
+  fallback: FiscalNatureOfSupplies | "mixed",
+): boolean {
+  if (fallback !== "mixed") return false;
+  return groups.some(
+    (group) =>
+      group.chargeSource === "manual" && !group.mapped && statedManualNature(group.natureOfSupplies) == null,
+  );
+}
+
 export function manualFiscalMapping(itemCode: string, nature: FiscalNatureOfSupplies) {
   return {
     serviceTypeId: null,
