@@ -1,4 +1,4 @@
-import { propertyToday } from "../reservation-dates";
+import { propertyToday } from "../../../../shared/lib/property-dates.ts";
 
 /**
  * Property operational date contract shared with Night Audit and Reservation

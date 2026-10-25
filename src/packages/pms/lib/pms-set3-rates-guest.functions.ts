@@ -262,9 +262,14 @@ export const savePmsMealPlan = createServerFn({ method: "POST" })
       applicable_outlet_ids: data.applicableOutletIds,
       tax_posture: data.taxPosture,
     };
-    const result = data.id
-      ? await supabaseAdmin.from("pms_meal_plans").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
-      : await supabaseAdmin.from("pms_meal_plans").insert(payload);
+    if (!data.id) {
+      throw new Error("Create meal plans in Meal Plans & Packages.");
+    }
+    const result = await supabaseAdmin
+      .from("pms_meal_plans")
+      .update(payload)
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId);
     if (result.error) {
       if (result.error.code === "23505") throw new Error("That meal-plan code is already used.");
       if (isMissingSchemaError(result.error)) throw new Error(SET3_UNAVAILABLE_CATALOGUE);

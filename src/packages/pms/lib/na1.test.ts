@@ -99,7 +99,7 @@ describe("NA-1 confirm enablement", () => {
       overstayCount: 0,
       unpaidFolios: { lane: "unavailable", count: 99 },
       openShift: { tillUsed: false, openCount: 0 },
-      hkConflict: { discrepancyLane: "unavailable", discrepancyCount: 4, roomUnavailableCount: 0 },
+      hkConflict: { discrepancyLane: "live", discrepancyCount: 0, roomUnavailableCount: 0 },
       integrity: emptyIntegrityCounts(),
     });
     const unpaid = rows.find((row) => row.id === "unpaid_folios");

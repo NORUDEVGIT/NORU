@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -49,6 +49,7 @@ import {
   InventoryStatusBadge,
   PmsSelect,
 } from "./room-inventory-shared";
+import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
 import { addDays, eligibilityCodeLabel, preferenceReasonLabel } from "./room-inventory-utils";
 
 export interface AssignmentInspectionPrefill {
@@ -66,10 +67,6 @@ const IMPACT_LABELS: Record<InventoryImpact, string> = {
   warning_only: "Warning only",
   no_inventory_impact: "No inventory impact",
 };
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function titleCase(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
@@ -113,11 +110,18 @@ export function RoomAssignmentEligibilityView({
     queryFn: () => loadTypes({ data: { restaurantId, includeInactive: true } }),
     staleTime: 60_000,
   });
+  const loadBusinessDate = useServerFn(getPropertyBusinessDate);
+  const businessDateQuery = useQuery({
+    queryKey: ["property-business-date", restaurantId],
+    queryFn: () => loadBusinessDate({ data: { restaurantId } }),
+    staleTime: 60_000,
+  });
+  const seededStay = useRef(false);
   const [input, setInput] = useState({
     roomId: prefill?.roomId ?? "",
     roomTypeId: prefill?.roomTypeId ?? "",
-    arrival: today(),
-    departure: addDays(today(), 1),
+    arrival: "",
+    departure: "",
     adults: "1",
     children: "0",
     requiredBedType: "",
@@ -131,6 +135,16 @@ export function RoomAssignmentEligibilityView({
   useEffect(() => {
     if (prefill) setInput((current) => ({ ...current, ...prefill }));
   }, [prefill]);
+  useEffect(() => {
+    const date = businessDateQuery.data?.businessDate;
+    if (!date || seededStay.current) return;
+    seededStay.current = true;
+    setInput((current) => ({
+      ...current,
+      arrival: current.arrival || date,
+      departure: current.departure || addDays(date, 1),
+    }));
+  }, [businessDateQuery.data]);
 
   const rooms = useMemo(() => roomsQuery.data ?? [], [roomsQuery.data]);
   const room = rooms.find((item) => item.id === input.roomId) ?? null;
@@ -928,10 +942,24 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
 export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) {
   const { query } = useInventoryPolicy(restaurantId);
   const loadBoard = useServerFn(getOverbookingBoard);
-  const [night, setNight] = useState(() => new Date().toISOString().slice(0, 10));
+  const loadBusinessDate = useServerFn(getPropertyBusinessDate);
+  const businessDateQuery = useQuery({
+    queryKey: ["property-business-date", restaurantId],
+    queryFn: () => loadBusinessDate({ data: { restaurantId } }),
+    staleTime: 60_000,
+  });
+  const [night, setNight] = useState<string | null>(null);
+  useEffect(() => {
+    if (night || !businessDateQuery.data?.businessDate) return;
+    setNight(businessDateQuery.data.businessDate);
+  }, [businessDateQuery.data, night]);
   const board = useQuery({
     queryKey: ["overbooking-board", restaurantId, night],
-    queryFn: () => loadBoard({ data: { restaurantId, start: night, end: night } }),
+    queryFn: () => {
+      if (!night) throw new Error("Property business date is not ready.");
+      return loadBoard({ data: { restaurantId, start: night, end: night } });
+    },
+    enabled: Boolean(night),
   });
   const summary = board.data?.nights[0];
   return (
@@ -998,7 +1026,7 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
                 <Input
                   type="date"
                   className="mt-1 h-9 text-xs"
-                  value={night}
+                  value={night ?? ""}
                   onChange={(event) => setNight(event.target.value)}
                 />
               </label>

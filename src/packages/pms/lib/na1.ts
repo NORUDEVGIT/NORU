@@ -61,7 +61,7 @@ export type NaFolioLane = "live" | "unavailable";
 export type NaClearLink = {
   label: string;
   to: string;
-  search?: { tab: string };
+  search?: { tab: string; date?: string };
 };
 
 export type NaBlockerRow = {
@@ -220,6 +220,21 @@ export function emptyIntegrityCounts(): NaIntegrityCounts {
   };
 }
 
+export function nightAuditFeedCounts(
+  exceptions: readonly { exceptionType: string }[],
+): { settlementBlockers: number; occupiedRestricted: number; occupiedDiscrepancies: number } {
+  const count = (type: string) => exceptions.filter((row) => row.exceptionType === type).length;
+  return {
+    settlementBlockers:
+      count("folio_invoice_contradiction") +
+      count("allocation_exceeds_source") +
+      count("orphan_allocation") +
+      count("unpaid_folio"),
+    occupiedRestricted: count("occupied_restricted_room"),
+    occupiedDiscrepancies: count("hk_conflict"),
+  };
+}
+
 export function integrityBlockerCounts(
   exceptions: readonly { exceptionType: string }[],
 ): NaIntegrityCounts {
@@ -259,13 +274,39 @@ export function remainingBlockerCount(rows: readonly NaBlockerRow[]): number {
 }
 
 /**
- * Confirm is enabled only when every applicable Live row is Pass or N/A.
- * Unavailable rows are not a fake Pass and do not count as remaining blockers.
+ * Confirm is enabled when every applicable row is Pass or N/A.
+ * Designed unavailable rows (no cancel/no-show worklist, or a role that cannot read folios)
+ * do not block confirm. A required check that failed to load does.
  */
+const CONFIRM_ALLOWED_UNAVAILABLE = new Set<NaBlockerId>([
+  "cancel_noshow_pending",
+  "unpaid_folios",
+]);
+
 export function canEnableConfirm(rows: readonly NaBlockerRow[]): boolean {
-  return rows.every(
-    (row) => row.state === "pass" || row.state === "na" || row.state === "unavailable",
-  );
+  return rows.every((row) => {
+    if (row.state === "pass" || row.state === "na") return true;
+    return row.state === "unavailable" && CONFIRM_ALLOWED_UNAVAILABLE.has(row.id);
+  });
+}
+
+/** Historical summaries stored the overstay count in inHouse. Trust inHouse only when overstays is separate. */
+export function summaryRoomUnitCount(
+  summary: { inHouse?: number; overstays?: number } | null | undefined,
+): number | null {
+  if (!summary || typeof summary.overstays !== "number" || typeof summary.inHouse !== "number") {
+    return null;
+  }
+  return summary.inHouse;
+}
+
+export const NIGHT_AUDIT_OTB_FAILED_NOTICE =
+  "Business date closed successfully. OTB snapshot failed.";
+
+export function nightAuditOtbNotice(
+  status: "captured" | "already_present" | "failed" | null | undefined,
+): string | null {
+  return status === "failed" ? NIGHT_AUDIT_OTB_FAILED_NOTICE : null;
 }
 
 export function workspaceStatus(input: {
@@ -338,6 +379,7 @@ function unavailableRow(id: NaBlockerId, detail: string): NaBlockerRow {
 }
 
 export function buildNa1Blockers(input: {
+  businessDate?: string;
   arrivalsPendingCount: number;
   overstayCount: number;
   unpaidFolios: { lane: NaFolioLane; count: number };
@@ -378,8 +420,8 @@ export function buildNa1Blockers(input: {
           input.unpaidFolios.count > 0 ? "block" : "pass",
           input.unpaidFolios.count,
           input.unpaidFolios.count > 0
-            ? `${input.unpaidFolios.count} FO payment issue(s) with an outstanding balance or unpaid deposit.`
-            : "No unpaid folio or deposit issues on the Live feed.",
+            ? `${input.unpaidFolios.count} folio or invoice settlement contradiction(s). An open in-house balance is not one of these.`
+            : "No folio/invoice settlement contradictions.",
         );
 
   const openShift = input.openShift.tillUsed
@@ -403,36 +445,31 @@ export function buildNa1Blockers(input: {
     "No standing pending-fee worklist. Not invented from arrivals.",
   );
 
-  const trustedHkCount =
-    (input.hkConflict.discrepancyLane === "live" ? input.hkConflict.discrepancyCount : 0) +
-    input.hkConflict.roomUnavailableCount;
-  const hkDetailParts: string[] = [];
-  if (input.hkConflict.roomUnavailableCount > 0) {
-    hkDetailParts.push(
-      `${input.hkConflict.roomUnavailableCount} assigned room(s) out of order or out of service`,
-    );
-  }
-  if (input.hkConflict.discrepancyLane === "live") {
-    hkDetailParts.push(
-      input.hkConflict.discrepancyCount > 0
-        ? `${input.hkConflict.discrepancyCount} open room discrepancy(ies)`
-        : "no open room discrepancies",
-    );
-  } else {
-    hkDetailParts.push("room discrepancy feed unavailable");
-  }
-  const hk = liveRow(
-    "hk_conflict",
-    trustedHkCount > 0 ? "block" : "pass",
-    trustedHkCount,
-    trustedHkCount > 0
-      ? `${hkDetailParts.join(" · ")}.`
-      : `No assigned-room OOO/OOS. ${
-          input.hkConflict.discrepancyLane === "live"
-            ? "No open room discrepancies."
-            : "Room discrepancy feed unavailable — that part is not counted."
-        }`,
-  );
+  const hk =
+    input.hkConflict.discrepancyLane === "live"
+      ? liveRow(
+          "hk_conflict",
+          input.hkConflict.discrepancyCount + input.hkConflict.roomUnavailableCount > 0
+            ? "block"
+            : "pass",
+          input.hkConflict.discrepancyCount + input.hkConflict.roomUnavailableCount,
+          input.hkConflict.discrepancyCount + input.hkConflict.roomUnavailableCount > 0
+            ? [
+                input.hkConflict.roomUnavailableCount > 0
+                  ? `${input.hkConflict.roomUnavailableCount} assigned room(s) out of order or out of service`
+                  : null,
+                input.hkConflict.discrepancyCount > 0
+                  ? `${input.hkConflict.discrepancyCount} open room discrepancy(ies)`
+                  : "no open room discrepancies",
+              ]
+                .filter(Boolean)
+                .join(" · ") + "."
+            : "No assigned-room OOO/OOS. No open room discrepancies.",
+        )
+      : unavailableRow(
+          "hk_conflict",
+          "Housekeeping discrepancy check did not load. Close stays unavailable.",
+        );
 
   const checkedInWithoutRoom = countRow(
     "checked_in_without_room",
@@ -477,7 +514,19 @@ export function buildNa1Blockers(input: {
     closedNonzero,
     postActivity,
     duplicateCharge,
-  ];
+  ].map((row) => stampFrontOfficeDate(row, input.businessDate));
+}
+
+function stampFrontOfficeDate(row: NaBlockerRow, businessDate: string | undefined): NaBlockerRow {
+  if (!businessDate) return row;
+  return {
+    ...row,
+    clear: row.clear.map((link) =>
+      link.to === "/restaurant/pms/front-office"
+        ? { ...link, search: { tab: link.search?.tab ?? "arrivals", date: businessDate } }
+        : link,
+    ),
+  };
 }
 
 function countRow(id: NaBlockerId, count: number, blocked: string, clear: string): NaBlockerRow {
@@ -529,9 +578,14 @@ export function closeBlockingExceptions(
 
   push("arrivals_pending", ARRIVAL_EXCEPTION_TYPES);
   push("overstays", ["overstay"]);
-  push("unpaid_folios", ["unpaid_folio"]);
+  push("unpaid_folios", [
+    "unpaid_folio",
+    "folio_invoice_contradiction",
+    "allocation_exceeds_source",
+    "orphan_allocation",
+  ]);
   push("open_shift", ["open_cashier_shift"]);
-  push("hk_conflict", ["hk_conflict"]);
+  push("hk_conflict", ["hk_conflict", "occupied_restricted_room"]);
   push("checked_in_without_room", ["checked_in_without_room"]);
   push("room_double_occupancy", ["room_double_occupancy"]);
   push("closed_folio_nonzero_balance", ["closed_folio_nonzero_balance"]);

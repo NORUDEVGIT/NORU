@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -115,8 +115,8 @@ export type Database = {
       distribution_channels: {
         Row: {
           activated_at: string | null
-          channel_type: string
           channel_property_code: string | null
+          channel_type: string
           code: string
           created_at: string
           environment: string
@@ -134,8 +134,8 @@ export type Database = {
         }
         Insert: {
           activated_at?: string | null
-          channel_type?: string
           channel_property_code?: string | null
+          channel_type?: string
           code: string
           created_at?: string
           environment?: string
@@ -153,8 +153,8 @@ export type Database = {
         }
         Update: {
           activated_at?: string | null
-          channel_type?: string
           channel_property_code?: string | null
+          channel_type?: string
           code?: string
           created_at?: string
           environment?: string
@@ -415,6 +415,1113 @@ export type Database = {
           },
         ]
       }
+      financial_account_counters: {
+        Row: {
+          last_number: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_number?: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_number?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_account_counters_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_account_invoice_draft_items: {
+        Row: {
+          created_at: string
+          draft_id: string
+          id: string
+          source_group_id: string
+        }
+        Insert: {
+          created_at?: string
+          draft_id: string
+          id?: string
+          source_group_id: string
+        }
+        Update: {
+          created_at?: string
+          draft_id?: string
+          id?: string
+          source_group_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_account_invoice_draft_items_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "financial_account_invoice_drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_account_invoice_draft_items_source_group_id_fkey"
+            columns: ["source_group_id"]
+            isOneToOne: false
+            referencedRelation: "folio_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_account_invoice_drafts: {
+        Row: {
+          created_at: string
+          created_by_membership_id: string
+          financial_account_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          updated_at: string
+          updated_by_membership_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_membership_id: string
+          financial_account_id: string
+          id?: string
+          notes?: string | null
+          restaurant_id: string
+          updated_at?: string
+          updated_by_membership_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_membership_id?: string
+          financial_account_id?: string
+          id?: string
+          notes?: string | null
+          restaurant_id?: string
+          updated_at?: string
+          updated_by_membership_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_account_invoice_drafts_account_fk"
+            columns: ["financial_account_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "financial_account_invoice_drafts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_account_invoice_events: {
+        Row: {
+          actor_membership_id: string | null
+          created_at: string
+          event_type: string
+          financial_account_id: string
+          id: string
+          invoice_id: string | null
+          new_values: Json | null
+          restaurant_id: string
+        }
+        Insert: {
+          actor_membership_id?: string | null
+          created_at?: string
+          event_type: string
+          financial_account_id: string
+          id?: string
+          invoice_id?: string | null
+          new_values?: Json | null
+          restaurant_id: string
+        }
+        Update: {
+          actor_membership_id?: string | null
+          created_at?: string
+          event_type?: string
+          financial_account_id?: string
+          id?: string
+          invoice_id?: string | null
+          new_values?: Json | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_account_invoice_events_account_fk"
+            columns: ["financial_account_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "financial_account_invoice_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_account_invoice_lines: {
+        Row: {
+          amount: number
+          component_kind: string
+          component_transaction_id: string
+          created_at: string
+          financial_account_id: string
+          id: string
+          invoice_id: string
+          restaurant_id: string
+          snapshot: Json
+          source_group_id: string
+        }
+        Insert: {
+          amount: number
+          component_kind: string
+          component_transaction_id: string
+          created_at?: string
+          financial_account_id: string
+          id?: string
+          invoice_id: string
+          restaurant_id: string
+          snapshot: Json
+          source_group_id: string
+        }
+        Update: {
+          amount?: number
+          component_kind?: string
+          component_transaction_id?: string
+          created_at?: string
+          financial_account_id?: string
+          id?: string
+          invoice_id?: string
+          restaurant_id?: string
+          snapshot?: Json
+          source_group_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_account_invoice_lines_account_fk"
+            columns: ["financial_account_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "financial_account_invoice_lines_component_transaction_id_fkey"
+            columns: ["component_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "folio_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_account_invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "financial_account_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_account_invoice_lines_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_account_invoices: {
+        Row: {
+          financial_account_id: string
+          id: string
+          idempotency_key: string | null
+          issued_at: string
+          issued_by_membership_id: string
+          issued_number: string
+          last_reprinted_at: string | null
+          reprint_count: number
+          restaurant_id: string
+          sequence_number: number
+          snapshot: Json
+        }
+        Insert: {
+          financial_account_id: string
+          id?: string
+          idempotency_key?: string | null
+          issued_at?: string
+          issued_by_membership_id: string
+          issued_number: string
+          last_reprinted_at?: string | null
+          reprint_count?: number
+          restaurant_id: string
+          sequence_number: number
+          snapshot: Json
+        }
+        Update: {
+          financial_account_id?: string
+          id?: string
+          idempotency_key?: string | null
+          issued_at?: string
+          issued_by_membership_id?: string
+          issued_number?: string
+          last_reprinted_at?: string | null
+          reprint_count?: number
+          restaurant_id?: string
+          sequence_number?: number
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_account_invoices_account_fk"
+            columns: ["financial_account_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "financial_account_invoices_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_account_participants: {
+        Row: {
+          financial_account_id: string
+          guest_folio_id: string
+          linked_at: string
+          restaurant_id: string
+        }
+        Insert: {
+          financial_account_id: string
+          guest_folio_id: string
+          linked_at?: string
+          restaurant_id: string
+        }
+        Update: {
+          financial_account_id?: string
+          guest_folio_id?: string
+          linked_at?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_account_participants_account_same_property"
+            columns: ["financial_account_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "financial_account_participants_folio_same_property"
+            columns: ["guest_folio_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folios"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "financial_account_participants_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_account_payment_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by_membership_id: string | null
+          financial_account_id: string
+          id: string
+          idempotency_key: string | null
+          invoice_id: string
+          operation_id: string
+          payment_transaction_id: string
+          reason: string | null
+          restaurant_id: string
+          reverses_allocation_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by_membership_id?: string | null
+          financial_account_id: string
+          id?: string
+          idempotency_key?: string | null
+          invoice_id: string
+          operation_id: string
+          payment_transaction_id: string
+          reason?: string | null
+          restaurant_id: string
+          reverses_allocation_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by_membership_id?: string | null
+          financial_account_id?: string
+          id?: string
+          idempotency_key?: string | null
+          invoice_id?: string
+          operation_id?: string
+          payment_transaction_id?: string
+          reason?: string | null
+          restaurant_id?: string
+          reverses_allocation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_account_payment_allocations_account_property"
+            columns: ["financial_account_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "financial_account_payment_allocations_invoice_property"
+            columns: ["invoice_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "financial_account_invoices"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "financial_account_payment_allocations_payment_property"
+            columns: ["payment_transaction_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "folio_transactions"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "financial_account_payment_allocations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_account_payment_allocations_reversal_property"
+            columns: ["reverses_allocation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "financial_account_payment_allocations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      financial_accounts: {
+        Row: {
+          account_kind: string
+          account_number: string
+          closed_at: string | null
+          created_at: string
+          created_by_membership_id: string | null
+          currency: string
+          id: string
+          master_id: string
+          opened_at: string
+          restaurant_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          account_kind: string
+          account_number: string
+          closed_at?: string | null
+          created_at?: string
+          created_by_membership_id?: string | null
+          currency: string
+          id?: string
+          master_id: string
+          opened_at?: string
+          restaurant_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          account_kind?: string
+          account_number?: string
+          closed_at?: string | null
+          created_at?: string
+          created_by_membership_id?: string | null
+          currency?: string
+          id?: string
+          master_id?: string
+          opened_at?: string
+          restaurant_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_accounts_created_by_membership_id_fkey"
+            columns: ["created_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_accounts_master_same_property"
+            columns: ["master_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_account_masters"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "financial_accounts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_buyer_code_mappings: {
+        Row: {
+          active: boolean
+          created_at: string
+          external_value: string
+          id: string
+          integration_id: string
+          internal_value: string
+          mapping_type: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          external_value: string
+          id?: string
+          integration_id: string
+          internal_value: string
+          mapping_type: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          external_value?: string
+          id?: string
+          integration_id?: string
+          internal_value?: string
+          mapping_type?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_buyer_code_mappings_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "pms_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_buyer_code_mappings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_credential_refs: {
+        Row: {
+          created_at: string
+          integration_id: string
+          restaurant_id: string
+          updated_at: string
+          vault_secret_id: string
+        }
+        Insert: {
+          created_at?: string
+          integration_id: string
+          restaurant_id: string
+          updated_at?: string
+          vault_secret_id: string
+        }
+        Update: {
+          created_at?: string
+          integration_id?: string
+          restaurant_id?: string
+          updated_at?: string
+          vault_secret_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_credential_refs_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: true
+            referencedRelation: "pms_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_credential_refs_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_integration_tokens: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string
+          id: string
+          integration_id: string
+          refresh_lease_until: string | null
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          integration_id: string
+          refresh_lease_until?: string | null
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          integration_id?: string
+          refresh_lease_until?: string | null
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_integration_tokens_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: true
+            referencedRelation: "pms_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_integration_tokens_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_item_code_counters: {
+        Row: {
+          created_at: string
+          last_code: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          last_code: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          last_code?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_item_code_counters_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_item_mappings: {
+        Row: {
+          active: boolean
+          charge_source: string | null
+          created_at: string
+          department_id: string | null
+          external_item_code: string
+          external_unit: string
+          harmonization_code: string | null
+          id: string
+          integration_id: string
+          is_default: boolean
+          nature_of_supplies: string
+          restaurant_id: string
+          service_type_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          charge_source?: string | null
+          created_at?: string
+          department_id?: string | null
+          external_item_code: string
+          external_unit: string
+          harmonization_code?: string | null
+          id?: string
+          integration_id: string
+          is_default?: boolean
+          nature_of_supplies: string
+          restaurant_id: string
+          service_type_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          charge_source?: string | null
+          created_at?: string
+          department_id?: string | null
+          external_item_code?: string
+          external_unit?: string
+          harmonization_code?: string | null
+          id?: string
+          integration_id?: string
+          is_default?: boolean
+          nature_of_supplies?: string
+          restaurant_id?: string
+          service_type_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_item_mappings_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "pms_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_item_mappings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_mode_mappings: {
+        Row: {
+          active: boolean
+          created_at: string
+          document_context: string
+          external_mode: string
+          id: string
+          integration_id: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          document_context: string
+          external_mode: string
+          id?: string
+          integration_id: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          document_context?: string
+          external_mode?: string
+          id?: string
+          integration_id?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_mode_mappings_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "pms_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_mode_mappings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_registration_attempts: {
+        Row: {
+          actor_membership_id: string | null
+          attempt_number: number
+          completed_at: string | null
+          created_at: string
+          endpoint: string
+          error_code: string | null
+          error_message: string | null
+          http_status: number | null
+          id: string
+          latency_ms: number | null
+          outcome: string
+          registration_id: string
+          request_body: Json | null
+          request_hash: string | null
+          response_body: Json | null
+          started_at: string
+        }
+        Insert: {
+          actor_membership_id?: string | null
+          attempt_number: number
+          completed_at?: string | null
+          created_at?: string
+          endpoint: string
+          error_code?: string | null
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          latency_ms?: number | null
+          outcome: string
+          registration_id: string
+          request_body?: Json | null
+          request_hash?: string | null
+          response_body?: Json | null
+          started_at?: string
+        }
+        Update: {
+          actor_membership_id?: string | null
+          attempt_number?: number
+          completed_at?: string | null
+          created_at?: string
+          endpoint?: string
+          error_code?: string | null
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          latency_ms?: number | null
+          outcome?: string
+          registration_id?: string
+          request_body?: Json | null
+          request_hash?: string | null
+          response_body?: Json | null
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_registration_attempts_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_registrations: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_at_raw: string | null
+          attempt_count: number
+          cancelled_at: string | null
+          client_snapshot: string | null
+          created_at: string
+          created_by_membership_id: string | null
+          device_id_snapshot: string | null
+          external_document_number: string | null
+          external_id: string | null
+          external_irn: string | null
+          external_rrn: string | null
+          external_status: string | null
+          fiscal_document_type: string
+          id: string
+          integration_id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          next_attempt_at: string | null
+          registered_at: string | null
+          related_registration_id: string | null
+          request_hash: string | null
+          request_snapshot: Json
+          response_snapshot: Json | null
+          restaurant_id: string
+          signed_document: string | null
+          signed_qr: string | null
+          source_id: string
+          source_type: string
+          status: string
+          taxpayer_tin_snapshot: string | null
+          trnx_id: string
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_at_raw?: string | null
+          attempt_count?: number
+          cancelled_at?: string | null
+          client_snapshot?: string | null
+          created_at?: string
+          created_by_membership_id?: string | null
+          device_id_snapshot?: string | null
+          external_document_number?: string | null
+          external_id?: string | null
+          external_irn?: string | null
+          external_rrn?: string | null
+          external_status?: string | null
+          fiscal_document_type: string
+          id?: string
+          integration_id: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          next_attempt_at?: string | null
+          registered_at?: string | null
+          related_registration_id?: string | null
+          request_hash?: string | null
+          request_snapshot?: Json
+          response_snapshot?: Json | null
+          restaurant_id: string
+          signed_document?: string | null
+          signed_qr?: string | null
+          source_id: string
+          source_type: string
+          status?: string
+          taxpayer_tin_snapshot?: string | null
+          trnx_id: string
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_at_raw?: string | null
+          attempt_count?: number
+          cancelled_at?: string | null
+          client_snapshot?: string | null
+          created_at?: string
+          created_by_membership_id?: string | null
+          device_id_snapshot?: string | null
+          external_document_number?: string | null
+          external_id?: string | null
+          external_irn?: string | null
+          external_rrn?: string | null
+          external_status?: string | null
+          fiscal_document_type?: string
+          id?: string
+          integration_id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          next_attempt_at?: string | null
+          registered_at?: string | null
+          related_registration_id?: string | null
+          request_hash?: string | null
+          request_snapshot?: Json
+          response_snapshot?: Json | null
+          restaurant_id?: string
+          signed_document?: string | null
+          signed_qr?: string | null
+          source_id?: string
+          source_type?: string
+          status?: string
+          taxpayer_tin_snapshot?: string | null
+          trnx_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_registrations_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "pms_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_registrations_related_registration_id_fkey"
+            columns: ["related_registration_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_registrations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_tax_code_mappings: {
+        Row: {
+          active: boolean
+          created_at: string
+          external_item_code: string | null
+          external_tax_code: string
+          external_unit: string | null
+          fiscal_treatment: string
+          harmonization_code: string | null
+          id: string
+          integration_id: string
+          mapping_kind: string
+          nature_of_supplies: string | null
+          pms_tax_id: string | null
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          external_item_code?: string | null
+          external_tax_code: string
+          external_unit?: string | null
+          fiscal_treatment?: string
+          harmonization_code?: string | null
+          id?: string
+          integration_id: string
+          mapping_kind?: string
+          nature_of_supplies?: string | null
+          pms_tax_id?: string | null
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          external_item_code?: string | null
+          external_tax_code?: string
+          external_unit?: string | null
+          fiscal_treatment?: string
+          harmonization_code?: string | null
+          id?: string
+          integration_id?: string
+          mapping_kind?: string
+          nature_of_supplies?: string | null
+          pms_tax_id?: string | null
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_tax_code_mappings_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "pms_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_tax_code_mappings_pms_tax_id_fkey"
+            columns: ["pms_tax_id"]
+            isOneToOne: false
+            referencedRelation: "pms_taxes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_tax_code_mappings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fo_checkin_agreement_instances: {
+        Row: {
+          acknowledgements: Json
+          agreement_version_id: string
+          captured_by_membership_id: string | null
+          created_at: string
+          created_by_membership_id: string | null
+          guest_id: string
+          id: string
+          reservation_id: string
+          reservation_room_id: string | null
+          restaurant_id: string
+          signature_method: string | null
+          signature_storage_path: string | null
+          signed_at: string | null
+        }
+        Insert: {
+          acknowledgements?: Json
+          agreement_version_id: string
+          captured_by_membership_id?: string | null
+          created_at?: string
+          created_by_membership_id?: string | null
+          guest_id: string
+          id?: string
+          reservation_id: string
+          reservation_room_id?: string | null
+          restaurant_id: string
+          signature_method?: string | null
+          signature_storage_path?: string | null
+          signed_at?: string | null
+        }
+        Update: {
+          acknowledgements?: Json
+          agreement_version_id?: string
+          captured_by_membership_id?: string | null
+          created_at?: string
+          created_by_membership_id?: string | null
+          guest_id?: string
+          id?: string
+          reservation_id?: string
+          reservation_room_id?: string | null
+          restaurant_id?: string
+          signature_method?: string | null
+          signature_storage_path?: string | null
+          signed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fo_checkin_agreement_instances_guest_property"
+            columns: ["guest_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "fo_checkin_agreement_instances_reservation_property"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "fo_checkin_agreement_instances_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fo_checkin_agreement_instances_room_property"
+            columns: ["reservation_room_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservation_rooms"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "fo_checkin_agreement_instances_version_property"
+            columns: ["agreement_version_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_registration_agreement_versions"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       fo_checkin_progress: {
         Row: {
           completed_at: string | null
@@ -442,6 +1549,7 @@ export type Database = {
           registration_waived_by: string | null
           registration_waiver_reason: string | null
           reservation_id: string
+          reservation_room_id: string | null
           restaurant_id: string
           updated_at: string
           walk_in_incomplete: boolean
@@ -472,6 +1580,7 @@ export type Database = {
           registration_waived_by?: string | null
           registration_waiver_reason?: string | null
           reservation_id: string
+          reservation_room_id?: string | null
           restaurant_id: string
           updated_at?: string
           walk_in_incomplete?: boolean
@@ -502,6 +1611,7 @@ export type Database = {
           registration_waived_by?: string | null
           registration_waiver_reason?: string | null
           reservation_id?: string
+          reservation_room_id?: string | null
           restaurant_id?: string
           updated_at?: string
           walk_in_incomplete?: boolean
@@ -545,7 +1655,7 @@ export type Database = {
           {
             foreignKeyName: "fo_checkin_progress_reservation_id_fkey"
             columns: ["reservation_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "hotel_reservations"
             referencedColumns: ["id"]
           },
@@ -562,6 +1672,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fo_checkin_progress_room_same_property"
+            columns: ["reservation_room_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservation_rooms"
+            referencedColumns: ["id", "restaurant_id"]
           },
         ]
       }
@@ -722,6 +1839,68 @@ export type Database = {
           },
         ]
       }
+      folio_deposit_allocations: {
+        Row: {
+          actor_membership_id: string | null
+          amount: number
+          charge_transaction_id: string
+          created_at: string
+          deposit_transaction_id: string
+          id: string
+          idempotency_key: string | null
+          restaurant_id: string
+        }
+        Insert: {
+          actor_membership_id?: string | null
+          amount: number
+          charge_transaction_id: string
+          created_at?: string
+          deposit_transaction_id: string
+          id?: string
+          idempotency_key?: string | null
+          restaurant_id: string
+        }
+        Update: {
+          actor_membership_id?: string | null
+          amount?: number
+          charge_transaction_id?: string
+          created_at?: string
+          deposit_transaction_id?: string
+          id?: string
+          idempotency_key?: string | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "folio_deposit_allocations_actor_membership_id_fkey"
+            columns: ["actor_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "folio_deposit_allocations_charge_same_property"
+            columns: ["charge_transaction_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "folio_transactions"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "folio_deposit_allocations_deposit_same_property"
+            columns: ["deposit_transaction_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "folio_transactions"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "folio_deposit_allocations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       folio_history: {
         Row: {
           actor_membership_id: string | null
@@ -794,69 +1973,108 @@ export type Database = {
         Row: {
           amount: number
           category: string
-          accessibility_requirements: string | null
-          apply_to_future_reservations: boolean
-          bed_preference: string | null
-          communication_preference: string | null
+          charge_snapshot: Json | null
+          charge_source: string | null
           created_at: string
+          department_id: string | null
           description: string
-          folio_id: string
-          id: string
+          financial_account_id: string | null
+          folio_id: string | null
+          folio_window_id: string | null
           hotel_cashier_shift_id: string | null
+          id: string
           idempotency_key: string | null
           original_transaction_id: string | null
           payment_method: string | null
           posted_at: string
           posted_by_membership_id: string | null
+          quantity: number | null
           reference_id: string | null
           reference_type: string | null
+          reservation_room_id: string | null
           restaurant_id: string
+          service_type_id: string | null
+          tax_snapshot: Json | null
           transaction_type: string
+          transfer_direction: string | null
+          transfer_id: string | null
+          unit_amount: number | null
         }
         Insert: {
           amount: number
           category: string
-          accessibility_requirements?: string | null
-          apply_to_future_reservations?: boolean
-          bed_preference?: string | null
-          communication_preference?: string | null
+          charge_snapshot?: Json | null
+          charge_source?: string | null
           created_at?: string
+          department_id?: string | null
           description: string
-          folio_id: string
-          id?: string
+          financial_account_id?: string | null
+          folio_id?: string | null
+          folio_window_id?: string | null
           hotel_cashier_shift_id?: string | null
+          id?: string
           idempotency_key?: string | null
           original_transaction_id?: string | null
           payment_method?: string | null
           posted_at?: string
           posted_by_membership_id?: string | null
+          quantity?: number | null
           reference_id?: string | null
           reference_type?: string | null
+          reservation_room_id?: string | null
           restaurant_id: string
+          service_type_id?: string | null
+          tax_snapshot?: Json | null
           transaction_type: string
+          transfer_direction?: string | null
+          transfer_id?: string | null
+          unit_amount?: number | null
         }
         Update: {
           amount?: number
           category?: string
-          accessibility_requirements?: string | null
-          apply_to_future_reservations?: boolean
-          bed_preference?: string | null
-          communication_preference?: string | null
+          charge_snapshot?: Json | null
+          charge_source?: string | null
           created_at?: string
+          department_id?: string | null
           description?: string
-          folio_id?: string
-          id?: string
+          financial_account_id?: string | null
+          folio_id?: string | null
+          folio_window_id?: string | null
           hotel_cashier_shift_id?: string | null
+          id?: string
+          idempotency_key?: string | null
           original_transaction_id?: string | null
           payment_method?: string | null
           posted_at?: string
           posted_by_membership_id?: string | null
+          quantity?: number | null
           reference_id?: string | null
           reference_type?: string | null
+          reservation_room_id?: string | null
           restaurant_id?: string
+          service_type_id?: string | null
+          tax_snapshot?: Json | null
           transaction_type?: string
+          transfer_direction?: string | null
+          transfer_id?: string | null
+          unit_amount?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "folio_transactions_account_same_property"
+            columns: ["financial_account_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "folio_transactions_department_fk"
+            columns: ["department_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_departments"
+            referencedColumns: ["id", "restaurant_id"]
+          },
           {
             foreignKeyName: "folio_transactions_folio_same_property"
             columns: ["folio_id", "restaurant_id"]
@@ -865,94 +2083,53 @@ export type Database = {
             referencedColumns: ["id", "restaurant_id"]
           },
           {
+            foreignKeyName: "folio_transactions_hotel_shift_same_property"
+            columns: ["hotel_cashier_shift_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_cashier_shifts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "folio_transactions_original_same_folio"
+            columns: ["original_transaction_id", "restaurant_id", "folio_id"]
+            isOneToOne: false
+            referencedRelation: "folio_transactions"
+            referencedColumns: ["id", "restaurant_id", "folio_id"]
+          },
+          {
             foreignKeyName: "folio_transactions_posted_by_membership_id_fkey"
             columns: ["posted_by_membership_id"]
             isOneToOne: false
             referencedRelation: "restaurant_users"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      guest_documents: {
-        Row: {
-          back_storage_path: string | null
-          created_at: string
-          document_number: string | null
-          expiry_date: string | null
-          guest_id: string
-          id: string
-          id_type_id: string | null
-          issue_date: string | null
-          issuing_authority: string | null
-          issuing_country: string | null
-          kind: string
-          mime_type: string | null
-          notes: string | null
-          rejection_reason: string | null
-          restaurant_id: string
-          size_bytes: number | null
-          storage_path: string | null
-          updated_at: string
-          uploaded_by_membership_id: string | null
-          verification_status: string
-          verified_at: string | null
-          verified_by_membership_id: string | null
-        }
-        Insert: {
-          back_storage_path?: string | null
-          created_at?: string
-          document_number?: string | null
-          expiry_date?: string | null
-          guest_id: string
-          id?: string
-          id_type_id?: string | null
-          issue_date?: string | null
-          issuing_authority?: string | null
-          issuing_country?: string | null
-          kind?: string
-          mime_type?: string | null
-          notes?: string | null
-          rejection_reason?: string | null
-          restaurant_id: string
-          size_bytes?: number | null
-          storage_path?: string | null
-          updated_at?: string
-          uploaded_by_membership_id?: string | null
-          verification_status?: string
-          verified_at?: string | null
-          verified_by_membership_id?: string | null
-        }
-        Update: {
-          back_storage_path?: string | null
-          created_at?: string
-          document_number?: string | null
-          expiry_date?: string | null
-          guest_id?: string
-          id?: string
-          id_type_id?: string | null
-          issue_date?: string | null
-          issuing_authority?: string | null
-          issuing_country?: string | null
-          kind?: string
-          mime_type?: string | null
-          notes?: string | null
-          rejection_reason?: string | null
-          restaurant_id?: string
-          size_bytes?: number | null
-          storage_path?: string | null
-          updated_at?: string
-          uploaded_by_membership_id?: string | null
-          verification_status?: string
-          verified_at?: string | null
-          verified_by_membership_id?: string | null
-        }
-        Relationships: [
           {
             foreignKeyName: "folio_transactions_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "folio_transactions_room_unit_same_property"
+            columns: ["reservation_room_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservation_rooms"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "folio_transactions_service_type_fk"
+            columns: ["service_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_guest_service_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "folio_transactions_window_same_property"
+            columns: ["folio_window_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folio_windows"
+            referencedColumns: ["id", "restaurant_id"]
           },
         ]
       }
@@ -1102,8 +2279,10 @@ export type Database = {
           anonymised_by_membership_id: string | null
           arrival_date: string | null
           billing_contact_name: string | null
+          billing_currency_code: string | null
           billing_instruction: string | null
           booking_access: string
+          booking_notes: string | null
           business_profile_type_id: string | null
           business_registration_number: string | null
           city: string | null
@@ -1124,8 +2303,14 @@ export type Database = {
           created_at: string
           created_by_staff_membership_id: string | null
           credit_account_enabled: boolean
+          credit_days: number | null
           credit_limit_amount: number | null
           credit_limit_note: string | null
+          credit_status: string | null
+          default_billing_rule_id: string | null
+          default_deposit_policy_id: string | null
+          default_no_show_policy_id: string | null
+          default_payment_method_id: string | null
           default_travel_agent_master_id: string | null
           departure_date: string | null
           email: string | null
@@ -1148,6 +2333,7 @@ export type Database = {
           negotiated_rate_reference: string | null
           notes: string | null
           payment_terms: string | null
+          payment_timing: string | null
           phone: string | null
           phone_alt: string | null
           phone_normalized: string | null
@@ -1162,6 +2348,10 @@ export type Database = {
           source_code_id: string | null
           source_of_business: string | null
           special_requests: string | null
+          tax_exempt: boolean
+          tax_exemption_certificate_number: string | null
+          tax_exemption_rule_id: string | null
+          tax_exemption_valid_to: string | null
           tax_id: string | null
           trade_name: string | null
           travel_agent_master_id: string | null
@@ -1181,8 +2371,10 @@ export type Database = {
           anonymised_by_membership_id?: string | null
           arrival_date?: string | null
           billing_contact_name?: string | null
+          billing_currency_code?: string | null
           billing_instruction?: string | null
           booking_access?: string
+          booking_notes?: string | null
           business_profile_type_id?: string | null
           business_registration_number?: string | null
           city?: string | null
@@ -1203,8 +2395,14 @@ export type Database = {
           created_at?: string
           created_by_staff_membership_id?: string | null
           credit_account_enabled?: boolean
+          credit_days?: number | null
           credit_limit_amount?: number | null
           credit_limit_note?: string | null
+          credit_status?: string | null
+          default_billing_rule_id?: string | null
+          default_deposit_policy_id?: string | null
+          default_no_show_policy_id?: string | null
+          default_payment_method_id?: string | null
           default_travel_agent_master_id?: string | null
           departure_date?: string | null
           email?: string | null
@@ -1227,6 +2425,7 @@ export type Database = {
           negotiated_rate_reference?: string | null
           notes?: string | null
           payment_terms?: string | null
+          payment_timing?: string | null
           phone?: string | null
           phone_alt?: string | null
           phone_normalized?: string | null
@@ -1241,6 +2440,10 @@ export type Database = {
           source_code_id?: string | null
           source_of_business?: string | null
           special_requests?: string | null
+          tax_exempt?: boolean
+          tax_exemption_certificate_number?: string | null
+          tax_exemption_rule_id?: string | null
+          tax_exemption_valid_to?: string | null
           tax_id?: string | null
           trade_name?: string | null
           travel_agent_master_id?: string | null
@@ -1260,8 +2463,10 @@ export type Database = {
           anonymised_by_membership_id?: string | null
           arrival_date?: string | null
           billing_contact_name?: string | null
+          billing_currency_code?: string | null
           billing_instruction?: string | null
           booking_access?: string
+          booking_notes?: string | null
           business_profile_type_id?: string | null
           business_registration_number?: string | null
           city?: string | null
@@ -1282,8 +2487,14 @@ export type Database = {
           created_at?: string
           created_by_staff_membership_id?: string | null
           credit_account_enabled?: boolean
+          credit_days?: number | null
           credit_limit_amount?: number | null
           credit_limit_note?: string | null
+          credit_status?: string | null
+          default_billing_rule_id?: string | null
+          default_deposit_policy_id?: string | null
+          default_no_show_policy_id?: string | null
+          default_payment_method_id?: string | null
           default_travel_agent_master_id?: string | null
           departure_date?: string | null
           email?: string | null
@@ -1306,6 +2517,7 @@ export type Database = {
           negotiated_rate_reference?: string | null
           notes?: string | null
           payment_terms?: string | null
+          payment_timing?: string | null
           phone?: string | null
           phone_alt?: string | null
           phone_normalized?: string | null
@@ -1320,6 +2532,10 @@ export type Database = {
           source_code_id?: string | null
           source_of_business?: string | null
           special_requests?: string | null
+          tax_exempt?: boolean
+          tax_exemption_certificate_number?: string | null
+          tax_exemption_rule_id?: string | null
+          tax_exemption_valid_to?: string | null
           tax_id?: string | null
           trade_name?: string | null
           travel_agent_master_id?: string | null
@@ -1357,17 +2573,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "guest_account_masters_default_billing_rule_fk"
+            columns: ["default_billing_rule_id"]
+            isOneToOne: false
+            referencedRelation: "pms_billing_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_account_masters_default_deposit_policy_fk"
+            columns: ["default_deposit_policy_id"]
+            isOneToOne: false
+            referencedRelation: "pms_deposit_policies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_account_masters_default_no_show_policy_fk"
+            columns: ["default_no_show_policy_id"]
+            isOneToOne: false
+            referencedRelation: "pms_no_show_policies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_account_masters_default_payment_method_fk"
+            columns: ["default_payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "pms_payment_methods"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "guest_account_masters_default_ta_same_property"
             columns: ["default_travel_agent_master_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "guest_account_masters"
-            referencedColumns: ["id", "restaurant_id"]
-          },
-          {
-            foreignKeyName: "guest_account_masters_rate_cancellation_same_property"
-            columns: ["rate_cancellation_policy_id", "restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "pms_rate_cancellation_policies"
             referencedColumns: ["id", "restaurant_id"]
           },
           {
@@ -1392,6 +2629,13 @@ export type Database = {
             referencedColumns: ["id", "restaurant_id"]
           },
           {
+            foreignKeyName: "guest_account_masters_rate_cancellation_same_property"
+            columns: ["rate_cancellation_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_rate_cancellation_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
             foreignKeyName: "guest_account_masters_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
@@ -1404,6 +2648,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pms_source_codes"
             referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_account_masters_tax_exemption_rule_fk"
+            columns: ["tax_exemption_rule_id"]
+            isOneToOne: false
+            referencedRelation: "pms_tax_exemption_rules"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "guest_account_masters_travel_agent_master_fk"
@@ -1541,6 +2792,7 @@ export type Database = {
       }
       guest_company_documents: {
         Row: {
+          agreement_id: string | null
           company_master_id: string
           created_at: string
           document_type_id: string
@@ -1559,6 +2811,7 @@ export type Database = {
           uploaded_by_membership_id: string | null
         }
         Insert: {
+          agreement_id?: string | null
           company_master_id: string
           created_at?: string
           document_type_id: string
@@ -1577,6 +2830,7 @@ export type Database = {
           uploaded_by_membership_id?: string | null
         }
         Update: {
+          agreement_id?: string | null
           company_master_id?: string
           created_at?: string
           document_type_id?: string
@@ -1595,6 +2849,13 @@ export type Database = {
           uploaded_by_membership_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "guest_company_documents_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: false
+            referencedRelation: "pms_corporate_agreements"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "guest_company_documents_company_same_property"
             columns: ["company_master_id", "restaurant_id"]
@@ -1615,6 +2876,87 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_deposit_invoice_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by_membership_id: string | null
+          deposit_transaction_id: string
+          guest_folio_id: string
+          id: string
+          idempotency_key: string | null
+          invoice_id: string
+          operation_id: string
+          reason: string | null
+          restaurant_id: string
+          reverses_allocation_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by_membership_id?: string | null
+          deposit_transaction_id: string
+          guest_folio_id: string
+          id?: string
+          idempotency_key?: string | null
+          invoice_id: string
+          operation_id: string
+          reason?: string | null
+          restaurant_id: string
+          reverses_allocation_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by_membership_id?: string | null
+          deposit_transaction_id?: string
+          guest_folio_id?: string
+          id?: string
+          idempotency_key?: string | null
+          invoice_id?: string
+          operation_id?: string
+          reason?: string | null
+          restaurant_id?: string
+          reverses_allocation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_deposit_invoice_allocations_deposit_property"
+            columns: ["deposit_transaction_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "folio_transactions"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_deposit_invoice_allocations_folio_property"
+            columns: ["guest_folio_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folios"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_deposit_invoice_allocations_invoice_property"
+            columns: ["invoice_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folio_invoices"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_deposit_invoice_allocations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_deposit_invoice_allocations_reversal_property"
+            columns: ["reverses_allocation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_deposit_invoice_allocations"
+            referencedColumns: ["id", "restaurant_id"]
           },
         ]
       }
@@ -1809,6 +3151,249 @@ export type Database = {
           },
         ]
       }
+      guest_folio_invoice_draft_items: {
+        Row: {
+          created_at: string
+          draft_id: string
+          id: string
+          source_transaction_id: string
+        }
+        Insert: {
+          created_at?: string
+          draft_id: string
+          id?: string
+          source_transaction_id: string
+        }
+        Update: {
+          created_at?: string
+          draft_id?: string
+          id?: string
+          source_transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_folio_invoice_draft_items_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folio_invoice_drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_folio_invoice_draft_items_source_transaction_id_fkey"
+            columns: ["source_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "folio_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_folio_invoice_drafts: {
+        Row: {
+          created_at: string
+          created_by_membership_id: string
+          folio_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          updated_at: string
+          updated_by_membership_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_membership_id: string
+          folio_id: string
+          id?: string
+          notes?: string | null
+          restaurant_id: string
+          updated_at?: string
+          updated_by_membership_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by_membership_id?: string
+          folio_id?: string
+          id?: string
+          notes?: string | null
+          restaurant_id?: string
+          updated_at?: string
+          updated_by_membership_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_folio_invoice_drafts_folio_fk"
+            columns: ["folio_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folios"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_folio_invoice_drafts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_folio_invoice_lines: {
+        Row: {
+          amount: number
+          component_kind: string
+          component_transaction_id: string
+          created_at: string
+          folio_id: string
+          id: string
+          invoice_id: string
+          restaurant_id: string
+          snapshot: Json
+          source_transaction_id: string
+        }
+        Insert: {
+          amount: number
+          component_kind: string
+          component_transaction_id: string
+          created_at?: string
+          folio_id: string
+          id?: string
+          invoice_id: string
+          restaurant_id: string
+          snapshot: Json
+          source_transaction_id: string
+        }
+        Update: {
+          amount?: number
+          component_kind?: string
+          component_transaction_id?: string
+          created_at?: string
+          folio_id?: string
+          id?: string
+          invoice_id?: string
+          restaurant_id?: string
+          snapshot?: Json
+          source_transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_folio_invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folio_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_folio_invoice_lines_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_folio_invoices: {
+        Row: {
+          coverage_scope: string
+          folio_id: string
+          id: string
+          idempotency_key: string | null
+          issued_at: string
+          issued_by_membership_id: string
+          issued_number: string
+          last_reprinted_at: string | null
+          reprint_count: number
+          restaurant_id: string
+          sequence_number: number
+          snapshot: Json
+        }
+        Insert: {
+          coverage_scope?: string
+          folio_id: string
+          id?: string
+          idempotency_key?: string | null
+          issued_at?: string
+          issued_by_membership_id: string
+          issued_number: string
+          last_reprinted_at?: string | null
+          reprint_count?: number
+          restaurant_id: string
+          sequence_number: number
+          snapshot: Json
+        }
+        Update: {
+          coverage_scope?: string
+          folio_id?: string
+          id?: string
+          idempotency_key?: string | null
+          issued_at?: string
+          issued_by_membership_id?: string
+          issued_number?: string
+          last_reprinted_at?: string | null
+          reprint_count?: number
+          restaurant_id?: string
+          sequence_number?: number
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_folio_invoices_folio_fk"
+            columns: ["folio_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folios"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_folio_invoices_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_folio_windows: {
+        Row: {
+          created_at: string
+          folio_id: string
+          id: string
+          is_primary: boolean
+          label: string
+          restaurant_id: string
+          window_number: number
+        }
+        Insert: {
+          created_at?: string
+          folio_id: string
+          id?: string
+          is_primary?: boolean
+          label?: string
+          restaurant_id: string
+          window_number: number
+        }
+        Update: {
+          created_at?: string
+          folio_id?: string
+          id?: string
+          is_primary?: boolean
+          label?: string
+          restaurant_id?: string
+          window_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_folio_windows_folio_same_property"
+            columns: ["folio_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folios"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_folio_windows_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guest_folios: {
         Row: {
           closed_at: string | null
@@ -1956,6 +3541,87 @@ export type Database = {
             columns: ["survivor_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      guest_payment_invoice_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by_membership_id: string | null
+          guest_folio_id: string
+          id: string
+          idempotency_key: string | null
+          invoice_id: string
+          operation_id: string
+          payment_transaction_id: string
+          reason: string | null
+          restaurant_id: string
+          reverses_allocation_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by_membership_id?: string | null
+          guest_folio_id: string
+          id?: string
+          idempotency_key?: string | null
+          invoice_id: string
+          operation_id: string
+          payment_transaction_id: string
+          reason?: string | null
+          restaurant_id: string
+          reverses_allocation_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by_membership_id?: string | null
+          guest_folio_id?: string
+          id?: string
+          idempotency_key?: string | null
+          invoice_id?: string
+          operation_id?: string
+          payment_transaction_id?: string
+          reason?: string | null
+          restaurant_id?: string
+          reverses_allocation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_payment_invoice_allocations_folio_property"
+            columns: ["guest_folio_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folios"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_payment_invoice_allocations_invoice_property"
+            columns: ["invoice_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folio_invoices"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_payment_invoice_allocations_payment_property"
+            columns: ["payment_transaction_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "folio_transactions"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_payment_invoice_allocations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_payment_invoice_allocations_reversal_property"
+            columns: ["reverses_allocation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_payment_invoice_allocations"
             referencedColumns: ["id", "restaurant_id"]
           },
         ]
@@ -2210,6 +3876,7 @@ export type Database = {
           preferred_contact_time: string | null
           preferred_name: string | null
           profile_number: string | null
+          profile_origin: string
           profile_type_id: string | null
           region: string | null
           restaurant_id: string
@@ -2271,6 +3938,7 @@ export type Database = {
           preferred_contact_time?: string | null
           preferred_name?: string | null
           profile_number?: string | null
+          profile_origin?: string
           profile_type_id?: string | null
           region?: string | null
           restaurant_id: string
@@ -2332,6 +4000,7 @@ export type Database = {
           preferred_contact_time?: string | null
           preferred_name?: string | null
           profile_number?: string | null
+          profile_origin?: string
           profile_type_id?: string | null
           region?: string | null
           restaurant_id?: string
@@ -2540,6 +4209,82 @@ export type Database = {
           },
         ]
       }
+      guest_tax_identities: {
+        Row: {
+          city: string | null
+          created_at: string
+          created_by_membership_id: string | null
+          email: string | null
+          guest_profile_id: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          legal_name: string
+          phone: string | null
+          region: string | null
+          registration_number: string | null
+          restaurant_id: string
+          tin: string
+          updated_at: string
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string
+          created_by_membership_id?: string | null
+          email?: string | null
+          guest_profile_id: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          legal_name: string
+          phone?: string | null
+          region?: string | null
+          registration_number?: string | null
+          restaurant_id: string
+          tin: string
+          updated_at?: string
+        }
+        Update: {
+          city?: string | null
+          created_at?: string
+          created_by_membership_id?: string | null
+          email?: string | null
+          guest_profile_id?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          legal_name?: string
+          phone?: string | null
+          region?: string | null
+          registration_number?: string | null
+          restaurant_id?: string
+          tin?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_tax_identities_guest_property"
+            columns: ["guest_profile_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_tax_identities_membership_property"
+            columns: ["created_by_membership_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "guest_tax_identities_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotel_buildings: {
         Row: {
           active: boolean
@@ -2590,6 +4335,430 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_cashier_shifts: {
+        Row: {
+          closed_at: string | null
+          closing_count: number | null
+          created_at: string
+          id: string
+          membership_id: string
+          notes: string | null
+          opened_at: string
+          opening_cash: number
+          restaurant_id: string
+          status: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closing_count?: number | null
+          created_at?: string
+          id?: string
+          membership_id: string
+          notes?: string | null
+          opened_at?: string
+          opening_cash: number
+          restaurant_id: string
+          status?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closing_count?: number | null
+          created_at?: string
+          id?: string
+          membership_id?: string
+          notes?: string | null
+          opened_at?: string
+          opening_cash?: number
+          restaurant_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_cashier_shifts_membership_same_property"
+            columns: ["membership_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_cashier_shifts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_commercial_change_events: {
+        Row: {
+          action_type: string
+          actor_membership_id: string | null
+          after_state: Json | null
+          before_state: Json | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          master_id: string | null
+          metadata: Json
+          operation_id: string
+          reason: string | null
+          restaurant_id: string
+          source: string
+        }
+        Insert: {
+          action_type: string
+          actor_membership_id?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          master_id?: string | null
+          metadata?: Json
+          operation_id: string
+          reason?: string | null
+          restaurant_id: string
+          source: string
+        }
+        Update: {
+          action_type?: string
+          actor_membership_id?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          master_id?: string | null
+          metadata?: Json
+          operation_id?: string
+          reason?: string | null
+          restaurant_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_commercial_change_events_actor_membership_id_fkey"
+            columns: ["actor_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_commercial_change_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_competitor_provider_mappings: {
+        Row: {
+          active: boolean
+          competitor_id: string
+          created_at: string
+          external_property_id: string
+          external_property_name: string | null
+          id: string
+          last_verified_at: string | null
+          provider: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          competitor_id: string
+          created_at?: string
+          external_property_id: string
+          external_property_name?: string | null
+          id?: string
+          last_verified_at?: string | null
+          provider: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          competitor_id?: string
+          created_at?: string
+          external_property_id?: string
+          external_property_name?: string | null
+          id?: string
+          last_verified_at?: string | null
+          provider?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_competitor_provider_mappings_competitor_fk"
+            columns: ["competitor_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_competitors"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_competitor_provider_mappings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_competitor_rate_observations: {
+        Row: {
+          availability_status: string
+          competitor_id: string
+          created_at: string
+          currency: string | null
+          external_rate_plan_id: string | null
+          external_rate_plan_name: string | null
+          external_room_id: string | null
+          external_room_name: string | null
+          fetch_run_id: string
+          id: string
+          observed_at: string
+          occupancy_adults: number | null
+          occupancy_children: number | null
+          provider: string
+          provider_property_id: string
+          rate_amount: number | null
+          restaurant_id: string
+          source_hash: string | null
+          stay_date: string
+          tax_basis: string
+        }
+        Insert: {
+          availability_status?: string
+          competitor_id: string
+          created_at?: string
+          currency?: string | null
+          external_rate_plan_id?: string | null
+          external_rate_plan_name?: string | null
+          external_room_id?: string | null
+          external_room_name?: string | null
+          fetch_run_id: string
+          id?: string
+          observed_at?: string
+          occupancy_adults?: number | null
+          occupancy_children?: number | null
+          provider: string
+          provider_property_id: string
+          rate_amount?: number | null
+          restaurant_id: string
+          source_hash?: string | null
+          stay_date: string
+          tax_basis?: string
+        }
+        Update: {
+          availability_status?: string
+          competitor_id?: string
+          created_at?: string
+          currency?: string | null
+          external_rate_plan_id?: string | null
+          external_rate_plan_name?: string | null
+          external_room_id?: string | null
+          external_room_name?: string | null
+          fetch_run_id?: string
+          id?: string
+          observed_at?: string
+          occupancy_adults?: number | null
+          occupancy_children?: number | null
+          provider?: string
+          provider_property_id?: string
+          rate_amount?: number | null
+          restaurant_id?: string
+          source_hash?: string | null
+          stay_date?: string
+          tax_basis?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_competitor_rate_observations_competitor_fk"
+            columns: ["competitor_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_competitors"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_competitor_rate_observations_fetch_run_fk"
+            columns: ["fetch_run_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rate_shopping_fetch_runs"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_competitor_rate_observations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_competitor_room_mappings: {
+        Row: {
+          active: boolean
+          competitor_id: string
+          created_at: string
+          external_room_id: string
+          external_room_name: string | null
+          id: string
+          mapping_status: string
+          notes: string | null
+          our_room_type_id: string
+          provider: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          competitor_id: string
+          created_at?: string
+          external_room_id: string
+          external_room_name?: string | null
+          id?: string
+          mapping_status?: string
+          notes?: string | null
+          our_room_type_id: string
+          provider: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          competitor_id?: string
+          created_at?: string
+          external_room_id?: string
+          external_room_name?: string | null
+          id?: string
+          mapping_status?: string
+          notes?: string | null
+          our_room_type_id?: string
+          provider?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_competitor_room_mappings_competitor_fk"
+            columns: ["competitor_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_competitors"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_competitor_room_mappings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_competitor_room_mappings_room_type_fk"
+            columns: ["our_room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      hotel_competitors: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          location_label: string | null
+          name: string
+          notes: string | null
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          location_label?: string | null
+          name: string
+          notes?: string | null
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          location_label?: string | null
+          name?: string
+          notes?: string | null
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_competitors_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_drawer_movements: {
+        Row: {
+          actor_membership_id: string | null
+          amount: number
+          created_at: string
+          hotel_cashier_shift_id: string
+          id: string
+          idempotency_key: string | null
+          movement_type: string
+          notes: string | null
+          restaurant_id: string
+        }
+        Insert: {
+          actor_membership_id?: string | null
+          amount: number
+          created_at?: string
+          hotel_cashier_shift_id: string
+          id?: string
+          idempotency_key?: string | null
+          movement_type: string
+          notes?: string | null
+          restaurant_id: string
+        }
+        Update: {
+          actor_membership_id?: string | null
+          amount?: number
+          created_at?: string
+          hotel_cashier_shift_id?: string
+          id?: string
+          idempotency_key?: string | null
+          movement_type?: string
+          notes?: string | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_drawer_movements_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_drawer_movements_shift_same_property"
+            columns: ["hotel_cashier_shift_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_cashier_shifts"
+            referencedColumns: ["id", "restaurant_id"]
           },
         ]
       }
@@ -2657,6 +4826,372 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "hotel_wings"
             referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      hotel_package_activation_rate_plans: {
+        Row: {
+          activation_id: string
+          created_at: string
+          id: string
+          rate_plan_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          activation_id: string
+          created_at?: string
+          id?: string
+          rate_plan_id: string
+          restaurant_id: string
+        }
+        Update: {
+          activation_id?: string
+          created_at?: string
+          id?: string
+          rate_plan_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_package_activation_rate_plans_activation_fk"
+            columns: ["activation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_package_activations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_package_activation_rate_plans_plan_fk"
+            columns: ["rate_plan_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rate_plans"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_package_activation_rate_plans_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_package_activation_room_types: {
+        Row: {
+          activation_id: string
+          created_at: string
+          id: string
+          restaurant_id: string
+          room_type_id: string
+        }
+        Insert: {
+          activation_id: string
+          created_at?: string
+          id?: string
+          restaurant_id: string
+          room_type_id: string
+        }
+        Update: {
+          activation_id?: string
+          created_at?: string
+          id?: string
+          restaurant_id?: string
+          room_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_package_activation_room_types_activation_fk"
+            columns: ["activation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_package_activations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_package_activation_room_types_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_package_activation_room_types_type_fk"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      hotel_package_activations: {
+        Row: {
+          active: boolean
+          charge_basis: string
+          components_snapshot: Json
+          created_at: string
+          created_by_membership_id: string | null
+          id: string
+          master_rate_plan_ids: Json
+          master_room_type_ids: Json
+          metadata: Json
+          package_code: string
+          package_id: string
+          package_name: string
+          package_price: number
+          package_type: string | null
+          reason: string | null
+          restaurant_id: string
+          updated_at: string
+          valid_from: string
+          valid_to: string
+        }
+        Insert: {
+          active?: boolean
+          charge_basis?: string
+          components_snapshot?: Json
+          created_at?: string
+          created_by_membership_id?: string | null
+          id?: string
+          master_rate_plan_ids?: Json
+          master_room_type_ids?: Json
+          metadata?: Json
+          package_code: string
+          package_id: string
+          package_name: string
+          package_price: number
+          package_type?: string | null
+          reason?: string | null
+          restaurant_id: string
+          updated_at?: string
+          valid_from: string
+          valid_to: string
+        }
+        Update: {
+          active?: boolean
+          charge_basis?: string
+          components_snapshot?: Json
+          created_at?: string
+          created_by_membership_id?: string | null
+          id?: string
+          master_rate_plan_ids?: Json
+          master_room_type_ids?: Json
+          metadata?: Json
+          package_code?: string
+          package_id?: string
+          package_name?: string
+          package_price?: number
+          package_type?: string | null
+          reason?: string | null
+          restaurant_id?: string
+          updated_at?: string
+          valid_from?: string
+          valid_to?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_package_activations_created_by_membership_id_fkey"
+            columns: ["created_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_package_activations_package_fk"
+            columns: ["package_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_packages"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_package_activations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_promotion_activation_rate_plans: {
+        Row: {
+          activation_id: string
+          created_at: string
+          id: string
+          rate_plan_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          activation_id: string
+          created_at?: string
+          id?: string
+          rate_plan_id: string
+          restaurant_id: string
+        }
+        Update: {
+          activation_id?: string
+          created_at?: string
+          id?: string
+          rate_plan_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_promotion_activation_rate_plans_activation_fk"
+            columns: ["activation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_promotion_activations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_promotion_activation_rate_plans_plan_fk"
+            columns: ["rate_plan_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rate_plans"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_promotion_activation_rate_plans_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_promotion_activation_room_types: {
+        Row: {
+          activation_id: string
+          created_at: string
+          id: string
+          restaurant_id: string
+          room_type_id: string
+        }
+        Insert: {
+          activation_id: string
+          created_at?: string
+          id?: string
+          restaurant_id: string
+          room_type_id: string
+        }
+        Update: {
+          activation_id?: string
+          created_at?: string
+          id?: string
+          restaurant_id?: string
+          room_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_promotion_activation_room_types_activation_fk"
+            columns: ["activation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_promotion_activations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_promotion_activation_room_types_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_promotion_activation_room_types_type_fk"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      hotel_promotion_activations: {
+        Row: {
+          active: boolean
+          booking_from: string
+          booking_to: string
+          created_at: string
+          created_by_membership_id: string | null
+          id: string
+          master_room_type_ids: Json
+          master_valid_from: string | null
+          master_valid_to: string | null
+          metadata: Json
+          priority: number
+          promo_kind: string
+          promo_value: number
+          promotion_code: string
+          promotion_id: string
+          promotion_name: string
+          reason: string | null
+          restaurant_id: string
+          updated_at: string
+          valid_from: string
+          valid_to: string
+        }
+        Insert: {
+          active?: boolean
+          booking_from: string
+          booking_to: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          id?: string
+          master_room_type_ids?: Json
+          master_valid_from?: string | null
+          master_valid_to?: string | null
+          metadata?: Json
+          priority?: number
+          promo_kind: string
+          promo_value: number
+          promotion_code: string
+          promotion_id: string
+          promotion_name: string
+          reason?: string | null
+          restaurant_id: string
+          updated_at?: string
+          valid_from: string
+          valid_to: string
+        }
+        Update: {
+          active?: boolean
+          booking_from?: string
+          booking_to?: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          id?: string
+          master_room_type_ids?: Json
+          master_valid_from?: string | null
+          master_valid_to?: string | null
+          metadata?: Json
+          priority?: number
+          promo_kind?: string
+          promo_value?: number
+          promotion_code?: string
+          promotion_id?: string
+          promotion_name?: string
+          reason?: string | null
+          restaurant_id?: string
+          updated_at?: string
+          valid_from?: string
+          valid_to?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_promotion_activations_created_by_membership_id_fkey"
+            columns: ["created_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_promotion_activations_promotion_fk"
+            columns: ["promotion_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_promotions"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_promotion_activations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2766,6 +5301,98 @@ export type Database = {
           },
         ]
       }
+      hotel_rate_change_events: {
+        Row: {
+          action_type: string
+          actor_membership_id: string | null
+          created_at: string
+          currency: string
+          id: string
+          metadata: Json
+          new_effective_rate: number
+          new_override_rate: number | null
+          operation_id: string
+          previous_base_rate: number
+          previous_effective_rate: number
+          previous_override_rate: number | null
+          rate_plan_id: string
+          reason: string | null
+          restaurant_id: string
+          room_type_id: string
+          source: string
+          stay_date: string
+        }
+        Insert: {
+          action_type: string
+          actor_membership_id?: string | null
+          created_at?: string
+          currency: string
+          id?: string
+          metadata?: Json
+          new_effective_rate: number
+          new_override_rate?: number | null
+          operation_id: string
+          previous_base_rate: number
+          previous_effective_rate: number
+          previous_override_rate?: number | null
+          rate_plan_id: string
+          reason?: string | null
+          restaurant_id: string
+          room_type_id: string
+          source: string
+          stay_date: string
+        }
+        Update: {
+          action_type?: string
+          actor_membership_id?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json
+          new_effective_rate?: number
+          new_override_rate?: number | null
+          operation_id?: string
+          previous_base_rate?: number
+          previous_effective_rate?: number
+          previous_override_rate?: number | null
+          rate_plan_id?: string
+          reason?: string | null
+          restaurant_id?: string
+          room_type_id?: string
+          source?: string
+          stay_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_rate_change_events_actor_membership_id_fkey"
+            columns: ["actor_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_rate_change_events_plan_same_property"
+            columns: ["rate_plan_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rate_plans"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_rate_change_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_rate_change_events_type_same_property"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       hotel_rate_plans: {
         Row: {
           active: boolean
@@ -2777,13 +5404,13 @@ export type Database = {
           currency: string
           deposit_policy_id: string | null
           description: string | null
+          early_departure_policy_id: string | null
           id: string
           max_advance_days: number | null
           meal_plan_id: string | null
           min_advance_days: number | null
           name: string
           no_show_policy_id: string | null
-          early_departure_policy_id: string | null
           rate_category_id: string
           refundability_id: string | null
           restaurant_id: string
@@ -2802,13 +5429,13 @@ export type Database = {
           currency: string
           deposit_policy_id?: string | null
           description?: string | null
+          early_departure_policy_id?: string | null
           id?: string
           max_advance_days?: number | null
           meal_plan_id?: string | null
           min_advance_days?: number | null
           name: string
           no_show_policy_id?: string | null
-          early_departure_policy_id?: string | null
           rate_category_id: string
           refundability_id?: string | null
           restaurant_id: string
@@ -2827,13 +5454,13 @@ export type Database = {
           currency?: string
           deposit_policy_id?: string | null
           description?: string | null
+          early_departure_policy_id?: string | null
           id?: string
           max_advance_days?: number | null
           meal_plan_id?: string | null
           min_advance_days?: number | null
           name?: string
           no_show_policy_id?: string | null
-          early_departure_policy_id?: string | null
           rate_category_id?: string
           refundability_id?: string | null
           restaurant_id?: string
@@ -2845,6 +5472,13 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "hotel_rate_plans_cancellation_policy_fk"
+            columns: ["cancellation_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_rate_cancellation_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_rate_plans_cancellation_same_property"
             columns: ["cancellation_policy_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "pms_rate_cancellation_policies"
@@ -2872,6 +5506,13 @@ export type Database = {
             referencedColumns: ["id", "restaurant_id"]
           },
           {
+            foreignKeyName: "hotel_rate_plans_early_departure_same_property"
+            columns: ["early_departure_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_early_departure_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
             foreignKeyName: "hotel_rate_plans_meal_plan_same_property"
             columns: ["meal_plan_id", "restaurant_id"]
             isOneToOne: false
@@ -2886,14 +5527,14 @@ export type Database = {
             referencedColumns: ["id", "restaurant_id"]
           },
           {
-            foreignKeyName: "hotel_rate_plans_early_departure_same_property"
-            columns: ["early_departure_policy_id", "restaurant_id"]
+            foreignKeyName: "hotel_rate_plans_refundability_fk"
+            columns: ["refundability_id", "restaurant_id"]
             isOneToOne: false
-            referencedRelation: "pms_early_departure_policies"
+            referencedRelation: "pms_rate_refundability_codes"
             referencedColumns: ["id", "restaurant_id"]
           },
           {
-            foreignKeyName: "hotel_rate_plans_refundability_fk"
+            foreignKeyName: "hotel_rate_plans_refundability_same_property"
             columns: ["refundability_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "pms_rate_refundability_codes"
@@ -2908,6 +5549,110 @@ export type Database = {
           },
           {
             foreignKeyName: "hotel_rate_plans_type_same_property"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      hotel_rate_restriction_change_events: {
+        Row: {
+          action_type: string
+          actor_membership_id: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          new_closed_to_arrival: boolean
+          new_closed_to_departure: boolean
+          new_max_stay: number | null
+          new_min_stay: number | null
+          new_stop_sell: boolean
+          operation_id: string
+          previous_closed_to_arrival: boolean
+          previous_closed_to_departure: boolean
+          previous_max_stay: number | null
+          previous_min_stay: number | null
+          previous_stop_sell: boolean
+          rate_plan_id: string
+          reason: string | null
+          restaurant_id: string
+          room_type_id: string
+          source: string
+          stay_date: string
+        }
+        Insert: {
+          action_type: string
+          actor_membership_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          new_closed_to_arrival: boolean
+          new_closed_to_departure: boolean
+          new_max_stay?: number | null
+          new_min_stay?: number | null
+          new_stop_sell: boolean
+          operation_id: string
+          previous_closed_to_arrival: boolean
+          previous_closed_to_departure: boolean
+          previous_max_stay?: number | null
+          previous_min_stay?: number | null
+          previous_stop_sell: boolean
+          rate_plan_id: string
+          reason?: string | null
+          restaurant_id: string
+          room_type_id: string
+          source: string
+          stay_date: string
+        }
+        Update: {
+          action_type?: string
+          actor_membership_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          new_closed_to_arrival?: boolean
+          new_closed_to_departure?: boolean
+          new_max_stay?: number | null
+          new_min_stay?: number | null
+          new_stop_sell?: boolean
+          operation_id?: string
+          previous_closed_to_arrival?: boolean
+          previous_closed_to_departure?: boolean
+          previous_max_stay?: number | null
+          previous_min_stay?: number | null
+          previous_stop_sell?: boolean
+          rate_plan_id?: string
+          reason?: string | null
+          restaurant_id?: string
+          room_type_id?: string
+          source?: string
+          stay_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_rate_restriction_change_events_actor_membership_id_fkey"
+            columns: ["actor_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_rate_restriction_change_events_plan_same_property"
+            columns: ["rate_plan_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rate_plans"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_rate_restriction_change_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_rate_restriction_change_events_type_same_property"
             columns: ["room_type_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "room_types"
@@ -2975,6 +5720,62 @@ export type Database = {
           },
           {
             foreignKeyName: "hotel_rate_restrictions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_rate_shopping_fetch_runs: {
+        Row: {
+          competitor_count: number
+          created_at: string
+          error_count: number
+          error_summary: string | null
+          finished_at: string | null
+          id: string
+          observation_count: number
+          provider: string
+          requested_stay_from: string
+          requested_stay_to: string
+          restaurant_id: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          competitor_count?: number
+          created_at?: string
+          error_count?: number
+          error_summary?: string | null
+          finished_at?: string | null
+          id?: string
+          observation_count?: number
+          provider: string
+          requested_stay_from: string
+          requested_stay_to: string
+          restaurant_id: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          competitor_count?: number
+          created_at?: string
+          error_count?: number
+          error_summary?: string | null
+          finished_at?: string | null
+          id?: string
+          observation_count?: number
+          provider?: string
+          requested_stay_from?: string
+          requested_stay_to?: string
+          restaurant_id?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_rate_shopping_fetch_runs_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -3066,10 +5867,366 @@ export type Database = {
           },
         ]
       }
+      hotel_reservation_packages: {
+        Row: {
+          applied_amount: number
+          applied_at: string
+          charge_basis: string
+          components_snapshot: Json
+          created_at: string
+          id: string
+          package_activation_id: string
+          package_code: string
+          package_id: string
+          package_name: string
+          quantity: number
+          reservation_id: string
+          reservation_room_id: string | null
+          restaurant_id: string
+          snapshot: Json
+          unit_amount: number
+        }
+        Insert: {
+          applied_amount: number
+          applied_at?: string
+          charge_basis: string
+          components_snapshot?: Json
+          created_at?: string
+          id?: string
+          package_activation_id: string
+          package_code: string
+          package_id: string
+          package_name: string
+          quantity?: number
+          reservation_id: string
+          reservation_room_id?: string | null
+          restaurant_id: string
+          snapshot?: Json
+          unit_amount: number
+        }
+        Update: {
+          applied_amount?: number
+          applied_at?: string
+          charge_basis?: string
+          components_snapshot?: Json
+          created_at?: string
+          id?: string
+          package_activation_id?: string
+          package_code?: string
+          package_id?: string
+          package_name?: string
+          quantity?: number
+          reservation_id?: string
+          reservation_room_id?: string | null
+          restaurant_id?: string
+          snapshot?: Json
+          unit_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_reservation_packages_activation_fk"
+            columns: ["package_activation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_package_activations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_packages_package_fk"
+            columns: ["package_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_packages"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_packages_reservation_fk"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_packages_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_packages_room_unit_same_property"
+            columns: ["reservation_room_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservation_rooms"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      hotel_reservation_promotions: {
+        Row: {
+          applied_at: string
+          base_room_subtotal: number
+          created_at: string
+          discount_amount: number
+          id: string
+          promo_kind: string
+          promo_value: number
+          promotion_activation_id: string
+          promotion_code: string
+          promotion_id: string
+          promotion_name: string
+          reservation_id: string
+          restaurant_id: string
+          room_subtotal_after_promotion: number
+          snapshot: Json
+        }
+        Insert: {
+          applied_at?: string
+          base_room_subtotal: number
+          created_at?: string
+          discount_amount: number
+          id?: string
+          promo_kind: string
+          promo_value: number
+          promotion_activation_id: string
+          promotion_code: string
+          promotion_id: string
+          promotion_name: string
+          reservation_id: string
+          restaurant_id: string
+          room_subtotal_after_promotion: number
+          snapshot?: Json
+        }
+        Update: {
+          applied_at?: string
+          base_room_subtotal?: number
+          created_at?: string
+          discount_amount?: number
+          id?: string
+          promo_kind?: string
+          promo_value?: number
+          promotion_activation_id?: string
+          promotion_code?: string
+          promotion_id?: string
+          promotion_name?: string
+          reservation_id?: string
+          restaurant_id?: string
+          room_subtotal_after_promotion?: number
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_reservation_promotions_activation_fk"
+            columns: ["promotion_activation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_promotion_activations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_promotions_promotion_fk"
+            columns: ["promotion_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_promotions"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_promotions_reservation_fk"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_promotions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_reservation_room_guests: {
+        Row: {
+          created_at: string
+          guest_id: string
+          id: string
+          is_primary: boolean
+          reservation_id: string
+          reservation_room_id: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          guest_id: string
+          id?: string
+          is_primary?: boolean
+          reservation_id: string
+          reservation_room_id: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          guest_id?: string
+          id?: string
+          is_primary?: boolean
+          reservation_id?: string
+          reservation_room_id?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_reservation_room_guests_guest_same_property"
+            columns: ["guest_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_room_guests_reservation_same_property"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_room_guests_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_room_guests_room_same_reservation"
+            columns: ["reservation_room_id", "restaurant_id", "reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservation_rooms"
+            referencedColumns: ["id", "restaurant_id", "reservation_id"]
+          },
+        ]
+      }
+      hotel_reservation_rooms: {
+        Row: {
+          adults: number
+          arrival_date: string
+          assignment_notes: string | null
+          children: number
+          created_at: string
+          currency: string | null
+          departure_date: string
+          id: string
+          infants: number
+          nightly_rate_snapshot: Json | null
+          pms_group_block_id: string | null
+          priced_at: string | null
+          rate_plan_id: string | null
+          reservation_id: string
+          restaurant_id: string
+          room_id: string | null
+          room_subtotal: number | null
+          room_type_id: string
+          status: string
+          unit_sequence: number
+          updated_at: string
+        }
+        Insert: {
+          adults: number
+          arrival_date: string
+          assignment_notes?: string | null
+          children?: number
+          created_at?: string
+          currency?: string | null
+          departure_date: string
+          id?: string
+          infants?: number
+          nightly_rate_snapshot?: Json | null
+          pms_group_block_id?: string | null
+          priced_at?: string | null
+          rate_plan_id?: string | null
+          reservation_id: string
+          restaurant_id: string
+          room_id?: string | null
+          room_subtotal?: number | null
+          room_type_id: string
+          status?: string
+          unit_sequence: number
+          updated_at?: string
+        }
+        Update: {
+          adults?: number
+          arrival_date?: string
+          assignment_notes?: string | null
+          children?: number
+          created_at?: string
+          currency?: string | null
+          departure_date?: string
+          id?: string
+          infants?: number
+          nightly_rate_snapshot?: Json | null
+          pms_group_block_id?: string | null
+          priced_at?: string | null
+          rate_plan_id?: string | null
+          reservation_id?: string
+          restaurant_id?: string
+          room_id?: string | null
+          room_subtotal?: number | null
+          room_type_id?: string
+          status?: string
+          unit_sequence?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_reservation_rooms_pms_group_block_same_property"
+            columns: ["pms_group_block_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_group_blocks"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_rooms_rate_plan_same_property"
+            columns: ["rate_plan_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rate_plans"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_rooms_reservation_same_property"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_rooms_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_rooms_room_same_type"
+            columns: ["room_id", "restaurant_id", "room_type_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rooms"
+            referencedColumns: ["id", "restaurant_id", "room_type_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_rooms_type_same_property"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       hotel_reservations: {
         Row: {
           adults: number
           arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
           cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
@@ -3085,8 +6242,6 @@ export type Database = {
           departure_date: string
           deposit_policy_id: string | null
           deposit_requirement_snapshot: Json | null
-          no_show_policy_id: string | null
-          no_show_policy_snapshot: Json | null
           early_departure_policy_id: string | null
           early_departure_policy_snapshot: Json | null
           expected_arrival_at: string | null
@@ -3095,8 +6250,6 @@ export type Database = {
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
-          booker_guest_id: string | null
-          billing_rule_id: string | null
           id: string
           infants: number
           late_checkout_granted: boolean
@@ -3104,20 +6257,26 @@ export type Database = {
           late_checkout_until: string | null
           market_segment: string | null
           nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
           notes: string | null
-          priced_at: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
           pms_group_block_id: string | null
           pms_group_id: string | null
+          priced_at: string | null
           purpose_of_stay: string | null
-          reservation_mode: string
+          rate_notes: string | null
           rate_plan_id: string | null
           refundability_snapshot: Json | null
+          reservation_mode: string
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
           rooms_requested: number
           source: string
+          special_occasion: string | null
           special_request_category: string | null
           special_requests: string | null
           status: string
@@ -3128,6 +6287,9 @@ export type Database = {
         Insert: {
           adults?: number
           arrival_date: string
+          arrival_transport?: string | null
+          billing_rule_id?: string | null
+          booker_guest_id?: string | null
           cancellation_policy_snapshot?: Json | null
           cancellation_reason?: string | null
           children?: number
@@ -3143,8 +6305,6 @@ export type Database = {
           departure_date: string
           deposit_policy_id?: string | null
           deposit_requirement_snapshot?: Json | null
-          no_show_policy_id?: string | null
-          no_show_policy_snapshot?: Json | null
           early_departure_policy_id?: string | null
           early_departure_policy_snapshot?: Json | null
           expected_arrival_at?: string | null
@@ -3153,8 +6313,6 @@ export type Database = {
           group_name?: string | null
           guarantee_method?: string | null
           guest_id: string
-          booker_guest_id?: string | null
-          billing_rule_id?: string | null
           id?: string
           infants?: number
           late_checkout_granted?: boolean
@@ -3162,20 +6320,26 @@ export type Database = {
           late_checkout_until?: string | null
           market_segment?: string | null
           nightly_rate_snapshot?: Json | null
+          no_show_policy_id?: string | null
+          no_show_policy_snapshot?: Json | null
           notes?: string | null
-          priced_at?: string | null
+          notes_pinned?: boolean
+          pickup_note?: string | null
           pms_group_block_id?: string | null
           pms_group_id?: string | null
+          priced_at?: string | null
           purpose_of_stay?: string | null
-          reservation_mode?: string
+          rate_notes?: string | null
           rate_plan_id?: string | null
           refundability_snapshot?: Json | null
+          reservation_mode?: string
           restaurant_id: string
           room_id?: string | null
           room_subtotal?: number | null
           room_type_id: string
           rooms_requested?: number
           source?: string
+          special_occasion?: string | null
           special_request_category?: string | null
           special_requests?: string | null
           status?: string
@@ -3186,6 +6350,9 @@ export type Database = {
         Update: {
           adults?: number
           arrival_date?: string
+          arrival_transport?: string | null
+          billing_rule_id?: string | null
+          booker_guest_id?: string | null
           cancellation_policy_snapshot?: Json | null
           cancellation_reason?: string | null
           children?: number
@@ -3201,8 +6368,6 @@ export type Database = {
           departure_date?: string
           deposit_policy_id?: string | null
           deposit_requirement_snapshot?: Json | null
-          no_show_policy_id?: string | null
-          no_show_policy_snapshot?: Json | null
           early_departure_policy_id?: string | null
           early_departure_policy_snapshot?: Json | null
           expected_arrival_at?: string | null
@@ -3211,8 +6376,6 @@ export type Database = {
           group_name?: string | null
           guarantee_method?: string | null
           guest_id?: string
-          booker_guest_id?: string | null
-          billing_rule_id?: string | null
           id?: string
           infants?: number
           late_checkout_granted?: boolean
@@ -3220,20 +6383,26 @@ export type Database = {
           late_checkout_until?: string | null
           market_segment?: string | null
           nightly_rate_snapshot?: Json | null
+          no_show_policy_id?: string | null
+          no_show_policy_snapshot?: Json | null
           notes?: string | null
-          priced_at?: string | null
+          notes_pinned?: boolean
+          pickup_note?: string | null
           pms_group_block_id?: string | null
           pms_group_id?: string | null
+          priced_at?: string | null
           purpose_of_stay?: string | null
-          reservation_mode?: string
+          rate_notes?: string | null
           rate_plan_id?: string | null
           refundability_snapshot?: Json | null
+          reservation_mode?: string
           restaurant_id?: string
           room_id?: string | null
           room_subtotal?: number | null
           room_type_id?: string
           rooms_requested?: number
           source?: string
+          special_occasion?: string | null
           special_request_category?: string | null
           special_requests?: string | null
           status?: string
@@ -3242,6 +6411,27 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "hotel_reservations_billing_rule_same_property"
+            columns: ["billing_rule_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_billing_rules"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_booker_guest_same_property"
+            columns: ["booker_guest_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_company_contact_same_property"
+            columns: ["company_contact_id"]
+            isOneToOne: false
+            referencedRelation: "guest_company_contacts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "hotel_reservations_company_master_same_property"
             columns: ["company_master_id", "restaurant_id"]
@@ -3257,6 +6447,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "hotel_reservations_deposit_policy_same_property"
+            columns: ["deposit_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_deposit_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_early_departure_same_property"
+            columns: ["early_departure_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_early_departure_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
             foreignKeyName: "hotel_reservations_group_account_master_same_property"
             columns: ["group_account_master_id", "restaurant_id"]
             isOneToOne: false
@@ -3268,6 +6472,27 @@ export type Database = {
             columns: ["guest_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_no_show_same_property"
+            columns: ["no_show_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_no_show_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_pms_group_block_same_property"
+            columns: ["pms_group_block_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_group_blocks"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_reservations_pms_group_same_property"
+            columns: ["pms_group_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_groups"
             referencedColumns: ["id", "restaurant_id"]
           },
           {
@@ -3292,6 +6517,13 @@ export type Database = {
             referencedColumns: ["id", "restaurant_id", "room_type_id"]
           },
           {
+            foreignKeyName: "hotel_reservations_ta_contact_same_property"
+            columns: ["travel_agent_contact_id"]
+            isOneToOne: false
+            referencedRelation: "guest_company_contacts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "hotel_reservations_travel_agent_master_same_property"
             columns: ["travel_agent_master_id", "restaurant_id"]
             isOneToOne: false
@@ -3299,28 +6531,254 @@ export type Database = {
             referencedColumns: ["id", "restaurant_id"]
           },
           {
-            foreignKeyName: "hotel_reservations_deposit_policy_same_property"
-            columns: ["deposit_policy_id", "restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "pms_deposit_policies"
-            referencedColumns: ["id", "restaurant_id"]
-          },
-          {
-            foreignKeyName: "hotel_reservations_no_show_same_property"
-            columns: ["no_show_policy_id", "restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "pms_no_show_policies"
-            referencedColumns: ["id", "restaurant_id"]
-          },
-          {
-            foreignKeyName: "hotel_reservations_early_departure_same_property"
-            columns: ["early_departure_policy_id", "restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "pms_early_departure_policies"
-            referencedColumns: ["id", "restaurant_id"]
-          },
-          {
             foreignKeyName: "hotel_reservations_type_same_property"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      hotel_revenue_approval_events: {
+        Row: {
+          actor_id: string
+          approval_request_id: string
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json | null
+          reason: string | null
+          restaurant_id: string
+        }
+        Insert: {
+          actor_id: string
+          approval_request_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          reason?: string | null
+          restaurant_id: string
+        }
+        Update: {
+          actor_id?: string
+          approval_request_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          reason?: string | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_revenue_approval_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_revenue_approval_events_request_fk"
+            columns: ["approval_request_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_revenue_approval_requests"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "hotel_revenue_approval_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_revenue_approval_policy: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_revenue_approval_policy_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_revenue_approval_requests: {
+        Row: {
+          action_type: string
+          applied_operation_id: string | null
+          created_at: string
+          display_snapshot: Json | null
+          domain: string
+          entity_id: string | null
+          entity_type: string
+          expected_version: string | null
+          id: string
+          proposal_payload: Json
+          request_reason: string | null
+          requested_at: string
+          requested_by: string
+          restaurant_id: string
+          review_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          action_type: string
+          applied_operation_id?: string | null
+          created_at?: string
+          display_snapshot?: Json | null
+          domain: string
+          entity_id?: string | null
+          entity_type: string
+          expected_version?: string | null
+          id?: string
+          proposal_payload: Json
+          request_reason?: string | null
+          requested_at?: string
+          requested_by: string
+          restaurant_id: string
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          applied_operation_id?: string | null
+          created_at?: string
+          display_snapshot?: Json | null
+          domain?: string
+          entity_id?: string | null
+          entity_type?: string
+          expected_version?: string | null
+          id?: string
+          proposal_payload?: Json
+          request_reason?: string | null
+          requested_at?: string
+          requested_by?: string
+          restaurant_id?: string
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_revenue_approval_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_revenue_approval_requests_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_revenue_approval_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_revenue_otb_snapshots: {
+        Row: {
+          adr: number
+          as_of_business_date: string
+          booked_room_revenue: number
+          created_at: string
+          currency: string | null
+          id: string
+          metadata: Json
+          occupancy_percent: number
+          priced_rooms: number
+          priced_share: number
+          restaurant_id: string
+          revpar: number
+          room_type_id: string
+          rooms_available: number
+          rooms_on_books: number
+          rooms_remaining: number
+          stay_date: string
+        }
+        Insert: {
+          adr?: number
+          as_of_business_date: string
+          booked_room_revenue?: number
+          created_at?: string
+          currency?: string | null
+          id?: string
+          metadata?: Json
+          occupancy_percent?: number
+          priced_rooms?: number
+          priced_share?: number
+          restaurant_id: string
+          revpar?: number
+          room_type_id: string
+          rooms_available: number
+          rooms_on_books: number
+          rooms_remaining: number
+          stay_date: string
+        }
+        Update: {
+          adr?: number
+          as_of_business_date?: string
+          booked_room_revenue?: number
+          created_at?: string
+          currency?: string | null
+          id?: string
+          metadata?: Json
+          occupancy_percent?: number
+          priced_rooms?: number
+          priced_share?: number
+          restaurant_id?: string
+          revpar?: number
+          room_type_id?: string
+          rooms_available?: number
+          rooms_on_books?: number
+          rooms_remaining?: number
+          stay_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_revenue_otb_snapshots_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_revenue_otb_snapshots_type_same_property"
             columns: ["room_type_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "room_types"
@@ -4195,6 +7653,323 @@ export type Database = {
           unit_type?: string
         }
         Relationships: []
+      }
+      invoice_credit_note_draft_items: {
+        Row: {
+          created_at: string
+          draft_id: string
+          id: string
+          requested_gross: number
+          source_group_id: string
+        }
+        Insert: {
+          created_at?: string
+          draft_id: string
+          id?: string
+          requested_gross: number
+          source_group_id: string
+        }
+        Update: {
+          created_at?: string
+          draft_id?: string
+          id?: string
+          requested_gross?: number
+          source_group_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_credit_note_draft_items_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_credit_note_drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_credit_note_draft_items_source_group_id_fkey"
+            columns: ["source_group_id"]
+            isOneToOne: false
+            referencedRelation: "folio_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_credit_note_drafts: {
+        Row: {
+          account_invoice_id: string | null
+          created_at: string
+          created_by_membership_id: string
+          guest_invoice_id: string | null
+          id: string
+          note_type: string
+          reason: string
+          restaurant_id: string
+          updated_at: string
+          updated_by_membership_id: string
+        }
+        Insert: {
+          account_invoice_id?: string | null
+          created_at?: string
+          created_by_membership_id: string
+          guest_invoice_id?: string | null
+          id?: string
+          note_type?: string
+          reason: string
+          restaurant_id: string
+          updated_at?: string
+          updated_by_membership_id: string
+        }
+        Update: {
+          account_invoice_id?: string | null
+          created_at?: string
+          created_by_membership_id?: string
+          guest_invoice_id?: string | null
+          id?: string
+          note_type?: string
+          reason?: string
+          restaurant_id?: string
+          updated_at?: string
+          updated_by_membership_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_credit_note_drafts_account_invoice_id_fkey"
+            columns: ["account_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "financial_account_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_credit_note_drafts_guest_invoice_id_fkey"
+            columns: ["guest_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folio_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_credit_note_drafts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_credit_note_events: {
+        Row: {
+          account_invoice_id: string | null
+          actor_membership_id: string | null
+          created_at: string
+          credit_note_id: string | null
+          event_type: string
+          financial_account_id: string | null
+          folio_id: string | null
+          guest_invoice_id: string | null
+          id: string
+          new_values: Json | null
+          restaurant_id: string
+        }
+        Insert: {
+          account_invoice_id?: string | null
+          actor_membership_id?: string | null
+          created_at?: string
+          credit_note_id?: string | null
+          event_type: string
+          financial_account_id?: string | null
+          folio_id?: string | null
+          guest_invoice_id?: string | null
+          id?: string
+          new_values?: Json | null
+          restaurant_id: string
+        }
+        Update: {
+          account_invoice_id?: string | null
+          actor_membership_id?: string | null
+          created_at?: string
+          credit_note_id?: string | null
+          event_type?: string
+          financial_account_id?: string | null
+          folio_id?: string | null
+          guest_invoice_id?: string | null
+          id?: string
+          new_values?: Json | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_credit_note_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_credit_note_lines: {
+        Row: {
+          component_kind: string
+          component_transaction_id: string
+          created_at: string
+          credit_note_id: string
+          credited_amount: number
+          description: string
+          id: string
+          ledger_transaction_id: string | null
+          note_type: string
+          original_amount: number
+          restaurant_id: string
+          snapshot: Json
+          source_group_id: string
+        }
+        Insert: {
+          component_kind: string
+          component_transaction_id: string
+          created_at?: string
+          credit_note_id: string
+          credited_amount: number
+          description: string
+          id?: string
+          ledger_transaction_id?: string | null
+          note_type?: string
+          original_amount: number
+          restaurant_id: string
+          snapshot: Json
+          source_group_id: string
+        }
+        Update: {
+          component_kind?: string
+          component_transaction_id?: string
+          created_at?: string
+          credit_note_id?: string
+          credited_amount?: number
+          description?: string
+          id?: string
+          ledger_transaction_id?: string | null
+          note_type?: string
+          original_amount?: number
+          restaurant_id?: string
+          snapshot?: Json
+          source_group_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_credit_note_lines_component_transaction_id_fkey"
+            columns: ["component_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "folio_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_credit_note_lines_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_credit_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_credit_note_lines_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_credit_notes: {
+        Row: {
+          account_invoice_id: string | null
+          created_at: string
+          currency: string
+          financial_account_id: string | null
+          folio_id: string | null
+          guest_invoice_id: string | null
+          id: string
+          idempotency_key: string | null
+          issued_at: string
+          issued_by_membership_id: string
+          last_reprinted_at: string | null
+          note_number: string
+          note_type: string
+          reason: string
+          reprint_count: number
+          restaurant_id: string
+          sequence_number: number
+          service_charge_delta: number
+          snapshot: Json
+          subtotal_delta: number
+          tax_delta: number
+          total_delta: number
+        }
+        Insert: {
+          account_invoice_id?: string | null
+          created_at?: string
+          currency: string
+          financial_account_id?: string | null
+          folio_id?: string | null
+          guest_invoice_id?: string | null
+          id?: string
+          idempotency_key?: string | null
+          issued_at?: string
+          issued_by_membership_id: string
+          last_reprinted_at?: string | null
+          note_number: string
+          note_type?: string
+          reason: string
+          reprint_count?: number
+          restaurant_id: string
+          sequence_number: number
+          service_charge_delta: number
+          snapshot: Json
+          subtotal_delta: number
+          tax_delta: number
+          total_delta: number
+        }
+        Update: {
+          account_invoice_id?: string | null
+          created_at?: string
+          currency?: string
+          financial_account_id?: string | null
+          folio_id?: string | null
+          guest_invoice_id?: string | null
+          id?: string
+          idempotency_key?: string | null
+          issued_at?: string
+          issued_by_membership_id?: string
+          last_reprinted_at?: string | null
+          note_number?: string
+          note_type?: string
+          reason?: string
+          reprint_count?: number
+          restaurant_id?: string
+          sequence_number?: number
+          service_charge_delta?: number
+          snapshot?: Json
+          subtotal_delta?: number
+          tax_delta?: number
+          total_delta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_credit_notes_account_invoice_id_fkey"
+            columns: ["account_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "financial_account_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_credit_notes_guest_invoice_id_fkey"
+            columns: ["guest_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "guest_folio_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_credit_notes_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       leads: {
         Row: {
@@ -5400,6 +9175,9 @@ export type Database = {
           agency_master_id: string
           amount: number
           basis_amount: number
+          commission_rule_id: string | null
+          commission_type: string | null
+          commission_value: number | null
           created_at: string
           currency: string
           id: string
@@ -5407,6 +9185,7 @@ export type Database = {
           plan_id: string | null
           reservation_id: string
           restaurant_id: string
+          rule_scope: string | null
           status: string
           updated_at: string
         }
@@ -5414,6 +9193,9 @@ export type Database = {
           agency_master_id: string
           amount?: number
           basis_amount?: number
+          commission_rule_id?: string | null
+          commission_type?: string | null
+          commission_value?: number | null
           created_at?: string
           currency: string
           id?: string
@@ -5421,6 +9203,7 @@ export type Database = {
           plan_id?: string | null
           reservation_id: string
           restaurant_id: string
+          rule_scope?: string | null
           status?: string
           updated_at?: string
         }
@@ -5428,6 +9211,9 @@ export type Database = {
           agency_master_id?: string
           amount?: number
           basis_amount?: number
+          commission_rule_id?: string | null
+          commission_type?: string | null
+          commission_value?: number | null
           created_at?: string
           currency?: string
           id?: string
@@ -5435,6 +9221,7 @@ export type Database = {
           plan_id?: string | null
           reservation_id?: string
           restaurant_id?: string
+          rule_scope?: string | null
           status?: string
           updated_at?: string
         }
@@ -5445,6 +9232,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "guest_account_masters"
             referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_agency_commission_entries_commission_rule_id_fkey"
+            columns: ["commission_rule_id"]
+            isOneToOne: false
+            referencedRelation: "pms_agency_commission_rules"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "pms_agency_commission_entries_plan_fk"
@@ -5532,6 +9326,80 @@ export type Database = {
           },
         ]
       }
+      pms_agency_commission_rules: {
+        Row: {
+          active: boolean
+          commission_plan_id: string
+          commission_type: string
+          commission_value: number
+          created_at: string
+          display_order: number
+          id: string
+          rate_plan_id: string | null
+          restaurant_id: string
+          room_type_id: string | null
+          scope_type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          commission_plan_id: string
+          commission_type: string
+          commission_value: number
+          created_at?: string
+          display_order?: number
+          id?: string
+          rate_plan_id?: string | null
+          restaurant_id: string
+          room_type_id?: string | null
+          scope_type: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          commission_plan_id?: string
+          commission_type?: string
+          commission_value?: number
+          created_at?: string
+          display_order?: number
+          id?: string
+          rate_plan_id?: string | null
+          restaurant_id?: string
+          room_type_id?: string | null
+          scope_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_agency_commission_rules_commission_plan_id_fkey"
+            columns: ["commission_plan_id"]
+            isOneToOne: false
+            referencedRelation: "pms_agency_commission_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_agency_commission_rules_rate_plan_fk"
+            columns: ["rate_plan_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rate_plans"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_agency_commission_rules_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_agency_commission_rules_room_type_fk"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       pms_agency_notification_prefs: {
         Row: {
           agency_master_id: string
@@ -5574,6 +9442,68 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_agency_rate_defaults: {
+        Row: {
+          active: boolean
+          agency_master_id: string
+          created_at: string
+          id: string
+          rate_plan_id: string
+          restaurant_id: string
+          room_type_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          agency_master_id: string
+          created_at?: string
+          id?: string
+          rate_plan_id: string
+          restaurant_id: string
+          room_type_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          agency_master_id?: string
+          created_at?: string
+          id?: string
+          rate_plan_id?: string
+          restaurant_id?: string
+          room_type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_agency_rate_defaults_agency_fk"
+            columns: ["agency_master_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_account_masters"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_agency_rate_defaults_rate_plan_fk"
+            columns: ["rate_plan_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rate_plans"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_agency_rate_defaults_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_agency_rate_defaults_room_type_fk"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
           },
         ]
       }
@@ -5808,44 +9738,56 @@ export type Database = {
       pms_billing_rules: {
         Row: {
           active: boolean
+          applicable_profile_types: string[] | null
           code: string
           created_at: string
           description: string | null
           id: string
           is_default: boolean
+          is_system: boolean
           name: string
+          operational_status: string
           payer_kind: string
           payment_terms: string | null
           restaurant_id: string
           split_guest_percent: number | null
+          system_code: string | null
           updated_at: string
         }
         Insert: {
           active?: boolean
+          applicable_profile_types?: string[] | null
           code: string
           created_at?: string
           description?: string | null
           id?: string
           is_default?: boolean
+          is_system?: boolean
           name: string
+          operational_status?: string
           payer_kind: string
           payment_terms?: string | null
           restaurant_id: string
           split_guest_percent?: number | null
+          system_code?: string | null
           updated_at?: string
         }
         Update: {
           active?: boolean
+          applicable_profile_types?: string[] | null
           code?: string
           created_at?: string
           description?: string | null
           id?: string
           is_default?: boolean
+          is_system?: boolean
           name?: string
+          operational_status?: string
           payer_kind?: string
           payment_terms?: string | null
           restaurant_id?: string
           split_guest_percent?: number | null
+          system_code?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -6545,28 +10487,46 @@ export type Database = {
       pms_company_document_types: {
         Row: {
           active: boolean
+          applies_to_company: boolean
+          applies_to_contract: boolean
+          applies_to_travel_agency: boolean
           code: string
           created_at: string
+          description: string | null
+          display_order: number
           id: string
           name: string
+          required: boolean
           restaurant_id: string
           updated_at: string
         }
         Insert: {
           active?: boolean
+          applies_to_company?: boolean
+          applies_to_contract?: boolean
+          applies_to_travel_agency?: boolean
           code: string
           created_at?: string
+          description?: string | null
+          display_order?: number
           id?: string
           name: string
+          required?: boolean
           restaurant_id: string
           updated_at?: string
         }
         Update: {
           active?: boolean
+          applies_to_company?: boolean
+          applies_to_contract?: boolean
+          applies_to_travel_agency?: boolean
           code?: string
           created_at?: string
+          description?: string | null
+          display_order?: number
           id?: string
           name?: string
+          required?: boolean
           restaurant_id?: string
           updated_at?: string
         }
@@ -6644,77 +10604,160 @@ export type Database = {
           },
         ]
       }
+      pms_contract_types: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_contract_types_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pms_corporate_agreements: {
         Row: {
           active: boolean
+          agency_master_id: string | null
           auto_renew: boolean
           code: string
           company_id: string
           contract_number: string
+          contract_type_id: string | null
           created_at: string
           currency_code: string
+          deposit_policy_id: string | null
           description: string | null
+          discount_application: string
+          discount_type: string | null
+          discount_value: number | null
           file_storage_path: string | null
           id: string
           name: string
+          no_show_policy_id: string | null
           notice_period_days: number | null
+          pricing_method: string
           rate_cancellation_policy_id: string | null
+          rate_plan_discounts: Json | null
+          rate_plan_id: string | null
+          rate_plan_ids: string[] | null
+          rate_plan_scope: string
           restaurant_id: string
           signed_at: string | null
           signed_by: string | null
+          status: string
           updated_at: string
           valid_from: string
           valid_to: string
         }
         Insert: {
           active?: boolean
+          agency_master_id?: string | null
           auto_renew?: boolean
           code: string
           company_id: string
           contract_number: string
+          contract_type_id?: string | null
           created_at?: string
           currency_code: string
+          deposit_policy_id?: string | null
           description?: string | null
+          discount_application?: string
+          discount_type?: string | null
+          discount_value?: number | null
           file_storage_path?: string | null
           id?: string
           name: string
+          no_show_policy_id?: string | null
           notice_period_days?: number | null
+          pricing_method?: string
           rate_cancellation_policy_id?: string | null
+          rate_plan_discounts?: Json | null
+          rate_plan_id?: string | null
+          rate_plan_ids?: string[] | null
+          rate_plan_scope?: string
           restaurant_id: string
           signed_at?: string | null
           signed_by?: string | null
+          status?: string
           updated_at?: string
           valid_from: string
           valid_to: string
         }
         Update: {
           active?: boolean
+          agency_master_id?: string | null
           auto_renew?: boolean
           code?: string
           company_id?: string
           contract_number?: string
+          contract_type_id?: string | null
           created_at?: string
           currency_code?: string
+          deposit_policy_id?: string | null
           description?: string | null
+          discount_application?: string
+          discount_type?: string | null
+          discount_value?: number | null
           file_storage_path?: string | null
           id?: string
           name?: string
+          no_show_policy_id?: string | null
           notice_period_days?: number | null
+          pricing_method?: string
           rate_cancellation_policy_id?: string | null
+          rate_plan_discounts?: Json | null
+          rate_plan_id?: string | null
+          rate_plan_ids?: string[] | null
+          rate_plan_scope?: string
           restaurant_id?: string
           signed_at?: string | null
           signed_by?: string | null
+          status?: string
           updated_at?: string
           valid_from?: string
           valid_to?: string
         }
         Relationships: [
           {
-            foreignKeyName: "pms_corporate_agreements_rate_cancellation_same_property"
-            columns: ["rate_cancellation_policy_id", "restaurant_id"]
+            foreignKeyName: "pms_corporate_agreements_agency_master_id_fkey"
+            columns: ["agency_master_id"]
             isOneToOne: false
-            referencedRelation: "pms_rate_cancellation_policies"
-            referencedColumns: ["id", "restaurant_id"]
+            referencedRelation: "guest_account_masters"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "pms_corporate_agreements_company_fk"
@@ -6724,9 +10767,96 @@ export type Database = {
             referencedColumns: ["id", "restaurant_id"]
           },
           {
+            foreignKeyName: "pms_corporate_agreements_contract_type_id_fkey"
+            columns: ["contract_type_id"]
+            isOneToOne: false
+            referencedRelation: "pms_contract_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_corporate_agreements_deposit_policy_id_fkey"
+            columns: ["deposit_policy_id"]
+            isOneToOne: false
+            referencedRelation: "pms_deposit_policies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_corporate_agreements_no_show_policy_id_fkey"
+            columns: ["no_show_policy_id"]
+            isOneToOne: false
+            referencedRelation: "pms_no_show_policies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_corporate_agreements_rate_cancellation_same_property"
+            columns: ["rate_cancellation_policy_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_rate_cancellation_policies"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_corporate_agreements_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rate_plans"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "pms_corporate_agreements_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_credit_note_counters: {
+        Row: {
+          last_sequence: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_sequence?: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_sequence?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_credit_note_counters_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_debit_note_counters: {
+        Row: {
+          last_sequence: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          last_sequence?: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          last_sequence?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_debit_note_counters_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
           },
@@ -7456,6 +11586,126 @@ export type Database = {
           },
         ]
       }
+      pms_external_reservation_snapshots: {
+        Row: {
+          amount_after_tax: number | null
+          amount_before_tax: number | null
+          booked_on: string | null
+          channel: string
+          cm_booking_id: string | null
+          commission: number | null
+          created_at: string
+          credit_card_present: boolean
+          currency: string | null
+          external_booking_id: string
+          guest_address_line1: string | null
+          guest_city: string | null
+          guest_country: string | null
+          guest_email: string | null
+          guest_first_name: string | null
+          guest_last_name: string | null
+          guest_phone: string | null
+          guest_state: string | null
+          guest_zip: string | null
+          hotel_code: string
+          id: string
+          pah: boolean | null
+          provider: string
+          reservation_id: string
+          restaurant_id: string
+          segment: string | null
+          special_requests: string | null
+          state_fingerprint: string
+          tax: number | null
+          tcs: number | null
+          tds: number | null
+          updated_at: string
+        }
+        Insert: {
+          amount_after_tax?: number | null
+          amount_before_tax?: number | null
+          booked_on?: string | null
+          channel: string
+          cm_booking_id?: string | null
+          commission?: number | null
+          created_at?: string
+          credit_card_present?: boolean
+          currency?: string | null
+          external_booking_id: string
+          guest_address_line1?: string | null
+          guest_city?: string | null
+          guest_country?: string | null
+          guest_email?: string | null
+          guest_first_name?: string | null
+          guest_last_name?: string | null
+          guest_phone?: string | null
+          guest_state?: string | null
+          guest_zip?: string | null
+          hotel_code: string
+          id?: string
+          pah?: boolean | null
+          provider: string
+          reservation_id: string
+          restaurant_id: string
+          segment?: string | null
+          special_requests?: string | null
+          state_fingerprint: string
+          tax?: number | null
+          tcs?: number | null
+          tds?: number | null
+          updated_at?: string
+        }
+        Update: {
+          amount_after_tax?: number | null
+          amount_before_tax?: number | null
+          booked_on?: string | null
+          channel?: string
+          cm_booking_id?: string | null
+          commission?: number | null
+          created_at?: string
+          credit_card_present?: boolean
+          currency?: string | null
+          external_booking_id?: string
+          guest_address_line1?: string | null
+          guest_city?: string | null
+          guest_country?: string | null
+          guest_email?: string | null
+          guest_first_name?: string | null
+          guest_last_name?: string | null
+          guest_phone?: string | null
+          guest_state?: string | null
+          guest_zip?: string | null
+          hotel_code?: string
+          id?: string
+          pah?: boolean | null
+          provider?: string
+          reservation_id?: string
+          restaurant_id?: string
+          segment?: string | null
+          special_requests?: string | null
+          state_fingerprint?: string
+          tax?: number | null
+          tcs?: number | null
+          tds?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_external_reservation_snapshots_reservation_same_property"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_external_reservation_snapshots_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pms_fees: {
         Row: {
           active: boolean
@@ -7767,6 +12017,115 @@ export type Database = {
           },
         ]
       }
+      pms_group_allotment_nights: {
+        Row: {
+          allotted: number
+          group_block_id: string
+          id: string
+          inventory_block_id: string | null
+          night: string
+          restaurant_id: string
+        }
+        Insert: {
+          allotted: number
+          group_block_id: string
+          id?: string
+          inventory_block_id?: string | null
+          night: string
+          restaurant_id: string
+        }
+        Update: {
+          allotted?: number
+          group_block_id?: string
+          id?: string
+          inventory_block_id?: string | null
+          night?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_group_allotment_nights_block_same_property"
+            columns: ["group_block_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_group_blocks"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_group_allotment_nights_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_group_blocks: {
+        Row: {
+          allotted: number
+          created_at: string
+          cutoff_date: string | null
+          end_date: string
+          group_id: string
+          id: string
+          reason: string | null
+          restaurant_id: string
+          room_type_id: string
+          start_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          allotted: number
+          created_at?: string
+          cutoff_date?: string | null
+          end_date: string
+          group_id: string
+          id?: string
+          reason?: string | null
+          restaurant_id: string
+          room_type_id: string
+          start_date: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          allotted?: number
+          created_at?: string
+          cutoff_date?: string | null
+          end_date?: string
+          group_id?: string
+          id?: string
+          reason?: string | null
+          restaurant_id?: string
+          room_type_id?: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_group_blocks_group_same_property"
+            columns: ["group_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_groups"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_group_blocks_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_group_blocks_type_fk"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pms_group_create_drafts: {
         Row: {
           created_at: string
@@ -7795,6 +12154,126 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pms_group_create_drafts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_group_history: {
+        Row: {
+          actor_membership_id: string | null
+          created_at: string
+          event_type: string
+          group_id: string
+          id: string
+          new_values: Json | null
+          notes: string | null
+          previous_values: Json | null
+          restaurant_id: string
+        }
+        Insert: {
+          actor_membership_id?: string | null
+          created_at?: string
+          event_type: string
+          group_id: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          restaurant_id: string
+        }
+        Update: {
+          actor_membership_id?: string | null
+          created_at?: string
+          event_type?: string
+          group_id?: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_group_history_group_same_property"
+            columns: ["group_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_groups"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_group_history_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_group_rooming_rows: {
+        Row: {
+          adults: number
+          arrival_date: string
+          children: number
+          created_at: string
+          departure_date: string
+          group_block_id: string | null
+          group_id: string
+          guest_id: string | null
+          guest_name: string
+          id: string
+          reservation_id: string | null
+          restaurant_id: string
+          room_type_id: string | null
+          special_requests: string | null
+          status: string
+        }
+        Insert: {
+          adults?: number
+          arrival_date: string
+          children?: number
+          created_at?: string
+          departure_date: string
+          group_block_id?: string | null
+          group_id: string
+          guest_id?: string | null
+          guest_name: string
+          id?: string
+          reservation_id?: string | null
+          restaurant_id: string
+          room_type_id?: string | null
+          special_requests?: string | null
+          status?: string
+        }
+        Update: {
+          adults?: number
+          arrival_date?: string
+          children?: number
+          created_at?: string
+          departure_date?: string
+          group_block_id?: string | null
+          group_id?: string
+          guest_id?: string | null
+          guest_name?: string
+          id?: string
+          reservation_id?: string | null
+          restaurant_id?: string
+          room_type_id?: string | null
+          special_requests?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_group_rooming_rows_group_same_property"
+            columns: ["group_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_groups"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_group_rooming_rows_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -7884,6 +12363,110 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_groups: {
+        Row: {
+          arrival_date: string
+          code: string | null
+          company_master_id: string | null
+          confirmation_number: string
+          created_at: string
+          created_by_membership_id: string | null
+          cutoff_date: string | null
+          departure_date: string
+          external_reference: string | null
+          group_account_master_id: string | null
+          group_type: string
+          id: string
+          leader_guest_id: string | null
+          market_segment: string | null
+          name: string
+          notes: string | null
+          rate_plan_id: string | null
+          restaurant_id: string
+          source: string | null
+          status: string
+          travel_agent_master_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          arrival_date: string
+          code?: string | null
+          company_master_id?: string | null
+          confirmation_number: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          cutoff_date?: string | null
+          departure_date: string
+          external_reference?: string | null
+          group_account_master_id?: string | null
+          group_type?: string
+          id?: string
+          leader_guest_id?: string | null
+          market_segment?: string | null
+          name: string
+          notes?: string | null
+          rate_plan_id?: string | null
+          restaurant_id: string
+          source?: string | null
+          status?: string
+          travel_agent_master_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          arrival_date?: string
+          code?: string | null
+          company_master_id?: string | null
+          confirmation_number?: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          cutoff_date?: string | null
+          departure_date?: string
+          external_reference?: string | null
+          group_account_master_id?: string | null
+          group_type?: string
+          id?: string
+          leader_guest_id?: string | null
+          market_segment?: string | null
+          name?: string
+          notes?: string | null
+          rate_plan_id?: string | null
+          restaurant_id?: string
+          source?: string | null
+          status?: string
+          travel_agent_master_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_groups_account_same_property"
+            columns: ["group_account_master_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_account_masters"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_groups_company_same_property"
+            columns: ["company_master_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_account_masters"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_groups_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_groups_ta_same_property"
+            columns: ["travel_agent_master_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_account_masters"
+            referencedColumns: ["id", "restaurant_id"]
           },
         ]
       }
@@ -8403,6 +12986,7 @@ export type Database = {
           created_at: string
           department_id: string
           id: string
+          is_billing_department: boolean
           restaurant_id: string
           service_type_id: string
           updated_at: string
@@ -8413,6 +12997,7 @@ export type Database = {
           created_at?: string
           department_id: string
           id?: string
+          is_billing_department?: boolean
           restaurant_id: string
           service_type_id: string
           updated_at?: string
@@ -8423,6 +13008,7 @@ export type Database = {
           created_at?: string
           department_id?: string
           id?: string
+          is_billing_department?: boolean
           restaurant_id?: string
           service_type_id?: string
           updated_at?: string
@@ -8561,6 +13147,7 @@ export type Database = {
         Row: {
           active: boolean
           category_id: string
+          chargeable_to_folio: boolean
           code: string
           created_at: string
           description: string | null
@@ -8574,6 +13161,7 @@ export type Database = {
         Insert: {
           active?: boolean
           category_id: string
+          chargeable_to_folio?: boolean
           code: string
           created_at?: string
           description?: string | null
@@ -8587,6 +13175,7 @@ export type Database = {
         Update: {
           active?: boolean
           category_id?: string
+          chargeable_to_folio?: boolean
           code?: string
           created_at?: string
           description?: string | null
@@ -9446,10 +14035,11 @@ export type Database = {
           enabled: boolean
           environment: string
           events: string[]
+          external_property_code: string | null
           id: string
+          last_error: string | null
           last_test_at: string | null
           last_test_result: string | null
-          last_error: string | null
           last_validated_at: string | null
           name: string
           partner_slug: string | null
@@ -9458,7 +14048,6 @@ export type Database = {
           status: string
           updated_at: string
           webhook_path: string | null
-          external_property_code: string | null
         }
         Insert: {
           auth_method?: string | null
@@ -9469,10 +14058,11 @@ export type Database = {
           enabled?: boolean
           environment?: string
           events?: string[]
+          external_property_code?: string | null
           id?: string
+          last_error?: string | null
           last_test_at?: string | null
           last_test_result?: string | null
-          last_error?: string | null
           last_validated_at?: string | null
           name: string
           partner_slug?: string | null
@@ -9481,7 +14071,6 @@ export type Database = {
           status?: string
           updated_at?: string
           webhook_path?: string | null
-          external_property_code?: string | null
         }
         Update: {
           auth_method?: string | null
@@ -9492,10 +14081,11 @@ export type Database = {
           enabled?: boolean
           environment?: string
           events?: string[]
+          external_property_code?: string | null
           id?: string
+          last_error?: string | null
           last_test_at?: string | null
           last_test_result?: string | null
-          last_error?: string | null
           last_validated_at?: string | null
           name?: string
           partner_slug?: string | null
@@ -9504,7 +14094,6 @@ export type Database = {
           status?: string
           updated_at?: string
           webhook_path?: string | null
-          external_property_code?: string | null
         }
         Relationships: [
           {
@@ -9734,6 +14323,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pms_invoice_settings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_issued_invoice_counters: {
+        Row: {
+          created_at: string
+          last_sequence: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          last_sequence: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          last_sequence?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_issued_invoice_counters_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: true
             referencedRelation: "restaurants"
@@ -10110,6 +14728,71 @@ export type Database = {
           },
         ]
       }
+      pms_meal_applicability_policies: {
+        Row: {
+          breakfast_department_id: string | null
+          breakfast_include_arrival: boolean
+          breakfast_include_departure: boolean
+          breakfast_include_stay: boolean
+          count_infants: boolean
+          created_at: string
+          dinner_department_id: string | null
+          dinner_include_arrival: boolean
+          dinner_include_departure: boolean
+          dinner_include_stay: boolean
+          lunch_department_id: string | null
+          lunch_include_arrival: boolean
+          lunch_include_departure: boolean
+          lunch_include_stay: boolean
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          breakfast_department_id?: string | null
+          breakfast_include_arrival?: boolean
+          breakfast_include_departure?: boolean
+          breakfast_include_stay?: boolean
+          count_infants?: boolean
+          created_at?: string
+          dinner_department_id?: string | null
+          dinner_include_arrival?: boolean
+          dinner_include_departure?: boolean
+          dinner_include_stay?: boolean
+          lunch_department_id?: string | null
+          lunch_include_arrival?: boolean
+          lunch_include_departure?: boolean
+          lunch_include_stay?: boolean
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          breakfast_department_id?: string | null
+          breakfast_include_arrival?: boolean
+          breakfast_include_departure?: boolean
+          breakfast_include_stay?: boolean
+          count_infants?: boolean
+          created_at?: string
+          dinner_department_id?: string | null
+          dinner_include_arrival?: boolean
+          dinner_include_departure?: boolean
+          dinner_include_stay?: boolean
+          lunch_department_id?: string | null
+          lunch_include_arrival?: boolean
+          lunch_include_departure?: boolean
+          lunch_include_stay?: boolean
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_meal_applicability_policies_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pms_meal_plans: {
         Row: {
           active: boolean
@@ -10258,6 +14941,59 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      pms_no_show_policies: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean
+          name: string
+          penalty_type: string
+          penalty_value: number
+          release_hour: number
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          penalty_type: string
+          penalty_value?: number
+          release_hour?: number
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          penalty_type?: string
+          penalty_value?: number
+          release_hour?: number
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_no_show_policies_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pms_notification_templates: {
         Row: {
@@ -10728,17 +15464,94 @@ export type Database = {
           },
         ]
       }
+      pms_overbooking_date_limits: {
+        Row: {
+          created_at: string
+          created_by_membership_id: string | null
+          enabled: boolean
+          end_date: string
+          id: string
+          maximum_overbooking: number | null
+          percentage_limit: number | null
+          restaurant_id: string
+          room_type_id: string
+          start_date: string
+          updated_at: string
+          updated_by_membership_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by_membership_id?: string | null
+          enabled?: boolean
+          end_date: string
+          id?: string
+          maximum_overbooking?: number | null
+          percentage_limit?: number | null
+          restaurant_id: string
+          room_type_id: string
+          start_date: string
+          updated_at?: string
+          updated_by_membership_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by_membership_id?: string | null
+          enabled?: boolean
+          end_date?: string
+          id?: string
+          maximum_overbooking?: number | null
+          percentage_limit?: number | null
+          restaurant_id?: string
+          room_type_id?: string
+          start_date?: string
+          updated_at?: string
+          updated_by_membership_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_overbooking_date_limits_created_by_fk"
+            columns: ["created_by_membership_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_overbooking_date_limits_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_overbooking_date_limits_room_type_fk"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_overbooking_date_limits_updated_by_fk"
+            columns: ["updated_by_membership_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       pms_package_components: {
         Row: {
           component_kind: string
           created_at: string
           fo_service_id: string | null
+          fulfillment_department_id: string | null
           id: string
           meal_plan_id: string | null
           package_id: string
           quantity: number
+          requires_fulfillment: boolean
           restaurant_id: string
           room_amenity_id: string | null
+          service_date_rule: string | null
           sort_order: number
           updated_at: string
         }
@@ -10746,12 +15559,15 @@ export type Database = {
           component_kind: string
           created_at?: string
           fo_service_id?: string | null
+          fulfillment_department_id?: string | null
           id?: string
           meal_plan_id?: string | null
           package_id: string
           quantity?: number
+          requires_fulfillment?: boolean
           restaurant_id: string
           room_amenity_id?: string | null
+          service_date_rule?: string | null
           sort_order?: number
           updated_at?: string
         }
@@ -10759,12 +15575,15 @@ export type Database = {
           component_kind?: string
           created_at?: string
           fo_service_id?: string | null
+          fulfillment_department_id?: string | null
           id?: string
           meal_plan_id?: string | null
           package_id?: string
           quantity?: number
+          requires_fulfillment?: boolean
           restaurant_id?: string
           room_amenity_id?: string | null
+          service_date_rule?: string | null
           sort_order?: number
           updated_at?: string
         }
@@ -10910,7 +15729,9 @@ export type Database = {
       pms_packages: {
         Row: {
           active: boolean
+          charge_basis: string
           code: string
+          cover_image_path: string | null
           created_at: string
           description: string | null
           id: string
@@ -10923,7 +15744,9 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          charge_basis?: string
           code: string
+          cover_image_path?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -10936,7 +15759,9 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          charge_basis?: string
           code?: string
+          cover_image_path?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -11192,112 +16017,6 @@ export type Database = {
           },
         ]
       }
-      pms_rate_cancellation_policies: {
-        Row: {
-          active: boolean
-          code: string
-          created_at: string
-          cutoff_time: string | null
-          deadline_hours: number | null
-          description: string | null
-          id: string
-          name: string
-          penalty_type: string
-          penalty_value: number
-          policy_kind: string
-          restaurant_id: string
-          updated_at: string
-          window_unit: string
-          window_value: number | null
-        }
-        Insert: {
-          active?: boolean
-          code: string
-          created_at?: string
-          cutoff_time?: string | null
-          deadline_hours?: number | null
-          description?: string | null
-          id?: string
-          name: string
-          penalty_type?: string
-          penalty_value?: number
-          policy_kind?: string
-          restaurant_id: string
-          updated_at?: string
-          window_unit?: string
-          window_value?: number | null
-        }
-        Update: {
-          active?: boolean
-          code?: string
-          created_at?: string
-          cutoff_time?: string | null
-          deadline_hours?: number | null
-          description?: string | null
-          id?: string
-          name?: string
-          penalty_type?: string
-          penalty_value?: number
-          policy_kind?: string
-          restaurant_id?: string
-          updated_at?: string
-          window_unit?: string
-          window_value?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pms_rate_cancellation_policies_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      pms_rate_refundability_codes: {
-        Row: {
-          active: boolean
-          code: string
-          created_at: string
-          description: string | null
-          id: string
-          kind: string
-          name: string
-          restaurant_id: string
-          updated_at: string
-        }
-        Insert: {
-          active?: boolean
-          code: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          kind: string
-          name: string
-          restaurant_id: string
-          updated_at?: string
-        }
-        Update: {
-          active?: boolean
-          code?: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          kind?: string
-          name?: string
-          restaurant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pms_rate_refundability_codes_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       pms_property_areas: {
         Row: {
           active: boolean
@@ -11433,6 +16152,275 @@ export type Database = {
           },
           {
             foreignKeyName: "pms_property_department_contacts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_purpose_of_stay: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          description?: string
+          id?: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_purpose_of_stay_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_rate_cancellation_policies: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          cutoff_time: string | null
+          deadline_hours: number | null
+          description: string | null
+          id: string
+          name: string
+          penalty_type: string
+          penalty_value: number
+          policy_kind: string
+          restaurant_id: string
+          updated_at: string
+          window_unit: string
+          window_value: number | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          cutoff_time?: string | null
+          deadline_hours?: number | null
+          description?: string | null
+          id?: string
+          name: string
+          penalty_type?: string
+          penalty_value?: number
+          policy_kind?: string
+          restaurant_id: string
+          updated_at?: string
+          window_unit?: string
+          window_value?: number | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          cutoff_time?: string | null
+          deadline_hours?: number | null
+          description?: string | null
+          id?: string
+          name?: string
+          penalty_type?: string
+          penalty_value?: number
+          policy_kind?: string
+          restaurant_id?: string
+          updated_at?: string
+          window_unit?: string
+          window_value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_rate_cancellation_policies_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_rate_refundability_codes: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          kind: string
+          name: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind: string
+          name: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind?: string
+          name?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_rate_refundability_codes_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_registration_agreement_versions: {
+        Row: {
+          acknowledgement_intro: string | null
+          acknowledgement_title: string | null
+          acknowledgements: Json | null
+          active: boolean
+          agreement_sections: Json | null
+          body: string
+          created_at: string
+          created_by_membership_id: string | null
+          id: string
+          intro: string | null
+          lead_in: string | null
+          published_at: string | null
+          published_by: string | null
+          resolved_check_in_time: string | null
+          resolved_check_out_time: string | null
+          restaurant_id: string
+          title: string | null
+          version_label: string
+        }
+        Insert: {
+          acknowledgement_intro?: string | null
+          acknowledgement_title?: string | null
+          acknowledgements?: Json | null
+          active?: boolean
+          agreement_sections?: Json | null
+          body: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          id?: string
+          intro?: string | null
+          lead_in?: string | null
+          published_at?: string | null
+          published_by?: string | null
+          resolved_check_in_time?: string | null
+          resolved_check_out_time?: string | null
+          restaurant_id: string
+          title?: string | null
+          version_label: string
+        }
+        Update: {
+          acknowledgement_intro?: string | null
+          acknowledgement_title?: string | null
+          acknowledgements?: Json | null
+          active?: boolean
+          agreement_sections?: Json | null
+          body?: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          id?: string
+          intro?: string | null
+          lead_in?: string | null
+          published_at?: string | null
+          published_by?: string | null
+          resolved_check_in_time?: string | null
+          resolved_check_out_time?: string | null
+          restaurant_id?: string
+          title?: string | null
+          version_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_registration_agreement_versions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_report_access_events: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          filters_snapshot: Json
+          id: string
+          membership_id: string
+          report_code: string
+          restaurant_id: string
+          row_count: number
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          filters_snapshot?: Json
+          id?: string
+          membership_id: string
+          report_code: string
+          restaurant_id: string
+          row_count: number
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          filters_snapshot?: Json
+          id?: string
+          membership_id?: string
+          report_code?: string
+          restaurant_id?: string
+          row_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_report_access_events_membership_fk"
+            columns: ["membership_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_report_access_events_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -11664,6 +16652,195 @@ export type Database = {
           },
         ]
       }
+      pms_reservation_overbooking_approvals: {
+        Row: {
+          approved_by_membership_id: string
+          created_at: string
+          id: string
+          nights: Json
+          reason: string | null
+          requested_by_membership_id: string
+          reservation_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          approved_by_membership_id: string
+          created_at?: string
+          id?: string
+          nights: Json
+          reason?: string | null
+          requested_by_membership_id: string
+          reservation_id: string
+          restaurant_id: string
+        }
+        Update: {
+          approved_by_membership_id?: string
+          created_at?: string
+          id?: string
+          nights?: Json
+          reason?: string | null
+          requested_by_membership_id?: string
+          reservation_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_reservation_overbooking_approvals_approver_fk"
+            columns: ["approved_by_membership_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_reservation_overbooking_approvals_requester_fk"
+            columns: ["requested_by_membership_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_reservation_overbooking_approvals_reservation_fk"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_reservation_overbooking_approvals_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_reservation_service_entitlements: {
+        Row: {
+          adult_quantity: number
+          building_snapshot: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          child_quantity: number
+          component_id: string | null
+          created_at: string
+          department_id: string | null
+          floor_snapshot: string | null
+          fulfilled_at: string | null
+          fulfilled_by_membership_id: string | null
+          generation_key: string
+          guest_id: string | null
+          guest_name_snapshot: string
+          id: string
+          infant_quantity: number
+          meal_code: string | null
+          meal_plan_name_snapshot: string | null
+          notes_snapshot: string | null
+          reservation_id: string
+          reservation_room_id: string
+          restaurant_id: string
+          room_number_snapshot: string
+          service_date: string
+          service_kind: string
+          service_name_snapshot: string
+          service_reference_id: string
+          source_id: string
+          source_type: string
+          status: string
+          total_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          adult_quantity?: number
+          building_snapshot?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          child_quantity?: number
+          component_id?: string | null
+          created_at?: string
+          department_id?: string | null
+          floor_snapshot?: string | null
+          fulfilled_at?: string | null
+          fulfilled_by_membership_id?: string | null
+          generation_key: string
+          guest_id?: string | null
+          guest_name_snapshot?: string
+          id?: string
+          infant_quantity?: number
+          meal_code?: string | null
+          meal_plan_name_snapshot?: string | null
+          notes_snapshot?: string | null
+          reservation_id: string
+          reservation_room_id: string
+          restaurant_id: string
+          room_number_snapshot?: string
+          service_date: string
+          service_kind: string
+          service_name_snapshot: string
+          service_reference_id: string
+          source_id: string
+          source_type: string
+          status?: string
+          total_quantity?: number
+          updated_at?: string
+        }
+        Update: {
+          adult_quantity?: number
+          building_snapshot?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          child_quantity?: number
+          component_id?: string | null
+          created_at?: string
+          department_id?: string | null
+          floor_snapshot?: string | null
+          fulfilled_at?: string | null
+          fulfilled_by_membership_id?: string | null
+          generation_key?: string
+          guest_id?: string | null
+          guest_name_snapshot?: string
+          id?: string
+          infant_quantity?: number
+          meal_code?: string | null
+          meal_plan_name_snapshot?: string | null
+          notes_snapshot?: string | null
+          reservation_id?: string
+          reservation_room_id?: string
+          restaurant_id?: string
+          room_number_snapshot?: string
+          service_date?: string
+          service_kind?: string
+          service_name_snapshot?: string
+          service_reference_id?: string
+          source_id?: string
+          source_type?: string
+          status?: string
+          total_quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_reservation_service_entitlements_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_service_entitlements_reservation_fk"
+            columns: ["reservation_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_service_entitlements_room_fk"
+            columns: ["reservation_room_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservation_rooms"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       pms_restriction_reasons: {
         Row: {
           active: boolean
@@ -11821,6 +16998,74 @@ export type Database = {
             columns: ["room_id", "restaurant_id"]
             isOneToOne: false
             referencedRelation: "hotel_rooms"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      pms_room_type_overbooking_rules: {
+        Row: {
+          created_at: string
+          created_by_membership_id: string | null
+          enabled: boolean
+          id: string
+          maximum_overbooking: number | null
+          percentage_limit: number | null
+          restaurant_id: string
+          room_type_id: string
+          updated_at: string
+          updated_by_membership_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by_membership_id?: string | null
+          enabled?: boolean
+          id?: string
+          maximum_overbooking?: number | null
+          percentage_limit?: number | null
+          restaurant_id: string
+          room_type_id: string
+          updated_at?: string
+          updated_by_membership_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by_membership_id?: string | null
+          enabled?: boolean
+          id?: string
+          maximum_overbooking?: number | null
+          percentage_limit?: number | null
+          restaurant_id?: string
+          room_type_id?: string
+          updated_at?: string
+          updated_by_membership_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_room_type_overbooking_rules_created_by_fk"
+            columns: ["created_by_membership_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_room_type_overbooking_rules_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_room_type_overbooking_rules_room_type_fk"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_room_type_overbooking_rules_updated_by_fk"
+            columns: ["updated_by_membership_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
             referencedColumns: ["id", "restaurant_id"]
           },
         ]
@@ -12021,10 +17266,57 @@ export type Database = {
           },
         ]
       }
+      pms_service_charge_department_targets: {
+        Row: {
+          created_at: string
+          department_id: string
+          id: string
+          restaurant_id: string
+          service_charge_id: string
+        }
+        Insert: {
+          created_at?: string
+          department_id: string
+          id?: string
+          restaurant_id: string
+          service_charge_id: string
+        }
+        Update: {
+          created_at?: string
+          department_id?: string
+          id?: string
+          restaurant_id?: string
+          service_charge_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_service_charge_department_targets_department_fk"
+            columns: ["department_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_departments"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_service_charge_department_targets_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_service_charge_department_targets_rule_fk"
+            columns: ["service_charge_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_service_charges"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       pms_service_charges: {
         Row: {
           active: boolean
           amount: number
+          applicability_scope: string
           basis: string
           charge_type: string
           code: string
@@ -12037,6 +17329,7 @@ export type Database = {
         Insert: {
           active?: boolean
           amount: number
+          applicability_scope?: string
           basis?: string
           charge_type?: string
           code: string
@@ -12049,6 +17342,7 @@ export type Database = {
         Update: {
           active?: boolean
           amount?: number
+          applicability_scope?: string
           basis?: string
           charge_type?: string
           code?: string
@@ -12159,6 +17453,52 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_tax_department_targets: {
+        Row: {
+          created_at: string
+          department_id: string
+          id: string
+          restaurant_id: string
+          tax_id: string
+        }
+        Insert: {
+          created_at?: string
+          department_id: string
+          id?: string
+          restaurant_id: string
+          tax_id: string
+        }
+        Update: {
+          created_at?: string
+          department_id?: string
+          id?: string
+          restaurant_id?: string
+          tax_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_tax_department_targets_department_fk"
+            columns: ["department_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_departments"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_tax_department_targets_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_tax_department_targets_tax_fk"
+            columns: ["tax_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_taxes"
+            referencedColumns: ["id", "restaurant_id"]
           },
         ]
       }
@@ -12303,6 +17643,7 @@ export type Database = {
         Row: {
           active: boolean
           amount: number
+          applicability_scope: string
           basis: string
           calculation: string
           charge_type: string
@@ -12316,6 +17657,7 @@ export type Database = {
         Insert: {
           active?: boolean
           amount: number
+          applicability_scope?: string
           basis?: string
           calculation?: string
           charge_type?: string
@@ -12329,6 +17671,7 @@ export type Database = {
         Update: {
           active?: boolean
           amount?: number
+          applicability_scope?: string
           basis?: string
           calculation?: string
           charge_type?: string
@@ -12346,6 +17689,222 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_waitlist_history: {
+        Row: {
+          actor_membership_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          new_values: Json | null
+          notes: string | null
+          previous_values: Json | null
+          restaurant_id: string
+          waitlist_request_id: string
+        }
+        Insert: {
+          actor_membership_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          restaurant_id: string
+          waitlist_request_id: string
+        }
+        Update: {
+          actor_membership_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          new_values?: Json | null
+          notes?: string | null
+          previous_values?: Json | null
+          restaurant_id?: string
+          waitlist_request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_waitlist_history_request_same_property"
+            columns: ["waitlist_request_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_waitlist_requests"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_waitlist_history_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_waitlist_offers: {
+        Row: {
+          arrival_date: string
+          created_at: string
+          created_by_membership_id: string | null
+          departure_date: string
+          expires_at: string
+          id: string
+          quoted_currency: string | null
+          quoted_total: number | null
+          rate_plan_id: string | null
+          restaurant_id: string
+          room_type_id: string
+          status: string
+          updated_at: string
+          waitlist_request_id: string
+        }
+        Insert: {
+          arrival_date: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          departure_date: string
+          expires_at: string
+          id?: string
+          quoted_currency?: string | null
+          quoted_total?: number | null
+          rate_plan_id?: string | null
+          restaurant_id: string
+          room_type_id: string
+          status?: string
+          updated_at?: string
+          waitlist_request_id: string
+        }
+        Update: {
+          arrival_date?: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          departure_date?: string
+          expires_at?: string
+          id?: string
+          quoted_currency?: string | null
+          quoted_total?: number | null
+          rate_plan_id?: string | null
+          restaurant_id?: string
+          room_type_id?: string
+          status?: string
+          updated_at?: string
+          waitlist_request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_waitlist_offers_request_same_property"
+            columns: ["waitlist_request_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_waitlist_requests"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_waitlist_offers_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_waitlist_offers_room_type_same_property"
+            columns: ["room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
+      pms_waitlist_requests: {
+        Row: {
+          adults: number
+          alternate_room_type_ids: string[]
+          arrival_date: string
+          children: number
+          confirmation_number: string
+          created_at: string
+          created_by_membership_id: string | null
+          departure_date: string
+          flexible_dates: boolean
+          guest_id: string
+          id: string
+          notes: string | null
+          priority: number
+          requested_room_type_id: string | null
+          reservation_id: string | null
+          restaurant_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          adults?: number
+          alternate_room_type_ids?: string[]
+          arrival_date: string
+          children?: number
+          confirmation_number: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          departure_date: string
+          flexible_dates?: boolean
+          guest_id: string
+          id?: string
+          notes?: string | null
+          priority?: number
+          requested_room_type_id?: string | null
+          reservation_id?: string | null
+          restaurant_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          adults?: number
+          alternate_room_type_ids?: string[]
+          arrival_date?: string
+          children?: number
+          confirmation_number?: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          departure_date?: string
+          flexible_dates?: boolean
+          guest_id?: string
+          id?: string
+          notes?: string | null
+          priority?: number
+          requested_room_type_id?: string | null
+          reservation_id?: string | null
+          restaurant_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_waitlist_requests_guest_same_property"
+            columns: ["guest_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_waitlist_requests_reservation_fk"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_waitlist_requests_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_waitlist_requests_room_type_same_property"
+            columns: ["requested_room_type_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "room_types"
+            referencedColumns: ["id", "restaurant_id"]
           },
         ]
       }
@@ -13292,6 +18851,69 @@ export type Database = {
           },
         ]
       }
+      reservation_traces: {
+        Row: {
+          assignee_name: string | null
+          completed_at: string | null
+          created_at: string
+          department: string | null
+          due_at: string | null
+          id: string
+          notes: string | null
+          priority: string
+          reservation_id: string
+          restaurant_id: string
+          status: string
+          task: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_name?: string | null
+          completed_at?: string | null
+          created_at?: string
+          department?: string | null
+          due_at?: string | null
+          id?: string
+          notes?: string | null
+          priority?: string
+          reservation_id: string
+          restaurant_id: string
+          status?: string
+          task: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_name?: string | null
+          completed_at?: string | null
+          created_at?: string
+          department?: string | null
+          due_at?: string | null
+          id?: string
+          notes?: string | null
+          priority?: string
+          reservation_id?: string
+          restaurant_id?: string
+          status?: string
+          task?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservation_traces_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservation_traces_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_asset_history: {
         Row: {
           asset_id: string
@@ -13746,6 +19368,7 @@ export type Database = {
           created_at: string
           currency_code: string
           default_language: string | null
+          default_room_tax_group_id: string | null
           department_contacts: Json
           deposit_required: boolean | null
           deposit_type: string | null
@@ -13871,6 +19494,7 @@ export type Database = {
           created_at?: string
           currency_code?: string
           default_language?: string | null
+          default_room_tax_group_id?: string | null
           department_contacts?: Json
           deposit_required?: boolean | null
           deposit_type?: string | null
@@ -13996,6 +19620,7 @@ export type Database = {
           created_at?: string
           currency_code?: string
           default_language?: string | null
+          default_room_tax_group_id?: string | null
           department_contacts?: Json
           deposit_required?: boolean | null
           deposit_type?: string | null
@@ -14085,7 +19710,15 @@ export type Database = {
           website_url?: string | null
           whatsapp?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "restaurants_default_room_tax_group_fk"
+            columns: ["default_room_tax_group_id", "id"]
+            isOneToOne: false
+            referencedRelation: "pms_tax_groups"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
       }
       room_amenities: {
         Row: {
@@ -14717,41 +20350,123 @@ export type Database = {
           },
         ]
       }
+      withholding_certificates: {
+        Row: {
+          amount: number
+          certificate_date: string
+          created_at: string
+          created_by_membership_id: string | null
+          currency: string
+          financial_account_id: string
+          id: string
+          idempotency_key: string | null
+          invoice_id: string
+          ledger_transaction_id: string
+          pretax_base: number
+          reason: string | null
+          reference: string | null
+          restaurant_id: string
+          reverses_certificate_id: string | null
+        }
+        Insert: {
+          amount: number
+          certificate_date: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          currency: string
+          financial_account_id: string
+          id?: string
+          idempotency_key?: string | null
+          invoice_id: string
+          ledger_transaction_id: string
+          pretax_base: number
+          reason?: string | null
+          reference?: string | null
+          restaurant_id: string
+          reverses_certificate_id?: string | null
+        }
+        Update: {
+          amount?: number
+          certificate_date?: string
+          created_at?: string
+          created_by_membership_id?: string | null
+          currency?: string
+          financial_account_id?: string
+          id?: string
+          idempotency_key?: string | null
+          invoice_id?: string
+          ledger_transaction_id?: string
+          pretax_base?: number
+          reason?: string | null
+          reference?: string | null
+          restaurant_id?: string
+          reverses_certificate_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "withholding_certificates_account_property"
+            columns: ["financial_account_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "withholding_certificates_invoice_property"
+            columns: ["invoice_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "financial_account_invoices"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "withholding_certificates_ledger_property"
+            columns: ["ledger_transaction_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "folio_transactions"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "withholding_certificates_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "withholding_certificates_reversal_property"
+            columns: ["reverses_certificate_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "withholding_certificates"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      apply_hotel_reservation_room_package: {
-        Args: {
-          _membership_id: string
-          _package_activation_id: string
-          _reservation_id: string
-          _reservation_room_id: string
-          _restaurant_id: string
-        }
-        Returns: string
+      account_invoice_active_withholding: {
+        Args: { _invoice_id: string; _restaurant_id: string }
+        Returns: number
       }
-      assign_hotel_reservation_room_unit: {
+      account_invoice_row_owned: {
         Args: {
-          _expected_room_id?: string
-          _expected_updated_at?: string
-          _membership_id: string
-          _reservation_id: string
-          _reservation_room_id?: string
+          _account_id: string
           _restaurant_id: string
-          _room_id: string
+          _transaction_id: string
         }
-        Returns: Json
+        Returns: number
       }
-      cancel_hotel_reservation_unit: {
+      allocate_fiscal_item_code: {
         Args: {
-          _membership_id: string
-          _reason: string
-          _reservation_id: string
-          _reservation_room_id?: string
+          _except_mapping_id?: string
+          _requested?: number
           _restaurant_id: string
         }
+        Returns: number
+      }
+      allocate_transfer_shares: {
+        Args: { _amount: number; _components: Json }
         Returns: Json
       }
       amend_hotel_reservation: {
@@ -14771,10 +20486,15 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
           cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
           company_master_id: string | null
           company_name: string | null
           confirmation_number: string
@@ -14782,27 +20502,134 @@ export type Database = {
           created_by_staff_membership_id: string | null
           currency: string | null
           departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
           id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
           market_segment: string | null
           nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
           notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
           priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
           rate_plan_id: string | null
           refundability_snapshot: Json | null
+          reservation_mode: string
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
           rooms_requested: number
           source: string
+          special_occasion: string | null
           special_request_category: string | null
           special_requests: string | null
           status: string
+          travel_agent_contact_id: string | null
+          travel_agent_master_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      amend_hotel_reservation_overbooking: {
+        Args: {
+          _adults: number
+          _arrival: string
+          _children: number
+          _departure: string
+          _infants?: number
+          _membership_id: string
+          _notes: string
+          _overbooking_reason: string
+          _rate_plan_id: string
+          _reservation_id: string
+          _restaurant_id: string
+          _room_id: string
+          _room_type_id: string
+          _special_requests: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
+          cancellation_policy_snapshot: Json | null
+          cancellation_reason: string | null
+          children: number
+          commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
+          company_master_id: string | null
+          company_name: string | null
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          currency: string | null
+          departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
+          external_reference: string | null
+          group_account_master_id: string | null
+          group_name: string | null
+          guarantee_method: string | null
+          guest_id: string
+          id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
+          market_segment: string | null
+          nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
+          notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
+          priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
+          rate_plan_id: string | null
+          refundability_snapshot: Json | null
+          reservation_mode: string
+          restaurant_id: string
+          room_id: string | null
+          room_subtotal: number | null
+          room_type_id: string
+          rooms_requested: number
+          source: string
+          special_occasion: string | null
+          special_request_category: string | null
+          special_requests: string | null
+          status: string
+          travel_agent_contact_id: string | null
           travel_agent_master_id: string | null
           updated_at: string
         }
@@ -14819,7 +20646,7 @@ export type Database = {
           _arrival: string
           _children: number
           _departure: string
-          _infants?: number | null
+          _infants?: number
           _membership_id: string
           _notes: string
           _rate_plan_id: string
@@ -14832,10 +20659,15 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
           cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
           company_master_id: string | null
           company_name: string | null
           confirmation_number: string
@@ -14843,27 +20675,47 @@ export type Database = {
           created_by_staff_membership_id: string | null
           currency: string | null
           departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
           id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
           market_segment: string | null
           nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
           notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
           priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
           rate_plan_id: string | null
           refundability_snapshot: Json | null
+          reservation_mode: string
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
           rooms_requested: number
           source: string
+          special_occasion: string | null
           special_request_category: string | null
           special_requests: string | null
           status: string
+          travel_agent_contact_id: string | null
           travel_agent_master_id: string | null
           updated_at: string
         }
@@ -14873,6 +20725,101 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      append_folio_tax_and_service_lines: {
+        Args: {
+          _default_tax_group_id?: string
+          _entered_amount: number
+          _folio_id: string
+          _folio_window_id?: string
+          _membership_id: string
+          _parent_id: string
+          _restaurant_id: string
+          _tax_basis: string
+        }
+        Returns: undefined
+      }
+      apply_external_reservation_event: {
+        Args: { _payload: Json }
+        Returns: Json
+      }
+      apply_financial_account_payment_allocations: {
+        Args: {
+          _account_id: string
+          _expected_available: number
+          _idempotency_key: string
+          _membership_id: string
+          _payment_id: string
+          _restaurant_id: string
+          _targets: Json
+        }
+        Returns: Json
+      }
+      apply_guest_deposit_invoice_allocations: {
+        Args: {
+          _deposit_id: string
+          _expected_available: number
+          _folio_id: string
+          _idempotency_key: string
+          _membership_id: string
+          _restaurant_id: string
+          _targets: Json
+        }
+        Returns: Json
+      }
+      apply_guest_payment_invoice_allocations: {
+        Args: {
+          _expected_available: number
+          _folio_id: string
+          _idempotency_key: string
+          _membership_id: string
+          _payment_id: string
+          _restaurant_id: string
+          _targets: Json
+        }
+        Returns: Json
+      }
+      apply_hotel_package_activation: {
+        Args: { _membership_id: string; _payload: Json; _restaurant_id: string }
+        Returns: Json
+      }
+      apply_hotel_promotion_activation: {
+        Args: { _membership_id: string; _payload: Json; _restaurant_id: string }
+        Returns: Json
+      }
+      apply_hotel_rate_changes: {
+        Args: {
+          _membership_id: string
+          _operation_id: string
+          _reason: string
+          _restaurant_id: string
+          _rule: Json
+          _source: string
+          _targets: Json
+        }
+        Returns: Json
+      }
+      apply_hotel_rate_restrictions: {
+        Args: {
+          _membership_id: string
+          _operation: Json
+          _operation_id: string
+          _reason: string
+          _restaurant_id: string
+          _source: string
+          _targets: Json
+        }
+        Returns: Json
+      }
+      apply_hotel_reservation_room_package: {
+        Args: {
+          _membership_id: string
+          _package_activation_id: string
+          _reservation_id: string
+          _reservation_room_id: string
+          _restaurant_id: string
+        }
+        Returns: string
       }
       apply_inventory_movement: {
         Args: {
@@ -15015,6 +20962,37 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      approve_hotel_revenue_approval: {
+        Args: {
+          _membership_id: string
+          _request_id: string
+          _restaurant_id: string
+          _review_reason: string
+        }
+        Returns: Json
+      }
+      assert_account_charge_not_invoiced: {
+        Args: {
+          _account_id: string
+          _error_code: string
+          _restaurant_id: string
+          _source_transaction_id: string
+        }
+        Returns: undefined
+      }
+      assert_guest_charge_not_invoiced: {
+        Args: {
+          _error_code: string
+          _folio_id: string
+          _restaurant_id: string
+          _source_transaction_id: string
+        }
+        Returns: undefined
+      }
+      assert_hotel_reservation_package_mutable: {
+        Args: { _reservation_id: string; _restaurant_id: string }
+        Returns: undefined
+      }
       assert_reservation_capacity: {
         Args: {
           _arrival: string
@@ -15023,6 +21001,30 @@ export type Database = {
           _restaurant_id: string
           _room_id: string
           _room_type_id: string
+        }
+        Returns: undefined
+      }
+      assert_reservation_room_unit_room: {
+        Args: {
+          _arrival: string
+          _departure: string
+          _reservation_id: string
+          _restaurant_id: string
+          _room_id: string
+          _room_type_id: string
+          _unit_id: string
+        }
+        Returns: undefined
+      }
+      assert_reservation_room_units: {
+        Args: { _reservation_id: string; _restaurant_id: string }
+        Returns: undefined
+      }
+      assert_reservation_unit_room_charge_reconcilable: {
+        Args: {
+          _reservation_id: string
+          _reservation_room_id: string
+          _restaurant_id: string
         }
         Returns: undefined
       }
@@ -15037,9 +21039,192 @@ export type Database = {
         }
         Returns: undefined
       }
+      assign_hotel_reservation_room_unit: {
+        Args: {
+          _membership_id: string
+          _reservation_id: string
+          _reservation_room_id?: string
+          _restaurant_id: string
+          _room_id: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
+          cancellation_policy_snapshot: Json | null
+          cancellation_reason: string | null
+          children: number
+          commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
+          company_master_id: string | null
+          company_name: string | null
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          currency: string | null
+          departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
+          external_reference: string | null
+          group_account_master_id: string | null
+          group_name: string | null
+          guarantee_method: string | null
+          guest_id: string
+          id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
+          market_segment: string | null
+          nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
+          notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
+          priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
+          rate_plan_id: string | null
+          refundability_snapshot: Json | null
+          reservation_mode: string
+          restaurant_id: string
+          room_id: string | null
+          room_subtotal: number | null
+          room_type_id: string
+          rooms_requested: number
+          source: string
+          special_occasion: string | null
+          special_request_category: string | null
+          special_requests: string | null
+          status: string
+          travel_agent_contact_id: string | null
+          travel_agent_master_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      assign_reservation_room_guests: {
+        Args: {
+          _assignments: Json
+          _reservation_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
+      }
+      build_folio_charge_correction: {
+        Args: {
+          _amount: number
+          _mode: string
+          _restaurant_id: string
+          _source_transaction_id: string
+        }
+        Returns: Json
+      }
+      build_guest_folio_invoice_snapshot: {
+        Args: {
+          _folio_id: string
+          _issued_number: string
+          _membership_id: string
+          _restaurant_id: string
+          _sequence_number: number
+        }
+        Returns: Json
+      }
       can_manage_restaurant_storage: {
         Args: { _path: string }
         Returns: boolean
+      }
+      cancel_hotel_reservation_unit: {
+        Args: {
+          _membership_id: string
+          _reason: string
+          _reservation_id: string
+          _reservation_room_id?: string
+          _restaurant_id: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
+          cancellation_policy_snapshot: Json | null
+          cancellation_reason: string | null
+          children: number
+          commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
+          company_master_id: string | null
+          company_name: string | null
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          currency: string | null
+          departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
+          external_reference: string | null
+          group_account_master_id: string | null
+          group_name: string | null
+          guarantee_method: string | null
+          guest_id: string
+          id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
+          market_segment: string | null
+          nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
+          notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
+          priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
+          rate_plan_id: string | null
+          refundability_snapshot: Json | null
+          reservation_mode: string
+          restaurant_id: string
+          room_id: string | null
+          room_subtotal: number | null
+          room_type_id: string
+          rooms_requested: number
+          source: string
+          special_occasion: string | null
+          special_request_category: string | null
+          special_requests: string | null
+          status: string
+          travel_agent_contact_id: string | null
+          travel_agent_master_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       change_hotel_stay_dates: {
         Args: {
@@ -15052,10 +21237,15 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
           cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
           company_master_id: string | null
           company_name: string | null
           confirmation_number: string
@@ -15063,27 +21253,47 @@ export type Database = {
           created_by_staff_membership_id: string | null
           currency: string | null
           departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
           id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
           market_segment: string | null
           nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
           notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
           priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
           rate_plan_id: string | null
           refundability_snapshot: Json | null
+          reservation_mode: string
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
           rooms_requested: number
           source: string
+          special_occasion: string | null
           special_request_category: string | null
           special_requests: string | null
           status: string
+          travel_agent_contact_id: string | null
           travel_agent_master_id: string | null
           updated_at: string
         }
@@ -15105,10 +21315,15 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
           cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
           company_master_id: string | null
           company_name: string | null
           confirmation_number: string
@@ -15116,27 +21331,47 @@ export type Database = {
           created_by_staff_membership_id: string | null
           currency: string | null
           departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
           id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
           market_segment: string | null
           nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
           notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
           priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
           rate_plan_id: string | null
           refundability_snapshot: Json | null
+          reservation_mode: string
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
           rooms_requested: number
           source: string
+          special_occasion: string | null
           special_request_category: string | null
           special_requests: string | null
           status: string
+          travel_agent_contact_id: string | null
           travel_agent_master_id: string | null
           updated_at: string
         }
@@ -15157,10 +21392,15 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
           cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
           company_master_id: string | null
           company_name: string | null
           confirmation_number: string
@@ -15168,27 +21408,47 @@ export type Database = {
           created_by_staff_membership_id: string | null
           currency: string | null
           departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
           id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
           market_segment: string | null
           nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
           notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
           priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
           rate_plan_id: string | null
           refundability_snapshot: Json | null
+          reservation_mode: string
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
           rooms_requested: number
           source: string
+          special_occasion: string | null
           special_request_category: string | null
           special_requests: string | null
           status: string
+          travel_agent_contact_id: string | null
           travel_agent_master_id: string | null
           updated_at: string
         }
@@ -15198,6 +21458,54 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      claim_fiscal_registrations: {
+        Args: { _limit: number }
+        Returns: {
+          acknowledged_at: string | null
+          acknowledged_at_raw: string | null
+          attempt_count: number
+          cancelled_at: string | null
+          client_snapshot: string | null
+          created_at: string
+          created_by_membership_id: string | null
+          device_id_snapshot: string | null
+          external_document_number: string | null
+          external_id: string | null
+          external_irn: string | null
+          external_rrn: string | null
+          external_status: string | null
+          fiscal_document_type: string
+          id: string
+          integration_id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          next_attempt_at: string | null
+          registered_at: string | null
+          related_registration_id: string | null
+          request_hash: string | null
+          request_snapshot: Json
+          response_snapshot: Json | null
+          restaurant_id: string
+          signed_document: string | null
+          signed_qr: string | null
+          source_id: string
+          source_type: string
+          status: string
+          taxpayer_tin_snapshot: string | null
+          trnx_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "fiscal_registrations"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_fiscal_token_refresh: {
+        Args: { _integration_id: string; _restaurant_id: string }
+        Returns: Json
       }
       clear_rm_order_discount: {
         Args: {
@@ -15287,41 +21595,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      close_hotel_cashier_shift: {
-        Args: {
-          _closing_count: number
-          _membership_id: string
-          _notes: string
-          _restaurant_id: string
-          _shift_id: string
-        }
-        Returns: Json
-      }
-      list_hotel_drawers: {
-        Args: { _restaurant_id: string }
-        Returns: Json
-      }
-      open_hotel_cashier_shift: {
-        Args: {
-          _membership_id: string
-          _notes: string
-          _opening_cash: number
-          _restaurant_id: string
-        }
-        Returns: Json
-      }
-      post_hotel_drawer_movement: {
-        Args: {
-          _amount: number
-          _idempotency_key: string
-          _membership_id: string
-          _movement_type: string
-          _notes: string
-          _restaurant_id: string
-          _shift_id: string
-        }
-        Returns: Json
-      }
       close_cashier_shift: {
         Args: {
           _closing_cash: number
@@ -15367,6 +21640,11 @@ export type Database = {
           opened_at: string
           reservation_id: string | null
           restaurant_id: string
+          settlement_exception: string | null
+          settlement_exception_amount: number | null
+          settlement_exception_at: string | null
+          settlement_exception_kind: string | null
+          settlement_exception_reason: string | null
           status: string
           updated_at: string
         }
@@ -15376,6 +21654,20 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      close_hotel_cashier_shift: {
+        Args: {
+          _closing_count: number
+          _membership_id: string
+          _notes: string
+          _restaurant_id: string
+          _shift_id: string
+        }
+        Returns: Json
+      }
+      commercial_effective_scope: {
+        Args: { _activation_ids: string[]; _master_ids: string[] }
+        Returns: string[]
       }
       complete_comped_order: {
         Args: {
@@ -15432,6 +21724,60 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      complete_hotel_reservation_no_show: {
+        Args: {
+          _additional_notes?: string
+          _membership_id: string
+          _reason: string
+          _reservation_id: string
+          _reservation_room_id?: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      component_is_billed: {
+        Args: { _component_id: string; _restaurant_id: string }
+        Returns: boolean
+      }
+      compute_folio_tax_component_amount: {
+        Args: {
+          _base: number
+          _calculation: string
+          _charge_type: string
+          _rate: number
+        }
+        Returns: number
+      }
+      correct_failed_company_sales_receipt_allocation: {
+        Args: {
+          _allocation_id: string
+          _amount: number
+          _idempotency_key: string
+          _membership_id: string
+          _provider_unregistered_confirmed?: boolean
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      correct_failed_guest_sales_receipt_allocation: {
+        Args: {
+          _allocation_id: string
+          _amount: number
+          _idempotency_key: string
+          _membership_id: string
+          _provider_unregistered_confirmed?: boolean
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      correctable_charge_remainder: {
+        Args: { _charge_id: string; _restaurant_id: string }
+        Returns: number
+      }
+      count_eligible_revenue_approvers: {
+        Args: { _restaurant_id: string }
+        Returns: number
+      }
       count_reserved_rooms: {
         Args: {
           _arrival: string
@@ -15461,10 +21807,15 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
           cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
           company_master_id: string | null
           company_name: string | null
           confirmation_number: string
@@ -15472,27 +21823,47 @@ export type Database = {
           created_by_staff_membership_id: string | null
           currency: string | null
           departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
           id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
           market_segment: string | null
           nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
           notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
           priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
           rate_plan_id: string | null
           refundability_snapshot: Json | null
+          reservation_mode: string
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
           rooms_requested: number
           source: string
+          special_occasion: string | null
           special_request_category: string | null
           special_requests: string | null
           status: string
+          travel_agent_contact_id: string | null
           travel_agent_master_id: string | null
           updated_at: string
         }
@@ -15532,6 +21903,54 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_financial_account_invoice_draft: {
+        Args: {
+          _account_id: string
+          _membership_id: string
+          _notes: string
+          _restaurant_id: string
+        }
+        Returns: {
+          created_at: string
+          created_by_membership_id: string
+          financial_account_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          updated_at: string
+          updated_by_membership_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "financial_account_invoice_drafts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_guest_folio_invoice_draft: {
+        Args: {
+          _folio_id: string
+          _membership_id: string
+          _notes: string
+          _restaurant_id: string
+        }
+        Returns: {
+          created_at: string
+          created_by_membership_id: string
+          folio_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          updated_at: string
+          updated_by_membership_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "guest_folio_invoice_drafts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_hotel_reservation: {
         Args: {
           _adults: number
@@ -15556,10 +21975,15 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
           cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
           company_master_id: string | null
           company_name: string | null
           confirmation_number: string
@@ -15567,27 +21991,148 @@ export type Database = {
           created_by_staff_membership_id: string | null
           currency: string | null
           departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
           id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
           market_segment: string | null
           nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
           notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
           priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
           rate_plan_id: string | null
           refundability_snapshot: Json | null
+          reservation_mode: string
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
           rooms_requested: number
           source: string
+          special_occasion: string | null
           special_request_category: string | null
           special_requests: string | null
           status: string
+          travel_agent_contact_id: string | null
+          travel_agent_master_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_hotel_reservation_overbooking: {
+        Args: {
+          _adults: number
+          _arrival: string
+          _children: number
+          _commercial_booking_source?: string
+          _company_master_id?: string
+          _departure: string
+          _external_reference?: string
+          _guarantee_method?: string
+          _guest_id: string
+          _infants?: number
+          _market_segment?: string
+          _membership_id: string
+          _notes: string
+          _overbooking_reason: string
+          _package_activation_ids?: string[]
+          _promotion_activation_id?: string
+          _quote_currency?: string
+          _rate_plan_id: string
+          _reservation_mode?: string
+          _restaurant_id: string
+          _room_guest_assignments?: Json
+          _room_id: string
+          _room_type_id: string
+          _room_units?: Json
+          _rooms?: number
+          _special_requests: string
+          _status: string
+          _travel_agent_master_id?: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
+          cancellation_policy_snapshot: Json | null
+          cancellation_reason: string | null
+          children: number
+          commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
+          company_master_id: string | null
+          company_name: string | null
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          currency: string | null
+          departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
+          external_reference: string | null
+          group_account_master_id: string | null
+          group_name: string | null
+          guarantee_method: string | null
+          guest_id: string
+          id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
+          market_segment: string | null
+          nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
+          notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
+          priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
+          rate_plan_id: string | null
+          refundability_snapshot: Json | null
+          reservation_mode: string
+          restaurant_id: string
+          room_id: string | null
+          room_subtotal: number | null
+          room_type_id: string
+          rooms_requested: number
+          source: string
+          special_occasion: string | null
+          special_request_category: string | null
+          special_requests: string | null
+          status: string
+          travel_agent_contact_id: string | null
           travel_agent_master_id: string | null
           updated_at: string
         }
@@ -15615,11 +22160,11 @@ export type Database = {
           _notes: string
           _quote_currency?: string
           _rate_plan_id: string
+          _reservation_mode?: string
           _restaurant_id: string
+          _room_guest_assignments?: Json
           _room_id: string
           _room_type_id: string
-          _reservation_mode?: string
-          _room_guest_assignments?: Json
           _room_units?: Json
           _rooms?: number
           _special_requests: string
@@ -15629,10 +22174,15 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
           cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
           company_master_id: string | null
           company_name: string | null
           confirmation_number: string
@@ -15640,27 +22190,47 @@ export type Database = {
           created_by_staff_membership_id: string | null
           currency: string | null
           departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
           id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
           market_segment: string | null
           nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
           notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
           priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
           rate_plan_id: string | null
           refundability_snapshot: Json | null
+          reservation_mode: string
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
           rooms_requested: number
           source: string
+          special_occasion: string | null
           special_request_category: string | null
           special_requests: string | null
           status: string
+          travel_agent_contact_id: string | null
           travel_agent_master_id: string | null
           updated_at: string
         }
@@ -15671,7 +22241,238 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_hotel_reservation_priced_commercial: {
+        Args: {
+          _adults: number
+          _arrival: string
+          _children: number
+          _commercial_booking_source?: string
+          _company_master_id?: string
+          _departure: string
+          _external_reference?: string
+          _guarantee_method?: string
+          _guest_id: string
+          _infants?: number
+          _market_segment?: string
+          _membership_id: string
+          _notes: string
+          _package_activation_ids?: string[]
+          _promotion_activation_id?: string
+          _quote_currency?: string
+          _rate_plan_id: string
+          _reservation_mode?: string
+          _restaurant_id: string
+          _room_guest_assignments?: Json
+          _room_id: string
+          _room_type_id: string
+          _room_units?: Json
+          _rooms?: number
+          _special_requests: string
+          _status: string
+          _travel_agent_master_id?: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
+          cancellation_policy_snapshot: Json | null
+          cancellation_reason: string | null
+          children: number
+          commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
+          company_master_id: string | null
+          company_name: string | null
+          confirmation_number: string
+          created_at: string
+          created_by_staff_membership_id: string | null
+          currency: string | null
+          departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
+          external_reference: string | null
+          group_account_master_id: string | null
+          group_name: string | null
+          guarantee_method: string | null
+          guest_id: string
+          id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
+          market_segment: string | null
+          nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
+          notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
+          priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
+          rate_plan_id: string | null
+          refundability_snapshot: Json | null
+          reservation_mode: string
+          restaurant_id: string
+          room_id: string | null
+          room_subtotal: number | null
+          room_type_id: string
+          rooms_requested: number
+          source: string
+          special_occasion: string | null
+          special_request_category: string | null
+          special_requests: string | null
+          status: string
+          travel_agent_contact_id: string | null
+          travel_agent_master_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_invoice_credit_note_draft: {
+        Args: {
+          _account_invoice_id: string
+          _guest_invoice_id: string
+          _membership_id: string
+          _reason: string
+          _restaurant_id: string
+        }
+        Returns: {
+          account_invoice_id: string | null
+          created_at: string
+          created_by_membership_id: string
+          guest_invoice_id: string | null
+          id: string
+          note_type: string
+          reason: string
+          restaurant_id: string
+          updated_at: string
+          updated_by_membership_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoice_credit_note_drafts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_invoice_debit_note_draft: {
+        Args: {
+          _account_invoice_id: string
+          _guest_invoice_id: string
+          _membership_id: string
+          _reason: string
+          _restaurant_id: string
+        }
+        Returns: {
+          account_invoice_id: string | null
+          created_at: string
+          created_by_membership_id: string
+          guest_invoice_id: string | null
+          id: string
+          note_type: string
+          reason: string
+          restaurant_id: string
+          updated_at: string
+          updated_by_membership_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoice_credit_note_drafts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      delete_financial_account_invoice_draft: {
+        Args: {
+          _draft_id: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
+      }
+      delete_guest_folio_invoice_draft: {
+        Args: {
+          _draft_id: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
+      }
+      delete_invoice_credit_note_draft: {
+        Args: {
+          _draft_id: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
+      }
+      delete_invoice_debit_note_draft: {
+        Args: {
+          _draft_id: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
+      }
+      ensure_primary_folio_window: {
+        Args: { _folio_id: string; _restaurant_id: string }
+        Returns: string
+      }
+      financial_account_balance: {
+        Args: { _account_id: string; _restaurant_id: string }
+        Returns: number
+      }
+      fiscal_read_api_credentials: {
+        Args: { _integration_id: string }
+        Returns: string
+      }
+      fiscal_store_api_credentials: {
+        Args: {
+          _api_password: string
+          _api_username: string
+          _integration_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
+      }
       folio_balance: { Args: { _folio_id: string }; Returns: number }
+      folio_service_scope_matches: {
+        Args: {
+          _charge_source: string
+          _department_id: string
+          _restaurant_id: string
+          _scope: string
+          _service_charge_id: string
+        }
+        Returns: boolean
+      }
+      folio_tax_scope_matches: {
+        Args: {
+          _charge_source: string
+          _department_id: string
+          _restaurant_id: string
+          _scope: string
+          _tax_id: string
+        }
+        Returns: boolean
+      }
+      format_issued_invoice_number: {
+        Args: { _padding: number; _prefix: string; _sequence: number }
+        Returns: string
+      }
       freeze_order_receipt: {
         Args: { _order_id: string; _restaurant_id: string; _snapshot: Json }
         Returns: {
@@ -15690,6 +22491,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      group_is_billed: {
+        Args: { _group_id: string; _restaurant_id: string }
+        Returns: boolean
+      }
+      guest_folio_has_legacy_invoice: {
+        Args: { _folio_id: string; _restaurant_id: string }
+        Returns: boolean
+      }
+      guest_invoice_deposit_cover: {
+        Args: { _invoice_id: string; _restaurant_id: string }
+        Returns: number
+      }
       has_any_restaurant_role: {
         Args: { _restaurant_id: string; _roles: string[] }
         Returns: boolean
@@ -15698,6 +22511,10 @@ export type Database = {
       has_restaurant_role: {
         Args: { _restaurant_id: string; _role: string }
         Returns: boolean
+      }
+      hotel_drawer_figures: {
+        Args: { _restaurant_id: string; _shift_id: string }
+        Returns: Json
       }
       housekeeping_complete_task: {
         Args: {
@@ -15740,6 +22557,216 @@ export type Database = {
         }
         Returns: undefined
       }
+      invoice_credit_component_rows: {
+        Args: {
+          _account_invoice_id: string
+          _guest_invoice_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          billed_via: string
+          component_kind: string
+          component_transaction_id: string
+          credited_amount: number
+          description: string
+          original_amount: number
+          snapshot: Json
+          source_group_id: string
+        }[]
+      }
+      is_platform_admin: { Args: never; Returns: boolean }
+      is_restaurant_member: {
+        Args: { _restaurant_id: string }
+        Returns: boolean
+      }
+      issue_financial_account_invoice_draft: {
+        Args: {
+          _draft_id: string
+          _idempotency_key?: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          financial_account_id: string
+          id: string
+          idempotency_key: string | null
+          issued_at: string
+          issued_by_membership_id: string
+          issued_number: string
+          last_reprinted_at: string | null
+          reprint_count: number
+          restaurant_id: string
+          sequence_number: number
+          snapshot: Json
+        }
+        SetofOptions: {
+          from: "*"
+          to: "financial_account_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      issue_guest_folio_invoice: {
+        Args: {
+          _folio_id: string
+          _idempotency_key?: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          coverage_scope: string
+          folio_id: string
+          id: string
+          idempotency_key: string | null
+          issued_at: string
+          issued_by_membership_id: string
+          issued_number: string
+          last_reprinted_at: string | null
+          reprint_count: number
+          restaurant_id: string
+          sequence_number: number
+          snapshot: Json
+        }
+        SetofOptions: {
+          from: "*"
+          to: "guest_folio_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      issue_guest_folio_invoice_draft: {
+        Args: {
+          _draft_id: string
+          _idempotency_key?: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          coverage_scope: string
+          folio_id: string
+          id: string
+          idempotency_key: string | null
+          issued_at: string
+          issued_by_membership_id: string
+          issued_number: string
+          last_reprinted_at: string | null
+          reprint_count: number
+          restaurant_id: string
+          sequence_number: number
+          snapshot: Json
+        }
+        SetofOptions: {
+          from: "*"
+          to: "guest_folio_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      issue_invoice_credit_note_draft: {
+        Args: {
+          _draft_id: string
+          _idempotency_key?: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          account_invoice_id: string | null
+          created_at: string
+          currency: string
+          financial_account_id: string | null
+          folio_id: string | null
+          guest_invoice_id: string | null
+          id: string
+          idempotency_key: string | null
+          issued_at: string
+          issued_by_membership_id: string
+          last_reprinted_at: string | null
+          note_number: string
+          note_type: string
+          reason: string
+          reprint_count: number
+          restaurant_id: string
+          sequence_number: number
+          service_charge_delta: number
+          snapshot: Json
+          subtotal_delta: number
+          tax_delta: number
+          total_delta: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoice_credit_notes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      issue_invoice_debit_note_draft: {
+        Args: {
+          _draft_id: string
+          _idempotency_key?: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          account_invoice_id: string | null
+          created_at: string
+          currency: string
+          financial_account_id: string | null
+          folio_id: string | null
+          guest_invoice_id: string | null
+          id: string
+          idempotency_key: string | null
+          issued_at: string
+          issued_by_membership_id: string
+          last_reprinted_at: string | null
+          note_number: string
+          note_type: string
+          reason: string
+          reprint_count: number
+          restaurant_id: string
+          sequence_number: number
+          service_charge_delta: number
+          snapshot: Json
+          subtotal_delta: number
+          tax_delta: number
+          total_delta: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoice_credit_notes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      list_chargeable_guest_services: {
+        Args: { _folio_id: string; _restaurant_id: string }
+        Returns: Json
+      }
+      list_financial_account_invoice_groups: {
+        Args: { _account_id: string; _restaurant_id: string }
+        Returns: Json
+      }
+      list_guest_folio_invoice_groups: {
+        Args: { _folio_id: string; _restaurant_id: string }
+        Returns: Json
+      }
+      list_hotel_drawers: { Args: { _restaurant_id: string }; Returns: Json }
+      list_invoice_credit_board: {
+        Args: {
+          _account_invoice_id: string
+          _guest_invoice_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      list_invoice_debit_board: {
+        Args: {
+          _account_invoice_id: string
+          _guest_invoice_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
       manage_reservation_room_guest: {
         Args: {
           _action: string
@@ -15750,11 +22777,6 @@ export type Database = {
           _restaurant_id: string
         }
         Returns: undefined
-      }
-      is_platform_admin: { Args: never; Returns: boolean }
-      is_restaurant_member: {
-        Args: { _restaurant_id: string }
-        Returns: boolean
       }
       mark_hotel_reservation_no_show: {
         Args: {
@@ -15767,10 +22789,15 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
           cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
           company_master_id: string | null
           company_name: string | null
           confirmation_number: string
@@ -15778,27 +22805,47 @@ export type Database = {
           created_by_staff_membership_id: string | null
           currency: string | null
           departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
           id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
           market_segment: string | null
           nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
           notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
           priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
           rate_plan_id: string | null
           refundability_snapshot: Json | null
+          reservation_mode: string
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
           rooms_requested: number
           source: string
+          special_occasion: string | null
           special_request_category: string | null
           special_requests: string | null
           status: string
+          travel_agent_contact_id: string | null
           travel_agent_master_id: string | null
           updated_at: string
         }
@@ -15821,10 +22868,15 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
           cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
           company_master_id: string | null
           company_name: string | null
           confirmation_number: string
@@ -15832,27 +22884,47 @@ export type Database = {
           created_by_staff_membership_id: string | null
           currency: string | null
           departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
           id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
           market_segment: string | null
           nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
           notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
           priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
           rate_plan_id: string | null
           refundability_snapshot: Json | null
+          reservation_mode: string
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
           rooms_requested: number
           source: string
+          special_occasion: string | null
           special_request_category: string | null
           special_requests: string | null
           status: string
+          travel_agent_contact_id: string | null
           travel_agent_master_id: string | null
           updated_at: string
         }
@@ -15871,6 +22943,7 @@ export type Database = {
         Args: { _restaurant_id: string }
         Returns: string
       }
+      normalize_guest_tin: { Args: { _tin: string }; Returns: string }
       open_cashier_shift: {
         Args: {
           _membership_id: string
@@ -15898,6 +22971,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      open_financial_account: {
+        Args: {
+          _account_kind: string
+          _currency: string
+          _master_id: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          account_kind: string
+          account_number: string
+          closed_at: string | null
+          created_at: string
+          created_by_membership_id: string | null
+          currency: string
+          id: string
+          master_id: string
+          opened_at: string
+          restaurant_id: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "financial_accounts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       open_folio_for_reservation: {
         Args: {
           _membership_id: string
@@ -15915,6 +23017,11 @@ export type Database = {
           opened_at: string
           reservation_id: string | null
           restaurant_id: string
+          settlement_exception: string | null
+          settlement_exception_amount: number | null
+          settlement_exception_at: string | null
+          settlement_exception_kind: string | null
+          settlement_exception_reason: string | null
           status: string
           updated_at: string
         }
@@ -15924,6 +23031,33 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      open_hotel_cashier_shift: {
+        Args: {
+          _membership_id: string
+          _notes: string
+          _opening_cash: number
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      plan_invoice_credit: {
+        Args: {
+          _account_invoice_id: string
+          _guest_invoice_id: string
+          _items: Json
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      plan_invoice_debit: {
+        Args: {
+          _account_invoice_id: string
+          _guest_invoice_id: string
+          _restaurant_id: string
+          _source_ids: string[]
+        }
+        Returns: Json
       }
       pms_activate_operational_block: {
         Args: {
@@ -15981,6 +23115,17 @@ export type Database = {
         }
         Returns: string
       }
+      pms_enforce_explicit_overbooking: {
+        Args: {
+          _expected_room_id?: string
+          _expected_updated_at?: string
+          _membership_id: string
+          _reason: string
+          _reservation_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
+      }
       pms_evaluate_room_assignment: {
         Args: {
           _accessible_required?: boolean
@@ -16013,6 +23158,38 @@ export type Database = {
         Args: { _config: Json }
         Returns: boolean
       }
+      pms_lock_overbooking_scope: {
+        Args: {
+          _arrival: string
+          _departure: string
+          _restaurant_id: string
+          _room_type_ids: string[]
+        }
+        Returns: undefined
+      }
+      pms_prepare_explicit_overbooking: {
+        Args: {
+          _arrival: string
+          _departure: string
+          _membership_id: string
+          _reason: string
+          _restaurant_id: string
+          _room_type_ids: string[]
+        }
+        Returns: undefined
+      }
+      pms_property_overbooking_board: {
+        Args: { _end: string; _restaurant_id: string; _start: string }
+        Returns: Json
+      }
+      pms_property_overbooking_night: {
+        Args: {
+          _exclude_reservation_id?: string
+          _night: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
       pms_release_operational_block: {
         Args: {
           _block_id: string
@@ -16042,6 +23219,57 @@ export type Database = {
           room_type_id: string
         }[]
       }
+      pms_room_type_night_position: {
+        Args: {
+          _exclude_reservation_id?: string
+          _night: string
+          _restaurant_id: string
+        }
+        Returns: {
+          configuration_invalid: boolean
+          demand: number
+          maximum_overbooking: number
+          overbooking_enabled: boolean
+          percentage_limit: number
+          physical_available: number
+          physical_capacity: number
+          room_type_id: string
+          room_type_name: string
+          shortage: number
+        }[]
+      }
+      pms_room_type_overbooking_allowance: {
+        Args: {
+          _maximum: number
+          _percentage: number
+          _physical_capacity: number
+          _property_allowed: boolean
+          _type_enabled: boolean
+        }
+        Returns: number
+      }
+      pms_room_type_overbooking_effective_limits: {
+        Args: {
+          _night: string
+          _physical_capacity: number
+          _restaurant_id: string
+          _room_type_id: string
+        }
+        Returns: {
+          enabled: boolean
+          maximum_overbooking: number
+          percentage_limit: number
+        }[]
+      }
+      pms_room_unit_claims_room: {
+        Args: {
+          _exclude_reservation_id: string
+          _night: string
+          _restaurant_id: string
+          _room_id: string
+        }
+        Returns: boolean
+      }
       pms_set_room_operational_restriction: {
         Args: {
           _approver_membership_id?: string
@@ -16055,6 +23283,26 @@ export type Database = {
           _status: string
         }
         Returns: undefined
+      }
+      pms_stay_overlaps_room: {
+        Args: {
+          _arrival: string
+          _departure: string
+          _exclude_reservation_id: string
+          _restaurant_id: string
+          _room_id: string
+        }
+        Returns: boolean
+      }
+      pms_unassigned_room_demand: {
+        Args: {
+          _exclude_reservation_id: string
+          _night: string
+          _pool_room_ids: string[]
+          _restaurant_id: string
+          _room_type_id: string
+        }
+        Returns: number
       }
       pms_write_room_inventory_event: {
         Args: {
@@ -16151,11 +23399,308 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      preview_folio_charge: {
+      post_channel_reservation_folio: {
+        Args: { _reservation_id: string; _restaurant_id: string }
+        Returns: undefined
+      }
+      post_cross_ledger_transfer: {
         Args: {
           _amount: number
-          _folio_id: string
+          _description: string
+          _destination_id: string
+          _destination_type: string
+          _idempotency_key: string
+          _membership_id: string
           _restaurant_id: string
+          _source_id: string
+          _source_transaction_id: string
+          _source_type: string
+        }
+        Returns: Json
+      }
+      post_financial_account_transaction: {
+        Args: {
+          _account_id: string
+          _amount: number
+          _category: string
+          _description: string
+          _idempotency_key?: string
+          _membership_id: string
+          _original_transaction_id?: string
+          _payment_method?: string
+          _restaurant_id: string
+          _type: string
+        }
+        Returns: {
+          amount: number
+          category: string
+          charge_snapshot: Json | null
+          charge_source: string | null
+          created_at: string
+          department_id: string | null
+          description: string
+          financial_account_id: string | null
+          folio_id: string | null
+          folio_window_id: string | null
+          hotel_cashier_shift_id: string | null
+          id: string
+          idempotency_key: string | null
+          original_transaction_id: string | null
+          payment_method: string | null
+          posted_at: string
+          posted_by_membership_id: string | null
+          quantity: number | null
+          reference_id: string | null
+          reference_type: string | null
+          reservation_room_id: string | null
+          restaurant_id: string
+          service_type_id: string | null
+          tax_snapshot: Json | null
+          transaction_type: string
+          transfer_direction: string | null
+          transfer_id: string | null
+          unit_amount: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "folio_transactions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      post_folio_charge_correction: {
+        Args: {
+          _amount: number
+          _description: string
+          _idempotency_key: string
+          _membership_id: string
+          _mode: string
+          _restaurant_id: string
+          _source_transaction_id: string
+        }
+        Returns: Json
+      }
+      post_folio_charge_with_tax: {
+        Args: {
+          _amount: number
+          _category: string
+          _default_tax_group_id?: string
+          _description: string
+          _folio_id: string
+          _folio_window_id?: string
+          _idempotency_key?: string
+          _membership_id: string
+          _reference_id: string
+          _reference_type: string
+          _restaurant_id: string
+          _tax_basis: string
+        }
+        Returns: {
+          amount: number
+          category: string
+          charge_snapshot: Json | null
+          charge_source: string | null
+          created_at: string
+          department_id: string | null
+          description: string
+          financial_account_id: string | null
+          folio_id: string | null
+          folio_window_id: string | null
+          hotel_cashier_shift_id: string | null
+          id: string
+          idempotency_key: string | null
+          original_transaction_id: string | null
+          payment_method: string | null
+          posted_at: string
+          posted_by_membership_id: string | null
+          quantity: number | null
+          reference_id: string | null
+          reference_type: string | null
+          reservation_room_id: string | null
+          restaurant_id: string
+          service_type_id: string | null
+          tax_snapshot: Json | null
+          transaction_type: string
+          transfer_direction: string | null
+          transfer_id: string | null
+          unit_amount: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "folio_transactions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      post_folio_service_charge: {
+        Args: {
+          _description: string
+          _folio_id: string
+          _idempotency_key: string
+          _membership_id: string
+          _quantity: number
+          _restaurant_id: string
+          _service_type_id: string
+        }
+        Returns: {
+          amount: number
+          category: string
+          charge_snapshot: Json | null
+          charge_source: string | null
+          created_at: string
+          department_id: string | null
+          description: string
+          financial_account_id: string | null
+          folio_id: string | null
+          folio_window_id: string | null
+          hotel_cashier_shift_id: string | null
+          id: string
+          idempotency_key: string | null
+          original_transaction_id: string | null
+          payment_method: string | null
+          posted_at: string
+          posted_by_membership_id: string | null
+          quantity: number | null
+          reference_id: string | null
+          reference_type: string | null
+          reservation_room_id: string | null
+          restaurant_id: string
+          service_type_id: string | null
+          tax_snapshot: Json | null
+          transaction_type: string
+          transfer_direction: string | null
+          transfer_id: string | null
+          unit_amount: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "folio_transactions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      post_folio_transaction: {
+        Args: {
+          _amount: number
+          _category: string
+          _description: string
+          _folio_id: string
+          _idempotency_key?: string
+          _membership_id: string
+          _original_transaction_id?: string
+          _payment_method?: string
+          _reference_id: string
+          _reference_type: string
+          _restaurant_id: string
+          _type: string
+        }
+        Returns: {
+          amount: number
+          category: string
+          charge_snapshot: Json | null
+          charge_source: string | null
+          created_at: string
+          department_id: string | null
+          description: string
+          financial_account_id: string | null
+          folio_id: string | null
+          folio_window_id: string | null
+          hotel_cashier_shift_id: string | null
+          id: string
+          idempotency_key: string | null
+          original_transaction_id: string | null
+          payment_method: string | null
+          posted_at: string
+          posted_by_membership_id: string | null
+          quantity: number | null
+          reference_id: string | null
+          reference_type: string | null
+          reservation_room_id: string | null
+          restaurant_id: string
+          service_type_id: string | null
+          tax_snapshot: Json | null
+          transaction_type: string
+          transfer_direction: string | null
+          transfer_id: string | null
+          unit_amount: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "folio_transactions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      post_folio_transfer: {
+        Args: {
+          _amount: number
+          _description: string
+          _idempotency_key: string
+          _membership_id: string
+          _restaurant_id: string
+          _source_folio_id: string
+          _source_transaction_id: string
+          _target_folio_id: string
+          _target_window_id: string
+        }
+        Returns: Json
+      }
+      post_hotel_drawer_movement: {
+        Args: {
+          _amount: number
+          _idempotency_key: string
+          _membership_id: string
+          _movement_type: string
+          _notes: string
+          _restaurant_id: string
+          _shift_id: string
+        }
+        Returns: Json
+      }
+      post_order_room_charge: {
+        Args: {
+          _folio_id: string
+          _membership_id: string
+          _order_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      post_reservation_package_charge: {
+        Args: {
+          _membership_id: string
+          _package_row_id: string
+          _restaurant_id: string
+        }
+        Returns: string
+      }
+      preview_financial_account_invoice_selection: {
+        Args: {
+          _account_id: string
+          _restaurant_id: string
+          _source_ids: string[]
+        }
+        Returns: Json
+      }
+      preview_financial_account_payment_allocation: {
+        Args: {
+          _account_id: string
+          _payment_id: string
+          _restaurant_id: string
+          _targets: Json
+        }
+        Returns: Json
+      }
+      preview_folio_charge: {
+        Args: { _amount: number; _folio_id: string; _restaurant_id: string }
+        Returns: Json
+      }
+      preview_folio_charge_correction: {
+        Args: {
+          _amount: number
+          _mode: string
+          _restaurant_id: string
+          _source_transaction_id: string
         }
         Returns: Json
       }
@@ -16163,14 +23708,7 @@ export type Database = {
         Args: {
           _amount: number
           _charge_source: string
-          _department_id: string | null
-          _folio_id: string
-          _restaurant_id: string
-        }
-        Returns: Json
-      }
-      list_chargeable_guest_services: {
-        Args: {
+          _department_id: string
           _folio_id: string
           _restaurant_id: string
         }
@@ -16185,72 +23723,47 @@ export type Database = {
         }
         Returns: Json
       }
-      post_folio_service_charge: {
+      preview_guest_deposit_invoice_allocation: {
         Args: {
-          _description: string
+          _deposit_id: string
           _folio_id: string
-          _idempotency_key: string
-          _membership_id: string
-          _quantity: number
           _restaurant_id: string
-          _service_type_id: string
+          _targets: Json
         }
         Returns: Json
       }
-      resolve_chargeable_guest_service: {
+      preview_guest_folio_invoice_selection: {
         Args: {
-          _folio_currency: string
-          _quantity: number
+          _folio_id: string
           _restaurant_id: string
-          _service_type_id: string
+          _source_ids: string[]
         }
         Returns: Json
       }
-      post_folio_transaction: {
+      preview_guest_payment_invoice_allocation: {
         Args: {
-          _amount: number
-          _category: string
-          _description: string
           _folio_id: string
-          _idempotency_key?: string
-          _original_transaction_id?: string
-          _membership_id: string
-          _payment_method?: string
-          _reference_id: string
-          _reference_type: string
+          _payment_id: string
           _restaurant_id: string
-          _type: string
+          _targets: Json
         }
-        Returns: {
-          amount: number
-          category: string
-          created_at: string
-          description: string
-          folio_id: string
-          id: string
-          idempotency_key: string | null
-          original_transaction_id: string | null
-          payment_method: string | null
-          posted_at: string
-          posted_by_membership_id: string | null
-          reference_id: string | null
-          reference_type: string | null
-          restaurant_id: string
-          transaction_type: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "folio_transactions"
-          isOneToOne: true
-          isSetofReturn: false
-        }
+        Returns: Json
       }
-      post_order_room_charge: {
+      preview_invoice_credit_note: {
         Args: {
-          _folio_id: string
-          _membership_id: string
-          _order_id: string
+          _account_invoice_id: string
+          _guest_invoice_id: string
+          _items: Json
           _restaurant_id: string
+        }
+        Returns: Json
+      }
+      preview_invoice_debit_note: {
+        Args: {
+          _account_invoice_id: string
+          _guest_invoice_id: string
+          _restaurant_id: string
+          _source_ids: string[]
         }
         Returns: Json
       }
@@ -16279,6 +23792,15 @@ export type Database = {
           _restaurant_id: string
         }
         Returns: string
+      }
+      reconcile_reservation_unit_room_charge: {
+        Args: {
+          _membership_id: string
+          _reservation_id: string
+          _reservation_room_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
       }
       record_order_receipt_reprint: {
         Args: { _order_id: string; _restaurant_id: string }
@@ -16330,6 +23852,20 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      record_withholding_certificate: {
+        Args: {
+          _amount: number
+          _certificate_date: string
+          _idempotency_key: string
+          _invoice_id: string
+          _membership_id: string
+          _pretax_base: number
+          _reason: string
+          _reference: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
       refund_restaurant_order: {
         Args: {
           _amount: number
@@ -16362,15 +23898,49 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      reprice_hotel_reservation_room: {
+      release_excess_account_invoice_allocation: {
         Args: {
+          _idempotency_key: string
+          _invoice_id: string
           _membership_id: string
-          _rate_plan_id: string
-          _reservation_id: string
-          _reservation_room_id: string
+          _note_number: string
+          _projected_net: number
           _restaurant_id: string
         }
-        Returns: Json
+        Returns: number
+      }
+      release_excess_guest_deposit_invoice_allocation: {
+        Args: {
+          _idempotency_key: string
+          _invoice_id: string
+          _membership_id: string
+          _note_number: string
+          _projected_net: number
+          _restaurant_id: string
+        }
+        Returns: number
+      }
+      release_excess_guest_invoice_allocation: {
+        Args: {
+          _idempotency_key: string
+          _invoice_id: string
+          _membership_id: string
+          _note_number: string
+          _projected_net: number
+          _restaurant_id: string
+        }
+        Returns: number
+      }
+      release_hotel_reservation_room_package: {
+        Args: {
+          _membership_id: string
+          _package_row_id: string
+          _reservation_id: string
+          _restaurant_id: string
+          _selected_reservation_room_id?: string
+          _stay_scope?: boolean
+        }
+        Returns: undefined
       }
       remove_hotel_reservation_promotion: {
         Args: {
@@ -16390,10 +23960,15 @@ export type Database = {
         Returns: {
           adults: number
           arrival_date: string
+          arrival_transport: string | null
+          billing_rule_id: string | null
+          booker_guest_id: string | null
           cancellation_policy_snapshot: Json | null
           cancellation_reason: string | null
           children: number
           commercial_booking_source: string | null
+          commercial_sales_channel: string | null
+          company_contact_id: string | null
           company_master_id: string | null
           company_name: string | null
           confirmation_number: string
@@ -16401,27 +23976,47 @@ export type Database = {
           created_by_staff_membership_id: string | null
           currency: string | null
           departure_date: string
+          deposit_policy_id: string | null
+          deposit_requirement_snapshot: Json | null
+          early_departure_policy_id: string | null
+          early_departure_policy_snapshot: Json | null
+          expected_arrival_at: string | null
           external_reference: string | null
           group_account_master_id: string | null
           group_name: string | null
           guarantee_method: string | null
           guest_id: string
           id: string
+          infants: number
+          late_checkout_granted: boolean
+          late_checkout_note: string | null
+          late_checkout_until: string | null
           market_segment: string | null
           nightly_rate_snapshot: Json | null
+          no_show_policy_id: string | null
+          no_show_policy_snapshot: Json | null
           notes: string | null
+          notes_pinned: boolean
+          pickup_note: string | null
+          pms_group_block_id: string | null
+          pms_group_id: string | null
           priced_at: string | null
+          purpose_of_stay: string | null
+          rate_notes: string | null
           rate_plan_id: string | null
           refundability_snapshot: Json | null
+          reservation_mode: string
           restaurant_id: string
           room_id: string | null
           room_subtotal: number | null
           room_type_id: string
           rooms_requested: number
           source: string
+          special_occasion: string | null
           special_request_category: string | null
           special_requests: string | null
           status: string
+          travel_agent_contact_id: string | null
           travel_agent_master_id: string | null
           updated_at: string
         }
@@ -16432,6 +24027,269 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reprice_hotel_reservation_room: {
+        Args: {
+          _membership_id: string
+          _rate_plan_id: string
+          _reservation_id: string
+          _reservation_room_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      reprint_financial_account_invoice: {
+        Args: {
+          _invoice_id: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          financial_account_id: string
+          id: string
+          idempotency_key: string | null
+          issued_at: string
+          issued_by_membership_id: string
+          issued_number: string
+          last_reprinted_at: string | null
+          reprint_count: number
+          restaurant_id: string
+          sequence_number: number
+          snapshot: Json
+        }
+        SetofOptions: {
+          from: "*"
+          to: "financial_account_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reprint_guest_folio_invoice: {
+        Args: {
+          _invoice_id: string
+          _membership_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          coverage_scope: string
+          folio_id: string
+          id: string
+          idempotency_key: string | null
+          issued_at: string
+          issued_by_membership_id: string
+          issued_number: string
+          last_reprinted_at: string | null
+          reprint_count: number
+          restaurant_id: string
+          sequence_number: number
+          snapshot: Json
+        }
+        SetofOptions: {
+          from: "*"
+          to: "guest_folio_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reprint_invoice_credit_note: {
+        Args: {
+          _membership_id: string
+          _note_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          account_invoice_id: string | null
+          created_at: string
+          currency: string
+          financial_account_id: string | null
+          folio_id: string | null
+          guest_invoice_id: string | null
+          id: string
+          idempotency_key: string | null
+          issued_at: string
+          issued_by_membership_id: string
+          last_reprinted_at: string | null
+          note_number: string
+          note_type: string
+          reason: string
+          reprint_count: number
+          restaurant_id: string
+          sequence_number: number
+          service_charge_delta: number
+          snapshot: Json
+          subtotal_delta: number
+          tax_delta: number
+          total_delta: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoice_credit_notes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      require_revenue_approval_manager: {
+        Args: { _membership_id: string; _restaurant_id: string }
+        Returns: {
+          active: boolean
+          created_at: string
+          hotel_role_id: string | null
+          id: string
+          restaurant_id: string
+          role: string
+          updated_at: string | null
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "restaurant_users"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      resolve_account_invoice_group: {
+        Args: {
+          _account_id: string
+          _restaurant_id: string
+          _source_group_id: string
+        }
+        Returns: Json
+      }
+      resolve_chargeable_guest_service: {
+        Args: {
+          _folio_currency: string
+          _quantity: number
+          _restaurant_id: string
+          _service_type_id: string
+        }
+        Returns: Json
+      }
+      resolve_folio_service_charge_rows:
+        | {
+            Args: { _restaurant_id: string; _tax_basis: string }
+            Returns: {
+              amount: number
+              basis: string
+              charge_type: string
+              code: string
+              name: string
+              service_id: string
+            }[]
+          }
+        | {
+            Args: {
+              _charge_source: string
+              _department_id: string
+              _restaurant_id: string
+              _tax_basis: string
+            }
+            Returns: {
+              amount: number
+              basis: string
+              charge_type: string
+              code: string
+              name: string
+              service_id: string
+            }[]
+          }
+      resolve_folio_tax_rows:
+        | {
+            Args: {
+              _default_tax_group_id?: string
+              _restaurant_id: string
+              _tax_basis: string
+            }
+            Returns: {
+              amount: number
+              basis: string
+              calculation: string
+              charge_type: string
+              code: string
+              name: string
+              tax_id: string
+            }[]
+          }
+        | {
+            Args: {
+              _charge_source: string
+              _default_tax_group_id: string
+              _department_id: string
+              _restaurant_id: string
+              _tax_basis: string
+            }
+            Returns: {
+              amount: number
+              basis: string
+              calculation: string
+              charge_type: string
+              code: string
+              name: string
+              tax_id: string
+            }[]
+          }
+      resolve_guest_invoice_charge_group: {
+        Args: {
+          _folio_id: string
+          _restaurant_id: string
+          _source_transaction_id: string
+        }
+        Returns: Json
+      }
+      resolve_reservation_room_unit: {
+        Args: {
+          _reservation_id: string
+          _reservation_room_id: string
+          _restaurant_id: string
+        }
+        Returns: {
+          adults: number
+          arrival_date: string
+          assignment_notes: string | null
+          children: number
+          created_at: string
+          currency: string | null
+          departure_date: string
+          id: string
+          infants: number
+          nightly_rate_snapshot: Json | null
+          pms_group_block_id: string | null
+          priced_at: string | null
+          rate_plan_id: string | null
+          reservation_id: string
+          restaurant_id: string
+          room_id: string | null
+          room_subtotal: number | null
+          room_type_id: string
+          status: string
+          unit_sequence: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hotel_reservation_rooms"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reverse_financial_account_payment_allocation: {
+        Args: {
+          _allocation_id: string
+          _idempotency_key: string
+          _membership_id: string
+          _reason: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      reverse_guest_payment_invoice_allocation: {
+        Args: {
+          _allocation_id: string
+          _idempotency_key: string
+          _membership_id: string
+          _reason: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
       reverse_order_room_charge: {
         Args: {
           _membership_id: string
@@ -16440,6 +24298,267 @@ export type Database = {
           _restaurant_id: string
         }
         Returns: Json
+      }
+      reverse_reservation_package_charge: {
+        Args: {
+          _membership_id: string
+          _package_row_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
+      }
+      reverse_withholding_certificate: {
+        Args: {
+          _certificate_id: string
+          _idempotency_key: string
+          _membership_id: string
+          _reason: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      rollup_hotel_reservation_status: {
+        Args: { _reservation_id: string; _restaurant_id: string }
+        Returns: string
+      }
+      save_guest_tax_identity: {
+        Args: {
+          _city: string
+          _email: string
+          _guest_profile_id: string
+          _identity_id: string
+          _is_default: boolean
+          _legal_name: string
+          _membership_id: string
+          _phone: string
+          _region: string
+          _registration_number: string
+          _restaurant_id: string
+          _tin: string
+        }
+        Returns: Json
+      }
+      search_all_accounts: {
+        Args: {
+          _booking_source?: string
+          _currency?: string
+          _folio_status?: string
+          _limit?: number
+          _market_segment?: string
+          _offset?: number
+          _payment_states?: string[]
+          _rate_plan_id?: string
+          _restaurant_id: string
+          _room_type_id?: string
+          _sales_channel?: string
+          _search?: string
+          _sort_by?: string
+          _sort_dir?: string
+          _stay_end?: string
+          _stay_start?: string
+          _stay_statuses?: string[]
+          _unsettled_only?: boolean
+        }
+        Returns: Json
+      }
+      search_guest_folios: {
+        Args: {
+          _booking_source?: string
+          _currency?: string
+          _folio_status?: string
+          _limit?: number
+          _market_segment?: string
+          _offset?: number
+          _payment_states?: string[]
+          _rate_plan_id?: string
+          _restaurant_id: string
+          _room_type_id?: string
+          _sales_channel?: string
+          _search?: string
+          _sort_by?: string
+          _sort_dir?: string
+          _stay_end?: string
+          _stay_start?: string
+          _stay_statuses?: string[]
+          _unsettled_only?: boolean
+        }
+        Returns: Json
+      }
+      set_default_guest_tax_identity: {
+        Args: {
+          _guest_profile_id: string
+          _identity_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      set_guest_tax_identity_active: {
+        Args: {
+          _active: boolean
+          _guest_profile_id: string
+          _identity_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      submit_hotel_revenue_approval: {
+        Args: {
+          _action_type: string
+          _display_snapshot: Json
+          _domain: string
+          _entity_id: string
+          _entity_type: string
+          _expected_version: string
+          _membership_id: string
+          _proposal_payload: Json
+          _request_reason: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      sync_hotel_reservation_packages: {
+        Args: {
+          _mode: string
+          _package_activation_ids: string[]
+          _reservation_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
+      }
+      sync_hotel_reservation_promotion: {
+        Args: {
+          _mode: string
+          _promotion_activation_id: string
+          _reservation_id: string
+          _restaurant_id: string
+        }
+        Returns: undefined
+      }
+      sync_reservation_room_total: {
+        Args: { _reservation_id: string; _restaurant_id: string }
+        Returns: undefined
+      }
+      transferable_charge_group_remainder: {
+        Args: { _parent_transaction_id: string; _restaurant_id: string }
+        Returns: Json
+      }
+      transferable_charge_remainder: {
+        Args: { _charge_id: string; _restaurant_id: string }
+        Returns: number
+      }
+      transition_hotel_revenue_approval: {
+        Args: {
+          _event_type: string
+          _membership_id: string
+          _reason: string
+          _request_id: string
+          _restaurant_id: string
+        }
+        Returns: Json
+      }
+      update_financial_account_invoice_draft: {
+        Args: {
+          _draft_id: string
+          _membership_id: string
+          _notes: string
+          _restaurant_id: string
+          _source_ids: string[]
+        }
+        Returns: {
+          created_at: string
+          created_by_membership_id: string
+          financial_account_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          updated_at: string
+          updated_by_membership_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "financial_account_invoice_drafts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_guest_folio_invoice_draft: {
+        Args: {
+          _draft_id: string
+          _membership_id: string
+          _notes: string
+          _restaurant_id: string
+          _source_ids: string[]
+        }
+        Returns: {
+          created_at: string
+          created_by_membership_id: string
+          folio_id: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+          updated_at: string
+          updated_by_membership_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "guest_folio_invoice_drafts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_invoice_credit_note_draft: {
+        Args: {
+          _draft_id: string
+          _items: Json
+          _membership_id: string
+          _reason: string
+          _restaurant_id: string
+        }
+        Returns: {
+          account_invoice_id: string | null
+          created_at: string
+          created_by_membership_id: string
+          guest_invoice_id: string | null
+          id: string
+          note_type: string
+          reason: string
+          restaurant_id: string
+          updated_at: string
+          updated_by_membership_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoice_credit_note_drafts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_invoice_debit_note_draft: {
+        Args: {
+          _draft_id: string
+          _membership_id: string
+          _reason: string
+          _restaurant_id: string
+          _source_ids: string[]
+        }
+        Returns: {
+          account_invoice_id: string | null
+          created_at: string
+          created_by_membership_id: string
+          guest_invoice_id: string | null
+          id: string
+          note_type: string
+          reason: string
+          restaurant_id: string
+          updated_at: string
+          updated_by_membership_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoice_credit_note_drafts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {

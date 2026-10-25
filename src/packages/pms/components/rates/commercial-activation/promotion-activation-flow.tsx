@@ -32,6 +32,7 @@ import type { PromotionWorkspaceMaster } from "@/packages/pms/lib/revenue/commer
 import type { RevenueRatePlan, RevenueRoomType } from "@/packages/pms/lib/revenue/revenue-config.types";
 import { useRevenueApprovalPolicy } from "@/packages/pms/components/rates/approvals/use-revenue-approval-policy";
 import {
+  APPROVE_APPLY_LABEL,
   PROMOTION_SUBMITTED_TOAST,
   SUBMIT_FOR_APPROVAL_LABEL,
   approvalRequestSearch,
@@ -76,7 +77,11 @@ export function PromotionActivationFlow({
   const previewFn = useServerFn(previewPromotionActivation);
   const applyFn = useServerFn(applyPromotionActivation);
   const [step, setStep] = useState<CommercialActivationStep>(initialPromotionId ? 2 : 1);
-  const [draft, setDraft] = useState<PromotionActivationDraft>(() => emptyPromotionDraft(initialPromotionId));
+  const [draft, setDraft] = useState<PromotionActivationDraft>(() => {
+    const initial = emptyPromotionDraft(initialPromotionId);
+    const selected = masters.find((row) => row.id === initialPromotionId);
+    return selected ? { ...initial, roomTypeIds: [...selected.roomTypeIds] } : initial;
+  });
   const [preview, setPreview] = useState<PromotionActivationPreview | null>(null);
   const [previewFingerprint, setPreviewFingerprint] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
@@ -123,9 +128,14 @@ export function PromotionActivationFlow({
   });
 
   const applyMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (applyImmediately: boolean) => {
       if (!preview || !previewMatches) throw new Error("Validate this activation again before activating.");
-      const payload = promotionApplyPayload(restaurantId, preview, draft.reason);
+      const payload = promotionApplyPayload(
+        restaurantId,
+        preview,
+        draft.reason,
+        applyImmediately,
+      );
       if (!payload) throw new Error("Validate this activation again before activating.");
       return applyFn({ data: payload });
     },
@@ -226,7 +236,13 @@ export function PromotionActivationFlow({
             masters={masters}
             selectedId={draft.promotionId}
             currency={currency}
-            onSelect={(id) => patchDraft({ promotionId: id })}
+            onSelect={(id) => {
+              const selected = masters.find((row) => row.id === id);
+              patchDraft({
+                promotionId: id,
+                roomTypeIds: selected ? [...selected.roomTypeIds] : [],
+              });
+            }}
           />
         ) : null}
         {step === 2 ? (
@@ -319,14 +335,35 @@ export function PromotionActivationFlow({
           </>
         ) : null}
         {step === 5 || step === 6 ? (
-          <button
-            type="button"
-            className={commercialGoldButton(!canNext || !canManage || applyMutation.isPending)}
-            disabled={!canManage || !canNext || applyMutation.isPending}
-            onClick={() => applyMutation.mutate()}
-          >
-            {policyQuery.data?.enabled ? SUBMIT_FOR_APPROVAL_LABEL : "Activate Promotion"}
-          </button>
+          policyQuery.data?.enabled ? (
+            <>
+              <button
+                type="button"
+                className={commercialOutlineButton()}
+                disabled={!canManage || !canNext || applyMutation.isPending}
+                onClick={() => applyMutation.mutate(false)}
+              >
+                {SUBMIT_FOR_APPROVAL_LABEL}
+              </button>
+              <button
+                type="button"
+                className={commercialGoldButton(!canNext || !canManage || applyMutation.isPending)}
+                disabled={!canManage || !canNext || applyMutation.isPending}
+                onClick={() => applyMutation.mutate(true)}
+              >
+                {APPROVE_APPLY_LABEL}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className={commercialGoldButton(!canNext || !canManage || applyMutation.isPending)}
+              disabled={!canManage || !canNext || applyMutation.isPending}
+              onClick={() => applyMutation.mutate(true)}
+            >
+              Activate Promotion
+            </button>
+          )
         ) : null}
         {step < 4 ? (
           <button

@@ -200,6 +200,7 @@ export function ApprovalsView({
     createInitialApprovalTabFilters,
   );
   const [selectedId, setSelectedId] = useState<string | null>(approvalRequest ?? null);
+  const [actionTargetId, setActionTargetId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<ApprovalDialogKind | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [staleCopy, setStaleCopy] = useState(false);
@@ -374,7 +375,8 @@ export function ApprovalsView({
   });
 
   const approveMutation = useMutation({
-    mutationFn: () => approveFn({ data: { restaurantId, approvalRequestId: selectedId! } }),
+    mutationFn: (approvalRequestId: string) =>
+      approveFn({ data: { restaurantId, approvalRequestId } }),
     onSuccess: (result) => {
       setActionError(null);
       if (result.status === "stale") {
@@ -382,11 +384,13 @@ export function ApprovalsView({
         void detailQuery.refetch();
         invalidateRevenueApprovals(queryClient, restaurantId);
         setDialog(null);
+        setActionTargetId(null);
         return;
       }
       toast.success(APPROVAL_APPLIED_TOAST);
       setStaleCopy(false);
       setDialog(null);
+      setActionTargetId(null);
       invalidateRevenueApprovals(queryClient, restaurantId);
       if (detailQuery.data) invalidateApprovalAffectedDomain(queryClient, detailQuery.data.domain);
       void detailQuery.refetch();
@@ -395,11 +399,18 @@ export function ApprovalsView({
   });
 
   const rejectMutation = useMutation({
-    mutationFn: (reviewReason: string) =>
-      rejectFn({ data: { restaurantId, approvalRequestId: selectedId!, reviewReason } }),
+    mutationFn: ({
+      approvalRequestId,
+      reviewReason,
+    }: {
+      approvalRequestId: string;
+      reviewReason: string;
+    }) =>
+      rejectFn({ data: { restaurantId, approvalRequestId, reviewReason } }),
     onSuccess: () => {
       setActionError(null);
       setDialog(null);
+      setActionTargetId(null);
       invalidateRevenueApprovals(queryClient, restaurantId);
       void detailQuery.refetch();
     },
@@ -411,6 +422,7 @@ export function ApprovalsView({
     onSuccess: () => {
       setActionError(null);
       setDialog(null);
+      setActionTargetId(null);
       invalidateRevenueApprovals(queryClient, restaurantId);
       void detailQuery.refetch();
     },
@@ -732,6 +744,7 @@ export function ApprovalsView({
               onReview={openRow}
               onCancel={(row) => {
                 setSelectedId(row.id);
+                setActionTargetId(row.id);
                 setDialog("cancel");
               }}
             />
@@ -798,20 +811,24 @@ export function ApprovalsView({
         access={access}
         busy={approveMutation.isPending || rejectMutation.isPending || cancelMutation.isPending}
         onClose={() => {
+          if (dialog || actionTargetId) return;
           setSelectedId(null);
           writeApprovalSearch(tab, null);
         }}
         onRetry={() => void detailQuery.refetch()}
         onApprove={() => {
           setActionError(null);
+          setActionTargetId(detailQuery.data?.id ?? selectedId);
           setDialog("approve");
         }}
         onReject={() => {
           setActionError(null);
+          setActionTargetId(detailQuery.data?.id ?? selectedId);
           setDialog("reject");
         }}
         onCancel={() => {
           setActionError(null);
+          setActionTargetId(detailQuery.data?.id ?? selectedId);
           setDialog("cancel");
         }}
         onViewApplied={(view) => {
@@ -852,7 +869,10 @@ export function ApprovalsView({
           setPolicyMutation.isPending
         }
         error={actionError}
-        onClose={() => setDialog(null)}
+        onClose={() => {
+          setDialog(null);
+          setActionTargetId(null);
+        }}
         onConfirm={(reason) => {
           if (dialog === "policy-enable") {
             setPolicyMutation.mutate(true);
@@ -862,16 +882,19 @@ export function ApprovalsView({
             setPolicyMutation.mutate(false);
             return;
           }
-          if (dialog === "approve") {
-            approveMutation.mutate();
+          if (dialog === "approve" && actionTargetId) {
+            approveMutation.mutate(actionTargetId);
             return;
           }
-          if (dialog === "reject" && reason) {
-            rejectMutation.mutate(reason);
+          if (dialog === "reject" && reason && actionTargetId) {
+            rejectMutation.mutate({
+              approvalRequestId: actionTargetId,
+              reviewReason: reason,
+            });
             return;
           }
-          if (dialog === "cancel" && selectedId) {
-            cancelMutation.mutate(selectedId);
+          if (dialog === "cancel" && actionTargetId) {
+            cancelMutation.mutate(actionTargetId);
           }
         }}
       />

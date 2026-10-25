@@ -183,6 +183,7 @@ export function NightAuditDesk({
   busy,
   note,
   closeError,
+  closeNotice = null,
   onNoteChange,
   onConfirm,
   runs,
@@ -203,6 +204,7 @@ export function NightAuditDesk({
   busy: boolean;
   note: string;
   closeError: string | null;
+  closeNotice?: string | null;
   onNoteChange: (value: string) => void;
   onConfirm: () => void;
   runs: NightAuditRunRow[];
@@ -279,6 +281,7 @@ export function NightAuditDesk({
       onNoteChange={onNoteChange}
       onConfirm={onConfirm}
       error={closeError}
+      notice={closeNotice}
     />
   );
 

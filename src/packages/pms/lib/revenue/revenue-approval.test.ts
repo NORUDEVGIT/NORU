@@ -416,6 +416,41 @@ describe("P7-STEP-02 — policy and contract", () => {
       /Edit Bed and breakfast package/,
     );
   });
+
+  it("accepts a stored create activation with a null activation id", () => {
+    const promotion = parseRevenueApprovalProposal("promotion_activation", {
+      restaurantId: PROPERTY_A,
+      operation: "CREATE",
+      activationId: null,
+      promotionId: PLAN,
+      validFrom: "2026-10-01",
+      validTo: "2026-10-31",
+      bookingFrom: "2026-10-01",
+      bookingTo: "2026-10-20",
+      priority: 100,
+      roomTypeIds: [],
+      ratePlanIds: [],
+      reason: null,
+      expectedVersion: "absent",
+      active: true,
+      reactivate: false,
+    });
+    assert.equal(promotion.operation, "CREATE");
+    assert.equal(promotion.activationId, undefined);
+    const pkg = parseRevenueApprovalProposal("package_activation", {
+      restaurantId: PROPERTY_A,
+      operation: "CREATE",
+      activationId: null,
+      packageId: PLAN,
+      validFrom: "2026-10-01",
+      validTo: "2026-10-31",
+      roomTypeIds: [],
+      ratePlanIds: [],
+      reason: null,
+      expectedVersion: "absent",
+    });
+    assert.equal(pkg.activationId, undefined);
+  });
 });
 
 describe("P7-STEP-02 — schema and engine safety", () => {

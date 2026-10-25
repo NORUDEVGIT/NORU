@@ -1,131 +1,246 @@
 /**
- * Reports Phase 0. Figures come from existing PMS readers.
+ * Reports workspace. Analytics readers stay on the existing desk.
+ * Police reads getPoliceStayReport. Cashier reads getCashierInvoiceReport.
+ * Fiscal reads getFiscalRegistrationReport.
  * The house date is restaurants.business_date via getPropertyBusinessDate.
- * This workspace does not export, schedule, or write source data.
  */
 import { useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Link } from "@tanstack/react-router";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { ReportsChrome } from "@/packages/pms/components/reports/reports-chrome";
+import { ReportsCatalogue } from "@/packages/pms/components/reports/reports-catalogue";
 import { ReportsDesk } from "@/packages/pms/components/reports/reports-desk";
+import { ReportMissingState } from "@/packages/pms/components/reports/report-states";
+import { CashierInvoiceReportScreen } from "@/packages/pms/components/reports/cashier-invoice-report-screen";
+import { FiscalRegistrationReportScreen } from "@/packages/pms/components/reports/fiscal-registration-report-screen";
+import { PoliceStayReportScreen } from "@/packages/pms/components/reports/police-stay-report-screen";
+import { ServiceEntitlementReportScreen } from "@/packages/pms/components/reports/service-entitlement-report-screen";
 import { RevenueOverviewTab } from "@/packages/pms/components/rates/rates-tabs";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
 import {
+  isAnalyticsReport,
   reportByCode,
   reportsReaderDate,
   reportsSearch,
   resolveReportsView,
-  type ReportCategory,
-  type ReportCode,
+  sameReportsSearch,
+  type ReportGroupId,
+  type ReportId,
+  type ReportsRouteSearch,
 } from "@/packages/pms/lib/reports-shell";
+
+function rowSearchFilters(search: ReportsRouteSearch): Partial<ReportsRouteSearch> {
+  const filters: Partial<ReportsRouteSearch> = {};
+  if (search.stayDate) filters.stayDate = search.stayDate;
+  if (search.from) filters.from = search.from;
+  if (search.to) filters.to = search.to;
+  if (search.documentType) filters.documentType = search.documentType;
+  if (search.grain) filters.grain = search.grain;
+  if (search.query) filters.query = search.query;
+  if (search.issuer) filters.issuer = search.issuer;
+  if (search.mode) filters.mode = search.mode;
+  if (search.status) filters.status = search.status;
+  if (search.page) filters.page = search.page;
+  if (search.pageSize) filters.pageSize = search.pageSize;
+  if (search.presence) filters.presence = search.presence;
+  if (search.name) filters.name = search.name;
+  if (search.nationality) filters.nationality = search.nationality;
+  if (search.room) filters.room = search.room;
+  if (search.serviceDate) filters.serviceDate = search.serviceDate;
+  if (search.meal) filters.meal = search.meal;
+  if (search.department) filters.department = search.department;
+  if (search.stay === "in-house" || search.stay === "confirmed") filters.stay = search.stay;
+  return filters;
+}
 
 export function PmsReportsWorkspace({
   membership,
-  initialTab,
-  initialReport,
-  initialCategory,
+  search,
 }: {
   membership: RestaurantMembership;
-  initialTab?: string | undefined;
-  initialReport?: string | undefined;
-  initialCategory?: string | undefined;
+  search: ReportsRouteSearch;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
-  const view = resolveReportsView({
-    tab: initialTab,
-    report: initialReport,
-    category: initialCategory,
-  });
+  const view = resolveReportsView(search);
   const [catalogueQuery, setCatalogueQuery] = useState("");
-
-  useEffect(() => {
-    const next = resolveReportsView({
-      tab: initialTab,
-      report: initialReport,
-      category: initialCategory,
-    });
-    const canonical = reportsSearch(next);
-    if (!initialTab && !initialReport && !initialCategory && canonical.tab === "center" && !canonical.category) {
-      return;
-    }
-    if (
-      initialTab === canonical.tab &&
-      initialReport === canonical.report &&
-      initialCategory === canonical.category
-    ) {
-      return;
-    }
-    void navigate({
-      to: "/restaurant/pms/reports",
-      search: canonical,
-      replace: true,
-    });
-  }, [initialCategory, initialReport, initialTab, navigate]);
-
   const fetchDate = useServerFn(getPropertyBusinessDate);
   const dateQuery = useQuery({
     queryKey: ["property-business-date", restaurantId],
     queryFn: () => fetchDate({ data: { restaurantId } }),
     retry: false,
   });
-
-  function goCenter(category?: ReportCategory) {
-    void navigate({
-      to: "/restaurant/pms/reports",
-      search: reportsSearch(category ? { tab: "center", category } : { tab: "center" }),
-    });
-  }
-
-  function goReport(code: ReportCode) {
-    void navigate({
-      to: "/restaurant/pms/reports",
-      search: reportsSearch({ tab: "report", report: code }),
-    });
-  }
-
   const businessDate = dateQuery.data?.businessDate ?? null;
+  const timezone = dateQuery.data?.timezone ?? null;
+
+  useEffect(() => {
+    const next = resolveReportsView(search);
+    const filters = next.kind === "row" ? rowSearchFilters(search) : undefined;
+    if (
+      next.kind === "row" &&
+      next.report === "police" &&
+      filters &&
+      !filters.stayDate &&
+      businessDate
+    ) {
+      filters.stayDate = reportsReaderDate(businessDate);
+    }
+    if (next.kind === "row" && next.report === "cashier-invoice" && filters && businessDate) {
+      const houseDate = reportsReaderDate(businessDate);
+      if (!filters.from) filters.from = houseDate;
+      if (!filters.to) filters.to = houseDate;
+      if (!filters.documentType) filters.documentType = "INV";
+    }
+    if (next.kind === "row" && next.report === "fiscal-registration" && filters && businessDate) {
+      const houseDate = reportsReaderDate(businessDate);
+      if (!filters.from) filters.from = houseDate;
+      if (!filters.to) filters.to = houseDate;
+      if (!filters.documentType) filters.documentType = "INV";
+    }
+    if (
+      next.kind === "row" &&
+      (next.report === "meal-service" || next.report === "service-fulfillment") &&
+      filters &&
+      businessDate
+    ) {
+      if (!filters.serviceDate) filters.serviceDate = reportsReaderDate(businessDate);
+      if (next.report === "meal-service" && !filters.meal) filters.meal = "BREAKFAST";
+    }
+    const canonical = reportsSearch(next, filters);
+    if (sameReportsSearch(search, canonical)) return;
+    void navigate({
+      to: "/restaurant/pms/reports",
+      search: canonical,
+      replace: true,
+    });
+  }, [businessDate, navigate, search]);
+
+  function goCenter(group?: ReportGroupId) {
+    void navigate({
+      to: "/restaurant/pms/reports",
+      search: reportsSearch(
+        group
+          ? { kind: "center", group, topic: null }
+          : { kind: "center", group: null, topic: null },
+      ),
+    });
+  }
+
+  function goReport(id: ReportId) {
+    void navigate({
+      to: "/restaurant/pms/reports",
+      search: reportsSearch(resolveReportsView({ report: id })),
+    });
+  }
+
   const revenue = reportByCode("revenue");
+  const openRow = view.kind === "row" ? reportByCode(view.report) : null;
+
+  let body = null;
+  if (dateQuery.isLoading) {
+    body = <p className="text-sm text-muted-foreground">Loading the house date…</p>;
+  } else if (dateQuery.isError || !businessDate || !timezone) {
+    body = (
+      <p className="text-sm text-muted-foreground">
+        The house date could not be loaded, so reports are not shown.
+      </p>
+    );
+  } else if (view.kind === "missing") {
+    body = <ReportMissingState onBack={() => goCenter()} />;
+  } else if (view.kind === "row" && view.report === "police" && openRow?.kind === "row") {
+    const detail = [membership.restaurant.address, membership.restaurant.city]
+      .map((part) => (part ?? "").trim())
+      .filter((part) => part.length > 0)
+      .join(", ");
+    body = (
+      <PoliceStayReportScreen
+        restaurantId={restaurantId}
+        propertyName={membership.restaurant.name}
+        propertyDetail={detail || null}
+        businessDate={reportsReaderDate(businessDate)}
+        timezone={timezone}
+        search={search}
+      />
+    );
+  } else if (view.kind === "row" && view.report === "cashier-invoice" && openRow?.kind === "row") {
+    body = (
+      <CashierInvoiceReportScreen
+        restaurantId={restaurantId}
+        propertyName={membership.restaurant.name}
+        businessDate={reportsReaderDate(businessDate)}
+        timezone={timezone}
+        search={search}
+      />
+    );
+  } else if (
+    view.kind === "row" &&
+    view.report === "fiscal-registration" &&
+    openRow?.kind === "row"
+  ) {
+    body = (
+      <FiscalRegistrationReportScreen
+        restaurantId={restaurantId}
+        propertyName={membership.restaurant.name}
+        businessDate={reportsReaderDate(businessDate)}
+        timezone={timezone}
+        search={search}
+      />
+    );
+  } else if (
+    view.kind === "row" &&
+    (view.report === "meal-service" || view.report === "service-fulfillment") &&
+    openRow?.kind === "row"
+  ) {
+    body = (
+      <ServiceEntitlementReportScreen
+        restaurantId={restaurantId}
+        propertyName={membership.restaurant.name}
+        businessDate={reportsReaderDate(businessDate)}
+        report={view.report}
+        search={search}
+      />
+    );
+  } else if (
+    view.kind === "analytics" &&
+    view.report === "revenue" &&
+    revenue &&
+    isAnalyticsReport(revenue)
+  ) {
+    body = (
+      <div className="space-y-4" data-testid="reports-report-revenue">
+        <p className="text-sm text-muted-foreground" data-testid="reports-caption-revenue">
+          {revenue.caption}
+        </p>
+        <Link
+          to="/restaurant/pms/rates-revenue"
+          className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+        >
+          {revenue.ownerLabel}
+        </Link>
+        <RevenueOverviewTab restaurantId={restaurantId} today={reportsReaderDate(businessDate)} />
+      </div>
+    );
+  } else if (view.kind === "analytics") {
+    body = (
+      <ReportsDesk restaurantId={restaurantId} businessDate={businessDate} report={view.report} />
+    );
+  } else {
+    const scope = view.group ?? view.topic;
+    body = <ReportsCatalogue query={catalogueQuery} scope={scope} onOpenReport={goReport} />;
+  }
 
   return (
     <ReportsChrome
       membership={membership}
       view={view}
       onOpenCenter={() => goCenter()}
-      onOpenCategory={(category) => goCenter(category)}
+      onOpenCategory={(group) => goCenter(group)}
       onSearch={setCatalogueQuery}
     >
-      {dateQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading the house date…</p>
-      ) : dateQuery.isError || !businessDate ? (
-        <p className="text-sm text-muted-foreground">The house date could not be loaded, so reports are not shown.</p>
-      ) : view.tab === "report" && view.report === "revenue" && revenue ? (
-        <div className="space-y-4" data-testid="reports-report-revenue">
-          <p className="text-sm text-muted-foreground" data-testid="reports-caption-revenue">
-            {revenue.caption}
-          </p>
-          <Link
-            to="/restaurant/pms/rates-revenue"
-            className="text-sm font-medium text-primary underline-offset-2 hover:underline"
-          >
-            {revenue.ownerLabel}
-          </Link>
-          <RevenueOverviewTab restaurantId={restaurantId} today={reportsReaderDate(businessDate)} />
-        </div>
-      ) : (
-        <ReportsDesk
-          restaurantId={restaurantId}
-          businessDate={businessDate}
-          report={view.tab === "report" ? view.report : null}
-          category={view.tab === "center" ? view.category : null}
-          catalogueQuery={catalogueQuery}
-          onOpenReport={goReport}
-        />
-      )}
+      {body}
     </ReportsChrome>
   );
 }

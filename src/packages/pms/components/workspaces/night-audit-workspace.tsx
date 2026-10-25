@@ -13,7 +13,7 @@ import {
   getNightAuditAccess,
   runNightAudit,
 } from "@/packages/pms/lib/nightaudit.functions";
-import { formatNa1Date } from "@/packages/pms/lib/na1";
+import { formatNa1Date, nightAuditOtbNotice } from "@/packages/pms/lib/na1";
 import {
   nightAuditSearch,
   resolveNightAuditTab,
@@ -40,6 +40,7 @@ export function NightAuditWorkspace({
   const [phone, setPhone] = useState(false);
   const [note, setNote] = useState("");
   const [closeError, setCloseError] = useState<string | null>(null);
+  const [closeNotice, setCloseNotice] = useState<string | null>(null);
   const [moduleSearch, setModuleSearch] = useState("");
 
   useEffect(() => {
@@ -109,17 +110,24 @@ export function NightAuditWorkspace({
       close({ data: { restaurantId, runId, ...(note.trim() ? { notes: note.trim() } : {}) } }),
     onSuccess: (result) => {
       if (!result.ok) {
+        setCloseNotice(null);
         setCloseError(result.message);
         toast.error(result.message);
         return;
       }
       setCloseError(null);
       setNote("");
-      toast.success(
-        result.alreadyClosed
-          ? `${formatNa1Date(result.businessDate)} was already closed.`
-          : `Business date ${formatNa1Date(result.businessDate)} closed. Now on ${formatNa1Date(result.nextBusinessDate)}.`,
-      );
+      const closedLabel = result.alreadyClosed
+        ? `${formatNa1Date(result.businessDate)} was already closed.`
+        : `Business date ${formatNa1Date(result.businessDate)} closed. Now on ${formatNa1Date(result.nextBusinessDate)}.`;
+      const otbNotice = nightAuditOtbNotice(result.otbSnapshotStatus);
+      if (otbNotice) {
+        setCloseNotice(otbNotice);
+        toast.warning(otbNotice);
+      } else {
+        setCloseNotice(null);
+        toast.success(closedLabel);
+      }
       refresh();
     },
     onError: (error: Error) => {
@@ -153,6 +161,7 @@ export function NightAuditWorkspace({
         busy={closeMutation.isPending}
         note={note}
         closeError={closeError}
+        closeNotice={closeNotice}
         onNoteChange={setNote}
         onConfirm={() => closeMutation.mutate(state.run.id)}
         runs={historyQuery.data ?? []}

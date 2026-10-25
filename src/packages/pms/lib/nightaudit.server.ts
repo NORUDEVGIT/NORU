@@ -6,6 +6,20 @@
  * exceptions that the night-audit functions persist against the audit run.
  */
 import { round2 } from "@/core/lib/workforce.server";
+import { belongsToBusinessDate, propertyDayBounds } from "./cashiering-control";
+import {
+  guestInvoiceOriginalAmount,
+  guestPaymentAvailable,
+  guestPaymentFace,
+  snapshotParentChargeIds,
+} from "./cashiering-guest-allocation";
+import { fiscalSnapshotMode, registeredCashDebitCover } from "./cashiering-cash-debit-cover";
+import { selectAll, selectByIds } from "./night-audit-read";
+import {
+  housekeepingNightAuditExceptions,
+  roomUnitIntegrityExceptions,
+} from "./night-audit-rooms";
+import { folioLedgerExceptions, settlementIntegrityExceptions } from "./night-audit-settlement";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { expandStayRooms } from "./reservation-room-units";
 
@@ -27,6 +41,10 @@ export const NON_IGNORABLE_TYPES = new Set([
   "pending_arrival",
   "overstay",
   "unpaid_folio",
+  "folio_invoice_contradiction",
+  "allocation_exceeds_source",
+  "orphan_allocation",
+  "occupied_restricted_room",
   "hk_conflict",
 ]);
 
@@ -93,6 +111,8 @@ export interface AuditEvaluation {
   overstays: OverstayStay[];
   shifts: ShiftReconciliation[];
   finance: AuditFinance;
+  /** Checked-in reservation room units. Not travelers, and not the overstay count. */
+  inHouseUnits: number;
 }
 
 const NIGHT_AUDIT_ERRORS: Record<string, string> = {
@@ -140,21 +160,12 @@ export async function evaluateAudit(
   restaurantId: string,
   businessDate: string,
   currency: string,
+  timezone: string,
 ): Promise<AuditEvaluation> {
   const exceptions: DerivedException[] = [];
   const checks: AreaCheck[] = [];
 
   /* --------------------------------------------------- reservations / stays */
-
-  const { data: reservationRows } = await admin
-    .from("hotel_reservations")
-    .select(
-      "id, confirmation_number, status, arrival_date, departure_date, room_id, room_type_id, room_subtotal, currency, guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name ), hotel_rooms!hotel_reservations_room_same_type ( room_number, status )",
-    )
-    .eq("restaurant_id", restaurantId)
-    .lte("arrival_date", nextDay(businessDate))
-    .order("arrival_date", { ascending: true })
-    .limit(1000);
 
   type Res = {
     id: string;
@@ -168,7 +179,17 @@ export async function evaluateAudit(
     guest_profiles: { first_name: string; last_name: string | null } | null;
     hotel_rooms: { room_number: string; status: string } | null;
   };
-  const reservations = (reservationRows ?? []) as Res[];
+  const reservations = await selectAll<Res>((from, to) =>
+    admin
+      .from("hotel_reservations")
+      .select(
+        "id, confirmation_number, status, arrival_date, departure_date, room_id, room_type_id, room_subtotal, currency, guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name ), hotel_rooms!hotel_reservations_room_same_type ( room_number, status )",
+      )
+      .eq("restaurant_id", restaurantId)
+      .lte("arrival_date", nextDay(businessDate))
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
 
   const reservationExceptions: DerivedException[] = [];
   const noShows: NoShowCandidate[] = [];
@@ -246,30 +267,30 @@ export async function evaluateAudit(
 
   const inHouse = reservations.filter((r) => r.status === "checked_in");
   const roomExceptions: DerivedException[] = [];
-  const byRoom = new Map<string, Res[]>();
-  const inHouseIds = inHouse.map((stay) => stay.id);
-  const unitResult =
-    inHouseIds.length === 0
-      ? { data: [], error: null }
-      : await admin
-          .from("hotel_reservation_rooms")
-          .select("reservation_id, room_id, status, arrival_date, departure_date, unit_sequence")
-          .eq("restaurant_id", restaurantId)
-          .in("reservation_id", inHouseIds);
-  if (unitResult.error && !isMissingSchemaError(unitResult.error)) {
-    throw new Error(unitResult.error.message);
+  const inHouseIds = new Set(inHouse.map((stay) => stay.id));
+  type UnitRow = {
+    reservation_id: string;
+    room_id: string | null;
+    status: string | null;
+    arrival_date: string;
+    departure_date: string;
+    unit_sequence: number;
+  };
+  let unitRows: UnitRow[] | null = [];
+  try {
+    const loaded = await selectAll<UnitRow>((from, to) =>
+      admin
+        .from("hotel_reservation_rooms")
+        .select("reservation_id, room_id, status, arrival_date, departure_date, unit_sequence")
+        .eq("restaurant_id", restaurantId)
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+    unitRows = loaded.filter((unit) => inHouseIds.has(unit.reservation_id));
+  } catch (error) {
+    if (!isMissingSchemaError(error as { message?: string; code?: string })) throw error;
+    unitRows = null;
   }
-  const unitRows =
-    unitResult.error && isMissingSchemaError(unitResult.error)
-      ? null
-      : ((unitResult.data ?? []) as Array<{
-          reservation_id: string;
-          room_id: string | null;
-          status: string | null;
-          arrival_date: string;
-          departure_date: string;
-          unit_sequence: number;
-        }>);
   const stayRooms = expandStayRooms(
     inHouse.map((stay) => ({
       id: stay.id,
@@ -289,70 +310,41 @@ export async function evaluateAudit(
         }))
       : null,
   ).filter((stay) => stay.status === "checked_in");
-  const inHouseById = new Map(inHouse.map((stay) => [stay.id, stay]));
   const occupiedRoomIdList = stayRooms
     .map((stay) => stay.roomId)
     .filter((id): id is string => Boolean(id));
-  const { data: occupiedRoomRows } =
+  const occupiedRoomIds = new Set(occupiedRoomIdList);
+  const occupiedRoomRows =
     occupiedRoomIdList.length === 0
-      ? { data: [] }
-      : await admin
-          .from("hotel_rooms")
-          .select("id, room_number, status")
-          .eq("restaurant_id", restaurantId)
-          .in("id", occupiedRoomIdList);
-  const occupiedRoomById = new Map(
-    ((occupiedRoomRows ?? []) as Array<{ id: string; room_number: string; status: string }>).map(
-      (room) => [room.id, room],
-    ),
+      ? []
+      : await selectByIds<{ id: string; room_number: string; status: string }>(
+          occupiedRoomIdList,
+          (chunk) =>
+            admin
+              .from("hotel_rooms")
+              .select("id, room_number, status")
+              .eq("restaurant_id", restaurantId)
+              .in("id", chunk),
+        );
+  roomExceptions.push(
+    ...roomUnitIntegrityExceptions({
+      stays: stayRooms,
+      reservations: inHouse.map((stay) => ({
+        id: stay.id,
+        confirmationNumber: stay.confirmation_number,
+      })),
+      rooms: occupiedRoomRows.map((room) => ({
+        id: room.id,
+        roomNumber: room.room_number,
+        status: room.status,
+      })),
+    }),
   );
-
-  for (const stay of stayRooms) {
-    const reservation = inHouseById.get(stay.reservationId);
-    if (!reservation) continue;
-    if (!stay.roomId) {
-      roomExceptions.push({
-        exceptionType: "checked_in_without_room",
-        severity: "blocking",
-        referenceType: "reservation",
-        referenceId: reservation.id,
-        message: `${reservation.confirmation_number} is checked in without an assigned room.`,
-      });
-      continue;
-    }
-    byRoom.set(stay.roomId, [...(byRoom.get(stay.roomId) ?? []), reservation]);
-    const physical =
-      occupiedRoomById.get(stay.roomId) ??
-      (stay.roomId === reservation.room_id ? reservation.hotel_rooms : null);
-    if (physical && (physical.status === "out_of_order" || physical.status === "out_of_service")) {
-      roomExceptions.push({
-        exceptionType: "occupied_restricted_room",
-        severity: "warning",
-        referenceType: "reservation",
-        referenceId: reservation.id,
-        message: `${reservation.confirmation_number} occupies room ${physical.room_number}, which is ${physical.status.replace(/_/g, " ")}.`,
-      });
-    }
-  }
-
-  for (const [roomId, stays] of byRoom) {
-    if (stays.length > 1) {
-      roomExceptions.push({
-        exceptionType: "room_double_occupancy",
-        severity: "blocking",
-        referenceType: "room",
-        referenceId: roomId,
-        message: `Room ${stays[0]?.hotel_rooms?.room_number ?? roomId} has ${stays.length} overlapping checked-in stays (${stays
-          .map((s) => s.confirmation_number)
-          .join(", ")}).`,
-      });
-    }
-  }
 
   checks.push({
     area: "Front Office & Rooms",
     status: statusFor(roomExceptions),
-    detail: `${inHouse.length} in-house stay(s), ${byRoom.size} occupied room(s).`,
+    detail: `${stayRooms.length} in-house room unit(s), ${occupiedRoomIds.size} occupied room(s).`,
   });
 
   checks.push({
@@ -364,11 +356,6 @@ export async function evaluateAudit(
 
   /* ------------------------------------------------------------ housekeeping */
 
-  const { data: roomRows } = await admin
-    .from("hotel_rooms")
-    .select("id, room_number, status, housekeeping_status, restriction_reason, active")
-    .eq("restaurant_id", restaurantId)
-    .limit(500);
   type RoomRow = {
     id: string;
     room_number: string;
@@ -377,56 +364,53 @@ export async function evaluateAudit(
     restriction_reason: string | null;
     active: boolean;
   };
-  const rooms = (roomRows ?? []) as RoomRow[];
-
-  const { data: taskRows } = await admin
-    .from("housekeeping_tasks")
-    .select("id, room_id, status, task_type")
-    .eq("restaurant_id", restaurantId)
-    .in("status", ["pending", "in_progress", "assigned"])
-    .limit(500);
-  const openTaskRooms = new Set(
-    ((taskRows ?? []) as Array<{ room_id: string }>).map((t) => t.room_id),
+  const rooms = await selectAll<RoomRow>((from, to) =>
+    admin
+      .from("hotel_rooms")
+      .select("id, room_number, status, housekeeping_status, restriction_reason, active")
+      .eq("restaurant_id", restaurantId)
+      .order("id", { ascending: true })
+      .range(from, to),
   );
 
-  const hkExceptions: DerivedException[] = [];
-  const occupiedRoomIds = new Set(byRoom.keys());
-  for (const room of rooms) {
-    if (
-      room.housekeeping_status === "dirty" &&
-      !occupiedRoomIds.has(room.id) &&
-      !openTaskRooms.has(room.id)
-    ) {
-      hkExceptions.push({
-        exceptionType: "dirty_room_without_task",
-        severity: "warning",
-        referenceType: "room",
-        referenceId: room.id,
-        message: `Room ${room.room_number} is vacant and dirty with no open cleaning task.`,
-      });
-    }
-    if (
-      (room.status === "out_of_order" || room.status === "out_of_service") &&
-      !room.restriction_reason
-    ) {
-      hkExceptions.push({
-        exceptionType: "restriction_without_reason",
-        severity: "warning",
-        referenceType: "room",
-        referenceId: room.id,
-        message: `Room ${room.room_number} is ${room.status.replace(/_/g, " ")} without a reason recorded.`,
-      });
-    }
-    if (occupiedRoomIds.has(room.id) && room.housekeeping_status === "inspected" && !room.active) {
-      hkExceptions.push({
-        exceptionType: "inconsistent_room_state",
-        severity: "warning",
-        referenceType: "room",
-        referenceId: room.id,
-        message: `Room ${room.room_number} is occupied but marked inactive.`,
-      });
-    }
+  const taskRows = await selectAll<{ room_id: string }>((from, to) =>
+    admin
+      .from("housekeeping_tasks")
+      .select("id, room_id, status, task_type")
+      .eq("restaurant_id", restaurantId)
+      .in("status", ["pending", "in_progress", "assigned"])
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  const openTaskRooms = new Set(taskRows.map((t) => t.room_id));
+
+  type DiscrepancyRow = { id: string; room_id: string; status: string };
+  let discrepancyRows: DiscrepancyRow[] = [];
+  try {
+    discrepancyRows = await selectAll<DiscrepancyRow>((from, to) =>
+      admin
+        .from("housekeeping_discrepancies")
+        .select("id, room_id, status")
+        .eq("restaurant_id", restaurantId)
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+  } catch (error) {
+    if (!isMissingSchemaError(error as { message?: string; code?: string })) throw error;
   }
+  const hkExceptions: DerivedException[] = housekeepingNightAuditExceptions({
+    rooms: rooms.map((room) => ({
+      id: room.id,
+      roomNumber: room.room_number,
+      status: room.status,
+      housekeepingStatus: room.housekeeping_status,
+      restrictionReason: room.restriction_reason,
+      active: room.active,
+    })),
+    occupiedRoomIds,
+    openTaskRoomIds: openTaskRooms,
+    discrepancies: discrepancyRows.map((row) => ({ roomId: row.room_id, status: row.status })),
+  });
 
   checks.push({
     area: "Housekeeping",
@@ -436,11 +420,14 @@ export async function evaluateAudit(
 
   /* ------------------------------------------------------------------ folios */
 
-  const { data: folioRows } = await admin
-    .from("guest_folios")
-    .select("id, folio_number, status, reservation_id, closed_at")
-    .eq("restaurant_id", restaurantId)
-    .limit(1000);
+  const folioRows = await selectAll<FolioRowLite>((from, to) =>
+    admin
+      .from("guest_folios")
+      .select("id, folio_number, status, reservation_id, closed_at")
+      .eq("restaurant_id", restaurantId)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   type FolioRowLite = {
     id: string;
     folio_number: string;
@@ -448,15 +435,18 @@ export async function evaluateAudit(
     reservation_id: string | null;
     closed_at: string | null;
   };
-  const folios = (folioRows ?? []) as FolioRowLite[];
+  const folios = folioRows;
 
-  const { data: txnRows } = await admin
-    .from("folio_transactions")
-    .select(
-      "id, folio_id, transaction_type, category, amount, posted_at, payment_method, reference_type, reference_id",
-    )
-    .eq("restaurant_id", restaurantId)
-    .limit(5000);
+  const txnRows = await selectAll<TxnRow>((from, to) =>
+    admin
+      .from("folio_transactions")
+      .select(
+        "id, folio_id, transaction_type, category, amount, posted_at, payment_method, reference_type, reference_id, original_transaction_id",
+      )
+      .eq("restaurant_id", restaurantId)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
   type TxnRow = {
     id: string;
     folio_id: string;
@@ -467,85 +457,52 @@ export async function evaluateAudit(
     payment_method: string | null;
     reference_type: string | null;
     reference_id: string | null;
+    original_transaction_id: string | null;
   };
-  const transactions = (txnRows ?? []) as TxnRow[];
+  const transactions = txnRows;
 
-  const balances = new Map<string, number>();
-  const roomChargeCount = new Map<string, number>();
-  for (const t of transactions) {
-    balances.set(t.folio_id, round2((balances.get(t.folio_id) ?? 0) + num(t.amount)));
-    if (t.reference_type === "reservation_room_charge" && t.reference_id) {
-      roomChargeCount.set(t.reference_id, (roomChargeCount.get(t.reference_id) ?? 0) + 1);
-    }
-  }
+  const reservationsWithFolios = new Set(
+    folios.flatMap((folio) => (folio.reservation_id ? [folio.reservation_id] : [])),
+  );
+  const ledger = folioLedgerExceptions({
+    folios: folios.map((folio) => ({
+      id: folio.id,
+      number: folio.folio_number,
+      status: folio.status,
+      closedAt: folio.closed_at,
+    })),
+    transactions: transactions.map((txn) => ({
+      folioId: txn.folio_id,
+      amount: num(txn.amount),
+      postedAt: txn.posted_at,
+      referenceType: txn.reference_type,
+      referenceId: txn.reference_id,
+    })),
+    missingFolios: reservations
+      .filter(
+        (reservation) =>
+          num(reservation.room_subtotal) > 0 &&
+          (reservation.status === "checked_in" || reservation.status === "checked_out") &&
+          !reservationsWithFolios.has(reservation.id),
+      )
+      .map((reservation) => ({
+        id: reservation.id,
+        confirmationNumber: reservation.confirmation_number,
+        status: reservation.status,
+      })),
+  });
+  const balances = ledger.balances;
+  const folioExceptions: DerivedException[] = [...ledger.exceptions];
 
-  const folioExceptions: DerivedException[] = [];
-  const folioByReservation = new Map<string, FolioRowLite>();
-  for (const f of folios) {
-    if (f.reservation_id) folioByReservation.set(f.reservation_id, f);
-    const balance = balances.get(f.id) ?? 0;
-    if (f.status === "closed" && Math.abs(balance) >= 0.01) {
-      folioExceptions.push({
-        exceptionType: "closed_folio_nonzero_balance",
-        severity: "blocking",
-        referenceType: "folio",
-        referenceId: f.id,
-        message: `Folio ${f.folio_number} is closed with a balance of ${balance.toFixed(2)}.`,
-      });
-    }
-    if (f.status === "closed" && f.closed_at) {
-      const after = transactions.filter(
-        (t) => t.folio_id === f.id && t.posted_at > (f.closed_at as string),
-      );
-      if (after.length > 0) {
-        folioExceptions.push({
-          exceptionType: "closed_folio_post_activity",
-          severity: "blocking",
-          referenceType: "folio",
-          referenceId: f.id,
-          message: `Folio ${f.folio_number} has ${after.length} posting(s) after it was closed.`,
-        });
-      }
-    }
-    if (f.status === "open" && Math.abs(balance) >= 0.01) {
-      folioExceptions.push({
-        exceptionType: "open_folio_balance",
-        severity: "warning",
-        referenceType: "folio",
-        referenceId: f.id,
-        message: `Folio ${f.folio_number} has an outstanding balance of ${balance.toFixed(2)}.`,
-      });
-    }
-  }
-
-  for (const [reservationId, count] of roomChargeCount) {
-    if (count > 1) {
-      folioExceptions.push({
-        exceptionType: "duplicate_room_charge",
-        severity: "blocking",
-        referenceType: "reservation",
-        referenceId: reservationId,
-        message: `A reservation has ${count} room charges posted for the same stay.`,
-      });
-    }
-  }
-
-  for (const r of reservations) {
-    const priced = num(r.room_subtotal) > 0;
-    if (
-      priced &&
-      (r.status === "checked_in" || r.status === "checked_out") &&
-      !folioByReservation.has(r.id)
-    ) {
-      folioExceptions.push({
-        exceptionType: "missing_folio",
-        severity: "warning",
-        referenceType: "reservation",
-        referenceId: r.id,
-        message: `${r.confirmation_number} is priced and ${r.status.replace(/_/g, " ")} but has no folio.`,
-      });
-    }
-  }
+  folioExceptions.push(
+    ...((await loadSettlementExceptions(
+      admin,
+      restaurantId,
+      folios,
+      balances,
+      transactions,
+    )) as DerivedException[]),
+  );
 
   checks.push({
     area: "Folios",
@@ -555,9 +512,10 @@ export async function evaluateAudit(
 
   /* -------------------------------------------------------- payments / money */
 
-  const dayStart = `${businessDate}T00:00:00`;
-  const dayEnd = `${nextDay(businessDate)}T00:00:00`;
-  const dayTxns = transactions.filter((t) => t.posted_at >= dayStart && t.posted_at < dayEnd);
+  const bounds = propertyDayBounds(businessDate, timezone);
+  const dayStart = bounds.startIso;
+  const dayEnd = bounds.endIso;
+  const dayTxns = transactions.filter((t) => belongsToBusinessDate(t.posted_at, businessDate, timezone));
 
   const paymentsByMethod: Record<PaymentMethod, number> = {
     cash: 0,
@@ -627,9 +585,11 @@ export async function evaluateAudit(
 
   /* ----------------------------------------------------------- cashier shifts */
 
-  const { data: shiftRows } = await admin.rpc("list_hotel_drawers", {
+  const shiftResult = await admin.rpc("list_hotel_drawers", {
     _restaurant_id: restaurantId,
   });
+  if (shiftResult.error) throw new Error(shiftResult.error.message);
+  const shiftRows = shiftResult.data;
   type ShiftRow = {
     id: string;
     membership_id: string;
@@ -695,6 +655,17 @@ export async function evaluateAudit(
         referenceId: s.id,
         message: `${names.get(s.membership_id) ?? "A cashier"} still has an open hotel cashier drawer. Close it before the day close.`,
       });
+    } else {
+      const variance = Number((s as { variance?: number | string | null }).variance ?? 0);
+      if (Number.isFinite(variance) && Math.abs(variance) >= 0.01) {
+        shiftExceptions.push({
+          exceptionType: "closed_shift_variance",
+          severity: "warning",
+          referenceType: "cashier_shift",
+          referenceId: s.id,
+          message: `${names.get(s.membership_id) ?? "A cashier"} closed a drawer with a cash variance of ${variance.toFixed(2)}.`,
+        });
+      }
     }
     return {
       id: s.id,
@@ -723,5 +694,209 @@ export async function evaluateAudit(
     ...shiftExceptions,
   );
 
-  return { businessDate, checks, exceptions, noShows, overstays, shifts, finance };
+  return {
+    businessDate,
+    checks,
+    exceptions,
+    noShows,
+    overstays,
+    shifts,
+    finance,
+    inHouseUnits: stayRooms.length,
+  };
+}
+
+async function loadSettlementExceptions(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  restaurantId: string,
+  folios: readonly { id: string; folio_number: string }[],
+  balances: ReadonlyMap<string, number>,
+  transactions: readonly {
+    id: string;
+    transaction_type: string;
+    amount: number | string;
+    original_transaction_id: string | null;
+  }[],
+) {
+  type InvoiceRow = {
+    id: string;
+    folio_id: string;
+    issued_number: string;
+    coverage_scope: string | null;
+    snapshot: unknown;
+  };
+  type NoteRow = {
+    id: string;
+    guest_invoice_id: string | null;
+    note_type: string;
+    total_delta: number | string;
+  };
+  type AmountRow = { id: string; invoice_id: string; amount: number | string };
+  type ChargeAlloc = { charge_transaction_id: string; amount: number | string };
+  type PaymentAlloc = AmountRow & { payment_transaction_id: string };
+  type DepositAlloc = AmountRow & { deposit_transaction_id: string };
+  const optional = async <T>(load: () => Promise<T[]>): Promise<T[]> => {
+    try {
+      return await load();
+    } catch (error) {
+      if (isMissingSchemaError(error as { message?: string; code?: string })) return [];
+      throw error;
+    }
+  };
+  const invoices = await optional(() =>
+    selectAll<InvoiceRow>((from, to) =>
+      admin
+        .from("guest_folio_invoices")
+        .select("id, folio_id, issued_number, coverage_scope, snapshot")
+        .eq("restaurant_id", restaurantId)
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+  );
+  const notes = await optional(() =>
+    selectAll<NoteRow>((from, to) =>
+      admin
+        .from("invoice_credit_notes")
+        .select("id, guest_invoice_id, note_type, total_delta")
+        .eq("restaurant_id", restaurantId)
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+  );
+  const paymentAllocations = await optional(() =>
+    selectAll<PaymentAlloc>((from, to) =>
+      admin
+        .from("guest_payment_invoice_allocations")
+        .select("id, invoice_id, amount, payment_transaction_id")
+        .eq("restaurant_id", restaurantId)
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+  );
+  const depositAllocations = await optional(() =>
+    selectAll<DepositAlloc>((from, to) =>
+      admin
+        .from("guest_deposit_invoice_allocations")
+        .select("id, invoice_id, amount, deposit_transaction_id")
+        .eq("restaurant_id", restaurantId)
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+  );
+  const chargeAllocations = await optional(() =>
+    selectAll<ChargeAlloc>((from, to) =>
+      admin
+        .from("folio_deposit_allocations")
+        .select("id, charge_transaction_id, amount")
+        .eq("restaurant_id", restaurantId)
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+  );
+  const debitIds = notes.filter((note) => note.note_type === "debit").map((note) => note.id);
+  const registrations = new Map<string, { status: string; mode: "CASH" | "CREDIT" | null }>();
+  if (debitIds.length > 0) {
+    const registrationRows = await optional(() =>
+      selectAll<{ source_id: string; status: string; request_snapshot: unknown }>((from, to) =>
+        admin
+          .from("fiscal_registrations")
+          .select("source_id, status, request_snapshot")
+          .eq("restaurant_id", restaurantId)
+          .eq("source_type", "debit_note")
+          .eq("fiscal_document_type", "DEB")
+          .order("id", { ascending: true })
+          .range(from, to),
+      ),
+    );
+    for (const row of registrationRows) {
+      if (!debitIds.includes(row.source_id)) continue;
+      registrations.set(row.source_id, {
+        status: row.status,
+        mode: fiscalSnapshotMode(row.request_snapshot),
+      });
+    }
+  }
+  const folioNumber = new Map(folios.map((folio) => [folio.id, folio.folio_number]));
+  const allocatedBySource = new Map<string, number>();
+  for (const row of paymentAllocations) {
+    allocatedBySource.set(
+      row.payment_transaction_id,
+      round2((allocatedBySource.get(row.payment_transaction_id) ?? 0) + Number(row.amount)),
+    );
+  }
+  for (const row of depositAllocations) {
+    allocatedBySource.set(
+      row.deposit_transaction_id,
+      round2((allocatedBySource.get(row.deposit_transaction_id) ?? 0) + Number(row.amount)),
+    );
+  }
+  const refundedByPayment = new Map<string, number>();
+  for (const txn of transactions) {
+    if (txn.transaction_type !== "refund" || !txn.original_transaction_id) continue;
+    refundedByPayment.set(
+      txn.original_transaction_id,
+      round2((refundedByPayment.get(txn.original_transaction_id) ?? 0) + Math.abs(num(txn.amount))),
+    );
+  }
+  return settlementIntegrityExceptions({
+    folios: folios.map((folio) => ({
+      id: folio.id,
+      number: folioNumber.get(folio.id) ?? folio.folio_number,
+      balance: balances.get(folio.id) ?? 0,
+    })),
+    invoices: invoices.map((invoice) => {
+      const invoiceNotes = notes.filter((note) => note.guest_invoice_id === invoice.id);
+      const parentIds = snapshotParentChargeIds(invoice.snapshot);
+      const depositApplied =
+        depositAllocations
+          .filter((row) => row.invoice_id === invoice.id)
+          .reduce((sum, row) => sum + Number(row.amount), 0) +
+        chargeAllocations
+          .filter((row) => parentIds.includes(row.charge_transaction_id))
+          .reduce((sum, row) => sum + Number(row.amount), 0);
+      return {
+        id: invoice.id,
+        folioId: invoice.folio_id,
+        number: invoice.issued_number,
+        eligible: invoice.coverage_scope !== "legacy_folio",
+        invoiceTotal: guestInvoiceOriginalAmount(
+          invoice.snapshot as { totals?: { invoiceTotal?: number | null } },
+        ),
+        noteDeltas: invoiceNotes.map((note) => Number(note.total_delta)),
+        paymentAllocated: paymentAllocations
+          .filter((row) => row.invoice_id === invoice.id)
+          .reduce((sum, row) => sum + Number(row.amount), 0),
+        depositApplied,
+        cashDebitCovered: registeredCashDebitCover(
+          invoiceNotes.map((note) => ({
+            id: note.id,
+            noteType: note.note_type,
+            totalDelta: Number(note.total_delta),
+          })),
+          invoiceNotes.map((note) => ({
+            sourceId: note.id,
+            status: registrations.get(note.id)?.status ?? "",
+            mode: registrations.get(note.id)?.mode ?? null,
+          })),
+        ),
+      };
+    }),
+    payments: transactions
+      .filter((txn) => txn.transaction_type === "payment" || txn.transaction_type === "deposit")
+      .map((txn) => ({
+        id: txn.id,
+        face: guestPaymentFace(num(txn.amount)),
+        refunded: refundedByPayment.get(txn.id) ?? 0,
+        allocated: allocatedBySource.get(txn.id) ?? 0,
+      }))
+      .filter(
+        (payment) => guestPaymentAvailable(payment.face, payment.refunded, payment.allocated) < -0.01,
+      ),
+    allocations: [...paymentAllocations, ...depositAllocations].map((row) => ({
+      id: row.id,
+      invoiceId: row.invoice_id,
+      amount: Number(row.amount),
+    })),
+  });
 }
