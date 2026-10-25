@@ -89,6 +89,8 @@ export interface OccupancyRoom {
   occupancy: "vacant" | "occupied";
   guestName: string | null;
   reservationId: string | null;
+  /** Reservation-room unit occupying this physical room. Null when the room is vacant or the unit id is unknown. */
+  reservationRoomId: string | null;
   departureDate: string | null;
 }
 
@@ -398,9 +400,7 @@ export async function loadFrontOfficeArrivals(
   const hydrated = await attachFrontOfficeRoomUnits(
     supabase,
     data.restaurantId,
-    incomplete
-      ? stays.map((s) => ({ ...s, walkInIncomplete: incomplete.has(s.id) }))
-      : stays,
+    incomplete ? stays.map((s) => ({ ...s, walkInIncomplete: incomplete.has(s.id) })) : stays,
   );
   let projected = projectOperationalStayRows(hydrated, "arrivals", date);
   if (data.roomTypeId) projected = projected.filter((stay) => stay.roomTypeId === data.roomTypeId);
@@ -610,7 +610,9 @@ export const listOccupancy = createServerFn({ method: "POST" })
         ? { data: [], error: null }
         : await context.supabase
             .from("hotel_reservation_rooms")
-            .select("reservation_id, room_id, status, arrival_date, departure_date, unit_sequence")
+            .select(
+              "id, reservation_id, room_id, status, arrival_date, departure_date, unit_sequence",
+            )
             .eq("restaurant_id", data.restaurantId)
             .in(
               "reservation_id",
@@ -623,6 +625,7 @@ export const listOccupancy = createServerFn({ method: "POST" })
       unitResult.error && isMissingSchemaError(unitResult.error)
         ? null
         : ((unitResult.data ?? []) as Array<{
+            id: string;
             reservation_id: string;
             room_id: string | null;
             status: string | null;
@@ -640,6 +643,7 @@ export const listOccupancy = createServerFn({ method: "POST" })
       })),
       unitRows
         ? unitRows.map((unit) => ({
+            id: unit.id,
             reservationId: unit.reservation_id,
             roomId: unit.room_id,
             status: unit.status,
@@ -650,12 +654,15 @@ export const listOccupancy = createServerFn({ method: "POST" })
         : null,
     );
     const byId = new Map(stayRows.map((stay) => [stay.id, stay]));
-    const byRoom = new Map<string, OccRow>();
+    const byRoom = new Map<string, { stay: OccRow; reservationRoomId: string | null }>();
     for (const roomId of checkedInRoomIds(occupied)) {
       const stay = occupied.find((room) => room.roomId === roomId && room.status === "checked_in");
       const row = stay ? byId.get(stay.reservationId) : undefined;
       if (!row || !stay) continue;
-      byRoom.set(roomId, { ...row, room_id: roomId, departure_date: stay.departureDate });
+      byRoom.set(roomId, {
+        stay: { ...row, room_id: roomId, departure_date: stay.departureDate },
+        reservationRoomId: stay.reservationRoomId,
+      });
     }
 
     return (
@@ -668,7 +675,8 @@ export const listOccupancy = createServerFn({ method: "POST" })
         room_types: { name: string } | null;
       }>
     ).map((room) => {
-      const stay = byRoom.get(room.id);
+      const occupiedRoom = byRoom.get(room.id);
+      const stay = occupiedRoom?.stay;
       return {
         id: room.id,
         roomNumber: room.room_number,
@@ -684,6 +692,7 @@ export const listOccupancy = createServerFn({ method: "POST" })
               .trim() || "Guest"
           : null,
         reservationId: stay?.id ?? null,
+        reservationRoomId: occupiedRoom?.reservationRoomId ?? null,
         departureDate: stay?.departure_date ?? null,
       };
     });
@@ -876,10 +885,14 @@ export const changeStayDates = createServerFn({ method: "POST" })
           .eq("restaurant_id", data.restaurantId)
           .eq("reservation_id", data.reservationId);
         if (units.error) throw new Error(units.error.message);
-        const openUnits = ((units.data ?? []) as Array<{ id: string; status: string | null }>).filter(
+        const openUnits = (
+          (units.data ?? []) as Array<{ id: string; status: string | null }>
+        ).filter(
           (unit) =>
             unit.status == null ||
-            (unit.status !== "cancelled" && unit.status !== "no_show" && unit.status !== "checked_out"),
+            (unit.status !== "cancelled" &&
+              unit.status !== "no_show" &&
+              unit.status !== "checked_out"),
         );
         if (openUnits.length > 1) {
           throw new Error(

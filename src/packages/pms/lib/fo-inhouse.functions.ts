@@ -17,7 +17,10 @@ import {
 import { normalizeClock } from "./pms-set1-foundation";
 import { assertDateOnly, requireReservationManager } from "./reservations.server";
 import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
-import { financialFromSignal, parseLateCheckoutPolicy } from "./reservation-workspace/arrivals-departures";
+import {
+  financialFromSignal,
+  parseLateCheckoutPolicy,
+} from "./reservation-workspace/arrivals-departures";
 import type { LateCheckoutPolicy } from "./reservation-workspace/shared-read-models";
 import {
   FO_INHOUSE_EXCEPTION_LABELS,
@@ -80,6 +83,7 @@ export type FoInHouseQuickView = {
     id: string | null;
     roomNumber: string | null;
     floor: string | null;
+    building: string | null;
     status: string | null;
     housekeepingStatus: string | null;
     maintenanceStatus: string | null;
@@ -132,7 +136,9 @@ async function loadInHouseRooms(
   restaurantId: string,
   stays: FrontOfficeStay[],
 ): Promise<Map<string, FoInHouseRoomState>> {
-  const ids = [...new Set(stays.map((stay) => stay.roomId).filter((id): id is string => Boolean(id)))];
+  const ids = [
+    ...new Set(stays.map((stay) => stay.roomId).filter((id): id is string => Boolean(id))),
+  ];
   const byId = new Map<string, FoInHouseRoomState>();
   if (ids.length === 0) return byId;
   const { data, error } = await supabase
@@ -277,7 +283,13 @@ export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
     }
     stay = focused;
 
-    const [{ data: guestRow }, { data: roomRow }, { data: noteRow }, signals, { data: historyRows }] = await Promise.all([
+    const [
+      { data: guestRow },
+      { data: roomRow },
+      { data: noteRow },
+      signals,
+      { data: historyRows },
+    ] = await Promise.all([
       supabaseAdmin
         .from("guest_profiles")
         .select("first_name, last_name, phone, email, vip_status")
@@ -287,7 +299,9 @@ export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
       stay.roomId
         ? supabaseAdmin
             .from("hotel_rooms")
-            .select("id, room_number, status, housekeeping_status, maintenance_status, floor")
+            .select(
+              "id, room_number, status, housekeeping_status, maintenance_status, floor, building",
+            )
             .eq("restaurant_id", data.restaurantId)
             .eq("id", stay.roomId)
             .maybeSingle()
@@ -314,18 +328,20 @@ export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
 
     const guest = {
       fullName:
-        [guestRow?.first_name, guestRow?.last_name].filter(Boolean).join(" ").trim() || stay.guestName,
+        [guestRow?.first_name, guestRow?.last_name].filter(Boolean).join(" ").trim() ||
+        stay.guestName,
       phone: (guestRow?.phone as string | null) ?? stay.guestPhone,
       email: (guestRow?.email as string | null) ?? stay.guestEmail,
       vip: guestRow?.vip_status === true || stay.guestVip,
     };
 
-    const roomState: FoInHouseRoomState | undefined = roomRow
+    const roomState = roomRow
       ? {
           operationalStatus: roomRow.status as string | null,
           housekeepingStatus: roomRow.housekeeping_status as string | null,
           maintenanceStatus: (roomRow.maintenance_status as string | null) ?? null,
           floor: (roomRow.floor as string | null) ?? null,
+          building: (roomRow.building as string | null) ?? null,
         }
       : undefined;
     const signal = signals.byStay[stay.id];
@@ -364,6 +380,7 @@ export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
         id: stay.roomId,
         roomNumber: stay.roomNumber,
         floor: roomState?.floor ?? null,
+        building: roomState?.building ?? null,
         status: roomState?.operationalStatus ?? null,
         housekeepingStatus: roomState?.housekeepingStatus ?? null,
         maintenanceStatus: roomState?.maintenanceStatus ?? null,
@@ -389,13 +406,17 @@ export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
       })),
       hints,
       notes: (noteRow?.notes as string | null) ?? null,
-      history: ((historyRows ?? []) as Array<{ event_type: string; notes: string | null; created_at: string }>).map(
-        (row) => ({
-          eventType: row.event_type,
-          notes: row.notes,
-          createdAt: row.created_at,
-        }),
-      ),
+      history: (
+        (historyRows ?? []) as Array<{
+          event_type: string;
+          notes: string | null;
+          created_at: string;
+        }>
+      ).map((row) => ({
+        eventType: row.event_type,
+        notes: row.notes,
+        createdAt: row.created_at,
+      })),
       businessDate: today,
       settings,
     };

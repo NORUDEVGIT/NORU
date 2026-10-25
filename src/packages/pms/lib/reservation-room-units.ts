@@ -456,6 +456,7 @@ export type StayRoomSlice = {
   arrivalDate: string;
   departureDate: string;
   unitSequence: number | null;
+  reservationRoomId: string | null;
 };
 
 /**
@@ -471,6 +472,7 @@ export function expandStayRooms(
     departureDate: string;
   }>,
   units: ReadonlyArray<{
+    id?: string;
     reservationId: string;
     roomId: string | null;
     status: string | null;
@@ -487,6 +489,7 @@ export function expandStayRooms(
       arrivalDate: row.arrivalDate,
       departureDate: row.departureDate,
       unitSequence: null,
+      reservationRoomId: null,
     }));
   }
   const byReservation = new Map<string, Array<(typeof units)[number]>>();
@@ -506,6 +509,7 @@ export function expandStayRooms(
         arrivalDate: reservation.arrivalDate,
         departureDate: reservation.departureDate,
         unitSequence: null,
+        reservationRoomId: null,
       });
       continue;
     }
@@ -519,6 +523,7 @@ export function expandStayRooms(
         arrivalDate: unit.arrivalDate,
         departureDate: unit.departureDate,
         unitSequence: unit.unitSequence,
+        reservationRoomId: unit.id ?? null,
       });
     }
   }

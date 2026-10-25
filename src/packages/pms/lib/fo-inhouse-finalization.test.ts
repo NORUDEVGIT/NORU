@@ -46,13 +46,15 @@ describe("FO-09 in-house unit actions", () => {
     const qv = read("src/packages/pms/components/frontoffice/in-house-quick-view.tsx");
     const dialogs = read("src/packages/pms/components/frontoffice/front-office-dialogs.tsx");
     expect(desk).toContain("initialReservationRoomId={moveStay.reservationRoomId ?? undefined}");
-    expect(desk).toContain("initialReservationRoomId={checkOutStay.reservationRoomId ?? undefined}");
+    expect(desk).toContain(
+      "initialReservationRoomId={checkOutStay.reservationRoomId ?? undefined}",
+    );
     expect(desk).toContain('to: "/restaurant/pms/cashiering/folios/$folioId"');
     expect(desk).toContain("MAINTENANCE_HREF");
     expect(qv).toContain("fo-inhouse-extend");
     expect(qv).toContain("fo-inhouse-early-departure");
     expect(qv).toContain('id="fo-inhouse-notes"');
-    expect(qv).toContain("inHouseExceptionOwner");
+    expect(qv).toContain("inHouseMenuItems");
     expect(dialogs).toContain("reservationRoomId: stay.reservationRoomId");
     const guests = read("src/packages/pms/components/frontoffice/fo-amend-sheet.tsx");
     expect(guests).toContain("stayDateTargetsOneRoom");
