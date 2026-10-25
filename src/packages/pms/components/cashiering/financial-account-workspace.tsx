@@ -45,7 +45,7 @@ import {
 } from "@/packages/pms/lib/cashiering-account-workspace";
 import { getFinancialAccountWorkspace } from "@/packages/pms/lib/cashiering-account-workspace.functions";
 import { closeFinancialAccount } from "@/packages/pms/lib/cashiering-phases.functions";
-import { cashieringTabSearch, resolveCashieringReturnTo, type CashieringTabId } from "@/packages/pms/lib/cashiering-shell";
+import { cashieringTabSearch, type CashieringTabId } from "@/packages/pms/lib/cashiering-shell";
 import { guestProfileSearch } from "@/packages/pms/lib/guest-profile-wave1";
 import { formatBalance } from "@/packages/pms/components/cashiering/folio-workspace-panels";
 import {
@@ -106,10 +106,6 @@ export function FinancialAccountWorkspacePage({
   const { dateTime, date } = useRestaurantTime();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { hasPrevious, computedLabel, handleReturn } = resolveCashieringReturnTo({
-    returnTo,
-    returnToLabel,
-  });
   const [tab, setTab] = useState<WorkspaceTab>(() => {
     if (invoiceId) return "invoices";
     if (paymentId || initialAction === "allocate") return "payments";
@@ -236,18 +232,6 @@ export function FinancialAccountWorkspacePage({
                 <ArrowLeft className="size-3.5" />
                 Back to Accounts
               </button>
-
-              {hasPrevious ? (
-                <button
-                  type="button"
-                  onClick={handleReturn}
-                  data-testid="account-return-to-previous"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-[#D6CDBF] bg-white px-2.5 py-1 text-xs font-semibold text-[#5C5346] shadow-2xs hover:bg-[#FAF8F4] hover:text-[#251605] transition-all"
-                >
-                  <ArrowLeft className="size-3 text-[#8A6A24]" />
-                  {computedLabel}
-                </button>
-              ) : null}
             </div>
 
             {/* Workspace Header Card */}

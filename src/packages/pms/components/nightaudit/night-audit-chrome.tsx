@@ -33,6 +33,7 @@ export function NightAuditChrome({
       helpLabel="Night Audit operational workspace"
       shellTestId="night-audit-command-shell"
       onRoomSearch={onSearch}
+      suppressReturnButton
     >
       <div className="min-w-0 bg-[#F7F4EE]" data-testid="night-audit-desk">
         <header className="border-b border-border bg-background" data-testid="night-audit-desk-header">

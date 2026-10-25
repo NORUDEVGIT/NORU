@@ -110,6 +110,8 @@ export function DeparturesWorkspace({
 }: {
   membership: RestaurantMembership;
   embedded?: boolean;
+  initialSearch?: string;
+  initialReservationId?: string;
 }) {
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
@@ -118,13 +120,13 @@ export function DeparturesWorkspace({
   const queryClient = useQueryClient();
   const money = useMoney();
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch ?? "");
   const [vip, setVip] = useState(ALL);
   const [roomType, setRoomType] = useState(ALL);
   const [late, setLate] = useState(ALL);
   const [blocker, setBlocker] = useState(ALL);
   const [overdue, setOverdue] = useState(ALL);
-  const [qvId, setQvId] = useState<string | null>(null);
+  const [qvId, setQvId] = useState<string | null>(initialReservationId ?? null);
   const [datesStay, setDatesStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
   const [checkOutStay, setCheckOutStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
   const [lateQv, setLateQv] = useState<FoDepartureQuickView | null>(null);

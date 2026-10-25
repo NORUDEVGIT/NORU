@@ -49,6 +49,7 @@ export function CashieringChrome({
       helpLabel="Cashiering operational workspace"
       shellTestId="cashiering-command-shell"
       onRoomSearch={onSearch}
+      suppressReturnButton
     >
       <div className="min-w-0 bg-[#F7F4EE]" data-testid="cashiering-desk">
         <header

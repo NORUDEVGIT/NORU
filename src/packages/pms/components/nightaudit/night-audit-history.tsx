@@ -332,7 +332,16 @@ function RunDetail({
           <div className="mt-2 flex flex-wrap gap-2">
             {links.map((link) => (
               <Button key={link.id} asChild size="sm" variant="outline">
-                <Link to={link.to} search={link.search as never}>
+                <Link
+                  to={link.to}
+                  search={
+                    ({
+                      ...((link.search as Record<string, unknown> | undefined) ?? {}),
+                      returnTo: "/restaurant/pms/night-audit",
+                      returnToLabel: "Return to Night Audit",
+                    }) as never
+                  }
+                >
                   <FileText className="size-3.5" />
                   {link.label}
                 </Link>

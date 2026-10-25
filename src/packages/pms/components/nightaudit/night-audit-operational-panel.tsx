@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { RefreshCw } from "lucide-react";
+import { ArrowRight, ExternalLink, Eye, RefreshCw } from "lucide-react";
 
 import {
   matchesOperationalFilter,
@@ -230,9 +230,29 @@ export function NightAuditOperationalPanel({
                     <td className="px-3 py-2">{CATEGORY_LABEL[row.category]}</td>
                     <td className="px-3 py-2">{row.roomNumber ?? "—"}</td>
                     <td className="px-3 py-2">
-                      <Chip status={issueStatus(row)} />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedId(row.id)}
+                          className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <Eye className="size-3" />
+                          Inspect
+                        </Button>
+                        {link(
+                          "Open " + (row.ownerModule || "module"),
+                          row.route,
+                          row.search,
+                          {
+                            ...(row.confirmationNumber ? { q: row.confirmationNumber } : {}),
+                            ...(row.reservationId ? { reservationId: row.reservationId } : {}),
+                            ...(row.roomId ? { room: row.roomId } : {}),
+                          },
+                        )}
+                      </div>
                     </td>
-                    <td className="px-3 py-2">{link("Open owner module", row.route, row.search)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -272,8 +292,10 @@ export function NightAuditOperationalPanel({
               row.roomType ?? "—",
               formatNa1Date(row.arrivalDate),
               row.sourceStatus,
-              <Chip key="s" status={row.status} />,
-              link("Open Front Office", row.route, row.search),
+              link("Open Front Office", row.route, row.search, {
+                ...(row.confirmationNumber ? { q: row.confirmationNumber } : {}),
+                ...(row.reservationId ? { reservationId: row.reservationId } : {}),
+              }),
             ])}
             empty={
               result.access === "detail"
@@ -304,7 +326,10 @@ export function NightAuditOperationalPanel({
               row.lateCheckoutUntil ?? "—",
               <Chip key="s" status={row.status} />,
               row.issue,
-              link("Open Front Office", row.route, row.search),
+              link("Open Front Office", row.route, row.search, {
+                ...(row.confirmationNumber ? { q: row.confirmationNumber } : {}),
+                ...(row.reservationId ? { reservationId: row.reservationId } : {}),
+              }),
             ])}
             empty={
               result.access === "detail"
@@ -336,7 +361,9 @@ export function NightAuditOperationalPanel({
               row.sellable == null ? "—" : row.sellable ? "Yes" : "No",
               <Chip key="s" status={row.status} />,
               row.issue,
-              link("Open owner module", row.route, row.search),
+              link("Open owner module", row.route, row.search, {
+                ...(row.roomNumber ? { q: row.roomNumber } : {}),
+              }),
             ])}
             empty="No room assignment or occupancy conflicts."
           />
@@ -365,7 +392,9 @@ export function NightAuditOperationalPanel({
               row.readiness,
               <Chip key="s" status={row.status} />,
               row.issue,
-              link("Open Housekeeping", row.route, row.search),
+              link("Open Housekeeping", row.route, row.search, {
+                ...(row.roomNumber ? { q: row.roomNumber } : {}),
+              }),
             ])}
             empty="No housekeeping items need attention."
           />
@@ -500,8 +529,22 @@ export function NightAuditOperationalPanel({
                 <Field label="Last checked" value={result.checkedAt} />
               </dl>
               <Button asChild className="mt-4" variant="outline">
-                <Link to={selected.route as never} search={selected.search as never}>
-                  Open {selected.ownerModule}
+                <Link
+                  to={selected.route as never}
+                  search={
+                    ({
+                      ...(selected.search as Record<string, unknown> ?? {}),
+                      ...(selected.confirmationNumber ? { q: selected.confirmationNumber } : {}),
+                      ...(selected.reservationId ? { reservationId: selected.reservationId } : {}),
+                      ...(selected.roomId ? { room: selected.roomId } : {}),
+                      returnTo: "/restaurant/pms/night-audit",
+                      returnToLabel: "Return to Night Audit",
+                    }) as never
+                  }
+                  className="gap-1.5"
+                >
+                  <span>Open {selected.ownerModule}</span>
+                  <ExternalLink className="size-3.5" />
                 </Link>
               </Button>
             </>
@@ -571,10 +614,34 @@ function Section({ title, state, children }: { title: string; state: Operational
   );
 }
 
-function link(label: string, route: string, search?: Record<string, string>) {
+function link(
+  label: string,
+  route: string,
+  search?: Record<string, string>,
+  extra?: Record<string, string | undefined>,
+) {
+  const filteredExtra: Record<string, string> = {};
+  if (extra) {
+    for (const [k, v] of Object.entries(extra)) {
+      if (v != null && v !== "") {
+        filteredExtra[k] = v;
+      }
+    }
+  }
+  const enrichedSearch = {
+    ...(search ?? {}),
+    ...filteredExtra,
+    returnTo: "/restaurant/pms/night-audit",
+    returnToLabel: "Return to Night Audit",
+  };
   return (
-    <Link to={route as never} search={search as never} className="text-[#8A5A12] underline">
-      {label}
+    <Link
+      to={route as never}
+      search={enrichedSearch as never}
+      className="inline-flex items-center gap-1 font-semibold text-[#8A5A12] hover:text-[#6D4209] hover:underline"
+    >
+      <span>{label}</span>
+      <ExternalLink className="size-3 shrink-0 opacity-70" />
     </Link>
   );
 }

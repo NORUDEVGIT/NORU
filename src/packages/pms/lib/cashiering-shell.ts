@@ -103,60 +103,34 @@ export function resolveCashieringReturnTo(props?: {
     typeof window !== "undefined"
       ? new URLSearchParams(window.location.search)
       : null;
-  const effectiveReturnTo =
-    props?.returnTo || searchParams?.get("returnTo") || undefined;
-  const effectiveReturnToLabel =
-    props?.returnToLabel || searchParams?.get("returnToLabel") || undefined;
+  const paramReturnTo = searchParams?.get("returnTo") || undefined;
+  const paramReturnLabel = searchParams?.get("returnToLabel") || undefined;
 
-  let computedLabel = effectiveReturnToLabel;
-  if (!computedLabel) {
-    if (
-      effectiveReturnTo?.includes("night-audit") ||
-      (typeof document !== "undefined" && document.referrer?.includes("night-audit"))
-    ) {
-      computedLabel = "Return to Night Audit";
-    } else if (
-      effectiveReturnTo?.includes("reports") ||
-      (typeof document !== "undefined" && document.referrer?.includes("reports"))
-    ) {
-      computedLabel = "Return to Reports";
-    } else if (
-      effectiveReturnTo?.includes("reservations") ||
-      (typeof document !== "undefined" && document.referrer?.includes("reservations"))
-    ) {
-      computedLabel = "Return to Reservations";
-    } else if (
-      effectiveReturnTo?.includes("front-office") ||
-      (typeof document !== "undefined" && document.referrer?.includes("front-office"))
-    ) {
-      computedLabel = "Return to Front Desk";
-    } else {
-      computedLabel = "Return to previous";
-    }
-  }
+  const rawReturnTo = props?.returnTo || paramReturnTo;
+  const rawReturnLabel = props?.returnToLabel || paramReturnLabel;
 
-  const hasPrevious = Boolean(
-    effectiveReturnTo ||
-      (typeof window !== "undefined" &&
-        (window.history.length > 1 || Boolean(document.referrer))),
+  // The return button must ONLY be visible when specifically coming from Night Audit via returnTo.
+  // Under no circumstances should it be shown during ordinary navigation or other origins.
+  const isFromNightAudit = Boolean(
+    rawReturnTo && rawReturnTo.includes("night-audit"),
   );
+
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+
+  // If already at Night Audit, do not show the button.
+  const isAlreadyAtTarget = Boolean(pathname.includes("night-audit"));
+
+  const hasPrevious = Boolean(isFromNightAudit && !isAlreadyAtTarget);
+
+  const effectiveReturnTo = hasPrevious
+    ? rawReturnTo || "/restaurant/pms/night-audit"
+    : undefined;
+
+  const computedLabel = rawReturnLabel || "Return to Night Audit";
 
   const handleReturn = () => {
     if (effectiveReturnTo) {
       window.location.href = effectiveReturnTo;
-      return;
-    }
-    if (
-      typeof window !== "undefined" &&
-      window.history.length > 1 &&
-      document.referrer &&
-      document.referrer.includes("/restaurant/")
-    ) {
-      window.history.back();
-      return;
-    }
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      window.history.back();
       return;
     }
     window.location.href = "/restaurant/pms/night-audit";
@@ -169,3 +143,5 @@ export function resolveCashieringReturnTo(props?: {
     handleReturn,
   };
 }
+
+export const resolvePmsReturnTo = resolveCashieringReturnTo;

@@ -8,6 +8,10 @@ import { requireRoutePackage } from "@/core/lib/route-package-guard";
 
 export const Route = createFileRoute("/restaurant/pms/guest-services")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>) => ({
+    ...(typeof search["returnTo"] === "string" ? { returnTo: search["returnTo"] as string } : {}),
+    ...(typeof search["returnToLabel"] === "string" ? { returnToLabel: search["returnToLabel"] as string } : {}),
+  }),
   beforeLoad: async ({ location }) => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {

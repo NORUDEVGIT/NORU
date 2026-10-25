@@ -50,6 +50,12 @@ export const Route = createFileRoute("/restaurant/pms/rates-revenue")({
     ...(optionalString(search["auditSearch"])
       ? { auditSearch: optionalString(search["auditSearch"]) }
       : {}),
+    ...(optionalString(search["returnTo"])
+      ? { returnTo: optionalString(search["returnTo"]) }
+      : {}),
+    ...(optionalString(search["returnToLabel"])
+      ? { returnToLabel: optionalString(search["returnToLabel"]) }
+      : {}),
   }),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();

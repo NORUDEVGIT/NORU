@@ -96,7 +96,6 @@ import {
 import {
   cashieringTabSearch,
   isFolioAction,
-  resolveCashieringReturnTo,
   type CashieringTabId,
 } from "@/packages/pms/lib/cashiering-shell";
 import type { TransactionType } from "@/packages/pms/lib/cashiering.server";
@@ -162,10 +161,6 @@ export function GuestFolioPage({
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { hasPrevious, computedLabel, handleReturn } = resolveCashieringReturnTo({
-    returnTo,
-    returnToLabel,
-  });
   const businessDate = usePropertyBusinessDate(restaurantId, membership.restaurant.timezone);
 
   const fetchWorkspace = useServerFn(getFolioWorkspace);
@@ -206,6 +201,8 @@ export function GuestFolioPage({
     <CashieringChrome
       membership={membership}
       active="folios"
+      returnTo={returnTo}
+      returnToLabel={returnToLabel}
       onNavigate={go}
       onSearch={() => go("folios")}
       onPostPayment={() => go("overview")}
@@ -620,19 +617,6 @@ function FolioWorkspaceBody({
             <ChevronRight className="size-3" />
             <span className="font-medium text-foreground">{folio.folioNumber}</span>
           </nav>
-
-          {hasPrevious ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleReturn}
-              data-testid="folio-return-to-previous"
-              className="h-7 gap-1.5 px-2.5 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs hover:bg-[#FAF8F4] transition-all"
-            >
-              <ArrowLeft className="size-3 text-[#8A6A24]" />
-              {computedLabel}
-            </Button>
-          ) : null}
         </div>
 
         <header className={cn(CARD, "overflow-hidden")} data-testid="folio-header">

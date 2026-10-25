@@ -297,7 +297,16 @@ function ExceptionDetail({
       ) : null}
       {source ? (
         <Button asChild>
-          <Link to={source.route as never} search={(source.search ?? {}) as never}>
+          <Link
+            to={source.route as never}
+            search={
+              ({
+                ...(source.search ?? {}),
+                returnTo: "/restaurant/pms/night-audit",
+                returnToLabel: "Return to Night Audit",
+              }) as never
+            }
+          >
             <ExternalLink className="size-4" />
             Open Source
           </Link>

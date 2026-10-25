@@ -84,6 +84,11 @@ export type FoSearch = {
   horizon?: CalendarHorizon;
   date?: string;
   group?: RackGroupBy;
+  q?: string;
+  reservationId?: string;
+  roomId?: string;
+  returnTo?: string;
+  returnToLabel?: string;
 };
 
 export function parseCalendarHorizon(raw: unknown): CalendarHorizon | undefined {
@@ -112,6 +117,21 @@ export function foSearchFromUnknown(search: Record<string, unknown>): FoSearch {
   if (horizon) result.horizon = horizon;
   if (date) result.date = date;
   if (group !== "none") result.group = group;
+  if (typeof search["q"] === "string" && search["q"].trim()) {
+    result.q = search["q"].trim();
+  }
+  if (typeof search["reservationId"] === "string" && search["reservationId"].trim()) {
+    result.reservationId = search["reservationId"].trim();
+  }
+  if (typeof search["roomId"] === "string" && search["roomId"].trim()) {
+    result.roomId = search["roomId"].trim();
+  }
+  if (typeof search["returnTo"] === "string" && search["returnTo"].trim()) {
+    result.returnTo = search["returnTo"].trim();
+  }
+  if (typeof search["returnToLabel"] === "string" && search["returnToLabel"].trim()) {
+    result.returnToLabel = search["returnToLabel"].trim();
+  }
   return result;
 }
 
