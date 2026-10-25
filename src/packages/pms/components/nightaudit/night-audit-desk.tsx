@@ -17,7 +17,14 @@ import {
   Vault,
 } from "lucide-react";
 
-import { NaClosePanel, NaCloseResult, NaCloseSummary } from "@/packages/pms/components/nightaudit/na1-panels";
+import {
+  NaClosePanel,
+  NaCloseResult,
+  NaCloseSummary,
+  NightAuditWindowBadge,
+} from "@/packages/pms/components/nightaudit/na1-panels";
+import { useLiveNightAuditWindow } from "@/packages/pms/components/nightaudit/use-live-night-audit-window";
+import type { NightAuditWindowState } from "@/packages/pms/lib/night-audit-window";
 import { NightAuditExceptionQueue } from "@/packages/pms/components/nightaudit/night-audit-exception-queue";
 import {
   NightAuditHistoryWorkspace,
@@ -492,6 +499,7 @@ export function NightAuditDesk({
   moduleSearch,
   authorizingFiscalOverride,
   onAuthorizeFiscalOverride,
+  nightAuditWindow = null,
 }: {
   tab: NightAuditTabId;
   focus?: string | undefined;
@@ -545,8 +553,10 @@ export function NightAuditDesk({
   moduleSearch: string;
   authorizingFiscalOverride: boolean;
   onAuthorizeFiscalOverride: (exceptionId: string, reason: string, reasonCategory?: "fiscal_device_offline" | "hardware_failure" | "network_failure" | "fiscal_authority_unavailable" | "integration_failure" | "vendor_support_pending" | "other") => void;
+  nightAuditWindow?: NightAuditWindowState | null;
 }) {
   const clock = usePropertyClock(time);
+  const liveWindow = useLiveNightAuditWindow(nightAuditWindow, role);
   const closed = runStatus === "closed";
   const overall = effectiveOverallStatus({
     server: serverOverall,
@@ -601,6 +611,7 @@ export function NightAuditDesk({
       rechecked={rechecked}
       rechecking={rechecking}
       onRecheck={onRecheck}
+      nightAuditWindow={nightAuditWindow}
     />
   );
 
@@ -644,6 +655,7 @@ export function NightAuditDesk({
                   </span>
                   <span>Run {runState}</span>
                   {checkedAt ? <span>Last checked {dateTime(checkedAt)}</span> : null}
+                  {liveWindow ? <NightAuditWindowBadge state={liveWindow} compact /> : null}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">

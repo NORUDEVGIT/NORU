@@ -59,7 +59,10 @@ function reservation(input: Partial<OperationalReservationFact> = {}): Operation
   };
 }
 
-function unit(res: OperationalReservationFact, input: Partial<OperationalUnitFact> = {}): OperationalUnitFact {
+function unit(
+  res: OperationalReservationFact,
+  input: Partial<OperationalUnitFact> = {},
+): OperationalUnitFact {
   return {
     id: uuid(),
     reservationId: res.id,
@@ -110,7 +113,8 @@ function facts(input: Partial<NightAuditOperationalFacts> = {}): NightAuditOpera
   };
 }
 
-const codes = (result: ReturnType<typeof reconcileNightAuditOperations>) => result.issues.map((row) => row.code);
+const codes = (result: ReturnType<typeof reconcileNightAuditOperations>) =>
+  result.issues.map((row) => row.code);
 const ofCode = (result: ReturnType<typeof reconcileNightAuditOperations>, code: string) =>
   result.issues.filter((row) => row.code === code);
 
@@ -124,13 +128,17 @@ describe("NA-P3 arrivals", () => {
   });
 
   it("2. pending arrival on the business date is a blocker", () => {
-    const result = reconcileNightAuditOperations(facts({ reservations: [reservation({ status: "pending" })] }));
+    const result = reconcileNightAuditOperations(
+      facts({ reservations: [reservation({ status: "pending" })] }),
+    );
     assert.equal(ofCode(result, "arrival_not_processed")[0]?.severity, "blocking");
   });
 
   it("3. confirmed arrival before the business date is a blocker", () => {
     const result = reconcileNightAuditOperations(
-      facts({ reservations: [reservation({ arrivalDate: "2026-10-19", departureDate: "2026-10-23" })] }),
+      facts({
+        reservations: [reservation({ arrivalDate: "2026-10-19", departureDate: "2026-10-23" })],
+      }),
     );
     assert.equal(ofCode(result, "arrival_not_processed")[0]?.dueDate, "2026-10-19");
   });
@@ -145,7 +153,9 @@ describe("NA-P3 arrivals", () => {
 
   it("5–7. cancelled, no-show, and checked-out stays are excluded", () => {
     for (const status of ["cancelled", "no_show", "checked_out"]) {
-      const result = reconcileNightAuditOperations(facts({ reservations: [reservation({ status })] }));
+      const result = reconcileNightAuditOperations(
+        facts({ reservations: [reservation({ status })] }),
+      );
       assert.equal(result.summary.unresolvedArrivalCount, 0, status);
       assert.equal(result.summary.inHouseCount, 0, status);
     }
@@ -154,7 +164,10 @@ describe("NA-P3 arrivals", () => {
   it("8. a checked-in walk-in passes and counts in-house", () => {
     const r = room();
     const result = reconcileNightAuditOperations(
-      facts({ reservations: [reservation({ status: "checked_in", roomId: r.id, arrivalDate: DATE })], rooms: [r] }),
+      facts({
+        reservations: [reservation({ status: "checked_in", roomId: r.id, arrivalDate: DATE })],
+        rooms: [r],
+      }),
     );
     assert.equal(result.summary.unresolvedArrivalCount, 0);
     assert.equal(result.summary.inHouseCount, 1);
@@ -171,7 +184,10 @@ describe("NA-P3 arrivals", () => {
       units.map((row) => row.id).sort(),
     );
     assert.ok(issues.every((row) => row.referenceType === "reservation_room"));
-    assert.equal(new Set(operationalIssuesToExceptions(issues).map((row) => row.referenceId)).size, 2);
+    assert.equal(
+      new Set(operationalIssuesToExceptions(issues).map((row) => row.referenceId)).size,
+      2,
+    );
   });
 
   it("10. arrival links keep the audit business date", () => {
@@ -195,7 +211,14 @@ describe("NA-P3 departures", () => {
     const r = room();
     const result = reconcileNightAuditOperations(
       facts({
-        reservations: [reservation({ status: "checked_in", arrivalDate: "2026-10-18", departureDate: "2026-10-20", roomId: r.id })],
+        reservations: [
+          reservation({
+            status: "checked_in",
+            arrivalDate: "2026-10-18",
+            departureDate: "2026-10-20",
+            roomId: r.id,
+          }),
+        ],
         rooms: [r],
       }),
     );
@@ -207,7 +230,14 @@ describe("NA-P3 departures", () => {
     const r = room();
     const result = reconcileNightAuditOperations(
       facts({
-        reservations: [reservation({ status: "checked_in", arrivalDate: "2026-10-19", departureDate: DATE, roomId: r.id })],
+        reservations: [
+          reservation({
+            status: "checked_in",
+            arrivalDate: "2026-10-19",
+            departureDate: DATE,
+            roomId: r.id,
+          }),
+        ],
         rooms: [r],
       }),
     );
@@ -221,7 +251,12 @@ describe("NA-P3 departures", () => {
       facts({
         reservations: [
           reservation({ status: "checked_out", departureDate: "2026-10-20" }),
-          reservation({ status: "checked_in", arrivalDate: "2026-10-20", departureDate: "2026-10-25", roomId: r.id }),
+          reservation({
+            status: "checked_in",
+            arrivalDate: "2026-10-20",
+            departureDate: "2026-10-25",
+            roomId: r.id,
+          }),
         ],
         rooms: [r],
       }),
@@ -232,12 +267,28 @@ describe("NA-P3 departures", () => {
 
   it("15. group room units are evaluated separately", () => {
     const [a, b] = [room(), room()];
-    const res = reservation({ status: "checked_in", arrivalDate: "2026-10-18", departureDate: "2026-10-23" });
+    const res = reservation({
+      status: "checked_in",
+      arrivalDate: "2026-10-18",
+      departureDate: "2026-10-23",
+    });
     const units = [
-      unit(res, { unitSequence: 1, roomId: a.id, status: "checked_in", departureDate: "2026-10-20" }),
-      unit(res, { unitSequence: 2, roomId: b.id, status: "checked_in", departureDate: "2026-10-23" }),
+      unit(res, {
+        unitSequence: 1,
+        roomId: a.id,
+        status: "checked_in",
+        departureDate: "2026-10-20",
+      }),
+      unit(res, {
+        unitSequence: 2,
+        roomId: b.id,
+        status: "checked_in",
+        departureDate: "2026-10-23",
+      }),
     ];
-    const result = reconcileNightAuditOperations(facts({ reservations: [res], units, rooms: [a, b] }));
+    const result = reconcileNightAuditOperations(
+      facts({ reservations: [res], units, rooms: [a, b] }),
+    );
     assert.equal(ofCode(result, "overstay").length, 1);
     assert.equal(ofCode(result, "overstay")[0]?.referenceId, units[0]!.id);
     assert.equal(result.summary.inHouseCount, 2);
@@ -295,7 +346,11 @@ describe("NA-P3 room assignment", () => {
     const r = room();
     const res = reservation({ status: "checked_in" });
     const result = reconcileNightAuditOperations(
-      facts({ reservations: [res], units: [unit(res, { roomId: r.id, status: "checked_in" })], rooms: [r] }),
+      facts({
+        reservations: [res],
+        units: [unit(res, { roomId: r.id, status: "checked_in" })],
+        rooms: [r],
+      }),
     );
     assert.equal(result.summary.roomConflictCount, 0);
   });
@@ -352,10 +407,15 @@ describe("NA-P3 occupancy", () => {
       unit(res, { unitSequence: 1, roomId: a.id, status: "checked_in" }),
       unit(res, { unitSequence: 2, roomId: b.id, status: "checked_in" }),
     ];
-    const result = reconcileNightAuditOperations(facts({ reservations: [res], units, rooms: [a, b] }));
+    const result = reconcileNightAuditOperations(
+      facts({ reservations: [res], units, rooms: [a, b] }),
+    );
     assert.equal(result.summary.roomConflictCount, 0);
     assert.equal(result.inHouse.length, 2);
-    assert.deepEqual(result.inHouse.map((row) => row.unit), ["Room 1", "Room 2"]);
+    assert.deepEqual(
+      result.inHouse.map((row) => row.unit),
+      ["Room 1", "Room 2"],
+    );
   });
 });
 
@@ -394,7 +454,9 @@ describe("NA-P3 room state", () => {
         rooms: [r],
         maintenance: {
           state: "ok",
-          requests: [{ id: uuid(), roomId: r.id, priority: "normal", status: "open", category: "plumbing" }],
+          requests: [
+            { id: uuid(), roomId: r.id, priority: "normal", status: "open", category: "plumbing" },
+          ],
         },
       }),
     );
@@ -480,7 +542,9 @@ function overbookingType(input: {
 describe("NA-P3 overbooking", () => {
   it("36. within physical capacity passes", () => {
     const result = reconcileNightAuditOperations(
-      facts({ overbooking: { state: "ok", nights: nights({ tonight: [{ demand: 9 }] }), approvals: [] } }),
+      facts({
+        overbooking: { state: "ok", nights: nights({ tonight: [{ demand: 9 }] }), approvals: [] },
+      }),
     );
     assert.equal(result.overbooking.length, 0);
     assert.equal(result.summary.overbookingIssueCount, 0);
@@ -492,7 +556,14 @@ describe("NA-P3 overbooking", () => {
         overbooking: {
           state: "ok",
           nights: nights({ tonight: [{ demand: 11, overbookingAllowance: 2 }] }),
-          approvals: [{ id: uuid(), reservationId: uuid(), reservationActive: true, nights: [{ date: DATE, roomTypeId: "rt-std", shortageApproved: 1 }] }],
+          approvals: [
+            {
+              id: uuid(),
+              reservationId: uuid(),
+              reservationActive: true,
+              nights: [{ date: DATE, roomTypeId: "rt-std", shortageApproved: 1 }],
+            },
+          ],
         },
       }),
     );
@@ -502,7 +573,13 @@ describe("NA-P3 overbooking", () => {
 
   it("38. over the effective limit without an approval is a blocker tonight", () => {
     const result = reconcileNightAuditOperations(
-      facts({ overbooking: { state: "ok", nights: nights({ tonight: [{ demand: 13, overbookingAllowance: 1 }] }), approvals: [] } }),
+      facts({
+        overbooking: {
+          state: "ok",
+          nights: nights({ tonight: [{ demand: 13, overbookingAllowance: 1 }] }),
+          approvals: [],
+        },
+      }),
     );
     const issue = ofCode(result, "overbooking_unapproved")[0]!;
     assert.equal(issue.severity, "blocking");
@@ -517,7 +594,14 @@ describe("NA-P3 overbooking", () => {
         overbooking: {
           state: "ok",
           nights: nights({ tonight: [{ demand: 12, overbookingAllowance: 1 }] }),
-          approvals: [{ id: uuid(), reservationId: uuid(), reservationActive: true, nights: [{ date: DATE, roomTypeId: "rt-std", shortageApproved: 2 }] }],
+          approvals: [
+            {
+              id: uuid(),
+              reservationId: uuid(),
+              reservationActive: true,
+              nights: [{ date: DATE, roomTypeId: "rt-std", shortageApproved: 2 }],
+            },
+          ],
         },
       }),
     );
@@ -532,8 +616,18 @@ describe("NA-P3 overbooking", () => {
           state: "ok",
           nights: nights({ tonight: [{ demand: 12, overbookingAllowance: 1 }] }),
           approvals: [
-            { id: uuid(), reservationId: uuid(), reservationActive: false, nights: [{ date: DATE, roomTypeId: "rt-std", shortageApproved: 2 }] },
-            { id: uuid(), reservationId: uuid(), reservationActive: true, nights: [{ date: TOMORROW, roomTypeId: "rt-std", shortageApproved: 2 }] },
+            {
+              id: uuid(),
+              reservationId: uuid(),
+              reservationActive: false,
+              nights: [{ date: DATE, roomTypeId: "rt-std", shortageApproved: 2 }],
+            },
+            {
+              id: uuid(),
+              reservationId: uuid(),
+              reservationActive: true,
+              nights: [{ date: TOMORROW, roomTypeId: "rt-std", shortageApproved: 2 }],
+            },
           ],
         },
       }),
@@ -548,11 +642,29 @@ describe("NA-P3 overbooking", () => {
           state: "ok",
           nights: nights({
             tonight: [
-              { roomTypeId: "rt-std", roomTypeName: "Standard", demand: 12, overbookingAllowance: 0 },
-              { roomTypeId: "rt-dlx", roomTypeName: "Deluxe", demand: 5, physicalCapacity: 10, overbookingAllowance: 5 },
+              {
+                roomTypeId: "rt-std",
+                roomTypeName: "Standard",
+                demand: 12,
+                overbookingAllowance: 0,
+              },
+              {
+                roomTypeId: "rt-dlx",
+                roomTypeName: "Deluxe",
+                demand: 5,
+                physicalCapacity: 10,
+                overbookingAllowance: 5,
+              },
             ],
           }),
-          approvals: [{ id: uuid(), reservationId: uuid(), reservationActive: true, nights: [{ date: DATE, roomTypeId: "rt-dlx", shortageApproved: 5 }] }],
+          approvals: [
+            {
+              id: uuid(),
+              reservationId: uuid(),
+              reservationActive: true,
+              nights: [{ date: DATE, roomTypeId: "rt-dlx", shortageApproved: 5 }],
+            },
+          ],
         },
       }),
     );
@@ -564,7 +676,13 @@ describe("NA-P3 overbooking", () => {
 
   it("43. a next-date concern is a warning", () => {
     const result = reconcileNightAuditOperations(
-      facts({ overbooking: { state: "ok", nights: nights({ tomorrow: [{ demand: 14, overbookingAllowance: 1 }] }), approvals: [] } }),
+      facts({
+        overbooking: {
+          state: "ok",
+          nights: nights({ tomorrow: [{ demand: 14, overbookingAllowance: 1 }] }),
+          approvals: [],
+        },
+      }),
     );
     assert.equal(ofCode(result, "overbooking_next_date")[0]?.severity, "warning");
     assert.equal(result.summary.blockerCount, 0);
@@ -583,7 +701,16 @@ describe("NA-P3 waitlist", () => {
       facts({
         waitlist: {
           state: "ok",
-          requests: [{ id: uuid(), confirmationNumber: "W-1", status: "open", arrivalDate: DATE, reservationId: null, reservationExists: false }],
+          requests: [
+            {
+              id: uuid(),
+              confirmationNumber: "W-1",
+              status: "open",
+              arrivalDate: DATE,
+              reservationId: null,
+              reservationExists: false,
+            },
+          ],
         },
       }),
     );
@@ -598,7 +725,16 @@ describe("NA-P3 waitlist", () => {
       facts({
         waitlist: {
           state: "ok",
-          requests: [{ id: uuid(), confirmationNumber: "W-2", status: "converted", arrivalDate: DATE, reservationId: uuid(), reservationExists: false }],
+          requests: [
+            {
+              id: uuid(),
+              confirmationNumber: "W-2",
+              status: "converted",
+              arrivalDate: DATE,
+              reservationId: uuid(),
+              reservationExists: false,
+            },
+          ],
         },
       }),
     );
@@ -622,7 +758,16 @@ describe("NA-P3 distribution", () => {
         distribution: {
           state: "ok",
           connections: [connection()],
-          failedEvents: [{ id: uuid(), operation: "ari_push", direction: "outbound", channel: "booking.com", message: "timeout", createdAt: NOW }],
+          failedEvents: [
+            {
+              id: uuid(),
+              operation: "ari_push",
+              direction: "outbound",
+              channel: "booking.com",
+              message: "timeout",
+              createdAt: NOW,
+            },
+          ],
         },
       }),
     );
@@ -633,13 +778,17 @@ describe("NA-P3 distribution", () => {
 
   it("49. a connection last_error is a warning", () => {
     const result = reconcileNightAuditOperations(
-      facts({ distribution: { state: "ok", connections: [connection("auth failed")], failedEvents: [] } }),
+      facts({
+        distribution: { state: "ok", connections: [connection("auth failed")], failedEvents: [] },
+      }),
     );
     assert.equal(ofCode(result, "channel_connection_error")[0]?.severity, "warning");
   });
 
   it("50. no errors says No known failures, never fully synchronized", () => {
-    const result = reconcileNightAuditOperations(facts({ distribution: { state: "ok", connections: [connection()], failedEvents: [] } }));
+    const result = reconcileNightAuditOperations(
+      facts({ distribution: { state: "ok", connections: [connection()], failedEvents: [] } }),
+    );
     assert.equal(ofCode(result, "distribution_no_known_failures")[0]?.title, "No known failures");
     assert.doesNotMatch(pure + panel, /[Ff]ully synchroni[sz]ed/);
   });
@@ -658,7 +807,9 @@ describe("NA-P3 distribution", () => {
     );
     assert.equal(result.status, "warning");
     assert.equal(operationalAllowsClose(result.status), true);
-    const unavailable = reconcileNightAuditOperations(facts({ distribution: { state: "unavailable" } }));
+    const unavailable = reconcileNightAuditOperations(
+      facts({ distribution: { state: "unavailable" } }),
+    );
     assert.equal(unavailable.status, "warning");
   });
 });
@@ -675,16 +826,28 @@ describe("NA-P3 rate & revenue", () => {
 
   it("53–54. pending approvals effective today or tomorrow warn", () => {
     const result = reconcileNightAuditOperations(
-      facts({ revenue: { state: "ok", approvals: [approval(DATE), approval(TOMORROW)], restrictions: [] } }),
+      facts({
+        revenue: { state: "ok", approvals: [approval(DATE), approval(TOMORROW)], restrictions: [] },
+      }),
     );
     const issues = ofCode(result, "revenue_approval_pending");
     assert.equal(issues.length, 2);
-    assert.ok(issues.every((row) => row.severity === "warning" && row.route === "/restaurant/pms/rates-revenue"));
+    assert.ok(
+      issues.every(
+        (row) => row.severity === "warning" && row.route === "/restaurant/pms/rates-revenue",
+      ),
+    );
   });
 
   it("55. an unrelated future approval is excluded", () => {
     const result = reconcileNightAuditOperations(
-      facts({ revenue: { state: "ok", approvals: [approval("2026-11-10"), approval(null)], restrictions: [] } }),
+      facts({
+        revenue: {
+          state: "ok",
+          approvals: [approval("2026-11-10"), approval(null)],
+          restrictions: [],
+        },
+      }),
     );
     assert.equal(ofCode(result, "revenue_approval_pending").length, 0);
   });
@@ -695,7 +858,17 @@ describe("NA-P3 rate & revenue", () => {
         revenue: {
           state: "ok",
           approvals: [],
-          restrictions: [{ id: uuid(), ratePlanId: uuid(), ratePlanName: "BAR", date: TOMORROW, stopSell: true, closedToArrival: false, closedToDeparture: false }],
+          restrictions: [
+            {
+              id: uuid(),
+              ratePlanId: uuid(),
+              ratePlanName: "BAR",
+              date: TOMORROW,
+              stopSell: true,
+              closedToArrival: false,
+              closedToDeparture: false,
+            },
+          ],
         },
       }),
     );
@@ -704,11 +877,22 @@ describe("NA-P3 rate & revenue", () => {
 
   it("57. a sold stay without its frozen nightly rate warns", () => {
     const r = room();
-    const res = reservation({ status: "checked_in", arrivalDate: "2026-10-20", departureDate: "2026-10-23" });
+    const res = reservation({
+      status: "checked_in",
+      arrivalDate: "2026-10-20",
+      departureDate: "2026-10-23",
+    });
     const result = reconcileNightAuditOperations(
       facts({
         reservations: [res],
-        units: [unit(res, { roomId: r.id, status: "checked_in", ratePlanId: uuid(), nightlyDates: ["2026-10-20", "2026-10-22"] })],
+        units: [
+          unit(res, {
+            roomId: r.id,
+            status: "checked_in",
+            ratePlanId: uuid(),
+            nightlyDates: ["2026-10-20", "2026-10-22"],
+          }),
+        ],
         rooms: [r],
       }),
     );
@@ -716,7 +900,14 @@ describe("NA-P3 rate & revenue", () => {
     const ok = reconcileNightAuditOperations(
       facts({
         reservations: [res],
-        units: [unit(res, { roomId: r.id, status: "checked_in", ratePlanId: uuid(), nightlyDates: ["2026-10-20", DATE] })],
+        units: [
+          unit(res, {
+            roomId: r.id,
+            status: "checked_in",
+            ratePlanId: uuid(),
+            nightlyDates: ["2026-10-20", DATE],
+          }),
+        ],
         rooms: [r],
       }),
     );
@@ -724,7 +915,10 @@ describe("NA-P3 rate & revenue", () => {
   });
 
   it("58. Night Audit does not write rates or restrictions", () => {
-    assert.doesNotMatch(server, /approve_hotel_revenue|apply_rate|hotel_rate_restrictions"\)\s*\.(insert|update|upsert)/);
+    assert.doesNotMatch(
+      server,
+      /approve_hotel_revenue|apply_rate|hotel_rate_restrictions"\)\s*\.(insert|update|upsert)/,
+    );
   });
 });
 
@@ -742,7 +936,12 @@ describe("NA-P3 services", () => {
 
   it("59–61. pending meal and package services are info and never block", () => {
     const result = reconcileNightAuditOperations(
-      facts({ services: { state: "ok", entitlements: [entitlement("meal"), entitlement("package_service")] } }),
+      facts({
+        services: {
+          state: "ok",
+          entitlements: [entitlement("meal"), entitlement("package_service")],
+        },
+      }),
     );
     assert.equal(ofCode(result, "service_entitlement_pending")[0]?.severity, "info");
     assert.equal(result.serviceOperations.pendingCount, 2);
@@ -760,7 +959,10 @@ describe("NA-P3 services", () => {
   });
 
   it("64. Night Audit does not generate entitlements", () => {
-    assert.doesNotMatch(server, /reconcileServiceEntitlements|generation_key|pms_reservation_service_entitlements"\)\s*\.(insert|upsert)/);
+    assert.doesNotMatch(
+      server,
+      /reconcileServiceEntitlements|generation_key|pms_reservation_service_entitlements"\)\s*\.(insert|upsert)/,
+    );
   });
 });
 
@@ -771,16 +973,38 @@ describe("NA-P3 UI", () => {
     assert.match(panel, /Operational Status: UNAVAILABLE/);
     assert.match(panel, /result\.status\.toUpperCase\(\)/);
     assert.equal(reconcileNightAuditOperations(facts()).status, "ready");
-    assert.equal(reconcileNightAuditOperations(facts({ rooms: [room({ housekeepingStatus: "dirty" })] })).status, "warning");
-    assert.equal(reconcileNightAuditOperations(facts({ reservations: [reservation()] })).status, "blocked");
+    assert.equal(
+      reconcileNightAuditOperations(facts({ rooms: [room({ housekeepingStatus: "dirty" })] }))
+        .status,
+      "warning",
+    );
+    assert.equal(
+      reconcileNightAuditOperations(facts({ reservations: [reservation()] })).status,
+      "blocked",
+    );
   });
 
   it("70–72. severity, category, and search filters", () => {
     const filter = { severity: "blocker" as const, category: "arrivals" as const, search: "r-1" };
-    assert.equal(matchesOperationalFilter({ status: "blocker", category: "arrivals", text: "R-1 arrival" }, filter), true);
-    assert.equal(matchesOperationalFilter({ status: "warning", category: "arrivals", text: "R-1" }, filter), false);
-    assert.equal(matchesOperationalFilter({ status: "blocker", category: "rooms", text: "R-1" }, filter), false);
-    assert.equal(matchesOperationalFilter({ status: "blocker", category: "arrivals", text: "R-9" }, filter), false);
+    assert.equal(
+      matchesOperationalFilter(
+        { status: "blocker", category: "arrivals", text: "R-1 arrival" },
+        filter,
+      ),
+      true,
+    );
+    assert.equal(
+      matchesOperationalFilter({ status: "warning", category: "arrivals", text: "R-1" }, filter),
+      false,
+    );
+    assert.equal(
+      matchesOperationalFilter({ status: "blocker", category: "rooms", text: "R-1" }, filter),
+      false,
+    );
+    assert.equal(
+      matchesOperationalFilter({ status: "blocker", category: "arrivals", text: "R-9" }, filter),
+      false,
+    );
     assert.match(panel, /night-audit-operations-severity/);
     assert.match(panel, /night-audit-operations-category/);
     assert.match(panel, /night-audit-operations-search/);
@@ -788,7 +1012,16 @@ describe("NA-P3 UI", () => {
 
   it("73–74. detail drawer opens the owner module and has no fix button", () => {
     assert.match(panel, /night-audit-operations-detail/);
-    for (const label of ["Severity", "Reservation / room / guest", "Audit date", "Detected", "Source status", "Owner module", "Recommended action", "Last checked"]) {
+    for (const label of [
+      "Severity",
+      "Reservation / room / guest",
+      "Audit date",
+      "Detected",
+      "Source status",
+      "Owner module",
+      "Recommended action",
+      "Last checked",
+    ]) {
       assert.match(panel, new RegExp(label));
     }
     assert.match(panel, /Open \{selected\.ownerModule\}/);
@@ -800,8 +1033,14 @@ describe("NA-P3 UI", () => {
     assert.match(workspace, /operationsQuery\.data\.summary\.blockerCount/);
     assert.match(desk, /night-audit-operations-kpis/);
     assert.match(desk, /onOpenOperations\?\.\(focus\)/);
-    assert.deepEqual(nightAuditSearch("operations", null, "arrivals"), { tab: "operations", focus: "arrivals" });
-    assert.deepEqual(operationalFocusFilter("overstays"), { category: "departures", severity: "blocker" });
+    assert.deepEqual(nightAuditSearch("operations", null, "arrivals"), {
+      tab: "operations",
+      focus: "arrivals",
+    });
+    assert.deepEqual(operationalFocusFilter("overstays"), {
+      category: "departures",
+      severity: "blocker",
+    });
   });
 
   it("76. Run & Close shows Operations state", () => {
@@ -814,7 +1053,10 @@ describe("NA-P3 UI", () => {
     const result = reconcileNightAuditOperations(
       facts({
         rooms: [room({ housekeepingStatus: "dirty" })],
-        reservations: [reservation({ arrivalDate: DATE }), reservation({ arrivalDate: "2026-10-19", departureDate: TOMORROW })],
+        reservations: [
+          reservation({ arrivalDate: DATE }),
+          reservation({ arrivalDate: "2026-10-19", departureDate: TOMORROW }),
+        ],
       }),
     );
     assert.equal(result.issues[0]?.dueDate, "2026-10-19");
@@ -831,7 +1073,10 @@ describe("NA-P3 UI", () => {
       assert.ok(shaped.issues.every((row) => !row.guestName && !row.confirmationNumber));
     }
     assert.equal(presentNightAuditOperations(full, "receptionist").access, "detail");
-    assert.equal(presentNightAuditOperations(full, "receptionist").arrivals[0]?.guest, "Abebe Kebede");
+    assert.equal(
+      presentNightAuditOperations(full, "receptionist").arrivals[0]?.guest,
+      "Abebe Kebede",
+    );
     assert.doesNotMatch(server, /passport|national_id|id_document/);
   });
 });
@@ -868,10 +1113,21 @@ describe("NA-P3 close gate", () => {
     const blocked = reconcileNightAuditOperations(facts({ reservations: [res] }));
     const derived = operationalIssuesToExceptions(blocked.issues);
     assert.equal(derived[0]?.referenceId, res.id);
-    const fixed = reconcileNightAuditOperations(facts({ reservations: [{ ...res, status: "checked_in", roomId: null }] }));
+    const fixed = reconcileNightAuditOperations(
+      facts({ reservations: [{ ...res, status: "checked_in", roomId: null }] }),
+    );
     assert.equal(ofCode(fixed, "arrival_not_processed").length, 0);
     const plan = planExceptionSync(
-      [{ id: "ex-1", exceptionType: "arrival_not_processed", severity: "blocking", referenceId: res.id, message: "m", status: "open" }],
+      [
+        {
+          id: "ex-1",
+          exceptionType: "arrival_not_processed",
+          severity: "blocking",
+          referenceId: res.id,
+          message: "m",
+          status: "open",
+        },
+      ],
       operationalIssuesToExceptions(fixed.issues),
     );
     assert.deepEqual(plan.resolveIds, ["ex-1"]);
@@ -898,8 +1154,14 @@ describe("NA-P3 close gate", () => {
   });
 
   it("runNightAudit uses the same overall status for canClose", () => {
-    const body = functions.slice(functions.indexOf("export const runNightAudit"), functions.indexOf("export const updateException"));
-    assert.match(body, /canClose: run\.status !== "closed" && nightAuditAllowsClose\(overallStatus\)/);
+    const body = functions.slice(
+      functions.indexOf("export const runNightAudit"),
+      functions.indexOf("export const updateException"),
+    );
+    assert.match(
+      body,
+      /canClose:\s*\(run\.status === "open" \|\| run\.status === "ready"\) && nightAuditAllowsClose\(overallStatus\)/,
+    );
     assert.match(body, /financial\.ok && operational\.ok/);
   });
 
@@ -910,8 +1172,14 @@ describe("NA-P3 close gate", () => {
       { exceptionType: "cancelled_holding_room" },
       { exceptionType: "open_cashier_shift" },
     ]);
-    assert.deepEqual(rows.map((row) => row.exceptionType), ["cancelled_holding_room", "open_cashier_shift"]);
-    assert.equal(operationalCategoryForException("overbooking_unapproved:2026-10-21:x"), "overbooking");
+    assert.deepEqual(
+      rows.map((row) => row.exceptionType),
+      ["cancelled_holding_room", "open_cashier_shift"],
+    );
+    assert.equal(
+      operationalCategoryForException("overbooking_unapproved:2026-10-21:x"),
+      "overbooking",
+    );
     assert.equal(operationalCategoryForException("open_cashier_shift"), null);
   });
 
@@ -927,7 +1195,9 @@ describe("NA-P3 close gate", () => {
       "room_double_occupancy",
     ]);
     const result = reconcileNightAuditOperations(
-      facts({ overbooking: { state: "ok", nights: nights({ tonight: [{ demand: 12 }] }), approvals: [] } }),
+      facts({
+        overbooking: { state: "ok", nights: nights({ tonight: [{ demand: 12 }] }), approvals: [] },
+      }),
     );
     const [row] = operationalIssuesToExceptions(ofCode(result, "overbooking_unapproved"));
     assert.equal(row?.referenceId, null);
@@ -936,7 +1206,10 @@ describe("NA-P3 close gate", () => {
 
   it("uses restaurants.business_date, not browser or UTC today", () => {
     assert.doesNotMatch(pure, /Date\.now|new Date\(\)|toLocaleDateString/);
-    assert.match(functions, /loadNightAuditOperationalReconciliation\(\s*supabaseAdmin,\s*data\.restaurantId,\s*property\.businessDate/);
+    assert.match(
+      functions,
+      /loadNightAuditOperationalReconciliation\(\s*supabaseAdmin,\s*data\.restaurantId,\s*property\.businessDate/,
+    );
     assert.match(server, /propertyDayBounds\(businessDate, timezone\)/);
   });
 });
@@ -952,7 +1225,12 @@ describe("NA-P3 run summary", () => {
     [91, "overbookingIssueCount"],
   ] as const) {
     it(`${n}. saves ${field}`, () => {
-      assert.match(body, new RegExp(`${field}: operational\\.result\\.summary\\.${field === "operationalBlockerCount" ? "blockerCount" : field === "operationalWarningCount" ? "warningCount" : field}`));
+      assert.match(
+        body,
+        new RegExp(
+          `${field}: operational\\.result\\.summary\\.${field === "operationalBlockerCount" ? "blockerCount" : field === "operationalWarningCount" ? "warningCount" : field}`,
+        ),
+      );
       assert.match(functions, new RegExp(`${field}\\?: number`));
     });
   }

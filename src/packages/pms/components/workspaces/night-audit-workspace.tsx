@@ -352,6 +352,7 @@ export function NightAuditWorkspace({
         lastClosedRunId={state.lastClosedRunId}
         lastClosedOtb={state.lastClosedOtb}
         canRetryOtb={state.canRetryOtb}
+        nightAuditWindow={state.nightAuditWindow ?? null}
         role={role}
         phone={phone}
         busy={closeMutation.isPending}

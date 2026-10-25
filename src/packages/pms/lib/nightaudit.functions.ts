@@ -83,6 +83,15 @@ import {
 } from "./night-audit-workflow";
 import type { OtbCaptureResult } from "./revenue/demand-snapshot";
 import {
+  NIGHT_AUDIT_INVALID_WINDOW,
+  NIGHT_AUDIT_OUTSIDE_WINDOW,
+  evaluateNightAuditWindow,
+  nightAuditWindowConfig,
+  outsideWindowCloseRecord,
+  type NightAuditWindowState,
+  type OutsideWindowClose,
+} from "./night-audit-window";
+import {
   NON_IGNORABLE_TYPES,
   evaluateAudit,
   nightAuditError,
@@ -121,7 +130,7 @@ export type NightAuditOtbState = "captured" | "not_captured" | "unknown";
 export interface NightAuditRunRow {
   id: string;
   businessDate: string;
-  status: "open" | "ready" | "closed" | "failed";
+  status: "open" | "ready" | "closed" | "failed" | "superseded";
   startedAt: string;
   closedAt: string | null;
   startedBy: string | null;
@@ -156,6 +165,18 @@ export interface AuditSummary {
   overstayCount?: number;
   roomConflictCount?: number;
   overbookingIssueCount?: number;
+  /** Set only when an owner closed outside the configured Night Audit Window. */
+  nightAuditWindow?: OutsideWindowClose | null;
+  /** Set only when Owner Business Date recovery safely supersedes an open run. */
+  businessDateRecovery?: {
+    superseded: true;
+    adjustmentId: string;
+    oldBusinessDate: string;
+    newBusinessDate: string;
+    reason: string;
+    supersededByMembershipId: string;
+    supersededAt: string;
+  };
 }
 
 export interface NightAuditState {
@@ -186,6 +207,8 @@ export interface NightAuditState {
   persistedBusinessDate: string | null;
   lastClosedOtb: NightAuditOtbState | null;
   canRetryOtb: boolean;
+  /** Configured close window evaluated for this caller in the property timezone. */
+  nightAuditWindow: NightAuditWindowState;
 }
 
 /* ----------------------------------------------------------------- helpers */
@@ -215,6 +238,19 @@ async function loadProperty(admin: any, restaurantId: string) {
   };
 }
 
+/** Configured Night Audit Window. An unreadable config uses the setup default, never "always open". */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadNightAuditWindowConfig(admin: any, restaurantId: string) {
+  const { data, error } = await admin
+    .from("restaurants")
+    .select("business_date_config")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  return nightAuditWindowConfig(
+    error ? null : (data as { business_date_config?: unknown } | null)?.business_date_config,
+  );
+}
+
 /** Same financial read the workspace shows. Failure stays unavailable and does not look ready. */
 async function readFinancialReconciliation(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -223,7 +259,9 @@ async function readFinancialReconciliation(
   businessDate: string,
   timezone: string,
   currency: string,
-): Promise<{ ok: true; result: NightAuditFinancialReconciliation } | { ok: false; status: "unavailable" }> {
+): Promise<
+  { ok: true; result: NightAuditFinancialReconciliation } | { ok: false; status: "unavailable" }
+> {
   try {
     return {
       ok: true,
@@ -247,11 +285,18 @@ async function readOperationalReconciliation(
   restaurantId: string,
   businessDate: string,
   timezone: string,
-): Promise<{ ok: true; result: NightAuditOperationalReconciliation } | { ok: false; status: "unavailable" }> {
+): Promise<
+  { ok: true; result: NightAuditOperationalReconciliation } | { ok: false; status: "unavailable" }
+> {
   try {
     return {
       ok: true,
-      result: await loadNightAuditOperationalReconciliation(admin, restaurantId, businessDate, timezone),
+      result: await loadNightAuditOperationalReconciliation(
+        admin,
+        restaurantId,
+        businessDate,
+        timezone,
+      ),
     };
   } catch {
     return { ok: false, status: "unavailable" };
@@ -306,7 +351,8 @@ function liveExceptionSources(
     });
   };
   for (const issue of financial?.issues ?? []) add(issue, financialIssuesToExceptions([issue])[0]);
-  for (const issue of operational?.issues ?? []) add(issue, operationalIssuesToExceptions([issue])[0]);
+  for (const issue of operational?.issues ?? [])
+    add(issue, operationalIssuesToExceptions([issue])[0]);
   return sources;
 }
 
@@ -407,12 +453,17 @@ function effectiveFinancialStatus(
   overrides: ReadonlyMap<string, FiscalOverrideRow>,
 ): NightAuditFinancialStatus {
   const overridden = new Set(
-    exceptionRows.filter((row) => overrides.has(row.id)).map((row) => exceptionSyncKey(row.exception_type, row.reference_id)),
+    exceptionRows
+      .filter((row) => overrides.has(row.id))
+      .map((row) => exceptionSyncKey(row.exception_type, row.reference_id)),
   );
   const remainingFinancialBlockers = financial.issues.some((issue) => {
     if (issue.severity !== "blocking") return false;
     const exception = financialIssuesToExceptions([issue])[0];
-    return !exception || !overridden.has(exceptionSyncKey(exception.exceptionType, exception.referenceId));
+    return (
+      !exception ||
+      !overridden.has(exceptionSyncKey(exception.exceptionType, exception.referenceId))
+    );
   });
   if (remainingFinancialBlockers) return "blocked";
   return financial.summary.warningCount > 0 ? "warning" : "ready";
@@ -424,19 +475,25 @@ function presentFinancialWithFiscalOverrides(
   overrides: ReadonlyMap<string, FiscalOverrideRow>,
   names: ReadonlyMap<string, string>,
 ): NightAuditFinancialReconciliation {
-  const byKey = new Map(exceptionRows.map((row) => [exceptionSyncKey(row.exception_type, row.reference_id), row]));
+  const byKey = new Map(
+    exceptionRows.map((row) => [exceptionSyncKey(row.exception_type, row.reference_id), row]),
+  );
   const overridesByFiscalReference = new Map<string, FiscalOverrideRow>();
   for (const issue of financial.issues) {
     const exception = financialIssuesToExceptions([issue])[0];
     if (!exception) continue;
     const persisted = byKey.get(exceptionSyncKey(exception.exceptionType, exception.referenceId));
     const override = persisted ? overrides.get(persisted.id) : undefined;
-    if (override && exception.referenceId) overridesByFiscalReference.set(exception.referenceId, override);
+    if (override && exception.referenceId)
+      overridesByFiscalReference.set(exception.referenceId, override);
   }
   const fiscalOverrideCount = overrides.size;
   return {
     ...financial,
-    status: effectiveFinancialStatus(financial, exceptionRows, overrides) as Exclude<NightAuditFinancialStatus, "unavailable">,
+    status: effectiveFinancialStatus(financial, exceptionRows, overrides) as Exclude<
+      NightAuditFinancialStatus,
+      "unavailable"
+    >,
     summary: {
       ...financial.summary,
       blockerCount: Math.max(0, financial.summary.blockerCount - fiscalOverrideCount),
@@ -550,7 +607,10 @@ async function syncRunExceptions(
   }
 }
 
-function toFiscalOverride(row: FiscalOverrideRow, names: ReadonlyMap<string, string>): FiscalOverride {
+function toFiscalOverride(
+  row: FiscalOverrideRow,
+  names: ReadonlyMap<string, string>,
+): FiscalOverride {
   return {
     id: row.id,
     fiscalStatus: row.fiscal_status,
@@ -588,7 +648,9 @@ function toException(
     canIgnore: row.severity === "warning" && !NON_IGNORABLE_TYPES.has(row.exception_type),
     createdAt: row.created_at ?? null,
     source:
-      row.status === "open" ? (sources.get(exceptionSyncKey(row.exception_type, row.reference_id)) ?? null) : null,
+      row.status === "open"
+        ? (sources.get(exceptionSyncKey(row.exception_type, row.reference_id)) ?? null)
+        : null,
     fiscalOverride: override ? toFiscalOverride(override, names) : null,
     fiscalOverrideHistory: (history.get(row.id) ?? []).map((item) => toFiscalOverride(item, names)),
   };
@@ -811,7 +873,7 @@ export const runNightAudit = createServerFn({ method: "POST" })
     const run = runRow as {
       id: string;
       business_date: string;
-      status: "open" | "ready" | "closed" | "failed";
+      status: "open" | "ready" | "closed" | "failed" | "superseded";
       started_at: string;
       closed_at: string | null;
       started_by_membership_id: string | null;
@@ -851,7 +913,7 @@ export const runNightAudit = createServerFn({ method: "POST" })
       property.businessDate,
       property.timezone,
     );
-    if (run.status !== "closed" && financial.ok && operational.ok) {
+    if ((run.status === "open" || run.status === "ready") && financial.ok && operational.ok) {
       await syncRunExceptions(
         supabaseAdmin,
         data.restaurantId,
@@ -875,8 +937,11 @@ export const runNightAudit = createServerFn({ method: "POST" })
       [...overrides.values()].map((row) => row.overridden_by_membership_id),
     );
     const sources =
-      run.status !== "closed"
-        ? liveExceptionSources(financial.ok ? financial.result : null, operational.ok ? operational.result : null)
+      run.status === "open" || run.status === "ready"
+        ? liveExceptionSources(
+            financial.ok ? financial.result : null,
+            operational.ok ? operational.result : null,
+          )
         : new Map<string, ExceptionSource>();
     const exceptions = finalRows
       .slice()
@@ -905,7 +970,7 @@ export const runNightAudit = createServerFn({ method: "POST" })
       operational: operationalStatus,
       warnings: warningCount,
     });
-    if (run.status !== "closed") {
+    if (run.status === "open" || run.status === "ready") {
       const nextStatus =
         nightAuditAllowsClose(overallStatus) &&
         financialAllowsClose(financialStatus) &&
@@ -943,9 +1008,11 @@ export const runNightAudit = createServerFn({ method: "POST" })
       lastClosedRaw?.closed_by_membership_id ?? "",
     ]);
     const lastClosedOtb: NightAuditOtbState | null = lastClosedRaw
-      ? ((await otbStates(supabaseAdmin, data.restaurantId, [{ business_date: lastClosedRaw.business_date, status: "closed" }])).get(
-          lastClosedRaw.business_date.slice(0, 10),
-        ) ?? "unknown")
+      ? ((
+          await otbStates(supabaseAdmin, data.restaurantId, [
+            { business_date: lastClosedRaw.business_date, status: "closed" },
+          ])
+        ).get(lastClosedRaw.business_date.slice(0, 10)) ?? "unknown")
       : null;
 
     const lastClosed: NaLastClosed | null = lastClosedRaw
@@ -954,8 +1021,11 @@ export const runNightAudit = createServerFn({ method: "POST" })
             ? (names.get(lastClosedRaw.closed_by_membership_id) ?? null)
             : null,
           when: lastClosedRaw.closed_at,
-          previousBusinessDate: lastClosedRaw.summary?.previousBusinessDate ?? lastClosedRaw.business_date,
-          nextBusinessDate: lastClosedRaw.summary?.nextBusinessDate ?? nextBusinessDate(lastClosedRaw.business_date),
+          previousBusinessDate:
+            lastClosedRaw.summary?.previousBusinessDate ?? lastClosedRaw.business_date,
+          nextBusinessDate:
+            lastClosedRaw.summary?.nextBusinessDate ??
+            nextBusinessDate(lastClosedRaw.business_date),
         }
       : null;
 
@@ -985,7 +1055,8 @@ export const runNightAudit = createServerFn({ method: "POST" })
       overstays: stayDetail ? evaluation.overstays : [],
       shifts: financialDetail ? evaluation.shifts : [],
       finance: financialDetail ? evaluation.finance : null,
-      canClose: run.status !== "closed" && nightAuditAllowsClose(overallStatus),
+      canClose:
+        (run.status === "open" || run.status === "ready") && nightAuditAllowsClose(overallStatus),
       blockers,
       workspaceStatus: workspaceStatus({ closed: run.status === "closed", rows: blockers }),
       lastClosed,
@@ -1005,6 +1076,11 @@ export const runNightAudit = createServerFn({ method: "POST" })
           runBusinessDate: lastClosedRaw.business_date.slice(0, 10),
           persistedBusinessDate: property.persistedBusinessDate,
         }),
+      nightAuditWindow: evaluateNightAuditWindow({
+        ...(await loadNightAuditWindowConfig(supabaseAdmin, data.restaurantId)),
+        timezone: property.timezone,
+        role: me.role,
+      }),
     };
   });
 
@@ -1041,7 +1117,9 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
     const property = await loadProperty(supabaseAdmin, data.restaurantId);
     const { data: row } = await supabaseAdmin
       .from("night_audit_exceptions")
-      .select("id, exception_type, severity, status, reference_type, reference_id, night_audit_run_id")
+      .select(
+        "id, exception_type, severity, status, reference_type, reference_id, night_audit_run_id",
+      )
       .eq("id", data.exceptionId)
       .eq("restaurant_id", data.restaurantId)
       .maybeSingle();
@@ -1055,12 +1133,17 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
       reference_id: string | null;
       night_audit_run_id: string;
     };
-    if (!isFiscalOverrideableException({
-      exceptionType: exception.exception_type,
-      severity: exception.severity,
-      status: exception.status,
-    })) {
-      return { ok: false, message: "Only an open canonical fiscal blocker can receive a fiscal close override." };
+    if (
+      !isFiscalOverrideableException({
+        exceptionType: exception.exception_type,
+        severity: exception.severity,
+        status: exception.status,
+      })
+    ) {
+      return {
+        ok: false,
+        message: "Only an open canonical fiscal blocker can receive a fiscal close override.",
+      };
     }
     const { data: run } = await supabaseAdmin
       .from("night_audit_runs")
@@ -1070,7 +1153,8 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!run) return { ok: false, message: "Night Audit run not found for this property." };
     const runRow = run as { id: string; business_date: string; status: string };
-    if (runRow.status === "closed") return { ok: false, message: "Closed Night Audit runs cannot be modified." };
+    if (runRow.status === "closed")
+      return { ok: false, message: "Closed Night Audit runs cannot be modified." };
     if (runRow.status !== "open" && runRow.status !== "ready") {
       return { ok: false, message: "This Night Audit run cannot receive an override." };
     }
@@ -1141,7 +1225,8 @@ export const updateException = createServerFn({ method: "POST" })
     if (data.action === "resolve") {
       return {
         ok: false,
-        message: "Exceptions clear automatically once the underlying record is corrected and Night Audit is rechecked.",
+        message:
+          "Exceptions clear automatically once the underlying record is corrected and Night Audit is rechecked.",
       };
     }
     if (exception.severity === "blocking" || NON_IGNORABLE_TYPES.has(exception.exception_type)) {
@@ -1196,7 +1281,7 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
     async ({
       data,
       context,
-    }    ): Promise<
+    }): Promise<
       | {
           ok: true;
           businessDate: string;
@@ -1214,13 +1299,20 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
           /** False when this request did not close the run, or the note write failed after close. */
           noteSaved: boolean;
         }
-      | { ok: false; message: string }
+      | {
+          ok: false;
+          message: string;
+          code?: typeof NIGHT_AUDIT_OUTSIDE_WINDOW | typeof NIGHT_AUDIT_INVALID_WINDOW;
+        }
     > => {
       const me = await requireCashierManager(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const property = await loadProperty(supabaseAdmin, data.restaurantId);
 
-      type RunCloseRow = PersistedCloseRow & { id: string; summary: (AuditSummary & { closeRequestId?: string }) | null };
+      type RunCloseRow = PersistedCloseRow & {
+        id: string;
+        summary: (AuditSummary & { closeRequestId?: string }) | null;
+      };
       const readRun = async (): Promise<RunCloseRow | null> => {
         const { data: row } = await supabaseAdmin
           .from("night_audit_runs")
@@ -1235,7 +1327,11 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
       // OTB capture is insert-once, so a retry reuses the existing snapshot.
       const alreadyClosedResult = async (closedRun: PersistedCloseRow) => {
         const facts = persistedCloseFacts(closedRun);
-        const snapshot = await captureOtbAfterClose(supabaseAdmin, data.restaurantId, closedRun.business_date);
+        const snapshot = await captureOtbAfterClose(
+          supabaseAdmin,
+          data.restaurantId,
+          closedRun.business_date,
+        );
         const closer = facts.closedByMembershipId
           ? ((await staffNames(supabaseAdmin, data.restaurantId, [facts.closedByMembershipId])).get(
               facts.closedByMembershipId,
@@ -1275,10 +1371,7 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
       if (data.expectedBusinessDate && data.expectedBusinessDate !== runDate) {
         return rejected(NA1_STALE_BUSINESS_DATE);
       }
-      if (
-        property.persistedBusinessDate != null &&
-        property.persistedBusinessDate !== runDate
-      ) {
+      if (property.persistedBusinessDate != null && property.persistedBusinessDate !== runDate) {
         return rejected(NA1_STALE_BUSINESS_DATE);
       }
       if (run.status !== "open" && run.status !== "ready") {
@@ -1292,10 +1385,26 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         .gt("business_date", runDate)
         .limit(1);
       if (laterClosedError) {
-        return rejected("Night Audit could not confirm this business date. Close stays unavailable.");
+        return rejected(
+          "Night Audit could not confirm this business date. Close stays unavailable.",
+        );
       }
       if ((laterClosed ?? []).length > 0) {
         return rejected(NA1_STALE_BUSINESS_DATE);
+      }
+
+      // Additional condition only: an owner bypasses the time, never a blocker or check below.
+      const closeWindow = evaluateNightAuditWindow({
+        ...(await loadNightAuditWindowConfig(supabaseAdmin, data.restaurantId)),
+        timezone: property.timezone,
+        role: me.role,
+      });
+      if (!closeWindow.allowsClose) {
+        return {
+          ok: false,
+          message: closeWindow.message,
+          code: closeWindow.configValid ? NIGHT_AUDIT_OUTSIDE_WINDOW : NIGHT_AUDIT_INVALID_WINDOW,
+        };
       }
 
       // Re-read the same financial reconciliation the workspace shows, then sync it
@@ -1349,7 +1458,11 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
           .range(from, to),
       );
       const closeOverrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, run.id);
-      const closeFinancialStatus = effectiveFinancialStatus(financial.result, closeExceptionRows, closeOverrides);
+      const closeFinancialStatus = effectiveFinancialStatus(
+        financial.result,
+        closeExceptionRows,
+        closeOverrides,
+      );
       if (
         remainingBlockerCount(blockers) > 0 ||
         !financialAllowsClose(closeFinancialStatus) ||
@@ -1403,7 +1516,9 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
             .range(from, to),
         );
       } catch {
-        return rejected("Night Audit could not confirm this business date. Close stays unavailable.");
+        return rejected(
+          "Night Audit could not confirm this business date. Close stays unavailable.",
+        );
       }
 
       const rolledTo = nextBusinessDate(runDate);
@@ -1418,7 +1533,10 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         blockers: snapshotBlockers(blockers),
         previousBusinessDate: runDate,
         nextBusinessDate: rolledTo,
-        financialBlockerCount: Math.max(0, financial.result.summary.blockerCount - closeOverrides.size),
+        financialBlockerCount: Math.max(
+          0,
+          financial.result.summary.blockerCount - closeOverrides.size,
+        ),
         fiscalOverrideCount: closeOverrides.size,
         financialWarningCount: financial.result.summary.warningCount,
         openDrawerCount: financial.result.summary.openDrawerCount,
@@ -1435,6 +1553,7 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         roomConflictCount: operational.result.summary.roomConflictCount,
         overbookingIssueCount: operational.result.summary.overbookingIssueCount,
         closeRequestId,
+        nightAuditWindow: outsideWindowCloseRecord(closeWindow, me.id, new Date().toISOString()),
       };
 
       const { data: closedRow, error } = await supabaseAdmin.rpc("close_business_date", {
@@ -1450,7 +1569,10 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
       const persisted = (closedRow as RunCloseRow | null) ?? (await readRun());
       if (!closedByThisRequest(persisted, closeRequestId)) {
         if (persisted?.status === "closed") return alreadyClosedResult(persisted);
-        return { ok: false, message: "Night Audit could not confirm the close result. Refresh before trying again." };
+        return {
+          ok: false,
+          message: "Night Audit could not confirm the close result. Refresh before trying again.",
+        };
       }
       const closed = persistedCloseFacts(persisted!);
 
@@ -1470,7 +1592,11 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
       }
 
       // Analytics only. Never roll back a completed close if snapshot capture fails.
-      const snapshot = await captureOtbAfterClose(supabaseAdmin, data.restaurantId, run.business_date);
+      const snapshot = await captureOtbAfterClose(
+        supabaseAdmin,
+        data.restaurantId,
+        run.business_date,
+      );
       const closer = closed.closedByMembershipId
         ? ((await staffNames(supabaseAdmin, data.restaurantId, [closed.closedByMembershipId])).get(
             closed.closedByMembershipId,
@@ -1511,7 +1637,8 @@ export const retryNightAuditOtbSnapshot = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<
-      { ok: true; status: "captured" | "already_present" | "failed"; error: string | null } | { ok: false; message: string }
+      | { ok: true; status: "captured" | "already_present" | "failed"; error: string | null }
+      | { ok: false; message: string }
     > => {
       await requireCashierManager(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1531,9 +1658,17 @@ export const retryNightAuditOtbSnapshot = createServerFn({ method: "POST" })
           persistedBusinessDate: property.persistedBusinessDate,
         })
       ) {
-        return { ok: false, message: "OTB snapshot can only be retried for the latest close on its next business date." };
+        return {
+          ok: false,
+          message:
+            "OTB snapshot can only be retried for the latest close on its next business date.",
+        };
       }
-      const snapshot = await captureOtbAfterClose(supabaseAdmin, data.restaurantId, run.business_date);
+      const snapshot = await captureOtbAfterClose(
+        supabaseAdmin,
+        data.restaurantId,
+        run.business_date,
+      );
       return { ok: true, status: snapshot.status, error: snapshot.error ?? null };
     },
   );
@@ -1567,7 +1702,7 @@ const RUN_COLUMNS =
 type RunRecord = {
   id: string;
   business_date: string;
-  status: "open" | "ready" | "closed" | "failed";
+  status: "open" | "ready" | "closed" | "failed" | "superseded";
   started_at: string;
   closed_at: string | null;
   started_by_membership_id: string | null;
@@ -1624,7 +1759,7 @@ export const listNightAuditHistory = createServerFn({ method: "GET" })
           restaurantId: idSchema,
           page: z.number().int().min(1).max(10000).optional(),
           pageSize: z.union([z.literal(10), z.literal(25), z.literal(50)]).optional(),
-          status: z.enum(["all", "open", "ready", "closed", "failed"]).optional(),
+          status: z.enum(["all", "open", "ready", "closed", "failed", "superseded"]).optional(),
           from: z
             .string()
             .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -1653,7 +1788,9 @@ export const listNightAuditHistory = createServerFn({ method: "GET" })
         .order("business_date", { ascending: false })
         .range(from, to),
     );
-    const closerIds = [...new Set(closerRows.map((row) => row.closed_by_membership_id ?? "").filter(Boolean))];
+    const closerIds = [
+      ...new Set(closerRows.map((row) => row.closed_by_membership_id ?? "").filter(Boolean)),
+    ];
     const closerNames = await staffNames(supabaseAdmin, data.restaurantId, closerIds);
 
     const search = (data.search ?? "").trim();
@@ -1661,7 +1798,9 @@ export const listNightAuditHistory = createServerFn({ method: "GET" })
     let nameMatches: string[] | null = null;
     if (search && !searchDates) {
       const needle = search.toLowerCase();
-      nameMatches = closerIds.filter((id) => (closerNames.get(id) ?? "").toLowerCase().includes(needle));
+      nameMatches = closerIds.filter((id) =>
+        (closerNames.get(id) ?? "").toLowerCase().includes(needle),
+      );
     }
 
     let query = supabaseAdmin
@@ -1672,16 +1811,25 @@ export const listNightAuditHistory = createServerFn({ method: "GET" })
     if (data.from) query = query.gte("business_date", data.from);
     if (data.to) query = query.lte("business_date", data.to);
     if (data.closedBy) query = query.eq("closed_by_membership_id", data.closedBy);
-    if (searchDates) query = query.gte("business_date", searchDates.from).lte("business_date", searchDates.to);
+    if (searchDates)
+      query = query.gte("business_date", searchDates.from).lte("business_date", searchDates.to);
     if (nameMatches) {
       if (nameMatches.length === 0) {
-        return { rows: [], total: 0, page: range.page, pageSize, closers: closerList(closerIds, closerNames) };
+        return {
+          rows: [],
+          total: 0,
+          page: range.page,
+          pageSize,
+          closers: closerList(closerIds, closerNames),
+        };
       }
       query = query.in("closed_by_membership_id", nameMatches);
     }
-    const { data: rows, count, error } = await query
-      .order("business_date", { ascending: false })
-      .range(range.from, range.to);
+    const {
+      data: rows,
+      count,
+      error,
+    } = await query.order("business_date", { ascending: false }).range(range.from, range.to);
     if (error) throw nightAuditError("Night Audit history is unavailable.");
 
     const list = (rows ?? []) as RunRecord[];
@@ -1693,7 +1841,12 @@ export const listNightAuditHistory = createServerFn({ method: "GET" })
     const otb = await otbStates(supabaseAdmin, data.restaurantId, list);
     return {
       rows: list.map((r) =>
-        toRunRow(r, names, me.role, r.status === "closed" ? (otb.get(r.business_date.slice(0, 10)) ?? "unknown") : undefined),
+        toRunRow(
+          r,
+          names,
+          me.role,
+          r.status === "closed" ? (otb.get(r.business_date.slice(0, 10)) ?? "unknown") : undefined,
+        ),
       ),
       total: count ?? list.length,
       page: range.page,
@@ -1702,7 +1855,10 @@ export const listNightAuditHistory = createServerFn({ method: "GET" })
     };
   });
 
-function closerList(ids: readonly string[], names: ReadonlyMap<string, string>): Array<{ id: string; name: string }> {
+function closerList(
+  ids: readonly string[],
+  names: ReadonlyMap<string, string>,
+): Array<{ id: string; name: string }> {
   return ids
     .map((id) => ({ id, name: names.get(id) ?? "Staff" }))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -1751,7 +1907,9 @@ export const getNightAuditRun = createServerFn({ method: "GET" })
       );
       const otb =
         r.status === "closed"
-          ? ((await otbStates(supabaseAdmin, data.restaurantId, [r])).get(r.business_date.slice(0, 10)) ?? "unknown")
+          ? ((await otbStates(supabaseAdmin, data.restaurantId, [r])).get(
+              r.business_date.slice(0, 10),
+            ) ?? "unknown")
           : undefined;
       const overrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, r.id);
       const history = await fiscalOverrideHistoryForRun(supabaseAdmin, data.restaurantId, r.id);
@@ -1763,7 +1921,9 @@ export const getNightAuditRun = createServerFn({ method: "GET" })
       return {
         currency: property.currency,
         run: toRunRow(r, names, me.role, otb),
-        exceptions: exRows.map((ex) => toException(ex, me.role, new Map(), overrides, overrideNames, history)),
+        exceptions: exRows.map((ex) =>
+          toException(ex, me.role, new Map(), overrides, overrideNames, history),
+        ),
       };
     },
   );

@@ -36,6 +36,7 @@ const OTB_LABEL: Record<NightAuditOtbState, string> = {
 function statusTone(status: string): string {
   if (status === "closed") return "border-emerald-200 bg-emerald-50 text-emerald-800";
   if (status === "failed") return "border-red-200 bg-red-50 text-red-800";
+  if (status === "superseded") return "border-slate-200 bg-slate-100 text-slate-700";
   if (status === "ready") return "border-sky-200 bg-sky-50 text-sky-800";
   return "border-amber-200 bg-amber-50 text-amber-900";
 }
@@ -71,11 +72,15 @@ export function NightAuditHistoryWorkspace({
   onSelectRun: (runId: string) => void;
   dateTime: (value: string) => string;
 }) {
-  const set = (patch: Partial<NightAuditHistoryFilter>) => onFilter({ ...filter, page: 1, ...patch });
+  const set = (patch: Partial<NightAuditHistoryFilter>) =>
+    onFilter({ ...filter, page: 1, ...patch });
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-border bg-card" data-testid="night-audit-history">
+    <section
+      className="overflow-hidden rounded-2xl border border-border bg-card"
+      data-testid="night-audit-history"
+    >
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
         <input
           value={filter.search}
@@ -107,7 +112,9 @@ export function NightAuditHistoryWorkspace({
         <select
           aria-label="Run status"
           value={filter.status}
-          onChange={(event) => set({ status: event.target.value as NightAuditHistoryFilter["status"] })}
+          onChange={(event) =>
+            set({ status: event.target.value as NightAuditHistoryFilter["status"] })
+          }
           className="h-9 rounded-lg border border-input bg-background px-2 text-xs"
           data-testid="night-audit-history-status"
         >
@@ -131,26 +138,39 @@ export function NightAuditHistoryWorkspace({
             </option>
           ))}
         </select>
-        <Button type="button" size="sm" variant="outline" onClick={() => onFilter(DEFAULT_HISTORY_FILTER)}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onFilter(DEFAULT_HISTORY_FILTER)}
+        >
           Clear
         </Button>
       </div>
 
       {loading ? (
-        <p className="px-5 py-6 text-sm text-muted-foreground" data-testid="night-audit-history-loading">
+        <p
+          className="px-5 py-6 text-sm text-muted-foreground"
+          data-testid="night-audit-history-loading"
+        >
           Loading history…
         </p>
       ) : error ? (
         <div className="px-5 py-6" data-testid="night-audit-history-unavailable">
           <p className="text-sm font-medium text-destructive">History unavailable</p>
-          <p className="mt-1 text-xs text-muted-foreground">This is not an empty history. The stored runs could not be read.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            This is not an empty history. The stored runs could not be read.
+          </p>
           <Button type="button" size="sm" variant="outline" className="mt-3" onClick={onRetry}>
             <RefreshCw className="size-3.5" />
             Retry
           </Button>
         </div>
       ) : !data || data.rows.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-muted-foreground" data-testid="night-audit-history-empty">
+        <p
+          className="px-5 py-6 text-sm text-muted-foreground"
+          data-testid="night-audit-history-empty"
+        >
           {historyFiltersActive(filter) ? "No runs match filters." : "No runs yet."}
         </p>
       ) : (
@@ -182,18 +202,29 @@ export function NightAuditHistoryWorkspace({
                 >
                   <td className="px-3 py-2 font-medium">{formatNa1Date(run.businessDate)}</td>
                   <td className="px-3 py-2">
-                    <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", statusTone(run.status))}>
+                    <span
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                        statusTone(run.status),
+                      )}
+                    >
                       {historyStatusLabel(run.status)}
                     </span>
                   </td>
                   <td className="px-3 py-2">{dateTime(run.startedAt)}</td>
                   <td className="px-3 py-2">{run.closedAt ? dateTime(run.closedAt) : "—"}</td>
                   <td className="px-3 py-2">{run.closedBy ?? "—"}</td>
-                  <td className="px-3 py-2 text-right">{count(run.summary?.financialBlockerCount)}</td>
-                  <td className="px-3 py-2 text-right">{count(run.summary?.operationalBlockerCount)}</td>
+                  <td className="px-3 py-2 text-right">
+                    {count(run.summary?.financialBlockerCount)}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    {count(run.summary?.operationalBlockerCount)}
+                  </td>
                   <td className="px-3 py-2 text-right">{count(run.summary?.warnings)}</td>
                   <td className="px-3 py-2">{run.otb ? OTB_LABEL[run.otb] : "—"}</td>
-                  <td className="max-w-[180px] truncate px-3 py-2 text-muted-foreground">{run.notes ?? ""}</td>
+                  <td className="max-w-[180px] truncate px-3 py-2 text-muted-foreground">
+                    {run.notes ?? ""}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -207,7 +238,13 @@ export function NightAuditHistoryWorkspace({
           <select
             aria-label="Rows per page"
             value={filter.pageSize}
-            onChange={(event) => onFilter({ ...filter, page: 1, pageSize: Number(event.target.value) as HistoryPageSize })}
+            onChange={(event) =>
+              onFilter({
+                ...filter,
+                page: 1,
+                pageSize: Number(event.target.value) as HistoryPageSize,
+              })
+            }
             className="h-8 rounded-lg border border-input bg-background px-2 text-xs"
           >
             {HISTORY_PAGE_SIZES.map((size) => (
@@ -246,11 +283,16 @@ export function NightAuditHistoryWorkspace({
           if (!open) onSelectRun("");
         }}
       >
-        <SheetContent className="w-full overflow-y-auto sm:max-w-xl" data-testid="night-audit-run-detail">
+        <SheetContent
+          className="w-full overflow-y-auto sm:max-w-xl"
+          data-testid="night-audit-run-detail"
+        >
           <SheetHeader>
             <SheetTitle>Night Audit run</SheetTitle>
           </SheetHeader>
-          {runDetailLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading run…</p> : null}
+          {runDetailLoading ? (
+            <p className="mt-4 text-sm text-muted-foreground">Loading run…</p>
+          ) : null}
           {!runDetailLoading && runDetailError ? (
             <p className="mt-4 text-sm text-destructive">{runDetailError}</p>
           ) : null}
@@ -258,7 +300,9 @@ export function NightAuditHistoryWorkspace({
             <RunDetail run={runDetail.run} exceptions={runDetail.exceptions} dateTime={dateTime} />
           ) : null}
           {!runDetailLoading && !runDetailError && !runDetail ? (
-            <p className="mt-4 text-sm text-muted-foreground">This run was not found for this property.</p>
+            <p className="mt-4 text-sm text-muted-foreground">
+              This run was not found for this property.
+            </p>
           ) : null}
         </SheetContent>
       </Sheet>
@@ -284,25 +328,51 @@ function RunDetail({
       <dl className="grid grid-cols-2 gap-3">
         <Item label="Business date" value={formatNa1Date(run.businessDate)} />
         <Item label="Status" value={historyStatusLabel(run.status)} />
-        <Item label="Started" value={`${dateTime(run.startedAt)}${run.startedBy ? ` · ${run.startedBy}` : ""}`} />
+        <Item
+          label="Started"
+          value={`${dateTime(run.startedAt)}${run.startedBy ? ` · ${run.startedBy}` : ""}`}
+        />
         <Item label="Closed" value={run.closedAt ? dateTime(run.closedAt) : "—"} />
         <Item label="Closed by" value={run.closedBy ?? "—"} />
         <Item label="OTB snapshot" value={run.otb ? OTB_LABEL[run.otb] : "—"} />
+        {run.summary?.nightAuditWindow?.outsideWindow ? (
+          <div className="col-span-2" data-testid="night-audit-history-outside-window">
+            <dt className="text-xs text-muted-foreground">Night Audit window</dt>
+            <dd className="text-amber-800">
+              Owner closed outside the configured window ({run.summary.nightAuditWindow.windowStart}{" "}
+              – {run.summary.nightAuditWindow.windowEnd}, property time{" "}
+              {run.summary.nightAuditWindow.localTime})
+            </dd>
+          </div>
+        ) : null}
+        {run.summary?.businessDateRecovery?.superseded ? (
+          <div className="col-span-2" data-testid="night-audit-history-superseded">
+            <dt className="text-xs text-muted-foreground">Business Date recovery</dt>
+            <dd className="text-muted-foreground">
+              Superseded for recovery to {run.summary.businessDateRecovery.newBusinessDate} ·{" "}
+              {run.summary.businessDateRecovery.reason}
+            </dd>
+          </div>
+        ) : null}
         <div className="col-span-2">
           <dt className="text-xs text-muted-foreground">Audit note</dt>
           <dd className="whitespace-pre-wrap">{run.notes?.trim() || "—"}</dd>
         </div>
       </dl>
 
-      {run.status === "closed" ? <NaCloseSummary run={run} /> : (
-        <p className="text-xs text-muted-foreground">This run has not been closed. Summary counts are written at close.</p>
+      {run.status === "closed" ? (
+        <NaCloseSummary run={run} />
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          This run has not been closed. Summary counts are written at close.
+        </p>
       )}
 
       <div>
         <p className="text-xs font-medium text-[#251605]">Exceptions on this run</p>
         <p className="text-xs text-muted-foreground">
-          {open.length} open{run.status === "closed" ? " at close" : ""} · {resolved.length} resolved during run ·{" "}
-          {warnings.length} warning(s)
+          {open.length} open{run.status === "closed" ? " at close" : ""} · {resolved.length}{" "}
+          resolved during run · {warnings.length} warning(s)
         </p>
         {exceptions.length === 0 ? (
           <p className="mt-1 text-xs text-muted-foreground">None stored on this run.</p>
@@ -315,8 +385,9 @@ function RunDetail({
                   <span className="font-medium">{meta.title}</span>
                   <span className="text-muted-foreground">
                     {" "}
-                    · {meta.domain === "financial" ? "Financial" : "Operations"} · {meta.categoryLabel} ·{" "}
-                    {row.severity === "blocking" ? "Blocker" : "Warning"} · {exceptionStatusLabel(row.status)}
+                    · {meta.domain === "financial" ? "Financial" : "Operations"} ·{" "}
+                    {meta.categoryLabel} · {row.severity === "blocking" ? "Blocker" : "Warning"} ·{" "}
+                    {exceptionStatusLabel(row.status)}
                   </span>
                   <p className="text-muted-foreground">{row.message}</p>
                   {row.fiscalOverrideHistory.length > 0 ? (
@@ -332,8 +403,8 @@ function RunDetail({
                           </strong>{" "}
                           · status: {override.fiscalStatus}
                           <br />
-                          Authorized: {dateTime(override.overriddenAt)} by {override.overriddenBy ?? "—"} ·{" "}
-                          {override.reason}
+                          Authorized: {dateTime(override.overriddenAt)} by{" "}
+                          {override.overriddenBy ?? "—"} · {override.reason}
                           {override.invalidatedAt ? (
                             <>
                               <br />
@@ -354,18 +425,20 @@ function RunDetail({
 
       {links.length > 0 ? (
         <div data-testid="night-audit-run-report-links">
-          <p className="text-xs font-medium text-[#251605]">Reports for {formatNa1Date(run.businessDate)}</p>
+          <p className="text-xs font-medium text-[#251605]">
+            Reports for {formatNa1Date(run.businessDate)}
+          </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {links.map((link) => (
               <Button key={link.id} asChild size="sm" variant="outline">
                 <Link
                   to={link.to}
                   search={
-                    ({
+                    {
                       ...((link.search as Record<string, unknown> | undefined) ?? {}),
                       returnTo: "/restaurant/pms/night-audit",
                       returnToLabel: "Return to Night Audit",
-                    }) as never
+                    } as never
                   }
                 >
                   <FileText className="size-3.5" />

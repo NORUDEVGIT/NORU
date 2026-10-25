@@ -11,6 +11,7 @@
  */
 
 import { SET1_HUB_HREF, displayedBusinessDate, normalizeClock } from "./pms-set1-foundation.ts";
+import { nightAuditWindowConfigProblem } from "./night-audit-window.ts";
 import { SET2_RI_ROOMS_HREF, type Set2Snapshot } from "./pms-set2-structure.ts";
 import { CARD2_STEPS, type Card2StepId } from "./pms-property-setup-card2.ts";
 import { CARD3_HASH, CARD3_PURPOSE, CARD3_TITLE } from "./pms-property-setup-card3.ts";
@@ -1450,19 +1451,23 @@ export function card1ContactsSubstepComplete(draft: Card1Draft): boolean {
   );
   return Boolean(
     plausiblePhone(draft.phone) &&
-      plausibleEmail(draft.email) &&
-      draft.emergency.name.trim() &&
-      plausiblePhone(draft.emergency.phone) &&
-      departmentsOk,
+    plausibleEmail(draft.email) &&
+    draft.emergency.name.trim() &&
+    plausiblePhone(draft.emergency.phone) &&
+    departmentsOk,
   );
 }
 
 export function card1BusinessDateSubstepComplete(draft: Card1Draft): boolean {
   return Boolean(
     draft.businessDateConfig.dayBoundary.trim() &&
-      draft.businessDateConfig.nightAuditWindowStart.trim() &&
-      draft.businessDateConfig.nightAuditWindowEnd.trim() &&
-      draft.businessDateConfig.manualRolloverRoles.length > 0,
+    draft.businessDateConfig.nightAuditWindowStart.trim() &&
+    draft.businessDateConfig.nightAuditWindowEnd.trim() &&
+    !nightAuditWindowConfigProblem(
+      draft.businessDateConfig.nightAuditWindowStart,
+      draft.businessDateConfig.nightAuditWindowEnd,
+    ) &&
+    draft.businessDateConfig.manualRolloverRoles.length > 0,
   );
 }
 
@@ -1490,10 +1495,10 @@ export function card1StepComplete(
     const addressOk = Object.keys(validateAddressFields(draft)).length === 0;
     const contactsProvided = Boolean(
       draft.phone.trim() ||
-        draft.email.trim() ||
-        draft.emergency.name.trim() ||
-        draft.emergency.phone.trim() ||
-        draft.departmentContacts.some(departmentRowPresent),
+      draft.email.trim() ||
+      draft.emergency.name.trim() ||
+      draft.emergency.phone.trim() ||
+      draft.departmentContacts.some(departmentRowPresent),
     );
     return addressOk && (!contactsProvided || card1ContactsSubstepComplete(draft));
   }
@@ -1504,8 +1509,8 @@ export function card1StepComplete(
     return (
       Boolean(
         normalizeClock(draft.checkInTime) &&
-          normalizeClock(draft.checkOutTime) &&
-          draft.checkinOps.minLeadTime.trim(),
+        normalizeClock(draft.checkOutTime) &&
+        draft.checkinOps.minLeadTime.trim(),
       ) && card1BusinessDateSubstepComplete(draft)
     );
   }

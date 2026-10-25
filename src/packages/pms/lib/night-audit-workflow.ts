@@ -140,7 +140,9 @@ export function exceptionMeta(exceptionType: string): ExceptionMeta {
   const code = exceptionCode(exceptionType);
   const finance = financialCategory(code);
   const operations =
-    finance == null ? (operationalCategoryForException(exceptionType) ?? BOARD_OPERATIONS_CATEGORY[code] ?? null) : null;
+    finance == null
+      ? (operationalCategoryForException(exceptionType) ?? BOARD_OPERATIONS_CATEGORY[code] ?? null)
+      : null;
   const category = finance ?? operations;
   return {
     code,
@@ -153,10 +155,16 @@ export function exceptionMeta(exceptionType: string): ExceptionMeta {
 }
 
 /** Default owner-module link for a stored exception. Live issue routes override it when present. */
-export function exceptionDefaultSource(exceptionType: string, businessDate: string): ExceptionSource | null {
+export function exceptionDefaultSource(
+  exceptionType: string,
+  businessDate: string,
+): ExceptionSource | null {
   const { code, category } = exceptionMeta(exceptionType);
   if (code === "checked_in_without_room" || code === "room_double_occupancy") {
-    return { route: "/restaurant/pms/front-office", search: { tab: "inhouse", date: businessDate } };
+    return {
+      route: "/restaurant/pms/front-office",
+      search: { tab: "inhouse", date: businessDate },
+    };
   }
   if (code === "next_date_restriction") {
     return { route: "/restaurant/pms/rates-revenue", search: { view: "restrictions" } };
@@ -172,9 +180,15 @@ export function exceptionDefaultSource(exceptionType: string, businessDate: stri
     case "drawers":
       return { route: "/restaurant/pms/cashiering", search: { tab: "cashier-shift" } };
     case "arrivals":
-      return { route: "/restaurant/pms/front-office", search: { tab: "arrivals", date: businessDate } };
+      return {
+        route: "/restaurant/pms/front-office",
+        search: { tab: "arrivals", date: businessDate },
+      };
     case "departures":
-      return { route: "/restaurant/pms/front-office", search: { tab: "departures", date: businessDate } };
+      return {
+        route: "/restaurant/pms/front-office",
+        search: { tab: "departures", date: businessDate },
+      };
     case "rooms":
     case "housekeeping":
       return { route: "/restaurant/pms/housekeeping", search: { tab: "board" } };
@@ -255,11 +269,15 @@ export function isActiveFiscalOverride(override: Pick<FiscalOverride, "invalidat
   return override.invalidatedAt === null;
 }
 
-export function isFiscalOverrideableException(row: Pick<WorkflowException, "exceptionType" | "severity" | "status">): boolean {
+export function isFiscalOverrideableException(
+  row: Pick<WorkflowException, "exceptionType" | "severity" | "status">,
+): boolean {
   return (
     row.severity === "blocking" &&
     row.status === "open" &&
-    (FISCAL_OVERRIDEABLE_EXCEPTION_TYPES as readonly string[]).includes(exceptionCode(row.exceptionType))
+    (FISCAL_OVERRIDEABLE_EXCEPTION_TYPES as readonly string[]).includes(
+      exceptionCode(row.exceptionType),
+    )
   );
 }
 
@@ -299,11 +317,15 @@ export const DEFAULT_EXCEPTION_FILTER: ExceptionFilter = {
 export function exceptionFilterForFocus(focus: string | undefined): ExceptionFilter {
   if (focus === "blockers") return { ...DEFAULT_EXCEPTION_FILTER, severity: "blocking" };
   if (focus === "warnings") return { ...DEFAULT_EXCEPTION_FILTER, severity: "warning" };
-  if (focus === "financial" || focus === "operations") return { ...DEFAULT_EXCEPTION_FILTER, domain: focus };
+  if (focus === "financial" || focus === "operations")
+    return { ...DEFAULT_EXCEPTION_FILTER, domain: focus };
   return DEFAULT_EXCEPTION_FILTER;
 }
 
-export function filterExceptions<T extends WorkflowException>(rows: readonly T[], filter: ExceptionFilter): T[] {
+export function filterExceptions<T extends WorkflowException>(
+  rows: readonly T[],
+  filter: ExceptionFilter,
+): T[] {
   const needle = filter.search.trim().toLowerCase();
   return rows
     .filter((row) => {
@@ -313,7 +335,9 @@ export function filterExceptions<T extends WorkflowException>(rows: readonly T[]
       if (filter.domain !== "all" && meta.domain !== filter.domain) return false;
       if (filter.category !== "all" && meta.category !== filter.category) return false;
       if (!needle) return true;
-      return `${meta.title} ${meta.categoryLabel} ${row.message} ${row.referenceId ?? ""}`.toLowerCase().includes(needle);
+      return `${meta.title} ${meta.categoryLabel} ${row.message} ${row.referenceId ?? ""}`
+        .toLowerCase()
+        .includes(needle);
     })
     .sort(
       (a, b) =>
@@ -374,7 +398,8 @@ export function effectiveOverallStatus(input: {
   operational: DomainStatus;
 }): NightAuditOverallStatus | null {
   if (input.server === "closed") return "closed";
-  if (input.financial === "unavailable" || input.operational === "unavailable") return "unavailable";
+  if (input.financial === "unavailable" || input.operational === "unavailable")
+    return "unavailable";
   return input.server;
 }
 
@@ -393,15 +418,17 @@ export function controlPrimaryAction(status: NightAuditOverallStatus): ControlPr
   return { kind: "run-close", label: "Run & Close" };
 }
 
-export type NightAuditRunState = "Not Started" | "In Progress" | "Ready" | "Blocked" | "Closed";
+export type NightAuditRunState =
+  "Not Started" | "In Progress" | "Ready" | "Blocked" | "Closed" | "Superseded";
 
 /** Stored run status plus the current server readiness. No step engine. */
 export function nightAuditRunState(input: {
-  runStatus: "open" | "ready" | "closed" | "failed" | null;
+  runStatus: "open" | "ready" | "closed" | "failed" | "superseded" | null;
   overall: NightAuditOverallStatus | null;
 }): NightAuditRunState {
   if (!input.runStatus) return "Not Started";
   if (input.runStatus === "closed") return "Closed";
+  if (input.runStatus === "superseded") return "Superseded";
   if (input.overall === "blocked") return "Blocked";
   if (input.overall === "ready" || input.overall === "warning") return "Ready";
   return "In Progress";
@@ -415,9 +442,11 @@ export type CloseGateInput = {
   boardBlockers: number;
   canClose: boolean;
   busy: boolean;
-  runStatus: "open" | "ready" | "closed" | "failed";
+  runStatus: "open" | "ready" | "closed" | "failed" | "superseded";
   rechecked: boolean;
   phone?: boolean;
+  /** Night Audit Window for this caller. Omitted while the run loads. */
+  window?: { allowsClose: boolean; message: string } | null;
 };
 
 export type CloseGate = { enabled: boolean; reason: string };
@@ -428,24 +457,36 @@ export type CloseGate = { enabled: boolean; reason: string };
  */
 export function closeGate(input: CloseGateInput): CloseGate {
   const hold = (reason: string): CloseGate => ({ enabled: false, reason });
-  if (input.runStatus === "closed" || input.overall === "closed") return hold("This business date is closed.");
-  if (input.runStatus !== "open" && input.runStatus !== "ready") return hold("This run cannot be closed.");
+  if (input.runStatus === "closed" || input.overall === "closed")
+    return hold("This business date is closed.");
+  if (input.runStatus !== "open" && input.runStatus !== "ready")
+    return hold("This run cannot be closed.");
   if (!input.canClose) return hold("Only an owner or manager can close the business date.");
   if (input.phone) return hold("Use desktop to close");
   if (input.busy) return hold("Closing…");
+  if (input.window && !input.window.allowsClose) return hold(input.window.message);
   if (input.financial === "loading" || input.operational === "loading" || input.overall == null) {
     return hold("Checks are still running.");
   }
-  if (input.financial === "unavailable") return hold("Financial reconciliation is unavailable. Close stays blocked.");
-  if (input.operational === "unavailable") return hold("Operational reconciliation is unavailable. Close stays blocked.");
-  if (input.financial === "blocked") return hold("Financial blockers must be cleared in the owner module.");
-  if (input.operational === "blocked") return hold("Operational blockers must be cleared in the owner module.");
+  if (input.financial === "unavailable")
+    return hold("Financial reconciliation is unavailable. Close stays blocked.");
+  if (input.operational === "unavailable")
+    return hold("Operational reconciliation is unavailable. Close stays blocked.");
+  if (input.financial === "blocked")
+    return hold("Financial blockers must be cleared in the owner module.");
+  if (input.operational === "blocked")
+    return hold("Operational blockers must be cleared in the owner module.");
   if (input.boardBlockers > 0) return hold("Live blockers are still open.");
-  if (input.openBlockingExceptions > 0) return hold("Blocking exceptions are still open for this business date.");
-  if (input.overall === "unavailable") return hold("A required Night Audit check is unavailable. Close stays blocked.");
+  if (input.openBlockingExceptions > 0)
+    return hold("Blocking exceptions are still open for this business date.");
+  if (input.overall === "unavailable")
+    return hold("A required Night Audit check is unavailable. Close stays blocked.");
   if (input.overall === "blocked") return hold("Blockers are still open.");
   if (!input.rechecked) return hold("Run Final Recheck before closing.");
-  return { enabled: true, reason: input.overall === "warning" ? "Ready · warnings do not block close" : "Ready to close" };
+  return {
+    enabled: true,
+    reason: input.overall === "warning" ? "Ready · warnings do not block close" : "Ready to close",
+  };
 }
 
 export const CLOSE_CONFIRM_COPY =
@@ -471,7 +512,10 @@ export type PersistedCloseRow = {
  * returns an already-closed run unchanged, so a losing concurrent request gets
  * back the winner's request id, even when the same user sent both.
  */
-export function closedByThisRequest(row: PersistedCloseRow | null, closeRequestId: string): boolean {
+export function closedByThisRequest(
+  row: PersistedCloseRow | null,
+  closeRequestId: string,
+): boolean {
   return row?.status === "closed" && row.summary?.closeRequestId === closeRequestId;
 }
 
@@ -485,7 +529,8 @@ export function persistedCloseFacts(row: PersistedCloseRow): {
 } {
   return {
     businessDate: row.business_date,
-    nextBusinessDate: row.summary?.nextBusinessDate ?? nextBusinessDate(row.business_date.slice(0, 10)),
+    nextBusinessDate:
+      row.summary?.nextBusinessDate ?? nextBusinessDate(row.business_date.slice(0, 10)),
     closedAt: row.closed_at,
     closedByMembershipId: row.closed_by_membership_id,
     warningCount: typeof row.summary?.warnings === "number" ? row.summary.warnings : null,
@@ -546,7 +591,7 @@ export function canRetryOtbSnapshot(input: {
 
 /* ---------------------------------------------------------------- history */
 
-export const HISTORY_STATUSES = ["open", "ready", "closed", "failed"] as const;
+export const HISTORY_STATUSES = ["open", "ready", "closed", "failed", "superseded"] as const;
 export type HistoryStatus = (typeof HISTORY_STATUSES)[number];
 export const HISTORY_PAGE_SIZES = [10, 25, 50] as const;
 export type HistoryPageSize = (typeof HISTORY_PAGE_SIZES)[number];
@@ -574,7 +619,9 @@ export const DEFAULT_HISTORY_FILTER: HistoryFilter = {
 
 /** "No runs match filters" only when a filter is set; otherwise an empty list is "No runs yet". */
 export function historyFiltersActive(filter: HistoryFilter): boolean {
-  return Boolean(filter.status !== "all" || filter.from || filter.to || filter.closedBy || filter.search.trim());
+  return Boolean(
+    filter.status !== "all" || filter.from || filter.to || filter.closedBy || filter.search.trim(),
+  );
 }
 
 export function historyStatusLabel(status: string): string {
@@ -582,6 +629,7 @@ export function historyStatusLabel(status: string): string {
   if (status === "ready") return "Ready";
   if (status === "closed") return "Closed";
   if (status === "failed") return "Failed";
+  if (status === "superseded") return "Superseded";
   return status ? humanize(status) : "—";
 }
 
@@ -590,7 +638,10 @@ export function parseHistoryPageSize(value: unknown): HistoryPageSize {
   return n === 10 || n === 25 || n === 50 ? n : DEFAULT_HISTORY_PAGE_SIZE;
 }
 
-export function historyRange(page: number, pageSize: HistoryPageSize): { from: number; to: number; page: number } {
+export function historyRange(
+  page: number,
+  pageSize: HistoryPageSize,
+): { from: number; to: number; page: number } {
   const current = Number.isInteger(page) && page > 0 ? page : 1;
   const from = (current - 1) * pageSize;
   return { from, to: from + pageSize - 1, page: current };
@@ -684,15 +735,23 @@ export function presentRunSummary<T extends object>(summary: T | null, role: str
   delete copy["taxByCurrency"];
   const checks = copy["checks"];
   if (Array.isArray(checks)) {
-    copy["checks"] = (checks as Array<{ area?: string }>).filter((check) => !FINANCIAL_CHECK_AREAS.has(check.area ?? ""));
+    copy["checks"] = (checks as Array<{ area?: string }>).filter(
+      (check) => !FINANCIAL_CHECK_AREAS.has(check.area ?? ""),
+    );
   }
   return copy as T;
 }
 
 /** Stored exception text as one role may see it. Financial text can carry amounts; stay text carries guests. */
-export function presentExceptionMessage(exceptionType: string, message: string, role: string): string {
+export function presentExceptionMessage(
+  exceptionType: string,
+  message: string,
+  role: string,
+): string {
   const meta = exceptionMeta(exceptionType);
-  if (meta.domain === "financial" && !canViewNightAuditFinancialDetail(role)) return `${meta.title} · details hidden`;
-  if (meta.domain === "operations" && !canViewNightAuditOperationalDetail(role)) return `${meta.title} · details hidden`;
+  if (meta.domain === "financial" && !canViewNightAuditFinancialDetail(role))
+    return `${meta.title} · details hidden`;
+  if (meta.domain === "operations" && !canViewNightAuditOperationalDetail(role))
+    return `${meta.title} · details hidden`;
   return message;
 }

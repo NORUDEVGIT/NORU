@@ -10,14 +10,14 @@ The date being audited is `restaurants.business_date`. It moves forward only whe
 
 Every check ends as one of these:
 
-| Result | Meaning | Can the date be closed? |
-| --- | --- | --- |
-| Blocker | The source record is still wrong in a way that must not be locked into a closed date. | No |
-| Warning | Something is unfinished or imperfect, and the hotel is allowed to close with it. | Yes |
-| Info | A fact worth seeing. It is not a problem. | Yes |
-| Pass | Nothing was found for that check. | Yes |
-| Not configured | That module is not set up for the property. Night Audit does not invent a failure. | Yes |
-| Unavailable | A required read failed. Night Audit does not treat a failed read as a pass. | No |
+| Result         | Meaning                                                                               | Can the date be closed? |
+| -------------- | ------------------------------------------------------------------------------------- | ----------------------- |
+| Blocker        | The source record is still wrong in a way that must not be locked into a closed date. | No                      |
+| Warning        | Something is unfinished or imperfect, and the hotel is allowed to close with it.      | Yes                     |
+| Info           | A fact worth seeing. It is not a problem.                                             | Yes                     |
+| Pass           | Nothing was found for that check.                                                     | Yes                     |
+| Not configured | That module is not set up for the property. Night Audit does not invent a failure.    | Yes                     |
+| Unavailable    | A required read failed. Night Audit does not treat a failed read as a pass.           | No                      |
 
 Warnings never block close. Blockers do. If Financial or Operations cannot be read, the whole date is **Unavailable** and close stays locked.
 
@@ -56,26 +56,26 @@ The live board is the older checklist that still has to agree with close. These 
 
 Control Center does not calculate its own numbers. It shows the current business date, the property-local clock, the run state, and the overall status, then the counts from Financial, Operations, and the exception queue.
 
-| What you see | Where the number comes from |
-| --- | --- |
-| Financial blockers and warnings | Financial reconciliation |
-| Operational blockers and warnings | Operations reconciliation |
-| Open exceptions | Stored exception rows that are still open on this run |
-| Open drawers | Hotel cashier drawers still open |
-| Arrivals, overstays, room conflicts, overbooking | Operations summary |
-| Fiscal | Financial fiscal problems, excluding pure info rows |
+| What you see                                     | Where the number comes from                           |
+| ------------------------------------------------ | ----------------------------------------------------- |
+| Financial blockers and warnings                  | Financial reconciliation                              |
+| Operational blockers and warnings                | Operations reconciliation                             |
+| Open exceptions                                  | Stored exception rows that are still open on this run |
+| Open drawers                                     | Hotel cashier drawers still open                      |
+| Arrivals, overstays, room conflicts, overbooking | Operations summary                                    |
+| Fiscal                                           | Financial fiscal problems, excluding pure info rows   |
 
 **Recheck** re-reads Financial, Operations, and the run. It does not close the date and it does not change source records.
 
 The primary button depends on the overall status:
 
-| Status | Button | Where it goes |
-| --- | --- | --- |
-| Blocked | Review First Blocker | Financial, Operations, or Exceptions, whichever is blocked |
-| Warning | Review & Close | Run & Close |
-| Ready | Run & Close | Run & Close |
-| Unavailable | Retry Checks | Recheck |
-| Closed | View Run | History |
+| Status      | Button               | Where it goes                                              |
+| ----------- | -------------------- | ---------------------------------------------------------- |
+| Blocked     | Review First Blocker | Financial, Operations, or Exceptions, whichever is blocked |
+| Warning     | Review & Close       | Run & Close                                                |
+| Ready       | Run & Close          | Run & Close                                                |
+| Unavailable | Retry Checks         | Recheck                                                    |
+| Closed      | View Run             | History                                                    |
 
 There is no Close button on Control Center.
 
@@ -91,13 +91,13 @@ Financial is **Blocked** when any blocker below exists, **Warning** when there a
 
 One row per guest folio on the property ledger.
 
-| Finding | Severity | What it means |
-| --- | --- | --- |
-| Closed folio with a non-zero balance | Blocker | The folio is closed and the ledger is not zero. |
-| Posting after the folio was closed | Blocker | A transaction is dated after `closed_at`. |
-| Duplicate room charge | Blocker | The same stay has more than one posted room charge. |
-| Open folio with a balance | Warning | The guest still owes or has a credit. An open balance is allowed at close. |
-| Priced stay with no folio | Warning | A priced confirmed or in-house stay has no folio. |
+| Finding                              | Severity | What it means                                                              |
+| ------------------------------------ | -------- | -------------------------------------------------------------------------- |
+| Closed folio with a non-zero balance | Blocker  | The folio is closed and the ledger is not zero.                            |
+| Posting after the folio was closed   | Blocker  | A transaction is dated after `closed_at`.                                  |
+| Duplicate room charge                | Blocker  | The same stay has more than one posted room charge.                        |
+| Open folio with a balance            | Warning  | The guest still owes or has a credit. An open balance is allowed at close. |
+| Priced stay with no folio            | Warning  | A priced confirmed or in-house stay has no folio.                          |
 
 An open in-house balance does **not** stop the audit. A closed folio that is not zero does.
 
@@ -105,52 +105,52 @@ An open in-house balance does **not** stop the audit. A closed folio that is not
 
 Compares the folio ledger with issued guest invoices, using Cashiering’s invoice classification (invoice total, credit and debit notes, payments, deposits, and cash-debit cover).
 
-| Finding | Severity | What it means |
-| --- | --- | --- |
-| Folio settled, invoice still outstanding | Blocker | The ledger says the folio is settled, but an issued invoice still has a balance. |
-| Allocation larger than the payment or deposit | Blocker | More was allocated than the source still has available. |
-| Allocation with no invoice | Blocker | The allocation points at an invoice that is not on this property. |
+| Finding                                       | Severity | What it means                                                                    |
+| --------------------------------------------- | -------- | -------------------------------------------------------------------------------- |
+| Folio settled, invoice still outstanding      | Blocker  | The ledger says the folio is settled, but an issued invoice still has a balance. |
+| Allocation larger than the payment or deposit | Blocker  | More was allocated than the source still has available.                          |
+| Allocation with no invoice                    | Blocker  | The allocation points at an invoice that is not on this property.                |
 
 ### Guest payments and advance deposits
 
-| Finding | Severity | What it means |
-| --- | --- | --- |
-| Allocation larger than the source | Blocker | Same integrity rule as above, shown on the payment. |
-| Unallocated guest payment or deposit | Warning | Money is still available to allocate. Unallocated cash is not treated as corruption. |
+| Finding                              | Severity | What it means                                                                        |
+| ------------------------------------ | -------- | ------------------------------------------------------------------------------------ |
+| Allocation larger than the source    | Blocker  | Same integrity rule as above, shown on the payment.                                  |
+| Unallocated guest payment or deposit | Warning  | Money is still available to allocate. Unallocated cash is not treated as corruption. |
 
 ### Company and group accounts
 
 Company and group accounts receivable. A normal outstanding balance is allowed.
 
-| Finding | Severity | What it means |
-| --- | --- | --- |
-| Withholding does not match the invoice | Blocker | The withholding stored on the invoice does not match the active certificates. |
-| Allocation larger than the account payment | Blocker | Same “allocated more than available” rule, on an account payment. |
-| Allocation points at a missing invoice | Blocker | The invoice is not on this property. |
-| Allocation points at a void or unissued invoice | Blocker | The document is not a valid allocation target. |
-| Cross-ledger transfer is incomplete | Blocker | A transfer has no pair, or the two sides do not sum to zero. |
-| Unallocated payment while an invoice is outstanding | Warning | The account has both spare payment and an open invoice. |
-| Valid outstanding balance | Info | Ordinary receivables. They do not block close. |
+| Finding                                             | Severity | What it means                                                                 |
+| --------------------------------------------------- | -------- | ----------------------------------------------------------------------------- |
+| Withholding does not match the invoice              | Blocker  | The withholding stored on the invoice does not match the active certificates. |
+| Allocation larger than the account payment          | Blocker  | Same “allocated more than available” rule, on an account payment.             |
+| Allocation points at a missing invoice              | Blocker  | The invoice is not on this property.                                          |
+| Allocation points at a void or unissued invoice     | Blocker  | The document is not a valid allocation target.                                |
+| Cross-ledger transfer is incomplete                 | Blocker  | A transfer has no pair, or the two sides do not sum to zero.                  |
+| Unallocated payment while an invoice is outstanding | Warning  | The account has both spare payment and an open invoice.                       |
+| Valid outstanding balance                           | Info     | Ordinary receivables. They do not block close.                                |
 
 ### Cashier shifts and cash drawers
 
 Only **hotel** drawers are in this check. Outlet drawers are outside Night Audit.
 
-| Finding | Severity | What it means |
-| --- | --- | --- |
-| Open hotel drawer | Blocker | A hotel cashier shift is still open. |
-| Closed drawer with a cash variance | Warning | The drawer was closed, and the counted cash does not match. Close is still allowed. |
-| No hotel drawers on the property | N/A | Till close does not apply. |
+| Finding                            | Severity | What it means                                                                       |
+| ---------------------------------- | -------- | ----------------------------------------------------------------------------------- |
+| Open hotel drawer                  | Blocker  | A hotel cashier shift is still open.                                                |
+| Closed drawer with a cash variance | Warning  | The drawer was closed, and the counted cash does not match. Close is still allowed. |
+| No hotel drawers on the property   | N/A      | Till close does not apply.                                                          |
 
 ### Fiscalization
 
 Only documents whose type is handled by the property’s fiscal integration are checked. If fiscalization is not turned on, the section says it is not configured and does not invent errors.
 
-| Document status | Severity |
-| --- | --- |
-| FAILED, NOT_REGISTERED, BLOCKED, CANCEL_PENDING, or an unrecognized status | Blocker |
-| PENDING | Warning |
-| REGISTERED, CANCELLED | Info |
+| Document status                                                            | Severity |
+| -------------------------------------------------------------------------- | -------- |
+| FAILED, NOT_REGISTERED, BLOCKED, CANCEL_PENDING, or an unrecognized status | Blocker  |
+| PENDING                                                                    | Warning  |
+| REGISTERED, CANCELLED                                                      | Info     |
 
 A device fault that was later fixed does not clear this by itself. The document status has to change. After the document is registered, Recheck drops the blocker. While it is still failed or not registered, the date cannot be closed. Night Audit does not retry the fiscal device.
 
@@ -166,10 +166,10 @@ An overridden issue is shown as **Overridden** in Exceptions, Financial, Run & C
 
 Compares the tax and service-charge amounts frozen on the documents with the amounts the same rules produce from those snapshots.
 
-| Finding | Severity | What it means |
-| --- | --- | --- |
-| Tax snapshot does not match | Warning | The stored tax does not match the snapshot. |
-| Service-charge snapshot does not match | Warning | The stored service charge does not match the snapshot. |
+| Finding                                | Severity | What it means                                          |
+| -------------------------------------- | -------- | ------------------------------------------------------ |
+| Tax snapshot does not match            | Warning  | The stored tax does not match the snapshot.            |
+| Service-charge snapshot does not match | Warning  | The stored service charge does not match the snapshot. |
 
 Night Audit does not post a correction. Occupancy municipal fee is not calculated inside Night Audit; the tax section says it is kept separate.
 
@@ -183,20 +183,20 @@ Operations is **Blocked** only by the blockers in the tables below. Distribution
 
 ### Arrivals
 
-| Case | Severity | What it means |
-| --- | --- | --- |
-| Pending or confirmed, and the arrival date is on or before the business date | Blocker | The arrival was not checked in, cancelled, or marked no-show. |
-| Arrival date is after the business date | Not listed | Tomorrow’s arrivals are not tonight’s problem. |
+| Case                                                                         | Severity   | What it means                                                 |
+| ---------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------- |
+| Pending or confirmed, and the arrival date is on or before the business date | Blocker    | The arrival was not checked in, cancelled, or marked no-show. |
+| Arrival date is after the business date                                      | Not listed | Tomorrow’s arrivals are not tonight’s problem.                |
 
 Night Audit does not check the guest in and does not auto-no-show.
 
 ### Departures and in-house
 
-| Case | Severity | What it means |
-| --- | --- | --- |
-| Checked in, and the departure date is before the business date | Blocker | Overstay. Extend the stay or check the guest out. |
-| Checked in, and the departure date is the business date | Warning | Due out today. A granted late checkout is shown and still does not block. |
-| Checked in, departure still in the future | Info on the in-house count | Staying guests. They are counted, not flagged. |
+| Case                                                           | Severity                   | What it means                                                             |
+| -------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------- |
+| Checked in, and the departure date is before the business date | Blocker                    | Overstay. Extend the stay or check the guest out.                         |
+| Checked in, and the departure date is the business date        | Warning                    | Due out today. A granted late checkout is shown and still does not block. |
+| Checked in, departure still in the future                      | Info on the in-house count | Staying guests. They are counted, not flagged.                            |
 
 The in-house count is the number of checked-in room units.
 
@@ -204,16 +204,16 @@ The in-house count is the number of checked-in room units.
 
 This section is about whether the checked-in units are in a legal room. It is not a list of every room in the hotel. The table shows rooms that are not a clean pass.
 
-| Finding | Severity | What it means |
-| --- | --- | --- |
-| Checked in with no room | Blocker | The unit has no room assignment. |
-| Two or more checked-in units in one room | Blocker | Double occupancy. |
-| Checked in, and the room status is out of order or out of service | Blocker | The guest is in a restricted room. |
-| Occupied, and maintenance marks the room out of order or out of service (and the room status itself does not already say that) | Blocker | Maintenance says the room is unavailable. |
-| Occupied, and maintenance is open but not “unavailable” | Warning | Maintenance needs follow-up. It does not block. |
-| Urgent maintenance request in an occupied room | Warning | The request is urgent. It does not block. |
-| Ordinary open maintenance request in an occupied room | Info | Visible only. |
-| Maintenance requests could not be read | Warning | Room status is still checked. The missed request list does not by itself make Operations unavailable. |
+| Finding                                                                                                                        | Severity | What it means                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------ | -------- | ----------------------------------------------------------------------------------------------------- |
+| Checked in with no room                                                                                                        | Blocker  | The unit has no room assignment.                                                                      |
+| Two or more checked-in units in one room                                                                                       | Blocker  | Double occupancy.                                                                                     |
+| Checked in, and the room status is out of order or out of service                                                              | Blocker  | The guest is in a restricted room.                                                                    |
+| Occupied, and maintenance marks the room out of order or out of service (and the room status itself does not already say that) | Blocker  | Maintenance says the room is unavailable.                                                             |
+| Occupied, and maintenance is open but not “unavailable”                                                                        | Warning  | Maintenance needs follow-up. It does not block.                                                       |
+| Urgent maintenance request in an occupied room                                                                                 | Warning  | The request is urgent. It does not block.                                                             |
+| Ordinary open maintenance request in an occupied room                                                                          | Info     | Visible only.                                                                                         |
+| Maintenance requests could not be read                                                                                         | Warning  | Room status is still checked. The missed request list does not by itself make Operations unavailable. |
 
 ### Housekeeping and room state
 
@@ -223,12 +223,12 @@ This section starts from the **same room rows** as occupancy, then keeps a room 
 - housekeeping status is dirty, or
 - housekeeping status is pickup.
 
-| Finding | Severity | What it means |
-| --- | --- | --- |
-| Occupied room with an open or unresolved housekeeping discrepancy | Blocker | The discrepancy is still open. |
-| Vacant, dirty, and no open cleaning task | Warning | Nobody is assigned to clean it. An occupied dirty room is not this finding. |
-| Out of order or out of service with no reason recorded | Warning | The restriction has no reason. |
-| Occupied, housekeeping inspected, and the room is inactive | Warning | The room record contradicts itself. |
+| Finding                                                           | Severity | What it means                                                               |
+| ----------------------------------------------------------------- | -------- | --------------------------------------------------------------------------- |
+| Occupied room with an open or unresolved housekeeping discrepancy | Blocker  | The discrepancy is still open.                                              |
+| Vacant, dirty, and no open cleaning task                          | Warning  | Nobody is assigned to clean it. An occupied dirty room is not this finding. |
+| Out of order or out of service with no reason recorded            | Warning  | The restriction has no reason.                                              |
+| Occupied, housekeeping inspected, and the room is inactive        | Warning  | The room record contradicts itself.                                         |
 
 Dirty or pickup rooms can appear here even when they have no finding, so the section can list rooms that occupancy hides. The reverse is also true: a clean double-occupied room appears under occupancy and not here.
 
@@ -238,15 +238,15 @@ When the only problems are housekeeping problems, the two tables list the same r
 
 Looks at tonight and tomorrow only. Capacity, allowance, committed demand, and recorded approvals come from Room & Inventory. Night Audit does not approve an overbooking.
 
-| Case | Severity |
-| --- | --- |
-| Tonight’s shortage is above the allowance and is not fully approved | Blocker |
-| Tonight’s shortage is inside the allowance but not fully approved | Warning |
-| Tomorrow is short, whether or not it is over the allowance | Warning |
-| Shortage is fully covered by recorded approvals | Info |
-| Overbooking is not configured | Not configured, and it does not block |
-| Waitlist request for tonight or tomorrow | Info |
-| Converted waitlist entry whose reservation is missing | Warning |
+| Case                                                                | Severity                              |
+| ------------------------------------------------------------------- | ------------------------------------- |
+| Tonight’s shortage is above the allowance and is not fully approved | Blocker                               |
+| Tonight’s shortage is inside the allowance but not fully approved   | Warning                               |
+| Tomorrow is short, whether or not it is over the allowance          | Warning                               |
+| Shortage is fully covered by recorded approvals                     | Info                                  |
+| Overbooking is not configured                                       | Not configured, and it does not block |
+| Waitlist request for tonight or tomorrow                            | Info                                  |
+| Converted waitlist entry whose reservation is missing               | Warning                               |
 
 Waitlist demand does not consume inventory and never blocks close.
 
@@ -254,25 +254,25 @@ Waitlist demand does not consume inventory and never blocks close.
 
 Channel connection and failed syncs for this business date. Night Audit does not retry a channel.
 
-| Case | Severity |
-| --- | --- |
-| Enabled connection has a last error | Warning |
-| One or more failed syncs for an operation and channel | Warning |
-| No known failures | Info |
-| Distribution is not configured | Not configured |
-| The read failed | Warning, titled unavailable. It does not block close. |
+| Case                                                  | Severity                                              |
+| ----------------------------------------------------- | ----------------------------------------------------- |
+| Enabled connection has a last error                   | Warning                                               |
+| One or more failed syncs for an operation and channel | Warning                                               |
+| No known failures                                     | Info                                                  |
+| Distribution is not configured                        | Not configured                                        |
+| The read failed                                       | Warning, titled unavailable. It does not block close. |
 
 ### Revenue readiness
 
 Pending approvals and restrictions from Rate & Revenue, plus frozen nightly rates. Night Audit does not approve a rate and does not calculate a replacement rate.
 
-| Case | Severity |
-| --- | --- |
-| A pending approval overlaps the business date or the next date | Warning |
-| Stop sell, closed to arrival, or closed to departure on the next date | Info |
-| A confirmed or checked-in unit staying tonight has no frozen nightly rate for the business date | Warning |
-| Revenue data could not be read | Warning. It does not block close. |
-| Rate & Revenue is not configured | Not configured |
+| Case                                                                                            | Severity                          |
+| ----------------------------------------------------------------------------------------------- | --------------------------------- |
+| A pending approval overlaps the business date or the next date                                  | Warning                           |
+| Stop sell, closed to arrival, or closed to departure on the next date                           | Info                              |
+| A confirmed or checked-in unit staying tonight has no frozen nightly rate for the business date | Warning                           |
+| Revenue data could not be read                                                                  | Warning. It does not block close. |
+| Rate & Revenue is not configured                                                                | Not configured                    |
 
 ### Service operations
 
@@ -284,11 +284,11 @@ These are **Info**. Services never block close. Night Audit does not complete th
 
 Exceptions are one queue for this run, stored in `night_audit_exceptions`. Financial and operational findings are written into that queue. There is no separate exception table.
 
-| Stored status | Meaning |
-| --- | --- |
-| Open | The source still has this finding, or it has not been rechecked since it came back. |
-| Resolved | A recheck no longer found it. The row is kept. |
-| Ignored | Legacy only. New blockers cannot be ignored. An ignored warning stays ignored if it returns. |
+| Stored status | Meaning                                                                                      |
+| ------------- | -------------------------------------------------------------------------------------------- |
+| Open          | The source still has this finding, or it has not been rechecked since it came back.          |
+| Resolved      | A recheck no longer found it. The row is kept.                                               |
+| Ignored       | Legacy only. New blockers cannot be ignored. An ignored warning stays ignored if it returns. |
 
 Lifecycle:
 
@@ -334,32 +334,47 @@ If two people close at the same time, the date advances once. The request that l
 
 If the on-the-books snapshot fails, the close still stands. The result says the snapshot failed. Retrying the snapshot does not close the date again, and it does not insert a second snapshot when one already exists.
 
+### Night Audit Window
+
+The window set in Property Settings (for example 23:00 – 04:00) is an extra close condition, checked in the property timezone. A window whose end is earlier than its start runs across midnight. Start and end must be different: equal values are invalid and never mean 24-hour access. Run & Close shows the window, the property-local time, and OPEN or CLOSED. Control Center shows a compact badge.
+
+- A manager can close only inside the window. Outside it the button is disabled and the server rejects the close with `NIGHT_AUDIT_OUTSIDE_WINDOW` before calling `close_business_date`.
+- An owner can close outside the window. That bypasses the time only. Every blocker, unavailable read, Final Recheck, and run-status rule still applies. The run summary records `nightAuditWindow` with the configured window, property-local time, request time, and the owner's membership.
+
+The window never starts, closes, or advances anything on its own.
+
+### Owner Business Date recovery
+
+The business date is read-only in Settings and normally advanced by Night Audit. Only an owner sees **Adjust Business Date**, which needs a new date, a reason, and typing CONFIRM. `adjust_business_date` locks the property and rejects a stale expected date.
+
+An automatically-created current-date run may be safely superseded when it is open or ready, has no fiscal override rows, no persisted close request or closer, and the recovery changes the effective date. The run is changed to terminal `superseded`; its stored summary records the adjustment ID, old/new dates, reason, owner membership, and timestamp. It cannot later close. Runs with fiscal overrides, persisted close authorization, or an in-progress close remain blockers. A recovery initializes a NULL stored date to the same effective date without superseding its harmless current run. Each adjustment writes an immutable row to `business_date_adjustments`. Closed runs are never changed.
+
 ## History
 
 History lists stored runs. It does not recalculate old business dates.
 
-A run status is open, ready, closed, or failed. The filter includes failed, and failed rows are never invented. Pages are 10, 25, or 50, default 25, applied in the database.
+A run status is open, ready, closed, failed, or superseded. The filter includes terminal failed and superseded rows, and rows are never invented. Pages are 10, 25, or 50, default 25, applied in the database.
 
 The run drawer shows what was stored at close: dates, closer, note, financial counts, operational counts, the exceptions that belong to that run, and whether an on-the-books snapshot exists. Older runs that were closed before a count existed show **Not captured**, not zero.
 
 Report links for a closed run use that run’s business date:
 
-| Report | Date parameter |
-| --- | --- |
-| Police / Guest Stay | `stayDate` |
-| Cashier Invoice | `from` and `to`, both the closed date |
-| Meal Service | `serviceDate` |
-| Service Fulfillment | `serviceDate` |
+| Report              | Date parameter                        |
+| ------------------- | ------------------------------------- |
+| Police / Guest Stay | `stayDate`                            |
+| Cashier Invoice     | `from` and `to`, both the closed date |
+| Meal Service        | `serviceDate`                         |
+| Service Fulfillment | `serviceDate`                         |
 
 Those links open Reports. Night Audit does not rebuild the reports.
 
 ## Who can see and do what
 
-| Role | Close the date | Financial amounts | Stay and guest detail |
-| --- | --- | --- | --- |
-| Owner, manager | Yes | Yes | Yes |
-| Cashier, accountant | No | Yes | Counts and room state only. Guest names on operational findings are hidden. |
-| Receptionist | No | Counts only. Amounts, tax totals, and financial exception text are hidden. | Yes |
-| Housekeeping | No | No | Room and housekeeping detail only |
+| Role                | Close the date | Financial amounts                                                          | Stay and guest detail                                                       |
+| ------------------- | -------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Owner, manager      | Yes            | Yes                                                                        | Yes                                                                         |
+| Cashier, accountant | No             | Yes                                                                        | Counts and room state only. Guest names on operational findings are hidden. |
+| Receptionist        | No             | Counts only. Amounts, tax totals, and financial exception text are hidden. | Yes                                                                         |
+| Housekeeping        | No             | No                                                                         | Room and housekeeping detail only                                           |
 
 Enforcement is on the server. Hiding a column in the browser is not the rule.
