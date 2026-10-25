@@ -178,6 +178,8 @@ describe("check-in v2 step 5 review", () => {
   it("2. reads readiness with getCheckInReadiness", () => {
     assert.match(review, /getCheckInReadiness/);
     assert.match(review, /fo-ci-v2-readiness", restaurantId, reservationId, reservationRoomId/);
+    assert.match(review, /refetchOnWindowFocus: "always"/);
+    assert.match(review, /completeFoCheckIn/);
     assert.doesNotMatch(review, /evaluateCheckInReadiness/);
   });
 
@@ -629,5 +631,20 @@ describe("check-in v2 step 5 review", () => {
     assert.match(workspace, /data-testid="fo-ci-v2-back-agreement"/);
     assert.match(workspace, /onClick=\{\(\) => setStep\("agreement_signature"\)\}/);
     assert.doesNotMatch(review, /navigate\(/);
+  });
+
+  it("46. review can record or waive a key for the selected room", () => {
+    const key = readRel("../components/frontoffice/fo-checkin-v2-key.tsx");
+    assert.match(workspace, /<FoCheckInV2Key/);
+    assert.match(workspace, /reservationRoomId=\{activeRoomId\}/);
+    assert.match(key, /recordCheckInKey/);
+    assert.match(key, /waiveCheckInKey/);
+    assert.match(key, /reservationRoomId/);
+    assert.match(key, /data-testid="fo-ci-v2-key-access-type"/);
+    assert.match(key, /data-testid="fo-ci-v2-key-identifier"/);
+    assert.match(key, /data-testid="fo-ci-v2-record-key"/);
+    assert.match(key, /data-testid="fo-ci-v2-key-waiver-reason"/);
+    assert.match(key, /data-testid="fo-ci-v2-key-state"/);
+    assert.doesNotMatch(key, /FoCheckInStepper/);
   });
 });

@@ -7,7 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   AlertTriangle,
@@ -91,6 +91,11 @@ import {
   type RackGroupBy,
 } from "@/packages/pms/lib/front-office-shell";
 import {
+  foRackCheckedInStay,
+  foRackConfirmedAssignedStay,
+  type FoRackInHouseTarget,
+} from "@/packages/pms/lib/fo-check-in-workspace";
+import {
   NO_STAYS_MATCH_FILTERS,
   RACK_LOAD_FAILED,
   badgeDisplayMode,
@@ -119,6 +124,7 @@ import { addDays, formatStayDate } from "@/packages/pms/lib/reservation-dates";
 import { cn } from "@/shared/lib/utils";
 import { deriveOpsStrip, type FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
 import { listFoExceptionFeeds } from "@/packages/pms/lib/fo-exceptions.functions";
+import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
 
 type Viewport = "phone" | "wide";
 
@@ -133,6 +139,7 @@ export function RoomRackCalendar({
   initialFocusDate,
   initialGroup = "none",
   onSelectStay,
+  onSelectInHouse,
   onSelectRoom,
   onRackSearchChange,
   onWalkIn,
@@ -145,6 +152,7 @@ export function RoomRackCalendar({
   initialFocusDate?: string;
   initialGroup?: RackGroupBy;
   onSelectStay: (stay: FrontOfficeStay) => void;
+  onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onSelectRoom: (roomId: string) => void;
   onRackSearchChange?: (next: {
     horizon: CalendarHorizon;
@@ -167,6 +175,7 @@ export function RoomRackCalendar({
         }
       : EMPTY_RACK_FILTERS,
   );
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState<RackConfirmDraft | null>(null);
   const [preview, setPreview] = useState<RackConfirmDraft | null>(null);
 
@@ -199,6 +208,7 @@ export function RoomRackCalendar({
   const occupancyQuery = useQuery({
     queryKey: ["front-office", "occupancy", restaurantId],
     queryFn: () => fetchOccupancy({ data: { restaurantId } }),
+    ...foOperationalQueryOptions(),
     retry: false,
   });
   const reservationsQuery = useQuery({
@@ -212,21 +222,25 @@ export function RoomRackCalendar({
         pageSize,
       ),
     enabled: liveHorizon,
+    ...foOperationalQueryOptions(),
     retry: false,
   });
   const dashboardQuery = useQuery({
     queryKey: ["front-office", "dashboard", restaurantId, today],
     queryFn: () => fetchDashboard({ data: { restaurantId, today } }),
+    ...foOperationalQueryOptions(),
     retry: false,
   });
   const hkQuery = useQuery({
     queryKey: ["front-office", "hk-status-feed", restaurantId],
     queryFn: () => fetchHk({ data: { restaurantId } }),
+    ...foOperationalQueryOptions(),
     retry: false,
   });
   const feedsQuery = useQuery({
     queryKey: ["front-office", "exception-feeds", restaurantId, today],
     queryFn: () => fetchFeeds({ data: { restaurantId, businessDate: today } }),
+    ...foOperationalQueryOptions(),
     retry: false,
   });
 
@@ -330,6 +344,16 @@ export function RoomRackCalendar({
         <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
           <Button variant="outline" size="sm" className="h-9" onClick={() => setFocusDate(today)}>
             Today
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9"
+            data-testid="fo-rack-refresh"
+            onClick={() => void queryClient.invalidateQueries({ queryKey: ["front-office"] })}
+          >
+            Refresh
           </Button>
           <Button
             variant="outline"
@@ -439,6 +463,7 @@ export function RoomRackCalendar({
           onGroupBy={setGroupBy}
           openDiscrepancyRoomIds={openDiscrepancyRoomIds}
           onSelectStay={onSelectStay}
+          onSelectInHouse={onSelectInHouse}
           onSelectRoom={onSelectRoom}
         />
       ) : (
@@ -456,6 +481,7 @@ export function RoomRackCalendar({
           openDiscrepancyRoomIds={openDiscrepancyRoomIds}
           highlightRoomId={rackFocus?.roomId ?? null}
           onSelectStay={onSelectStay}
+          onSelectInHouse={onSelectInHouse}
           onSelectRoom={onSelectRoom}
           onPreview={setPreview}
           onOpenConfirm={openConfirm}
@@ -853,6 +879,55 @@ function RackGroupSelect({
   );
 }
 
+function inHouseTargetForRoom(
+  room: OccupancyRoom,
+  stays: readonly ReservationDetail[],
+): FoRackInHouseTarget | null {
+  return foRackCheckedInStay({
+    roomId: room.id,
+    stays,
+    occupied: room.reservationId
+      ? {
+          reservationId: room.reservationId,
+          reservationRoomId: room.reservationRoomId,
+        }
+      : null,
+  });
+}
+
+function selectRackStay(
+  stay: ReservationDetail,
+  room: OccupancyRoom | null,
+  businessDate: string,
+  onSelectStay: (stay: FrontOfficeStay) => void,
+  onSelectInHouse: (target: FoRackInHouseTarget) => void,
+) {
+  if (stay.status === "checked_in") {
+    const inHouse = room
+      ? foRackCheckedInStay({
+          roomId: room.id,
+          stays: [stay],
+          occupied:
+            room.reservationId === stay.id
+              ? {
+                  reservationId: room.reservationId,
+                  reservationRoomId: room.reservationRoomId,
+                }
+              : null,
+        })
+      : null;
+    if (inHouse) {
+      onSelectInHouse(inHouse);
+      return;
+    }
+    if (!room || stay.roomId === room.id || stay.roomId == null) {
+      onSelectInHouse({ reservationId: stay.id, reservationRoomId: null });
+      return;
+    }
+  }
+  onSelectStay(stayFromReservation(stay, businessDate));
+}
+
 function CalendarBoard({
   rooms,
   stays,
@@ -867,6 +942,7 @@ function CalendarBoard({
   openDiscrepancyRoomIds,
   highlightRoomId,
   onSelectStay,
+  onSelectInHouse,
   onSelectRoom,
   onPreview,
   onOpenConfirm,
@@ -884,6 +960,7 @@ function CalendarBoard({
   openDiscrepancyRoomIds: Set<string>;
   highlightRoomId: string | null;
   onSelectStay: (stay: FrontOfficeStay) => void;
+  onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onSelectRoom: (roomId: string) => void;
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenConfirm: (next: RackConfirmDraft) => void;
@@ -1031,6 +1108,7 @@ function CalendarBoard({
             showDrag={showDrag}
             preview={preview}
             onSelectStay={onSelectStay}
+            onSelectInHouse={onSelectInHouse}
             onPreview={onPreview}
             onOpenDateConfirm={openDateConfirm}
           />
@@ -1063,6 +1141,7 @@ function CalendarBoard({
                 hasOpenDiscrepancy={openDiscrepancyRoomIds.has(room.id)}
                 highlight={highlightRoomId === room.id}
                 onSelectStay={onSelectStay}
+                onSelectInHouse={onSelectInHouse}
                 onSelectRoom={onSelectRoom}
                 onDropStay={(id) => dropOnRoom(id, room)}
                 onPreview={onPreview}
@@ -1085,6 +1164,7 @@ function UnassignedRow({
   showDrag,
   preview,
   onSelectStay,
+  onSelectInHouse,
   onPreview,
   onOpenDateConfirm,
 }: {
@@ -1096,6 +1176,7 @@ function UnassignedRow({
   showDrag: boolean;
   preview: RackConfirmDraft | null;
   onSelectStay: (stay: FrontOfficeStay) => void;
+  onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenDateConfirm: (stay: ReservationDetail, arrival: string, departure: string) => void;
 }) {
@@ -1123,12 +1204,14 @@ function UnassignedRow({
       >
         <BarTrack
           stays={stays}
+          room={null}
           focusDate={focusDate}
           days={days}
           colMin={colMin}
           showDrag={showDrag}
           preview={preview}
           onSelectStay={onSelectStay}
+          onSelectInHouse={onSelectInHouse}
           onPreview={onPreview}
           onOpenDateConfirm={onOpenDateConfirm}
         />
@@ -1151,6 +1234,7 @@ function RoomRow({
   hasOpenDiscrepancy,
   highlight,
   onSelectStay,
+  onSelectInHouse,
   onSelectRoom,
   onDropStay,
   onPreview,
@@ -1169,6 +1253,7 @@ function RoomRow({
   hasOpenDiscrepancy: boolean;
   highlight: boolean;
   onSelectStay: (stay: FrontOfficeStay) => void;
+  onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onSelectRoom: (roomId: string) => void;
   onDropStay: (reservationId: string) => void;
   onPreview: (next: RackConfirmDraft | null) => void;
@@ -1210,7 +1295,19 @@ function RoomRow({
           type="button"
           className="inline-flex max-w-full items-center text-left font-medium"
           data-testid="fo-room-identity"
-          onClick={() => onSelectRoom(room.id)}
+          onClick={() => {
+            const inHouse = inHouseTargetForRoom(room, stays);
+            if (inHouse) {
+              onSelectInHouse(inHouse);
+              return;
+            }
+            const confirmed = foRackConfirmedAssignedStay(stays);
+            if (confirmed) {
+              onSelectStay(stayFromReservation(confirmed, confirmed.arrivalDate));
+              return;
+            }
+            onSelectRoom(room.id);
+          }}
         >
           {room.roomNumber}
         </button>
@@ -1279,6 +1376,7 @@ function RoomRow({
         </div>
         <BarTrack
           stays={stays}
+          room={room}
           focusDate={focusDate}
           days={days}
           colMin={colMin}
@@ -1286,6 +1384,7 @@ function RoomRow({
           preview={preview}
           hasOpenDiscrepancy={hasOpenDiscrepancy}
           onSelectStay={onSelectStay}
+          onSelectInHouse={onSelectInHouse}
           onPreview={onPreview}
           onOpenDateConfirm={onOpenDateConfirm}
         />
@@ -1296,6 +1395,7 @@ function RoomRow({
 
 function BarTrack({
   stays,
+  room,
   focusDate,
   days,
   colMin,
@@ -1303,10 +1403,12 @@ function BarTrack({
   preview,
   hasOpenDiscrepancy = false,
   onSelectStay,
+  onSelectInHouse,
   onPreview,
   onOpenDateConfirm,
 }: {
   stays: ReservationDetail[];
+  room: OccupancyRoom | null;
   focusDate: string;
   days: number;
   colMin: number;
@@ -1314,6 +1416,7 @@ function BarTrack({
   preview: RackConfirmDraft | null;
   hasOpenDiscrepancy?: boolean;
   onSelectStay: (stay: FrontOfficeStay) => void;
+  onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenDateConfirm: (stay: ReservationDetail, arrival: string, departure: string) => void;
 }) {
@@ -1335,7 +1438,9 @@ function BarTrack({
             days={days}
             focusDate={focusDate}
             showDrag={showDrag}
-            onSelectStay={onSelectStay}
+            onOpen={(selected) =>
+              selectRackStay(selected, room, selected.arrivalDate, onSelectStay, onSelectInHouse)
+            }
             onPreviewDates={(arrival, departure) =>
               onPreview({
                 kind: "change_dates",
@@ -1371,7 +1476,7 @@ function ReservationBar({
   focusDate,
   showDrag,
   hasOpenDiscrepancy = false,
-  onSelectStay,
+  onOpen,
   onPreviewDates,
   onCommitDates,
 }: {
@@ -1382,7 +1487,7 @@ function ReservationBar({
   focusDate: string;
   showDrag: boolean;
   hasOpenDiscrepancy?: boolean;
-  onSelectStay: (stay: FrontOfficeStay) => void;
+  onOpen: (stay: ReservationDetail) => void;
   onPreviewDates: (arrival: string, departure: string) => void;
   onCommitDates: (arrival: string, departure: string) => void;
 }) {
@@ -1439,7 +1544,7 @@ function ReservationBar({
             dragged.current = false;
             return;
           }
-          onSelectStay(stayFromReservation(stay, stay.arrivalDate));
+          onOpen(stay);
         }}
       >
         {showDrag ? (
@@ -1556,6 +1661,7 @@ function PhoneRackList({
   onGroupBy,
   openDiscrepancyRoomIds,
   onSelectStay,
+  onSelectInHouse,
   onSelectRoom,
 }: {
   rooms: OccupancyRoom[];
@@ -1566,6 +1672,7 @@ function PhoneRackList({
   onGroupBy: (next: RackGroupBy) => void;
   openDiscrepancyRoomIds: Set<string>;
   onSelectStay: (stay: FrontOfficeStay) => void;
+  onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onSelectRoom: (roomId: string) => void;
 }) {
   const todayStays = stays.filter((s) => s.arrivalDate <= today && s.departureDate > today);
@@ -1597,7 +1704,20 @@ function PhoneRackList({
                     type="button"
                     className="inline-flex items-center gap-1.5 text-left font-medium"
                     data-testid="fo-room-identity"
-                    onClick={() => onSelectRoom(room.id)}
+                    onClick={() => {
+                      const roomStays = todayStays.filter((stay) => stay.roomId === room.id);
+                      const inHouse = inHouseTargetForRoom(room, roomStays);
+                      if (inHouse) {
+                        onSelectInHouse(inHouse);
+                        return;
+                      }
+                      const confirmed = foRackConfirmedAssignedStay(roomStays);
+                      if (confirmed) {
+                        onSelectStay(stayFromReservation(confirmed, today));
+                        return;
+                      }
+                      onSelectRoom(room.id);
+                    }}
                   >
                     <span>{room.roomNumber}</span>
                     <FoHkStatusGlyph status={hk?.housekeepingStatus} />
@@ -1626,7 +1746,12 @@ function PhoneRackList({
               type="button"
               data-testid="fo-phone-stay"
               className="w-full rounded-xl border border-[#DDD4C5] bg-card p-3 text-left"
-              onClick={() => onSelectStay(stayFromReservation(stay, today))}
+              onClick={() => {
+                const room = stay.roomId
+                  ? (rooms.find((row) => row.id === stay.roomId) ?? null)
+                  : null;
+                selectRackStay(stay, room, today, onSelectStay, onSelectInHouse);
+              }}
             >
               <p className="font-medium">{stay.guestName}</p>
               <p className="text-xs text-muted-foreground">

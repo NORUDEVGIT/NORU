@@ -86,6 +86,8 @@ export interface FolioTransactionRow {
   referenceId?: string | null;
   paymentMethod: string | null;
   postedBy: string | null;
+  /** staff when the membership name resolves, system when no actor was stored, unavailable when the id does not resolve. */
+  actorState?: "staff" | "system" | "unavailable";
   originalTransactionId: string | null;
   sourceDescription: string | null;
   taxSnapshot?: Record<string, string | number | boolean | null> | null;
@@ -720,6 +722,11 @@ async function loadGuestFolio(
     referenceId: t.reference_id ?? null,
     paymentMethod: t.payment_method ?? null,
     postedBy: t.posted_by_membership_id ? (names.get(t.posted_by_membership_id) ?? null) : null,
+    actorState: t.posted_by_membership_id
+      ? names.get(t.posted_by_membership_id)
+        ? "staff"
+        : "unavailable"
+      : "system",
     originalTransactionId: t.original_transaction_id ?? null,
     sourceDescription: t.original_transaction_id
       ? (descriptions.get(t.original_transaction_id) ?? null)

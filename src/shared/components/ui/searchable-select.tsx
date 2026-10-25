@@ -20,6 +20,8 @@ export function SearchableSelect({
   onSearchChange,
   allowCustomValue = false,
   shouldFilter = true,
+  popoverClassName,
+  "data-testid": testId,
 }: {
   id: string;
   value: string;
@@ -34,6 +36,8 @@ export function SearchableSelect({
   onSearchChange?: (search: string) => void;
   allowCustomValue?: boolean;
   shouldFilter?: boolean;
+  popoverClassName?: string;
+  "data-testid"?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
@@ -69,6 +73,7 @@ export function SearchableSelect({
       <PopoverTrigger asChild>
         <Button
           id={id}
+          data-testid={testId}
           type="button"
           variant="outline"
           role="combobox"
@@ -81,7 +86,7 @@ export function SearchableSelect({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <PopoverContent className={cn("w-[var(--radix-popover-trigger-width)] p-0 z-[80]", popoverClassName)} align="start">
         <Command shouldFilter={shouldFilter}>
           <CommandInput
             placeholder={searchPlaceholder}

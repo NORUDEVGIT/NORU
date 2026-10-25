@@ -1,11 +1,11 @@
-import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
-import { occupancyExceeded } from "@/packages/pms/lib/fo-amendments";
 import {
-  REVIEW_DASH,
-  REVIEW_ROOM_PREFERENCE_FLAGS,
-} from "@/packages/pms/lib/create-reservation-review";
-import { isStayRangeValid } from "@/packages/pms/lib/create-reservation-phase1";
-import { ROOM_ASSIGNMENT_PREFS } from "@/packages/pms/lib/reservation-detail-rooms";
+  DEFAULT_BOOKING_SOURCES,
+  DEFAULT_MARKET_SEGMENTS,
+  isStayRangeValid,
+} from "@/packages/pms/lib/create-reservation-phase1";
+import { formatStayDate, nightsBetween } from "@/packages/pms/lib/reservation-dates";
+import { occupancyExceeded } from "@/packages/pms/lib/fo-amendments";
+import { REVIEW_DASH } from "@/packages/pms/lib/create-reservation-review";
 import {
   parseDepositRequirementSnapshot,
   snapshotDisplayName,
@@ -20,7 +20,6 @@ export const EDIT_DASH = REVIEW_DASH;
 export const EDIT_NO_CHANGE = "No change";
 export const EDIT_NOT_EVALUATED = "Not evaluated";
 export const EDIT_LOCAL_ONLY = "Not saved on confirm";
-export const EDIT_DRAFT_STORAGE_PREFIX = "noru.edit-reservation.draft.";
 export const EDIT_DRAFT_LOCAL_COPY =
   "Draft saved on this device only. The reservation is not updated until you confirm.";
 export const EDIT_CONFIRM_NEEDS_CHANGE =
@@ -41,8 +40,6 @@ export type ReservationEditDraft = {
   departure: string;
   adults: number;
   children: number;
-  infants: number;
-  rooms: number;
   roomTypeId: string;
   roomTypeName: string;
   roomId: string | null;
@@ -55,17 +52,27 @@ export type ReservationEditDraft = {
   marketSegment: string;
   externalReference: string;
   guaranteeMethod: string;
-  salesChannel: string;
-  purposeOfStay: string;
-  companyName: string;
-  travelAgentName: string;
-  groupName: string;
-  bookerSameAsGuest: boolean;
-  bookerName: string;
-  bookerPhone: string;
-  bookerCompany: string;
-  flexibleDates: boolean;
-  keepRoomUnassigned: boolean;
+  /** Selected hotel_reservation_rooms row. Null until a multi-room stay picks a unit. */
+  reservationRoomId: string | null;
+  unitSequence: number | null;
+  unitCount: number;
+  unitStatus: string | null;
+};
+
+export type ReservationEditUnitSlice = {
+  id: string;
+  unitSequence: number;
+  roomTypeId: string;
+  roomId: string | null;
+  arrivalDate: string;
+  departureDate: string;
+  adults: number;
+  children: number;
+  ratePlanId: string | null;
+  status: string | null;
+  roomTypeName?: string | null;
+  roomNumber?: string | null;
+  ratePlanName?: string | null;
 };
 
 export type EditChangeRow = {
@@ -99,7 +106,17 @@ export function stayDatesLabel(arrival: string, departure: string): string {
   if (!arrival || !departure) return EDIT_DASH;
   const nights = isStayRangeValid(arrival, departure) ? nightsBetween(arrival, departure) : 0;
   const nightLabel = nights === 1 ? "1 night" : `${nights} nights`;
-  return `${arrival} – ${departure} (${nightLabel})`;
+  return `${formatStayDate(arrival)} – ${formatStayDate(departure)} (${nightLabel})`;
+}
+
+function commercialLabel(
+  value: string,
+  options: readonly { value: string; label: string }[],
+): string {
+  const match = options.find((option) => option.value === value);
+  if (match) return match.label;
+  const text = value.replaceAll("_", " ").trim();
+  return text ? text : EDIT_DASH;
 }
 
 export function guestCountLabel(adults: number, children: number, infants?: number | null): string {
@@ -138,43 +155,74 @@ export function packagesLabel(names: string[] | null | undefined): string {
 
 export function draftFromReservation(
   reservation: ReservationDetail,
-  extras?: { bookerName?: string | null; bookerPhone?: string | null },
+  unit?: ReservationEditUnitSlice | null,
 ): ReservationEditDraft {
-  const sameAsGuest =
-    !reservation.bookerGuestId || reservation.bookerGuestId === reservation.guestId;
+  const rooms = reservation.rooms ?? [];
+  const chosen = unit ?? (rooms.length === 1 ? rooms[0] : null);
+  const roomTypeName =
+    chosen?.roomTypeName ??
+    (chosen == null || chosen.roomTypeId === reservation.roomTypeId
+      ? reservation.roomTypeName
+      : "");
+  const roomNumber =
+    chosen?.roomNumber ??
+    (chosen == null || chosen.roomId === reservation.roomId ? reservation.roomNumber : null);
+  const ratePlanName =
+    chosen?.ratePlanName ??
+    (chosen == null || chosen.ratePlanId === reservation.ratePlanId
+      ? reservation.ratePlanName
+      : null);
   return {
     guestId: reservation.guestId,
     guestName: reservation.guestName,
-    arrival: reservation.arrivalDate,
-    departure: reservation.departureDate,
-    adults: reservation.adults,
-    children: reservation.children,
-    infants: reservation.infants ?? 0,
-    rooms: reservation.roomsRequested ?? 1,
-    roomTypeId: reservation.roomTypeId,
-    roomTypeName: reservation.roomTypeName,
-    roomId: reservation.roomId,
-    roomNumber: reservation.roomNumber,
-    ratePlanId: reservation.ratePlanId,
-    ratePlanName: reservation.ratePlanName,
+    arrival: chosen?.arrivalDate ?? reservation.arrivalDate,
+    departure: chosen?.departureDate ?? reservation.departureDate,
+    adults: chosen?.adults ?? reservation.adults,
+    children: chosen?.children ?? reservation.children,
+    roomTypeId: chosen?.roomTypeId ?? reservation.roomTypeId,
+    roomTypeName,
+    roomId: chosen ? chosen.roomId : reservation.roomId,
+    roomNumber,
+    ratePlanId: chosen ? chosen.ratePlanId : reservation.ratePlanId,
+    ratePlanName,
     specialRequests: reservation.specialRequests ?? "",
     notes: reservation.notes ?? "",
     commercialBookingSource: reservation.commercialBookingSource ?? "",
     marketSegment: reservation.marketSegment ?? "",
     externalReference: reservation.externalReference ?? "",
     guaranteeMethod: reservation.guaranteeMethod ?? "",
-    salesChannel: reservation.salesChannel ?? reservation.source ?? "",
-    purposeOfStay: reservation.purposeOfStay ?? "",
-    companyName: reservation.companyName ?? "",
-    travelAgentName: reservation.travelAgentName ?? "",
-    groupName: reservation.groupName ?? "",
-    bookerSameAsGuest: sameAsGuest,
-    bookerName: sameAsGuest ? reservation.guestName : (extras?.bookerName ?? ""),
-    bookerPhone: sameAsGuest ? (reservation.guestPhone ?? "") : (extras?.bookerPhone ?? ""),
-    bookerCompany: "",
-    flexibleDates: false,
-    keepRoomUnassigned: !reservation.roomId,
+    reservationRoomId: chosen?.id ?? null,
+    unitSequence: chosen?.unitSequence ?? null,
+    unitCount: rooms.length > 0 ? rooms.length : 1,
+    unitStatus: chosen?.status ?? reservation.status,
   };
+}
+
+export function editDraftDirty(before: ReservationEditDraft, after: ReservationEditDraft): boolean {
+  return persistableChanges(buildEditChangeRows({ before, after })).length > 0;
+}
+
+/** Dates and occupancy stay on the master priced amend only for a one-unit stay. */
+export function stayEditLocked(draft: ReservationEditDraft): boolean {
+  return draft.unitCount > 1;
+}
+
+export function datesEditLocked(draft: ReservationEditDraft): boolean {
+  if (stayEditLocked(draft)) return true;
+  return draft.unitStatus !== "pending" && draft.unitStatus !== "confirmed";
+}
+
+export function roomTypeEditLocked(draft: ReservationEditDraft): boolean {
+  return draft.unitCount > 1;
+}
+
+export function rateEditLocked(draft: ReservationEditDraft): boolean {
+  return draft.unitCount > 1 && draft.reservationRoomId == null;
+}
+
+export function assignmentEditLocked(draft: ReservationEditDraft): boolean {
+  if (draft.unitStatus === "checked_in") return true;
+  return draft.unitCount > 1 && draft.reservationRoomId == null;
 }
 
 function nightDelta(
@@ -195,16 +243,6 @@ function nightDelta(
   return delta > 0
     ? `+ ${delta} night${delta === 1 ? "" : "s"}`
     : `${delta} night${delta === -1 ? "" : "s"}`;
-}
-
-function moneyDelta(before: string, after: string): string {
-  const beforeNum = Number(String(before).replace(/[^\d.-]/g, ""));
-  const afterNum = Number(String(after).replace(/[^\d.-]/g, ""));
-  if (!Number.isFinite(beforeNum) || !Number.isFinite(afterNum) || beforeNum === afterNum)
-    return "Changed";
-  const delta = afterNum - beforeNum;
-  const abs = Math.abs(delta).toLocaleString();
-  return delta > 0 ? `+ ${abs}` : `− ${abs}`;
 }
 
 function row(
@@ -229,18 +267,9 @@ function row(
 export function buildEditChangeRows(input: {
   before: ReservationEditDraft;
   after: ReservationEditDraft;
-  beforeTotal: string;
-  afterTotal: string;
-  beforeRate: string;
-  afterRate: string;
-  beforePackages: string;
-  afterPackages: string;
-  beforeDeposit: string;
-  afterDeposit: string;
-  beforeCancellation: string;
-  afterCancellation: string;
 }): EditChangeRow[] {
   const { before, after } = input;
+  const guestChanged = before.guestId !== after.guestId;
   return [
     row(
       "Stay Dates",
@@ -258,52 +287,32 @@ export function buildEditChangeRows(input: {
     row("Room Type", dash(before.roomTypeName), dash(after.roomTypeName), true),
     row("Rate Plan", dash(before.ratePlanName), dash(after.ratePlanName), true),
     row(
-      "Room Rate",
-      input.beforeRate,
-      input.afterRate,
-      true,
-      moneyDelta(input.beforeRate, input.afterRate),
-    ),
-    row(
-      "Total Room Amount",
-      input.beforeTotal,
-      input.afterTotal,
-      true,
-      moneyDelta(input.beforeTotal, input.afterTotal),
-    ),
-    row("Packages", input.beforePackages, input.afterPackages, false),
-    row("Deposit / Guarantee", input.beforeDeposit, input.afterDeposit, true),
-    row("Cancellation Policy", input.beforeCancellation, input.afterCancellation, false),
-    row(
       "Guest Count",
-      guestCountLabel(before.adults, before.children, before.infants),
-      guestCountLabel(after.adults, after.children, after.infants),
+      guestCountLabel(before.adults, before.children),
+      guestCountLabel(after.adults, after.children),
       true,
     ),
-    row("Guest", dash(before.guestName), dash(after.guestName), true),
-    row("Source", dash(before.commercialBookingSource), dash(after.commercialBookingSource), true),
-    row("Channel", dash(before.salesChannel), dash(after.salesChannel), false),
-    row("Market Segment", dash(before.marketSegment), dash(after.marketSegment), true),
-    row("Company", dash(before.companyName), dash(after.companyName), false),
-    row("Travel Agent", dash(before.travelAgentName), dash(after.travelAgentName), false),
-    row("Group", dash(before.groupName), dash(after.groupName), false),
-    row("Purpose of Stay", dash(before.purposeOfStay), dash(after.purposeOfStay), false),
+    row(
+      "Guest",
+      dash(before.guestName),
+      guestChanged ? dash(after.guestName) : dash(before.guestName),
+      true,
+    ),
+    row(
+      "Source",
+      commercialLabel(before.commercialBookingSource, DEFAULT_BOOKING_SOURCES),
+      commercialLabel(after.commercialBookingSource, DEFAULT_BOOKING_SOURCES),
+      true,
+    ),
+    row(
+      "Market Segment",
+      commercialLabel(before.marketSegment, DEFAULT_MARKET_SEGMENTS),
+      commercialLabel(after.marketSegment, DEFAULT_MARKET_SEGMENTS),
+      true,
+    ),
     row("External Reference", dash(before.externalReference), dash(after.externalReference), true),
     row("Special Requests", dash(before.specialRequests), dash(after.specialRequests), true),
-    row("Internal Notes", dash(before.notes), dash(after.notes), true),
-    row("Rooms", String(before.rooms), String(after.rooms), false),
-    row(
-      "Flexible Dates",
-      before.flexibleDates ? "Yes" : "No",
-      after.flexibleDates ? "Yes" : "No",
-      false,
-    ),
-    row(
-      "Booking Contact",
-      before.bookerSameAsGuest ? "Same as guest" : dash(before.bookerName),
-      after.bookerSameAsGuest ? "Same as guest" : dash(after.bookerName),
-      false,
-    ),
+    row("Reservation Internal Notes", dash(before.notes), dash(after.notes), true),
   ];
 }
 
@@ -325,6 +334,8 @@ export function buildEditImpactRows(input: {
   roomChanged: boolean;
   ratePlanChanged: boolean;
   stayChanged: boolean;
+  occupancyChanged: boolean;
+  updatedCancellation: string | null;
 }): EditImpactRow[] {
   const availability: EditImpactRow = !input.datesValid
     ? {
@@ -367,94 +378,65 @@ export function buildEditImpactRows(input: {
       ? EDIT_NOT_EVALUATED
       : "Occupancy is within the selected room type.";
 
-  const rate: EditImpactRow =
-    !input.stayChanged && !input.ratePlanChanged
+  const priceChanging = input.stayChanged || input.ratePlanChanged || input.occupancyChanged;
+  const rate: EditImpactRow | null = !priceChanging
+    ? null
+    : !input.quoteLoaded || input.quotedTotal == null
       ? {
           id: "rate",
-          title: "Rate & Revenue",
-          status: "info",
-          detail: "Rate plan and stay dates are unchanged.",
+          title: "Reservation Room Total",
+          status: "unevaluated",
+          detail: "The updated room total is not available yet.",
         }
-      : !input.quoteLoaded || input.quotedTotal == null
-        ? {
-            id: "rate",
-            title: "Rate & Revenue",
-            status: "unevaluated",
-            detail: EDIT_NOT_EVALUATED,
-          }
-        : {
-            id: "rate",
-            title: "Rate & Revenue",
-            status: "ok",
-            detail:
-              input.currentTotal == null
-                ? `Quoted room revenue: ${input.money(input.quotedTotal)}.`
-                : `Quoted room revenue: ${input.money(input.quotedTotal)} (currently ${input.money(input.currentTotal)}).`,
-          };
+      : null;
 
-  const deposit: EditImpactRow = {
-    id: "deposit",
-    title: "Deposit / Guarantee",
-    status: input.stayChanged || input.ratePlanChanged ? "unevaluated" : "info",
-    detail:
-      input.stayChanged || input.ratePlanChanged
-        ? "Deposit is not re-quoted in this workspace."
-        : "No additional deposit evaluated. Existing guarantee is unchanged until confirm.",
-  };
+  const cancellation: EditImpactRow | null = input.ratePlanChanged
+    ? {
+        id: "cancellation",
+        title: "Cancellation Policy",
+        status: "info",
+        detail: input.updatedCancellation
+          ? `Will update to ${input.updatedCancellation}`
+          : "Will update to the selected rate plan policy",
+      }
+    : null;
 
-  const cancellation: EditImpactRow = {
-    id: "cancellation",
-    title: "Cancellation Policy",
-    status: input.ratePlanChanged ? "unevaluated" : "info",
-    detail: input.ratePlanChanged
-      ? "Policy after a rate-plan change is applied by the server on confirm."
-      : "Policy remains the stored snapshot until confirm.",
-  };
-
-  const housekeeping: EditImpactRow = input.assignmentCleared
+  const housekeeping: EditImpactRow | null = input.assignmentCleared
     ? {
         id: "housekeeping",
-        title: "Housekeeping",
+        title: "Room assignment",
         status: "info",
-        detail:
-          "Assigned room will be cleared on confirm. Housekeeping is not notified from this screen.",
+        detail: "The room will be unassigned.",
       }
     : input.roomChanged
       ? {
           id: "housekeeping",
-          title: "Housekeeping",
+          title: "Room assignment",
           status: "info",
-          detail:
-            "Room assignment will change on confirm. Housekeeping is not notified from this screen.",
+          detail: "The assigned room will change.",
         }
-      : {
-          id: "housekeeping",
-          title: "Housekeeping",
-          status: "info",
-          detail: "No room assignment change.",
-        };
+      : null;
 
-  const guestServices: EditImpactRow = {
-    id: "guest-services",
-    title: "Guest Services",
-    status: "unevaluated",
-    detail: "No guest-services impact is evaluated here.",
-  };
+  const occupancy: EditImpactRow | null =
+    input.occupancyBlocked || input.occupancyChanged
+      ? {
+          id: "occupancy",
+          title: "Occupancy",
+          status: input.occupancyBlocked ? "warn" : "ok",
+          detail: occupancyDetail,
+        }
+      : null;
+
+  const showAvailability =
+    input.stayChanged || availability.status === "warn" || availability.status === "unevaluated";
 
   return [
-    availability,
-    {
-      id: "occupancy",
-      title: "Occupancy",
-      status: input.occupancyBlocked ? "warn" : "ok",
-      detail: occupancyDetail,
-    },
+    showAvailability ? availability : null,
+    occupancy,
     rate,
-    deposit,
     cancellation,
     housekeeping,
-    guestServices,
-  ];
+  ].filter((row): row is EditImpactRow => row != null);
 }
 
 export function occupancyIsBlocked(
@@ -481,37 +463,123 @@ export function confirmIsEnabled(input: {
 }
 
 export function buildConfirmNextEvents(input: {
-  stayChanged: boolean;
-  assignmentChanged: boolean;
+  inventoryChanged: boolean;
   rateMayChange: boolean;
+  folioReconciled: boolean;
 }): EditNextEvent[] {
   const events: EditNextEvent[] = [
     {
       id: "updated",
-      title: "Reservation updated in the system",
-      detail: "The amendment writer saved the persistable stay fields.",
+      title: "Reservation updated",
+      detail: "The confirmed reservation details were saved.",
     },
   ];
-  if (input.stayChanged || input.assignmentChanged) {
+  if (input.inventoryChanged) {
     events.push({
       id: "inventory",
-      title: "Room inventory and availability synchronized",
-      detail: "Stay dates, room type, or assignment changed through the existing amendment RPC.",
+      title: "Inventory updated",
+      detail: "Room availability reflects the amended stay.",
     });
   }
   if (input.rateMayChange) {
     events.push({
       id: "rate",
-      title: "Rate and revenue updated",
-      detail: "Server reprice ran as part of the existing amendment action.",
+      title: "Rate updated",
+      detail: "The room rate and reservation room total were recalculated.",
+    });
+  }
+  if (input.folioReconciled) {
+    events.push({
+      id: "folio",
+      title: "Folio reconciled",
+      detail: "The posted room charge was updated to match the amendment.",
     });
   }
   events.push({
     id: "audit",
-    title: "Audit trail recorded",
-    detail: "Reservation history records the amendment.",
+    title: "Audit recorded",
+    detail: "The amendment was added to reservation history.",
   });
   return events;
+}
+
+export type EditRoomTotalImpact = {
+  label: string;
+  previous: number | null;
+  next: number | null;
+  delta: number | null;
+};
+
+/** Difference of two authoritative room totals. Omits a delta when either side is missing. */
+export function roomTotalImpact(input: {
+  label: string;
+  priceChanging: boolean;
+  previousTotal: number | null;
+  quotedTotal: number | null;
+}): EditRoomTotalImpact | null {
+  if (!input.priceChanging) {
+    if (input.previousTotal == null) return null;
+    return {
+      label: input.label,
+      previous: input.previousTotal,
+      next: input.previousTotal,
+      delta: 0,
+    };
+  }
+  if (input.previousTotal == null && input.quotedTotal == null) return null;
+  return {
+    label: input.label,
+    previous: input.previousTotal,
+    next: input.quotedTotal,
+    delta:
+      input.previousTotal == null || input.quotedTotal == null
+        ? null
+        : Math.round((input.quotedTotal - input.previousTotal) * 100) / 100,
+  };
+}
+
+export type EditFolioNotice = {
+  tone: "info" | "warn";
+  detail: string;
+  folioState: string | null;
+};
+
+export function folioReconciliationNotice(input: {
+  commercialChange: boolean;
+  folioStatus: string | null;
+  invoiced: boolean;
+  hasRoomCharge: boolean;
+}): EditFolioNotice | null {
+  if (!input.commercialChange || !input.hasRoomCharge || !input.folioStatus) return null;
+  if (input.invoiced) {
+    return {
+      tone: "warn",
+      folioState: "Invoiced",
+      detail: "This charge is already on an issued invoice, so it cannot be corrected.",
+    };
+  }
+  if (input.folioStatus !== "open") {
+    return {
+      tone: "warn",
+      folioState: "Closed",
+      detail: "This folio is closed. Nothing more can be posted to it.",
+    };
+  }
+  return {
+    tone: "info",
+    folioState: "Open",
+    detail: "An existing posted room charge will be reconciled when this amendment is confirmed.",
+  };
+}
+
+export function affectedRoomLabel(draft: ReservationEditDraft): string | null {
+  const typeName = draft.roomTypeName.trim();
+  const room = draft.roomNumber ? `Room ${draft.roomNumber}` : "Unassigned";
+  if (draft.unitCount > 1) {
+    if (draft.reservationRoomId == null || draft.unitSequence == null) return null;
+    return [`Room ${draft.unitSequence}`, room, typeName].filter(Boolean).join(" · ");
+  }
+  return [room, typeName].filter(Boolean).join(" · ");
 }
 
 export function pickLatestAmendHistory(
@@ -522,40 +590,6 @@ export function pickLatestAmendHistory(
   return amended ?? rows[0] ?? null;
 }
 
-export function requestPrefChecked(specialRequests: string, aliases: readonly string[]): boolean {
-  const hay = specialRequests.toLowerCase();
-  return aliases.some((alias) => hay.includes(alias.toLowerCase()));
-}
-
-export function toggleRequestPref(
-  specialRequests: string,
-  label: string,
-  checked: boolean,
-): string {
-  const lines = specialRequests
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const without = lines.filter((line) => line.toLowerCase() !== label.toLowerCase());
-  if (checked && !without.some((line) => line.toLowerCase() === label.toLowerCase())) {
-    without.push(label);
-  }
-  return without.join("\n");
-}
-
-export const EDIT_PREFERENCE_FLAGS = [
-  ...REVIEW_ROOM_PREFERENCE_FLAGS.map((flag) => ({
-    id: flag.id,
-    label: flag.label,
-    aliases: [flag.label],
-  })),
-  ...ROOM_ASSIGNMENT_PREFS.map((pref) => ({
-    id: pref.id,
-    label: pref.label,
-    aliases: pref.aliases,
-  })),
-];
-
 export function ratePerNightLabel(
   nightlyRates: Array<{ rate: number }> | null | undefined,
   roomSubtotal: number | null | undefined,
@@ -564,29 +598,4 @@ export function ratePerNightLabel(
 ): string {
   const rate = storedRatePerNight(nightlyRates, roomSubtotal, nights);
   return rate == null ? EDIT_DASH : money(rate);
-}
-
-export function sessionDraftKey(reservationId: string): string {
-  return `${EDIT_DRAFT_STORAGE_PREFIX}${reservationId}`;
-}
-
-export function loadSessionDraft(reservationId: string): ReservationEditDraft | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.sessionStorage.getItem(sessionDraftKey(reservationId));
-    if (!raw) return null;
-    return JSON.parse(raw) as ReservationEditDraft;
-  } catch {
-    return null;
-  }
-}
-
-export function saveSessionDraft(reservationId: string, draft: ReservationEditDraft): void {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(sessionDraftKey(reservationId), JSON.stringify(draft));
-}
-
-export function clearSessionDraft(reservationId: string): void {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.removeItem(sessionDraftKey(reservationId));
 }

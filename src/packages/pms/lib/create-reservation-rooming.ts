@@ -17,6 +17,7 @@ export type GroupRoomDraft = {
   infants: number;
   ratePlanId: string | null;
   occupant: RoomOccupantRef | null;
+  pmsGroupBlockId?: string | null;
 };
 
 export type Step1RoomStay = {
@@ -25,6 +26,7 @@ export type Step1RoomStay = {
   children: number;
   infants: number;
   ratePlanId: string | null;
+  pmsGroupBlockId?: string | null;
 };
 
 export type Step1RoomingState = {
@@ -124,6 +126,7 @@ export function addGroupRoom(state: Step1RoomingState, key: string): Step1Roomin
         infants: 0,
         ratePlanId: null,
         occupant: null,
+        pmsGroupBlockId: null,
       },
     ],
     activeRoomIndex: state.extras.length + 1,

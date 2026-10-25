@@ -109,6 +109,8 @@ export const releaseReservationRoomPackage = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         reservationId: idSchema,
         packageRowId: idSchema,
+        reservationRoomId: idSchema,
+        stayScope: z.boolean(),
       })
       .parse(input),
   )
@@ -121,6 +123,8 @@ export const releaseReservationRoomPackage = createServerFn({ method: "POST" })
       _reservation_id: data.reservationId,
       _package_row_id: data.packageRowId,
       _membership_id: me.id,
+      _selected_reservation_room_id: data.reservationRoomId,
+      _stay_scope: data.stayScope,
     });
     if (error) throw reservationError(error.message);
     return { id: data.reservationId };

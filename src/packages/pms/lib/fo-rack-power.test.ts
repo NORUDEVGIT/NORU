@@ -385,6 +385,13 @@ describe("FO-FS5 source locks", () => {
 
     const sheet = readFileSync(new URL("../components/frontoffice/fo-rack-confirm-sheet.tsx", import.meta.url), "utf8");
     assert.match(sheet, /moveReservationRoom/);
+    assert.match(sheet, /Confirm Room Move/);
+    assert.match(sheet, /All move checks passed/);
+    assert.match(sheet, /fo-move-validation-details/);
+    assert.match(sheet, /currentRoomTypeName/);
+    assert.match(sheet, /targetHousekeeping/);
+    assert.match(sheet, /evaluateRackChecks/);
+    assert.doesNotMatch(sheet, /price_hotel_stay/);
     assert.match(sheet, /changeStayDates/);
     assert.match(sheet, /stayDateWriteInput/);
     assert.match(sheet, /canConfirmRackChecks/);

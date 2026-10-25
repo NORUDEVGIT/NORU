@@ -122,6 +122,7 @@ export function ReservationDetailRequestsTab({
   canManage,
   money,
   paymentReceived = null,
+  paymentRefunded = null,
   guestDeposit = null,
   coverUrl,
   onBackToFolio,
@@ -135,6 +136,7 @@ export function ReservationDetailRequestsTab({
   canManage: boolean;
   money: (value: number) => string;
   paymentReceived?: number | null;
+  paymentRefunded?: number | null;
   guestDeposit?: number | null;
   coverUrl: string | null;
   onBackToFolio: () => void;
@@ -490,6 +492,7 @@ export function ReservationDetailRequestsTab({
         <RequestsSummaryRail
           reservation={reservation}
           paymentReceived={paymentReceived}
+          paymentRefunded={paymentRefunded}
           guestDeposit={guestDeposit}
           money={money}
           coverUrl={coverUrl}
@@ -908,6 +911,7 @@ function RequestsSummaryRail({
   coverUrl,
   nights,
   paymentReceived,
+  paymentRefunded,
   guestDeposit,
 }: {
   reservation: ReservationDetail;
@@ -915,6 +919,7 @@ function RequestsSummaryRail({
   coverUrl: string | null;
   nights: number;
   paymentReceived: number | null;
+  paymentRefunded: number | null;
   guestDeposit: number | null;
 }) {
   return (
@@ -925,6 +930,7 @@ function RequestsSummaryRail({
       coverUrl={coverUrl}
       nights={nights}
       paymentReceived={paymentReceived}
+      paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
     />
   );

@@ -3,8 +3,14 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { deskActionHints } from "./desk.server.ts";
-import { quickViewExceptionKeys } from "./quick-view.server.ts";
+import {
+  projectReservationQuickView,
+  quickViewExceptionKeys,
+  signedFolioBalance,
+  type QuickViewRoomUnit,
+} from "./quick-view.server.ts";
 import { operationalRoomState, toReservationOperationalSummary } from "./search.server.ts";
+import type { ReservationOperationalSummary } from "./shared-read-models.ts";
 
 const qv = readFileSync(new URL("./quick-view.server.ts", import.meta.url), "utf8");
 const desk = readFileSync(new URL("./desk.server.ts", import.meta.url), "utf8");
@@ -23,6 +29,10 @@ const base = {
 
 describe("DB-04I-03 Reservation Quick View read model", () => {
   it("scopes reads to restaurantId + reservationId and rejects missing rows", () => {
+    assert.match(
+      qv,
+      /import \{ requireReservationManager, RESERVATION_STATUSES \} from "\.\.\/reservations\.server"/,
+    );
     assert.match(qv, /requireReservationManager/);
     assert.match(qv, /\.eq\("restaurant_id", data\.restaurantId\)/);
     assert.match(qv, /\.eq\("id", data\.reservationId\)/);
@@ -150,7 +160,7 @@ describe("DB-04I-03 Reservation Quick View read model", () => {
     assert.equal(departed.canCheckOut, false);
     assert.match(
       qv,
-      /canOpenFolio: financial\.state === "available" && financial\.folioId !== null/,
+      /canOpenFolio: input\.financial\.state === "available" && input\.financial\.folioId !== null/,
     );
   });
 
@@ -186,5 +196,173 @@ describe("DB-04I-03 Reservation Quick View read model", () => {
     assert.doesNotMatch(qv, /getReservationDesk|listOperationalReservations/);
     assert.doesNotMatch(qv, /check_in_hotel_reservation|setReservationStatus/);
     assert.doesNotMatch(qv, /CREATE_RESERVATION_SECTION7_APPLY/);
+  });
+});
+
+function summary(
+  overrides: Partial<ReservationOperationalSummary> = {},
+): ReservationOperationalSummary {
+  return {
+    reservationId: "00000000-0000-4000-8000-000000000010",
+    confirmationNumber: "NR-000020",
+    arrivalDate: "2026-10-18",
+    departureDate: "2026-10-27",
+    nights: 9,
+    adults: 2,
+    children: 0,
+    status: "confirmed",
+    source: "staff",
+    roomTypeId: "type-header",
+    roomTypeName: "Header type",
+    roomId: "room-1",
+    roomNumber: "101",
+    guestId: "guest-1",
+    guestName: "Ada Lovelace",
+    guestPhone: null,
+    guestEmail: null,
+    guestVip: false,
+    ratePlanId: "rate-1",
+    ratePlanName: "BAR",
+    roomSubtotal: 900,
+    currency: "GBP",
+    companyMasterId: null,
+    companyName: null,
+    travelAgentMasterId: null,
+    travelAgentName: null,
+    groupAccountMasterId: null,
+    groupName: null,
+    commercialBookingSource: null,
+    marketSegment: null,
+    externalReference: null,
+    guaranteeMethod: null,
+    specialRequests: null,
+    notes: null,
+    createdAt: "2026-10-01T00:00:00Z",
+    updatedAt: "2026-10-02T00:00:00Z",
+    ...overrides,
+  };
+}
+
+function viewFor(
+  overrides: Partial<ReservationOperationalSummary> = {},
+  financial?: {
+    state: "available" | "permission_denied" | "not_available";
+    folioId: string | null;
+    folioNumber: string | null;
+    balance: number | null;
+  },
+  unit: QuickViewRoomUnit | null = null,
+) {
+  const row = summary(overrides);
+  return projectReservationQuickView({
+    summary: row,
+    restaurantId: "00000000-0000-4000-8000-000000000001",
+    businessDate: "2026-10-22",
+    generatedAt: "2026-10-22T09:00:00Z",
+    roomState: {
+      operationalStatus: row.roomId ? "available" : null,
+      housekeepingStatus: row.roomId ? "clean" : null,
+      maintenanceStatus: null,
+    },
+    lastHistoryEvent: null,
+    financial: financial ?? {
+      state: "available",
+      folioId: null,
+      folioNumber: null,
+      balance: null,
+    },
+    unit,
+  });
+}
+
+describe("RF-QV01 Quick View read outcomes", () => {
+  it("returns an assigned single-room reservation", () => {
+    const view = viewFor();
+    assert.equal(view.room.assigned, true);
+    assert.equal(view.room.roomNumber, "101");
+    assert.equal(view.selectedUnit, null);
+    assert.equal(view.stay.status, "confirmed");
+  });
+
+  it("returns an unassigned reservation without inventing a room", () => {
+    const view = viewFor({ roomId: null, roomNumber: null });
+    assert.equal(view.room.assigned, false);
+    assert.equal(view.room.roomNumber, null);
+    assert.ok(view.operational.exceptionKeys.includes("unassigned"));
+  });
+
+  it("projects the requested room unit for a multi-room reservation", () => {
+    const view = viewFor(
+      { roomId: null, roomNumber: null, roomTypeName: "Header type" },
+      undefined,
+      {
+        reservationRoomId: "unit-2",
+        unitSequence: 2,
+        roomTypeId: "type-2",
+        roomTypeName: "Twin",
+        roomId: null,
+        roomNumber: null,
+        operationalStatus: null,
+        housekeepingStatus: null,
+        maintenanceStatus: null,
+        arrivalDate: "2026-10-18",
+        departureDate: "2026-10-20",
+        adults: 1,
+        children: 1,
+        status: "confirmed",
+      },
+    );
+    assert.equal(view.selectedUnit?.reservationRoomId, "unit-2");
+    assert.equal(view.selectedUnit?.unitSequence, 2);
+    assert.equal(view.room.roomTypeName, "Twin");
+    assert.equal(view.room.assigned, false);
+    assert.equal(view.stay.adults, 1);
+    assert.equal(view.stay.children, 1);
+    assert.equal(view.stay.nights, 2);
+  });
+
+  it("keeps a reservation with no folio as an available empty financial state", () => {
+    const view = viewFor();
+    assert.equal(view.financial.state, "available");
+    assert.equal(view.financial.folioId, null);
+    assert.equal(view.financial.balance, null);
+    assert.equal(view.actionHints.canOpenFolio, false);
+    assert.equal(view.identity.guestName, "Ada Lovelace");
+  });
+
+  it("keeps folio charges, payments and deposits inside the financial balance", () => {
+    assert.equal(signedFolioBalance([250, -100, -40]), 110);
+    const view = viewFor(undefined, {
+      state: "available",
+      folioId: "folio-1",
+      folioNumber: "F-1",
+      balance: signedFolioBalance([250, -100, -40]),
+    });
+    assert.equal(view.financial.balance, 110);
+    assert.equal(view.actionHints.canOpenFolio, true);
+    assert.equal(view.identity.guestName, "Ada Lovelace");
+  });
+
+  it("still returns Quick View for a checked-out reservation", () => {
+    const view = viewFor({ status: "checked_out", roomId: "room-1", roomNumber: "101" });
+    assert.equal(view.stay.status, "checked_out");
+    assert.equal(view.actionHints.canCheckIn, false);
+    assert.equal(view.actionHints.canCheckOut, false);
+    assert.equal(view.actionHints.canOpen, true);
+  });
+
+  it("keeps Cashiering denial on the financial state", () => {
+    const view = viewFor(undefined, {
+      state: "permission_denied",
+      folioId: null,
+      folioNumber: null,
+      balance: null,
+    });
+    assert.equal(view.financial.state, "permission_denied");
+    assert.equal(view.actionHints.canOpenFolio, false);
+    assert.equal(view.identity.guestName, "Ada Lovelace");
+    assert.equal(view.room.roomNumber, "101");
+    assert.match(qv, /isPermissionDeniedMessage\(error\)/);
+    assert.match(qv, /return \{ state, \.\.\.empty \}/);
   });
 });

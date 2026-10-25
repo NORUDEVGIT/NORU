@@ -1556,6 +1556,9 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         nightAuditWindow: outsideWindowCloseRecord(closeWindow, me.id, new Date().toISOString()),
       };
 
+      const { releaseGroupBlocksPastCutoff } = await import("./groups.functions");
+      await releaseGroupBlocksPastCutoff(supabaseAdmin, me.id, data.restaurantId, runDate);
+
       const { data: closedRow, error } = await supabaseAdmin.rpc("close_business_date", {
         _restaurant_id: data.restaurantId,
         _run_id: run.id,

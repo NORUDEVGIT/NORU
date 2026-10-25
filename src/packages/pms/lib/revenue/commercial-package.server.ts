@@ -8,6 +8,7 @@ import {
   evaluatePackageEligibility,
   evaluateSelectedPackages,
   listEligiblePackageItems,
+  listPackageEligibilityDecisions,
   type AppliedPackageQuoteItem,
   type EligiblePackageListItem,
   type PackageEligibilityContext,
@@ -15,6 +16,13 @@ import {
   type PackageEligibilityResult,
   type PackageMasterRecord,
 } from "./commercial-package.ts";
+import {
+  finalizeUnitPackageEligibility,
+  managementPackagesForUnit,
+  reservationUnitPackageLabel,
+  unitPackageCommercialTotals,
+  type ReservationUnitPackageRead,
+} from "../reservation-detail-packages.ts";
 import type { ReservationPromotionAttributionRow } from "./commercial-promotion.server.ts";
 import { isMissingSchemaError } from "../pms-set2-structure";
 import { roomUnitAttributionLabel } from "../reservation-room-units";
@@ -345,5 +353,143 @@ export async function getReservationCommercialAttribution(
       roomSubtotalAfterPromotion == null
         ? null
         : Math.round((roomSubtotalAfterPromotion + packagesSubtotal + Number.EPSILON) * 100) / 100,
+  };
+}
+
+/**
+ * Packages for one room unit. Stay-scoped rows stay on the list and are labeled.
+ * Sibling-unit rows are left out. Totals are stored snapshots, not room or folio money.
+ */
+export async function getReservationUnitPackageRead(
+  db: DbClient,
+  input: { restaurantId: string; reservationId: string; reservationRoomId: string },
+): Promise<ReservationUnitPackageRead> {
+  const unitResult = await db
+    .from("hotel_reservation_rooms")
+    .select(
+      "id, unit_sequence, room_type_id, rate_plan_id, currency, arrival_date, departure_date, room_id",
+    )
+    .eq("restaurant_id", input.restaurantId)
+    .eq("reservation_id", input.reservationId)
+    .eq("id", input.reservationRoomId)
+    .maybeSingle();
+  if (unitResult.error) throw new Error(unitResult.error.message);
+  const unit = unitResult.data as {
+    id: string;
+    unit_sequence: number | string;
+    room_type_id: string;
+    rate_plan_id: string | null;
+    currency: string | null;
+    arrival_date: string;
+    departure_date: string;
+    room_id: string | null;
+  } | null;
+  if (!unit) throw new Error("ROOM_UNIT_NOT_FOUND");
+
+  const stayResult = await db
+    .from("hotel_reservations")
+    .select("rate_plan_id, arrival_date, departure_date, currency")
+    .eq("restaurant_id", input.restaurantId)
+    .eq("id", input.reservationId)
+    .maybeSingle();
+  if (stayResult.error) throw new Error(stayResult.error.message);
+  const stay = stayResult.data as {
+    rate_plan_id: string | null;
+    arrival_date: string;
+    departure_date: string;
+    currency: string | null;
+  } | null;
+  if (!stay) throw new Error("RESERVATION_NOT_FOUND");
+
+  let roomNumber: string | null = null;
+  if (unit.room_id) {
+    const roomResult = await db
+      .from("hotel_rooms")
+      .select("room_number")
+      .eq("restaurant_id", input.restaurantId)
+      .eq("id", unit.room_id)
+      .maybeSingle();
+    if (roomResult.error) throw new Error(roomResult.error.message);
+    const number = (roomResult.data as { room_number?: string | null } | null)?.room_number;
+    roomNumber = number?.trim() ? number : null;
+  }
+
+  const attributions = await getReservationPackageAttributions(db, input);
+  const currency = String(unit.currency || stay.currency || "ETB");
+  const unitLabel = reservationUnitPackageLabel(Number(unit.unit_sequence), roomNumber);
+  const packages = managementPackagesForUnit({
+    selectedRoomId: unit.id,
+    currency,
+    unitLabel,
+    rows: attributions,
+  });
+  const ratePlanId = unit.rate_plan_id ?? stay.rate_plan_id ?? null;
+  const contexts = await loadPackageEligibilityContexts(db, input.restaurantId);
+  const decisions: Array<{
+    packageId: string;
+    activationId: string | null;
+    status: "ELIGIBLE" | "INELIGIBLE";
+    reasonCode: string;
+    chargeBasis: string;
+    configuredPrice: number | null;
+    code: string;
+    name: string;
+  }> = listPackageEligibilityDecisions(
+    {
+      restaurantId: input.restaurantId,
+      arrivalDate: String(unit.arrival_date || stay.arrival_date).slice(0, 10),
+      departureDate: String(unit.departure_date || stay.departure_date).slice(0, 10),
+      roomTypeId: unit.room_type_id,
+      ratePlanId: ratePlanId ?? "",
+      reservationId: input.reservationId,
+    },
+    contexts,
+  ).map((row) => ({ ...row, configuredPrice: row.configuredPrice }));
+  const covered = new Set(decisions.map((row) => row.packageId));
+  const masters = await db
+    .from("pms_packages")
+    .select("id, code, name, active, charge_basis, package_price")
+    .eq("restaurant_id", input.restaurantId);
+  if (masters.error) throw new Error(masters.error.message);
+  for (const master of (masters.data ?? []) as Array<{
+    id: string;
+    code: string | null;
+    name: string | null;
+    active: boolean | null;
+    charge_basis: string | null;
+    package_price: number | string | null;
+  }>) {
+    if (covered.has(master.id)) continue;
+    const price = master.package_price == null ? null : Number(master.package_price);
+    decisions.push({
+      packageId: master.id,
+      activationId: null,
+      status: "INELIGIBLE",
+      reasonCode: master.active === false ? "PACKAGE_INACTIVE" : "PACKAGE_ACTIVATION_NOT_FOUND",
+      chargeBasis: master.charge_basis ?? "per_stay",
+      configuredPrice: price != null && Number.isFinite(price) ? price : null,
+      code: master.code ?? "",
+      name: master.name ?? "",
+    });
+  }
+  const eligibility = finalizeUnitPackageEligibility({
+    decisions,
+    applied: packages.map((row) => ({
+      packageActivationId: row.packageActivationId,
+      scope: row.scope,
+    })),
+  });
+  const totals = unitPackageCommercialTotals(packages);
+  return {
+    reservationRoomId: unit.id,
+    unitSequence: Number(unit.unit_sequence),
+    unitLabel,
+    roomTypeId: unit.room_type_id,
+    ratePlanId,
+    currency,
+    packages,
+    eligibility,
+    unitPackageTotal: totals.unitPackageTotal,
+    stayPackageTotal: totals.stayPackageTotal,
   };
 }

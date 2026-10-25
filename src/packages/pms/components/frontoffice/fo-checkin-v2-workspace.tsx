@@ -4,7 +4,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   Building2,
@@ -17,13 +16,14 @@ import {
   Mail,
   Phone,
   RefreshCw,
+  Search,
   User,
   Users,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { useMoney } from "@/core/state/property-format";
+import { useMoney, useRestaurantTimezone } from "@/core/state/property-format";
 import {
   ReservationStatusBadge,
   formatStayDate,
@@ -34,6 +34,7 @@ import {
   type CheckInRegistrationHandle,
 } from "@/packages/pms/components/frontoffice/fo-checkin-v2-registration";
 import { FoCheckInV2Payment } from "@/packages/pms/components/frontoffice/fo-checkin-v2-payment";
+import { FoCheckInV2Key } from "@/packages/pms/components/frontoffice/fo-checkin-v2-key";
 import {
   FoCheckInV2Agreement,
   type CheckInAgreementActions,
@@ -44,7 +45,10 @@ import {
   type CheckInReviewActions,
   type CheckInReviewHandle,
 } from "@/packages/pms/components/frontoffice/fo-checkin-v2-review";
-import type { RegistrationDocumentState } from "@/packages/pms/lib/fo-checkin-v2-registration-model";
+import {
+  registrationCompletionProjection,
+  type RegistrationCompletionProjection,
+} from "@/packages/pms/lib/fo-check-in-readiness";
 import type { CheckInPaymentSummary } from "@/packages/pms/lib/fo-checkin-v2-payment-model";
 import type { CheckInAgreementSummary } from "@/packages/pms/lib/fo-checkin-v2-agreement-model";
 import { unitAlreadyCheckedIn } from "@/packages/pms/lib/fo-checkin-v2-review-model";
@@ -56,16 +60,19 @@ import {
   checkInStep1Presentation,
   classifyCheckInUnitFailure,
   guestAddressSummary,
+  projectCheckInStep1Readiness,
+  registrationProgressLabel,
   uniformNightlyAmount,
   type CheckInRoomChip,
   type CheckInV2StepId,
 } from "@/packages/pms/lib/fo-checkin-v2-model";
+import { FO_CHECK_IN_POLL_MS, foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
+import { getCheckInReadiness } from "@/packages/pms/lib/fo-check-in-readiness.functions";
 import {
   getCheckInUnit,
   type CheckInUnitRead,
 } from "@/packages/pms/lib/fo-check-in-unit.functions";
 import type { CheckInSiblingUnit } from "@/packages/pms/lib/fo-check-in-unit";
-import { GUEST_PROFILE_DETAIL_PATH } from "@/packages/pms/lib/guest-profile-wave1";
 import {
   getGuest,
   getGuestStayOverview,
@@ -83,11 +90,24 @@ import {
 import {
   assignReservationRoom,
   getReservation,
+  listCheckInRoomCandidates,
   manageReservationRoomGuest,
+  type CheckInRoomCandidate,
   type ReservationDetail,
 } from "@/packages/pms/lib/reservations.functions";
+import {
+  NO_FOLIO_LABEL,
+  type ReservationCashieringSummary,
+} from "@/packages/pms/lib/reservation-cashiering-summary";
+import { getReservationCashieringSummary } from "@/packages/pms/lib/fo-check-in.functions";
+import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/shared/components/ui/popover";
 import {
   Sheet,
   SheetContent,
@@ -100,6 +120,20 @@ import { cn } from "@/shared/lib/utils";
 function moneyText(money: (amount: number) => string, amount: number | null): string | null {
   if (amount == null) return null;
   return money(amount);
+}
+
+function ledgerFigure(amount: number | null | undefined, money: (value: number) => string): string {
+  if (amount === undefined) return "—";
+  if (amount === null) return NO_FOLIO_LABEL;
+  return money(amount);
+}
+
+function physicalRoomLabel(status: string | null): string {
+  if (status === "available") return "Physically available";
+  if (status === "out_of_order") return "Out of order";
+  if (status === "out_of_service") return "Out of service";
+  if (!status) return "Physical status unavailable";
+  return status.replaceAll("_", " ");
 }
 
 function expectedArrivalLabel(value: string | null): string | null {
@@ -303,28 +337,92 @@ function ChooseRoomScreen({
   );
 }
 
+function CheckInFinanceLines({
+  summary,
+  pending,
+  money,
+}: {
+  summary: ReservationCashieringSummary | null;
+  pending: boolean;
+  money: (value: number) => string;
+}) {
+  if (pending || !summary) {
+    return <p className="text-xs text-[#6B5E4E]">Loading folio…</p>;
+  }
+  const outstanding =
+    summary.depositRequired == null
+      ? null
+      : Math.max(0, (summary.depositRequired ?? 0) - (summary.depositReceived ?? 0));
+  const rows: Array<[string, string]> = [
+    ["Payment received", ledgerFigure(summary.paymentReceived, money)],
+    ["Deposit required", summary.depositRequired == null ? "—" : money(summary.depositRequired)],
+    ["Deposit received", ledgerFigure(summary.depositReceived, money)],
+    ["Outstanding", outstanding == null ? "—" : money(outstanding)],
+    ...(summary.refunded ? [["Refunded", ledgerFigure(summary.refunded, money)] as [string, string]] : []),
+    ["Folio balance", ledgerFigure(summary.folioBalance, money)],
+  ];
+  return (
+    <dl data-testid="fo-ci-v2-finance">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex items-center justify-between gap-3 py-0.5 text-xs">
+          <dt className="text-[#6B5E4E]">{label}</dt>
+          <dd className="font-medium text-[#251605]">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function CheckInFinanceSection({
+  summary,
+  pending,
+  money,
+}: {
+  summary: ReservationCashieringSummary | null;
+  pending: boolean;
+  money: (value: number) => string;
+}) {
+  return (
+    <SectionCard
+      title="Payment & Deposit"
+      icon={<Building2 className="size-3.5" />}
+      testId="fo-ci-v2-finance-section"
+    >
+      <CheckInFinanceLines summary={summary} pending={pending} money={money} />
+      <p className="mt-2 text-xs text-[#6B5E4E]">
+        Deposit required is the reservation requirement. Received amounts come from the folio.
+        {summary && summary.folioBalance == null ? " No folio is open." : ""}
+      </p>
+    </SectionCard>
+  );
+}
+
 function CheckInSummaryColumn({
   unit,
   profileNumber,
   money,
   currentStep,
-  registrationStatus,
+  registrationCompletion,
   depositSummary,
   agreementSummary,
   checkedIn,
   confirmationNumber,
   roomReadiness,
+  cashiering,
+  cashieringPending,
 }: {
   unit: CheckInUnitRead;
   profileNumber: string | null;
   money: (amount: number) => string;
   currentStep: CheckInV2StepId;
-  registrationStatus: RegistrationDocumentState | null;
+  registrationCompletion: RegistrationCompletionProjection | null;
   depositSummary: CheckInPaymentSummary | null;
   agreementSummary: CheckInAgreementSummary | null;
   checkedIn: boolean;
   confirmationNumber: string | null;
   roomReadiness: string | null;
+  cashiering: ReservationCashieringSummary | null;
+  cashieringPending: boolean;
 }) {
   const view = checkInStep1Presentation(unit);
   const charge = moneyText(money, unit.subtotal);
@@ -403,21 +501,22 @@ function CheckInSummaryColumn({
           Rate Plan
         </p>
         <p className="text-sm font-medium text-[#251605]">{unit.ratePlanName ?? "—"}</p>
-        {charge ? <p className="text-xs text-[#6B5E4E]">{charge} room charge</p> : null}
+        {charge ? <p className="text-xs text-[#6B5E4E]">{charge} unit subtotal</p> : null}
       </div>
-      {registrationStatus ? (
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-            Registration
+      <CheckInFinanceLines summary={cashiering} pending={cashieringPending} money={money} />
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
+          Registration
+        </p>
+        <p className="text-sm font-medium text-[#251605]" data-testid="fo-ci-v2-registration-status">
+          {registrationCompletion?.label ?? "—"}
+        </p>
+        {registrationCompletion?.detail ? (
+          <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-registration-detail">
+            {registrationCompletion.detail}
           </p>
-          <p
-            className="text-sm font-medium text-[#251605]"
-            data-testid="fo-ci-v2-registration-status"
-          >
-            {registrationStatus.summary}
-          </p>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
       {depositSummary ? (
         <div data-testid="fo-ci-v2-summary-deposit">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
@@ -462,19 +561,29 @@ function CheckInSummaryColumn({
         {CHECKIN_V2_STEPS.map((step) => {
           const stepIndex = CHECKIN_V2_STEPS.findIndex((item) => item.id === step.id);
           const currentIndex = CHECKIN_V2_STEPS.findIndex((item) => item.id === currentStep);
+          const registrationLabel =
+            step.id === "registration"
+              ? registrationProgressLabel({
+                  current: step.id === currentStep,
+                  visited: stepIndex < currentIndex,
+                  completion: registrationCompletion,
+                })
+              : null;
           const backendDone =
-            (step.id === "registration" && view.registrationComplete) ||
             (step.id === "payment_guarantee" && view.paymentRecorded) ||
             (step.id === "review_checkin" && view.reviewComplete);
           const agreementDone =
             step.id === "agreement_signature" && agreementSummary?.status === "Signed";
           const reviewDone = step.id === "review_checkin" && (checkedIn || view.reviewComplete);
           const completed =
-            stepIndex < currentIndex ||
-            agreementDone ||
-            reviewDone ||
-            (backendDone && step.id !== currentStep);
-          const current = step.id === currentStep && !agreementDone && !reviewDone;
+            registrationLabel === "Completed" ||
+            (step.id !== "registration" &&
+              (stepIndex < currentIndex ||
+                agreementDone ||
+                reviewDone ||
+                (backendDone && step.id !== currentStep)));
+          const current =
+            step.id === currentStep && !agreementDone && !reviewDone && !completed;
           return (
             <div
               key={step.id}
@@ -502,7 +611,8 @@ function CheckInSummaryColumn({
                   className="mt-0.5 block text-[10px] font-medium"
                   data-testid={`fo-ci-v2-progress-label-${step.id}`}
                 >
-                  {current ? "In progress" : completed ? "Completed" : "Pending"}
+                  {registrationLabel ??
+                    (current ? "In progress" : completed ? "Completed" : "Pending")}
                 </span>
               </span>
               {completed && !current ? (
@@ -536,6 +646,7 @@ function GuestInformationSection({
     queryKey: ["fo-ci-v2-guest", restaurantId, view.guestId],
     queryFn: () => fetchGuest({ data: { restaurantId, guestId: view.guestId } }),
     enabled: Boolean(view.guestId),
+    ...foOperationalQueryOptions(FO_CHECK_IN_POLL_MS),
     retry: false,
   });
   const stayQuery = useQuery({
@@ -566,31 +677,16 @@ function GuestInformationSection({
       icon={<User className="size-3.5" />}
       testId="fo-ci-v2-guest-info"
       actions={
-        <>
-          {view.guestId ? (
-            <Button
-              size="sm"
-              variant="outline"
-              asChild
-              className="h-8 text-xs"
-              data-testid="fo-ci-v2-view-guest-profile"
-            >
-              <Link to={GUEST_PROFILE_DETAIL_PATH} params={{ guestId: view.guestId }}>
-                View Guest Profile
-              </Link>
-            </Button>
-          ) : null}
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs"
-            disabled={!guest}
-            onClick={() => setEditOpen(true)}
-            data-testid="fo-ci-v2-edit-guest-details"
-          >
-            Edit Guest Details
-          </Button>
-        </>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs"
+          disabled={!guest}
+          onClick={() => setEditOpen(true)}
+          data-testid="fo-ci-v2-edit-guest-details"
+        >
+          Edit Guest Details
+        </Button>
       }
     >
       {guest ? (
@@ -698,11 +794,8 @@ function ReservationDetailsSection({
             value={<span data-testid="fo-ci-v2-confirmation">{number}</span>}
           />
         ) : null}
-        {unit.status ? (
-          <FieldRow
-            label="Status"
-            value={<ReservationStatusBadge status={unit.status as never} />}
-          />
+        {reservation?.status ? (
+          <FieldRow label="Status" value={<ReservationStatusBadge status={reservation.status} />} />
         ) : null}
         {source ? <FieldRow label="Booking Source" value={source} /> : null}
         <FieldRow label="Arrival" value={formatStayDate(unit.arrivalDate)} />
@@ -713,7 +806,7 @@ function ReservationDetailsSection({
         {nightlyText ? <FieldRow label="Nightly Amount" value={nightlyText} /> : null}
         {charge ? (
           <FieldRow
-            label="Room Charge"
+            label="Unit Subtotal"
             value={<span data-testid="fo-ci-v2-subtotal">{charge}</span>}
           />
         ) : null}
@@ -772,17 +865,45 @@ function RoomAssignmentSection({
   restaurantId,
   reservationId,
   unit,
-  reservation,
+  assignmentNotes,
   onChanged,
 }: {
   restaurantId: string;
   reservationId: string;
   unit: CheckInUnitRead;
-  reservation: ReservationDetail | null;
+  assignmentNotes: string | null;
   onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const assign = useServerFn(assignReservationRoom);
+  const fetchCandidates = useServerFn(listCheckInRoomCandidates);
+  const candidateQuery = useQuery({
+    queryKey: [
+      "fo-ci-v2-room-candidates",
+      restaurantId,
+      reservationId,
+      unit.roomTypeId,
+      unit.arrivalDate,
+      unit.departureDate,
+      unit.adults,
+      unit.children,
+    ],
+    queryFn: () =>
+      fetchCandidates({
+        data: {
+          restaurantId,
+          roomTypeId: unit.roomTypeId,
+          arrival: unit.arrivalDate,
+          departure: unit.departureDate,
+          excludeReservationId: reservationId,
+          adults: unit.adults,
+          children: unit.children,
+        },
+      }),
+    enabled: Boolean(unit.roomTypeId),
+    retry: false,
+  });
   const mutation = useMutation({
     mutationFn: (roomId: string) =>
       assign({
@@ -797,50 +918,125 @@ function RoomAssignmentSection({
       toast.success("Room assignment saved.");
       setOpen(false);
       onChanged();
+      void candidateQuery.refetch();
     },
     onError: (error: Error) => toast.error(error.message),
   });
-  const matched = unit.roomId
-    ? (unit.assignableRooms.find((room) => room.id === unit.roomId) ?? null)
+  const candidates = candidateQuery.data ?? [];
+  const assigned = unit.roomId
+    ? (candidates.find((room) => room.id === unit.roomId) ?? null)
     : null;
-  const sameRoom = Boolean(
-    reservation?.roomId && unit.roomId && reservation.roomId === unit.roomId,
-  );
   const readiness = checkInRoomReadiness({
     roomId: unit.roomId,
-    display: unit.display,
-    assignedRoom: matched
+    display: assigned ? [{ id: assigned.id, eligible: assigned.eligible }] : [],
+    assignedRoom: assigned
       ? {
-          floor: matched.floor,
-          building: matched.building,
-          housekeepingStatus:
-            matched.housekeepingStatus ??
-            (sameRoom ? (reservation?.housekeepingStatus ?? null) : null),
+          floor: assigned.floor,
+          building: assigned.building,
+          housekeepingStatus: assigned.housekeepingStatus,
         }
-      : sameRoom
-        ? {
-            floor: null,
-            building: null,
-            housekeepingStatus: reservation?.housekeepingStatus ?? null,
-          }
-        : null,
-    operationalStatus: sameRoom ? (reservation?.roomOperationalStatus ?? null) : null,
+      : null,
+    readyForCheckIn: assigned?.readyForCheckIn ?? null,
   });
+
+  // Filter presentation of rooms:
+  // List only rooms that are currently eligible and ready for check-in.
+  // The normal list should not show dirty, OOS, blocked, or ineligible rooms.
+  const eligibleRooms = candidates.filter((room) => {
+    if (!room.eligible || !room.readyForCheckIn) return false;
+    const hk = (room.housekeepingStatus ?? "").toLowerCase();
+    if (hk === "dirty") return false;
+    const ms = (room.maintenanceStatus ?? "").toLowerCase();
+    if (ms === "out_of_service" || ms === "oos" || ms === "out_of_order" || ms === "ooo") return false;
+    const phys = (room.physicalStatus ?? "").toLowerCase();
+    if (phys === "out_of_service" || phys === "oos" || phys === "blocked") return false;
+    return true;
+  });
+
+  const alternativeRooms = eligibleRooms.filter((room) => room.id !== unit.roomId);
+  const query = search.trim().toLowerCase();
+  const filteredAlternatives = query
+    ? alternativeRooms.filter((room) => room.roomNumber.toLowerCase().includes(query))
+    : alternativeRooms;
+
   return (
     <SectionCard
       title="Room Assignment"
       icon={<Home className="size-3.5" />}
       testId="fo-ci-v2-room-assignment"
       actions={
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 text-xs"
-          onClick={() => setOpen((value) => !value)}
-          data-testid="fo-ci-v2-change-room"
-        >
-          {unit.roomId ? "Change Room" : "Assign Room"}
-        </Button>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              data-testid="fo-ci-v2-change-room"
+            >
+              {unit.roomId ? "Change Room" : "Assign Room"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            className="w-80 p-3 z-[80] bg-white rounded-xl border border-[#DDD4C5] shadow-xl space-y-2.5"
+            data-testid="fo-ci-v2-change-room-dialog"
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+                Eligible Rooms
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 px-1.5 text-[11px] text-[#8A641A]"
+                onClick={() => void candidateQuery.refetch()}
+              >
+                Refresh
+              </Button>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 size-3.5 text-[#6B5E4E]" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search room number"
+                className="h-8 pl-8 text-xs rounded-[6px] border-[#CCCCCC]"
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto space-y-1.5 pr-0.5">
+              {candidateQuery.isLoading ? (
+                <p className="py-4 text-center text-xs text-[#6B5E4E]">Loading rooms…</p>
+              ) : filteredAlternatives.length === 0 ? (
+                <div className="py-4 text-center space-y-2">
+                  <p className="text-xs text-[#6B5E4E]">
+                    No other rooms are currently ready and eligible for check-in.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => void candidateQuery.refetch()}
+                  >
+                    Refresh rooms
+                  </Button>
+                </div>
+              ) : (
+                filteredAlternatives.map((room) => (
+                  <RoomCandidateButton
+                    key={room.id}
+                    room={room}
+                    roomTypeName={unit.roomTypeName}
+                    pending={mutation.isPending}
+                    current={room.id === unit.roomId}
+                    onSelect={() => mutation.mutate(room.id)}
+                  />
+                ))
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
       }
     >
       {unit.roomNumber ? (
@@ -852,8 +1048,14 @@ function RoomAssignmentSection({
           {readiness.floor || readiness.building ? (
             <p className="text-xs text-[#6B5E4E]">
               {readiness.floor ? `Floor ${readiness.floor}` : ""}
-              {readiness.floor && readiness.building ? " \u00b7 " : ""}
+              {readiness.floor && readiness.building ? " · " : ""}
               {readiness.building ? `Building ${readiness.building}` : ""}
+            </p>
+          ) : null}
+          {assigned ? (
+            <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-room-physical">
+              {physicalRoomLabel(assigned.physicalStatus)}
+              {assigned.housekeepingStatus ? ` · Housekeeping ${assigned.housekeepingStatus}` : ""}
             </p>
           ) : null}
           {readiness.chips.length > 0 ? (
@@ -867,6 +1069,19 @@ function RoomAssignmentSection({
               Room status unavailable.
             </p>
           ) : null}
+          {assigned && !assigned.eligible && assigned.ineligibilityReason ? (
+            <p className="text-sm text-[#8B6914]">{assigned.ineligibilityReason}</p>
+          ) : null}
+          {assigned && !assigned.readyForCheckIn && assigned.readyReason ? (
+            <p className="text-sm text-[#8B6914]" data-testid="fo-ci-v2-room-ready-reason">
+              {assigned.readyReason}
+            </p>
+          ) : null}
+          {assignmentNotes ? (
+            <p className="text-sm text-[#251605]" data-testid="fo-ci-v2-unit-notes">
+              Assignment notes: {assignmentNotes}
+            </p>
+          ) : null}
         </div>
       ) : (
         <div
@@ -875,39 +1090,62 @@ function RoomAssignmentSection({
         >
           <p className="text-sm font-semibold text-[#8B6914]">No room assigned</p>
           <p className="mt-1 text-xs text-[#6B5E4E]">
-            Assign a room from the eligible rooms for this stay.
+            Assign a room of this room type. Assignable and not-ready rooms are listed separately.
           </p>
         </div>
       )}
-      {open ? (
-        <div className="mt-3 space-y-2" data-testid="fo-ci-v2-change-room-dialog">
-          {unit.assignableRooms.length === 0 ? (
-            <p className="text-sm text-[#6B5E4E]">
-              No eligible rooms are available for these dates.
-            </p>
-          ) : (
-            unit.assignableRooms.map((room) => (
-              <Button
-                key={room.id}
-                type="button"
-                variant="outline"
-                className="h-auto w-full justify-between px-3 py-2"
-                disabled={mutation.isPending || room.id === unit.roomId}
-                onClick={() => mutation.mutate(room.id)}
-                data-testid="fo-ci-v2-assignable-room"
-              >
-                <span>Room {room.roomNumber}</span>
-                <span className="text-xs text-[#6B5E4E]">
-                  {[room.floor ? `Floor ${room.floor}` : null, room.housekeepingStatus]
-                    .filter(Boolean)
-                    .join(" \u00b7 ")}
-                </span>
-              </Button>
-            ))
-          )}
-        </div>
-      ) : null}
     </SectionCard>
+  );
+}
+
+function RoomCandidateButton({
+  room,
+  roomTypeName,
+  pending,
+  current,
+  onSelect,
+}: {
+  room: CheckInRoomCandidate;
+  roomTypeName: string | null;
+  pending: boolean;
+  current: boolean;
+  onSelect: () => void;
+}) {
+  const meta = [
+    roomTypeName,
+    room.building ? `Building ${room.building}` : null,
+    room.floor ? `Floor ${room.floor}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className={cn(
+        "h-auto w-full justify-between p-2 text-left rounded-[6px] border-[#E8DFD0] transition-colors hover:border-[#8A641A] hover:bg-[#FBF7F1]",
+        current && "border-[#8A641A] bg-[#C89933]/10",
+      )}
+      disabled={pending || current || !room.eligible}
+      onClick={onSelect}
+      data-testid="fo-ci-v2-assignable-room"
+      data-eligible={room.eligible ? "true" : "false"}
+      data-ready={room.readyForCheckIn ? "true" : "false"}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="font-semibold text-xs text-[#251605]">Room {room.roomNumber}</span>
+          {current ? (
+            <span className="text-[10px] text-[#8A641A] font-medium bg-[#C89933]/20 rounded px-1">
+              Current
+            </span>
+          ) : null}
+        </div>
+        {meta ? <p className="truncate text-[11px] text-[#6B5E4E]">{meta}</p> : null}
+        <p className="text-[10px] text-[#436436] font-medium">Ready for check-in</p>
+      </div>
+    </Button>
   );
 }
 
@@ -927,6 +1165,14 @@ function GuestListSection({
   const [adding, setAdding] = useState(false);
   const mutable = Boolean(view.reservationRoomId) && roomOccupantsMutable(unit.status);
   const atCapacity = view.occupants.length >= roomOccupantCapacity(unit.adults, unit.children);
+  const historical = Boolean(view.reservationRoomId) && !roomOccupantsMutable(unit.status);
+  const addGuestReason = !view.reservationRoomId
+    ? null
+    : historical
+      ? "Guests cannot be changed after this room is cancelled, checked out, or marked no-show."
+      : atCapacity
+        ? "Add Guest is unavailable because named guests already match adults plus children."
+        : null;
   const mutation = useMutation({
     mutationFn: (input: { guestId: string; action: "add" | "remove" | "set_primary" }) => {
       if (!view.reservationRoomId) throw new Error("This stay has no room unit for guest changes.");
@@ -949,7 +1195,7 @@ function GuestListSection({
 
   return (
     <SectionCard
-      title="Guest List for This Stay"
+      title="Guests for This Stay"
       icon={<Users className="size-3.5" />}
       testId="fo-ci-v2-guest-list"
       actions={
@@ -967,12 +1213,55 @@ function GuestListSection({
         ) : undefined
       }
     >
+      {addGuestReason ? (
+        <p className="mb-2 text-sm text-[#6B5E4E]" data-testid="fo-ci-v2-add-guest-disabled">
+          {addGuestReason}
+        </p>
+      ) : null}
       {view.occupants.length === 0 ? (
         <p className="text-sm text-[#6B5E4E]" data-testid="fo-ci-v2-no-occupants">
           {view.legacyNoUnit
             ? "This stay has no separate room guest list."
             : "No named guests on this room yet."}
         </p>
+      ) : view.occupants.length === 1 ? (
+        <div className="space-y-2">
+          <div
+            className="flex items-center justify-between gap-3"
+            data-testid="fo-ci-v2-primary-occupant"
+          >
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-sm text-[#251605]">{view.occupants[0].name}</p>
+                <span className="rounded-full bg-[#C89933]/15 px-2 py-0.5 text-xs font-medium text-[#8B6914]">
+                  Primary Guest
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-[#6B5E4E]">
+                {unit.adults} Adult{unit.adults === 1 ? "" : "s"} · {unit.children} Child{unit.children === 1 ? "" : "ren"}
+              </p>
+            </div>
+            {mutable && !(view.occupants[0].isPrimary && view.occupants.length === 1) ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                disabled={mutation.isPending}
+                onClick={() =>
+                  mutation.mutate({ guestId: view.occupants[0].guestId, action: "remove" })
+                }
+              >
+                Remove Guest
+              </Button>
+            ) : null}
+          </div>
+          {atCapacity ? (
+            <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-capacity-reached">
+              Guest capacity reached.
+            </p>
+          ) : null}
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1017,7 +1306,7 @@ function GuestListSection({
                           Change Primary
                         </Button>
                       ) : null}
-                      {mutable ? (
+                      {mutable && !(occupant.isPrimary && view.occupants.length === 1) ? (
                         <Button
                           type="button"
                           variant="ghost"
@@ -1037,6 +1326,11 @@ function GuestListSection({
               ))}
             </tbody>
           </table>
+          {atCapacity ? (
+            <p className="mt-2 text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-capacity-reached">
+              Guest capacity reached.
+            </p>
+          ) : null}
         </div>
       )}
       {adding && view.reservationRoomId ? (
@@ -1124,6 +1418,76 @@ function AddGuestSearch({
   );
 }
 
+function SpecialRequestsSection({ requests }: { requests?: string | null }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = Boolean(requests && requests.length > 120);
+
+  return (
+    <SectionCard
+      title="Special Requests"
+      icon={<Clock className="size-3.5" />}
+      testId="fo-ci-v2-requests"
+    >
+      {requests ? (
+        <div className="space-y-1">
+          <p
+            className={cn("text-sm text-[#251605]", !expanded && isLong && "line-clamp-2")}
+            data-testid="fo-ci-v2-special-requests"
+          >
+            {requests}
+          </p>
+          {isLong ? (
+            <button
+              type="button"
+              className="text-xs font-medium text-[#8A641A] hover:underline"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? "Show less" : "View all"}
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-sm text-[#6B5E4E]">No special requests.</p>
+      )}
+    </SectionCard>
+  );
+}
+
+function InternalNotesSection({ notes }: { notes?: string | null }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = Boolean(notes && notes.length > 120);
+
+  return (
+    <SectionCard
+      title="Internal Notes"
+      icon={<Clock className="size-3.5" />}
+      testId="fo-ci-v2-internal-notes"
+    >
+      {notes ? (
+        <div className="space-y-1">
+          <p
+            className={cn("text-sm text-[#251605]", !expanded && isLong && "line-clamp-2")}
+            data-testid="fo-ci-v2-internal-note"
+          >
+            {notes}
+          </p>
+          {isLong ? (
+            <button
+              type="button"
+              className="text-xs font-medium text-[#8A641A] hover:underline"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? "Show less" : "View all"}
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-sm text-[#6B5E4E]">No internal notes.</p>
+      )}
+    </SectionCard>
+  );
+}
+
 function PackagesRateSection({
   unit,
   reservation,
@@ -1138,7 +1502,6 @@ function PackagesRateSection({
     view.siblings.length === 0 ? uniformNightlyAmount(reservation?.nightlyRates) : null;
   const nightlyText = moneyText(money, nightly);
   const charge = moneyText(money, unit.subtotal);
-  if (!unit.ratePlanName && unit.packages.length === 0 && !charge && !nightlyText) return null;
   return (
     <SectionCard
       title="Packages & Rate"
@@ -1146,16 +1509,25 @@ function PackagesRateSection({
       testId="fo-ci-v2-packages"
     >
       <dl>
-        {unit.ratePlanName ? <FieldRow label="Rate Plan" value={unit.ratePlanName} /> : null}
+        <FieldRow label="Rate Plan" value={unit.ratePlanName || "BAR — Best Available Rate"} />
         {nightlyText ? <FieldRow label="Nightly Amount" value={nightlyText} /> : null}
-        {charge ? <FieldRow label="Unit Subtotal" value={charge} /> : null}
-        {unit.packages.map((pkg) => (
-          <FieldRow
-            key={pkg.id}
-            label={pkg.packageName}
-            value={moneyText(money, pkg.appliedAmount) ?? "—"}
-          />
-        ))}
+        <FieldRow label="Unit Subtotal" value={charge || "—"} />
+        {unit.packages.length > 0 ? (
+          <>
+            <p className="my-1.5 text-xs text-[#6B5E4E]">
+              Package amounts are reservation snapshots, not posted folio charges.
+            </p>
+            {unit.packages.map((pkg) => (
+              <FieldRow
+                key={pkg.id}
+                label={pkg.packageName}
+                value={moneyText(money, pkg.appliedAmount) ?? "—"}
+              />
+            ))}
+          </>
+        ) : (
+          <FieldRow label="Packages" value="None" />
+        )}
       </dl>
     </SectionCard>
   );
@@ -1223,12 +1595,13 @@ export function FoCheckInV2Workspace({
   const queryClient = useQueryClient();
   const fetchUnit = useServerFn(getCheckInUnit);
   const fetchReservation = useServerFn(getReservation);
+  const fetchReadiness = useServerFn(getCheckInReadiness);
+  const fetchCashiering = useServerFn(getReservationCashieringSummary);
+  const timezone = useRestaurantTimezone();
+  const businessDate = usePropertyBusinessDate(restaurantId, timezone);
   const [step, setStep] = useState<CheckInV2StepId>("guest_reservation");
   const [switchUnitId, setSwitchUnitId] = useState<string | null>(null);
   const [profileNumber, setProfileNumber] = useState<string | null>(null);
-  const [registrationStatus, setRegistrationStatus] = useState<RegistrationDocumentState | null>(
-    null,
-  );
   const [depositSummary, setDepositSummary] = useState<CheckInPaymentSummary | null>(null);
   const [depositSatisfied, setDepositSatisfied] = useState(false);
   const [agreementSummary, setAgreementSummary] = useState<CheckInAgreementSummary | null>(null);
@@ -1297,11 +1670,6 @@ export function FoCheckInV2Workspace({
         : summary,
     );
   }, []);
-  const onRegistrationStatus = useCallback((status: RegistrationDocumentState) => {
-    setRegistrationStatus((current) =>
-      current?.tone === status.tone && current.summary === status.summary ? current : status,
-    );
-  }, []);
   const activeRoomId = switchUnitId ?? reservationRoomId ?? null;
   const reviewScope = `${reservationId}:${activeRoomId ?? "legacy"}`;
   const [reviewScopeSeen, setReviewScopeSeen] = useState(reviewScope);
@@ -1332,12 +1700,37 @@ export function FoCheckInV2Workspace({
         },
       }),
     enabled: open,
+    ...foOperationalQueryOptions(FO_CHECK_IN_POLL_MS),
     retry: false,
   });
   const reservationQuery = useQuery({
     queryKey: ["fo-ci-v2-reservation", restaurantId, reservationId],
     queryFn: () => fetchReservation({ data: { restaurantId, reservationId } }),
     enabled: open && Boolean(unitQuery.data),
+    ...foOperationalQueryOptions(FO_CHECK_IN_POLL_MS),
+    retry: false,
+  });
+  const readinessQuery = useQuery({
+    queryKey: ["fo-ci-v2-readiness", restaurantId, reservationId, activeRoomId],
+    queryFn: () =>
+      fetchReadiness({
+        data: {
+          restaurantId,
+          reservationId,
+          ...(activeRoomId ? { reservationRoomId: activeRoomId } : {}),
+        },
+      }),
+    enabled: open && Boolean(unitQuery.data),
+    refetchOnWindowFocus: "always",
+    refetchInterval: FO_CHECK_IN_POLL_MS,
+    refetchIntervalInBackground: false,
+    retry: false,
+  });
+  const cashieringQuery = useQuery({
+    queryKey: ["fo-ci-v2-cashiering", restaurantId, reservationId],
+    queryFn: () => fetchCashiering({ data: { restaurantId, reservationId } }),
+    enabled: open,
+    ...foOperationalQueryOptions(FO_CHECK_IN_POLL_MS),
     retry: false,
   });
 
@@ -1353,9 +1746,25 @@ export function FoCheckInV2Workspace({
     void queryClient.invalidateQueries({
       queryKey: ["fo-ci-v2-unit", restaurantId, reservationId],
     });
+    void queryClient.invalidateQueries({
+      queryKey: ["fo-ci-v2-cashiering", restaurantId, reservationId],
+    });
   }
 
   const unit = unitQuery.data ?? null;
+  const registrationCompletion = readinessQuery.data
+    ? registrationCompletionProjection({
+        complete: readinessQuery.data.registration.complete,
+        waived: readinessQuery.data.registration.waived,
+        savedSnapshotExists: Boolean(unit?.progress.registrationSnapshot),
+        identitySatisfied:
+          readinessQuery.data.identity.valid &&
+          !readinessQuery.data.blockers.some((item) => item.code === "IDENTITY_DOCUMENT"),
+        missingRequirements: readinessQuery.data.blockers
+          .filter((item) => item.code === "GUEST_FIELDS")
+          .map((item) => item.message),
+      })
+    : null;
   const failure = unitQuery.isError ? classifyCheckInUnitFailure(unitQuery.error) : null;
   const reservation = reservationQuery.data ?? null;
   const view = unit ? checkInStep1Presentation(unit) : null;
@@ -1364,6 +1773,14 @@ export function FoCheckInV2Workspace({
       ? (reservation.rooms.find((room) => room.id === unit.reservationRoomId)?.assignmentNotes ??
         null)
       : null;
+  const stepReadiness = readinessQuery.data
+    ? projectCheckInStep1Readiness(readinessQuery.data, {
+        arrivalDate: unit?.arrivalDate ?? null,
+        persistedBusinessDate: businessDate,
+        timezone,
+      })
+    : null;
+  const canContinueStep = Boolean(unit && stepReadiness?.canContinue);
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -1383,6 +1800,20 @@ export function FoCheckInV2Workspace({
                 Find reservation and review guest and booking details
               </SheetDescription>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid="fo-ci-v2-refresh"
+              onClick={() => {
+                void unitQuery.refetch();
+                void reservationQuery.refetch();
+                void readinessQuery.refetch();
+                void cashieringQuery.refetch();
+              }}
+            >
+              Refresh
+            </Button>
             <Button
               size="icon"
               variant="ghost"
@@ -1449,12 +1880,11 @@ export function FoCheckInV2Workspace({
                 {step === "guest_reservation" ? (
                   <>
                     <div
-                      className="rounded-xl border border-[#436436]/25 bg-[#436436]/10 px-4 py-3"
+                      className="rounded-xl border border-[#E8DFD0] bg-white px-4 py-3"
                       data-testid="fo-ci-v2-reservation-header"
                     >
                       <div className="flex flex-wrap items-center gap-2">
-                        <CheckCircle2 className="size-4 text-[#436436]" />
-                        <p className="text-sm font-semibold text-[#436436]">Reservation Found</p>
+                        <p className="text-sm font-semibold text-[#251605]">Reservation loaded</p>
                         {(confirmationNumber ?? reservation?.confirmationNumber) ? (
                           <span
                             className="font-mono text-sm font-bold text-[#251605]"
@@ -1480,7 +1910,31 @@ export function FoCheckInV2Workspace({
                         {view.roomTypeName ? ` \u00b7 ${view.roomTypeName}` : ""}
                         {view.roomNumber ? ` \u00b7 Room ${view.roomNumber}` : ""}
                       </p>
+                      <p className="mt-1 text-xs text-[#6B5E4E]">
+                        Loaded reservation. This is not a check-in readiness result.
+                      </p>
                     </div>
+                    {stepReadiness && stepReadiness.hardBlockers.length > 0 ? (
+                      <div
+                        className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-4 py-3"
+                        data-testid="fo-ci-v2-step1-blockers"
+                      >
+                        {stepReadiness.hardBlockers.map((blocker) => (
+                          <p key={blocker.code} className="text-sm text-[#8B6914]">
+                            {blocker.message}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+                    {stepReadiness?.arrivalVersusBusinessDate === "past" ? (
+                      <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-arrival-note">
+                        Arrival is before the property business date. This does not block this step.
+                      </p>
+                    ) : stepReadiness?.arrivalVersusBusinessDate === "early" ? (
+                      <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-arrival-note">
+                        Arrival is after the property business date. This does not block this step.
+                      </p>
+                    ) : null}
                     <div className="grid gap-4 xl:grid-cols-3">
                       <GuestInformationSection
                         restaurantId={restaurantId}
@@ -1495,42 +1949,15 @@ export function FoCheckInV2Workspace({
                       />
                       <StayUnitDetailsSection unit={unit} reservation={reservation} />
                     </div>
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      <div className="space-y-4">
-                        <RoomAssignmentSection
-                          restaurantId={restaurantId}
-                          reservationId={reservationId}
-                          unit={unit}
-                          reservation={reservation}
-                          onChanged={reloadUnit}
-                        />
-                        <SectionCard
-                          title="Special Requests & Notes"
-                          icon={<Clock className="size-3.5" />}
-                          testId="fo-ci-v2-requests"
-                        >
-                          {reservation?.specialRequests ? (
-                            <p
-                              className="text-sm text-[#251605]"
-                              data-testid="fo-ci-v2-special-requests"
-                            >
-                              {reservation.specialRequests}
-                            </p>
-                          ) : (
-                            <p className="text-sm text-[#6B5E4E]">
-                              No special requests on this reservation.
-                            </p>
-                          )}
-                          {unitNotes ? (
-                            <p
-                              className="mt-2 text-sm text-[#251605]"
-                              data-testid="fo-ci-v2-unit-notes"
-                            >
-                              {unitNotes}
-                            </p>
-                          ) : null}
-                        </SectionCard>
-                      </div>
+                    {/* Operational Row: Room Assignment & Guests for this stay */}
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <RoomAssignmentSection
+                        restaurantId={restaurantId}
+                        reservationId={reservationId}
+                        unit={unit}
+                        assignmentNotes={unitNotes}
+                        onChanged={reloadUnit}
+                      />
                       <GuestListSection
                         restaurantId={restaurantId}
                         reservationId={reservationId}
@@ -1538,7 +1965,20 @@ export function FoCheckInV2Workspace({
                         onChanged={reloadUnit}
                       />
                     </div>
-                    <PackagesRateSection unit={unit} reservation={reservation} money={money} />
+                    {/* Context Row: Special Requests & Internal Notes */}
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <SpecialRequestsSection requests={reservation?.specialRequests} />
+                      <InternalNotesSection notes={reservation?.notes} />
+                    </div>
+                    {/* Commercial Row: Payment & Deposit & Packages & Rate */}
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <CheckInFinanceSection
+                        summary={cashieringQuery.data ?? null}
+                        pending={cashieringQuery.isLoading}
+                        money={money}
+                      />
+                      <PackagesRateSection unit={unit} reservation={reservation} money={money} />
+                    </div>
                     {unit.siblings.length > 0 ? (
                       <SiblingRoomsSection
                         siblings={unit.siblings}
@@ -1563,7 +2003,7 @@ export function FoCheckInV2Workspace({
                         onChanged={reloadUnit}
                       />
                     }
-                    onStatus={onRegistrationStatus}
+                    registrationCompletion={registrationCompletion}
                     onSaved={reloadUnit}
                   />
                 ) : step === "payment_guarantee" ? (
@@ -1573,6 +2013,8 @@ export function FoCheckInV2Workspace({
                     reservationRoomId={activeRoomId}
                     unit={unit}
                     reservation={reservation}
+                    cashiering={cashieringQuery.data ?? null}
+                    cashieringPending={cashieringQuery.isLoading}
                     onReady={onDepositReady}
                     onSummary={onDepositSummary}
                     onRefresh={reloadUnit}
@@ -1593,21 +2035,30 @@ export function FoCheckInV2Workspace({
                     onRefresh={reloadUnit}
                   />
                 ) : step === "review_checkin" ? (
-                  <FoCheckInV2Review
-                    ref={reviewRef}
-                    restaurantId={restaurantId}
-                    reservationId={reservationId}
-                    reservationRoomId={activeRoomId}
-                    unit={unit}
-                    reservation={reservation}
-                    confirmationNumber={
-                      confirmationNumber ?? reservation?.confirmationNumber ?? null
-                    }
-                    onEdit={setStep}
-                    onActions={onReviewActions}
-                    onClose={() => handleOpenChange(false)}
-                    onRefresh={reloadUnit}
-                  />
+                  <div className="space-y-4">
+                    <FoCheckInV2Key
+                      restaurantId={restaurantId}
+                      reservationId={reservationId}
+                      reservationRoomId={activeRoomId}
+                      unit={unit}
+                      onRefresh={reloadUnit}
+                    />
+                    <FoCheckInV2Review
+                      ref={reviewRef}
+                      restaurantId={restaurantId}
+                      reservationId={reservationId}
+                      reservationRoomId={activeRoomId}
+                      unit={unit}
+                      reservation={reservation}
+                      confirmationNumber={
+                        confirmationNumber ?? reservation?.confirmationNumber ?? null
+                      }
+                      onEdit={setStep}
+                      onActions={onReviewActions}
+                      onClose={() => handleOpenChange(false)}
+                      onRefresh={reloadUnit}
+                    />
+                  </div>
                 ) : null}
               </div>
               <div data-testid="fo-ci-v2-summary-col">
@@ -1616,12 +2067,14 @@ export function FoCheckInV2Workspace({
                   profileNumber={profileNumber}
                   money={money}
                   currentStep={step}
-                  registrationStatus={registrationStatus}
+                  registrationCompletion={registrationCompletion}
                   depositSummary={depositSummary}
                   agreementSummary={agreementSummary}
                   checkedIn={reviewActions.checkedIn || unitAlreadyCheckedIn(unit.status)}
                   confirmationNumber={confirmationNumber ?? reservation?.confirmationNumber ?? null}
                   roomReadiness={reviewActions.roomReadiness}
+                  cashiering={cashieringQuery.data ?? null}
+                  cashieringPending={cashieringQuery.isLoading}
                 />
               </div>
             </div>
@@ -1702,15 +2155,27 @@ export function FoCheckInV2Workspace({
                 <ArrowRight className="ml-2 size-4" />
               </Button>
             ) : step === "guest_reservation" ? (
-              <Button
-                className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-                onClick={() => setStep("registration")}
-                data-testid="fo-ci-v2-next-registration"
-                disabled={!unit}
-              >
-                Next: Registration
-                <ArrowRight className="ml-2 size-4" />
-              </Button>
+              <div className="flex flex-col items-end gap-1">
+                <Button
+                  className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                  onClick={() => setStep("registration")}
+                  data-testid="fo-ci-v2-next-registration"
+                  disabled={!canContinueStep}
+                >
+                  Next: Registration
+                  <ArrowRight className="ml-2 size-4" />
+                </Button>
+                {!canContinueStep ? (
+                  <p className="text-xs text-[#8B6914]" data-testid="fo-ci-v2-next-blocker">
+                    {readinessQuery.isError
+                      ? readinessQuery.error instanceof Error
+                        ? readinessQuery.error.message
+                        : "Check-in readiness could not be loaded."
+                      : (stepReadiness?.continueMessage ??
+                        (unit ? "Checking check-in readiness…" : "Load the reservation first."))}
+                  </p>
+                ) : null}
+              </div>
             ) : step === "agreement_signature" ? (
               agreementSigned ? (
                 <Button

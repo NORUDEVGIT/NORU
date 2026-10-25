@@ -93,7 +93,11 @@ import {
   listAssignableRooms,
   type RoomTypeAvailability,
 } from "@/packages/pms/lib/reservations.functions";
-import { getOverbookingBoard, getOverbookingControls } from "@/packages/pms/lib/overbooking.functions";
+import { startWalkInCheckIn } from "@/packages/pms/lib/fo-check-in.functions";
+import {
+  getOverbookingBoard,
+  getOverbookingControls,
+} from "@/packages/pms/lib/overbooking.functions";
 import { createReservationRoomUnitPayload } from "@/packages/pms/lib/reservation-room-units";
 import type { ReservationMode } from "@/packages/pms/lib/reservation-mode";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -199,6 +203,16 @@ import {
   type Step1RoomingState,
 } from "@/packages/pms/lib/create-reservation-rooming";
 import {
+  CreateReservationGroupContext,
+  CreateReservationUnitBlockSelect,
+} from "@/packages/pms/components/bookings/create-reservation-group-context";
+import {
+  defaultBlockIdForUnit,
+  headerBlockIdForCreate,
+  stayFitsBlockDates,
+  unitBlockReviewCopy,
+} from "@/packages/pms/lib/groups-reservation-prelink";
+import {
   CREATE_RESERVATION_ROOM_STALE_DATE_WARN,
   CREATE_RESERVATION_ROOM_TYPE_CHANGE_WARN,
   shouldClearStaleAssignedRoom,
@@ -221,6 +235,11 @@ import {
 } from "@/packages/pms/lib/create-reservation-phase1-section7";
 import { activePackageCountFromRows } from "@/packages/pms/lib/create-reservation-phase1-section8";
 import { useRestaurantTimezone } from "@/core/state/property-format";
+import {
+  isWalkInCreateMode,
+  walkInCreateDefaults,
+  type ReservationCreateMode,
+} from "@/packages/pms/lib/walk-in-reservation-context";
 import { formatMoney } from "@/shared/lib/property-time";
 import { cn } from "@/shared/lib/utils";
 
@@ -251,10 +270,14 @@ export function CreateReservationPage({
   initialGroupMasterId = null,
   pmsGroupId = null,
   pmsGroupBlockId = null,
+  lockOperationalGroup = false,
   returnToLabel,
+  mode = "standard",
+  businessDate = null,
   onCancel,
   onCreated,
   onOpenCreatedReservation,
+  onContinueToCheckIn,
   onReturnToDesk,
 }: {
   membership: RestaurantMembership;
@@ -265,15 +288,25 @@ export function CreateReservationPage({
   initialGroupMasterId?: string | null;
   pmsGroupId?: string | null;
   pmsGroupBlockId?: string | null;
+  lockOperationalGroup?: boolean;
   returnToLabel?: string | undefined;
+  mode?: ReservationCreateMode;
+  /** Property business date. Used only when mode is walk-in. */
+  businessDate?: string | null;
   onCancel?: () => void;
   onCreated?: (reservationId: string) => void;
   onOpenCreatedReservation?: (reservationId: string) => void;
+  onContinueToCheckIn?: (created: {
+    id: string;
+    confirmationNumber: string;
+    guestName: string;
+  }) => void;
   onReturnToDesk?: () => void;
 }) {
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
   const today = propertyToday(timezone);
+  const walkInMode = isWalkInCreateMode(mode);
 
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchGuestAccess = useServerFn(getGuestsAccess);
@@ -294,6 +327,7 @@ export function CreateReservationPage({
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
   const fetchRooms = useServerFn(listAssignableRooms);
   const submitReservation = useServerFn(createReservation);
+  const startWalkIn = useServerFn(startWalkInCheckIn);
   const fetchQuotes = useServerFn(quoteStay);
   const fetchRoomTypes = useServerFn(listRoomTypes);
   const fetchCurrencies = useServerFn(getCurrencyCard3);
@@ -342,6 +376,8 @@ export function CreateReservationPage({
   const [discardOpen, setDiscardOpen] = useState(false);
   const [holdCommercialDefaults, setHoldCommercialDefaults] = useState(false);
   const draftClosed = useRef(false);
+  const stayDatesTouched = useRef(false);
+  const walkInStatusApplied = useRef(false);
   const [searchRoomTypeFilter, setSearchRoomTypeFilter] = useState("");
   const [ratePreference, setRatePreference] = useState("");
   const [availabilitySearchCommitted, setAvailabilitySearchCommitted] =
@@ -580,6 +616,32 @@ export function CreateReservationPage({
     enabled: canManage && Boolean(linkedGroupId),
     retry: false,
   });
+  const launchBlock =
+    linkedGroupQuery.data?.blocks.find((block) => block.id === pmsGroupBlockId) ?? null;
+  const preferredRateApplied = useRef(false);
+
+  useEffect(() => {
+    if (!pmsGroupId || stayDatesTouched.current || !linkedGroupQuery.data) return;
+    if (launchBlock) {
+      setArrival(launchBlock.startDate);
+      setDeparture(launchBlock.endDate);
+      return;
+    }
+    const group = linkedGroupQuery.data.group;
+    if (group.arrivalDate && group.departureDate) {
+      setArrival(group.arrivalDate);
+      setDeparture(group.departureDate);
+    }
+  }, [launchBlock, linkedGroupQuery.data, pmsGroupId]);
+
+  useEffect(() => {
+    if (!pmsGroupId || preferredRateApplied.current) return;
+    const planId = linkedGroupQuery.data?.group.ratePlanId;
+    if (!planId) return;
+    preferredRateApplied.current = true;
+    setRatePlanId((current) => current || planId);
+  }, [linkedGroupQuery.data?.group.ratePlanId, pmsGroupId]);
+
   const guaranteeOptions = resolveGuaranteeMethodOptions(polish1Query.data?.snapshot);
   const guaranteeWarning = guaranteeCatalogueWarning(polish1Query.data?.snapshot);
   const persistApplied = section7PersistApplied();
@@ -653,6 +715,7 @@ export function CreateReservationPage({
   );
 
   function handleArrivalChange(next: string) {
+    stayDatesTouched.current = true;
     if (!next) {
       setArrival("");
       setRatePlanId("");
@@ -665,6 +728,7 @@ export function CreateReservationPage({
   }
 
   function handleNightsChange(next: number) {
+    stayDatesTouched.current = true;
     if (!arrival) return;
     const stay = linkedStayFromNights(arrival, next);
     setDeparture(stay.departure);
@@ -672,6 +736,7 @@ export function CreateReservationPage({
   }
 
   function handleDepartureChange(next: string) {
+    stayDatesTouched.current = true;
     const stay = linkedStayFromDeparture(arrival, next);
     setDeparture(stay.departure);
     setRatePlanId("");
@@ -1008,14 +1073,17 @@ export function CreateReservationPage({
                 children: unit.children,
                 infants: unit.infants,
                 ratePlanId: unit.ratePlanId,
+                pmsGroupBlockId: unit.pmsGroupBlockId ?? null,
               }))
             : [],
+        pmsGroupBlockId: linkedBlockId,
       }),
     [
       adults,
       children,
       extraRoomUnits,
       infants,
+      linkedBlockId,
       ratePlanId,
       reservationMode,
       roomTypeId,
@@ -1134,6 +1202,7 @@ export function CreateReservationPage({
         children,
         infants,
         ratePlanId: ratePlanId || null,
+        pmsGroupBlockId: linkedBlockId,
       },
       extras: extraRoomUnits.map((unit) => ({
         key: unit.key,
@@ -1143,6 +1212,7 @@ export function CreateReservationPage({
         infants: unit.infants,
         ratePlanId: unit.ratePlanId,
         occupant: unit.occupant ?? null,
+        pmsGroupBlockId: unit.pmsGroupBlockId ?? null,
       })),
     };
   }
@@ -1155,6 +1225,7 @@ export function CreateReservationPage({
     setInfants(next.room1.infants);
     setRoomTypeId(next.room1.roomTypeId);
     setRatePlanId(next.room1.ratePlanId ?? "");
+    setLinkedBlockId(next.room1.pmsGroupBlockId ?? null);
     setExtraRoomUnits(next.extras);
     setRoomsRequested(1);
   }
@@ -1257,7 +1328,13 @@ export function CreateReservationPage({
               }
             : {}),
           pmsGroupId: linkedGroupId,
-          pmsGroupBlockId: linkedBlockId,
+          pmsGroupBlockId:
+            extraRoomUnits.length > 0
+              ? headerBlockIdForCreate([
+                  linkedBlockId,
+                  ...extraRoomUnits.map((unit) => unit.pmsGroupBlockId ?? null),
+                ])
+              : linkedBlockId,
           commercialSalesChannel: channelForm.commercialSalesChannel,
           purposeOfStay: purposeOfStay.trim() || null,
           billingRuleId: billingRuleId || null,
@@ -1269,6 +1346,7 @@ export function CreateReservationPage({
                   card.activationId ? [card.activationId] : [],
                 )
               : undefined,
+          ...(walkInMode ? { source: walkInCreateDefaults(businessDate || arrival).source } : {}),
           bookerGuestId: sameAsGuest && guest?.id ? guest.id : null,
           depositTenderCode: resolveDepositTenderCode({
             selected: step4Policies.depositPaymentMethod,
@@ -1292,7 +1370,18 @@ export function CreateReservationPage({
       if (result.paymentError) toast.error(result.paymentError);
       if (result.guestDepositError) toast.error(result.guestDepositError);
       draftClosed.current = true;
-      if (accessQuery.data?.membershipId) {
+      if (walkInMode) {
+        try {
+          await startWalkIn({ data: { restaurantId, reservationId: result.id } });
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Could not mark this walk-in for check-in.",
+          );
+        }
+      }
+      if (!walkInMode && accessQuery.data?.membershipId) {
         clearCreateReservationDraft(restaurantId, accessQuery.data.membershipId);
       }
       const createdServiceNames: string[] = [];
@@ -1355,6 +1444,36 @@ export function CreateReservationPage({
         ),
         selectedServiceLines: createdServiceNames,
         savedPreferenceLines: savedPreferenceRows.map((row) => `${row.label}: ${row.value}`),
+        operationalGroupName: linkedGroupQuery.data?.group.name ?? null,
+        operationalGroupCode:
+          linkedGroupQuery.data?.group.confirmationNumber ??
+          linkedGroupQuery.data?.group.code ??
+          null,
+        operationalUnitLines: linkedGroupQuery.data
+          ? [
+              (() => {
+                const copy = unitBlockReviewCopy({
+                  roomTypeName: selectedRoomType?.name || "Room",
+                  blockLabel:
+                    linkedGroupQuery.data.blocks.find((block) => block.id === linkedBlockId)
+                      ?.roomTypeName ?? null,
+                  contributesToPickup: Boolean(linkedBlockId),
+                });
+                return `Room 1 · ${copy.block} · Pickup ${copy.pickup}`;
+              })(),
+              ...extraRoomUnits.map((unit, index) => {
+                const copy = unitBlockReviewCopy({
+                  roomTypeName: extraRoomQuotes[unit.key]?.typeName || "Room",
+                  blockLabel:
+                    linkedGroupQuery.data?.blocks.find(
+                      (block) => block.id === unit.pmsGroupBlockId,
+                    )?.roomTypeName ?? null,
+                  contributesToPickup: Boolean(unit.pmsGroupBlockId),
+                });
+                return `Room ${index + 2} · ${copy.block} · Pickup ${copy.pickup}`;
+              }),
+            ]
+          : undefined,
       });
       onCreated?.(result.id);
     },
@@ -1467,13 +1586,32 @@ export function CreateReservationPage({
       workflowStep,
     ],
   );
-  const draftMeaningful = createReservationDraftIsMeaningful(draftSnapshot, {
-    arrival: today,
-    departure: addDays(today, 1),
-    unassignedRoomId: UNASSIGNED,
-  });
+  const draftMeaningful = walkInMode
+    ? false
+    : createReservationDraftIsMeaningful(draftSnapshot, {
+        arrival: today,
+        departure: addDays(today, 1),
+        unassignedRoomId: UNASSIGNED,
+      });
 
   useEffect(() => {
+    if (!walkInMode || walkInStatusApplied.current) return;
+    setStatus(walkInCreateDefaults(businessDate || today).status);
+    walkInStatusApplied.current = true;
+  }, [businessDate, today, walkInMode]);
+
+  useEffect(() => {
+    if (!walkInMode || !businessDate || stayDatesTouched.current) return;
+    const next = walkInCreateDefaults(businessDate);
+    setArrival(next.arrival);
+    setDeparture(next.departure);
+  }, [businessDate, walkInMode]);
+
+  useEffect(() => {
+    if (walkInMode) {
+      setDraftReady(true);
+      return;
+    }
     if (!membershipScope || draftReady) return;
     const stored = readCreateReservationDraft(restaurantId, membershipScope);
     if (stored) {
@@ -1515,8 +1653,10 @@ export function CreateReservationPage({
       setCompanyOverride(stored.companyOverride || Boolean(stored.companyMaster));
       setTravelAgentOverride(stored.travelAgentOverride || Boolean(stored.travelAgentMaster));
       setGroupOverride(stored.groupOverride || Boolean(stored.groupMaster));
-      setLinkedGroupId(stored.linkedGroupId);
-      setLinkedBlockId(stored.linkedBlockId);
+      if (!pmsGroupId) {
+        setLinkedGroupId(stored.linkedGroupId);
+        setLinkedBlockId(stored.linkedBlockId);
+      }
       setCompanyContactId(stored.companyContactId);
       setTravelAgentContactId(stored.travelAgentContactId);
       setBillingRuleId(stored.billingRuleId);
@@ -1533,13 +1673,29 @@ export function CreateReservationPage({
       setHoldCommercialDefaults(true);
     }
     setDraftReady(true);
-  }, [draftReady, membershipScope, restaurantId, today]);
+  }, [draftReady, membershipScope, pmsGroupId, restaurantId, today, walkInMode]);
 
   useEffect(() => {
+    if (!draftReady || !pmsGroupId) return;
+    setReservationMode("group");
+    setLinkedGroupId(pmsGroupId);
+    setLinkedBlockId(pmsGroupBlockId);
+  }, [draftReady, pmsGroupBlockId, pmsGroupId]);
+
+  useEffect(() => {
+    if (walkInMode) return;
     if (!membershipScope || !draftReady || draftClosed.current || createdView) return;
     if (draftMeaningful) writeCreateReservationDraft(restaurantId, membershipScope, draftSnapshot);
     else clearCreateReservationDraft(restaurantId, membershipScope);
-  }, [createdView, draftMeaningful, draftReady, draftSnapshot, membershipScope, restaurantId]);
+  }, [
+    createdView,
+    draftMeaningful,
+    draftReady,
+    draftSnapshot,
+    membershipScope,
+    restaurantId,
+    walkInMode,
+  ]);
 
   useEffect(() => {
     if (
@@ -1583,6 +1739,16 @@ export function CreateReservationPage({
       <CreateReservationConfirmation
         view={createdView}
         onOpenReservation={onOpenCreatedReservation}
+        onContinueToCheckIn={
+          walkInMode && onContinueToCheckIn
+            ? () =>
+                onContinueToCheckIn({
+                  id: createdView.id,
+                  confirmationNumber: createdView.confirmationNumber,
+                  guestName: createdView.guestName,
+                })
+            : undefined
+        }
         onReturnToDesk={onReturnToDesk}
         returnToLabel={returnToLabel}
         onCreateAnother={
@@ -1668,11 +1834,26 @@ export function CreateReservationPage({
         }),
       })
     : null;
+  const selectedPickupBlocks = [
+    linkedBlockId
+      ? (linkedGroupQuery.data?.blocks.find((block) => block.id === linkedBlockId) ?? null)
+      : null,
+    ...extraRoomUnits.map((unit) =>
+      unit.pmsGroupBlockId
+        ? (linkedGroupQuery.data?.blocks.find((block) => block.id === unit.pmsGroupBlockId) ??
+          null)
+        : null,
+    ),
+  ].filter((block): block is NonNullable<typeof block> => Boolean(block));
+  const blockDateIssue =
+    datesValid &&
+    selectedPickupBlocks.some((block) => !stayFitsBlockDates(arrival, departure, block));
   const canContinueGuestStayAvailability =
     availabilitySearchActive &&
     (!searchRoomTypeFilter || roomTypeId === searchRoomTypeFilter) &&
     (!ratePreference || ratePlanId === ratePreference) &&
     !groupIssue &&
+    !blockDateIssue &&
     canAdvanceFromGuestStayAvailability({
       datesValid,
       hasGuest: !!guest,
@@ -1714,6 +1895,7 @@ export function CreateReservationPage({
   const canSubmit =
     occupancyOk &&
     !groupIssue &&
+    !blockDateIssue &&
     extraRoomsComplete &&
     channelForm?.accepted === true &&
     canSubmitCreateReservation({
@@ -1724,6 +1906,7 @@ export function CreateReservationPage({
   const canSubmitConfirm =
     occupancyOk &&
     !groupIssue &&
+    !blockDateIssue &&
     extraRoomsComplete &&
     channelForm?.accepted === true &&
     canSubmitConfirmReservation({
@@ -1792,15 +1975,48 @@ export function CreateReservationPage({
     });
     setRoomId(UNASSIGNED);
     setSelectedAssignedRoom(null);
+    if (linkedGroupId) {
+      setLinkedBlockId(
+        defaultBlockIdForUnit({
+          blocks: linkedGroupQuery.data?.blocks ?? [],
+          roomTypeId: type.roomTypeId,
+          arrival,
+          departure,
+          preferredBlockId: pmsGroupBlockId,
+        }),
+      );
+    }
+  }
+
+  function applyUnitBlockDefault(state: Step1RoomingState, typeId: string): Step1RoomingState {
+    const nextId = defaultBlockIdForUnit({
+      blocks: linkedGroupQuery.data?.blocks ?? [],
+      roomTypeId: typeId,
+      arrival: state.arrival,
+      departure: state.departure,
+      preferredBlockId: pmsGroupBlockId,
+    });
+    if (state.activeRoomIndex <= 0) {
+      return { ...state, room1: { ...state.room1, pmsGroupBlockId: nextId } };
+    }
+    return {
+      ...state,
+      extras: state.extras.map((unit, index) =>
+        index === state.activeRoomIndex - 1 ? { ...unit, pmsGroupBlockId: nextId } : unit,
+      ),
+    };
   }
 
   function selectRoomType(type: RoomTypeAvailability) {
     if (activeExtra) {
       commitRooming(
-        applyActiveRoomSelection(currentRooming(), {
-          roomTypeId: type.roomTypeId,
-          ratePlanId: null,
-        }),
+        applyUnitBlockDefault(
+          applyActiveRoomSelection(currentRooming(), {
+            roomTypeId: type.roomTypeId,
+            ratePlanId: null,
+          }),
+          type.roomTypeId,
+        ),
       );
       return;
     }
@@ -1811,10 +2027,13 @@ export function CreateReservationPage({
   function selectRoomAndRate(type: RoomTypeAvailability, planId: string) {
     if (activeExtra) {
       commitRooming(
-        applyActiveRoomSelection(currentRooming(), {
-          roomTypeId: type.roomTypeId,
-          ratePlanId: planId,
-        }),
+        applyUnitBlockDefault(
+          applyActiveRoomSelection(currentRooming(), {
+            roomTypeId: type.roomTypeId,
+            ratePlanId: planId,
+          }),
+          type.roomTypeId,
+        ),
       );
       return;
     }
@@ -1908,7 +2127,7 @@ export function CreateReservationPage({
 
   function confirmDiscard() {
     draftClosed.current = true;
-    if (membershipScope) clearCreateReservationDraft(restaurantId, membershipScope);
+    if (!walkInMode && membershipScope) clearCreateReservationDraft(restaurantId, membershipScope);
     setDiscardOpen(false);
     onCancel?.();
   }
@@ -2621,8 +2840,36 @@ export function CreateReservationPage({
         groupMode && linkedGroupRecord
           ? {
               name: linkedGroupRecord.name,
-              code: linkedGroupRecord.code,
+              code: linkedGroupRecord.confirmationNumber ?? linkedGroupRecord.code,
               block: linkedBlockRecord?.roomTypeName ?? null,
+              units: [
+                {
+                  label: "Room 1",
+                  roomTypeName: selectedMeta?.name || "Room",
+                  ...unitBlockReviewCopy({
+                    roomTypeName: selectedMeta?.name || "Room",
+                    blockLabel: linkedBlockRecord?.roomTypeName ?? null,
+                    contributesToPickup: Boolean(linkedBlockId),
+                  }),
+                },
+                ...extraRoomUnits.map((unit, index) => {
+                  const typeName = extraRoomQuotes[unit.key]?.typeName || "Room";
+                  const copy = unitBlockReviewCopy({
+                    roomTypeName: typeName,
+                    blockLabel:
+                      linkedGroupQuery.data?.blocks.find(
+                        (block) => block.id === unit.pmsGroupBlockId,
+                      )?.roomTypeName ?? null,
+                    contributesToPickup: Boolean(unit.pmsGroupBlockId),
+                  });
+                  return {
+                    label: `Room ${index + 2}`,
+                    roomTypeName: typeName,
+                    block: copy.block,
+                    pickup: copy.pickup,
+                  };
+                }),
+              ],
             }
           : null
       }
@@ -2719,6 +2966,50 @@ export function CreateReservationPage({
             </button>
           </div>
         </div>
+        {linkedGroupQuery.data?.group ? (
+          <CreateReservationGroupContext
+            groupName={linkedGroupQuery.data.group.name}
+            groupCode={
+              linkedGroupQuery.data.group.confirmationNumber ?? linkedGroupQuery.data.group.code
+            }
+            groupStatus={linkedGroupQuery.data.group.status}
+            block={launchBlock}
+            hasActiveBlocks={(linkedGroupQuery.data.blocks ?? []).some(
+              (block) => block.status === "active",
+            )}
+          />
+        ) : null}
+        {linkedGroupId && groupMode ? (
+          <div className="grid gap-2 md:grid-cols-2" data-testid="create-reservation-unit-blocks">
+            <CreateReservationUnitBlockSelect
+              label="Room 1 block"
+              roomTypeId={roomTypeId}
+              arrival={arrival}
+              departure={departure}
+              blocks={linkedGroupQuery.data?.blocks ?? []}
+              value={linkedBlockId}
+              onChange={setLinkedBlockId}
+            />
+            {extraRoomUnits.map((unit, index) => (
+              <CreateReservationUnitBlockSelect
+                key={unit.key}
+                label={`Room ${index + 2} block`}
+                roomTypeId={unit.roomTypeId}
+                arrival={arrival}
+                departure={departure}
+                blocks={linkedGroupQuery.data?.blocks ?? []}
+                value={unit.pmsGroupBlockId ?? null}
+                onChange={(blockId) =>
+                  setExtraRoomUnits((current) =>
+                    current.map((row) =>
+                      row.key === unit.key ? { ...row, pmsGroupBlockId: blockId } : row,
+                    ),
+                  )
+                }
+              />
+            ))}
+          </div>
+        ) : null}
         <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1.3fr)]">
           <CreateReservationGuestSearch />
           <CreateReservationGuestSelected />
@@ -2927,8 +3218,35 @@ export function CreateReservationPage({
           setLinkedGroupId(groupId);
           setLinkedBlockId(blockId);
         }}
-        showAdHocGroupNote={groupMode}
+        showAdHocGroupNote={groupMode && !lockOperationalGroup}
         showLinkedGroupCaption={groupMode && Boolean(linkedGroupId)}
+        lockOperationalGroup={lockOperationalGroup}
+        unitBlockLines={
+          linkedGroupId
+            ? [
+                `Room 1 · ${selectedMeta?.name || "Room"} · ${
+                  unitBlockReviewCopy({
+                    roomTypeName: selectedMeta?.name || "Room",
+                    blockLabel:
+                      linkedGroupQuery.data?.blocks.find((block) => block.id === linkedBlockId)
+                        ?.roomTypeName ?? null,
+                    contributesToPickup: Boolean(linkedBlockId),
+                  }).block
+                }`,
+                ...extraRoomUnits.map((unit, index) => {
+                  const typeName = extraRoomQuotes[unit.key]?.typeName || "Room";
+                  const copy = unitBlockReviewCopy({
+                    roomTypeName: typeName,
+                    blockLabel:
+                      linkedGroupQuery.data?.blocks.find((block) => block.id === unit.pmsGroupBlockId)
+                        ?.roomTypeName ?? null,
+                    contributesToPickup: Boolean(unit.pmsGroupBlockId),
+                  });
+                  return `Room ${index + 2} · ${typeName} · ${copy.block}`;
+                }),
+              ]
+            : undefined
+        }
         leadGuestPreferences={groupMode}
         ratePlanId={ratePlanId}
         roomTypeId={roomTypeId}

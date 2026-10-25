@@ -121,6 +121,7 @@ describe("FO-FS1 deposit policy A", () => {
 
     const readiness = projectCheckInDepositReadiness({
       folioId: "folio-1",
+      folioNumber: "FL-000123",
       folioStatus: "open",
       currency: "GBP",
       requiredAmount: 1500,
@@ -131,6 +132,7 @@ describe("FO-FS1 deposit policy A", () => {
       groupAccountMasterId: "group-1",
     });
     assert.equal(readiness.scope, "reservation");
+    assert.equal(readiness.folioNumber, "FL-000123");
     assert.equal(readiness.receivedAmount, 0);
     assert.equal(readiness.satisfied, false);
     assert.equal(readiness.guaranteeSatisfied, null);
@@ -174,6 +176,7 @@ describe("FO-FS1 deposit policy A", () => {
     assert.doesNotMatch(fns, /ledgerMethod/);
     assert.match(fns, /requiredAmount: snapshotRequiredAmount/);
     assert.match(fns, /type: "deposit"/);
+    assert.match(fns, /folioNumber: folio\?\.folio_number/);
     const readinessFn = fns.slice(
       fns.indexOf("export const getCheckInDepositReadiness"),
       fns.indexOf("export const ensureCheckInFolio"),

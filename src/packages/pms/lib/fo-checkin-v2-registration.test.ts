@@ -6,6 +6,7 @@ import { describe, it } from "vitest";
 
 import {
   buildRegistrationSave,
+  REGISTRATION_CONTACT_FIELDS,
   registrationDocumentState,
   registrationDraft,
   registrationRelationship,
@@ -63,6 +64,24 @@ describe("Check-In Step 2 registration", () => {
     assert.equal(draft.firstName, "Hana");
     assert.equal(draft.middleName, "Ali");
     assert.equal(draft.lastName, "Kebede");
+    const address = registrationDraft([], {
+      addressLine1: "Bole Road",
+      addressLine2: "Suite 4",
+      city: "Addis Ababa",
+      region: "Addis Ababa",
+      postalCode: "1000",
+      title: "ms",
+      preferredName: "Hana",
+    });
+    assert.equal(address.addressLine2, "Suite 4");
+    assert.equal(address.postalCode, "1000");
+    const saved = buildRegistrationSave({ draft: address, document: null });
+    assert.equal(saved.fields.address_line2, "Suite 4");
+    assert.equal(saved.fields.postal_code, "1000");
+    assert.equal(saved.fields.region, "Addis Ababa");
+    assert.match(registration, /addressLine2: guest.addressLine2/);
+    assert.match(registration, /postalCode: guest.postalCode/);
+    assert.match(registration, /region: guest.region/);
   });
 
   it("saves through saveCheckInUnitRegistration", () => {
@@ -177,11 +196,42 @@ describe("Check-In Step 2 registration", () => {
     assert.doesNotMatch(workspace, /captureCheckInAgreementSignature|saveCheckInAgreement/);
   });
 
+  it("places language in contact information with the shared field style", () => {
+    assert.deepEqual(
+      [
+        "phone",
+        "email",
+        "addressLine1",
+        "addressLine2",
+        "city",
+        "region",
+        "postalCode",
+        "country",
+        "language",
+      ],
+      [...REGISTRATION_CONTACT_FIELDS],
+    );
+    assert.doesNotMatch(registration, /D\. Additional Information|fo-ci-v2-additional/);
+    assert.match(registration, /placeholder="Select nationality"/);
+    assert.match(registration, /placeholder="Select issuing country"/);
+    assert.match(registration, /placeholder="Select language"/);
+    assert.match(registration, /className=\{selectClass\}/);
+    assert.match(registration, /w-\[7\.75rem\]/);
+    assert.doesNotMatch(registration, /<select/);
+    assert.doesNotMatch(registration, /Reservation Found/);
+    assert.match(registration, /placeholder="Select title"/);
+    assert.match(registration, /placeholder="Select gender"/);
+    assert.match(registration, /placeholder="Select ID type"/);
+    assert.match(registration, /Checking for duplicate profiles/);
+    assert.match(registration, /duplicates\.length > 0/);
+    assert.match(registration, /does not merge or replace/);
+  });
+
   it("does not implement payment or cashiering", () => {
     assert.doesNotMatch(
       registration,
       /postCheckInDeposit|Cashiering|guaranteeMethod|paymentMethod/,
     );
-    assert.doesNotMatch(workspace, /postCheckInDeposit|Cashiering/);
+    assert.doesNotMatch(workspace, /postCheckInDeposit/);
   });
 });

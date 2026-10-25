@@ -53,6 +53,7 @@ export function ReservationQuickViewPanel({
   row,
   loading,
   error,
+  errorDetail = null,
   quickView,
   onRetry,
   businessDate,
@@ -62,6 +63,7 @@ export function ReservationQuickViewPanel({
   row: ReservationDeskRow | null;
   loading: boolean;
   error: boolean;
+  errorDetail?: string | null;
   quickView: ReservationQuickView | undefined;
   onRetry: () => void;
   businessDate: string;
@@ -72,7 +74,7 @@ export function ReservationQuickViewPanel({
 
   useEffect(() => {
     setTab("overview");
-  }, [row?.reservationId]);
+  }, [row?.reservationId, row?.reservationRoomId]);
 
   if (!row) return <NoSelection />;
 
@@ -111,7 +113,10 @@ export function ReservationQuickViewPanel({
       <header className="border-b border-border bg-[#FAF8F4] px-4 pb-0 pt-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-[#765719]">{row.confirmationNumber}</p>
+            <p className="text-xs font-semibold text-[#765719]">
+              {row.confirmationNumber}
+              {quickView?.selectedUnit ? ` · Unit ${quickView.selectedUnit.unitSequence}` : ""}
+            </p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <h2 className="truncate font-display text-xl font-semibold text-[#251605]">
                 {row.guestName}
@@ -150,7 +155,7 @@ export function ReservationQuickViewPanel({
         {loading ? (
           <QuickViewSkeleton />
         ) : error ? (
-          <QuickViewError onRetry={onRetry} />
+          <QuickViewError detail={errorDetail} onRetry={onRetry} />
         ) : quickView ? (
           <div id={`quick-view-${tab}`} role="tabpanel">
             {tab === "overview" ? <OverviewTab quickView={quickView} /> : null}
@@ -206,6 +211,9 @@ function OverviewTab({ quickView }: { quickView: ReservationQuickView }) {
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
         <DetailCard icon={<BedDouble className="size-3.5" />} title="Room">
           <dl className="space-y-2">
+            {quickView.selectedUnit ? (
+              <Info label="Room unit" value={`Unit ${quickView.selectedUnit.unitSequence}`} />
+            ) : null}
             <Info label="Room Type" value={quickView.room.roomTypeName} />
             <Info
               label="Assigned"
@@ -310,6 +318,9 @@ function StayDetailsTab({ quickView }: { quickView: ReservationQuickView }) {
       </DetailSection>
       <DetailSection icon={<DoorOpen className="size-3.5" />} title="Room Assignment">
         <dl className="space-y-3 text-xs">
+          {quickView.selectedUnit ? (
+            <Info label="Room unit" value={`Unit ${quickView.selectedUnit.unitSequence}`} />
+          ) : null}
           <Info label="Room Type" value={quickView.room.roomTypeName} />
           <Info label="Room Number" value={quickView.room.roomNumber} />
           <Info label="Assignment" value={quickView.room.assigned ? "Assigned" : "Unassigned"} />
@@ -529,13 +540,20 @@ function QuickViewSkeleton() {
   );
 }
 
-function QuickViewError({ onRetry }: { onRetry: () => void }) {
+function QuickViewError({
+  detail,
+  onRetry,
+}: {
+  detail?: string | null;
+  onRetry: () => void;
+}) {
   return (
     <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
       <p className="text-sm font-medium text-destructive">Could not load Quick View.</p>
       <p className="mt-1 text-xs text-muted-foreground">
         The selected reservation remains available. Try loading its operational summary again.
       </p>
+      {detail ? <p className="mt-2 text-xs text-destructive">{detail}</p> : null}
       <Button variant="outline" size="sm" className="mt-3" onClick={onRetry}>
         Try again
       </Button>

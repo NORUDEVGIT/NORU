@@ -29,14 +29,11 @@ import { ReservationAmendmentsTab } from "@/packages/pms/components/bookings/res
 import { ReservationCancellationsTab } from "@/packages/pms/components/bookings/reservation-cancellations";
 import { ReservationStatusBadge, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import {
-  CheckInDialog,
   NoShowDialog,
   RoomMoveDialog,
   StayDatesDialog,
-  WalkInDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
-import { WalkInsHistoryFrame } from "@/packages/pms/components/frontoffice/walk-ins-history-frame";
 import { isPermissionDeniedMessage, stayFromReservation } from "@/packages/pms/lib/front-office-shell";
 import { listArrivals, listInHouse, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import {
@@ -59,45 +56,6 @@ import {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
-}
-
-export function WalkInsFrame({
-  restaurantId,
-  today,
-}: {
-  restaurantId: string;
-  today: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [checkInStay, setCheckInStay] = useState<FrontOfficeStay | null>(null);
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="font-display text-xl">Walk-ins</h2>
-        <p className="text-sm text-muted-foreground">
-          Create today&apos;s stay, then finish registration, deposit and key.
-        </p>
-      </div>
-      <Button onClick={() => setOpen(true)}>New walk-in</Button>
-      <WalkInsHistoryFrame restaurantId={restaurantId} today={today} />
-      <WalkInDialog
-        restaurantId={restaurantId}
-        today={today}
-        open={open}
-        onOpenChange={setOpen}
-        onCreated={setCheckInStay}
-      />
-      {checkInStay ? (
-        <CheckInDialog
-          restaurantId={restaurantId}
-          stay={checkInStay}
-          open
-          initialStep="registration"
-          onOpenChange={(v) => !v && setCheckInStay(null)}
-        />
-      ) : null}
-    </div>
-  );
 }
 
 export function AmendmentsFrame({

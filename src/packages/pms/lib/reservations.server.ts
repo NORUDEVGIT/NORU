@@ -171,6 +171,11 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   DUAL_COMPANY_TA_NOT_ALLOWED: "This create path cannot bind Company and Travel Agency together.",
   PACKAGE_ALREADY_RESERVATION_SCOPED: "That package is already applied to the whole reservation.",
   PACKAGE_ALREADY_ROOM_SCOPED: "That package is already applied to a room on this reservation.",
+  PACKAGE_SIBLING_UNIT: "That package belongs to another room.",
+  PACKAGE_STAY_SCOPE_REQUIRED: "Remove a stay package from the stay row.",
+  RESERVATION_CLOSED: "This reservation is closed and cannot be changed.",
+  ARRIVAL_PASSED:
+    "This arrival has passed without check-in. Mark the reservation no-show before changing it.",
   PACKAGE_CHARGE_BASIS_UNSUPPORTED: "Only a per-stay package can be applied.",
   PACKAGE_PRICE_INVALID: "That package does not have a valid price.",
   PACKAGE_STAY_WINDOW_MISMATCH: "That package is outside this stay.",
@@ -180,6 +185,12 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   PACKAGE_NOT_FOUND: "Package not found for this property.",
   PACKAGE_ACTIVATION_NOT_FOUND: "Package activation not found.",
   PACKAGE_WRONG_PROPERTY: "That package belongs to another property.",
+  UNIT_DATES_DIVERGED:
+    "This reservation has rooms on different dates. Change one room from Reservation Edit.",
+  RATE_PLAN_REQUIRED: "This room has no rate plan, so the stay cannot be repriced.",
+  FOLIO_CLOSED: "This folio is closed. Nothing more can be posted to it.",
+  CORRECTION_INVOICED: "This charge is already on an issued invoice, so it cannot be corrected.",
+  PACKAGE_CURRENCY_MISMATCH: "The reservation currency does not match the guest folio.",
 };
 
 /** Generic Reservation status writer — booking-side allowlist only (DB03-B01). */

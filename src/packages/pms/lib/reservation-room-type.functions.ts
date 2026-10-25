@@ -575,15 +575,13 @@ export const confirmReservationRoomTypeChange = createServerFn({ method: "POST" 
           .eq("id", data.reservationId);
         if (masterError) throw new Error(masterError.message);
       }
-      if (pointer?.id === data.reservationRoomId) {
-        const { error: syncError } = await supabaseAdmin.rpc("sync_hotel_reservation_packages", {
-          _restaurant_id: data.restaurantId,
-          _reservation_id: data.reservationId,
-          _package_activation_ids: null as unknown as string[],
-          _mode: "reevaluate",
-        });
-        if (syncError) throw reservationError(syncError.message);
-      }
+      const { error: syncError } = await supabaseAdmin.rpc("sync_hotel_reservation_packages", {
+        _restaurant_id: data.restaurantId,
+        _reservation_id: data.reservationId,
+        _package_activation_ids: null as unknown as string[],
+        _mode: "reevaluate",
+      });
+      if (syncError) throw reservationError(syncError.message);
     }
 
     for (const line of review.packages) {

@@ -93,6 +93,18 @@ export function resolveCalendarWindow(input: {
   return { start, end, horizon: input.horizon };
 }
 
+/** Drop repeated reads of the same room unit. Distinct units of one reservation stay. */
+export function uniqueReservationRoomUnits<T extends { id: string }>(units: readonly T[]): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+  for (const unit of units) {
+    if (seen.has(unit.id)) continue;
+    seen.add(unit.id);
+    unique.push(unit);
+  }
+  return unique;
+}
+
 /** Stay occupies [arrival, departure). Window is [start, end). */
 export function stayOverlapsCalendarWindow(
   arrivalDate: string,
@@ -104,7 +116,10 @@ export function stayOverlapsCalendarWindow(
 }
 
 export function mapCalendarBar(
-  row: ReservationOperationalSummary,
+  row: ReservationOperationalSummary & {
+    reservationRoomId?: string | null;
+    unitSequence?: number | null;
+  },
   extraKeys: CalendarBarExceptionKey[] = [],
 ): CalendarBar {
   const keys: CalendarBarExceptionKey[] = [];
@@ -114,6 +129,8 @@ export function mapCalendarBar(
   keys.push(...extraKeys);
   return {
     reservationId: row.reservationId,
+    reservationRoomId: row.reservationRoomId ?? null,
+    unitSequence: row.unitSequence ?? null,
     confirmationNumber: row.confirmationNumber,
     guestId: row.guestId,
     guestName: row.guestName,
@@ -259,7 +276,7 @@ async function loadOverlapReservations(
       : await supabase
           .from("hotel_reservation_rooms")
           .select(
-            "reservation_id, room_id, room_type_id, status, arrival_date, departure_date, unit_sequence, adults, children, rate_plan_id, room_subtotal",
+            "id, reservation_id, room_id, room_type_id, status, arrival_date, departure_date, unit_sequence, adults, children, rate_plan_id, room_subtotal",
           )
           .eq("restaurant_id", restaurantId)
           .in(
@@ -272,19 +289,22 @@ async function loadOverlapReservations(
   const unitRows =
     unitResult.error && isMissingSchemaError(unitResult.error)
       ? null
-      : ((unitResult.data ?? []) as Array<{
-          reservation_id: string;
-          room_id: string | null;
-          room_type_id: string;
-          status: string | null;
-          arrival_date: string;
-          departure_date: string;
-          unit_sequence: number;
-          adults: number;
-          children: number;
-          rate_plan_id: string | null;
-          room_subtotal: number | string | null;
-        }>);
+      : uniqueReservationRoomUnits(
+          (unitResult.data ?? []) as Array<{
+            id: string;
+            reservation_id: string;
+            room_id: string | null;
+            room_type_id: string;
+            status: string | null;
+            arrival_date: string;
+            departure_date: string;
+            unit_sequence: number;
+            adults: number;
+            children: number;
+            rate_plan_id: string | null;
+            room_subtotal: number | string | null;
+          }>,
+        );
   const rooms = expandStayRooms(
     summaries.map((row) => ({
       id: row.reservationId,
@@ -319,6 +339,8 @@ async function loadOverlapReservations(
       return [
         {
           ...summary,
+          reservationRoomId: unit?.id ?? null,
+          unitSequence: room.unitSequence,
           roomId: room.roomId,
           roomTypeId: unit?.room_type_id ?? summary.roomTypeId,
           arrivalDate: room.arrivalDate,

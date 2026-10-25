@@ -360,4 +360,7 @@ export type CreatedReservationConfirmation = {
   selectedPackageLines?: string[];
   selectedServiceLines?: string[];
   savedPreferenceLines?: string[];
+  operationalGroupName?: string | null;
+  operationalGroupCode?: string | null;
+  operationalUnitLines?: string[];
 };

@@ -22,6 +22,8 @@ export interface GroupPickupStay {
   arrivalDate: string;
   departureDate: string;
   status: string;
+  reservationId?: string;
+  reservationRoomId?: string;
 }
 
 export interface GroupAllotmentNight {
@@ -47,7 +49,11 @@ export function groupNights(startDate: string, endDate: string): string[] {
   return Array.from({ length: count }, (_, index) => addDays(startDate, index));
 }
 
-export function stayOccupiesNight(arrivalDate: string, departureDate: string, night: string): boolean {
+export function stayOccupiesNight(
+  arrivalDate: string,
+  departureDate: string,
+  night: string,
+): boolean {
   return arrivalDate <= night && departureDate > night;
 }
 
@@ -86,6 +92,22 @@ export function allotmentTotals(nights: GroupAllotmentNight[]): {
   };
 }
 
+export function staysFitAllotment(input: {
+  allotted: number;
+  startDate: string;
+  endDate: string;
+  stays: GroupPickupStay[];
+  proposed: GroupPickupStay[];
+}): boolean {
+  const nights = nightlyAllotment({
+    allotted: input.allotted,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    stays: [...input.stays, ...input.proposed],
+  });
+  return nights.every((night) => night.pickedUp <= night.allotted);
+}
+
 export function stayFitsAllotment(input: {
   allotted: number;
   startDate: string;
@@ -93,13 +115,24 @@ export function stayFitsAllotment(input: {
   stays: GroupPickupStay[];
   proposed: GroupPickupStay;
 }): boolean {
-  const nights = nightlyAllotment({
-    allotted: input.allotted,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    stays: [...input.stays, input.proposed],
-  });
-  return nights.every((night) => night.pickedUp <= night.allotted);
+  return staysFitAllotment({ ...input, proposed: [input.proposed] });
+}
+
+/** Header block is the shared unit block, or null when units consume different blocks. */
+export function headerGroupBlockIdFromUnits(
+  blockIds: Array<string | null | undefined>,
+): string | null {
+  const ids = blockIds.filter((id): id is string => Boolean(id));
+  if (ids.length === 0) return null;
+  const first = ids[0]!;
+  return ids.every((id) => id === first) ? first : null;
+}
+
+export function effectiveGroupBlockCutoff(
+  blockCutoff: string | null | undefined,
+  groupCutoff: string | null | undefined,
+): string | null {
+  return blockCutoff ?? groupCutoff ?? null;
 }
 
 export function groupWorkspaceSectionFromTab(tab: string | undefined): boolean {

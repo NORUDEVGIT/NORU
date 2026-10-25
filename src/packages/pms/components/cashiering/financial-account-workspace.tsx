@@ -28,6 +28,7 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
 import { useMoney, useRestaurantTime } from "@/core/state/property-format";
 import { AccountInvoiceWorkspace } from "@/packages/pms/components/cashiering/account-invoice-builder";
 import { FinancialAccountHistory } from "@/packages/pms/components/cashiering/financial-account-history-panel";
@@ -167,6 +168,7 @@ export function FinancialAccountWorkspacePage({
       queryKey: ["financial-account-workspace", restaurantId, accountId],
     });
     void queryClient.invalidateQueries({ queryKey: ["financial-accounts", restaurantId] });
+    invalidateFrontOfficeOwnerReads(queryClient);
   }
 
   const closeMut = useMutation({

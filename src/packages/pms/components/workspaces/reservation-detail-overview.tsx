@@ -143,8 +143,8 @@ export function ReservationDetailOverviewDashboard({
   const paymentRows: Array<[string, string]> = [
     ["Payment Type", overviewPaymentLabel(reservation.guaranteeMethod)],
     ["Payment Method", overviewPaymentLabel(deposit?.tenderCode ?? reservation.guaranteeMethod)],
-    ["Deposit Required", deposit?.required == null ? dash : deposit.required ? "Yes" : "No"],
-    ["Deposit Amount", moneyOrDash(deposit?.amount ?? null)],
+    ["Requirement applies", deposit?.required == null ? dash : deposit.required ? "Yes" : "No"],
+    ["Deposit required", moneyOrDash(deposit?.amount ?? null)],
   ];
   if (deposit?.reference) paymentRows.push(["Payment Reference", deposit.reference]);
 

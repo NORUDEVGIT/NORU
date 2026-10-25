@@ -293,9 +293,11 @@ export function ReservationsWorkspace({
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [viewsCollapsed, setViewsCollapsed] = useState(false);
   const [quickViewCollapsed, setQuickViewCollapsed] = useState(true);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [desktopQuickView, setDesktopQuickView] = useState(false);
   const [actionDialog, setActionDialog] = useState<{
     kind: ReservationActionDialog;
     row: ReservationDeskRow;
@@ -406,20 +408,33 @@ export function ReservationsWorkspace({
 
   const selectedRow = useMemo(() => {
     const fromDesk = deskQuery.data?.rows.find((row) => row.reservationId === selectedId) ?? null;
-    if (fromDesk) return fromDesk;
+    if (
+      selectedRoomId &&
+      calendarRow?.reservationId === selectedId &&
+      (calendarRow.reservationRoomId ?? null) === selectedRoomId
+    ) {
+      return calendarRow;
+    }
+    if (fromDesk && !selectedRoomId) return fromDesk;
     if (calendarRow?.reservationId === selectedId) return calendarRow;
-    return null;
-  }, [deskQuery.data?.rows, selectedId, calendarRow]);
+    return fromDesk;
+  }, [deskQuery.data?.rows, selectedId, selectedRoomId, calendarRow]);
 
   const quickViewQuery = useQuery({
-    queryKey: ["reservation-quick-view", restaurantId, selectedId],
+    queryKey: ["reservation-quick-view", restaurantId, selectedId, selectedRoomId],
     queryFn: () =>
       loadQuickView({
-        data: { restaurantId, reservationId: selectedId! },
+        data: {
+          restaurantId,
+          reservationId: selectedId!,
+          ...(selectedRoomId ? { reservationRoomId: selectedRoomId } : {}),
+        },
       }),
     enabled: selectedId !== null,
     retry: false,
   });
+  const quickViewErrorDetail =
+    quickViewQuery.error instanceof Error ? quickViewQuery.error.message : null;
 
   function invalidateReservationReads() {
     void queryClient.invalidateQueries({ queryKey: ["reservation-desk", restaurantId] });
@@ -428,6 +443,12 @@ export function ReservationsWorkspace({
     void queryClient.invalidateQueries({ queryKey: ["reservation-calendar", restaurantId] });
     void queryClient.invalidateQueries({
       queryKey: ["reservation-calendar-exceptions", restaurantId],
+    });
+    void queryClient.invalidateQueries({ queryKey: ["pms-groups", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["pms-group", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["pms-group-operational", restaurantId] });
+    void queryClient.invalidateQueries({
+      queryKey: ["pms-groups-create-availability", restaurantId],
     });
   }
 
@@ -455,6 +476,7 @@ export function ReservationsWorkspace({
       toast.success(`Copied as ${result.confirmationNumber}.`);
       invalidateReservationReads();
       setSelectedId(result.id);
+      setSelectedRoomId(null);
       setOverlay({ type: "reservation-detail", reservationId: result.id });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -474,10 +496,19 @@ export function ReservationsWorkspace({
   }, [selectedId]);
 
   useEffect(() => {
+    const media = window.matchMedia("(min-width: 1280px)");
+    const apply = () => setDesktopQuickView(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
     if (!selectedId) return;
     if (deskQuery.data?.rows.some((row) => row.reservationId === selectedId)) return;
     if (calendarRow?.reservationId === selectedId) return;
     setSelectedId(null);
+    setSelectedRoomId(null);
     setMobileDetailOpen(false);
   }, [deskQuery.data?.rows, selectedId, calendarRow]);
 
@@ -489,6 +520,7 @@ export function ReservationsWorkspace({
     setView(next);
     setPage(1);
     setSelectedId(null);
+    setSelectedRoomId(null);
   }
 
   function clearFilters() {
@@ -506,6 +538,8 @@ export function ReservationsWorkspace({
 
   function selectRow(row: ReservationDeskRow) {
     setSelectedId(row.reservationId);
+    setSelectedRoomId(row.reservationRoomId ?? null);
+    if (!row.reservationRoomId) setCalendarRow(null);
     setMobileDetailOpen(true);
   }
 
@@ -532,12 +566,15 @@ export function ReservationsWorkspace({
   function goWorkspaceSection(section: CalendarWorkspaceSection) {
     setWorkspaceSection(section);
     setSelectedId(null);
+    setSelectedRoomId(null);
     setMobileDetailOpen(false);
     void navigate({
       to: "/restaurant/pms/reservations",
       search: { tab: tabFromWorkspaceSection(section) },
     });
   }
+
+  const editCloseGuardRef = useRef<(() => boolean) | null>(null);
 
   function closeWorkspaceOverlay(open: boolean) {
     if (open) return;
@@ -1043,6 +1080,7 @@ export function ReservationsWorkspace({
                     row={selectedRow}
                     loading={quickViewQuery.isLoading}
                     error={quickViewQuery.isError}
+                    errorDetail={quickViewErrorDetail}
                     quickView={quickViewQuery.data}
                     onRetry={() => void quickViewQuery.refetch()}
                     businessDate={snapshot?.businessDate ?? ""}
@@ -1076,6 +1114,8 @@ export function ReservationsWorkspace({
             <GroupsWorkspace
               restaurantId={restaurantId}
               canWrite={membership.role === "owner" || membership.role === "manager"}
+              canCreateReservation={canManageActions}
+              createStayActive={overlay?.type === "new-reservation" && Boolean(createGroupLink)}
               onCreateStay={(groupId, blockId) => {
                 setCreateGroupLink({ pmsGroupId: groupId, pmsGroupBlockId: blockId });
                 setOverlay({ type: "new-reservation" });
@@ -1101,9 +1141,11 @@ export function ReservationsWorkspace({
                 restaurantId={restaurantId}
                 canManage={canManageActions}
                 selectedId={selectedId}
+                selectedReservationRoomId={selectedRoomId}
                 onSelect={(row) => {
                   setCalendarRow(row);
                   setSelectedId(row.reservationId);
+                  setSelectedRoomId(row.reservationRoomId ?? null);
                   setMobileDetailOpen(true);
                 }}
                 onOpen={openReservation}
@@ -1116,6 +1158,7 @@ export function ReservationsWorkspace({
                   row={selectedRow}
                   loading={quickViewQuery.isLoading}
                   error={quickViewQuery.isError}
+                  errorDetail={quickViewErrorDetail}
                   quickView={quickViewQuery.data}
                   onRetry={() => void quickViewQuery.refetch()}
                   businessDate={snapshot?.businessDate ?? ""}
@@ -1133,7 +1176,12 @@ export function ReservationsWorkspace({
       </div>
 
       <Sheet
-        open={workspaceSection === "desk" && mobileDetailOpen && selectedRow !== null}
+        open={
+          !desktopQuickView &&
+          workspaceSection === "desk" &&
+          mobileDetailOpen &&
+          selectedRow !== null
+        }
         onOpenChange={setMobileDetailOpen}
       >
         <SheetContent className="w-full overflow-y-auto p-4 sm:max-w-md xl:hidden">
@@ -1141,6 +1189,7 @@ export function ReservationsWorkspace({
             row={selectedRow}
             loading={quickViewQuery.isLoading}
             error={quickViewQuery.isError}
+            errorDetail={quickViewErrorDetail}
             quickView={quickViewQuery.data}
             onRetry={() => void quickViewQuery.refetch()}
             businessDate={snapshot?.businessDate ?? ""}
@@ -1194,7 +1243,17 @@ export function ReservationsWorkspace({
           overlay?.type === "no-show-reservation"
         }
         showCreateIcon={overlay?.type === "new-reservation"}
-        onOpenChange={closeWorkspaceOverlay}
+        onOpenChange={(open) => {
+          if (
+            !open &&
+            overlay?.type === "edit-reservation" &&
+            editCloseGuardRef.current &&
+            !editCloseGuardRef.current()
+          ) {
+            return;
+          }
+          closeWorkspaceOverlay(open);
+        }}
       >
         {overlay?.type === "new-reservation" ? (
           <CreateReservationPage
@@ -1206,11 +1265,14 @@ export function ReservationsWorkspace({
             initialGroupMasterId={overlay.initialGroupMasterId ?? null}
             pmsGroupId={createGroupLink?.pmsGroupId ?? null}
             pmsGroupBlockId={createGroupLink?.pmsGroupBlockId ?? null}
-            returnToLabel={returnToLabel}
+            lockOperationalGroup={Boolean(createGroupLink)}
+            returnToLabel={createGroupLink ? "Return to Group" : returnToLabel}
             onCancel={() => closeWorkspaceOverlay(false)}
             onCreated={() => invalidateReservationReads()}
             onOpenCreatedReservation={(reservationId) => {
               setSelectedId(reservationId);
+              setSelectedRoomId(null);
+              setCalendarRow(null);
               setOverlay({ type: "reservation-detail", reservationId });
               invalidateReservationReads();
             }}
@@ -1224,6 +1286,8 @@ export function ReservationsWorkspace({
             embedded
             onCopiedReservation={(reservationId) => {
               setSelectedId(reservationId);
+              setSelectedRoomId(null);
+              setCalendarRow(null);
               setOverlay({ type: "reservation-detail", reservationId });
               invalidateReservationReads();
             }}
@@ -1238,8 +1302,13 @@ export function ReservationsWorkspace({
             membership={membership}
             reservationId={overlay.reservationId}
             onBackToDesk={() => closeWorkspaceOverlay(false)}
+            onRegisterCloseGuard={(guard) => {
+              editCloseGuardRef.current = guard;
+            }}
             onOpenReservation={(id) => {
               setSelectedId(id);
+              setSelectedRoomId(null);
+              setCalendarRow(null);
               setOverlay({ type: "reservation-detail", reservationId: id });
               invalidateReservationReads();
             }}
@@ -1252,6 +1321,8 @@ export function ReservationsWorkspace({
             onBackToDesk={() => closeWorkspaceOverlay(false)}
             onOpenReservation={(id) => {
               setSelectedId(id);
+              setSelectedRoomId(null);
+              setCalendarRow(null);
               setOverlay({ type: "reservation-detail", reservationId: id });
               invalidateReservationReads();
             }}
@@ -1264,6 +1335,8 @@ export function ReservationsWorkspace({
             onBackToDesk={() => closeWorkspaceOverlay(false)}
             onOpenReservation={(id) => {
               setSelectedId(id);
+              setSelectedRoomId(null);
+              setCalendarRow(null);
               setOverlay({ type: "reservation-detail", reservationId: id });
               invalidateReservationReads();
             }}
@@ -1404,6 +1477,7 @@ function QuickViewRail({
   row,
   loading,
   error,
+  errorDetail = null,
   quickView,
   onRetry,
   businessDate,
@@ -1415,6 +1489,7 @@ function QuickViewRail({
   row: ReservationDeskRow | null;
   loading: boolean;
   error: boolean;
+  errorDetail?: string | null;
   quickView: ReservationQuickView | undefined;
   onRetry: () => void;
   businessDate: string;
@@ -1466,6 +1541,7 @@ function QuickViewRail({
         row={row}
         loading={loading}
         error={error}
+        errorDetail={errorDetail}
         quickView={quickView}
         onRetry={onRetry}
         businessDate={businessDate}

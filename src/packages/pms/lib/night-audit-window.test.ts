@@ -29,9 +29,9 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf
 const functionsSrc = read("./nightaudit.functions.ts");
 const windowSrc = read("./night-audit-window.ts");
 const recoveryFnSrc = read("./business-date-recovery.functions.ts");
-const migration = read("../../../../supabase/migrations/0180_business_date_adjustments.sql");
+const migration = read("../../../../supabase/migrations/0184_business_date_adjustments.sql");
 const recoveryLifecycleMigration = read(
-  "../../../../supabase/migrations/0181_business_date_recovery_superseded_runs.sql",
+  "../../../../supabase/migrations/0185_business_date_recovery_superseded_runs.sql",
 );
 const closeMigration = read(
   "../../../../supabase/migrations/0179_night_audit_fiscal_override_lifecycle.sql",

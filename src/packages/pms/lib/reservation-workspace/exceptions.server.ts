@@ -556,7 +556,10 @@ function severityFor(
 function uniqueStays(groups: FrontOfficeStay[][]): FrontOfficeStay[] {
   const byId = new Map<string, FrontOfficeStay>();
   for (const group of groups) {
-    for (const stay of group) byId.set(stay.id, stay);
+    for (const stay of group) {
+      const key = stay.reservationRoomId ? `${stay.id}:${stay.reservationRoomId}` : stay.id;
+      byId.set(key, stay);
+    }
   }
   return [...byId.values()];
 }

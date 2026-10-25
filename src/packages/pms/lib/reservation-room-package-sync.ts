@@ -77,3 +77,25 @@ export function unitPackageKept(input: {
   }
   return { kept: true, reason: null };
 }
+
+/**
+ * Stay-scoped reevaluate. An empty allow-list means every rate plan.
+ * With room units, every active unit's effective rate plan must be allowed.
+ * The first unit copied onto the reservation is not a separate pointer.
+ * With no units, the reservation rate plan is the fallback.
+ */
+export function stayScopedRatePlanKept(input: {
+  unitRatePlanIds: Array<string | null>;
+  reservationRatePlanId: string | null;
+  allowedRatePlanIds: string[];
+}): boolean {
+  if (input.allowedRatePlanIds.length === 0) return true;
+  const allowed = new Set(input.allowedRatePlanIds);
+  if (input.unitRatePlanIds.length === 0) {
+    return input.reservationRatePlanId != null && allowed.has(input.reservationRatePlanId);
+  }
+  return input.unitRatePlanIds.every((unitRatePlanId) => {
+    const effective = unitRatePlanId ?? input.reservationRatePlanId;
+    return effective != null && allowed.has(effective);
+  });
+}

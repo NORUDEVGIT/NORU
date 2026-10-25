@@ -16,7 +16,11 @@ import {
   foOpensPreArrivalCheckInWorkspace,
   foCheckInWorkspaceProminentUnassigned,
   foPickGuestIdentityDocumentPreview,
+  foRackCheckedInStay,
+  foRackConfirmedAssignedStay,
+  foStayInformationSourceLabel,
 } from "./fo-check-in-workspace";
+import { OVERVIEW_LABEL_UNAVAILABLE } from "./reservation-detail-overview";
 import { FO_ROOM_QUICK_VIEW_SHEET_MAX_CLASS } from "./front-office-room-operations";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -69,7 +73,7 @@ describe("FO Check-In workspace — Phase 1", () => {
     assert.match(sheet, /getAmendContext/);
     assert.match(sheet, /getReservationFolio/);
     assert.match(sheet, /getFrontOfficeArrivalQuickView/);
-    assert.match(sheet, /fo-ci-workspace-reservation/);
+    assert.match(sheet, /fo-ci-workspace-stay-information/);
     assert.match(sheet, /fo-ci-workspace-guest/);
   });
 
@@ -86,8 +90,6 @@ describe("FO Check-In workspace — Phase 1", () => {
     const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
     assert.doesNotMatch(sheet, /Save as Draft/i);
     assert.doesNotMatch(sheet, /Save & Continue Later/i);
-    assert.match(sheet, /fo-ci-workspace-footer/);
-    assert.match(sheet, /Close/);
   });
 
   it("continues into FoCheckInStepper with correct initial steps", () => {
@@ -108,6 +110,125 @@ describe("FO Check-In workspace — Phase 1", () => {
     assert.match(workspace, /openRoomQuickView/);
     assert.match(workspace, /openStayQuickView/);
     assert.match(workspace, /RoomQuickViewSheet/);
+  });
+
+  it("opens assigned and unassigned confirmed stays in the same check-in sheet", () => {
+    const calendar = readRel("../components/frontoffice/room-rack-calendar.tsx");
+    const workspace = readRel("../components/workspaces/front-office-workspace.tsx");
+    assert.match(calendar, /foRackConfirmedAssignedStay/);
+    assert.match(calendar, /onSelectStay\(stayFromReservation\(confirmed/);
+    assert.equal(foOpensPreArrivalCheckInWorkspace({ status: "confirmed" }), true);
+    assert.match(workspace, /foOpensPreArrivalCheckInWorkspace\(sheetStay\)/);
+    assert.doesNotMatch(
+      workspace,
+      /foOpensPreArrivalCheckInWorkspace\(sheetStay\)[\s\S]{0,80}sheetStay\.roomId/,
+    );
+    const assigned = foRackConfirmedAssignedStay([
+      { status: "confirmed" as const, roomId: "room-1" },
+    ]);
+    assert.equal(assigned?.roomId, "room-1");
+    assert.equal(
+      foRackConfirmedAssignedStay([{ status: "confirmed" as const, roomId: null }]),
+      null,
+    );
+    assert.equal(
+      foRackConfirmedAssignedStay([
+        { status: "checked_in" as const, roomId: "room-1" },
+        { status: "confirmed" as const, roomId: "room-1" },
+      ]),
+      null,
+    );
+  });
+
+  it("opens a rack checked-in room in the in-house sheet for that unit", () => {
+    const calendar = readRel("../components/frontoffice/room-rack-calendar.tsx");
+    const workspace = readRel("../components/workspaces/front-office-workspace.tsx");
+    const occupancy = readRel("./frontoffice.functions.ts");
+    assert.match(calendar, /inHouseTargetForRoom\(room, stays\)/);
+    assert.match(calendar, /onSelectInHouse\(inHouse\)/);
+    assert.match(calendar, /onSelectRoom\(room\.id\)/);
+    assert.match(workspace, /onSelectInHouse=\{openInHouseFromRack\}/);
+    assert.match(workspace, /<InHouseQuickViewSheet/);
+    assert.match(workspace, /reservationId=\{inHouseQv\?\.reservationId \?\? null\}/);
+    assert.match(workspace, /reservationRoomId=\{inHouseQv\?\.reservationRoomId \?\? null\}/);
+    assert.match(
+      workspace,
+      /initialReservationRoomId=\{inHouseMove\.reservationRoomId \?\? undefined\}/,
+    );
+    assert.match(
+      workspace,
+      /initialReservationRoomId=\{inHouseCheckOut\.reservationRoomId \?\? undefined\}/,
+    );
+    assert.match(workspace, /<FoCheckInWorkspaceSheet/);
+    assert.match(workspace, /<RoomQuickViewSheet/);
+    assert.match(occupancy, /id, reservation_id, room_id, status/);
+    assert.match(occupancy, /reservationRoomId: occupiedRoom\?\.reservationRoomId \?\? null/);
+    assert.doesNotMatch(calendar, /onSelectRoom\(room\.id\)[\s\S]{0,40}onSelectInHouse/);
+
+    const checkedIn = foRackCheckedInStay({
+      roomId: "room-1",
+      stays: [
+        { id: "res-in", status: "checked_in", roomId: "room-1" },
+        { id: "res-next", status: "confirmed", roomId: "room-1" },
+      ],
+      occupied: { reservationId: "res-in", reservationRoomId: "unit-1" },
+    });
+    assert.deepEqual(checkedIn, { reservationId: "res-in", reservationRoomId: "unit-1" });
+
+    const sibling = foRackCheckedInStay({
+      roomId: "room-2",
+      stays: [
+        {
+          id: "res-multi",
+          status: "checked_in",
+          roomId: "room-1",
+          rooms: [
+            { id: "unit-1", roomId: "room-1", status: "checked_in" },
+            { id: "unit-2", roomId: "room-2", status: "checked_in" },
+          ],
+        },
+      ],
+    });
+    assert.deepEqual(sibling, { reservationId: "res-multi", reservationRoomId: "unit-2" });
+    assert.notEqual(sibling?.reservationRoomId, "unit-1");
+
+    assert.equal(
+      foRackCheckedInStay({
+        roomId: "room-9",
+        stays: [{ id: "res-confirmed", status: "confirmed", roomId: "room-9" }],
+      }),
+      null,
+    );
+    assert.equal(
+      foRackCheckedInStay({
+        roomId: "room-vacant",
+        stays: [],
+      }),
+      null,
+    );
+    assert.equal(
+      foRackConfirmedAssignedStay([{ status: "confirmed" as const, roomId: "room-9" }])?.roomId,
+      "room-9",
+    );
+  });
+
+  it("shows a source label instead of the stored code or id", () => {
+    const phoneId = "550e8400-e29b-41d4-a716-446655440000";
+    const sources = [{ id: phoneId, code: "PHONE", name: "Phone" }];
+    assert.equal(foStayInformationSourceLabel("staff", phoneId, sources), "Phone");
+    assert.equal(foStayInformationSourceLabel("staff", "travel_agency", null), "Travel agency");
+    assert.equal(foStayInformationSourceLabel("walk_in", null, null), "Walk-in");
+    assert.equal(foStayInformationSourceLabel("future_online", null, null), "Future online");
+    assert.equal(foStayInformationSourceLabel("staff", null, null), "Staff");
+    assert.equal(
+      foStayInformationSourceLabel("staff", "11111111-1111-4111-8111-111111111111", sources),
+      OVERVIEW_LABEL_UNAVAILABLE,
+    );
+    assert.equal(foStayInformationSourceLabel(null, null, null), "—");
+    const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
+    assert.match(sheet, /foStayInformationSourceLabel/);
+    assert.match(sheet, /getPmsSet6Snapshot/);
+    assert.doesNotMatch(sheet, /reservation-detail-overview/);
   });
 
   it("derives reservation type safely from company / travel agent ids", () => {
@@ -134,10 +255,8 @@ describe("FO Check-In workspace — Phase 1", () => {
 });
 
 describe("FO Check-In workspace — Phase 2 polish", () => {
-  it("reservation card exposes View/Edit reservation actions", () => {
+  it("shows guarantee status from the commercial and arrival readers", () => {
     const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
-    assert.match(sheet, /fo-ci-workspace-view-reservation/);
-    assert.match(sheet, /fo-ci-workspace-edit-reservation/);
     assert.match(sheet, /fo-ci-workspace-guarantee-status/);
     assert.match(sheet, /getReservationCommercialAttribution/);
   });
@@ -174,12 +293,12 @@ describe("FO Check-In workspace — Phase 2 polish", () => {
     assert.match(sheet, /No identity document image available/);
   });
 
-  it("stay tiles route edits through existing amend actions", () => {
+  it("stay amendments stay in More actions, not inline body edits", () => {
     const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
-    assert.match(sheet, /StayDetailTile/);
-    assert.match(sheet, /extend_stay/);
-    assert.match(sheet, /add_remove_guest/);
-    assert.match(sheet, /upgrade_downgrade/);
+    assert.match(sheet, /stayQuickViewAmendItems/);
+    assert.match(sheet, /Amend Stay/);
+    assert.doesNotMatch(sheet, /StayDetailTile/);
+    assert.doesNotMatch(sheet, /Edit in Reservation/);
   });
 
   it("room assignment uses assignable rooms and room type cover without auto assign", () => {
@@ -214,6 +333,115 @@ describe("FO Check-In workspace — Phase 2 polish", () => {
     assert.doesNotMatch(sheet, /CVV/i);
     assert.doesNotMatch(sheet, /\*\*\*\*/);
     assert.doesNotMatch(sheet, /card verified/i);
+  });
+
+  it("header owns Assign Room, Check In and More actions; footer is gone", () => {
+    const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
+    const header = sheet.slice(
+      sheet.indexOf('data-testid="fo-ci-workspace-header"'),
+      sheet.indexOf("</SheetHeader>"),
+    );
+    assert.match(header, /stay\.confirmationNumber/);
+    assert.match(header, /ReservationStatusBadge/);
+    assert.match(header, /fo-ci-workspace-unassigned/);
+    assert.match(header, /fo-ci-workspace-assigned-room/);
+    assert.match(header, /fo-ci-workspace-assign-room/);
+    assert.match(header, /headerAssign/);
+    assert.match(header, /fo-ci-workspace-change-room/);
+    assert.match(header, /headerChangeRoom/);
+    assert.match(header, /onAction\("assign", stay\)/);
+    assert.match(header, /fo-ci-workspace-check-in/);
+    assert.match(header, /onContinueCheckIn\(stay\)/);
+    assert.match(header, /More actions/);
+    const menu = header.slice(header.indexOf("<DropdownMenuContent"));
+    assert.doesNotMatch(menu, /Change Room/);
+    assert.doesNotMatch(menu, /Assign Room/);
+    assert.doesNotMatch(sheet, /<footer/);
+    assert.doesNotMatch(sheet, /fo-ci-workspace-footer/);
+    assert.doesNotMatch(sheet, /fo-ci-workspace-continue/);
+  });
+
+  it("removes duplicate body actions, including request and notes edits", () => {
+    const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
+    for (const gone of [
+      "Open Reservation",
+      "View Reservation",
+      "Edit Reservation",
+      "View Profile",
+      "View Folio</Button>",
+      "fo-ci-workspace-open-reservation",
+      "fo-ci-workspace-view-reservation",
+      "fo-ci-workspace-edit-guest",
+      "fo-ci-workspace-view-profile",
+      "fo-ci-workspace-view-folio",
+      "fo-ci-workspace-edit-special-requests",
+      "fo-ci-workspace-edit-notes",
+      "Find Another Room",
+      "<Link",
+    ]) {
+      assert.equal(sheet.includes(gone), false, gone);
+    }
+    assert.equal(sheet.match(/fo-ci-workspace-assign-room/g)?.length, 1);
+    const body = sheet.slice(sheet.indexOf("</SheetHeader>"));
+    assert.equal((body.match(/>\s*Edit\s*</g) ?? []).length, 0);
+  });
+
+  it("shows the amber assignment banner for confirmed unassigned stays", () => {
+    const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
+    assert.match(sheet, /stay\.status === "confirmed" && !roomAssigned/);
+    assert.match(sheet, /fo-ci-workspace-assignment-required/);
+    assert.match(sheet, /Room assignment required/);
+    assert.match(sheet, /border-amber-300 bg-amber-50/);
+  });
+
+  it("lays out six compact cards in order", () => {
+    const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
+    const titles = [
+      'title="Stay Information"',
+      'title="Guest Information"',
+      'title="Room Assignment"',
+      'title="Financial Overview"',
+      'title="Special Requests"',
+      'title="Internal Notes"',
+    ];
+    const positions = titles.map((title) => sheet.indexOf(title));
+    for (const pos of positions) assert.ok(pos > 0);
+    assert.deepEqual(
+      [...positions].sort((a, b) => a - b),
+      positions,
+    );
+    assert.doesNotMatch(sheet, /title="Folio Preview"/);
+    assert.doesNotMatch(sheet, /title="Payment \/ Guarantee"/);
+  });
+
+  it("More actions keeps amend, no-show, cancellation and folio", () => {
+    const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
+    assert.match(sheet, /stayQuickViewMenuItems/);
+    assert.match(sheet, /item\.id !== "check_in" && item\.id !== "assign"/);
+    assert.match(sheet, /action\.id === "cancel_fees"/);
+    assert.match(sheet, /action\.id === "view_folio"/);
+    assert.match(sheet, /openViewFolio\(\)/);
+    assert.match(sheet, /stayQuickViewAmendItems/);
+    assert.match(sheet, /FoCancelStepper/);
+    assert.equal(sheet.match(/Change Room/g)?.length, 1);
+    assert.equal(sheet.match(/fo-ci-workspace-assign-room/g)?.length, 1);
+    assert.equal(sheet.match(/fo-ci-workspace-change-room/g)?.length, 1);
+  });
+
+  it("room card reads authoritative room fields and does not invent them", () => {
+    const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
+    assert.match(sheet, /fo-ci-workspace-room-number/);
+    assert.match(sheet, /reservation\?\.roomNumber/);
+    assert.match(sheet, /arrival\?\.room\.roomNumber/);
+    assert.match(sheet, /fo-ci-workspace-room-building/);
+    assert.match(sheet, /assignedRoomMeta\?\.building/);
+    assert.match(sheet, /fo-ci-workspace-room-floor/);
+    assert.match(sheet, /assignedRoomMeta\?\.floor/);
+    assert.match(sheet, /fo-ci-workspace-room-status/);
+    assert.match(sheet, /arrival\?\.room\.status/);
+    assert.match(sheet, /fo-ci-workspace-room-housekeeping/);
+    assert.match(sheet, /arrival\?\.room\.housekeepingStatus/);
+    assert.doesNotMatch(sheet, /Building A|Floor 1|Vacant Clean/);
   });
 
   it("identity document preview uses listGuestDocuments urls only", () => {

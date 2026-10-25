@@ -22,6 +22,8 @@ import {
 import { FoAmendKindSheet, type FoAmendKind } from "@/packages/pms/components/frontoffice/fo-amend-sheet";
 import { LateCheckoutDialog } from "@/packages/pms/components/workspaces/arrivals-departures-dialogs";
 import { FO_INHOUSE_EXCEPTION_LABELS } from "@/packages/pms/lib/fo-inhouse";
+import { MAINTENANCE_HREF } from "@/packages/pms/lib/front-office-room-operations";
+import { siblingUnitSummary } from "@/packages/pms/lib/fo-unit-desk";
 import {
   listFrontOfficeInHouseDesk,
   type FoInHouseDeskRow,
@@ -34,6 +36,7 @@ import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-busines
 import { useMoney, useRestaurantTimezone } from "@/core/state/property-format";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading } from "@/core/state/pms-context";
+import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
 import { cn } from "@/shared/lib/utils";
 
 const ALL = "all";
@@ -116,6 +119,7 @@ export function InHouseWorkspace({
   const [departing, setDeparting] = useState(ALL);
   const [blocker, setBlocker] = useState(ALL);
   const [qvId, setQvId] = useState<string | null>(null);
+  const [qvRoomId, setQvRoomId] = useState<string | null>(null);
   const [moveStay, setMoveStay] = useState<FoInHouseDeskRow["stay"] | null>(null);
   const [datesStay, setDatesStay] = useState<FoInHouseDeskRow["stay"] | null>(null);
   const [checkOutStay, setCheckOutStay] = useState<FoInHouseDeskRow["stay"] | null>(null);
@@ -136,6 +140,7 @@ export function InHouseWorkspace({
     queryKey: ["front-office", "inhouse-desk", restaurantId, today],
     queryFn: () => fetchDesk({ data: { restaurantId, today } }),
     enabled: canManage,
+    ...foOperationalQueryOptions(),
     retry: false,
   });
 
@@ -189,7 +194,19 @@ export function InHouseWorkspace({
     }
     if (action === "open_folio") {
       closeOverlays();
+      if (qv.financial.folioId) {
+        void navigate({
+          to: "/restaurant/pms/cashiering/folios/$folioId",
+          params: { folioId: qv.financial.folioId },
+        });
+        return;
+      }
       void navigate({ to: "/restaurant/pms/cashiering", search: { tab: "folios" } });
+      return;
+    }
+    if (action === "open_maintenance") {
+      closeOverlays();
+      void navigate({ to: MAINTENANCE_HREF });
       return;
     }
     closeOverlays();
@@ -220,6 +237,17 @@ export function InHouseWorkspace({
       ) : null}
 
       <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          data-testid="fo-inhouse-refresh"
+          onClick={() => {
+            void queryClient.invalidateQueries({ queryKey: ["front-office", "inhouse-desk"] });
+            void queryClient.invalidateQueries({ queryKey: ["front-office", "inhouse-qv"] });
+          }}
+        >
+          Refresh
+        </Button>
         <Input
           className="w-56"
           placeholder="Search guest, confirmation, room"
@@ -328,9 +356,12 @@ export function InHouseWorkspace({
             <tbody>
               {visible.map((row) => (
                 <tr
-                  key={row.stay.id}
+                  key={row.stay.reservationRoomId ? `${row.stay.id}:${row.stay.reservationRoomId}` : row.stay.id}
                   className={cn("cursor-pointer border-b border-border last:border-0 hover:bg-muted/40")}
-                  onClick={() => setQvId(row.stay.id)}
+                  onClick={() => {
+                    setQvId(row.stay.id);
+                    setQvRoomId(row.stay.reservationRoomId ?? null);
+                  }}
                 >
                   <td className="px-3 py-2">
                     <p className="font-medium">
@@ -342,6 +373,11 @@ export function InHouseWorkspace({
                   <td className="px-3 py-2">
                     {row.stay.roomNumber ? `Room ${row.stay.roomNumber}` : "Unassigned"}
                     <span className="block text-xs text-muted-foreground">{row.stay.roomTypeName}</span>
+                    {siblingUnitSummary(row.stay) ? (
+                      <span className="block text-xs text-muted-foreground">
+                        Also {siblingUnitSummary(row.stay)}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">
                     {formatStayDate(row.stay.arrivalDate)} → {formatStayDate(row.stay.departureDate)}
@@ -377,9 +413,13 @@ export function InHouseWorkspace({
       <InHouseQuickViewSheet
         restaurantId={restaurantId}
         reservationId={qvId}
+        reservationRoomId={qvRoomId}
         open={Boolean(qvId) && !moveStay && !datesStay && !checkOutStay && !lateQv && !amend}
         onOpenChange={(open) => {
-          if (!open) setQvId(null);
+          if (!open) {
+            setQvId(null);
+            setQvRoomId(null);
+          }
         }}
         onAction={onAction}
       />
@@ -388,6 +428,7 @@ export function InHouseWorkspace({
         <RoomMoveDialog
           restaurantId={restaurantId}
           stay={moveStay}
+          initialReservationRoomId={moveStay.reservationRoomId ?? undefined}
           open
           onOpenChange={(open) => {
             if (!open) {
@@ -414,6 +455,7 @@ export function InHouseWorkspace({
         <CheckOutDialog
           restaurantId={restaurantId}
           stay={checkOutStay}
+          initialReservationRoomId={checkOutStay.reservationRoomId ?? undefined}
           open
           onOpenChange={(open) => {
             if (!open) {

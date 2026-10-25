@@ -34,6 +34,7 @@ export interface CanonicalPhoneInputProps {
   className?: string;
   triggerClassName?: string;
   containerClassName?: string;
+  popoverClassName?: string;
   size?: "sm" | "default" | "modal";
   "data-testid"?: string;
 }
@@ -59,6 +60,7 @@ export function CanonicalPhoneInput({
   className,
   triggerClassName,
   containerClassName,
+  popoverClassName,
   size = "modal",
   "data-testid": testId,
 }: CanonicalPhoneInputProps) {
@@ -108,7 +110,7 @@ export function CanonicalPhoneInput({
               triggerClassName,
             )}
           >
-            <span className="truncate text-left flex items-center gap-0.5">
+            <span className="whitespace-nowrap text-left flex items-center gap-0.5">
               <span className="text-sm leading-none shrink-0">{country?.flag || "🌐"}</span>
               <span className="font-mono text-xs text-[#251605]">
                 {country ? `+${country.dialCode}` : "+Code"}
@@ -117,7 +119,7 @@ export function CanonicalPhoneInput({
             <ChevronsUpDown className="size-3 shrink-0 opacity-40 ml-0.5" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[22rem] p-0 z-50 bg-white shadow-md border-[#CCCCCC]" align="start">
+        <PopoverContent className={cn("w-[22rem] p-0 z-[80] bg-white shadow-md border-[#CCCCCC]", popoverClassName)} align="start">
           <Command>
             <CommandInput placeholder="Search country or dial code..." className="text-xs" />
             <CommandList className="max-h-60">
@@ -167,7 +169,15 @@ export function CanonicalPhoneInput({
           className,
         )}
         onChange={(event) => {
-          emit(effectiveIso, filterPhoneDigits(event.target.value));
+          const val = event.target.value;
+          if (val.trim().startsWith("+")) {
+            const dec = decomposeSetupPhone(val);
+            if (dec.iso) {
+              emit(dec.iso, dec.localNumber);
+              return;
+            }
+          }
+          emit(effectiveIso, filterPhoneDigits(val));
         }}
       />
     </div>

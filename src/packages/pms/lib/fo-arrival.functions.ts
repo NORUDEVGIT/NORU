@@ -6,7 +6,15 @@ import { MANAGE_ROLES } from "@/core/lib/workforce.server";
 import { loadFoStaySignals } from "./fo-exceptions.functions";
 import type { FolioSignalLane, StayMoneySignal } from "./fo-exceptions";
 import { isRoomReady, type IdDocumentType, type RegistrationDraft } from "./fo-check-in";
+import {
+  emptyCheckInUnitProgress,
+  selectCheckInUnitProgress,
+  type CheckInUnitProgress,
+} from "./fo-check-in-unit";
+import { isMissingSchemaError } from "./pms-set2-structure";
+import { loadUnitProgress } from "./fo-check-in-unit.functions";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
+import { focusFrontOfficeStay } from "./fo-unit-desk";
 import {
   loadFrontOfficeArrivals,
   loadFrontOfficeStay,
@@ -30,6 +38,8 @@ import {
   foArrivalBlockingKeys,
   foArrivalExceptionKeys,
   foCheckInReadiness,
+  arrivalProgressKey,
+  arrivalUnitCount,
   guestVerificationMissing,
   registrationOkFromProgress,
   roomEligibleStatus,
@@ -205,6 +215,81 @@ function formatEtaClock(iso: string | null, timezone: string): string | null {
   }
 }
 
+function progressFromDeskRow(row: {
+  reservation_room_id?: string | null;
+  registration_snapshot?: RegistrationDraft | null;
+  registration_waived?: boolean | null;
+  deposit_waived?: boolean | null;
+  deposit_amount?: number | string | null;
+}): CheckInUnitProgress {
+  return {
+    ...emptyCheckInUnitProgress(row.reservation_room_id ?? null),
+    registrationSnapshot: row.registration_snapshot ?? null,
+    registrationWaived: row.registration_waived === true,
+    depositWaived: row.deposit_waived === true,
+    depositAmount: row.deposit_amount == null ? null : Number(row.deposit_amount),
+  };
+}
+
+/** One unit-scoped check-in progress row per arrival desk stay. */
+export async function loadArrivalProgressByStay(
+  db: { from: (table: string) => any },
+  restaurantId: string,
+  stays: FrontOfficeStay[],
+): Promise<Map<string, CheckInUnitProgress>> {
+  const map = new Map<string, CheckInUnitProgress>();
+  const ids = [...new Set(stays.map((stay) => stay.id))];
+  const grouped = new Map<string, CheckInUnitProgress[]>();
+  if (ids.length > 0) {
+    const result = await db
+      .from("fo_checkin_progress")
+      .select(
+        "reservation_id, reservation_room_id, registration_snapshot, registration_waived, deposit_waived, deposit_amount",
+      )
+      .eq("restaurant_id", restaurantId)
+      .in("reservation_id", ids);
+    if (result.error && !isMissingSchemaError(result.error)) throw new Error(result.error.message);
+    if (!result.error) {
+      for (const row of result.data ?? []) {
+        const list = grouped.get(row.reservation_id) ?? [];
+        list.push(progressFromDeskRow(row));
+        grouped.set(row.reservation_id, list);
+      }
+    }
+  }
+  for (const stay of stays) {
+    const unitCount = arrivalUnitCount(stay);
+    const reservationRoomId = stay.reservationRoomId ?? null;
+    const progress =
+      unitCount > 0 && !reservationRoomId
+        ? emptyCheckInUnitProgress(null)
+        : selectCheckInUnitProgress({
+            reservationRoomId,
+            unitCount,
+            rows: grouped.get(stay.id) ?? [],
+          });
+    map.set(arrivalProgressKey(stay), progress);
+  }
+  return map;
+}
+
+function registrationForStay(
+  stay: FrontOfficeStay,
+  progress: CheckInUnitProgress | undefined,
+): boolean {
+  return registrationOkFromProgress({
+    snapshot: (progress?.registrationSnapshot as RegistrationDraft | null) ?? null,
+    waived: progress?.registrationWaived === true,
+    guest: {
+      fullName: stay.guestName,
+      phone: stay.guestPhone,
+      email: stay.guestEmail,
+      idDocumentType: null,
+      idDocumentNumber: null,
+    },
+  });
+}
+
 function mapDeskRow(params: {
   stay: FrontOfficeStay;
   room: (RoomInventoryState & { maintenanceStatus?: string | null }) | undefined;
@@ -213,6 +298,7 @@ function mapDeskRow(params: {
   signal: StayMoneySignal | undefined;
   hk: Parameters<typeof isRoomReady>[1];
   guestRules: GuestProfileRules | null;
+  progress?: CheckInUnitProgress;
 }): FoArrivalDeskRow {
   const assigned = params.stay.roomId !== null;
   const ready = assigned
@@ -233,11 +319,12 @@ function mapDeskRow(params: {
     phone: params.stay.guestPhone,
     email: params.stay.guestEmail,
   });
+  const depositWaived = params.progress?.depositWaived === true || params.signal?.depositWaived === true;
   const depositOk = depositOkFromSignals(
     checkInPaymentGate({
       folioLane: params.folioLane,
       signal: params.signal,
-      waived: params.signal?.depositWaived === true,
+      waived: depositWaived,
     }),
   );
   const timing = etaTiming({
@@ -254,7 +341,7 @@ function mapDeskRow(params: {
     outstandingBalance: outstandingBalance(params.signal),
     specialRequests: params.stay.specialRequests,
     missingGuestFields: missing,
-    registrationOk: false,
+    registrationOk: registrationForStay(params.stay, params.progress),
     etaTiming: timing,
   });
   const blocking = foArrivalBlockingKeys(exceptionKeys);
@@ -268,14 +355,14 @@ function mapDeskRow(params: {
     etaTiming: timing,
     financialLane: params.folioLane,
     depositPosted: financial.depositPosted,
-    depositWaived: financial.depositWaived,
+    depositWaived,
     folioId: financial.folioId,
     exceptionKeys,
     hints: foArrivalActionHints({
       status: params.stay.status,
       assigned,
       roomReady: ready,
-      registrationOk: false,
+      registrationOk: registrationForStay(params.stay, params.progress),
       depositOk,
       missingGuestFields: missing,
       blockingKeys: blocking,
@@ -322,6 +409,7 @@ export const listFrontOfficeArrivalsDesk = createServerFn({ method: "POST" })
       loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId),
       loadGuestProfileRules(supabaseAdmin, data.restaurantId),
     ]);
+    const progressByStay = await loadArrivalProgressByStay(supabaseAdmin, data.restaurantId, stays);
     return {
       date,
       rows: stays.map((stay) =>
@@ -333,6 +421,7 @@ export const listFrontOfficeArrivalsDesk = createServerFn({ method: "POST" })
           signal: signals.byStay[stay.id],
           hk: hk.settings,
           guestRules,
+          progress: progressByStay.get(arrivalProgressKey(stay)),
         }),
       ),
     };
@@ -341,21 +430,40 @@ export const listFrontOfficeArrivalsDesk = createServerFn({ method: "POST" })
 export const getFrontOfficeArrivalQuickView = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
-    z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
+    z
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        reservationRoomId: idSchema.optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<FoArrivalQuickView> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadPropertySettings(supabaseAdmin, data.restaurantId);
     const today = resolvePropertyBusinessDate(settings.businessDate, settings.timezone);
-    const stay = await loadFrontOfficeStay(context.supabase, {
+    let stay = await loadFrontOfficeStay(context.supabase, {
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
       today,
     });
     if (!stay) throw new Error("Reservation not found for this property.");
+    const focused = focusFrontOfficeStay(stay, data.reservationRoomId, today);
+    if (data.reservationRoomId && focused.reservationRoomId !== data.reservationRoomId) {
+      throw new Error("ROOM_UNIT_NOT_FOUND");
+    }
+    stay = focused;
+    const unitCount = arrivalUnitCount(stay);
+    const progress =
+      unitCount > 0 && !stay.reservationRoomId
+        ? emptyCheckInUnitProgress(null)
+        : await loadUnitProgress(supabaseAdmin as never, data.restaurantId, stay.id, {
+            reservationRoomId: stay.reservationRoomId ?? null,
+            unitCount,
+          });
 
-    const [{ data: guestRow }, { data: roomRow }, { data: progressRow }, signals, hk, guestRules] = await Promise.all([
+    const [{ data: guestRow }, { data: roomRow }, signals, hk, guestRules] = await Promise.all([
       supabaseAdmin
         .from("guest_profiles")
         .select(
@@ -372,12 +480,6 @@ export const getFrontOfficeArrivalQuickView = createServerFn({ method: "POST" })
             .eq("id", stay.roomId)
             .maybeSingle()
         : Promise.resolve({ data: null }),
-      supabaseAdmin
-        .from("fo_checkin_progress")
-        .select("registration_snapshot, registration_waived, deposit_amount, deposit_method, deposit_waived")
-        .eq("restaurant_id", data.restaurantId)
-        .eq("reservation_id", stay.id)
-        .maybeSingle(),
       loadFoStaySignals({
         context: context as never,
         restaurantId: data.restaurantId,
@@ -403,8 +505,8 @@ export const getFrontOfficeArrivalQuickView = createServerFn({ method: "POST" })
       idDocumentExpiry: (guestRow.id_document_expiry as string | null) ?? null,
     };
 
-    const snapshot = (progressRow?.registration_snapshot as RegistrationDraft | null) ?? null;
-    const registrationWaived = progressRow?.registration_waived === true;
+    const snapshot = (progress.registrationSnapshot as RegistrationDraft | null) ?? null;
+    const registrationWaived = progress.registrationWaived === true;
     const registrationOk = registrationOkFromProgress({
       snapshot,
       waived: registrationWaived,
@@ -445,9 +547,9 @@ export const getFrontOfficeArrivalQuickView = createServerFn({ method: "POST" })
     const eligible = roomEligibleStatus(roomRow?.status as string | null);
     const signal = signals.byStay[stay.id];
     const financial = financialFromSignal(signals.folioLane, signal);
-    const depositWaived = progressRow?.deposit_waived === true || signal?.depositWaived === true;
+    const depositWaived = progress.depositWaived === true || signal?.depositWaived === true;
     const depositPosted =
-      Number(progressRow?.deposit_amount ?? signal?.depositPosted ?? 0) || (signal?.depositPosted ?? 0);
+      Number(progress.depositAmount ?? signal?.depositPosted ?? 0) || (signal?.depositPosted ?? 0);
     const depositOk = depositOkFromSignals(
       checkInPaymentGate({
         folioLane: signals.folioLane,
@@ -527,7 +629,7 @@ export const getFrontOfficeArrivalQuickView = createServerFn({ method: "POST" })
         depositRequiredAmount: settings.depositRequired ? settings.depositValue : null,
         depositPosted,
         depositWaived,
-        depositMethod: (progressRow?.deposit_method as string | null) ?? null,
+        depositMethod: progress.depositMethod,
         outstanding: outstandingBalance(signal),
         guaranteeMethod: stay.guaranteeMethod ?? null,
         guaranteeHoldUnsupported: GUARANTEE_HOLD_UNSUPPORTED,

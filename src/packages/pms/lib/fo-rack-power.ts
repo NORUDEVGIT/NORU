@@ -119,6 +119,8 @@ export type RackDatesDraft = {
   nextDepartureDate: string;
   roomSubtotal: number | null;
   nightlyRates: Array<{ date: string; rate: number }> | null;
+  /** Selected room when the desk row is one unit. Omitted on a header row. */
+  reservationRoomId?: string | null;
   currentRoomStatus?: string | null;
   currentHousekeeping?: string | null;
   hkKnown?: boolean;
@@ -404,8 +406,16 @@ export function evaluateDateChecks(
   return checks;
 }
 
-export function stayDateWriteInput(draft: RackDatesDraft): { arrival: string; departure: string } {
-  return { arrival: draft.nextArrivalDate, departure: draft.nextDepartureDate };
+export function stayDateWriteInput(draft: RackDatesDraft): {
+  arrival: string;
+  departure: string;
+  reservationRoomId?: string;
+} {
+  return {
+    arrival: draft.nextArrivalDate,
+    departure: draft.nextDepartureDate,
+    ...(draft.reservationRoomId ? { reservationRoomId: draft.reservationRoomId } : {}),
+  };
 }
 
 export function evaluateRackChecks(

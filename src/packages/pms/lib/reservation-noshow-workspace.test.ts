@@ -16,8 +16,9 @@ import {
 } from "@/packages/pms/lib/reservation-noshow-workspace";
 
 describe("reservation no-show workspace helpers", () => {
-  it("reuses Desk Mark No-Show eligibility (confirmed + arrival on/before business date)", () => {
-    expect(isDeskNoShowEligible("confirmed", "2026-09-22", "2026-09-22")).toBe(true);
+  it("reuses authoritative no-show eligibility (confirmed + arrival before business date)", () => {
+    expect(isDeskNoShowEligible("confirmed", "2026-09-21", "2026-09-22")).toBe(true);
+    expect(isDeskNoShowEligible("confirmed", "2026-09-22", "2026-09-22")).toBe(false);
     expect(isDeskNoShowEligible("confirmed", "2026-09-23", "2026-09-22")).toBe(false);
     expect(isDeskNoShowEligible("pending", "2026-09-22", "2026-09-22")).toBe(false);
     expect(isDeskNoShowEligible("checked_in", "2026-09-22", "2026-09-22")).toBe(false);
@@ -36,7 +37,7 @@ describe("reservation no-show workspace helpers", () => {
       money: (value) => `ETB ${value}`,
     });
     expect(rows.find((row) => row.description === "Room Charges")?.status).toBe(
-      "Stored on reservation",
+      "Reservation quote — not posted money",
     );
     expect(rows.find((row) => row.description === "No-Show Charge")?.status).toBe("Not applicable");
     expect(rows.find((row) => row.description === "Amount to Collect")?.status).toBe(
@@ -51,7 +52,7 @@ describe("reservation no-show workspace helpers", () => {
     expect(
       canContinueNoShowReview({
         status: "confirmed",
-        arrivalDate: "2026-09-22",
+        arrivalDate: "2026-09-21",
         businessDate: "2026-09-22",
         reason: "Guest Did Not Arrive",
       }),
@@ -59,7 +60,7 @@ describe("reservation no-show workspace helpers", () => {
     expect(
       canConfirmNoShowReservation({
         status: "confirmed",
-        arrivalDate: "2026-09-22",
+        arrivalDate: "2026-09-21",
         businessDate: "2026-09-22",
         reason: composeNoShowReason("Guest Did Not Arrive", ""),
         feeRequired: true,
@@ -70,7 +71,7 @@ describe("reservation no-show workspace helpers", () => {
     expect(
       canConfirmNoShowReservation({
         status: "confirmed",
-        arrivalDate: "2026-09-22",
+        arrivalDate: "2026-09-21",
         businessDate: "2026-09-22",
         reason: "Guest Did Not Arrive",
         feeRequired: true,
@@ -127,14 +128,15 @@ describe("reservation no-show workspace UI", () => {
     expect(desk).toContain("<ReservationNoShowWorkspace");
     expect(desk).not.toContain("<NoShowDialog");
     expect(ui).toContain("completeFoNoShow");
-    expect(ui).toContain("getCancelNoShowContext");
-    expect(ui).toContain("isDeskNoShowEligible");
+    expect(ui).toContain("getNoShowReadiness");
+    expect(ui).toContain("RoomUnitTargetSelect");
+    expect(ui).toContain("postCancelOrNoShowFee");
     expect(ui).toContain("Arrival Status");
     expect(ui).toContain("Cancellation Policy Check");
     expect(ui).toContain("NOSHOW_COMM_GAP");
     expect(ui).toContain("NOSHOW_BLACKLIST_GAP");
     expect(ui).not.toContain("Notification Sent");
     expect(actions).toContain('id: "no_show"');
-    expect(actions).toContain("arrivalDate <= input.businessDate");
+    expect(actions).toContain("arrivalDate < input.businessDate");
   });
 });

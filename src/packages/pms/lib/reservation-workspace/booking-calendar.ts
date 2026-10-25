@@ -18,12 +18,7 @@ export const CALENDAR_DENSITIES = ["compact", "standard", "comfortable", "spacio
 export type CalendarDensity = (typeof CALENDAR_DENSITIES)[number];
 
 export type CalendarWorkspaceSection =
-  | "desk"
-  | "calendar"
-  | "groups"
-  | "waitlist"
-  | "arrivals-departures"
-  | "exceptions";
+  "desk" | "calendar" | "groups" | "waitlist" | "arrivals-departures" | "exceptions";
 
 export interface CalendarDisplayOptions {
   guestName: boolean;
@@ -41,6 +36,7 @@ export const DEFAULT_CALENDAR_DISPLAY: CalendarDisplayOptions = {
 
 export interface CalendarDragPayload {
   reservationId: string;
+  reservationRoomId?: string | null;
 }
 
 export interface CalendarDropTarget {
@@ -128,6 +124,7 @@ export function calendarBarToDeskRow(
     roomTypeName: room?.roomTypeName ?? type?.roomTypeName ?? "Room type",
     roomId: bar.roomId,
     roomNumber: room?.roomNumber ?? null,
+    reservationRoomId: bar.reservationRoomId,
     guestId: bar.guestId,
     guestName: bar.guestName,
     guestPhone: null,
@@ -224,14 +221,48 @@ export function parseCalendarDragPayload(raw: string): CalendarDragPayload | nul
   }
 }
 
-export function calendarBarLabel(
-  bar: CalendarBar,
-  display: CalendarDisplayOptions,
+/** Stable identity for one calendar bar. Confirmation number is not unique across room units. */
+export function calendarBarKey(
+  bar: Pick<CalendarBar, "reservationId" | "reservationRoomId">,
 ): string {
+  return bar.reservationRoomId
+    ? `${bar.reservationId}:${bar.reservationRoomId}`
+    : bar.reservationId;
+}
+
+export function calendarBarIsSelected(input: {
+  bar: Pick<CalendarBar, "reservationId" | "reservationRoomId">;
+  selectedReservationId: string | null;
+  selectedReservationRoomId: string | null;
+  highlightReservationId?: string | null;
+}): boolean {
+  const sameStay =
+    input.selectedReservationId === input.bar.reservationId ||
+    input.highlightReservationId === input.bar.reservationId;
+  if (!sameStay) return false;
+  if (input.selectedReservationRoomId) {
+    return input.bar.reservationRoomId === input.selectedReservationRoomId;
+  }
+  return true;
+}
+
+export function findCalendarBar(
+  bars: ReadonlyArray<CalendarBar>,
+  payload: CalendarDragPayload,
+): CalendarBar | undefined {
+  return bars.find(
+    (item) =>
+      item.reservationId === payload.reservationId &&
+      (payload.reservationRoomId == null || item.reservationRoomId === payload.reservationRoomId),
+  );
+}
+
+export function calendarBarLabel(bar: CalendarBar, display: CalendarDisplayOptions): string {
   const parts: string[] = [];
   if (display.guestName) parts.push(bar.guestName);
   if (display.confirmationNumber) parts.push(bar.confirmationNumber);
   if (parts.length === 0) parts.push(bar.confirmationNumber);
+  if (bar.unitSequence != null) parts.push(`Unit ${bar.unitSequence}`);
   return parts.join(" · ");
 }
 

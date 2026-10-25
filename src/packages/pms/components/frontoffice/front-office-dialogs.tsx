@@ -51,6 +51,7 @@ import { FoCheckOutStepper } from "@/packages/pms/components/frontoffice/fo-chec
 import { FoNoShowStepper } from "@/packages/pms/components/frontoffice/fo-no-show-stepper";
 import { FoRackConfirmSheet } from "@/packages/pms/components/frontoffice/fo-rack-confirm-sheet";
 import type { RackDatesDraft } from "@/packages/pms/lib/fo-rack-power";
+import { stayDateTargetsOneRoom } from "@/packages/pms/lib/fo-unit-desk";
 import { startWalkInCheckIn } from "@/packages/pms/lib/fo-check-in.functions";
 import { isRoomReady } from "@/packages/pms/lib/fo-check-in";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
@@ -66,6 +67,7 @@ function useRefresh() {
     void queryClient.invalidateQueries({ queryKey: ["reservations"] });
     void queryClient.invalidateQueries({ queryKey: ["reservation"] });
     void queryClient.invalidateQueries({ queryKey: ["rooms-dashboard"] });
+    void queryClient.invalidateQueries({ queryKey: ["assignable-rooms"] });
   };
 }
 
@@ -183,7 +185,9 @@ export function AssignRoomDialog({
   initialReservationRoomId?: string;
 }) {
   const [roomId, setRoomId] = useState(stay.roomId ?? "");
-  const [reservationRoomId, setReservationRoomId] = useState(initialReservationRoomId ?? "");
+  const [reservationRoomId, setReservationRoomId] = useState(
+    stay.reservationRoomId ?? initialReservationRoomId ?? "",
+  );
   const refresh = useRefresh();
   const assign = useServerFn(assignReservationRoom);
   const multiRoom = (stay.roomUnits?.length ?? 0) > 1;
@@ -191,9 +195,9 @@ export function AssignRoomDialog({
 
   useEffect(() => {
     if (!open) return;
-    setReservationRoomId(initialReservationRoomId ?? "");
+    setReservationRoomId(stay.reservationRoomId ?? initialReservationRoomId ?? "");
     setRoomId(stay.roomId ?? "");
-  }, [open, stay.roomId, initialReservationRoomId]);
+  }, [open, stay.roomId, stay.reservationRoomId, initialReservationRoomId]);
 
   const selectedUnitRoomId =
     stay.roomUnits?.find((row) => row.id === reservationRoomId)?.roomId ?? "";
@@ -209,7 +213,9 @@ export function AssignRoomDialog({
           restaurantId,
           reservationId: stay.id,
           roomId,
-          ...(multiRoom ? { reservationRoomId } : {}),
+          ...(reservationRoomId ? { reservationRoomId } : {}),
+          expectedRoomId: targetStay.roomId,
+          expectedUpdatedAt: stay.updatedAt ?? null,
         },
       }),
     onSuccess: () => {
@@ -217,7 +223,10 @@ export function AssignRoomDialog({
       refresh();
       onOpenChange(false);
     },
-    onError: (error) => toast.error(errorText(error)),
+    onError: (error) => {
+      refresh();
+      toast.error(errorText(error));
+    },
   });
 
   return (
@@ -234,6 +243,7 @@ export function AssignRoomDialog({
           units={stay.roomUnits}
           value={reservationRoomId}
           onChange={setReservationRoomId}
+          locked={Boolean(stay.reservationRoomId)}
         />
         <RoomUnitOccupantContext
           stayGuestId={stay.guestId}
@@ -281,7 +291,7 @@ export function CheckInDialog({
     <FoCheckInV2Workspace
       restaurantId={restaurantId}
       reservationId={stay.id}
-      reservationRoomId={initialReservationRoomId ?? null}
+      reservationRoomId={initialReservationRoomId ?? stay.reservationRoomId ?? null}
       open={open}
       onOpenChange={onOpenChange}
       confirmationNumber={stay.confirmationNumber}
@@ -334,7 +344,9 @@ export function RoomMoveDialog({
 }) {
   const [roomId, setRoomId] = useState("");
   const [reason, setReason] = useState("");
-  const [reservationRoomId, setReservationRoomId] = useState(initialReservationRoomId ?? "");
+  const [reservationRoomId, setReservationRoomId] = useState(
+    stay.reservationRoomId ?? initialReservationRoomId ?? "",
+  );
   const refresh = useRefresh();
   const move = useServerFn(moveReservationRoom);
   const multiRoom = (stay.roomUnits?.length ?? 0) > 1;
@@ -345,9 +357,9 @@ export function RoomMoveDialog({
     if (open) {
       setRoomId("");
       setReason("");
-      setReservationRoomId(initialReservationRoomId ?? "");
+      setReservationRoomId(stay.reservationRoomId ?? initialReservationRoomId ?? "");
     }
-  }, [open, initialReservationRoomId]);
+  }, [open, stay.reservationRoomId, initialReservationRoomId]);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -357,9 +369,10 @@ export function RoomMoveDialog({
           reservationId: stay.id,
           roomId,
           reason: reason.trim(),
-          ...(multiRoom ? { reservationRoomId } : {}),
-          expectedRoomId:
-            multiRoom && selectedUnit && selectedUnit.unitSequence !== 1
+          ...(reservationRoomId ? { reservationRoomId } : {}),
+          expectedRoomId: reservationRoomId
+            ? (selectedUnit?.roomId ?? targetStay.roomId)
+            : multiRoom && selectedUnit && selectedUnit.unitSequence !== 1
               ? undefined
               : targetStay.roomId,
           expectedArrival: targetStay.arrivalDate,
@@ -390,6 +403,7 @@ export function RoomMoveDialog({
           units={stay.roomUnits}
           value={reservationRoomId}
           onChange={setReservationRoomId}
+          locked={Boolean(stay.reservationRoomId)}
         />
         <RoomUnitOccupantContext
           stayGuestId={stay.guestId}
@@ -442,6 +456,31 @@ export function StayDatesDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  if (!stayDateTargetsOneRoom(stay)) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Stay dates</DialogTitle>
+            <DialogDescription>
+              {stay.guestName} · {stay.confirmationNumber}
+              {stay.roomNumber ? ` · Room ${stay.roomNumber}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-[#251605]">
+            This room is one of several on the reservation. This desk will not change every room
+            from this row.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   const draft: RackDatesDraft = {
     kind: "change_dates",
     reservationId: stay.id,
@@ -457,6 +496,7 @@ export function StayDatesDialog({
     nextDepartureDate: stay.departureDate,
     roomSubtotal: null,
     nightlyRates: null,
+    ...(stay.reservationRoomId ? { reservationRoomId: stay.reservationRoomId } : {}),
   };
 
   return (
@@ -490,7 +530,9 @@ export function CheckOutDialog({
       stay={stay}
       open={open}
       onOpenChange={onOpenChange}
-      {...(initialReservationRoomId ? { initialReservationRoomId } : {})}
+      {...(initialReservationRoomId || stay.reservationRoomId
+        ? { initialReservationRoomId: initialReservationRoomId ?? stay.reservationRoomId ?? undefined }
+        : {})}
     />
   );
 }
@@ -501,13 +543,16 @@ export function NoShowDialog({
   today,
   open,
   onOpenChange,
+  initialReservationRoomId,
 }: {
   restaurantId: string;
   stay: FrontOfficeStay;
   today: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  initialReservationRoomId?: string;
 }) {
+  const roomId = initialReservationRoomId ?? stay.reservationRoomId ?? undefined;
   return (
     <FoNoShowStepper
       restaurantId={restaurantId}
@@ -515,6 +560,7 @@ export function NoShowDialog({
       today={today}
       open={open}
       onOpenChange={onOpenChange}
+      {...(roomId ? { initialReservationRoomId: roomId } : {})}
     />
   );
 }

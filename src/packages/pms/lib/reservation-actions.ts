@@ -149,7 +149,7 @@ export function getReservationActions(input: ReservationActionInput): Reservatio
     allowed(
       canManage,
       input.actionHints.canNoShow,
-      input.status === "confirmed" && input.arrivalDate <= input.businessDate,
+      input.status === "confirmed" && input.arrivalDate < input.businessDate,
       true,
     )
   ) {

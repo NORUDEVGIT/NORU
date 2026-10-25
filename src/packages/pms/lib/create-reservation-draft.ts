@@ -41,6 +41,7 @@ export type CreateReservationDraftRoomUnit = {
   infants: number;
   ratePlanId: string | null;
   occupant: { guestId: string; fullName: string } | null;
+  pmsGroupBlockId?: string | null;
 };
 
 export type CreateReservationDraft = {

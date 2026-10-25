@@ -5,6 +5,7 @@
 import { CANONICAL_FIELD_CODE_MAP } from "@/packages/pms/lib/guest-field-rules";
 import {
   CHECK_IN_PROFILE_COLUMNS,
+  registrationIssuingCountry,
   registrationProfileColumns,
   type CheckInProfileField,
 } from "@/packages/pms/lib/fo-check-in-registration";
@@ -15,9 +16,11 @@ import type {
 } from "@/packages/pms/lib/fo-check-in-registration.functions";
 
 export const REGISTRATION_DETAIL_FIELDS = [
+  "title",
   "firstName",
   "middleName",
   "lastName",
+  "preferredName",
   "gender",
   "dateOfBirth",
   "nationality",
@@ -28,8 +31,12 @@ export const REGISTRATION_CONTACT_FIELDS = [
   "phone",
   "email",
   "addressLine1",
+  "addressLine2",
   "city",
+  "region",
+  "postalCode",
   "country",
+  "language",
 ] as const satisfies readonly CheckInProfileField[];
 
 export const REGISTRATION_EXTRA_FIELDS = [
@@ -149,7 +156,7 @@ export function buildRegistrationSave(input: {
       ...(input.document.documentId ? { documentId: input.document.documentId } : {}),
       idTypeId: input.document.idTypeId,
       documentNumber: input.document.documentNumber.trim() || null,
-      issuingCountry: input.document.issuingCountry.trim() || null,
+      issuingCountry: registrationIssuingCountry(input.document.issuingCountry),
       issueDate: input.document.issueDate.trim() || null,
       expiryDate: input.document.expiryDate.trim() || null,
     },
@@ -161,8 +168,38 @@ function expired(expiryDate: string | null, today: string): boolean {
   return Boolean(expiry) && expiry < today;
 }
 
+type RegistrationIdentityDocument = {
+  id?: string;
+  verificationStatus: string;
+  expiryDate: string | null;
+  typeId?: string | null;
+  documentNumber?: string | null;
+  issuingCountry?: string | null;
+  issueDate?: string | null;
+};
+
+function identityFieldsPresent(document: RegistrationIdentityDocument): boolean {
+  return Boolean(document.typeId?.trim()) && Boolean(document.documentNumber?.trim());
+}
+
+/** Prefer the Guest Profile document that is verified and has identity fields. */
+export function registrationIdentitySelection<T extends RegistrationIdentityDocument>(
+  documents: readonly T[],
+  today: string,
+): T | null {
+  const usable = documents.filter((document) => !expired(document.expiryDate, today));
+  return (
+    usable.find(
+      (document) => document.verificationStatus === "verified" && identityFieldsPresent(document),
+    ) ??
+    usable[0] ??
+    documents[0] ??
+    null
+  );
+}
+
 export function registrationDocumentState(input: {
-  documents: Array<Pick<CheckInRegistrationDocument, "verificationStatus" | "expiryDate">>;
+  documents: Array<RegistrationIdentityDocument>;
   warnings: string[];
   today: string;
 }): RegistrationDocumentState {
@@ -188,17 +225,36 @@ export function registrationDocumentState(input: {
   ) {
     return { tone: "blocked", label: "Rejected", summary: "Needs attention" };
   }
+  const verified = usable.filter((document) => document.verificationStatus === "verified");
+  if (verified.some((document) => identityFieldsPresent(document))) {
+    return {
+      tone: "verified",
+      label: "Verified",
+      summary: "Identity document verified",
+    };
+  }
+  if (verified.length > 0) {
+    return {
+      tone: "blocked",
+      label: "Identity details incomplete",
+      summary: "Identity details incomplete",
+    };
+  }
   const unverified =
     usable.some((document) => document.verificationStatus === "unverified") ||
     input.warnings.some((warning) => /not verified/i.test(warning));
-  if (unverified && !usable.some((document) => document.verificationStatus === "verified")) {
+  if (unverified) {
     return {
       tone: "warning",
       label: "Unverified",
       summary: "Warning: ID unverified",
     };
   }
-  return { tone: "verified", label: "Verified", summary: "Complete" };
+  return {
+    tone: "blocked",
+    label: "Identity details incomplete",
+    summary: "Identity details incomplete",
+  };
 }
 
 export function registrationFailureCopy(error: unknown): string {

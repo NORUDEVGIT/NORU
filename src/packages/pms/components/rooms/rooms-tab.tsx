@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
 import { MoreHorizontal, Pencil, Plus, Power, Search } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
@@ -89,6 +90,7 @@ export function RoomsTab({ restaurantId }: { restaurantId: string }) {
     void queryClient.invalidateQueries({ queryKey: ["rooms", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["room-types", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["rooms-dashboard", restaurantId] });
+    invalidateFrontOfficeOwnerReads(queryClient);
   }
 
   const saveMutation = useMutation({

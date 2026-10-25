@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { setRoomRestriction } from "@/packages/pms/lib/housekeeping.functions";
+import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
 import {
   listRoomBoardBlocks,
   listRoomBoardOccupancy,
@@ -273,6 +274,7 @@ export function RoomsDashboardTab({
         queryClient.invalidateQueries({ queryKey: ["rooms-dashboard", restaurantId] }),
         queryClient.invalidateQueries({ queryKey: ["room-inventory-history", restaurantId] }),
       ]);
+      invalidateFrontOfficeOwnerReads(queryClient);
     },
   });
 

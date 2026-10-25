@@ -54,4 +54,26 @@ describe("check-in waiver command", () => {
     expect(waive).toContain("commitCheckInUnitWaiver");
     expect(waive).not.toContain("patchProgress");
   });
+
+  it("records a key on the selected unit and keeps the waiver on that unit", () => {
+    const source = read("src/packages/pms/lib/fo-check-in.functions.ts");
+    const record = source.slice(
+      source.indexOf("export const recordCheckInKey"),
+      source.indexOf("export const waiveCheckInKey"),
+    );
+    const waive = source.slice(
+      source.indexOf("export const waiveCheckInKey"),
+      source.indexOf("export const completeFoCheckIn"),
+    );
+    expect(record).toContain("reservationRoomId: idSchema.optional()");
+    expect(record).toContain("loadCheckInUnitTarget");
+    expect(record).toContain("reservationRoomId: target.reservationRoomId");
+    expect(record).toContain("writeCheckInUnitProgress");
+    expect(record).toContain('notes: "Check-in key recorded."');
+    expect(record).not.toContain("patchProgress");
+    expect(waive).toContain('requirement: "key"');
+    expect(waive).toContain("reservationRoomId: data.reservationRoomId");
+    expect(waive).toContain("commitCheckInUnitWaiver");
+    expect(waive).not.toContain("patchProgress");
+  });
 });

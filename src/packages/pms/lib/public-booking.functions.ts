@@ -432,6 +432,20 @@ export const cancelDirectBooking = createServerFn({ method: "POST" })
         .eq("restaurant_id", found.property.id);
       if (error) return { ok: false, message: "We couldn't cancel that booking. Please contact the property." };
 
+      const actor = await db
+        .from("restaurant_memberships")
+        .select("id")
+        .eq("restaurant_id", found.property.id)
+        .limit(1)
+        .maybeSingle();
+      const { resyncGroupBlockInventoryForReservation } = await import("./groups.functions");
+      await resyncGroupBlockInventoryForReservation(
+        db,
+        (actor.data as { id?: string } | null)?.id ?? null,
+        found.property.id,
+        found.row.id,
+      );
+
       await db.from("hotel_reservation_history").insert({
         restaurant_id: found.property.id,
         reservation_id: found.row.id,

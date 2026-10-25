@@ -82,12 +82,18 @@ describe("FO-FS3 charge-before-status", () => {
     const cancelSrc = fns.slice(fns.indexOf("export const completeFoCancel"));
     const noShowSrc = fns.slice(fns.indexOf("export const completeFoNoShow"));
     assert.match(fns, /room_id: null/);
-    const reservationFns = readFileSync(new URL("./reservations.functions.ts", import.meta.url), "utf8");
+    const reservationFns = readFileSync(
+      new URL("./reservations.functions.ts", import.meta.url),
+      "utf8",
+    );
     assert.match(reservationFns, /export const copyReservation/);
     assert.match(reservationFns, /roomId: null/);
     assert.ok(cancelSrc.indexOf("canCompleteCancel") < cancelSrc.indexOf(".update({"));
     assert.ok(cancelSrc.indexOf("canCompleteCancel") < cancelSrc.indexOf("cancellation_reason"));
-    assert.ok(noShowSrc.indexOf("canCompleteNoShow") < noShowSrc.indexOf("mark_hotel_reservation_no_show"));
+    assert.ok(
+      noShowSrc.indexOf("canCompleteNoShow") <
+        noShowSrc.indexOf("complete_hotel_reservation_no_show"),
+    );
     assert.match(fns, /postCancelOrNoShowFee/);
     assert.match(fns, /callPostFolioTransaction/);
     assert.match(fns, /type: "charge"/);
@@ -140,7 +146,10 @@ describe("FO-FS3 walk-in Complete/Incomplete filter", () => {
       search: "",
       timeZone: "UTC",
     });
-    assert.deepEqual(incomplete.map((r) => r.id), ["1"]);
+    assert.deepEqual(
+      incomplete.map((r) => r.id),
+      ["1"],
+    );
 
     const complete = filterWalkInsHistory(rows, {
       from: "2026-09-12",
@@ -149,7 +158,10 @@ describe("FO-FS3 walk-in Complete/Incomplete filter", () => {
       search: "",
       timeZone: "UTC",
     });
-    assert.deepEqual(complete.map((r) => r.id), ["2"]);
+    assert.deepEqual(
+      complete.map((r) => r.id),
+      ["2"],
+    );
 
     const search = filterWalkInsHistory(rows, {
       from: "2026-09-11",
@@ -158,14 +170,17 @@ describe("FO-FS3 walk-in Complete/Incomplete filter", () => {
       search: "cnf-3",
       timeZone: "UTC",
     });
-    assert.deepEqual(search.map((r) => r.id), ["3"]);
+    assert.deepEqual(
+      search.map((r) => r.id),
+      ["3"],
+    );
     assert.equal(walkInCreatedByLabel(""), CREATED_BY_UNKNOWN);
     assert.equal(WALK_INS_EMPTY, "No walk-ins in this range.");
   });
 });
 
 describe("FO-FS0 rail lock", () => {
-  it("shouldSuppressRestaurantPmsRail(\"front-office\") still true", () => {
+  it('shouldSuppressRestaurantPmsRail("front-office") still true', () => {
     assert.equal(shouldSuppressRestaurantPmsRail("front-office"), true);
     assert.equal(shouldSuppressRestaurantPmsRail("cashiering"), false);
   });
@@ -173,11 +188,17 @@ describe("FO-FS0 rail lock", () => {
 
 describe("FO-FS3 source locks", () => {
   it("wraps the old dialogs and does not add Void or an FO refund post", () => {
-    const dialogs = readFileSync(new URL("../components/frontoffice/front-office-dialogs.tsx", import.meta.url), "utf8");
+    const dialogs = readFileSync(
+      new URL("../components/frontoffice/front-office-dialogs.tsx", import.meta.url),
+      "utf8",
+    );
     assert.match(dialogs, /FoNoShowStepper/);
     assert.doesNotMatch(dialogs, /charges arrive in a later phase/);
 
-    const frames = readFileSync(new URL("../components/frontoffice/front-office-frames.tsx", import.meta.url), "utf8");
+    const frames = readFileSync(
+      new URL("../components/frontoffice/front-office-frames.tsx", import.meta.url),
+      "utf8",
+    );
     assert.match(frames, /FoCancelStepper/);
     assert.match(frames, /WalkInsHistoryFrame/);
     assert.match(frames, /onCancel/);
@@ -203,7 +224,10 @@ describe("FO-FS3 source locks", () => {
     assert.match(stepper, /completeFoCancel/);
     assert.match(stepper, /completeFoNoShow/);
     assert.equal(REFUND_IN_CASHIERING_CTA, "Refund in Cashiering");
-    assert.equal(cashieringRefundHref("FL-0001"), "/restaurant/pms/cashiering?tab=folios&folio=FL-0001");
+    assert.equal(
+      cashieringRefundHref("FL-0001"),
+      "/restaurant/pms/cashiering?tab=folios&folio=FL-0001",
+    );
     assert.equal(mapCashierShiftError("SHIFT_NOT_FOUND"), CASHIER_SHIFT_REQUIRED_MESSAGE);
   });
 

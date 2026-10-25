@@ -281,3 +281,20 @@ export function checkInPaymentGate(input: {
 export function roomEligibleStatus(status: string | null | undefined): boolean {
   return status !== "out_of_order" && status !== "out_of_service";
 }
+
+export function arrivalProgressKey(stay: {
+  id: string;
+  reservationRoomId?: string | null;
+}): string {
+  return `${stay.id}:${stay.reservationRoomId ?? ""}`;
+}
+
+/** Unit rows already loaded on the stay, otherwise one selected unit, otherwise the header. */
+export function arrivalUnitCount(stay: {
+  reservationRoomId?: string | null;
+  roomUnits?: readonly unknown[] | null;
+}): number {
+  const listed = stay.roomUnits?.length ?? 0;
+  if (listed > 0) return listed;
+  return stay.reservationRoomId ? 1 : 0;
+}

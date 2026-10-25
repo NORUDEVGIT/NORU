@@ -12,7 +12,9 @@ import {
   type FoDepartureQuickView,
 } from "@/packages/pms/lib/fo-departure.functions";
 import { FoGuestServicesPanel } from "@/packages/pms/components/frontoffice/fo-guest-services-panel";
-import { departureMenuItems } from "@/packages/pms/lib/fo-departure";
+import { departureMenuItems, departureExceptionOwner } from "@/packages/pms/lib/fo-departure";
+import { CREDIT_BLOCK_BANNER, isCreditBalance, REFUND_IN_CASHIERING_CTA } from "@/packages/pms/lib/fo-check-out";
+import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
 import { useMoney } from "@/core/state/property-format";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -28,6 +30,19 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/shared/components/ui/sheet";
+
+function openDepartureException(
+  key: FoDepartureQuickView["exceptions"][number]["key"],
+  qv: FoDepartureQuickView,
+  onAction: (action: DepartureQuickViewAction, qv: FoDepartureQuickView) => void,
+) {
+  const owner = departureExceptionOwner(key, qv.financial.balance);
+  if (owner === "guest_request") {
+    document.getElementById("fo-departure-requests")?.scrollIntoView({ block: "nearest" });
+    return;
+  }
+  onAction(owner, qv);
+}
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
@@ -49,17 +64,22 @@ export type DepartureQuickViewAction =
   | "late_checkout"
   | "amend_stay"
   | "open_guest"
-  | "check_out";
+  | "check_out"
+  | "room_move"
+  | "open_maintenance"
+  | "unarrived";
 
 export function DepartureQuickViewSheet({
   restaurantId,
   reservationId,
+  reservationRoomId = null,
   open,
   onOpenChange,
   onAction,
 }: {
   restaurantId: string;
   reservationId: string | null;
+  reservationRoomId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAction: (action: DepartureQuickViewAction, qv: FoDepartureQuickView) => void;
@@ -67,9 +87,17 @@ export function DepartureQuickViewSheet({
   const money = useMoney();
   const fetchQv = useServerFn(getFrontOfficeDepartureQuickView);
   const qvQuery = useQuery({
-    queryKey: ["front-office", "departures-qv", restaurantId, reservationId],
-    queryFn: () => fetchQv({ data: { restaurantId, reservationId: reservationId! } }),
+    queryKey: ["front-office", "departures-qv", restaurantId, reservationId, reservationRoomId],
+    queryFn: () =>
+      fetchQv({
+        data: {
+          restaurantId,
+          reservationId: reservationId!,
+          ...(reservationRoomId ? { reservationRoomId } : {}),
+        },
+      }),
     enabled: open && Boolean(reservationId),
+    ...foOperationalQueryOptions(),
     retry: false,
   });
 
@@ -184,6 +212,49 @@ export function DepartureQuickViewSheet({
               </dl>
             </section>
 
+            <section className="space-y-2" data-testid="fo-departure-preparation">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preparation</h3>
+              <ul className="space-y-1 text-sm">
+                <li>{qv.room.assigned ? "Room is assigned." : "Room is not assigned."}</li>
+                <li>
+                  {qv.readiness.missingFolio
+                    ? "Folio is missing. Check-out opens it."
+                    : qv.financial.balance != null && isCreditBalance(qv.financial.balance)
+                      ? "Folio has a credit. Refund stays in Cashiering."
+                      : qv.readiness.needsSettlement
+                        ? "Balance is due. Settlement stays in check-out."
+                        : "Folio balance is ready."}
+                </li>
+                <li>
+                  {qv.hints.canHandoffUnarrived
+                    ? "This room is not in-house. Checkout does not apply."
+                    : "Completing check-out applies the Housekeeping departure transition."}
+                </li>
+              </ul>
+              <div className="flex flex-wrap gap-2">
+                {qv.hints.canCheckOut ? (
+                  <Button type="button" size="sm" data-testid="fo-departure-check-out" onClick={() => onAction("check_out", qv)}>
+                    Check out
+                  </Button>
+                ) : null}
+                {qv.hints.canHandoffUnarrived ? (
+                  <Button type="button" size="sm" data-testid="fo-departure-unarrived" onClick={() => onAction("unarrived", qv)}>
+                    Did not arrive
+                  </Button>
+                ) : null}
+                {qv.hints.canSetLateCheckout ? (
+                  <Button type="button" size="sm" variant="outline" onClick={() => onAction("late_checkout", qv)}>
+                    Late checkout
+                  </Button>
+                ) : null}
+                {qv.financial.balance != null && isCreditBalance(qv.financial.balance) ? (
+                  <Button type="button" size="sm" variant="outline" data-testid="fo-departure-refund" onClick={() => onAction("open_folio", qv)}>
+                    {REFUND_IN_CASHIERING_CTA}
+                  </Button>
+                ) : null}
+              </div>
+            </section>
+
             <section className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Financial</h3>
               {qv.financial.lane === "permission_denied" ? (
@@ -247,22 +318,35 @@ export function DepartureQuickViewSheet({
               </dl>
             </section>
 
-            <FoGuestServicesPanel
-              restaurantId={restaurantId}
-              reservationId={qv.stay.id}
-              guestId={qv.stay.guestId}
-              compact
-            />
+            <div id="fo-departure-requests">
+              <FoGuestServicesPanel
+                restaurantId={restaurantId}
+                reservationId={qv.stay.id}
+                guestId={qv.stay.guestId}
+                compact
+              />
+            </div>
 
             <section className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Exceptions</h3>
               {qv.exceptions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No operational exceptions.</p>
               ) : (
-                <ul className="space-y-1 text-sm">
+                <ul className="space-y-1">
                   {qv.exceptions.map((item) => (
-                    <li key={item.key} className={item.blocking ? "text-destructive" : "text-foreground"}>
-                      {item.label}
+                    <li key={item.key}>
+                      <button
+                        type="button"
+                        data-testid={`fo-departure-exception-${item.key}`}
+                        className={
+                          item.blocking
+                            ? "w-full rounded-lg bg-destructive/10 px-2.5 py-1.5 text-left text-sm text-destructive"
+                            : "w-full rounded-lg bg-[#F4E9D0] px-2.5 py-1.5 text-left text-sm text-[#251605]"
+                        }
+                        onClick={() => openDepartureException(item.key, qv, onAction)}
+                      >
+                        {item.label}
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -271,7 +355,11 @@ export function DepartureQuickViewSheet({
 
             {qv.readiness.needsSettlement || qv.readiness.missingFolio ? (
               <p className="text-sm text-destructive">
-                {qv.readiness.missingFolio ? "Folio is missing. Open Folio in Cashiering." : "Settlement required. Open Folio in Cashiering."}
+                {qv.readiness.missingFolio
+                  ? "Folio is missing. Check-out opens it."
+                  : qv.financial.balance != null && isCreditBalance(qv.financial.balance)
+                    ? CREDIT_BLOCK_BANNER
+                    : "Settlement is part of check-out."}
               </p>
             ) : null}
 

@@ -20,6 +20,7 @@ import {
   type RoomTypeInventoryAvailability,
 } from "@/packages/pms/lib/room-inventory.functions";
 import { listRooms, listRoomTypes } from "@/packages/pms/lib/rooms.functions";
+import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -616,8 +617,10 @@ export function LegacyRoomInventoryBlocksView({ restaurantId }: { restaurantId: 
     queryFn: () => loadRules({ data: { restaurantId } }),
     staleTime: 60_000,
   });
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["operational-blocks", restaurantId] });
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["operational-blocks", restaurantId] });
+    invalidateFrontOfficeOwnerReads(queryClient);
+  };
   const mutation = useMutation({
     mutationFn: async (
       action:

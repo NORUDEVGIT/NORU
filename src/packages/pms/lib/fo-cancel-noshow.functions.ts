@@ -47,6 +47,7 @@ import {
   type WalkInCompletionFilter,
   type WalkInHistoryRow,
 } from "./fo-cancel-noshow";
+import { computeNoShowPenalty, isMatchingNoShowCharge } from "./fo-no-show-readiness";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -54,9 +55,12 @@ const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD dat
 export type CancelNoShowLedgerLine = {
   id: string;
   type: string;
+  category: string;
   description: string;
   amount: number;
   postedAt: string;
+  referenceType: string | null;
+  referenceId: string | null;
 };
 
 export type CancelNoShowFolioState = {
@@ -105,6 +109,24 @@ const EMPTY_FOLIO: CancelNoShowFolioState = {
 };
 
 const DEFAULT_POLICY: CancelNoShowFeePolicy = { required: true, defaultAmount: 0 };
+
+async function callCompleteNoShowRpc(
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
+  args: {
+    _restaurant_id: string;
+    _reservation_id: string;
+    _membership_id: string;
+    _reason: string;
+    _additional_notes: string | null;
+    _reservation_room_id?: string;
+  },
+): Promise<{ data: unknown; error: { message: string } | null }> {
+  const rpc = supabaseAdmin.rpc as unknown as (
+    name: "complete_hotel_reservation_no_show",
+    values: typeof args,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>;
+  return rpc("complete_hotel_reservation_no_show", args);
+}
 
 function joinName(first: string, last: string | null): string {
   return [first, last].filter(Boolean).join(" ").trim();
@@ -217,6 +239,46 @@ async function loadStay(
   };
 }
 
+async function loadNoShowPenaltyQuote(
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
+  restaurantId: string,
+  reservationId: string,
+  reservationRoomId?: string,
+) {
+  const { data: reservation, error } = await supabaseAdmin
+    .from("hotel_reservations")
+    .select("room_subtotal, nightly_rate_snapshot, currency, no_show_policy_snapshot")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", reservationId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!reservation) throw new Error("Reservation not found for this property.");
+
+  let roomSubtotal = reservation.room_subtotal == null ? null : Number(reservation.room_subtotal);
+  let nightlyRates = parseSnapshot(reservation.nightly_rate_snapshot);
+  let currency = reservation.currency ?? null;
+  if (reservationRoomId) {
+    const { data: unit, error: unitError } = await supabaseAdmin
+      .from("hotel_reservation_rooms")
+      .select("room_subtotal, nightly_rate_snapshot, currency")
+      .eq("restaurant_id", restaurantId)
+      .eq("reservation_id", reservationId)
+      .eq("id", reservationRoomId)
+      .maybeSingle();
+    if (unitError) throw new Error(unitError.message);
+    if (!unit) throw reservationError("ROOM_UNIT_NOT_FOUND");
+    roomSubtotal = unit.room_subtotal == null ? null : Number(unit.room_subtotal);
+    nightlyRates = parseSnapshot(unit.nightly_rate_snapshot);
+    currency = unit.currency ?? currency;
+  }
+  return computeNoShowPenalty({
+    snapshot: reservation.no_show_policy_snapshot,
+    roomSubtotal: Number.isFinite(roomSubtotal) ? roomSubtotal : null,
+    nightlyRates,
+    currency,
+  });
+}
+
 async function loadFolioState(
   supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
   restaurantId: string,
@@ -232,7 +294,9 @@ async function loadFolioState(
 
   const { data: txns } = await supabaseAdmin
     .from("folio_transactions")
-    .select("id, transaction_type, description, amount, posted_at")
+    .select(
+      "id, transaction_type, category, description, amount, posted_at, reference_type, reference_id",
+    )
     .eq("restaurant_id", restaurantId)
     .eq("folio_id", folio.id)
     .order("posted_at", { ascending: true });
@@ -241,16 +305,22 @@ async function loadFolioState(
     (txns ?? []) as {
       id: string;
       transaction_type: string;
+      category: string;
       description: string;
       amount: number | string;
       posted_at: string;
+      reference_type: string | null;
+      reference_id: string | null;
     }[]
   ).map((t) => ({
     id: t.id,
     type: t.transaction_type,
+    category: t.category,
     description: t.description,
     amount: Number(t.amount),
     postedAt: t.posted_at,
+    referenceType: t.reference_type,
+    referenceId: t.reference_id,
   }));
 
   return {
@@ -268,6 +338,7 @@ async function loadWaiver(
   restaurantId: string,
   reservationId: string,
   kind: CancelNoShowKind,
+  reservationRoomId?: string,
 ): Promise<{ waived: boolean; reason: string | null }> {
   const { data } = await supabaseAdmin
     .from("hotel_reservation_history")
@@ -280,9 +351,11 @@ async function loadWaiver(
 
   for (const row of (data ?? []) as { new_values: unknown; notes: string | null }[]) {
     if (isFeeWaiver(row.new_values, kind)) {
+      const values = row.new_values as { reason?: string; reservation_room_id?: string };
+      if ((values.reservation_room_id ?? null) !== (reservationRoomId ?? null)) continue;
       return {
         waived: true,
-        reason: (row.new_values as { reason?: string }).reason ?? row.notes,
+        reason: values.reason ?? row.notes,
       };
     }
   }
@@ -325,18 +398,19 @@ async function loadFeePolicy(
   };
 }
 
-async function buildContext(
+export async function buildCancelNoShowContext(
   supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
   restaurantId: string,
   reservationId: string,
   kind: CancelNoShowKind,
   membershipId: string,
   role: string,
+  reservationRoomId?: string,
 ): Promise<CancelNoShowContext> {
   const loaded = await loadStay(supabaseAdmin, restaurantId, reservationId);
   const [folio, waiver, policy, actorName] = await Promise.all([
     loadFolioState(supabaseAdmin, restaurantId, reservationId),
-    loadWaiver(supabaseAdmin, restaurantId, reservationId, kind),
+    loadWaiver(supabaseAdmin, restaurantId, reservationId, kind, reservationRoomId),
     loadFeePolicy(supabaseAdmin, restaurantId, kind),
     actorDisplayName(supabaseAdmin, membershipId, restaurantId),
   ]);
@@ -367,19 +441,21 @@ export const getCancelNoShowContext = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         reservationId: idSchema,
         kind: z.enum(["cancel", "noshow"]),
+        reservationRoomId: idSchema.optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CancelNoShowContext> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    return buildContext(
+    return buildCancelNoShowContext(
       supabaseAdmin,
       data.restaurantId,
       data.reservationId,
       data.kind,
       me.id,
       me.role,
+      data.reservationRoomId,
     );
   });
 
@@ -418,6 +494,7 @@ export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
         kind: z.enum(["cancel", "noshow"]),
         amount: z.number().positive(),
         idempotencyKey: z.string().min(8).max(80),
+        reservationRoomId: idSchema.optional(),
       })
       .parse(input),
   )
@@ -440,6 +517,26 @@ export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
     const folioId = (opened.data as { id: string }).id;
     const amount = roundMoney(data.amount);
     if (!feeAmountAllowed(amount)) throw new Error("Enter an amount greater than zero.");
+    const noShowPenalty =
+      data.kind === "noshow"
+        ? await loadNoShowPenaltyQuote(
+            supabaseAdmin,
+            data.restaurantId,
+            data.reservationId,
+            data.reservationRoomId,
+          )
+        : null;
+    if (noShowPenalty && !noShowPenalty.calculable) {
+      throw new Error("The frozen no-show policy cannot produce an authoritative charge amount.");
+    }
+    if (
+      noShowPenalty?.amount == null ||
+      (data.kind === "noshow" && Math.abs(noShowPenalty.amount - amount) >= 0.01)
+    ) {
+      if (data.kind === "noshow") {
+        throw new Error("The no-show charge must match the frozen policy amount.");
+      }
+    }
 
     const description = data.kind === "cancel" ? "Cancel fee" : "No-show charge";
     let postedId: string;
@@ -451,6 +548,8 @@ export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
         category: "manual",
         description,
         amount,
+        referenceType: data.kind === "noshow" ? "reservation_no_show" : "reservation_cancel",
+        referenceId: data.reservationRoomId ?? data.reservationId,
         membershipId: me.id,
         idempotencyKey: data.idempotencyKey,
       });
@@ -468,6 +567,16 @@ export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
         amount,
         description,
         transaction_id: postedId,
+        reference_type: data.kind === "noshow" ? "reservation_no_show" : "reservation_cancel",
+        reference_id: data.reservationRoomId ?? data.reservationId,
+        ...(data.reservationRoomId ? { reservation_room_id: data.reservationRoomId } : {}),
+        ...(noShowPenalty
+          ? {
+              policy_basis: noShowPenalty.basis,
+              policy_amount: noShowPenalty.amount,
+              currency: noShowPenalty.currency,
+            }
+          : {}),
       },
       notes: `${description} posted to folio.`,
       actorMembershipId: me.id,
@@ -484,12 +593,23 @@ export const waiveCancelOrNoShowFee = createServerFn({ method: "POST" })
         reservationId: idSchema,
         kind: z.enum(["cancel", "noshow"]),
         reason: z.string().trim().min(1).max(500),
+        reservationRoomId: idSchema.optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
     requireSupervisor(me.role);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const noShowPenalty =
+      data.kind === "noshow"
+        ? await loadNoShowPenaltyQuote(
+            supabaseAdmin,
+            data.restaurantId,
+            data.reservationId,
+            data.reservationRoomId,
+          )
+        : null;
     await recordReservationEvent({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
@@ -498,6 +618,14 @@ export const waiveCancelOrNoShowFee = createServerFn({ method: "POST" })
         cancel_fee_waived: data.kind === "cancel",
         noshow_fee_waived: data.kind === "noshow",
         reason: data.reason,
+        ...(data.reservationRoomId ? { reservation_room_id: data.reservationRoomId } : {}),
+        ...(noShowPenalty
+          ? {
+              policy_basis: noShowPenalty.basis,
+              policy_amount: noShowPenalty.amount,
+              currency: noShowPenalty.currency,
+            }
+          : {}),
       },
       notes: data.kind === "cancel" ? "Cancel fee waived." : "No-show charge waived.",
       actorMembershipId: me.id,
@@ -520,7 +648,7 @@ export const completeFoCancel = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ id: string; status: string }> => {
     const me = await requireReservationManager(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const ctx = await buildContext(
+    const ctx = await buildCancelNoShowContext(
       supabaseAdmin,
       data.restaurantId,
       data.reservationId,
@@ -563,6 +691,13 @@ export const completeFoCancel = createServerFn({ method: "POST" })
         _reservation_room_id: data.reservationRoomId,
       });
       if (cancelError) throw reservationError(cancelError.message);
+      const { resyncGroupBlockInventoryForReservation } = await import("./groups.functions");
+      await resyncGroupBlockInventoryForReservation(
+        supabaseAdmin,
+        me.id,
+        data.restaurantId,
+        data.reservationId,
+      );
       const { data: rolled } = await supabaseAdmin
         .from("hotel_reservations")
         .select("status")
@@ -618,6 +753,13 @@ export const completeFoCancel = createServerFn({ method: "POST" })
       notes: blankToNull(data.reason),
       actorMembershipId: me.id,
     });
+    const { resyncGroupBlockInventoryForReservation } = await import("./groups.functions");
+    await resyncGroupBlockInventoryForReservation(
+      supabaseAdmin,
+      me.id,
+      data.restaurantId,
+      data.reservationId,
+    );
     return { id: data.reservationId, status: "cancelled" };
   });
 
@@ -628,78 +770,137 @@ export const completeFoNoShow = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         reservationId: idSchema,
-        today: dateSchema,
+        today: dateSchema.optional(),
         reason: z.string().trim().min(3).max(500),
+        additionalNotes: z.string().trim().max(500).optional(),
         reservationRoomId: idSchema.optional(),
+      })
+      .superRefine((value, refinement) => {
+        const combined = value.additionalNotes?.trim()
+          ? `${value.reason.trim()}: ${value.additionalNotes.trim()}`
+          : value.reason.trim();
+        if (combined.length > 500) {
+          refinement.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["additionalNotes"],
+            message: "Reason and additional notes must be 500 characters or fewer.",
+          });
+        }
       })
       .parse(input),
   )
-  .handler(async ({ data, context }): Promise<{ id: string; status: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const ctx = await buildContext(
-      supabaseAdmin,
-      data.restaurantId,
-      data.reservationId,
-      "noshow",
-      me.id,
-      me.role,
-    );
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{
+      id: string;
+      status: string;
+      reservationRoomId: string | null;
+      unitStatus: string | null;
+      releasedRoomId: string | null;
+      businessDate: string;
+      historyId: string;
+    }> => {
+      const me = await requireReservationManager(context as never, data.restaurantId);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const ctx = await buildCancelNoShowContext(
+        supabaseAdmin,
+        data.restaurantId,
+        data.reservationId,
+        "noshow",
+        me.id,
+        me.role,
+        data.reservationRoomId,
+      );
 
-    const reasonOk = isReasonComplete(data.reason);
-    const feeOk = isFeeSatisfied({
-      required: ctx.policy.required,
-      posted: ctx.posted,
-      waived: ctx.waived,
-    });
-    if (!canCompleteNoShow({ reasonOk, feeOk })) {
-      if (!reasonOk) throw new Error("Enter a no-show reason of at least 3 characters.");
-      throw new Error(FEE_REQUIRED_BANNER);
-    }
-
-    await recordReservationEvent({
-      restaurantId: data.restaurantId,
-      reservationId: data.reservationId,
-      eventType: "amended",
-      newValues: { no_show_reason: data.reason },
-      notes: data.reason,
-      actorMembershipId: me.id,
-    });
-
-    const { error } = await supabaseAdmin.rpc("mark_hotel_reservation_no_show", {
-      _restaurant_id: data.restaurantId,
-      _reservation_id: data.reservationId,
-      _business_date: data.today,
-      _membership_id: me.id,
-      ...(data.reservationRoomId ? { _reservation_room_id: data.reservationRoomId } : {}),
-    });
-    if (error) throw reservationError(error.message);
-
-    const { data: assigned } = await supabaseAdmin
-      .from("hotel_reservations")
-      .select("room_id, status")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("id", data.reservationId)
-      .maybeSingle();
-    if (!data.reservationRoomId && assigned?.room_id) {
-      const { error: releaseError } = await supabaseAdmin
-        .from("hotel_reservations")
-        .update({ room_id: null })
-        .eq("restaurant_id", data.restaurantId)
-        .eq("id", data.reservationId);
-      if (releaseError) throw new Error(releaseError.message);
-      await recordReservationEvent({
-        restaurantId: data.restaurantId,
-        reservationId: data.reservationId,
-        eventType: "amended",
-        previousValues: { room_id: assigned.room_id },
-        newValues: { room_id: null },
-        notes: "Released room on no-show",
-        actorMembershipId: me.id,
+      const reasonOk = isReasonComplete(data.reason);
+      const penalty = await loadNoShowPenaltyQuote(
+        supabaseAdmin,
+        data.restaurantId,
+        data.reservationId,
+        data.reservationRoomId,
+      );
+      const posted = ctx.folio.transactions.some((line) =>
+        isMatchingNoShowCharge(line, {
+          reservationId: data.reservationId,
+          reservationRoomId: data.reservationRoomId ?? null,
+          expectedAmount: penalty.amount,
+        }),
+      );
+      const feeOk = isFeeSatisfied({
+        required: ctx.policy.required && penalty.basis !== "none",
+        posted,
+        waived: ctx.waived,
       });
-    }
-    return { id: data.reservationId, status: assigned?.status ?? "no_show" };
-  });
+      if (!canCompleteNoShow({ reasonOk, feeOk })) {
+        if (!reasonOk) throw new Error("Enter a no-show reason of at least 3 characters.");
+        throw new Error(FEE_REQUIRED_BANNER);
+      }
+
+      const { data: progressRows, error: progressError } = await supabaseAdmin
+        .from("fo_checkin_progress")
+        .select(
+          "reservation_room_id, completed_at, registration_snapshot, deposit_transaction_id, key_issued_at",
+        )
+        .eq("restaurant_id", data.restaurantId)
+        .eq("reservation_id", data.reservationId);
+      if (progressError) throw new Error(progressError.message);
+      const scopedProgress = (progressRows ?? []).filter((row) =>
+        data.reservationRoomId
+          ? row.reservation_room_id === data.reservationRoomId
+          : row.reservation_room_id == null,
+      );
+      if (
+        scopedProgress.some(
+          (row) =>
+            Boolean(row.completed_at) ||
+            Boolean(row.registration_snapshot) ||
+            Boolean(row.deposit_transaction_id) ||
+            Boolean(row.key_issued_at),
+        )
+      ) {
+        throw new Error(
+          "Check-in progress exists for this room. Resolve it before marking no-show.",
+        );
+      }
+
+      const { data: completed, error } = await callCompleteNoShowRpc(supabaseAdmin, {
+        _restaurant_id: data.restaurantId,
+        _reservation_id: data.reservationId,
+        _membership_id: me.id,
+        _reason: data.reason,
+        _additional_notes: blankToNull(data.additionalNotes),
+        ...(data.reservationRoomId ? { _reservation_room_id: data.reservationRoomId } : {}),
+      });
+      if (error) throw reservationError(error.message);
+      const { resyncGroupBlockInventoryForReservation } = await import("./groups.functions");
+      await resyncGroupBlockInventoryForReservation(
+        supabaseAdmin,
+        me.id,
+        data.restaurantId,
+        data.reservationId,
+      );
+      const result = completed as {
+        id: string;
+        reservation_status: string;
+        reservation_room_id: string | null;
+        unit_status: string | null;
+        released_room_id: string | null;
+        business_date: string;
+        history_id: string;
+      };
+      return {
+        id: result.id,
+        status: result.reservation_status,
+        reservationRoomId: result.reservation_room_id,
+        unitStatus: result.unit_status,
+        releasedRoomId: result.released_room_id,
+        businessDate: result.business_date,
+        historyId: result.history_id,
+      };
+    },
+  );
 
 export const listWalkInsHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

@@ -41,8 +41,11 @@ describe("FO UI polish — Walk-in CTA and grouping", () => {
     const workspace = readRel("../components/workspaces/front-office-workspace.tsx");
     assert.match(calendar, /data-testid="fo-walk-in-cta"/);
     assert.match(calendar, /Walk-in/);
-    assert.match(workspace, /onWalkIn=\{\(\) => setWalkIn\(true\)\}/);
-    assert.match(workspace, /WalkInDialog/);
+    assert.match(workspace, /onWalkIn=\{\(\) => openWalkInCreate\(\)\}/);
+    assert.match(workspace, /openWalkInCreate/);
+    assert.match(workspace, /mode: "walk-in"/);
+    assert.match(workspace, /ReservationWorkspaceOverlay/);
+    assert.doesNotMatch(workspace, /WalkInDialog/);
     assert.doesNotMatch(
       workspace,
       /onWalkIn=\{\(\) => navigate\(\{ to: "\/restaurant\/bookings\/new"/,
