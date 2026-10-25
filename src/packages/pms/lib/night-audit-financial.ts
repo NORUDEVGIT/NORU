@@ -86,7 +86,7 @@ export type NightAuditFinancialException = {
 };
 
 const CASHIERING = "/restaurant/pms/cashiering";
-const FISCAL_QUEUE = "/restaurant/pms/reports";
+const FISCAL_QUEUE = "/restaurant/pms/cashiering";
 
 export type GuestFolioFact = {
   id: string;
@@ -1249,8 +1249,8 @@ function reconcileFiscal(facts: NightAuditFinancialFacts): {
         };
       } else {
         targetRoute = FISCAL_QUEUE;
-        targetSearch = { report: "fiscal-registration" };
-        actionLabel = "Open Fiscal Queue";
+        targetSearch = { tab: "folios" };
+        actionLabel = "Open Folios";
       }
 
       const created = issue({

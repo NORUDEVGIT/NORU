@@ -162,7 +162,7 @@ function getDestinationMeta(row: {
         ? `Guest Folio → ${tabName}`
         : isAccount
           ? `Financial Account → ${tabName}`
-          : "Fiscal Integration → Document Audit",
+          : "Cashiering → Folios",
       actionText:
         modalTab === "withholding"
           ? "Review Withholding Tax"
@@ -170,7 +170,7 @@ function getDestinationMeta(row: {
             ? "Review Settlement & Receipts"
             : isFolio || isAccount
               ? "Inspect Fiscal Registration"
-              : "Inspect Fiscal Record",
+              : "Inspect Fiscal Folio",
       icon: FileCheck,
     };
   }
@@ -751,7 +751,7 @@ export function NightAuditFinancialPanel({
                         search={
                           ({
                             ...(row.search as Record<string, unknown> ?? {}),
-                            returnTo: "/restaurant/pms/night-audit",
+                            returnTo: "/restaurant/pms/night-audit?tab=financial",
                             returnToLabel: "Return to Night Audit",
                           }) as never
                         }
@@ -1243,7 +1243,7 @@ function StatusBadge({ status }: { status: NightAuditRowStatus }) {
 function DirectLink({ label, route, search }: { label: string; route: string; search?: Record<string, string> }) {
   const enrichedSearch = {
     ...(search ?? {}),
-    returnTo: "/restaurant/pms/night-audit",
+    returnTo: "/restaurant/pms/night-audit?tab=financial",
     returnToLabel: "Return to Night Audit",
   };
   return (

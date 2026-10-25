@@ -124,7 +124,7 @@ const OWNER_MODULE: Record<ExceptionCategory, string> = {
   accounts: "Cashiering",
   drawers: "Cashiering",
   tax: "Cashiering",
-  fiscal: "Reports",
+  fiscal: "Cashiering",
   arrivals: "Front Office",
   departures: "Front Office",
   rooms: "Housekeeping",
@@ -167,11 +167,10 @@ export function exceptionDefaultSource(exceptionType: string, businessDate: stri
     case "payments":
     case "accounts":
     case "tax":
+    case "fiscal":
       return { route: "/restaurant/pms/cashiering", search: { tab: "folios" } };
     case "drawers":
       return { route: "/restaurant/pms/cashiering", search: { tab: "cashier-shift" } };
-    case "fiscal":
-      return { route: "/restaurant/pms/reports", search: { report: "fiscal-registration" } };
     case "arrivals":
       return { route: "/restaurant/pms/front-office", search: { tab: "arrivals", date: businessDate } };
     case "departures":

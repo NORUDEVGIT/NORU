@@ -1018,7 +1018,7 @@ export function NightAuditOperationalPanel({
                       ...(selected.confirmationNumber ? { q: selected.confirmationNumber } : {}),
                       ...(selected.reservationId ? { reservationId: selected.reservationId } : {}),
                       ...(selected.roomId ? { room: selected.roomId } : {}),
-                      returnTo: "/restaurant/pms/night-audit",
+                      returnTo: "/restaurant/pms/night-audit?tab=operations",
                       returnToLabel: "Return to Night Audit",
                     }) as never
                   }
@@ -1213,7 +1213,7 @@ function link(
   const enrichedSearch = {
     ...(search ?? {}),
     ...filteredExtra,
-    returnTo: "/restaurant/pms/night-audit",
+    returnTo: "/restaurant/pms/night-audit?tab=operations",
     returnToLabel: "Return to Night Audit",
   };
   return (

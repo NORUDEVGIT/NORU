@@ -265,20 +265,35 @@ function auditExceptionSet(
   );
 }
 
-/** Exception key to the live owner-module link from the current financial and operational issues. */
 function liveExceptionSources(
   financial: NightAuditFinancialReconciliation | null,
   operational: NightAuditOperationalReconciliation | null,
 ): Map<string, ExceptionSource> {
   const sources = new Map<string, ExceptionSource>();
   const add = (
-    issue: { route: string; search?: Record<string, string> | undefined },
+    issue: {
+      route: string;
+      search?: Record<string, string> | undefined;
+      confirmationNumber?: string | null;
+      reservationId?: string | null;
+      roomId?: string | null;
+    },
     exception: NaDerivedException | undefined,
   ) => {
     if (!exception) return;
+    const extra: Record<string, string> = {};
+    if (issue.confirmationNumber) extra.q = issue.confirmationNumber;
+    if (issue.reservationId) extra.reservationId = issue.reservationId;
+    if (issue.roomId) extra.room = issue.roomId;
+
+    const mergedSearch = {
+      ...(issue.search ?? {}),
+      ...extra,
+    };
+
     sources.set(exceptionSyncKey(exception.exceptionType, exception.referenceId), {
       route: issue.route,
-      ...(issue.search ? { search: issue.search } : {}),
+      ...(Object.keys(mergedSearch).length > 0 ? { search: mergedSearch } : {}),
     });
   };
   for (const issue of financial?.issues ?? []) add(issue, financialIssuesToExceptions([issue])[0]);
