@@ -1,5 +1,21 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, CalendarDays, ClipboardList, Clock, RefreshCw, ShieldAlert } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowRight,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  Clock,
+  Coins,
+  Layers,
+  Lock,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  Vault,
+} from "lucide-react";
 
 import { NaClosePanel, NaCloseResult, NaCloseSummary } from "@/packages/pms/components/nightaudit/na1-panels";
 import { NightAuditExceptionQueue } from "@/packages/pms/components/nightaudit/night-audit-exception-queue";
@@ -142,24 +158,119 @@ function ReadinessCard({
   warnings: number;
   onOpen?: () => void;
 }) {
+  const Icon =
+    label === "Financial"
+      ? Coins
+      : label === "Operations"
+        ? Building2
+        : ShieldAlert;
+
+  const tone = domainTone(status);
+
   return (
-    <article className="rounded-2xl border border-border bg-card p-4" data-testid={`night-audit-readiness-${label.toLowerCase()}`}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-[#251605]">{label}</p>
-        <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", TONE_CLASS[domainTone(status)])}>
-          {domainStatusLabel(status)}
-        </span>
+    <article
+      className={cn(
+        "group relative flex flex-col justify-between rounded-2xl border p-4.5 shadow-2xs transition-all",
+        tone === "green"
+          ? "border-emerald-200/70 bg-emerald-50/20 hover:border-emerald-300 dark:bg-emerald-950/10"
+          : tone === "red"
+            ? "border-red-200/80 bg-red-50/20 hover:border-red-300 dark:bg-red-950/10"
+            : tone === "amber"
+              ? "border-amber-200/70 bg-amber-50/20 hover:border-amber-300 dark:bg-amber-950/10"
+              : "border-border/70 bg-card hover:border-border",
+      )}
+      data-testid={`night-audit-readiness-${label.toLowerCase()}`}
+    >
+      <div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "flex size-7 items-center justify-center rounded-lg shadow-2xs",
+                tone === "green"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                  : tone === "red"
+                    ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                    : tone === "amber"
+                      ? "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
+                      : "bg-muted text-muted-foreground",
+              )}
+            >
+              <Icon className="size-4" />
+            </span>
+            <p className="font-display text-sm font-semibold text-foreground">{label}</p>
+          </div>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide capitalize",
+              tone === "green"
+                ? "border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                : tone === "red"
+                  ? "border-red-200/80 bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-300"
+                  : tone === "amber"
+                    ? "border-amber-200/80 bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-300"
+                    : "border-border bg-muted text-muted-foreground",
+            )}
+          >
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                tone === "green"
+                  ? "bg-emerald-500"
+                  : tone === "red"
+                    ? "bg-red-500"
+                    : tone === "amber"
+                      ? "bg-amber-500"
+                      : "bg-muted-foreground",
+              )}
+            />
+            {domainStatusLabel(status)}
+          </span>
+        </div>
+
+        <div className="mt-3.5 flex flex-wrap items-center gap-1.5 text-xs">
+          {status === "loading" ? (
+            <span className="text-muted-foreground">Checking…</span>
+          ) : status === "unavailable" ? (
+            <span className="text-xs text-red-700 font-medium">Could not be read. Close stays blocked.</span>
+          ) : (
+            <>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-semibold text-[11px]",
+                  blockers > 0
+                    ? "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300"
+                    : "bg-emerald-100/70 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
+                )}
+              >
+                {blockers} blocker(s)
+              </span>
+              <span className="text-muted-foreground text-[10px]">•</span>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-[11px]",
+                  warnings > 0
+                    ? "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300"
+                    : "bg-muted text-muted-foreground",
+                )}
+              >
+                {warnings} warning(s)
+              </span>
+            </>
+          )}
+        </div>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        {status === "loading"
-          ? "Checking…"
-          : status === "unavailable"
-            ? "Could not be read. Close stays blocked."
-            : `${blockers} blocker(s) · ${warnings} warning(s)`}
-      </p>
+
       {onOpen ? (
-        <Button type="button" size="sm" variant="ghost" className="mt-2 px-0" onClick={onOpen}>
-          Open {label}
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="mt-3 h-7.5 w-full justify-between rounded-lg px-2 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
+          onClick={onOpen}
+        >
+          <span>Open {label}</span>
+          <ArrowRight className="size-3" />
         </Button>
       ) : null}
     </article>
@@ -182,21 +293,35 @@ function WarningSummary({ exceptions }: { exceptions: AuditException[] }) {
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   }, [exceptions]);
+
   return (
-    <section className="rounded-2xl border border-border bg-card p-4" data-testid="night-audit-warning-summary">
-      <h3 className="text-sm font-medium text-[#251605]">Warnings</h3>
-      <p className="text-xs text-muted-foreground">Warnings never block close.</p>
+    <section className="rounded-2xl border border-border/70 bg-card p-4.5 shadow-2xs" data-testid="night-audit-warning-summary">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex size-6 items-center justify-center rounded-md bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+            <AlertTriangle className="size-3.5" />
+          </div>
+          <h3 className="font-display text-sm font-semibold text-foreground">Warnings</h3>
+        </div>
+        <span className="text-[11px] text-muted-foreground">Warnings never block close.</span>
+      </div>
+
       {groups.length === 0 ? (
-        <p className="mt-2 text-xs text-muted-foreground">No open warnings.</p>
+        <p className="mt-3 text-xs text-muted-foreground">No open warnings.</p>
       ) : (
-        <ul className="mt-2 space-y-1 text-xs">
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {groups.map(([key, value]) => (
-            <li key={key} className="flex justify-between gap-2">
-              <span>{key}</span>
-              <span className="font-medium">{value}</span>
-            </li>
+            <div
+              key={key}
+              className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs"
+            >
+              <span className="text-muted-foreground font-medium">{key}</span>
+              <span className="rounded-md bg-amber-100 dark:bg-amber-950/50 px-2 py-0.5 font-mono text-xs font-semibold text-amber-900 dark:text-amber-200">
+                {value}
+              </span>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </section>
   );
@@ -213,53 +338,90 @@ function BlockerTable({
 }) {
   const open = exceptions.filter((row) => row.status === "open" && row.severity === "blocking");
   const liveBoard = board.filter((row) => row.state === "block" || row.state === "unavailable");
+  const totalBlockers = open.length + liveBoard.length;
+
   return (
-    <section className="overflow-hidden rounded-2xl border border-border bg-card" data-testid="night-audit-top-blockers">
-      <div className="flex items-center justify-between gap-2 px-4 py-3">
-        <h3 className="text-sm font-medium text-[#251605]">Top blockers</h3>
-        <Button type="button" size="sm" variant="ghost" onClick={onOpenExceptions}>
-          Review exceptions
+    <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-2xs" data-testid="night-audit-top-blockers">
+      <div className="flex items-center justify-between gap-2 border-b border-border/70 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300">
+            <ShieldAlert className="size-4" />
+          </div>
+          <div>
+            <h3 className="font-display text-sm font-semibold text-foreground">Top blockers</h3>
+            <p className="text-[11px] text-muted-foreground">Blocking issues preventing business date roll</p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={onOpenExceptions}
+          className="h-7.5 gap-1.5 text-xs font-medium"
+        >
+          <span>Review exceptions</span>
+          <ArrowRight className="size-3" />
         </Button>
       </div>
-      {open.length === 0 && liveBoard.length === 0 ? (
-        <p className="border-t border-border px-4 py-4 text-xs text-muted-foreground">No blockers for this business date.</p>
+      {totalBlockers === 0 ? (
+        <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200">
+            <CheckCircle2 className="size-5" />
+          </div>
+          <p className="mt-2 text-xs font-semibold text-foreground">Clean Roll Gate</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">No blockers for this business date.</p>
+        </div>
       ) : (
-        <table className="w-full text-left text-xs">
-          <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2">Issue</th>
-              <th className="px-3 py-2">Domain</th>
-              <th className="px-3 py-2">Resolved in</th>
-            </tr>
-          </thead>
-          <tbody>
-            {liveBoard.slice(0, 3).map((row) => (
-              <tr key={`board-${row.id}`} className="border-t border-border">
-                <td className="px-3 py-2">
-                  <span className="font-medium">{row.label}</span>
-                  <p className="text-muted-foreground">{row.detail}</p>
-                </td>
-                <td className="px-3 py-2">Live board</td>
-                <td className="px-3 py-2">{row.clear[0]?.label ?? "—"}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="border-b border-border/60 bg-muted/30 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="px-3.5 py-2.5 font-medium">Issue</th>
+                <th className="px-3.5 py-2.5 font-medium">Domain</th>
+                <th className="px-3.5 py-2.5 font-medium">Resolved in</th>
               </tr>
-            ))}
-            {open.slice(0, 5).map((row) => {
-              const meta = exceptionMeta(row.exceptionType);
-              return (
-                <tr key={row.id} className="border-t border-border">
-                  <td className="px-3 py-2">
-                    <span className="font-medium">{meta.title}</span>
-                    <p className="text-muted-foreground">{row.message}</p>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {liveBoard.slice(0, 3).map((row) => (
+                <tr key={`board-${row.id}`} className="transition-colors hover:bg-muted/30">
+                  <td className="px-3.5 py-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-red-500 shrink-0" />
+                      <span className="font-semibold text-foreground">{row.label}</span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">{row.detail}</p>
                   </td>
-                  <td className="px-3 py-2">
-                    {meta.domain === "financial" ? "Financial" : "Operations"} · {meta.categoryLabel}
+                  <td className="px-3.5 py-2.5 align-middle">
+                    <span className="inline-flex rounded-md bg-stone-100 dark:bg-stone-800 px-2 py-0.5 text-[11px] font-medium text-stone-700 dark:text-stone-300">
+                      Live board
+                    </span>
                   </td>
-                  <td className="px-3 py-2">{meta.ownerModule}</td>
+                  <td className="px-3.5 py-2.5 text-muted-foreground align-middle">{row.clear[0]?.label ?? "—"}</td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ))}
+              {open.slice(0, 5).map((row) => {
+                const meta = exceptionMeta(row.exceptionType);
+                return (
+                  <tr key={row.id} className="transition-colors hover:bg-muted/30">
+                    <td className="px-3.5 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="size-1.5 rounded-full bg-red-500 shrink-0" />
+                        <span className="font-semibold text-foreground">{meta.title}</span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">{row.message}</p>
+                    </td>
+                    <td className="px-3.5 py-2.5 align-middle">
+                      <span className="inline-flex rounded-md bg-stone-100 dark:bg-stone-800 px-2 py-0.5 text-[11px] font-medium text-stone-700 dark:text-stone-300">
+                        {meta.domain === "financial" ? "Financial" : "Operations"} · {meta.categoryLabel}
+                      </span>
+                    </td>
+                    <td className="px-3.5 py-2.5 text-muted-foreground align-middle">{meta.ownerModule}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -652,24 +814,58 @@ export function NightAuditDesk({
         ) : (
           <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
             <section className="space-y-4" data-testid="night-audit-close-readiness">
-              <div className="rounded-2xl border border-border bg-card p-5">
-                <h2 className="font-display text-lg text-[#251605]">Close readiness</h2>
-                <p className="mt-1 text-sm text-muted-foreground">{NIGHT_AUDIT_TAB_COPY.close}</p>
-                <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-2xs">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <dt className="text-xs text-muted-foreground">Current business date</dt>
-                    <dd className="font-medium">{formatNa1Date(dates.current)}</dd>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-display text-lg font-bold text-foreground">Close readiness</h2>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold tracking-wide",
+                          overallTone(overall) === "green"
+                            ? "border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                            : overallTone(overall) === "red"
+                              ? "border-red-200/80 bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-300"
+                              : overallTone(overall) === "amber"
+                                ? "border-amber-200/80 bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-300"
+                                : "border-border bg-muted text-muted-foreground",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "size-1.5 rounded-full",
+                            overallTone(overall) === "green"
+                              ? "bg-emerald-500"
+                              : overallTone(overall) === "red"
+                                ? "bg-red-500"
+                                : overallTone(overall) === "amber"
+                                  ? "bg-amber-500"
+                                  : "bg-muted-foreground",
+                          )}
+                        />
+                        {overall ? OVERALL_STATUS_LABEL[overall] : "Checking…"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{NIGHT_AUDIT_TAB_COPY.close}</p>
                   </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Next business date</dt>
-                    <dd className="font-medium">{formatNa1Date(dates.next)}</dd>
+                </div>
+
+                <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Current business date</dt>
+                    <dd className="mt-1 font-display text-base font-bold text-foreground">{formatNa1Date(dates.current)}</dd>
                   </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Overall</dt>
-                    <dd className="font-medium">{overall ? OVERALL_STATUS_LABEL[overall] : "Checking…"}</dd>
+                  <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Next business date</dt>
+                    <dd className="mt-1 font-display text-base font-bold text-foreground">{formatNa1Date(dates.next)}</dd>
+                  </div>
+                  <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Overall</dt>
+                    <dd className="mt-1 font-display text-base font-bold text-foreground">{overall ? OVERALL_STATUS_LABEL[overall] : "Checking…"}</dd>
                   </div>
                 </dl>
               </div>
+
               <div className="grid gap-3 sm:grid-cols-3">
                 <ReadinessCard
                   label="Financial"
@@ -693,10 +889,22 @@ export function NightAuditDesk({
                   onOpen={() => onNavigate("exceptions")}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Open drawers {countText(financialSummary.status, financialSummary.openDrawerCount)} · Live board{" "}
-                {boardBlockers > 0 ? `${boardBlockers} blocker(s)` : "clear"}
-              </p>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/30 px-3.5 py-2 text-xs">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                    <Vault className="size-3.5 text-primary" />
+                    Open drawers {countText(financialSummary.status, financialSummary.openDrawerCount)}
+                  </span>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                    <Layers className="size-3.5 text-primary" />
+                    Live board {boardBlockers > 0 ? `${boardBlockers} blocker(s)` : "clear"}
+                  </span>
+                </div>
+                <span className="text-[11px] text-muted-foreground">Snapshot updated live</span>
+              </div>
+
               <BlockerTable exceptions={exceptions} board={blockers} onOpenExceptions={() => onNavigate("exceptions", "blockers")} />
               <WarningSummary exceptions={exceptions} />
               <p className="text-xs text-muted-foreground" data-testid="night-audit-otb-note">
