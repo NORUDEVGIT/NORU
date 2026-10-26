@@ -773,35 +773,6 @@ export function NightAuditDesk({
 
           <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
             <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="night-audit-readiness">
-                <ReadinessCard
-                  label="Financial"
-                  status={financialSummary.status}
-                  blockers={financialSummary.blockerCount}
-                  warnings={financialSummary.warningCount}
-                  onOpen={() => onNavigate("financial")}
-                />
-                <ReadinessCard
-                  label="Operations"
-                  status={operationalSummary.status}
-                  blockers={operationalSummary.blockerCount}
-                  warnings={operationalSummary.warningCount}
-                  onOpen={() => onNavigate("operations")}
-                />
-                <ReadinessCard
-                  label="Exceptions"
-                  status={domainFromCounts(counts.blocking, counts.warnings)}
-                  blockers={counts.blocking}
-                  warnings={counts.warnings}
-                  onOpen={() => onNavigate("exceptions")}
-                />
-                <ReadinessCard
-                  label="Board"
-                  status={blockers.some((row) => row.state === "unavailable") ? "unavailable" : domainFromCounts(boardBlockers, 0)}
-                  blockers={boardBlockers}
-                  warnings={0}
-                />
-              </div>
               <BlockerTable exceptions={exceptions} board={blockers} onOpenExceptions={() => onNavigate("exceptions", "blockers")} />
             </div>
             <aside className="space-y-4">

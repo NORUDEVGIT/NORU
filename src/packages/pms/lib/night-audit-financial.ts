@@ -1035,11 +1035,11 @@ function transferProblems(
   transfers: readonly TransferFact[],
   checkedAt: string,
 ): { issues: NightAuditFinancialIssue[]; accountIds: Set<string> } {
-  const relevant = transfers.filter((row) => row.accountId);
-  const groups = new Map<string, TransferFact[]>();
+  const accountRows = transfers.filter((row) => row.accountId);
   const issues: NightAuditFinancialIssue[] = [];
   const accountIds = new Set<string>();
-  for (const row of relevant) {
+  const groupedIds = new Set<string>();
+  for (const row of accountRows) {
     if (!row.transferId || !transferDirection(row.direction)) {
       issues.push(
         issue({
@@ -1060,33 +1060,40 @@ function transferProblems(
       if (row.accountId) accountIds.add(row.accountId);
       continue;
     }
-    const list = groups.get(row.transferId) ?? [];
-    list.push(row);
-    groups.set(row.transferId, list);
+    groupedIds.add(row.transferId);
   }
-  for (const [transferId, rows] of groups) {
-    const directions = new Set(rows.map((row) => transferDirection(row.direction)));
+  for (const transferId of groupedIds) {
+    const rows = transfers.filter((row) => row.transferId === transferId);
+    const directions = new Set(
+      rows.flatMap((row) => {
+        const direction = transferDirection(row.direction);
+        return direction ? [direction] : [];
+      }),
+    );
     const sum = signed(rows.map((row) => row.amount));
-    if (directions.size < 2 || Math.abs(sum) > ALLOCATION_TOLERANCE) {
-      const targetAccountId = rows.find((r) => r.accountId)?.accountId;
-      issues.push(
-        issue({
-          code: "transfer_unbalanced",
-          category: "accounts",
-          severity: "blocking",
-          title: "Cross-ledger transfer is incomplete",
-          description: "A cross-ledger movement does not match its transfer pair.",
-          referenceType: "transfer",
-          referenceId: transferId,
-          route: targetAccountId
-            ? `/restaurant/pms/cashiering/accounts/${targetAccountId}`
-            : CASHIERING,
-          search: targetAccountId ? { tab: "charges" } : { tab: "accounts" },
-          createdAt: checkedAt,
-        }),
-      );
-      for (const row of rows) if (row.accountId) accountIds.add(row.accountId);
-    }
+    const incomplete =
+      rows.some((row) => !transferDirection(row.direction)) ||
+      directions.size < 2 ||
+      Math.abs(sum) > ALLOCATION_TOLERANCE;
+    if (!incomplete) continue;
+    const targetAccountId = rows.find((row) => row.accountId)?.accountId;
+    issues.push(
+      issue({
+        code: "transfer_unbalanced",
+        category: "accounts",
+        severity: "blocking",
+        title: "Cross-ledger transfer is incomplete",
+        description: "A cross-ledger movement does not match its transfer pair.",
+        referenceType: "transfer",
+        referenceId: transferId,
+        route: targetAccountId
+          ? `/restaurant/pms/cashiering/accounts/${targetAccountId}`
+          : CASHIERING,
+        search: targetAccountId ? { tab: "charges" } : { tab: "accounts" },
+        createdAt: checkedAt,
+      }),
+    );
+    for (const row of rows) if (row.accountId) accountIds.add(row.accountId);
   }
   return { issues, accountIds };
 }

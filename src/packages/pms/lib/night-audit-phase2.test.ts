@@ -329,6 +329,21 @@ describe("company and group accounts", () => {
     assert.equal(result.accounts[0]?.status, "blocker");
   });
 
+  it("accepts a guest folio and company transfer that cancel", () => {
+    const transferId = "22222222-2222-4222-8222-222222222222";
+    const result = reconcileNightAuditFinancials(facts({
+      accounts: [account("company", false)],
+      transfers: [
+        { id: "in-charge", transferId, direction: "in", amount: 100, accountId: "company-1" },
+        { id: "in-tax", transferId, direction: "in", amount: 15, accountId: "company-1" },
+        { id: "out-charge", transferId, direction: "out", amount: -100, accountId: null },
+        { id: "out-tax", transferId, direction: "out", amount: -15, accountId: null },
+      ],
+    }));
+    assert.equal(result.issues.some((row) => row.code === "transfer_unbalanced"), false);
+    assert.notEqual(result.accounts[0]?.status, "blocker");
+  });
+
   it("blocks an allocation to a missing invoice", () => {
     const result = reconcileNightAuditFinancials(facts({
       accounts: [{ ...account("company", false), allocations: [{ id: "aa-1", invoiceId: "gone", paymentId: "ap-1", amount: 10 }] }],
