@@ -5,7 +5,6 @@ import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-invent
 import {
   NIGHT_AUDIT_DESK_EYEBROW,
   NIGHT_AUDIT_DESK_TITLE,
-  NIGHT_AUDIT_TAB_COPY,
   NIGHT_AUDIT_TABS,
   type NightAuditTabId,
 } from "@/packages/pms/lib/night-audit-shell";
@@ -44,7 +43,6 @@ export function NightAuditChrome({
             <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
               {NIGHT_AUDIT_DESK_TITLE}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">{NIGHT_AUDIT_TAB_COPY[active]}</p>
           </div>
           <nav
             data-testid="night-audit-workspace-nav"

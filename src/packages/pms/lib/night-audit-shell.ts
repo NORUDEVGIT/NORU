@@ -15,14 +15,12 @@ export const NIGHT_AUDIT_DESK_EYEBROW = "Operations";
 export const NIGHT_AUDIT_DESK_TITLE = "Night Audit Control";
 
 export const NIGHT_AUDIT_TAB_COPY: Record<NightAuditTabId, string> = {
-  control: "Is this business date ready to close?",
-  financial: "Reconcile frozen cashiering, fiscal, and tax facts. Night Audit does not change them.",
-  operations:
-    "Can tonight’s operational state be closed safely? Night Audit reads and classifies it; fixes happen in the owner module.",
-  exceptions:
-    "One queue for financial and operational findings on this run. Rows clear automatically when the owner module fixes the source.",
-  close: "Perform the final recheck and manually close the current business date.",
-  history: "Review stored Night Audit runs and how each business date was closed.",
+  control: "",
+  financial: "",
+  operations: "",
+  exceptions: "",
+  close: "",
+  history: "",
 };
 
 export const NIGHT_AUDIT_PAGE_SIZE = 10;

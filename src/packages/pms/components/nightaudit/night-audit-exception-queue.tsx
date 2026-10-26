@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 
 import { formatNa1Date } from "@/packages/pms/lib/na1";
-import { NIGHT_AUDIT_TAB_COPY, paginateRows } from "@/packages/pms/lib/night-audit-shell";
+import { paginateRows } from "@/packages/pms/lib/night-audit-shell";
 import {
   DEFAULT_EXCEPTION_FILTER,
   EXCEPTION_CATEGORY_LABEL,
@@ -186,8 +186,7 @@ export function NightAuditExceptionQueue({
 
   return (
     <div className="space-y-4" data-testid="night-audit-exceptions">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{NIGHT_AUDIT_TAB_COPY.exceptions}</p>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <span className="text-xs text-muted-foreground">
           Snapshot as of <span className="font-medium text-foreground">{checkedAt ? dateTime(checkedAt) : "today"}</span>
         </span>

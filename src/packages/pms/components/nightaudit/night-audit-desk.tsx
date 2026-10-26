@@ -36,7 +36,7 @@ import {
   type NaBlockerRow,
   type NaLastClosed,
 } from "@/packages/pms/lib/na1";
-import { NIGHT_AUDIT_TAB_COPY, type NightAuditTabId } from "@/packages/pms/lib/night-audit-shell";
+import { type NightAuditTabId } from "@/packages/pms/lib/night-audit-shell";
 import type { NightAuditOverallStatus } from "@/packages/pms/lib/night-audit-operational";
 import {
   OVERALL_STATUS_LABEL,
@@ -621,7 +621,6 @@ export function NightAuditDesk({
 
       {tab === "operations" ? (
         <div className="space-y-3" data-testid="night-audit-operations-tab">
-          <p className="text-sm text-muted-foreground">{NIGHT_AUDIT_TAB_COPY.operations}</p>
           {operations}
         </div>
       ) : null}
@@ -845,7 +844,6 @@ export function NightAuditDesk({
                         {overall ? OVERALL_STATUS_LABEL[overall] : "Checking…"}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">{NIGHT_AUDIT_TAB_COPY.close}</p>
                   </div>
                 </div>
 
@@ -918,7 +916,6 @@ export function NightAuditDesk({
 
       {tab === "history" ? (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">{NIGHT_AUDIT_TAB_COPY.history}</p>
           <NightAuditHistoryWorkspace
             data={history}
             loading={historyLoading}
