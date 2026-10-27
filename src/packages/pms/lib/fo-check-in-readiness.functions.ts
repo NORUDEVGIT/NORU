@@ -40,6 +40,7 @@ function unitRequiredResult(): CheckInReadiness {
   return evaluateCheckInReadiness({
     unitRequired: true,
     target: null,
+    hasSiblings: false,
     registrationComplete: false,
     registrationWaived: false,
     registrationWaiverReason: null,
@@ -256,6 +257,7 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
         status: target.status,
         roomId: target.roomId,
       },
+      hasSiblings: target.siblings.length > 0,
       registrationComplete: registrationSnapshotIsComplete(progress.registrationSnapshot),
       registrationWaived: progress.registrationWaived,
       registrationWaiverReason: progress.registrationWaiverReason,

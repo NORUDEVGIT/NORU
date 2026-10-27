@@ -4,6 +4,7 @@
  */
 import type { FrontOfficeStay } from "./frontoffice.functions";
 import type { FrontOfficeRoomTarget } from "./reservation-room-units";
+import { primaryRoomOccupant } from "./reservation-room-occupants";
 import { nightsBetween, type ReservationStatus } from "./reservations.server";
 
 export type FoDeskKind = "arrivals" | "in_house" | "departures";
@@ -84,10 +85,17 @@ function overlayUnit(
   const arrivalDate = unit.arrivalDate || stay.arrivalDate;
   const departureDate = unit.departureDate || stay.departureDate;
   const units = stay.roomUnits ?? [];
+  // The guest in this room, not the reservation's primary guest. Header guest
+  // remains only when this room has nobody recorded on it.
+  const occupants = unit.occupants ?? [];
+  const guest = primaryRoomOccupant(occupants) ?? occupants.find((row) => row.name.trim()) ?? null;
   return {
     ...stay,
     reservationRoomId: unit.id,
     status,
+    guestId: guest?.guestId ?? stay.guestId,
+    guestName: guest?.name ?? stay.guestName,
+    guestPhone: guest?.phone ?? stay.guestPhone,
     roomTypeId: unit.roomTypeId,
     roomTypeName:
       unit.roomTypeName ||

@@ -49,6 +49,7 @@ import {
 import { loadSet4Snapshot } from "./pms-set4-hk-inventory.functions";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { checkedInRoomIds, expandStayRooms } from "./reservation-room-units";
+import { unitOccupantNames } from "./room-unit-guest-names";
 import { applyGuestServiceRequestUpdate } from "./guests.server";
 import {
   GUEST_SERVICE_DESCRIPTION_MAX,
@@ -261,7 +262,7 @@ async function occupancyMap(supabase: any, restaurantId: string) {
   if (stays.length === 0) return new Map();
   const unitResult = await supabase
     .from("hotel_reservation_rooms")
-    .select("reservation_id, room_id, status, arrival_date, departure_date, unit_sequence")
+    .select("id, reservation_id, room_id, status, arrival_date, departure_date, unit_sequence")
     .eq("restaurant_id", restaurantId)
     .in(
       "reservation_id",
@@ -271,6 +272,7 @@ async function occupancyMap(supabase: any, restaurantId: string) {
     unitResult.error && isMissingSchemaError(unitResult.error)
       ? null
       : ((unitResult.data ?? []) as Array<{
+          id: string;
           reservation_id: string;
           room_id: string | null;
           status: string | null;
@@ -300,6 +302,7 @@ async function occupancyMap(supabase: any, restaurantId: string) {
     })),
     units
       ? units.map((unit) => ({
+          id: unit.id,
           reservationId: unit.reservation_id,
           roomId: unit.room_id,
           status: unit.status,
@@ -309,11 +312,20 @@ async function occupancyMap(supabase: any, restaurantId: string) {
         }))
       : null,
   );
+  const unitNames = await unitOccupantNames(
+    supabase,
+    restaurantId,
+    rooms
+      .map((stay) => stay.reservationRoomId)
+      .filter((id): id is string => Boolean(id)),
+  );
   const map = new Map<string, string>();
   for (const roomId of checkedInRoomIds(rooms)) {
     const stay = rooms.find((room) => room.roomId === roomId && room.status === "checked_in");
     if (!stay) continue;
-    map.set(roomId, names.get(stay.reservationId) ?? "Guest");
+    const headerName = names.get(stay.reservationId) ?? "Guest";
+    const unitName = stay.reservationRoomId ? unitNames.get(stay.reservationRoomId) : undefined;
+    map.set(roomId, unitName || headerName);
   }
   return map;
 }

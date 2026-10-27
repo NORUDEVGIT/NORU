@@ -286,6 +286,40 @@ describe("FO-10R1 unit scope", () => {
   });
 });
 
+describe("FO-GR01B unit guest identity on checkout", () => {
+  it("8. the checkout contract reads the resolved unit's own occupant, not the reservation header guest", () => {
+    assert.match(server, /function loadUnitOccupant/);
+    assert.match(server, /\.from\("hotel_reservation_room_guests"\)/);
+    assert.match(server, /\.eq\("reservation_room_id", reservationRoomId\)/);
+    assert.match(server, /\.eq\("is_primary", true\)/);
+    assert.match(
+      server,
+      /unit \? loadUnitOccupant\(supabaseAdmin, input\.restaurantId, unit\.id\) : Promise\.resolve\(null\)/,
+    );
+    assert.match(server, /guestId: unitOccupant\?\.guestId \?\? stay\.guestId/);
+    assert.match(server, /guestName: unitOccupant\?\.guestName \?\? stay\.guestName/);
+    // Never a bare, unqualified use of the header stay's guest for the contract output.
+    assert.doesNotMatch(server, /guestId: stay\.guestId,\s*\n\s*guestName: stay\.guestName,/);
+  });
+
+  it("8b. checking out one unit's contract never reads a sibling's occupant (sibling isolation)", () => {
+    assert.match(
+      server,
+      /unit \? loadUnitOccupant\(supabaseAdmin, input\.restaurantId, unit\.id\) : Promise\.resolve\(null\)/,
+    );
+    // The occupant lookup is scoped to the resolved unit's own id, not any sibling's.
+    assert.doesNotMatch(server, /loadUnitOccupant\(supabaseAdmin, input\.restaurantId, units\[0\]/);
+  });
+
+  it("7. the checkout folio read stays one row per reservation; no per-unit or per-guest folio", () => {
+    assert.match(
+      server,
+      /\.from\("guest_folios"\)\s*\n\s*\.select\("id"\)\s*\n\s*\.eq\("restaurant_id", restaurantId\)\s*\n\s*\.eq\("reservation_id", reservationId\)/,
+    );
+    assert.match(workspace, /checkOutSharedFolioWarning/);
+  });
+});
+
 describe("FO-10R1 confirmation and orchestration", () => {
   const base = {
     reservationId: "res-1",

@@ -526,6 +526,43 @@ async function loadCheckOutFolio(
   };
 }
 
+/**
+ * FO-GR01B: the checkout guest line is this unit's own primary occupant, never
+ * the reservation header guest, when this unit has one on record. Mirrors the
+ * existing `hotel_reservation_room_guests` occupant relation used elsewhere.
+ */
+async function loadUnitOccupant(
+  supabaseAdmin: SupabaseAdmin,
+  restaurantId: string,
+  reservationRoomId: string,
+): Promise<{ guestId: string; guestName: string } | null> {
+  const { data: occupant, error } = await supabaseAdmin
+    .from("hotel_reservation_room_guests")
+    .select("guest_id")
+    .eq("restaurant_id", restaurantId)
+    .eq("reservation_room_id", reservationRoomId)
+    .eq("is_primary", true)
+    .maybeSingle();
+  if (error) {
+    if (isMissingSchemaError(error)) return null;
+    throw new Error(error.message);
+  }
+  const guestId = (occupant as { guest_id?: string } | null)?.guest_id;
+  if (!guestId) return null;
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("guest_profiles")
+    .select("first_name, last_name")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", guestId)
+    .maybeSingle();
+  if (profileError) throw new Error(profileError.message);
+  const guest = profile as { first_name: string | null; last_name: string | null } | null;
+  return {
+    guestId,
+    guestName: joinName(guest?.first_name ?? "", guest?.last_name ?? null) || "Guest",
+  };
+}
+
 async function loadHousekeepingTarget(
   supabaseAdmin: SupabaseAdmin,
   restaurantId: string,
@@ -586,13 +623,15 @@ async function loadCheckOutContract(
   const stay = loaded.stay;
   const roomId = unit ? unit.roomId : stay.roomId;
 
-  const [folio, override, housekeepingTarget, roomStatus, businessDate] = await Promise.all([
-    loadCheckOutFolio(supabaseAdmin, input.restaurantId, input.reservationId),
-    loadOverride(supabaseAdmin, input.restaurantId, input.reservationId),
-    loadHousekeepingTarget(supabaseAdmin, input.restaurantId),
-    loadRoomHousekeepingStatus(supabaseAdmin, input.restaurantId, roomId),
-    loadBusinessDate(supabaseAdmin, input.restaurantId),
-  ]);
+  const [folio, override, housekeepingTarget, roomStatus, businessDate, unitOccupant] =
+    await Promise.all([
+      loadCheckOutFolio(supabaseAdmin, input.restaurantId, input.reservationId),
+      loadOverride(supabaseAdmin, input.restaurantId, input.reservationId),
+      loadHousekeepingTarget(supabaseAdmin, input.restaurantId),
+      loadRoomHousekeepingStatus(supabaseAdmin, input.restaurantId, roomId),
+      loadBusinessDate(supabaseAdmin, input.restaurantId),
+      unit ? loadUnitOccupant(supabaseAdmin, input.restaurantId, unit.id) : Promise.resolve(null),
+    ]);
 
   const stayStatus = unit ? unit.status : stay.status;
   const roomNumber = unit ? unit.roomNumber : stay.roomNumber;
@@ -600,8 +639,8 @@ async function loadCheckOutContract(
     reservationId: stay.id,
     reservationRoomId: unit?.id ?? null,
     confirmationNumber: stay.confirmationNumber,
-    guestId: stay.guestId,
-    guestName: stay.guestName,
+    guestId: unitOccupant?.guestId ?? stay.guestId,
+    guestName: unitOccupant?.guestName ?? stay.guestName,
     guestEmail: loaded.guestEmail,
     roomId,
     roomNumber,

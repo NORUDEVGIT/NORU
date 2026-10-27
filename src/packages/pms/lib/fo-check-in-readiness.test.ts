@@ -14,6 +14,7 @@ const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8"
 function ready(patch: Partial<CheckInReadinessFacts> = {}): CheckInReadinessFacts {
   return {
     unitRequired: false,
+    hasSiblings: false,
     target: {
       reservationRoomId: "unit-1",
       guestId: "guest-1",
@@ -102,6 +103,39 @@ describe("check-in readiness blockers", () => {
     for (const code of CHECK_IN_BLOCKER_CODES) {
       expect(codes({})).not.toContain(code);
     }
+  });
+
+  it("FO-GR01B: blocks completing check-in on a multi-room unit with no primary occupant of its own", () => {
+    // A true multi-room reservation (hasSiblings) whose target unit fell back to
+    // the booker/header guest must not silently check in that guest.
+    expect(
+      codes({
+        hasSiblings: true,
+        target: { ...ready().target!, guestSource: "booker" },
+      }),
+    ).toContain("GUEST_REQUIRED");
+    expect(
+      evaluateCheckInReadiness(
+        ready({ hasSiblings: true, target: { ...ready().target!, guestSource: "booker" } }),
+      ).canCheckIn,
+    ).toBe(false);
+
+    // A legitimate single-room/legacy stay with no sibling units keeps using the
+    // booker guest; this is the task's explicit carve-out, not a blocker.
+    expect(
+      codes({
+        hasSiblings: false,
+        target: { ...ready().target!, guestSource: "booker" },
+      }),
+    ).not.toContain("GUEST_REQUIRED");
+
+    // A multi-room unit that does have its own primary occupant is never blocked.
+    expect(
+      codes({
+        hasSiblings: true,
+        target: { ...ready().target!, guestSource: "unit_primary" },
+      }),
+    ).not.toContain("GUEST_REQUIRED");
     const blocked = evaluateCheckInReadiness(
       ready({ keyRecorded: false, verificationWarnings: ["Identity document is not verified."] }),
     );

@@ -15,6 +15,7 @@ import {
 import { isNoShowPastDue } from "./fo-no-show-readiness";
 import { RESERVATION_STATUSES, type ReservationStatus } from "./reservation-dates";
 import { frontOfficeRoomTargets } from "./reservation-room-units";
+import { primaryRoomOccupant } from "./reservation-room-occupants";
 import type { ReservationDetail } from "./reservations.functions";
 
 export type FoRackBarActionId =
@@ -184,8 +185,16 @@ export function projectRackStays(rows: readonly ReservationDetail[]): FoRackStay
       continue;
     }
     for (const unit of units) {
+      // Each bar shows the guest in that room. The reservation number stays
+      // on the header. The header guest is used only when this room has no occupant.
+      const occupants = unit.occupants ?? [];
+      const guest =
+        primaryRoomOccupant(occupants) ?? occupants.find((row) => row.name.trim()) ?? null;
       bars.push({
         ...row,
+        guestId: guest?.guestId ?? row.guestId,
+        guestName: guest?.name ?? row.guestName,
+        guestPhone: guest?.phone ?? row.guestPhone,
         roomId: unit.roomId,
         roomNumber: unit.roomId ? (unit.roomNumber ?? null) : null,
         roomTypeId: unit.roomTypeId,
