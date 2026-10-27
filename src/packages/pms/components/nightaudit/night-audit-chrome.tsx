@@ -35,8 +35,11 @@ export function NightAuditChrome({
       suppressReturnButton
     >
       <div className="min-w-0 bg-[#F7F4EE]" data-testid="night-audit-desk">
-        <header className="border-b border-border bg-background" data-testid="night-audit-desk-header">
-          <div className="flex flex-wrap items-center justify-between gap-4 px-5 pt-4 sm:px-6">
+        <header
+          className="border-b border-border bg-background"
+          data-testid="night-audit-desk-header"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 {NIGHT_AUDIT_DESK_EYEBROW}
@@ -74,9 +77,11 @@ export function NightAuditChrome({
               </button>
             </div>
           </div>
+          {/* Legacy navigation tabs hidden - replaced by the 8-step workspace */}
           <nav
             data-testid="night-audit-workspace-nav"
-            className="mt-3 flex items-end gap-1 overflow-x-auto px-5 sm:px-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="hidden"
+            aria-hidden="true"
             aria-label="Night Audit"
           >
             {NIGHT_AUDIT_TABS.map((item) => (
@@ -85,16 +90,8 @@ export function NightAuditChrome({
                 type="button"
                 data-testid={`night-audit-nav-${item.id}`}
                 onClick={() => onNavigate(item.id)}
-                aria-current={active === item.id ? "page" : undefined}
-                className={cn(
-                  "relative flex h-9 min-h-9 shrink-0 items-center px-3 text-xs font-medium transition-colors cursor-pointer",
-                  active === item.id ? "text-foreground font-semibold" : "text-muted-foreground hover:text-foreground",
-                )}
               >
-                <span>{item.label}</span>
-                {active === item.id ? (
-                  <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
-                ) : null}
+                {item.label}
               </button>
             ))}
           </nav>

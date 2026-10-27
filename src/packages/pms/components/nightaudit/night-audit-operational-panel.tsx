@@ -1663,7 +1663,7 @@ export function NightAuditOperationalPanel({
         </Section>
       )}
 
-      {activeTab === "overbooking" && (
+      {(hideTabs ? allowedTabs?.includes("overbooking") : activeTab === "overbooking") && (
         <Section
           title="Overbooking"
           state={result.sections.overbooking}
@@ -1778,7 +1778,7 @@ export function NightAuditOperationalPanel({
         </Section>
       )}
 
-      {activeTab === "distribution" && (
+      {(hideTabs ? allowedTabs?.includes("distribution") : activeTab === "distribution") && (
         <Section
           title="Distribution / Channels"
           state={result.sections.distribution}
@@ -1875,7 +1875,7 @@ export function NightAuditOperationalPanel({
         </Section>
       )}
 
-      {activeTab === "revenue" && (
+      {(hideTabs ? allowedTabs?.includes("revenue") : activeTab === "revenue") && (
         <Section
           title="Revenue Readiness"
           state={result.sections.revenue}
@@ -1970,7 +1970,7 @@ export function NightAuditOperationalPanel({
         </Section>
       )}
 
-      {activeTab === "services" && (
+      {(hideTabs ? allowedTabs?.includes("services") : activeTab === "services") && (
         <Section
           title="Service Operations"
           state={result.sections.services}

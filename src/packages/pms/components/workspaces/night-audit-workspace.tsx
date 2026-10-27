@@ -535,6 +535,7 @@ export function NightAuditWorkspace({
             onRefresh={() => void recheck()}
             allowedTabs={["revenue", "overbooking", "distribution", "services"]}
             hideHero
+            hideTabs
             exceptions={state.exceptions}
             onReviewWarning={handleReviewWarning}
             reviewingWarning={reviewWarningMutation.isPending}
