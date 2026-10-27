@@ -66,6 +66,7 @@ export const EMPTY_CREATE_RESERVATION_POLICIES: CreateReservationPoliciesState =
 
 export function CreateReservationPoliciesGuarantee({
   guarantee,
+  priceReminder = null,
   money,
   depositQuote,
   ratePlanDepositPolicy,
@@ -98,6 +99,7 @@ export function CreateReservationPoliciesGuarantee({
   onGuestDepositReferenceChange,
 }: {
   guarantee: ReactNode;
+  priceReminder?: ReactNode;
   money: (value: number) => string;
   depositQuote: DepositComputeQuote | null;
   ratePlanDepositPolicy: DepositPolicyCard3Row | null;
@@ -156,7 +158,10 @@ export function CreateReservationPoliciesGuarantee({
   return (
     <div className="space-y-3" data-testid="create-reservation-policies-guarantee">
       <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
-        {guarantee}
+        <div className="space-y-3">
+          {guarantee}
+          {priceReminder}
+        </div>
 
         <section
           className="h-fit rounded-[6px] border border-[#CCCCCC] bg-white p-4 shadow-none"
