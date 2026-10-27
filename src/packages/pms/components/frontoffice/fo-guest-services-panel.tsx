@@ -8,7 +8,10 @@ import {
   GUEST_PROFILE_DETAIL_PATH,
   guestProfileSearch,
 } from "@/packages/pms/lib/guest-profile-wave1";
-import { GUEST_SERVICE_PRIORITY_LABELS, GUEST_SERVICE_STATUS_LABELS } from "@/packages/pms/lib/guest-services-workspace";
+import {
+  GUEST_SERVICE_PRIORITY_LABELS,
+  GUEST_SERVICE_STATUS_LABELS,
+} from "@/packages/pms/lib/guest-services-workspace";
 import { preferredTimeOverdue, foGuestServiceHeadline } from "@/packages/pms/lib/fo-guest-services";
 import { getFrontOfficeGuestServiceSummary } from "@/packages/pms/lib/fo-guest-services.functions";
 import { Button } from "@/shared/components/ui/button";
@@ -19,11 +22,14 @@ export function FoGuestServicesPanel({
   reservationId,
   guestId,
   compact = false,
+  summaryOnly = false,
 }: {
   restaurantId: string;
   reservationId: string;
   guestId: string;
   compact?: boolean;
+  /** Read-only summary for Stay Overview: hidden when nothing is active, no links. */
+  summaryOnly?: boolean;
 }) {
   const fetchSummary = useServerFn(getFrontOfficeGuestServiceSummary);
   const query = useQuery({
@@ -39,12 +45,16 @@ export function FoGuestServicesPanel({
   } as const;
 
   if (query.isError && isPermissionDeniedMessage(query.error)) {
-    return compact ? null : <PermissionDeniedPanel message="You don't have access to Guest Services for this stay." />;
+    return compact || summaryOnly ? null : (
+      <PermissionDeniedPanel message="You don't have access to Guest Services for this stay." />
+    );
   }
   if (query.isLoading) {
+    if (summaryOnly) return null;
     return <p className="text-sm text-muted-foreground">Loading guest services…</p>;
   }
   if (query.isError) {
+    if (summaryOnly) return null;
     return (
       <div className="space-y-2 text-sm">
         <p className="text-destructive">
@@ -60,16 +70,44 @@ export function FoGuestServicesPanel({
   const summary = query.data;
   if (!summary) return null;
   if (summary.permissionDenied) {
-    return compact ? null : <PermissionDeniedPanel message="You don't have access to Guest Services for this stay." />;
+    return compact || summaryOnly ? null : (
+      <PermissionDeniedPanel message="You don't have access to Guest Services for this stay." />
+    );
   }
   if (!summary.available) {
+    if (summaryOnly) return null;
     return (
-      <p className="text-sm text-muted-foreground">Guest Services is unavailable until its workspace is configured.</p>
+      <p className="text-sm text-muted-foreground">
+        Guest Services is unavailable until its workspace is configured.
+      </p>
     );
   }
 
   const headline = foGuestServiceHeadline(summary.signals);
   const nowMs = Date.now();
+
+  if (summaryOnly) {
+    if (summary.signals.activeCount === 0) return null;
+    return (
+      <section className="space-y-1" data-testid="fo-gs-summary">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Guest Services
+        </h4>
+        <p className="text-sm">{headline}</p>
+        <ul className="space-y-1 text-sm">
+          {summary.active.map((item) => (
+            <li key={item.id} className="flex flex-wrap gap-x-2">
+              <span className="font-medium">{item.serviceName}</span>
+              <span className="text-xs text-muted-foreground">
+                {GUEST_SERVICE_STATUS_LABELS[item.status]} ·{" "}
+                {GUEST_SERVICE_PRIORITY_LABELS[item.priority]}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
 
   if (compact) {
     if (summary.signals.activeCount === 0) return null;
@@ -85,17 +123,16 @@ export function FoGuestServicesPanel({
 
   return (
     <section className="space-y-2" data-testid="fo-gs-panel">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Guest Services</h3>
-        <Button variant="link" className="h-auto px-0 text-xs" asChild>
-          <Link {...servicesHref}>View all</Link>
-        </Button>
-      </div>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Guest Services
+      </h3>
       <p className="text-sm">{headline}</p>
       {!summary.typesConfigured ? (
         <p className="text-xs text-muted-foreground">No active Guest Service Types in Settings.</p>
       ) : null}
-      <p className="text-xs text-muted-foreground">SLA clock is not configured on these requests.</p>
+      <p className="text-xs text-muted-foreground">
+        SLA clock is not configured on these requests.
+      </p>
       {summary.active.length === 0 ? (
         <p className="text-sm text-muted-foreground">No active requests.</p>
       ) : (
@@ -111,20 +148,32 @@ export function FoGuestServicesPanel({
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {item.categoryName || "Type"} · {GUEST_SERVICE_STATUS_LABELS[item.status]} ·{" "}
-                  <span className={cn(item.priority === "urgent" && "font-semibold text-destructive")}>
+                  <span
+                    className={cn(item.priority === "urgent" && "font-semibold text-destructive")}
+                  >
                     {GUEST_SERVICE_PRIORITY_LABELS[item.priority]}
                   </span>
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {item.assignedName ? `Assigned ${item.assignedName}` : "Unassigned"}
                   {" · "}
-                  {new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(
-                    new Date(item.requestedAt),
-                  )}
+                  {new Intl.DateTimeFormat("en-GB", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(new Date(item.requestedAt))}
                 </p>
                 {item.preferredAt ? (
-                  <p className={cn("text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>
-                    Preferred {new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.preferredAt))}
+                  <p
+                    className={cn(
+                      "text-xs",
+                      overdue ? "text-destructive" : "text-muted-foreground",
+                    )}
+                  >
+                    Preferred{" "}
+                    {new Intl.DateTimeFormat("en-GB", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(new Date(item.preferredAt))}
                     {overdue ? " · passed" : ""}
                   </p>
                 ) : (

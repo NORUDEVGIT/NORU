@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 
 import { FrontOfficeChrome } from "@/packages/pms/components/frontoffice/front-office-chrome";
 import {
@@ -19,7 +20,7 @@ import {
   foOpensPreArrivalCheckInWorkspace,
   type FoRackInHouseTarget,
 } from "@/packages/pms/lib/fo-check-in-workspace";
-import { cashieringRefundHref } from "@/packages/pms/lib/fo-check-out";
+import { foOpenFolioTarget } from "@/packages/pms/lib/fo-folio-tab";
 import {
   AmendmentsFrame,
   CancellationsFrame,
@@ -53,7 +54,15 @@ import {
   type InHouseQuickViewAction,
 } from "@/packages/pms/components/frontoffice/in-house-quick-view";
 import { LateCheckoutDialog } from "@/packages/pms/components/workspaces/arrivals-departures-dialogs";
-import type { FoInHouseQuickView } from "@/packages/pms/lib/fo-inhouse.functions";
+import {
+  getFrontOfficeInHouseQuickView,
+  type FoInHouseQuickView,
+} from "@/packages/pms/lib/fo-inhouse.functions";
+import type { FoGuestWorkspaceTabId } from "@/packages/pms/lib/fo-guest-workspace-tabs";
+import {
+  FO_RACK_UNRESOLVED_UNIT_MESSAGE,
+  type FoRackBarActionId,
+} from "@/packages/pms/lib/fo-rack-bar-menu";
 import type { DepartureRow } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
 import { WalkInsWorkspace } from "@/packages/pms/components/workspaces/walk-ins-workspace";
 import {
@@ -219,6 +228,7 @@ export function FrontOfficeWorkspace({
   const [searchTerm, setSearchTerm] = useState("");
   const [comingSoon, setComingSoon] = useState<string | null>(null);
   const [sheetStay, setSheetStay] = useState<FrontOfficeStay | null>(null);
+  const [guestTab, setGuestTab] = useState<FoGuestWorkspaceTabId>("overview");
   const [dialogStay, setDialogStay] = useState<FrontOfficeStay | null>(null);
   const [dialog, setDialog] = useState<LiveDialog | null>(null);
   const [picker, setPicker] = useState<PickerKind>(null);
@@ -261,6 +271,7 @@ export function FrontOfficeWorkspace({
     },
     [navigate],
   );
+  const fetchInHouseQuickView = useServerFn(getFrontOfficeInHouseQuickView);
 
   function goToFoTab(id: FoNavId) {
     setComingSoon(null);
@@ -272,7 +283,8 @@ export function FrontOfficeWorkspace({
     });
   }
 
-  function openStayQuickView(stay: FrontOfficeStay) {
+  function openStayQuickView(stay: FrontOfficeStay, tab: FoGuestWorkspaceTabId = "overview") {
+    setGuestTab(tab);
     setRoomQvId(null);
     setHistoryRoomId(null);
     setInHouseQv(null);
@@ -286,11 +298,27 @@ export function FrontOfficeWorkspace({
     setRoomQvId(roomId);
   }
 
-  function openInHouseFromRack(target: FoRackInHouseTarget) {
+  function openInHouseFromRack(
+    target: FoRackInHouseTarget,
+    tab: FoGuestWorkspaceTabId = "overview",
+  ) {
+    setGuestTab(tab);
     setSheetStay(null);
     setRoomQvId(null);
     setHistoryRoomId(null);
     setInHouseQv(target);
+  }
+
+  function openFolioWorkspace(stay: FrontOfficeStay) {
+    const target = foOpenFolioTarget(stay);
+    if (target.surface === "in_house") {
+      openInHouseFromRack(
+        { reservationId: target.reservationId, reservationRoomId: target.reservationRoomId },
+        target.tab,
+      );
+      return;
+    }
+    openStayQuickView(stay, target.tab);
   }
 
   function refreshInHouseRack() {
@@ -306,15 +334,7 @@ export function FrontOfficeWorkspace({
       return;
     }
     if (action === "open_folio") {
-      setInHouseQv(null);
-      if (qv.financial.folioId) {
-        void navigate({
-          to: "/restaurant/pms/cashiering/folios/$folioId",
-          params: { folioId: qv.financial.folioId },
-        });
-        return;
-      }
-      void navigate({ to: "/restaurant/pms/cashiering", search: { tab: "folios" } });
+      setGuestTab("folio");
       return;
     }
     if (action === "open_maintenance") {
@@ -332,6 +352,95 @@ export function FrontOfficeWorkspace({
     if (action === "special") setInHouseAmend({ stay: qv.stay, kind: "special" });
     if (action === "add_service") setInHouseAmend({ stay: qv.stay, kind: "service" });
     if (action === "guest_request") setInHouseAmend({ stay: qv.stay, kind: "guest_request" });
+  }
+
+  async function openLoadedInHouseAction(action: InHouseQuickViewAction, stay: FrontOfficeStay) {
+    if (!stay.reservationRoomId) {
+      toast.error(FO_RACK_UNRESOLVED_UNIT_MESSAGE);
+      return;
+    }
+    try {
+      const qv = await fetchInHouseQuickView({
+        data: {
+          restaurantId,
+          reservationId: stay.id,
+          reservationRoomId: stay.reservationRoomId,
+        },
+      });
+      onInHouseRackAction(action, qv);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not open that stay action.";
+      toast.error(message === "ROOM_UNIT_NOT_FOUND" ? FO_RACK_UNRESOLVED_UNIT_MESSAGE : message);
+    }
+  }
+
+  function onRackBarAction(action: FoRackBarActionId, stay: FrontOfficeStay) {
+    if (stay.status === "checked_in" && action !== "open_maintenance" && !stay.reservationRoomId) {
+      toast.error(FO_RACK_UNRESOLVED_UNIT_MESSAGE);
+      return;
+    }
+    if (action === "view_details") {
+      openStayQuickView(stay);
+      return;
+    }
+    if (action === "edit_stay") {
+      if (stay.status === "checked_in") {
+        openInHouseFromRack(
+          { reservationId: stay.id, reservationRoomId: stay.reservationRoomId ?? null },
+          "edit_details",
+        );
+        return;
+      }
+      openStayQuickView(stay, "edit_details");
+      return;
+    }
+    if (action === "open_folio") {
+      openFolioWorkspace(stay);
+      return;
+    }
+    if (action === "cancel") {
+      setSearchCancelStay(stay);
+      return;
+    }
+    if (action === "check_in") {
+      onContinueCheckInFromWorkspace(stay);
+      return;
+    }
+    if (action === "assign_room" || action === "change_room") {
+      onSheetAction("assign", stay);
+      return;
+    }
+    if (action === "no_show") {
+      onSheetAction("no_show", stay);
+      return;
+    }
+    if (action === "check_out") {
+      void openLoadedInHouseAction("check_out", stay);
+      return;
+    }
+    if (action === "move_room") {
+      void openLoadedInHouseAction("room_move", stay);
+      return;
+    }
+    if (action === "extend_stay" || action === "early_departure") {
+      void openLoadedInHouseAction("amend_stay", stay);
+      return;
+    }
+    if (action === "add_service") {
+      void openLoadedInHouseAction("add_service", stay);
+      return;
+    }
+    if (action === "guest_request") {
+      void openLoadedInHouseAction("guest_request", stay);
+      return;
+    }
+    if (action === "late_checkout") {
+      void openLoadedInHouseAction("late_checkout", stay);
+      return;
+    }
+    if (action === "open_maintenance") {
+      void navigate({ to: MAINTENANCE_HREF });
+    }
   }
 
   function runAfterRoomQuickView(fn: () => void) {
@@ -370,9 +479,9 @@ export function FrontOfficeWorkspace({
       return;
     }
     if (action === "view_folio" || action === "open_folio") {
-      if (canOpenCashiering && view.folio.folioNumber) {
+      if (stay && canOpenCashiering) {
         setRoomQvId(null);
-        void navigate({ to: cashieringRefundHref(view.folio.folioNumber) });
+        openFolioWorkspace(stay);
         return;
       }
       if (canOpenCashiering) {
@@ -576,6 +685,10 @@ export function FrontOfficeWorkspace({
       return;
     }
     if (action === "open_folio") {
+      if (stay && canOpenCashiering) {
+        openFolioWorkspace(stay);
+        return;
+      }
       if (canOpenCashiering) {
         void navigate({ to: "/restaurant/pms/cashiering", search: { tab: "folios" } });
         return;
@@ -655,8 +768,7 @@ export function FrontOfficeWorkspace({
     }
     if (action === "view_folio") {
       if (canOpenCashiering) {
-        setSheetStay(null);
-        void navigate({ to: "/restaurant/pms/cashiering", search: { tab: "folios" } });
+        openFolioWorkspace(stay);
         return;
       }
       return;
@@ -757,6 +869,9 @@ export function FrontOfficeWorkspace({
             onSelectStay={openStayQuickView}
             onSelectInHouse={openInHouseFromRack}
             onSelectRoom={openRoomQuickView}
+            onRackAction={onRackBarAction}
+            canOpenCashiering={canOpenCashiering}
+            staffRole={membership.role}
             onRackSearchChange={onRackSearchChange}
             onWalkIn={() => openWalkInCreate()}
           />
@@ -794,12 +909,13 @@ export function FrontOfficeWorkspace({
         />
       ) : null}
 
-      {sheetStay && foOpensPreArrivalCheckInWorkspace(sheetStay) ? (
+      {sheetStay && (foOpensPreArrivalCheckInWorkspace(sheetStay) || guestTab === "folio") ? (
         <FoCheckInWorkspaceSheet
           restaurantId={restaurantId}
           stay={sheetStay}
           open
           canOpenCashiering={canOpenCashiering}
+          initialTab={guestTab}
           hasOpenDiscrepancy={Boolean(
             sheetStay.roomId && exceptionDesk.openDiscrepancyRoomIds.has(sheetStay.roomId),
           )}
@@ -835,6 +951,7 @@ export function FrontOfficeWorkspace({
         restaurantId={restaurantId}
         reservationId={inHouseQv?.reservationId ?? null}
         reservationRoomId={inHouseQv?.reservationRoomId ?? null}
+        initialTab={guestTab}
         open={
           Boolean(inHouseQv) &&
           !inHouseMove &&
