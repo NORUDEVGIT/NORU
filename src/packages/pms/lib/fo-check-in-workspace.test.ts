@@ -106,7 +106,7 @@ describe("FO Check-In workspace — Phase 1", () => {
     const calendar = readRel("../components/frontoffice/room-rack-calendar.tsx");
     const workspace = readRel("../components/workspaces/front-office-workspace.tsx");
     assert.match(calendar, /onSelectRoom\(room\.id\)/);
-    assert.match(calendar, /onSelectStay\(stayFromReservation/);
+    assert.match(calendar, /onSelectStay\(foRackActionStay/);
     assert.match(workspace, /openRoomQuickView/);
     assert.match(workspace, /openStayQuickView/);
     assert.match(workspace, /RoomQuickViewSheet/);
@@ -116,7 +116,7 @@ describe("FO Check-In workspace — Phase 1", () => {
     const calendar = readRel("../components/frontoffice/room-rack-calendar.tsx");
     const workspace = readRel("../components/workspaces/front-office-workspace.tsx");
     assert.match(calendar, /foRackConfirmedAssignedStay/);
-    assert.match(calendar, /onSelectStay\(stayFromReservation\(confirmed/);
+    assert.match(calendar, /onSelectStay\(foRackActionStay\(confirmed/);
     assert.equal(foOpensPreArrivalCheckInWorkspace({ status: "confirmed" }), true);
     assert.match(workspace, /foOpensPreArrivalCheckInWorkspace\(sheetStay\)/);
     assert.doesNotMatch(
@@ -293,10 +293,13 @@ describe("FO Check-In workspace — Phase 2 polish", () => {
     assert.match(sheet, /No identity document image available/);
   });
 
-  it("stay amendments stay in More actions, not inline body edits", () => {
+  it("stay amendments live in the Edit Details form, not inline body edits", () => {
     const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
-    assert.match(sheet, /stayQuickViewAmendItems/);
-    assert.match(sheet, /Amend Stay/);
+    const form = readRel("../components/frontoffice/fo-edit-details-form.tsx");
+    assert.match(sheet, /fo-ci-workspace-tab-edit-details/);
+    assert.match(sheet, /<FoEditDetailsForm/);
+    assert.match(form, /amendReservation/);
+    assert.doesNotMatch(sheet, /fo-ci-workspace-edit-/);
     assert.doesNotMatch(sheet, /StayDetailTile/);
     assert.doesNotMatch(sheet, /Edit in Reservation/);
   });
@@ -335,27 +338,32 @@ describe("FO Check-In workspace — Phase 2 polish", () => {
     assert.doesNotMatch(sheet, /card verified/i);
   });
 
-  it("header owns Assign Room, Check In and More actions; footer is gone", () => {
+  it("header shows identity, status, room chip and status-aware tabs; actions live in tabs", () => {
     const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
     const header = sheet.slice(
       sheet.indexOf('data-testid="fo-ci-workspace-header"'),
       sheet.indexOf("</SheetHeader>"),
     );
+    assert.match(header, /stay\.guestName/);
     assert.match(header, /stay\.confirmationNumber/);
     assert.match(header, /ReservationStatusBadge/);
     assert.match(header, /fo-ci-workspace-unassigned/);
     assert.match(header, /fo-ci-workspace-assigned-room/);
-    assert.match(header, /fo-ci-workspace-assign-room/);
-    assert.match(header, /headerAssign/);
-    assert.match(header, /fo-ci-workspace-change-room/);
-    assert.match(header, /headerChangeRoom/);
-    assert.match(header, /onAction\("assign", stay\)/);
-    assert.match(header, /fo-ci-workspace-check-in/);
-    assert.match(header, /onContinueCheckIn\(stay\)/);
-    assert.match(header, /More actions/);
-    const menu = header.slice(header.indexOf("<DropdownMenuContent"));
-    assert.doesNotMatch(menu, /Change Room/);
-    assert.doesNotMatch(menu, /Assign Room/);
+    assert.match(header, /<FoGuestWorkspaceTabBar tabs=\{tabs\}/);
+    assert.match(
+      sheet,
+      /const tabs = foGuestWorkspaceTabs\(stay\.status, \{ canReadFolio: canOpenCashiering \}\)/,
+    );
+    assert.doesNotMatch(header, /<Button/);
+    assert.doesNotMatch(sheet, /More actions/);
+    assert.doesNotMatch(sheet, /DropdownMenu/);
+    const assignTab = sheet.slice(sheet.indexOf("fo-ci-workspace-tab-assign-room"));
+    assert.match(assignTab, /fo-ci-workspace-assign-room/);
+    assert.match(assignTab, /fo-ci-workspace-change-room/);
+    assert.match(assignTab, /onAction\("assign", stay\)/);
+    const checkInTab = sheet.slice(sheet.indexOf("fo-ci-workspace-tab-check-in"));
+    assert.match(checkInTab, /fo-ci-workspace-check-in/);
+    assert.match(checkInTab, /onContinueCheckIn\(stay\)/);
     assert.doesNotMatch(sheet, /<footer/);
     assert.doesNotMatch(sheet, /fo-ci-workspace-footer/);
     assert.doesNotMatch(sheet, /fo-ci-workspace-continue/);
@@ -394,15 +402,16 @@ describe("FO Check-In workspace — Phase 2 polish", () => {
     assert.match(sheet, /border-amber-300 bg-amber-50/);
   });
 
-  it("lays out six compact cards in order", () => {
+  it("overview lays out the compact cards in order", () => {
     const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
     const titles = [
-      'title="Stay Information"',
+      'data-testid="fo-ci-workspace-overview"',
       'title="Guest Information"',
-      'title="Room Assignment"',
-      'title="Financial Overview"',
-      'title="Special Requests"',
-      'title="Internal Notes"',
+      'title="Stay & Accommodation"',
+      'title={roomAssigned ? "Room Information" : "Room Assignment"}',
+      'title="Financial Summary"',
+      'title="Special Requests / Notes"',
+      'data-testid="fo-ci-workspace-notes"',
     ];
     const positions = titles.map((title) => sheet.indexOf(title));
     for (const pos of positions) assert.ok(pos > 0);
@@ -414,16 +423,23 @@ describe("FO Check-In workspace — Phase 2 polish", () => {
     assert.doesNotMatch(sheet, /title="Payment \/ Guarantee"/);
   });
 
-  it("More actions keeps amend, no-show, cancellation and folio", () => {
+  it("workflow tabs keep amend, no-show, cancellation and folio on existing handlers", () => {
     const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
     assert.match(sheet, /stayQuickViewMenuItems/);
-    assert.match(sheet, /item\.id !== "check_in" && item\.id !== "assign"/);
-    assert.match(sheet, /action\.id === "cancel_fees"/);
-    assert.match(sheet, /action\.id === "view_folio"/);
-    assert.match(sheet, /openViewFolio\(\)/);
-    assert.match(sheet, /stayQuickViewAmendItems/);
+    assert.match(sheet, /const canNoShow = menuItems\.some\(\(item\) => item\.id === "no_show"\)/);
+    assert.match(
+      sheet,
+      /const canCheckIn = menuItems\.some\(\(item\) => item\.id === "check_in"\)/,
+    );
+    assert.match(sheet, /const canCancel = isStayCancellable\(stay\.status\)/);
+    assert.match(sheet, /onAction\("no_show", stay\)/);
+    assert.match(sheet, /setCancelOpen\(true\)/);
+    assert.match(sheet, /enabled: open && tab === "cancel_no_show"/);
+    assert.match(sheet, /onClick=\{openViewFolio\}/);
+    assert.match(sheet, /if \(!canOpenCashiering\)/);
+    assert.match(sheet, /<FoEditDetailsForm/);
     assert.match(sheet, /FoCancelStepper/);
-    assert.equal(sheet.match(/Change Room/g)?.length, 1);
+    assert.equal(sheet.match(/>\s*Change Room\s*</g)?.length, 1);
     assert.equal(sheet.match(/fo-ci-workspace-assign-room/g)?.length, 1);
     assert.equal(sheet.match(/fo-ci-workspace-change-room/g)?.length, 1);
   });

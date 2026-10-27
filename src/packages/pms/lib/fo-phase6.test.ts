@@ -83,7 +83,12 @@ describe("FO Phase 6 — summary and signals", () => {
     const fns = readRel("./fo-guest-services.functions.ts");
     const panel = readRel("../components/frontoffice/fo-guest-services-panel.tsx");
     const sheet = readRel("../components/frontoffice/fo-amend-sheet.tsx");
-    for (const src of [helpers, fns, panel, sheet.slice(sheet.indexOf("export function FoGuestRequestSheet"))]) {
+    for (const src of [
+      helpers,
+      fns,
+      panel,
+      sheet.slice(sheet.indexOf("export function FoGuestRequestSheet")),
+    ]) {
       assert.doesNotMatch(src, /slaBreached|response_target|escalat/i);
       assert.doesNotMatch(src, /pms_department_routing|SET5.*routing|routeRequest/);
     }
@@ -103,33 +108,74 @@ describe("FO Phase 6 — create, add service, QV", () => {
     assert.match(guestRequest, /priority/);
     assert.match(sheet, /invalidateQueries\(\{ queryKey: \["guest-service-history"\] \}\)/);
     assert.match(guestRequest, /refreshKeys\(queryClient\)/);
-    assert.equal(canConfirmFoGuestServiceRequest({ serviceTypeId: "", description: "towels", typesConfigured: true }), false);
-    assert.equal(canConfirmFoGuestServiceRequest({ serviceTypeId: "t1", description: "  ", typesConfigured: true }), false);
-    assert.equal(canConfirmFoGuestServiceRequest({ serviceTypeId: "t1", description: "towels", typesConfigured: false }), false);
-    assert.equal(canConfirmFoGuestServiceRequest({ serviceTypeId: "t1", description: "towels", typesConfigured: true }), true);
+    assert.equal(
+      canConfirmFoGuestServiceRequest({
+        serviceTypeId: "",
+        description: "towels",
+        typesConfigured: true,
+      }),
+      false,
+    );
+    assert.equal(
+      canConfirmFoGuestServiceRequest({
+        serviceTypeId: "t1",
+        description: "  ",
+        typesConfigured: true,
+      }),
+      false,
+    );
+    assert.equal(
+      canConfirmFoGuestServiceRequest({
+        serviceTypeId: "t1",
+        description: "towels",
+        typesConfigured: false,
+      }),
+      false,
+    );
+    assert.equal(
+      canConfirmFoGuestServiceRequest({
+        serviceTypeId: "t1",
+        description: "towels",
+        typesConfigured: true,
+      }),
+      true,
+    );
   });
 
   it("Add Service stays the folio extra writer, not a Guest Services duplicate", () => {
     const sheet = readRel("../components/frontoffice/fo-amend-sheet.tsx");
-    const service = sheet.slice(sheet.indexOf("export function FoAmendServiceSheet"), sheet.indexOf("export function FoAmendSpecialRequestSheet"));
+    const service = sheet.slice(
+      sheet.indexOf("export function FoAmendServiceSheet"),
+      sheet.indexOf("export function FoAmendSpecialRequestSheet"),
+    );
     assert.match(service, /addStayService/);
     assert.match(service, /posts a stay extra to the folio/i);
     assert.doesNotMatch(service, /createGuestServiceRequest/);
   });
 
-  it("In-House QV shows the compact Guest Services list and View all opens Guest Profile services", () => {
+  it("In-House QV shows the Guest Services list without a View all header", () => {
     const qv = readRel("../components/frontoffice/in-house-quick-view.tsx");
     const panel = readRel("../components/frontoffice/fo-guest-services-panel.tsx");
     const menu = readRel("./fo-inhouse.ts");
+    const fullPanel = panel.slice(panel.indexOf('data-testid="fo-gs-panel"'));
     assert.match(qv, /FoGuestServicesPanel/);
     assert.match(panel, /data-testid="fo-gs-panel"/);
-    assert.match(panel, /View all/);
+    assert.doesNotMatch(fullPanel, /View all/);
     assert.match(panel, /guestProfileSearch\(\{ card: "services" \}\)/);
     assert.match(panel, /GUEST_PROFILE_DETAIL_PATH/);
     assert.match(menu, /Guest Request/);
     assert.match(menu, /Add Service/);
-    assert.match(readRel("../components/frontoffice/arrival-quick-view.tsx"), /FoGuestServicesPanel/);
-    assert.match(readRel("../components/frontoffice/departure-quick-view.tsx"), /FoGuestServicesPanel/);
-    assert.match(readRel("../components/frontoffice/walk-in-quick-view.tsx"), /FoGuestServicesPanel/);
+    assert.match(
+      readRel("../components/frontoffice/arrival-quick-view.tsx"),
+      /FoGuestServicesPanel/,
+    );
+    assert.match(
+      readRel("../components/frontoffice/departure-quick-view.tsx"),
+      /FoGuestServicesPanel/,
+    );
+    assert.match(
+      readRel("../components/frontoffice/walk-in-quick-view.tsx"),
+      /FoGuestServicesPanel/,
+    );
   });
 });

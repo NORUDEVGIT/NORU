@@ -101,7 +101,7 @@ describe("FO Room Quick View — wide operational sheet", () => {
     const calendar = readRel("../components/frontoffice/room-rack-calendar.tsx");
     const workspace = readRel("../components/workspaces/front-office-workspace.tsx");
     assert.match(calendar, /onSelectRoom\(room\.id\)/);
-    assert.match(calendar, /onSelectStay\(stayFromReservation/);
+    assert.match(calendar, /onSelectStay\(foRackActionStay/);
     assert.match(workspace, /openRoomQuickView/);
     assert.match(workspace, /openStayQuickView/);
     assert.match(workspace, /ReservationSideSheet/);

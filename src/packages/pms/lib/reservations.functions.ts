@@ -768,6 +768,84 @@ export const listCheckInRoomCandidates = createServerFn({ method: "POST" })
 
 /* -------------------------------------------------------------------- list */
 
+type ListUnitClient = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (
+        column: string,
+        value: string,
+      ) => {
+        in: (
+          column: string,
+          values: string[],
+        ) => {
+          order: (
+            column: string,
+            options: { ascending: boolean },
+          ) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
+        };
+      };
+    };
+  };
+};
+
+const LIST_UNIT_COLUMNS =
+  "id, reservation_id, unit_sequence, room_type_id, room_id, arrival_date, departure_date, adults, children, infants, rate_plan_id, currency, nightly_rate_snapshot, room_subtotal, priced_at";
+
+/**
+ * Room units for a reservation list page, read from `hotel_reservation_rooms`.
+ * Each reservation gets every one of its own unit rows. A reservation with no
+ * unit rows keeps `rooms: []`.
+ */
+async function attachListRoomUnits(
+  db: ListUnitClient,
+  restaurantId: string,
+  list: ReservationDetail[],
+): Promise<ReservationDetail[]> {
+  if (list.length === 0) return list;
+  const ids = list.map((row) => row.id);
+  const read = (columns: string) =>
+    db
+      .from("hotel_reservation_rooms")
+      .select(columns)
+      .eq("restaurant_id", restaurantId)
+      .in("reservation_id", ids)
+      .order("unit_sequence", { ascending: true });
+  let result = await read(`${LIST_UNIT_COLUMNS}, status`);
+  if (result.error && isMissingSchemaError(result.error)) {
+    result = await read(LIST_UNIT_COLUMNS);
+  }
+  if (result.error) {
+    if (isMissingSchemaError(result.error)) return list.map((row) => ({ ...row, rooms: [] }));
+    throw new Error(result.error.message);
+  }
+  const rows = (result.data ?? []) as Array<ReservationRoomUnitRow & { reservation_id: string }>;
+  const roomIds = [...new Set(rows.map((row) => row.room_id).filter((id): id is string => !!id))];
+  const numbers = new Map<string, string>();
+  if (roomIds.length > 0) {
+    const rooms = await db
+      .from("hotel_rooms")
+      .select("id, room_number")
+      .eq("restaurant_id", restaurantId)
+      .in("id", roomIds)
+      .order("room_number", { ascending: true });
+    if (rooms.error) throw new Error(rooms.error.message);
+    for (const room of (rooms.data ?? []) as Array<{ id: string; room_number: string }>) {
+      numbers.set(room.id, room.room_number);
+    }
+  }
+  return list.map((reservation) => ({
+    ...reservation,
+    rooms: projectReservationRoomUnits(
+      reservation,
+      rows.filter((row) => row.reservation_id === reservation.id),
+    ).map((unit) => ({
+      ...unit,
+      roomNumber: unit.roomId ? (numbers.get(unit.roomId) ?? null) : null,
+    })),
+  }));
+}
+
 export const listReservations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
@@ -780,6 +858,8 @@ export const listReservations = createServerFn({ method: "POST" })
         toDate: dateSchema.optional(),
         page: z.number().int().min(1).max(500).optional(),
         pageSize: z.number().int().min(1).max(500).optional(),
+        /** Room Rack: load `hotel_reservation_rooms` so each bar is one unit. */
+        includeRoomUnits: z.boolean().optional(),
       })
       .parse(input),
   )
@@ -839,6 +919,13 @@ export const listReservations = createServerFn({ method: "POST" })
         }
       }
 
+      if (data.includeRoomUnits) {
+        list = await attachListRoomUnits(
+          context.supabase as unknown as ListUnitClient,
+          data.restaurantId,
+          list,
+        );
+      }
       return { rows: list, total: count ?? list.length, page, pageSize };
     },
   );
