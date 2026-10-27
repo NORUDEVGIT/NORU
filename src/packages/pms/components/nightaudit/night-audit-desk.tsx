@@ -20,6 +20,7 @@ import {
   Lock,
   LogIn,
   LogOut,
+  Play,
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
@@ -79,6 +80,10 @@ import type {
   NightAuditRunRow,
 } from "@/packages/pms/lib/nightaudit.functions";
 import { useRestaurantTimezone } from "@/core/state/property-format";
+import {
+  getNextNightAuditAction,
+  getAuditHeaderStatus,
+} from "@/packages/pms/lib/night-audit-smart-action";
 import { Button } from "@/shared/components/ui/button";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
@@ -123,6 +128,17 @@ const TONE_CLASS: Record<Tone, string> = {
   red: "bg-red-50 text-red-800",
   amber: "bg-amber-50 text-amber-900",
   slate: "bg-slate-100 text-slate-800",
+};
+
+const HEADER_STATUS_BADGE_CLASS: Record<string, string> = {
+  red: "bg-red-100 text-red-900 border border-red-300 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800",
+  amber:
+    "bg-amber-100 text-amber-950 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800",
+  green:
+    "bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800",
+  neutral:
+    "bg-stone-100 text-stone-800 border border-stone-300 dark:bg-stone-900 dark:text-stone-300 dark:border-stone-700",
+  blue: "bg-blue-100 text-blue-900 border border-blue-300 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800",
 };
 
 function overallTone(status: NightAuditOverallStatus | null): Tone {
@@ -357,6 +373,8 @@ function WarningSummary({
   onReviewWarning,
   onSelectException,
   onReviewTarget,
+  highlightedExceptionId,
+  onSourceOpen,
 }: {
   exceptions: AuditException[];
   businessDate: string;
@@ -365,6 +383,8 @@ function WarningSummary({
   onReviewWarning?: (exceptionId: string, note: string) => Promise<unknown> | void;
   onSelectException?: (exception: AuditException) => void;
   onReviewTarget?: (exception: AuditException) => void;
+  highlightedExceptionId?: string | null;
+  onSourceOpen?: () => void;
 }) {
   const warningRows = useMemo(() => {
     return exceptions.filter((row) => row.status === "open" && row.severity === "warning");
@@ -428,7 +448,13 @@ function WarningSummary({
                 return (
                   <tr
                     key={row.id}
-                    className="cursor-pointer transition-colors hover:bg-muted/30"
+                    id={`na-item-${row.id}`}
+                    data-exception-id={row.id}
+                    className={cn(
+                      "cursor-pointer transition-colors hover:bg-muted/30",
+                      highlightedExceptionId === row.id &&
+                        "bg-amber-100/70 dark:bg-amber-950/40 ring-2 ring-primary ring-inset",
+                    )}
                     onClick={() => onSelectException?.(row)}
                   >
                     <td className="px-3.5 py-2.5 align-middle">
@@ -516,6 +542,7 @@ function WarningSummary({
                             size="sm"
                             variant="ghost"
                             className="h-7 gap-1 px-2 text-xs font-medium text-primary hover:bg-primary/10"
+                            onClick={onSourceOpen}
                           >
                             <Link to={source.route as never} search={source.search as never}>
                               <span>Open {meta.ownerModule}</span>
@@ -542,12 +569,16 @@ function BlockerTable({
   businessDate,
   onOpenExceptions,
   onSelectException,
+  highlightedExceptionId,
+  onSourceOpen,
 }: {
   exceptions: AuditException[];
   board: NaBlockerRow[];
   businessDate: string;
   onOpenExceptions: () => void;
   onSelectException?: (exception: AuditException) => void;
+  highlightedExceptionId?: string | null;
+  onSourceOpen?: () => void;
 }) {
   const open = exceptions.filter((row) => row.status === "open" && row.severity === "blocking");
   const liveBoard = board.filter((row) => row.state === "block" || row.state === "unavailable");
@@ -643,6 +674,7 @@ function BlockerTable({
                         size="sm"
                         variant="ghost"
                         className="h-7 gap-1 px-2 text-xs font-medium text-primary hover:bg-primary/10"
+                        onClick={onSourceOpen}
                       >
                         <Link
                           to={row.clear[0].route as never}
@@ -667,7 +699,13 @@ function BlockerTable({
                 return (
                   <tr
                     key={row.id}
-                    className="cursor-pointer transition-colors hover:bg-muted/30"
+                    id={`na-item-${row.id}`}
+                    data-exception-id={row.id}
+                    className={cn(
+                      "cursor-pointer transition-colors hover:bg-muted/30",
+                      highlightedExceptionId === row.id &&
+                        "bg-red-100/70 dark:bg-red-950/40 ring-2 ring-primary ring-inset",
+                    )}
                     onClick={() => onSelectException?.(row)}
                   >
                     <td className="px-3.5 py-2.5 align-middle">
@@ -723,6 +761,7 @@ function BlockerTable({
                             size="sm"
                             variant="ghost"
                             className="h-7 gap-1 px-2 text-xs font-medium text-primary hover:bg-primary/10"
+                            onClick={onSourceOpen}
                           >
                             <Link to={source.route as never} search={source.search as never}>
                               <span>Open {meta.ownerModule}</span>
@@ -1016,6 +1055,141 @@ export function NightAuditDesk({
 
   const [selectedException, setSelectedException] = useState<AuditException | null>(null);
   const [reviewTargetException, setReviewTargetException] = useState<AuditException | null>(null);
+  const [returnedFromSource, setReturnedFromSource] = useState(false);
+  const [highlightedExceptionId, setHighlightedExceptionId] = useState<string | null>(null);
+
+  const markSourceOpened = () => {
+    try {
+      sessionStorage.setItem("noru_na_source_opened", "true");
+    } catch {
+      // safe access
+    }
+  };
+
+  useEffect(() => {
+    const handleFocus = () => {
+      try {
+        if (sessionStorage.getItem("noru_na_source_opened") === "true") {
+          sessionStorage.removeItem("noru_na_source_opened");
+          setReturnedFromSource(true);
+        }
+      } catch {
+        // safe access
+      }
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
+
+  useEffect(() => {
+    if (!highlightedExceptionId) return;
+    const el =
+      document.getElementById(`na-item-${highlightedExceptionId}`) ||
+      document.querySelector(`[data-exception-id="${highlightedExceptionId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    const timer = setTimeout(() => {
+      setHighlightedExceptionId(null);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [highlightedExceptionId, step]);
+
+  const smartAction = useMemo(() => {
+    return getNextNightAuditAction({
+      runStatus,
+      overall,
+      financialStatus: financialSummary.status,
+      operationalStatus: operationalSummary.status,
+      financialSummary,
+      operationalSummary,
+      exceptions,
+      checkedAt,
+      rechecked,
+      rechecking,
+      currentStep: step,
+      returnedFromSource,
+      liveWindow,
+      role,
+    });
+  }, [
+    runStatus,
+    overall,
+    financialSummary,
+    operationalSummary,
+    exceptions,
+    checkedAt,
+    rechecked,
+    rechecking,
+    step,
+    returnedFromSource,
+    liveWindow,
+    role,
+  ]);
+
+  const auditHeaderStatus = useMemo(() => {
+    return getAuditHeaderStatus({
+      runStatus,
+      overall,
+      financialStatus: financialSummary.status,
+      operationalStatus: operationalSummary.status,
+      financialSummary,
+      operationalSummary,
+      exceptions,
+      checkedAt,
+      rechecked,
+      rechecking,
+      currentStep: step,
+      returnedFromSource,
+      liveWindow,
+      role,
+    });
+  }, [
+    runStatus,
+    overall,
+    financialSummary,
+    operationalSummary,
+    exceptions,
+    checkedAt,
+    rechecked,
+    rechecking,
+    step,
+    returnedFromSource,
+    liveWindow,
+    role,
+  ]);
+
+  function handleSmartActionClick() {
+    if (smartAction.type === "closed" || smartAction.type === "superseded") {
+      onNavigate("history");
+      return;
+    }
+
+    if (smartAction.shouldRecheckFirst || returnedFromSource) {
+      setReturnedFromSource(false);
+      onRecheck();
+    }
+
+    if (smartAction.step !== step) {
+      setStep(smartAction.step);
+    }
+
+    if (smartAction.focusTab) {
+      if (smartAction.step === 2 || smartAction.step === 3 || smartAction.step === 5) {
+        onOpenOperations?.(smartAction.focusTab as OperationalFocus);
+      } else if (smartAction.step === 4) {
+        onOpenFinancial?.(smartAction.focusTab as FinancialFocus);
+      }
+    }
+
+    if (smartAction.targetExceptionId) {
+      setHighlightedExceptionId(smartAction.targetExceptionId);
+      const targetEx = exceptions.find((e) => e.id === smartAction.targetExceptionId);
+      if (targetEx) {
+        setSelectedException(targetEx);
+      }
+    }
+  }
 
   function runPrimary() {
     if (!primary) return;
@@ -1367,41 +1541,97 @@ export function NightAuditDesk({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={cn(
-                "rounded-full px-3 py-1 text-xs font-semibold",
-                TONE_CLASS[overallTone(overall)],
-              )}
-              data-testid="night-audit-overall"
-            >
-              {overall ? OVERALL_STATUS_LABEL[overall] : "Checking…"}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={rechecking}
-              onClick={onRecheck}
-              className="h-8 gap-1.5 text-xs font-medium"
-            >
-              <RefreshCw className={rechecking ? "size-3.5 animate-spin" : "size-3.5"} />
-              {rechecking ? "Rechecking…" : "Recheck"}
-            </Button>
-            {primary ? (
+          <div className="flex flex-col sm:items-end gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase",
+                  HEADER_STATUS_BADGE_CLASS[auditHeaderStatus.tone] ??
+                    TONE_CLASS[overallTone(overall)],
+                )}
+                data-testid="night-audit-overall"
+              >
+                {auditHeaderStatus.label}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={rechecking}
+                onClick={onRecheck}
+                className="h-8 gap-1.5 text-xs font-medium"
+              >
+                <RefreshCw className={rechecking ? "size-3.5 animate-spin" : "size-3.5"} />
+                {rechecking ? "Rechecking…" : "Recheck"}
+              </Button>
+            </div>
+
+            {/* Smart Play / Continue Action */}
+            <div className="flex flex-col sm:items-end">
               <Button
                 type="button"
                 size="sm"
-                disabled={loadingChecks && primary.kind !== "view-run"}
-                onClick={runPrimary}
-                className="h-8 text-xs font-semibold"
+                disabled={
+                  loadingChecks &&
+                  smartAction.type !== "closed" &&
+                  smartAction.type !== "superseded"
+                }
+                onClick={handleSmartActionClick}
+                aria-label={smartAction.ariaLabel}
+                data-testid="night-audit-smart-action"
+                className={cn(
+                  "h-9 px-4 text-xs font-bold gap-2 shadow-sm transition-all",
+                  smartAction.tone === "gold" &&
+                    "bg-[#C89933] text-[#251605] hover:bg-[#b58726] border border-[#C89933]/60",
+                  smartAction.tone === "amber" &&
+                    "bg-amber-500 text-stone-950 hover:bg-amber-600 border border-amber-600/60",
+                  smartAction.tone === "green" &&
+                    "bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-700/60",
+                  smartAction.tone === "neutral" &&
+                    "bg-stone-200 text-stone-800 hover:bg-stone-300 dark:bg-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700",
+                )}
               >
-                {primary.label}
+                {smartAction.icon === "play" && <Play className="size-3.5 fill-current" />}
+                {smartAction.icon === "refresh" && (
+                  <RefreshCw className={rechecking ? "size-3.5 animate-spin" : "size-3.5"} />
+                )}
+                {smartAction.icon === "alert" && <AlertTriangle className="size-3.5" />}
+                {smartAction.icon === "check" && <CheckCircle2 className="size-3.5" />}
+                {smartAction.icon === "arrow" && <ArrowRight className="size-3.5" />}
+                {smartAction.icon === "lock" && <Lock className="size-3.5" />}
+                <span>{smartAction.buttonLabel}</span>
               </Button>
-            ) : null}
+            </div>
           </div>
         </div>
       </section>
+
+      {/* Source-module return banner hint */}
+      {returnedFromSource ? (
+        <div
+          data-testid="night-audit-source-return-banner"
+          className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/90 dark:border-amber-900/50 dark:bg-amber-950/30 px-4 py-2.5 text-xs text-amber-900 dark:text-amber-200 shadow-2xs"
+        >
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="size-4 text-amber-600 shrink-0" />
+            <span>Source record may have changed. Recheck to verify resolution.</span>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setReturnedFromSource(false);
+              onRecheck();
+            }}
+            disabled={rechecking}
+            className="h-7 gap-1.5 text-xs font-semibold border-amber-300 bg-white/80 dark:bg-stone-900 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/60"
+          >
+            <RefreshCw className={rechecking ? "size-3 animate-spin" : "size-3"} />
+            Recheck & Continue
+          </Button>
+        </div>
+      ) : null}
 
       {/* 3.B Top KPI Strip - streamlined single line */}
       <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
@@ -1700,60 +1930,6 @@ export function NightAuditDesk({
               onOpen={() => setStep(5)}
             />
           </div>
-
-          <div className="space-y-4">
-            <BlockerTable
-              exceptions={exceptions}
-              board={blockers}
-              businessDate={businessDate}
-              onOpenExceptions={() => setStep(5)}
-              onSelectException={(ex) => setSelectedException(ex)}
-            />
-            <WarningSummary
-              exceptions={exceptions}
-              businessDate={businessDate}
-              dateTime={dateTime}
-              runClosed={closed}
-              onReviewWarning={onReviewWarning}
-              onSelectException={(ex) => setSelectedException(ex)}
-              onReviewTarget={(ex) => setReviewTargetException(ex)}
-            />
-            <div className="grid gap-4 xl:grid-cols-2">
-              <NaCloseSummary lastClosed={lastClosed} />
-              {lastClosed ? (
-                <div
-                  className="rounded-2xl border border-border bg-card p-4.5 shadow-2xs space-y-2"
-                  data-testid="night-audit-last-close-otb"
-                >
-                  <h4 className="font-display text-sm font-semibold text-foreground">
-                    OTB Snapshot Status
-                  </h4>
-                  <p className="text-xs text-muted-foreground">
-                    OTB snapshot for the last close:{" "}
-                    <strong className="text-foreground font-semibold">
-                      {lastClosedOtb === "captured"
-                        ? "Captured"
-                        : lastClosedOtb === "not_captured"
-                          ? "Not captured"
-                          : "Unknown"}
-                    </strong>
-                  </p>
-                  {canRetryOtb && lastClosedRunId && onRetryOtb ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-8 gap-1 text-xs"
-                      disabled={retryingOtb}
-                      onClick={() => onRetryOtb(lastClosedRunId)}
-                    >
-                      {retryingOtb ? "Retrying…" : "Retry OTB Snapshot"}
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          </div>
         </div>
       ) : null}
 
@@ -1772,34 +1948,6 @@ export function NightAuditDesk({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Button
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  className="h-8 gap-1.5 text-xs font-medium"
-                >
-                  <Link
-                    to="/restaurant/pms/front-office"
-                    search={{ tab: "arrivals", date: businessDate }}
-                  >
-                    <LogIn className="size-3.5" />
-                    Open Front Office Arrivals
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  className="h-8 gap-1.5 text-xs font-medium"
-                >
-                  <Link
-                    to="/restaurant/pms/front-office"
-                    search={{ tab: "departures", date: businessDate }}
-                  >
-                    <LogOut className="size-3.5" />
-                    Open Front Office Departures
-                  </Link>
-                </Button>
                 <Button
                   type="button"
                   size="sm"
@@ -1834,28 +1982,6 @@ export function NightAuditDesk({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Button
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  className="h-8 gap-1.5 text-xs font-medium"
-                >
-                  <Link to="/restaurant/pms/room-inventory" search={{ tab: "inventory" }}>
-                    <BedDouble className="size-3.5" />
-                    Open Room & Inventory
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  className="h-8 gap-1.5 text-xs font-medium"
-                >
-                  <Link to="/restaurant/pms/housekeeping" search={{ tab: "board" }}>
-                    <Sparkles className="size-3.5" />
-                    Open Housekeeping
-                  </Link>
-                </Button>
                 <Button
                   type="button"
                   size="sm"
@@ -2452,7 +2578,10 @@ export function NightAuditDesk({
             className="flex flex-col items-center justify-center py-6"
             data-testid="night-audit-close-readiness"
           >
-            <div className="w-full max-w-xl">{closePanel}</div>
+            <div className="w-full max-w-xl space-y-4">
+              {closePanel}
+              <NaCloseSummary lastClosed={lastClosed} />
+            </div>
             <p
               className="mt-4 text-xs text-muted-foreground text-center max-w-xl"
               data-testid="night-audit-otb-note"

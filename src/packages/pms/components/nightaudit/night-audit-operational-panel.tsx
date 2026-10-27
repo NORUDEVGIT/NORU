@@ -213,6 +213,7 @@ export function NightAuditOperationalPanel({
   onRefresh,
   allowedTabs,
   hideHero,
+  hideTabs = false,
   exceptions = [],
   onReviewWarning,
   reviewingWarning,
@@ -226,6 +227,7 @@ export function NightAuditOperationalPanel({
   onRefresh: () => void;
   allowedTabs?: readonly OperationalSubTab[];
   hideHero?: boolean;
+  hideTabs?: boolean;
   exceptions?: AuditException[];
   onReviewWarning?: (exceptionId: string, note?: string) => void;
   reviewingWarning?: boolean;
@@ -925,139 +927,146 @@ export function NightAuditOperationalPanel({
 
       {/* 2. SUB-NAVIGATION TABS & SEARCH COMMAND BAR */}
       <div className="space-y-3">
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card p-1 shadow-2xs">
-            {(
-              allowedTabs ?? [
-                "triage",
-                "arrivals",
-                "departures",
-                "rooms",
-                "housekeeping",
-                "revenue",
-                "overbooking",
-                "distribution",
-                "services",
-              ]
-            ).map((t) => {
-              if (t === "triage") {
-                return (
-                  <TabButton
-                    key="triage"
-                    active={activeTab === "triage"}
-                    onClick={() => setActiveTab("triage")}
-                    icon={<ShieldAlert className="size-3.5" />}
-                    label="Action Triage"
-                    count={totalActionItems}
-                    badgeTone={
-                      s.blockerCount > 0 ? "red" : s.warningCount > 0 ? "amber" : "neutral"
-                    }
-                  />
-                );
-              }
-              if (t === "arrivals") {
-                return (
-                  <TabButton
-                    key="arrivals"
-                    active={activeTab === "arrivals"}
-                    onClick={() => setActiveTab("arrivals")}
-                    icon={<CalendarCheck className="size-3.5" />}
-                    label="Arrivals"
-                    count={result.arrivals.length}
-                    badgeTone={s.unresolvedArrivalCount > 0 ? "red" : "neutral"}
-                  />
-                );
-              }
-              if (t === "departures") {
-                return (
-                  <TabButton
-                    key="departures"
-                    active={activeTab === "departures"}
-                    onClick={() => setActiveTab("departures")}
-                    icon={<LogOut className="size-3.5" />}
-                    label="Departures"
-                    count={result.departures.length}
-                    badgeTone={s.overstayCount > 0 ? "red" : "neutral"}
-                  />
-                );
-              }
-              if (t === "rooms") {
-                return (
-                  <TabButton
-                    key="rooms"
-                    active={activeTab === "rooms"}
-                    onClick={() => setActiveTab("rooms")}
-                    icon={<BedDouble className="size-3.5" />}
-                    label="Rooms"
-                    count={result.rooms.length}
-                    badgeTone={s.roomConflictCount > 0 ? "red" : "neutral"}
-                  />
-                );
-              }
-              if (t === "housekeeping") {
-                return (
-                  <TabButton
-                    key="housekeeping"
-                    active={activeTab === "housekeeping"}
-                    onClick={() => setActiveTab("housekeeping")}
-                    icon={<Sparkles className="size-3.5" />}
-                    label="Housekeeping"
-                    count={result.housekeeping.length}
-                  />
-                );
-              }
-              if (t === "revenue") {
-                return (
-                  <TabButton
-                    key="revenue"
-                    active={activeTab === "revenue"}
-                    onClick={() => setActiveTab("revenue")}
-                    icon={<Coins className="size-3.5" />}
-                    label="Revenue"
-                    count={result.revenueReadiness.length}
-                  />
-                );
-              }
-              if (t === "overbooking") {
-                return (
-                  <TabButton
-                    key="overbooking"
-                    active={activeTab === "overbooking"}
-                    onClick={() => setActiveTab("overbooking")}
-                    icon={<Layers className="size-3.5" />}
-                    label="Overbooking"
-                    count={result.overbooking.length}
-                    badgeTone={s.overbookingIssueCount > 0 ? "amber" : "neutral"}
-                  />
-                );
-              }
-              if (t === "distribution") {
-                return (
-                  <TabButton
-                    key="distribution"
-                    active={activeTab === "distribution"}
-                    onClick={() => setActiveTab("distribution")}
-                    icon={<Globe className="size-3.5" />}
-                    label="Distribution"
-                    count={result.distribution.length}
-                  />
-                );
-              }
-              if (t === "services") {
-                return (
-                  <TabButton
-                    key="services"
-                    active={activeTab === "services"}
-                    onClick={() => setActiveTab("services")}
-                    icon={<Utensils className="size-3.5" />}
-                    label="Services"
-                    count={result.serviceOperations.rows.length}
-                  />
-                );
-              }
-              return null;
-            })}
-          </div>
+        <div
+          className={cn(
+            "flex flex-col gap-2.5 sm:flex-row sm:items-center",
+            !hideTabs ? "sm:justify-between" : "sm:justify-end",
+          )}
+        >
+          {!hideTabs ? (
+            <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card p-1 shadow-2xs">
+              {(
+                allowedTabs ?? [
+                  "triage",
+                  "arrivals",
+                  "departures",
+                  "rooms",
+                  "housekeeping",
+                  "revenue",
+                  "overbooking",
+                  "distribution",
+                  "services",
+                ]
+              ).map((t) => {
+                if (t === "triage") {
+                  return (
+                    <TabButton
+                      key="triage"
+                      active={activeTab === "triage"}
+                      onClick={() => setActiveTab("triage")}
+                      icon={<ShieldAlert className="size-3.5" />}
+                      label="Action Triage"
+                      count={totalActionItems}
+                      badgeTone={
+                        s.blockerCount > 0 ? "red" : s.warningCount > 0 ? "amber" : "neutral"
+                      }
+                    />
+                  );
+                }
+                if (t === "arrivals") {
+                  return (
+                    <TabButton
+                      key="arrivals"
+                      active={activeTab === "arrivals"}
+                      onClick={() => setActiveTab("arrivals")}
+                      icon={<CalendarCheck className="size-3.5" />}
+                      label="Arrivals"
+                      count={result.arrivals.length}
+                      badgeTone={s.unresolvedArrivalCount > 0 ? "red" : "neutral"}
+                    />
+                  );
+                }
+                if (t === "departures") {
+                  return (
+                    <TabButton
+                      key="departures"
+                      active={activeTab === "departures"}
+                      onClick={() => setActiveTab("departures")}
+                      icon={<LogOut className="size-3.5" />}
+                      label="Departures"
+                      count={result.departures.length}
+                      badgeTone={s.overstayCount > 0 ? "red" : "neutral"}
+                    />
+                  );
+                }
+                if (t === "rooms") {
+                  return (
+                    <TabButton
+                      key="rooms"
+                      active={activeTab === "rooms"}
+                      onClick={() => setActiveTab("rooms")}
+                      icon={<BedDouble className="size-3.5" />}
+                      label="Rooms"
+                      count={result.rooms.length}
+                      badgeTone={s.roomConflictCount > 0 ? "red" : "neutral"}
+                    />
+                  );
+                }
+                if (t === "housekeeping") {
+                  return (
+                    <TabButton
+                      key="housekeeping"
+                      active={activeTab === "housekeeping"}
+                      onClick={() => setActiveTab("housekeeping")}
+                      icon={<Sparkles className="size-3.5" />}
+                      label="Housekeeping"
+                      count={result.housekeeping.length}
+                    />
+                  );
+                }
+                if (t === "revenue") {
+                  return (
+                    <TabButton
+                      key="revenue"
+                      active={activeTab === "revenue"}
+                      onClick={() => setActiveTab("revenue")}
+                      icon={<Coins className="size-3.5" />}
+                      label="Revenue"
+                      count={result.revenueReadiness.length}
+                    />
+                  );
+                }
+                if (t === "overbooking") {
+                  return (
+                    <TabButton
+                      key="overbooking"
+                      active={activeTab === "overbooking"}
+                      onClick={() => setActiveTab("overbooking")}
+                      icon={<Layers className="size-3.5" />}
+                      label="Overbooking"
+                      count={result.overbooking.length}
+                      badgeTone={s.overbookingIssueCount > 0 ? "amber" : "neutral"}
+                    />
+                  );
+                }
+                if (t === "distribution") {
+                  return (
+                    <TabButton
+                      key="distribution"
+                      active={activeTab === "distribution"}
+                      onClick={() => setActiveTab("distribution")}
+                      icon={<Globe className="size-3.5" />}
+                      label="Distribution"
+                      count={result.distribution.length}
+                    />
+                  );
+                }
+                if (t === "services") {
+                  return (
+                    <TabButton
+                      key="services"
+                      active={activeTab === "services"}
+                      onClick={() => setActiveTab("services")}
+                      icon={<Utensils className="size-3.5" />}
+                      label="Services"
+                      count={result.serviceOperations.rows.length}
+                    />
+                  );
+                }
+                return null;
+              })}
+            </div>
+          ) : null}
 
           {/* Quick Filter & Search Bar */}
           <div className="flex items-center gap-2">
@@ -1238,7 +1247,7 @@ export function NightAuditOperationalPanel({
         </section>
       )}
 
-      {activeTab === "arrivals" && (
+      {(hideTabs ? allowedTabs?.includes("arrivals") : activeTab === "arrivals") && (
         <Section
           title="Arrivals & No-Shows"
           state={result.sections.arrivals}
@@ -1346,7 +1355,7 @@ export function NightAuditOperationalPanel({
         </Section>
       )}
 
-      {activeTab === "departures" && (
+      {(hideTabs ? allowedTabs?.includes("departures") : activeTab === "departures") && (
         <Section
           title="Departures & In-House"
           state={result.sections.departures}
@@ -1453,7 +1462,7 @@ export function NightAuditOperationalPanel({
         </Section>
       )}
 
-      {activeTab === "rooms" && (
+      {(hideTabs ? allowedTabs?.includes("rooms") : activeTab === "rooms") && (
         <Section
           title="Room Assignment & Occupancy"
           state={result.sections.rooms}
@@ -1557,7 +1566,7 @@ export function NightAuditOperationalPanel({
         </Section>
       )}
 
-      {activeTab === "housekeeping" && (
+      {(hideTabs ? allowedTabs?.includes("housekeeping") : activeTab === "housekeeping") && (
         <Section
           title="Housekeeping & Room State"
           state={result.sections.housekeeping}
