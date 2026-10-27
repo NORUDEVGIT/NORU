@@ -47,7 +47,7 @@ import {
 import { assignReservationRoom } from "@/packages/pms/lib/reservations.functions";
 import { FoCheckInV2Workspace } from "@/packages/pms/components/frontoffice/fo-checkin-v2-workspace";
 import { FoCheckInStepper } from "@/packages/pms/components/frontoffice/fo-check-in-stepper";
-import { FoCheckOutStepper } from "@/packages/pms/components/frontoffice/fo-check-out-stepper";
+import { FoCheckOutWorkspace } from "@/packages/pms/components/frontoffice/fo-check-out-workspace";
 import { FoNoShowStepper } from "@/packages/pms/components/frontoffice/fo-no-show-stepper";
 import { FoRackConfirmSheet } from "@/packages/pms/components/frontoffice/fo-rack-confirm-sheet";
 import type { RackDatesDraft } from "@/packages/pms/lib/fo-rack-power";
@@ -524,14 +524,20 @@ export function CheckOutDialog({
   onOpenChange: (v: boolean) => void;
   initialReservationRoomId?: string;
 }) {
+  // FO-10R2 — the live checkout UI is the 3-stage workspace (FO-10R1 contract).
+  // The old A–E FoCheckOutStepper stays in the tree, unused, for its backend
+  // helpers' regression coverage; it is not mounted here anymore.
   return (
-    <FoCheckOutStepper
+    <FoCheckOutWorkspace
       restaurantId={restaurantId}
       stay={stay}
       open={open}
       onOpenChange={onOpenChange}
       {...(initialReservationRoomId || stay.reservationRoomId
-        ? { initialReservationRoomId: initialReservationRoomId ?? stay.reservationRoomId ?? undefined }
+        ? {
+            initialReservationRoomId:
+              initialReservationRoomId ?? stay.reservationRoomId ?? undefined,
+          }
         : {})}
     />
   );
