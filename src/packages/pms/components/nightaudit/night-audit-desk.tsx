@@ -1325,6 +1325,15 @@ export function NightAuditDesk({
     };
   }, [exceptions, operationalSummary, financialSummary]);
 
+  const totalBlockerCount = Math.max(
+    counts.blocking,
+    (financialSummary.blockerCount ?? 0) + (operationalSummary.blockerCount ?? 0),
+    domainData.step2Blockers +
+      domainData.step3Blockers +
+      domainData.step4Blockers +
+      domainData.step5Blockers,
+  );
+
   const [reviewTimeFilter, setReviewTimeFilter] = useState<"today" | "all">("today");
   const [reviewPage, setReviewPage] = useState(1);
 
@@ -1636,20 +1645,50 @@ export function NightAuditDesk({
       {/* 3.B Top KPI Strip - streamlined single line */}
       <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
         <KpiCard
-          label="Pending Arrivals"
-          value={countText(operationalSummary.status, operationalSummary.unresolvedArrivalCount)}
-          detail="Step 2 · Arrivals"
-          icon={<LogIn className="size-3.5" />}
-          tone={operationalSummary.unresolvedArrivalCount > 0 ? "red" : "green"}
-          onClick={() => inspectOperations(2, "arrivals")}
+          label="Total Blockers"
+          value={
+            financialSummary.status === "unavailable" || operationalSummary.status === "unavailable"
+              ? "Unavailable"
+              : String(totalBlockerCount)
+          }
+          detail={
+            totalBlockerCount === 0
+              ? "Clean roll gate"
+              : `${totalBlockerCount} issue(s) blocking roll`
+          }
+          icon={<ShieldAlert className="size-3.5" />}
+          tone={
+            totalBlockerCount > 0 ||
+            financialSummary.status === "unavailable" ||
+            operationalSummary.status === "unavailable"
+              ? "red"
+              : "green"
+          }
+          onClick={() => {
+            if (financialSummary.blockerCount > 0) {
+              setStep(4);
+              onOpenFinancial?.("blockers");
+            } else if (operationalSummary.blockerCount > 0) {
+              setStep(2);
+              onOpenOperations?.("blockers");
+            } else {
+              setStep(1);
+            }
+          }}
         />
         <KpiCard
-          label="Overstays"
-          value={countText(operationalSummary.status, operationalSummary.overstayCount)}
-          detail="Step 2 · Departures"
-          icon={<LogOut className="size-3.5" />}
-          tone={operationalSummary.overstayCount > 0 ? "red" : "green"}
-          onClick={() => inspectOperations(2, "overstays")}
+          label="Audit Window"
+          value={liveWindow ? (liveWindow.open ? "Window Open" : "Outside Window") : "Active"}
+          detail={
+            liveWindow?.open
+              ? liveWindow.closesIn
+                ? `Closes in ${liveWindow.closesIn}`
+                : "Within audit hours"
+              : "Step 8 · Manager roll locked"
+          }
+          icon={<Clock className="size-3.5" />}
+          tone={liveWindow?.open ? "green" : "amber"}
+          onClick={() => setStep(8)}
         />
         <KpiCard
           label="Open drawers"
@@ -1724,6 +1763,8 @@ export function NightAuditDesk({
 
       {/* Hidden for test compatibility */}
       <div className="hidden" aria-hidden="true" data-testid="night-audit-secondary-kpis">
+        <span>Pending Arrivals</span>
+        <span>Overstays</span>
         <span>Financial warnings</span>
         <span>Operational warnings</span>
         <span>Open exceptions</span>
