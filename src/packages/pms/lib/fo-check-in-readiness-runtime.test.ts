@@ -75,6 +75,7 @@ function deposit(satisfied: boolean) {
 function facts(patch: Partial<CheckInReadinessFacts> = {}): CheckInReadinessFacts {
   return {
     unitRequired: false,
+    hasSiblings: false,
     target: {
       reservationRoomId: "unit-1",
       guestId: "guest-1",

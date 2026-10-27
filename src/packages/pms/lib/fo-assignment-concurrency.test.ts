@@ -45,7 +45,10 @@ describe("FO-06 assignment concurrency", () => {
     expect(dialogs).toContain("expectedRoomId: targetStay.roomId");
     expect(dialogs).toContain("expectedUpdatedAt: stay.updatedAt ?? null");
     expect(dialogs).toContain("onError: (error) => {\n      refresh();");
-    expect(rooms).toContain("expectedUpdatedAt: reservation.updatedAt");
+    expect(rooms).toContain("...unitAssignmentSnapshot({");
+    expect(rooms).toContain("reservationRoomId: input.reservationRoomId,");
+    expect(rooms).toContain("updatedAt: reservation.updatedAt,");
+    expect(rooms).not.toContain("?.roomId ?? reservation.roomId");
     expect(rooms).toContain("void assignableQuery.refetch()");
     expect(rooms).toContain("void displayQuery.refetch()");
     expect(rooms).toContain("setAssignmentMode(null);");

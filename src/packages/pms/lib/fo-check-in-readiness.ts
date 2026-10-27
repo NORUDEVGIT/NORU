@@ -12,6 +12,7 @@ import type { CheckInGuestSource } from "@/packages/pms/lib/fo-check-in-unit";
 export const CHECK_IN_BLOCKER_CODES = [
   "ROOM_UNIT_REQUIRED",
   "INVALID_TRANSITION",
+  "GUEST_REQUIRED",
   "GUEST_FIELDS",
   "IDENTITY_DOCUMENT",
   "ROOM_REQUIRED",
@@ -79,6 +80,8 @@ export type CheckInReadinessFacts = {
     status: string | null;
     roomId: string | null;
   } | null;
+  /** True on a true multi-room reservation (this unit has siblings). */
+  hasSiblings: boolean;
   registrationComplete: boolean;
   registrationWaived: boolean;
   registrationWaiverReason: string | null;
@@ -117,6 +120,7 @@ export type CheckInReadinessFacts = {
 const BLOCKER_MESSAGE: Record<CheckInBlockerCode, string> = {
   ROOM_UNIT_REQUIRED: "Choose which room this action applies to.",
   INVALID_TRANSITION: "That action isn't allowed for this reservation's current status.",
+  GUEST_REQUIRED: "Assign a named guest to this room before completing check-in.",
   GUEST_FIELDS: "Check-in blocked by guest requirements.",
   IDENTITY_DOCUMENT: "An identity document is required for check-in.",
   ROOM_REQUIRED: "Assign a room before completing check-in.",
@@ -289,6 +293,12 @@ export function evaluateCheckInReadiness(facts: CheckInReadinessFacts): CheckInR
 
   if (facts.target.status !== "confirmed") {
     blockers.push(blocker("INVALID_TRANSITION"));
+  }
+
+  // FO-GR01B: on a true multi-room reservation, a unit with no primary
+  // occupant of its own must not silently check in the booker/header guest.
+  if (facts.hasSiblings && facts.target.guestSource === "booker") {
+    blockers.push(blocker("GUEST_REQUIRED"));
   }
 
   if (facts.registrationWaived) {

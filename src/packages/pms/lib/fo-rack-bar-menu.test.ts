@@ -291,6 +291,41 @@ describe("room rack stay menu", () => {
     assert.equal(bars[2]?.roomNumber, null);
   });
 
+  it("3: each rack bar shows its own unit's occupant, never the header guest on every bar", () => {
+    const bars = projectRackStays([
+      header("res-multi", "checked_in", "room-401", [
+        unit("unit-401", "room-401", "checked_in", {
+          occupants: [{ guestId: "guest-test", name: "Test Guest", isPrimary: true }],
+        }),
+        unit("unit-101a", "room-101a", "confirmed", {
+          occupants: [{ guestId: "guest-aker", name: "Aker Girma", isPrimary: true }],
+        }),
+        unit("unit-102", "room-102", "confirmed", {
+          occupants: [{ guestId: "guest-c", name: "Guest C", isPrimary: true }],
+        }),
+      ]),
+    ]);
+    assert.deepEqual(
+      bars.map((bar) => [bar.roomNumber, bar.guestId, bar.guestName]),
+      [
+        ["401", "guest-test", "Test Guest"],
+        ["101a", "guest-aker", "Aker Girma"],
+        ["102", "guest-c", "Guest C"],
+      ],
+    );
+    // No bar duplicates the header guest once its own unit has an occupant.
+    assert.equal(bars.every((bar) => bar.guestId !== "guest-1"), true);
+    assert.equal(new Set(bars.map((bar) => bar.id)).size, 1);
+  });
+
+  it("falls back to the header guest only when a unit has no occupant of its own", () => {
+    const bars = projectRackStays([
+      header("res-legacy-unit", "confirmed", "room-9", [unit("unit-9", "room-9", "confirmed")]),
+    ]);
+    assert.equal(bars[0]?.guestId, "guest-1");
+    assert.equal(bars[0]?.guestName, "Almaz Bekele");
+  });
+
   it("dispatches the exact bar unit and never a sibling", () => {
     const bars = projectRackStays([
       header("res-multi", "checked_in", "room-501", [

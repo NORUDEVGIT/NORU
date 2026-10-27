@@ -768,7 +768,7 @@ export const listCheckInRoomCandidates = createServerFn({ method: "POST" })
 
 /* -------------------------------------------------------------------- list */
 
-type ListUnitClient = {
+export type ListUnitClient = {
   from: (table: string) => {
     select: (columns: string) => {
       eq: (
@@ -797,7 +797,7 @@ const LIST_UNIT_COLUMNS =
  * Each reservation gets every one of its own unit rows. A reservation with no
  * unit rows keeps `rooms: []`.
  */
-async function attachListRoomUnits(
+export async function attachListRoomUnits(
   db: ListUnitClient,
   restaurantId: string,
   list: ReservationDetail[],
@@ -834,15 +834,81 @@ async function attachListRoomUnits(
       numbers.set(room.id, room.room_number);
     }
   }
+  // FO-GR01B: Room Rack bars must show each unit's own occupant, not the
+  // reservation header guest. Attach the existing room-unit occupant relation
+  // the same way `getReservation` does for the Reservation Detail loader.
+  const unitIds = rows.map((row) => row.id);
+  let occupantSources: Array<{
+    reservationRoomId: string;
+    guestId: string;
+    name: string;
+    isPrimary: boolean;
+    phone: string | null;
+  }> = [];
+  if (unitIds.length > 0) {
+    const occupantQuery = await db
+      .from("hotel_reservation_room_guests")
+      .select("reservation_room_id, guest_id, is_primary")
+      .eq("restaurant_id", restaurantId)
+      .in("reservation_room_id", unitIds)
+      .order("guest_id", { ascending: true });
+    if (occupantQuery.error && !isMissingSchemaError(occupantQuery.error)) {
+      throw new Error(occupantQuery.error.message);
+    }
+    const occupantRows =
+      occupantQuery.error && isMissingSchemaError(occupantQuery.error)
+        ? []
+        : ((occupantQuery.data ?? []) as Array<{
+            reservation_room_id: string;
+            guest_id: string;
+            is_primary: boolean;
+          }>);
+    const guestIds = [...new Set(occupantRows.map((row) => row.guest_id))];
+    const profiles = new Map<string, { first_name: string | null; last_name: string | null; phone: string | null }>();
+    if (guestIds.length > 0) {
+      const profileQuery = await db
+        .from("guest_profiles")
+        .select("id, first_name, last_name, phone")
+        .eq("restaurant_id", restaurantId)
+        .in("id", guestIds)
+        .order("id", { ascending: true });
+      if (profileQuery.error && !isMissingSchemaError(profileQuery.error)) {
+        throw new Error(profileQuery.error.message);
+      }
+      if (!profileQuery.error) {
+        for (const profile of (profileQuery.data ?? []) as Array<{
+          id: string;
+          first_name: string | null;
+          last_name: string | null;
+          phone: string | null;
+        }>) {
+          profiles.set(profile.id, profile);
+        }
+      }
+    }
+    occupantSources = occupantRows.map((row) => {
+      const profile = profiles.get(row.guest_id);
+      return {
+        reservationRoomId: row.reservation_room_id,
+        guestId: row.guest_id,
+        name: [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() || "Guest",
+        isPrimary: row.is_primary,
+        phone: profile?.phone ?? null,
+      };
+    });
+  }
   return list.map((reservation) => ({
     ...reservation,
-    rooms: projectReservationRoomUnits(
-      reservation,
-      rows.filter((row) => row.reservation_id === reservation.id),
-    ).map((unit) => ({
-      ...unit,
-      roomNumber: unit.roomId ? (numbers.get(unit.roomId) ?? null) : null,
-    })),
+    rooms: attachRoomOccupants(
+      projectReservationRoomUnits(
+        reservation,
+        rows.filter((row) => row.reservation_id === reservation.id),
+      ).map((unit) => ({
+        ...unit,
+        roomNumber: unit.roomId ? (numbers.get(unit.roomId) ?? null) : null,
+      })),
+      occupantSources,
+    ),
   }));
 }
 
