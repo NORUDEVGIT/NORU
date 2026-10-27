@@ -611,7 +611,7 @@ async function loadRoomUnitLabels(
   return labels;
 }
 
-async function loadGuestFolio(
+export async function loadGuestFolio(
   supabaseAdmin: SupabaseAdmin,
   restaurantId: string,
   folioId: string,
