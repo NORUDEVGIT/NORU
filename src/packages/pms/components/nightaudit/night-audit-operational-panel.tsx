@@ -7,6 +7,7 @@ import {
   BedDouble,
   CalendarCheck,
   CheckCircle2,
+  Clock,
   Coins,
   ExternalLink,
   Eye,
@@ -29,15 +30,25 @@ import {
   operationalEmptyCopy,
   operationalFocusFilter,
   operationalSectionLabel,
+  type ArrivalRow,
+  type DistributionRow,
   type NightAuditOperationalCategory,
   type NightAuditOperationalFilter,
   type NightAuditOperationalIssue,
   type NightAuditOperationalReconciliation,
   type OperationalRowStatus,
   type OperationalSectionState,
+  type OverbookingRow,
+  type RevenueRow,
+  type RoomStateRow,
+  type ServiceRow,
+  type StayRow,
 } from "@/packages/pms/lib/night-audit-operational";
+import { matchFinancialWarningException } from "@/packages/pms/lib/night-audit-financial";
 import { formatNa1Date } from "@/packages/pms/lib/na1";
 import { NIGHT_AUDIT_PAGE_SIZE, paginateRows } from "@/packages/pms/lib/night-audit-shell";
+import type { AuditException } from "@/packages/pms/lib/nightaudit.functions";
+import { ReviewWarningDialog } from "@/packages/pms/components/nightaudit/night-audit-exception-queue";
 import { Button } from "@/shared/components/ui/button";
 import {
   Select,
@@ -76,11 +87,13 @@ function issueStatus(issue: NightAuditOperationalIssue): OperationalRowStatus {
 }
 
 function badge(status: OperationalRowStatus | OperationalSectionState | string): string {
-  if (status === "blocker" || status === "blocked") return "bg-red-50 text-red-700 border border-red-200/80";
+  if (status === "blocker" || status === "blocked")
+    return "bg-red-50 text-red-700 border border-red-200/80";
   if (status === "warning") return "bg-amber-50 text-amber-800 border border-amber-200/80";
   if (status === "info") return "bg-blue-50 text-blue-700 border border-blue-200/80";
   if (status === "unavailable") return "bg-stone-100 text-stone-700 border border-stone-200";
-  if (status === "not_configured" || status === "na") return "bg-stone-100 text-stone-600 border border-stone-200/70";
+  if (status === "not_configured" || status === "na")
+    return "bg-stone-100 text-stone-600 border border-stone-200/70";
   return "bg-emerald-50 text-emerald-800 border border-emerald-200/80";
 }
 
@@ -106,7 +119,12 @@ function statusIcon(status: OperationalRowStatus | string) {
 
 function Chip({ status }: { status: OperationalRowStatus }) {
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold capitalize", badge(status))}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold capitalize",
+        badge(status),
+      )}
+    >
       {statusIcon(status)}
       {statusLabel(status)}
     </span>
@@ -193,47 +211,414 @@ export function NightAuditOperationalPanel({
   result,
   focus,
   onRefresh,
+  allowedTabs,
+  hideHero,
+  exceptions = [],
+  onReviewWarning,
+  reviewingWarning,
+  dateTime = (iso: string) => iso.replace("T", " ").slice(0, 16),
+  runClosed = false,
 }: {
   loading: boolean;
   error: string | null;
   result: NightAuditOperationalReconciliation | null;
   focus?: string | undefined;
   onRefresh: () => void;
+  allowedTabs?: readonly OperationalSubTab[];
+  hideHero?: boolean;
+  exceptions?: AuditException[];
+  onReviewWarning?: (exceptionId: string, note?: string) => void;
+  reviewingWarning?: boolean;
+  dateTime?: (iso: string) => string;
+  runClosed?: boolean;
 }) {
-  const [activeTab, setActiveTab] = useState<OperationalSubTab>("triage");
+  const defaultInitialTab: OperationalSubTab =
+    allowedTabs && allowedTabs.length > 0
+      ? focus && (allowedTabs as readonly string[]).includes(focus)
+        ? (focus as OperationalSubTab)
+        : focus === "overstays" && allowedTabs.includes("departures")
+          ? "departures"
+          : allowedTabs[0]
+      : "triage";
+
+  const [activeTab, setActiveTab] = useState<OperationalSubTab>(defaultInitialTab);
+
+  useEffect(() => {
+    if (focus) {
+      if (allowedTabs && allowedTabs.length > 0) {
+        if ((allowedTabs as readonly string[]).includes(focus)) {
+          setActiveTab(focus as OperationalSubTab);
+        } else if (focus === "overstays" && allowedTabs.includes("departures")) {
+          setActiveTab("departures");
+        }
+      } else {
+        if (focus === "overstays") setActiveTab("departures");
+        else setActiveTab(focus as OperationalSubTab);
+      }
+    }
+  }, [focus, allowedTabs]);
+
   const [severity, setSeverity] = useState<NightAuditOperationalFilter["severity"]>("all");
   const [category, setCategory] = useState<NightAuditOperationalFilter["category"]>("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedArrival, setSelectedArrival] = useState<ArrivalRow | null>(null);
+  const [selectedDeparture, setSelectedDeparture] = useState<StayRow | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<RoomStateRow | null>(null);
+  const [selectedHousekeeping, setSelectedHousekeeping] = useState<RoomStateRow | null>(null);
+  const [selectedOverbooking, setSelectedOverbooking] = useState<OverbookingRow | null>(null);
+  const [selectedDistribution, setSelectedDistribution] = useState<DistributionRow | null>(null);
+  const [selectedRevenue, setSelectedRevenue] = useState<RevenueRow | null>(null);
+  const [selectedService, setSelectedService] = useState<ServiceRow | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<AuditException | null>(null);
+
+  const clearSelection = () => {
+    setSelectedId(null);
+    setSelectedArrival(null);
+    setSelectedDeparture(null);
+    setSelectedRoom(null);
+    setSelectedHousekeeping(null);
+    setSelectedOverbooking(null);
+    setSelectedDistribution(null);
+    setSelectedRevenue(null);
+    setSelectedService(null);
+  };
+
+  const findWarningException = (row: {
+    id?: string;
+    code?: string;
+    referenceId?: string | null;
+    reservationRoomId?: string | null;
+    category?: string;
+    issue?: string;
+    description?: string;
+    title?: string;
+  }): AuditException | undefined => {
+    if (row.code && row.referenceId) {
+      return matchFinancialWarningException(exceptions, {
+        code: row.code,
+        referenceId: row.referenceId,
+      });
+    }
+    const description = row.description ?? row.issue ?? row.title;
+    const refs = new Set(
+      [row.referenceId, row.id, row.reservationRoomId].filter((value): value is string =>
+        Boolean(value),
+      ),
+    );
+    const candidates = (result?.issues ?? []).filter((item) => {
+      if (item.severity !== "warning" || !refs.has(item.referenceId)) return false;
+      if (row.category && item.category !== row.category) return false;
+      if (description && item.description !== description && item.title !== description)
+        return false;
+      return true;
+    });
+    if (candidates.length !== 1) return undefined;
+    return matchFinancialWarningException(exceptions, candidates[0]);
+  };
+
+  const renderReviewCell = (status: OperationalRowStatus | string, matchedEx?: AuditException) => {
+    if (status !== "warning") {
+      return (
+        <span key="rev" className="text-muted-foreground text-xs">
+          —
+        </span>
+      );
+    }
+    if (matchedEx?.warningReview) {
+      return (
+        <div key="rev" className="space-y-0.5">
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/80 rounded-full px-2 py-0.5">
+            <CheckCircle2 className="size-3 text-emerald-600" />
+            REVIEWED
+          </span>
+          <p className="text-[10px] text-muted-foreground truncate max-w-[130px]">
+            {matchedEx.warningReview.reviewerName ?? "Auditor"}
+            {matchedEx.warningReview.reviewedAt
+              ? ` · ${dateTime(matchedEx.warningReview.reviewedAt)}`
+              : ""}
+          </p>
+        </div>
+      );
+    }
+    return (
+      <span
+        key="rev"
+        className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-900 bg-amber-50 border border-amber-200/80 rounded-full px-2 py-0.5"
+      >
+        <Clock className="size-3 text-amber-600" />
+        UNREVIEWED
+      </span>
+    );
+  };
 
   useEffect(() => {
     const preset = operationalFocusFilter(focus);
     setSeverity(preset.severity ?? "all");
     setCategory(preset.category ?? "all");
     if (focus === "blockers") {
-      setActiveTab("triage");
+      if (!allowedTabs || allowedTabs.includes("triage")) {
+        setActiveTab("triage");
+      }
       setSeverity("blocker");
     } else if (focus === "warnings") {
-      setActiveTab("triage");
+      if (!allowedTabs || allowedTabs.includes("triage")) {
+        setActiveTab("triage");
+      }
       setSeverity("warning");
     } else if (focus === "arrivals") {
-      setActiveTab("arrivals");
+      if (!allowedTabs || allowedTabs.includes("arrivals")) {
+        setActiveTab("arrivals");
+      }
     } else if (focus === "overstays") {
-      setActiveTab("departures");
+      if (!allowedTabs || allowedTabs.includes("departures")) {
+        setActiveTab("departures");
+      }
     } else if (focus === "rooms") {
-      setActiveTab("rooms");
+      if (!allowedTabs || allowedTabs.includes("rooms")) {
+        setActiveTab("rooms");
+      }
     } else if (focus === "overbooking") {
-      setActiveTab("overbooking");
+      if (!allowedTabs || allowedTabs.includes("overbooking")) {
+        setActiveTab("overbooking");
+      }
     }
-  }, [focus]);
+  }, [focus, allowedTabs]);
 
   useEffect(() => {
     setPage(1);
+    clearSelection();
   }, [severity, category, search, activeTab, result?.checkedAt]);
 
   const filter = useMemo(() => ({ severity, category, search }), [category, search, severity]);
-  const selected = result?.issues.find((row) => row.id === selectedId) ?? null;
+
+  const selected: NightAuditOperationalIssue | null = useMemo(() => {
+    if (selectedId) {
+      return result?.issues.find((row) => row.id === selectedId) ?? null;
+    }
+    if (selectedArrival) {
+      return {
+        id: selectedArrival.id,
+        code: "arrival_not_processed",
+        module: "night_audit",
+        category: "arrivals",
+        severity: selectedArrival.status === "blocker" ? "blocking" : "warning",
+        title: `Arrival — ${selectedArrival.confirmationNumber}`,
+        description: selectedArrival.issue || "Arrival due for today",
+        referenceType: "reservation",
+        referenceId: selectedArrival.reservationId,
+        route: selectedArrival.route,
+        search: selectedArrival.search,
+        checkedAt: result?.checkedAt ?? "",
+        ownerModule: "Front Office",
+        recommendedAction:
+          "Process guest check-in, update stay dates, or cancel reservation in Front Office.",
+        sourceStatus: selectedArrival.sourceStatus,
+        dueDate: selectedArrival.arrivalDate,
+        roomNumber: selectedArrival.roomNumber,
+        roomType: selectedArrival.roomType,
+        reservationId: selectedArrival.reservationId,
+        confirmationNumber: selectedArrival.confirmationNumber,
+        guestName: selectedArrival.guest,
+      };
+    }
+    if (selectedDeparture) {
+      return {
+        id: selectedDeparture.id,
+        code: "overstay",
+        module: "night_audit",
+        category: "departures",
+        severity: selectedDeparture.status === "blocker" ? "blocking" : "warning",
+        title: `Departure — ${selectedDeparture.confirmationNumber}`,
+        description: selectedDeparture.issue || "Departure due today or overstay",
+        referenceType: "reservation",
+        referenceId: selectedDeparture.reservationId,
+        route: selectedDeparture.route,
+        search: selectedDeparture.search,
+        checkedAt: result?.checkedAt ?? "",
+        ownerModule: "Front Office",
+        recommendedAction: "Complete guest check-out or extend departure date in Front Office.",
+        sourceStatus: selectedDeparture.lateCheckoutUntil
+          ? `Late checkout until ${selectedDeparture.lateCheckoutUntil}`
+          : "Due out",
+        dueDate: selectedDeparture.departureDate,
+        roomNumber: selectedDeparture.roomNumber,
+        roomType: selectedDeparture.roomType,
+        reservationId: selectedDeparture.reservationId,
+        confirmationNumber: selectedDeparture.confirmationNumber,
+        guestName: selectedDeparture.guest,
+      };
+    }
+    if (selectedRoom) {
+      return {
+        id: selectedRoom.id,
+        code: "room_conflict",
+        module: "night_audit",
+        category: "rooms",
+        severity: selectedRoom.status === "blocker" ? "blocking" : "warning",
+        title: `Room ${selectedRoom.roomNumber}`,
+        description: selectedRoom.issue || "Room state and assignment inspection",
+        referenceType: "room",
+        referenceId: selectedRoom.id,
+        route: selectedRoom.route,
+        search: selectedRoom.search,
+        checkedAt: result?.checkedAt ?? "",
+        ownerModule: "Room & Inventory",
+        recommendedAction:
+          "Update room assignment, clear discrepancy, or resolve maintenance status in Room & Inventory.",
+        sourceStatus: `${selectedRoom.operationalStatus} · ${selectedRoom.housekeepingStatus}`,
+        dueDate: result?.businessDate ?? null,
+        roomNumber: selectedRoom.roomNumber,
+        roomType: selectedRoom.roomType,
+        reservationId: null,
+        confirmationNumber: null,
+        guestName: selectedRoom.occupied ? `Occupied (${selectedRoom.occupants})` : "Vacant",
+      };
+    }
+    if (selectedHousekeeping) {
+      return {
+        id: selectedHousekeeping.id,
+        code: "hk_conflict",
+        module: "night_audit",
+        category: "housekeeping",
+        severity: selectedHousekeeping.status === "blocker" ? "blocking" : "warning",
+        title: `Housekeeping — Room ${selectedHousekeeping.roomNumber}`,
+        description: selectedHousekeeping.issue || "Housekeeping cleanliness and task inspection",
+        referenceType: "room",
+        referenceId: selectedHousekeeping.id,
+        route: selectedHousekeeping.route,
+        search: selectedHousekeeping.search,
+        checkedAt: result?.checkedAt ?? "",
+        ownerModule: "Housekeeping",
+        recommendedAction:
+          "Complete cleaning task, verify inspection state, or update readiness on Housekeeping Board.",
+        sourceStatus: `${selectedHousekeeping.housekeepingStatus} · ${selectedHousekeeping.readiness}`,
+        dueDate: result?.businessDate ?? null,
+        roomNumber: selectedHousekeeping.roomNumber,
+        roomType: selectedHousekeeping.roomType,
+        reservationId: null,
+        confirmationNumber: null,
+        guestName: selectedHousekeeping.occupied ? "Occupied" : "Vacant",
+      };
+    }
+    if (selectedOverbooking) {
+      return {
+        id: selectedOverbooking.id,
+        code: "overbooking_issue",
+        module: "night_audit",
+        category: "overbooking",
+        severity: selectedOverbooking.status === "blocker" ? "blocking" : "warning",
+        title: `Overbooking — ${selectedOverbooking.roomType}`,
+        description: `${selectedOverbooking.roomType}: committed ${selectedOverbooking.committed} against capacity ${selectedOverbooking.capacity} (excess: ${selectedOverbooking.excess}, approval: ${selectedOverbooking.approval})`,
+        referenceType: "room_type",
+        referenceId: selectedOverbooking.roomTypeId,
+        route: selectedOverbooking.route,
+        search: selectedOverbooking.search,
+        checkedAt: result?.checkedAt ?? "",
+        ownerModule: "Room & Inventory",
+        recommendedAction:
+          "Review overbooking capacity, adjust allowance, or process waitlist in Room & Inventory.",
+        sourceStatus: selectedOverbooking.approval,
+        dueDate: selectedOverbooking.date,
+        roomNumber: null,
+        roomType: selectedOverbooking.roomType,
+        reservationId: null,
+        confirmationNumber: null,
+        guestName: null,
+      };
+    }
+    if (selectedDistribution) {
+      return {
+        id: selectedDistribution.id,
+        code: "distribution_error",
+        module: "night_audit",
+        category: "distribution",
+        severity: selectedDistribution.status === "blocker" ? "blocking" : "warning",
+        title: `Distribution — ${selectedDistribution.label}`,
+        description: selectedDistribution.detail,
+        referenceType: "distribution_channel",
+        referenceId: selectedDistribution.id,
+        route: selectedDistribution.route,
+        search: {},
+        checkedAt: result?.checkedAt ?? "",
+        ownerModule: "Distribution",
+        recommendedAction:
+          "Check channel manager connectivity and retry event synchronization in Distribution.",
+        sourceStatus: selectedDistribution.kind,
+        dueDate: null,
+        roomNumber: null,
+        roomType: null,
+        reservationId: null,
+        confirmationNumber: null,
+        guestName: null,
+      };
+    }
+    if (selectedRevenue) {
+      return {
+        id: selectedRevenue.id,
+        code: "revenue_readiness",
+        module: "night_audit",
+        category: "revenue",
+        severity: selectedRevenue.status === "blocker" ? "blocking" : "warning",
+        title: `Revenue — ${selectedRevenue.label}`,
+        description: selectedRevenue.detail,
+        referenceType: "rate_plan",
+        referenceId: selectedRevenue.id,
+        route: selectedRevenue.route,
+        search: selectedRevenue.search,
+        checkedAt: result?.checkedAt ?? "",
+        ownerModule: "Rate & Revenue",
+        recommendedAction:
+          "Review rate restrictions, approvals, or nightly frozen rates in Rate & Revenue.",
+        sourceStatus: selectedRevenue.kind,
+        dueDate: selectedRevenue.date,
+        roomNumber: null,
+        roomType: null,
+        reservationId: null,
+        confirmationNumber: null,
+        guestName: null,
+      };
+    }
+    if (selectedService) {
+      return {
+        id: selectedService.id,
+        code: "service_entitlement",
+        module: "night_audit",
+        category: "services",
+        severity: selectedService.status === "blocker" ? "blocking" : "info",
+        title: `Service — ${selectedService.service}`,
+        description: `Service ${selectedService.service} (${selectedService.kind}) for Room ${selectedService.roomNumber || "—"}: ${selectedService.sourceStatus}`,
+        referenceType: "service",
+        referenceId: selectedService.id,
+        route: "/restaurant/pms/guest-services",
+        search: {},
+        checkedAt: result?.checkedAt ?? "",
+        ownerModule: "Guest Services",
+        recommendedAction:
+          "Fulfill service entitlement or update delivery state in Guest Services.",
+        sourceStatus: selectedService.sourceStatus,
+        dueDate: selectedService.serviceDate,
+        roomNumber: selectedService.roomNumber,
+        roomType: null,
+        reservationId: null,
+        confirmationNumber: null,
+        guestName: null,
+      };
+    }
+    return null;
+  }, [
+    selectedId,
+    selectedArrival,
+    selectedDeparture,
+    selectedRoom,
+    selectedHousekeeping,
+    selectedOverbooking,
+    selectedDistribution,
+    selectedRevenue,
+    selectedService,
+    result,
+  ]);
 
   const visibleIssues = useMemo(() => {
     if (!result) return [];
@@ -251,10 +636,17 @@ export function NightAuditOperationalPanel({
 
   if (loading || (!result && !error)) {
     return (
-      <section className="rounded-2xl border border-border bg-card p-8 text-center" data-testid="night-audit-operations-loading">
+      <section
+        className="rounded-2xl border border-border bg-card p-8 text-center"
+        data-testid="night-audit-operations-loading"
+      >
         <RefreshCw className="mx-auto size-6 animate-spin text-muted-foreground" />
-        <p className="mt-3 text-sm font-medium text-foreground">{operationalEmptyCopy("loading")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">Checking arrivals, departures, room occupancy, and housekeeping readiness…</p>
+        <p className="mt-3 text-sm font-medium text-foreground">
+          {operationalEmptyCopy("loading")}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Checking arrivals, departures, room occupancy, and housekeeping readiness…
+        </p>
       </section>
     );
   }
@@ -264,14 +656,18 @@ export function NightAuditOperationalPanel({
     return (
       <section
         className="rounded-2xl border border-border bg-card p-6"
-        data-testid={denied ? "night-audit-operations-no-access" : "night-audit-operations-unavailable"}
+        data-testid={
+          denied ? "night-audit-operations-no-access" : "night-audit-operations-unavailable"
+        }
       >
         <div className="flex items-start gap-3">
           <div className="flex size-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
             <ShieldAlert className="size-5" />
           </div>
           <div>
-            <h2 className="font-display text-lg text-foreground">{denied ? "No access" : "Operational Status: UNAVAILABLE"}</h2>
+            <h2 className="font-display text-lg text-foreground">
+              {denied ? "No access" : "Operational Status: UNAVAILABLE"}
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {denied ? operationalEmptyCopy("access") : operationalEmptyCopy("failed")}
             </p>
@@ -294,8 +690,11 @@ export function NightAuditOperationalPanel({
     const needle = search.trim().toLowerCase();
     return !needle || text.toLowerCase().includes(needle);
   };
-  const rowFilter = (status: OperationalRowStatus, key: NightAuditOperationalCategory, text: string) =>
-    matchesOperationalFilter({ status, category: key, text }, filter);
+  const rowFilter = (
+    status: OperationalRowStatus,
+    key: NightAuditOperationalCategory,
+    text: string,
+  ) => matchesOperationalFilter({ status, category: key, text }, filter);
   const s = result.summary;
 
   const totalActionItems = s.blockerCount + s.warningCount;
@@ -303,14 +702,20 @@ export function NightAuditOperationalPanel({
   // Domain filtered datasets
   const filteredArrivals = prioritize(
     result.arrivals.filter((row) =>
-      domainFilter(row.status, `${row.confirmationNumber} ${row.guest} ${row.roomNumber ?? ""} ${row.roomType ?? ""}`),
+      domainFilter(
+        row.status,
+        `${row.confirmationNumber} ${row.guest} ${row.roomNumber ?? ""} ${row.roomType ?? ""}`,
+      ),
     ),
   );
   const arrivalsPage = paginateRows(filteredArrivals, page);
 
   const filteredDepartures = prioritize(
     result.departures.filter((row) =>
-      domainFilter(row.status, `${row.confirmationNumber} ${row.guest} ${row.roomNumber ?? ""} ${row.issue}`),
+      domainFilter(
+        row.status,
+        `${row.confirmationNumber} ${row.guest} ${row.roomNumber ?? ""} ${row.issue}`,
+      ),
     ),
   );
   const departuresPage = paginateRows(filteredDepartures, page);
@@ -345,226 +750,313 @@ export function NightAuditOperationalPanel({
   const revenuePage = paginateRows(filteredRevenue, page);
 
   const filteredServices = prioritize(
-    result.serviceOperations.rows.filter((row) => domainFilter(row.status, `${row.roomNumber} ${row.service}`)),
+    result.serviceOperations.rows.filter((row) =>
+      domainFilter(row.status, `${row.roomNumber} ${row.service}`),
+    ),
   );
   const servicesPage = paginateRows(filteredServices, page);
 
   return (
     <div className="space-y-5" data-testid="night-audit-operations">
       {/* 1. OPERATIONAL HEALTH & READINESS HERO RIBBON */}
-      <div className="rounded-2xl border border-border/70 bg-gradient-to-r from-card via-card to-muted/20 p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3.5">
-            <div
-              className={cn(
-                "flex size-12 shrink-0 items-center justify-center rounded-xl shadow-sm",
-                result.status === "ready"
-                  ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                  : result.status === "warning"
-                    ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
-                    : "bg-red-50 text-red-700 ring-1 ring-red-200",
-              )}
-            >
-              {result.status === "ready" ? (
-                <ShieldCheck className="size-6" />
-              ) : result.status === "warning" ? (
-                <AlertCircle className="size-6" />
-              ) : (
-                <ShieldAlert className="size-6" />
-              )}
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Operations Reconciliation
-                </span>
-                <span
-                  className={cn(
-                    "rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase",
-                    result.status === "ready"
-                      ? "bg-emerald-100/90 text-emerald-900"
-                      : result.status === "warning"
-                        ? "bg-amber-100/90 text-amber-950"
-                        : "bg-red-100/90 text-red-950",
-                  )}
-                >
-                  {result.status === "ready"
-                    ? "Audit Ready"
+      {!hideHero && (
+        <div className="rounded-2xl border border-border/70 bg-gradient-to-r from-card via-card to-muted/20 p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3.5">
+              <div
+                className={cn(
+                  "flex size-12 shrink-0 items-center justify-center rounded-xl shadow-sm",
+                  result.status === "ready"
+                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
                     : result.status === "warning"
-                      ? "Ready with Warnings"
-                      : "Roll Blocked"}
-                </span>
+                      ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
+                      : "bg-red-50 text-red-700 ring-1 ring-red-200",
+                )}
+              >
+                {result.status === "ready" ? (
+                  <ShieldCheck className="size-6" />
+                ) : result.status === "warning" ? (
+                  <AlertCircle className="size-6" />
+                ) : (
+                  <ShieldAlert className="size-6" />
+                )}
               </div>
-              <p className="mt-1 text-sm font-medium text-foreground">
-                {result.status === "ready"
-                  ? "All arrivals, departures, room assignments, and housekeeping states are in order. Ready for close."
-                  : result.status === "warning"
-                    ? `${s.warningCount} operational warning${s.warningCount === 1 ? "" : "s"} detected. Day close is permitted with sign-off note.`
-                    : `${s.blockerCount} operational blocker${s.blockerCount === 1 ? "" : "s"} must be resolved before advancing business date.`}
-              </p>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Operations Reconciliation
+                  </span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase",
+                      result.status === "ready"
+                        ? "bg-emerald-100/90 text-emerald-900"
+                        : result.status === "warning"
+                          ? "bg-amber-100/90 text-amber-950"
+                          : "bg-red-100/90 text-red-950",
+                    )}
+                  >
+                    {result.status === "ready"
+                      ? "Audit Ready"
+                      : result.status === "warning"
+                        ? "Ready with Warnings"
+                        : "Roll Blocked"}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm font-medium text-foreground">
+                  {result.status === "ready"
+                    ? "All arrivals, departures, room assignments, and housekeeping states are in order. Ready for close."
+                    : result.status === "warning"
+                      ? `${s.warningCount} operational warning${s.warningCount === 1 ? "" : "s"} detected. Day close is permitted with sign-off note.`
+                      : `${s.blockerCount} operational blocker${s.blockerCount === 1 ? "" : "s"} must be resolved before advancing business date.`}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 sm:self-end lg:self-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                data-testid="night-audit-operations-refresh"
+                onClick={onRefresh}
+                className="h-9 gap-1.5 font-medium shadow-2xs hover:bg-muted"
+              >
+                <RefreshCw className="size-3.5" />
+                Refresh / Recheck Operations
+              </Button>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:self-end lg:self-center">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-testid="night-audit-operations-refresh"
-              onClick={onRefresh}
-              className="h-9 gap-1.5 font-medium shadow-2xs hover:bg-muted"
-            >
-              <RefreshCw className="size-3.5" />
-              Refresh / Recheck Operations
-            </Button>
+          {/* Status Metrics Strip */}
+          <div
+            className="mt-4 grid grid-cols-2 gap-2 border-t border-border/50 pt-4 sm:grid-cols-4 xl:grid-cols-7"
+            data-testid="night-audit-operations-kpis"
+          >
+            <Kpi
+              label="Operational Status"
+              value={result.status.toUpperCase()}
+              tone={result.status}
+              subtext={`Snapshot: ${result.checkedAt ? result.checkedAt.slice(11, 19) : "Just now"}`}
+            />
+            <Kpi
+              label="Hard Blockers"
+              value={String(s.blockerCount)}
+              tone={s.blockerCount ? "blocked" : "ready"}
+              subtext={s.blockerCount ? "Prevents date roll" : "Clean"}
+              onClick={() => {
+                setActiveTab("triage");
+                setSeverity("blocker");
+                setCategory("all");
+              }}
+            />
+            <Kpi
+              label="Warnings"
+              value={String(s.warningCount)}
+              tone={s.warningCount ? "warning" : "ready"}
+              subtext={s.warningCount ? "Requires review" : "No warnings"}
+              onClick={() => {
+                setActiveTab("triage");
+                setSeverity("warning");
+                setCategory("all");
+              }}
+            />
+            <Kpi
+              label="Unresolved Arrivals"
+              value={String(s.unresolvedArrivalCount)}
+              tone={s.unresolvedArrivalCount ? "blocked" : "ready"}
+              subtext={
+                s.unresolvedArrivalCount
+                  ? `${s.unresolvedArrivalCount} pending check-in`
+                  : "All checked in"
+              }
+              onClick={() => {
+                setActiveTab("arrivals");
+                setCategory("arrivals");
+              }}
+            />
+            <Kpi
+              label="Overstays"
+              value={String(s.overstayCount)}
+              tone={s.overstayCount ? "blocked" : "ready"}
+              subtext={s.overstayCount ? `${s.overstayCount} overdue departure` : "No overstays"}
+              onClick={() => {
+                setActiveTab("departures");
+                setCategory("departures");
+              }}
+            />
+            <Kpi
+              label="Room Conflicts"
+              value={String(s.roomConflictCount)}
+              tone={s.roomConflictCount ? "blocked" : "ready"}
+              subtext={
+                s.roomConflictCount
+                  ? `${s.roomConflictCount} discrepant/unassigned`
+                  : "Zero conflicts"
+              }
+              onClick={() => {
+                setActiveTab("rooms");
+                setCategory("rooms");
+              }}
+            />
+            <Kpi
+              label="Overbooking Issues"
+              value={
+                result.sections.overbooking === "not_configured"
+                  ? "N/A"
+                  : String(s.overbookingIssueCount)
+              }
+              tone={s.overbookingIssueCount ? "warning" : "ready"}
+              subtext={
+                result.sections.overbooking === "not_configured"
+                  ? "Not configured"
+                  : s.overbookingIssueCount
+                    ? `${s.overbookingIssueCount} short capacity`
+                    : "Within limits"
+              }
+              onClick={() => {
+                setActiveTab("overbooking");
+                setCategory("overbooking");
+              }}
+            />
           </div>
         </div>
-
-        {/* Status Metrics Strip */}
-        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border/50 pt-4 sm:grid-cols-4 xl:grid-cols-7" data-testid="night-audit-operations-kpis">
-          <Kpi
-            label="Operational Status"
-            value={result.status.toUpperCase()}
-            tone={result.status}
-            subtext={`Snapshot: ${result.checkedAt ? result.checkedAt.slice(11, 19) : "Just now"}`}
-          />
-          <Kpi
-            label="Hard Blockers"
-            value={String(s.blockerCount)}
-            tone={s.blockerCount ? "blocked" : "ready"}
-            subtext={s.blockerCount ? "Prevents date roll" : "Clean"}
-            onClick={() => {
-              setActiveTab("triage");
-              setSeverity("blocker");
-              setCategory("all");
-            }}
-          />
-          <Kpi
-            label="Warnings"
-            value={String(s.warningCount)}
-            tone={s.warningCount ? "warning" : "ready"}
-            subtext={s.warningCount ? "Requires review" : "No warnings"}
-            onClick={() => {
-              setActiveTab("triage");
-              setSeverity("warning");
-              setCategory("all");
-            }}
-          />
-          <Kpi
-            label="Unresolved Arrivals"
-            value={String(s.unresolvedArrivalCount)}
-            tone={s.unresolvedArrivalCount ? "blocked" : "ready"}
-            subtext={s.unresolvedArrivalCount ? `${s.unresolvedArrivalCount} pending check-in` : "All checked in"}
-            onClick={() => {
-              setActiveTab("arrivals");
-              setCategory("arrivals");
-            }}
-          />
-          <Kpi
-            label="Overstays"
-            value={String(s.overstayCount)}
-            tone={s.overstayCount ? "blocked" : "ready"}
-            subtext={s.overstayCount ? `${s.overstayCount} overdue departure` : "No overstays"}
-            onClick={() => {
-              setActiveTab("departures");
-              setCategory("departures");
-            }}
-          />
-          <Kpi
-            label="Room Conflicts"
-            value={String(s.roomConflictCount)}
-            tone={s.roomConflictCount ? "blocked" : "ready"}
-            subtext={s.roomConflictCount ? `${s.roomConflictCount} discrepant/unassigned` : "Zero conflicts"}
-            onClick={() => {
-              setActiveTab("rooms");
-              setCategory("rooms");
-            }}
-          />
-          <Kpi
-            label="Overbooking Issues"
-            value={result.sections.overbooking === "not_configured" ? "N/A" : String(s.overbookingIssueCount)}
-            tone={s.overbookingIssueCount ? "warning" : "ready"}
-            subtext={result.sections.overbooking === "not_configured" ? "Not configured" : s.overbookingIssueCount ? `${s.overbookingIssueCount} short capacity` : "Within limits"}
-            onClick={() => {
-              setActiveTab("overbooking");
-              setCategory("overbooking");
-            }}
-          />
-        </div>
-      </div>
+      )}
 
       {/* 2. SUB-NAVIGATION TABS & SEARCH COMMAND BAR */}
       <div className="space-y-3">
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card p-1 shadow-2xs">
-            <TabButton
-              active={activeTab === "triage"}
-              onClick={() => setActiveTab("triage")}
-              icon={<ShieldAlert className="size-3.5" />}
-              label="Action Triage"
-              count={totalActionItems}
-              badgeTone={s.blockerCount > 0 ? "red" : s.warningCount > 0 ? "amber" : "neutral"}
-            />
-            <TabButton
-              active={activeTab === "arrivals"}
-              onClick={() => setActiveTab("arrivals")}
-              icon={<CalendarCheck className="size-3.5" />}
-              label="Arrivals"
-              count={result.arrivals.length}
-              badgeTone={s.unresolvedArrivalCount > 0 ? "red" : "neutral"}
-            />
-            <TabButton
-              active={activeTab === "departures"}
-              onClick={() => setActiveTab("departures")}
-              icon={<LogOut className="size-3.5" />}
-              label="Departures"
-              count={result.departures.length}
-              badgeTone={s.overstayCount > 0 ? "red" : "neutral"}
-            />
-            <TabButton
-              active={activeTab === "rooms"}
-              onClick={() => setActiveTab("rooms")}
-              icon={<BedDouble className="size-3.5" />}
-              label="Rooms"
-              count={result.rooms.length}
-              badgeTone={s.roomConflictCount > 0 ? "red" : "neutral"}
-            />
-            <TabButton
-              active={activeTab === "housekeeping"}
-              onClick={() => setActiveTab("housekeeping")}
-              icon={<Sparkles className="size-3.5" />}
-              label="Housekeeping"
-              count={result.housekeeping.length}
-            />
-            <TabButton
-              active={activeTab === "overbooking"}
-              onClick={() => setActiveTab("overbooking")}
-              icon={<Layers className="size-3.5" />}
-              label="Overbooking"
-              count={result.overbooking.length}
-              badgeTone={s.overbookingIssueCount > 0 ? "amber" : "neutral"}
-            />
-            <TabButton
-              active={activeTab === "distribution"}
-              onClick={() => setActiveTab("distribution")}
-              icon={<Globe className="size-3.5" />}
-              label="Distribution"
-              count={result.distribution.length}
-            />
-            <TabButton
-              active={activeTab === "revenue"}
-              onClick={() => setActiveTab("revenue")}
-              icon={<Coins className="size-3.5" />}
-              label="Revenue"
-              count={result.revenueReadiness.length}
-            />
-            <TabButton
-              active={activeTab === "services"}
-              onClick={() => setActiveTab("services")}
-              icon={<Utensils className="size-3.5" />}
-              label="Services"
-              count={result.serviceOperations.rows.length}
-            />
+            {(
+              allowedTabs ?? [
+                "triage",
+                "arrivals",
+                "departures",
+                "rooms",
+                "housekeeping",
+                "revenue",
+                "overbooking",
+                "distribution",
+                "services",
+              ]
+            ).map((t) => {
+              if (t === "triage") {
+                return (
+                  <TabButton
+                    key="triage"
+                    active={activeTab === "triage"}
+                    onClick={() => setActiveTab("triage")}
+                    icon={<ShieldAlert className="size-3.5" />}
+                    label="Action Triage"
+                    count={totalActionItems}
+                    badgeTone={
+                      s.blockerCount > 0 ? "red" : s.warningCount > 0 ? "amber" : "neutral"
+                    }
+                  />
+                );
+              }
+              if (t === "arrivals") {
+                return (
+                  <TabButton
+                    key="arrivals"
+                    active={activeTab === "arrivals"}
+                    onClick={() => setActiveTab("arrivals")}
+                    icon={<CalendarCheck className="size-3.5" />}
+                    label="Arrivals"
+                    count={result.arrivals.length}
+                    badgeTone={s.unresolvedArrivalCount > 0 ? "red" : "neutral"}
+                  />
+                );
+              }
+              if (t === "departures") {
+                return (
+                  <TabButton
+                    key="departures"
+                    active={activeTab === "departures"}
+                    onClick={() => setActiveTab("departures")}
+                    icon={<LogOut className="size-3.5" />}
+                    label="Departures"
+                    count={result.departures.length}
+                    badgeTone={s.overstayCount > 0 ? "red" : "neutral"}
+                  />
+                );
+              }
+              if (t === "rooms") {
+                return (
+                  <TabButton
+                    key="rooms"
+                    active={activeTab === "rooms"}
+                    onClick={() => setActiveTab("rooms")}
+                    icon={<BedDouble className="size-3.5" />}
+                    label="Rooms"
+                    count={result.rooms.length}
+                    badgeTone={s.roomConflictCount > 0 ? "red" : "neutral"}
+                  />
+                );
+              }
+              if (t === "housekeeping") {
+                return (
+                  <TabButton
+                    key="housekeeping"
+                    active={activeTab === "housekeeping"}
+                    onClick={() => setActiveTab("housekeeping")}
+                    icon={<Sparkles className="size-3.5" />}
+                    label="Housekeeping"
+                    count={result.housekeeping.length}
+                  />
+                );
+              }
+              if (t === "revenue") {
+                return (
+                  <TabButton
+                    key="revenue"
+                    active={activeTab === "revenue"}
+                    onClick={() => setActiveTab("revenue")}
+                    icon={<Coins className="size-3.5" />}
+                    label="Revenue"
+                    count={result.revenueReadiness.length}
+                  />
+                );
+              }
+              if (t === "overbooking") {
+                return (
+                  <TabButton
+                    key="overbooking"
+                    active={activeTab === "overbooking"}
+                    onClick={() => setActiveTab("overbooking")}
+                    icon={<Layers className="size-3.5" />}
+                    label="Overbooking"
+                    count={result.overbooking.length}
+                    badgeTone={s.overbookingIssueCount > 0 ? "amber" : "neutral"}
+                  />
+                );
+              }
+              if (t === "distribution") {
+                return (
+                  <TabButton
+                    key="distribution"
+                    active={activeTab === "distribution"}
+                    onClick={() => setActiveTab("distribution")}
+                    icon={<Globe className="size-3.5" />}
+                    label="Distribution"
+                    count={result.distribution.length}
+                  />
+                );
+              }
+              if (t === "services") {
+                return (
+                  <TabButton
+                    key="services"
+                    active={activeTab === "services"}
+                    onClick={() => setActiveTab("services")}
+                    icon={<Utensils className="size-3.5" />}
+                    label="Services"
+                    count={result.serviceOperations.rows.length}
+                  />
+                );
+              }
+              return null;
+            })}
           </div>
 
           {/* Quick Filter & Search Bar */}
@@ -596,30 +1088,44 @@ export function NightAuditOperationalPanel({
               </SelectContent>
             </Select>
 
-            <div className="hidden sm:block">
-              <Select value={category} onValueChange={(val) => setCategory(val as typeof category)}>
-                <SelectTrigger
-                  aria-label="Category"
-                  data-testid="night-audit-operations-category"
-                  className="h-8.5 w-[150px] rounded-lg border border-input bg-card px-2.5 text-xs font-medium shadow-2xs hover:bg-muted/40 transition-colors focus:ring-1 focus:ring-primary"
+            {!allowedTabs || allowedTabs.length > 2 ? (
+              <div className="hidden sm:block">
+                <Select
+                  value={category}
+                  onValueChange={(val) => setCategory(val as typeof category)}
                 >
-                  <SelectValue placeholder="All categories" />
-                </SelectTrigger>
-                <SelectContent className="text-xs">
-                  <SelectItem value="all">All categories</SelectItem>
-                  {NIGHT_AUDIT_OPERATIONAL_CATEGORIES.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {CATEGORY_LABEL[item]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                  <SelectTrigger
+                    aria-label="Category"
+                    data-testid="night-audit-operations-category"
+                    className="h-8.5 w-[150px] rounded-lg border border-input bg-card px-2.5 text-xs font-medium shadow-2xs hover:bg-muted/40 transition-colors focus:ring-1 focus:ring-primary"
+                  >
+                    <SelectValue placeholder="All categories" />
+                  </SelectTrigger>
+                  <SelectContent className="text-xs">
+                    <SelectItem value="all">All categories</SelectItem>
+                    {NIGHT_AUDIT_OPERATIONAL_CATEGORIES.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {CATEGORY_LABEL[item]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <span
+                className="hidden"
+                aria-hidden="true"
+                data-testid="night-audit-operations-category"
+              />
+            )}
           </div>
         </div>
 
         {result.access !== "detail" ? (
-          <p className="rounded-xl border border-amber-200/70 bg-amber-50/70 px-3.5 py-2 text-xs text-amber-900" data-testid="night-audit-operations-redacted">
+          <p
+            className="rounded-xl border border-amber-200/70 bg-amber-50/70 px-3.5 py-2 text-xs text-amber-900"
+            data-testid="night-audit-operations-redacted"
+          >
             {operationalEmptyCopy(result.access === "rooms" ? "rooms" : "summary")}
           </p>
         ) : null}
@@ -630,8 +1136,12 @@ export function NightAuditOperationalPanel({
         <section className="rounded-2xl border border-border bg-card shadow-xs">
           <div className="flex flex-wrap items-center justify-between border-b border-border/70 px-4 py-3">
             <div>
-              <h3 className="font-display text-sm font-semibold text-foreground">Action Triage & Operational Blockers</h3>
-              <p className="text-xs text-muted-foreground">Prioritized operational issues requiring resolution before date close.</p>
+              <h3 className="font-display text-sm font-semibold text-foreground">
+                Action Triage & Operational Blockers
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Prioritized operational issues requiring resolution before date close.
+              </p>
             </div>
             {visibleIssues.length > 0 ? (
               <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
@@ -641,19 +1151,33 @@ export function NightAuditOperationalPanel({
           </div>
 
           {visibleIssues.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-muted-foreground">{operationalEmptyCopy("issues")}</p>
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+              {operationalEmptyCopy("issues")}
+            </p>
           ) : (
             <div className="divide-y divide-border">
               {issuePage.rows.map((row) => {
                 const meta = getDestinationMeta(row);
                 const DestinationIcon = meta.icon;
                 return (
-                  <div key={row.id} className="flex flex-col gap-3 p-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
+                  <div
+                    key={row.id}
+                    className="flex flex-col gap-3 p-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between"
+                  >
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold", badge(row.severity === "blocking" ? "blocker" : row.severity))}>
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold",
+                            badge(row.severity === "blocking" ? "blocker" : row.severity),
+                          )}
+                        >
                           {statusIcon(row.severity === "blocking" ? "blocker" : row.severity)}
-                          {row.severity === "blocking" ? "Hard Blocker" : row.severity === "warning" ? "Warning" : "Info"}
+                          {row.severity === "blocking"
+                            ? "Hard Blocker"
+                            : row.severity === "warning"
+                              ? "Warning"
+                              : "Info"}
                         </span>
                         <span className="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                           {CATEGORY_LABEL[row.category] ?? row.category}
@@ -693,16 +1217,11 @@ export function NightAuditOperationalPanel({
                         Inspect
                       </Button>
 
-                      {link(
-                        meta.actionText,
-                        row.route,
-                        row.search,
-                        {
-                          ...(row.confirmationNumber ? { q: row.confirmationNumber } : {}),
-                          ...(row.reservationId ? { reservationId: row.reservationId } : {}),
-                          ...(row.roomId ? { room: row.roomId } : {}),
-                        },
-                      )}
+                      {link(meta.actionText, row.route, row.search, {
+                        ...(row.confirmationNumber ? { q: row.confirmationNumber } : {}),
+                        ...(row.reservationId ? { reservationId: row.reservationId } : {}),
+                        ...(row.roomId ? { room: row.roomId } : {}),
+                      })}
                     </div>
                   </div>
                 );
@@ -720,23 +1239,94 @@ export function NightAuditOperationalPanel({
       )}
 
       {activeTab === "arrivals" && (
-        <Section title="Arrivals & No-Shows" state={result.sections.arrivals} count={filteredArrivals.length} totalCount={result.arrivals.length}>
+        <Section
+          title="Arrivals & No-Shows"
+          state={result.sections.arrivals}
+          count={filteredArrivals.length}
+          totalCount={result.arrivals.length}
+        >
           <SimpleTable
-            headers={["Reservation", "Unit", "Guest", "Room", "Room Type", "Due", "Source Status", "State", "Action"]}
-            rows={arrivalsPage.rows.map((row) => [
-              row.confirmationNumber,
-              row.unit ?? "—",
-              row.guest,
-              row.roomNumber ?? "Unassigned",
-              row.roomType ?? "—",
-              formatNa1Date(row.arrivalDate),
-              row.sourceStatus,
-              <Chip key="s" status={row.status} />,
-              link("Open Front Office", row.route, row.search, {
-                ...(row.confirmationNumber ? { q: row.confirmationNumber } : {}),
-                ...(row.reservationId ? { reservationId: row.reservationId } : {}),
-              }),
-            ])}
+            headers={[
+              "Reservation",
+              "Unit",
+              "Guest",
+              "Room",
+              "Room Type",
+              "Due",
+              "Status",
+              "Issue",
+              "Review State",
+              "Action",
+            ]}
+            onRowClick={(idx) => {
+              clearSelection();
+              setSelectedArrival(arrivalsPage.rows[idx] ?? null);
+            }}
+            selectedIndex={
+              selectedArrival
+                ? arrivalsPage.rows.findIndex((r) => r.id === selectedArrival.id)
+                : undefined
+            }
+            rows={arrivalsPage.rows.map((row) => {
+              const matchedEx = findWarningException(row);
+              return [
+                row.confirmationNumber,
+                row.unit ?? "—",
+                row.guest,
+                row.roomNumber ?? "Unassigned",
+                row.roomType ?? "—",
+                formatNa1Date(row.arrivalDate),
+                <Chip key="s" status={row.status} />,
+                <span
+                  key="issue"
+                  className="text-xs text-foreground max-w-[220px] truncate block"
+                  title={row.issue || "Arrival due today"}
+                >
+                  {row.issue || "Arrival due today"}
+                </span>,
+                renderReviewCell(row.status, matchedEx),
+                <div
+                  key="act"
+                  className="flex items-center gap-1.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {row.status === "warning" &&
+                  matchedEx &&
+                  !matchedEx.warningReview &&
+                  !runClosed &&
+                  onReviewWarning ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+                      onClick={() => {
+                        if (matchedEx) setReviewTarget(matchedEx);
+                      }}
+                    >
+                      Mark Reviewed
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 gap-1 px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={() => {
+                      clearSelection();
+                      setSelectedArrival(row);
+                    }}
+                  >
+                    <Eye className="size-3" />
+                    View
+                  </Button>
+                  {link("Open Front Office", row.route, row.search, {
+                    ...(row.confirmationNumber ? { q: row.confirmationNumber } : {}),
+                    ...(row.reservationId ? { reservationId: row.reservationId } : {}),
+                  })}
+                </div>,
+              ];
+            })}
             empty={
               result.access === "detail"
                 ? "No unresolved arrivals for this business date."
@@ -750,29 +1340,101 @@ export function NightAuditOperationalPanel({
             onPageChange={setPage}
           />
           <p className="border-t border-border/50 px-4 py-2.5 text-xs text-muted-foreground">
-            No-show is never automatic. There is no persisted pending no-show workflow, so no no-show rows are shown.
+            No-show is never automatic. There is no persisted pending no-show workflow, so no
+            no-show rows are shown.
           </p>
         </Section>
       )}
 
       {activeTab === "departures" && (
-        <Section title="Departures & In-House" state={result.sections.departures} count={filteredDepartures.length} totalCount={result.departures.length}>
+        <Section
+          title="Departures & In-House"
+          state={result.sections.departures}
+          count={filteredDepartures.length}
+          totalCount={result.departures.length}
+        >
           <SimpleTable
-            headers={["Reservation", "Unit", "Guest", "Room", "Departure", "Late Checkout", "State", "Issue", "Action"]}
-            rows={departuresPage.rows.map((row) => [
-              row.confirmationNumber,
-              row.unit ?? "—",
-              row.guest,
-              row.roomNumber ?? "Unassigned",
-              formatNa1Date(row.departureDate),
-              row.lateCheckoutUntil ?? "—",
-              <Chip key="s" status={row.status} />,
-              row.issue,
-              link("Open Front Office", row.route, row.search, {
-                ...(row.confirmationNumber ? { q: row.confirmationNumber } : {}),
-                ...(row.reservationId ? { reservationId: row.reservationId } : {}),
-              }),
-            ])}
+            headers={[
+              "Reservation",
+              "Unit",
+              "Guest",
+              "Room",
+              "Departure",
+              "Late Checkout",
+              "Status",
+              "Issue",
+              "Review State",
+              "Action",
+            ]}
+            onRowClick={(idx) => {
+              clearSelection();
+              setSelectedDeparture(departuresPage.rows[idx] ?? null);
+            }}
+            selectedIndex={
+              selectedDeparture
+                ? departuresPage.rows.findIndex((r) => r.id === selectedDeparture.id)
+                : undefined
+            }
+            rows={departuresPage.rows.map((row) => {
+              const matchedEx = findWarningException(row);
+              return [
+                row.confirmationNumber,
+                row.unit ?? "—",
+                row.guest,
+                row.roomNumber ?? "Unassigned",
+                formatNa1Date(row.departureDate),
+                row.lateCheckoutUntil ?? "—",
+                <Chip key="s" status={row.status} />,
+                <span
+                  key="issue"
+                  className="text-xs text-foreground max-w-[220px] truncate block"
+                  title={row.issue}
+                >
+                  {row.issue}
+                </span>,
+                renderReviewCell(row.status, matchedEx),
+                <div
+                  key="act"
+                  className="flex items-center gap-1.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {row.status === "warning" &&
+                  matchedEx &&
+                  !matchedEx.warningReview &&
+                  !runClosed &&
+                  onReviewWarning ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+                      onClick={() => {
+                        if (matchedEx) setReviewTarget(matchedEx);
+                      }}
+                    >
+                      Mark Reviewed
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 gap-1 px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={() => {
+                      clearSelection();
+                      setSelectedDeparture(row);
+                    }}
+                  >
+                    <Eye className="size-3" />
+                    View
+                  </Button>
+                  {link("Open Front Office", row.route, row.search, {
+                    ...(row.confirmationNumber ? { q: row.confirmationNumber } : {}),
+                    ...(row.reservationId ? { reservationId: row.reservationId } : {}),
+                  })}
+                </div>,
+              ];
+            })}
             empty={
               result.access === "detail"
                 ? "No overstays or departures due today."
@@ -792,23 +1454,89 @@ export function NightAuditOperationalPanel({
       )}
 
       {activeTab === "rooms" && (
-        <Section title="Room Assignment & Occupancy" state={result.sections.rooms} count={filteredRooms.length} totalCount={result.rooms.length}>
+        <Section
+          title="Room Assignment & Occupancy"
+          state={result.sections.rooms}
+          count={filteredRooms.length}
+          totalCount={result.rooms.length}
+        >
           <SimpleTable
-            headers={["Room", "Room Type", "Occupied", "Operational", "Housekeeping", "Maintenance", "Sellable", "State", "Issue", "Action"]}
-            rows={roomsPage.rows.map((row) => [
-              row.roomNumber,
-              row.roomType ?? "—",
-              row.occupied ? `Yes (${row.occupants})` : "No",
-              row.operationalStatus,
-              row.housekeepingStatus,
-              row.maintenanceStatus ?? "—",
-              row.sellable == null ? "—" : row.sellable ? "Yes" : "No",
-              <Chip key="s" status={row.status} />,
-              row.issue,
-              link("Open owner module", row.route, row.search, {
-                ...(row.roomNumber ? { q: row.roomNumber } : {}),
-              }),
-            ])}
+            headers={[
+              "Room",
+              "Room Type",
+              "Occupied",
+              "Operational",
+              "Housekeeping",
+              "Status",
+              "Issue",
+              "Review State",
+              "Action",
+            ]}
+            onRowClick={(idx) => {
+              clearSelection();
+              setSelectedRoom(roomsPage.rows[idx] ?? null);
+            }}
+            selectedIndex={
+              selectedRoom ? roomsPage.rows.findIndex((r) => r.id === selectedRoom.id) : undefined
+            }
+            rows={roomsPage.rows.map((row) => {
+              const matchedEx = findWarningException(row);
+              return [
+                row.roomNumber,
+                row.roomType ?? "—",
+                row.occupied ? `Yes (${row.occupants})` : "No",
+                row.operationalStatus,
+                row.housekeepingStatus,
+                <Chip key="s" status={row.status} />,
+                <span
+                  key="issue"
+                  className="text-xs text-foreground max-w-[200px] truncate block"
+                  title={row.issue}
+                >
+                  {row.issue}
+                </span>,
+                renderReviewCell(row.status, matchedEx),
+                <div
+                  key="act"
+                  className="flex items-center gap-1.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {row.status === "warning" &&
+                  matchedEx &&
+                  !matchedEx.warningReview &&
+                  !runClosed &&
+                  onReviewWarning ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+                      onClick={() => {
+                        if (matchedEx) setReviewTarget(matchedEx);
+                      }}
+                    >
+                      Mark Reviewed
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 gap-1 px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={() => {
+                      clearSelection();
+                      setSelectedRoom(row);
+                    }}
+                  >
+                    <Eye className="size-3" />
+                    View
+                  </Button>
+                  {link("Open owner module", row.route, row.search, {
+                    ...(row.roomNumber ? { q: row.roomNumber } : {}),
+                  })}
+                </div>,
+              ];
+            })}
             empty="No room assignment or occupancy conflicts."
           />
           <TablePagination
@@ -819,7 +1547,10 @@ export function NightAuditOperationalPanel({
           />
           <IssueList
             issues={result.issues.filter(
-              (issue) => issue.category === "rooms" && !issue.roomId && rowFilter(issueStatus(issue), "rooms", issue.description),
+              (issue) =>
+                issue.category === "rooms" &&
+                !issue.roomId &&
+                rowFilter(issueStatus(issue), "rooms", issue.description),
             )}
             onSelect={setSelectedId}
           />
@@ -827,21 +1558,91 @@ export function NightAuditOperationalPanel({
       )}
 
       {activeTab === "housekeeping" && (
-        <Section title="Housekeeping & Room State" state={result.sections.housekeeping} count={filteredHousekeeping.length} totalCount={result.housekeeping.length}>
+        <Section
+          title="Housekeeping & Room State"
+          state={result.sections.housekeeping}
+          count={filteredHousekeeping.length}
+          totalCount={result.housekeeping.length}
+        >
           <SimpleTable
-            headers={["Room", "Room Type", "Occupied", "Housekeeping", "Readiness", "State", "Issue", "Action"]}
-            rows={housekeepingPage.rows.map((row) => [
-              row.roomNumber,
-              row.roomType ?? "—",
-              row.occupied ? "Yes" : "No",
-              row.housekeepingStatus,
-              row.readiness,
-              <Chip key="s" status={row.status} />,
-              row.issue,
-              link("Open Housekeeping", row.route, row.search, {
-                ...(row.roomNumber ? { q: row.roomNumber } : {}),
-              }),
-            ])}
+            headers={[
+              "Room",
+              "Room Type",
+              "Occupied",
+              "Housekeeping",
+              "Readiness",
+              "Status",
+              "Issue",
+              "Review State",
+              "Action",
+            ]}
+            onRowClick={(idx) => {
+              clearSelection();
+              setSelectedHousekeeping(housekeepingPage.rows[idx] ?? null);
+            }}
+            selectedIndex={
+              selectedHousekeeping
+                ? housekeepingPage.rows.findIndex((r) => r.id === selectedHousekeeping.id)
+                : undefined
+            }
+            rows={housekeepingPage.rows.map((row) => {
+              const matchedEx = findWarningException(row);
+              return [
+                row.roomNumber,
+                row.roomType ?? "—",
+                row.occupied ? "Yes" : "No",
+                row.housekeepingStatus,
+                row.readiness,
+                <Chip key="s" status={row.status} />,
+                <span
+                  key="issue"
+                  className="text-xs text-foreground max-w-[220px] truncate block"
+                  title={row.issue}
+                >
+                  {row.issue}
+                </span>,
+                renderReviewCell(row.status, matchedEx),
+                <div
+                  key="act"
+                  className="flex items-center gap-1.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {row.status === "warning" &&
+                  matchedEx &&
+                  !matchedEx.warningReview &&
+                  !runClosed &&
+                  onReviewWarning ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+                      onClick={() => {
+                        if (matchedEx) setReviewTarget(matchedEx);
+                      }}
+                    >
+                      Mark Reviewed
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 gap-1 px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={() => {
+                      clearSelection();
+                      setSelectedHousekeeping(row);
+                    }}
+                  >
+                    <Eye className="size-3" />
+                    View
+                  </Button>
+                  {link("Open Housekeeping", row.route, row.search, {
+                    ...(row.roomNumber ? { q: row.roomNumber } : {}),
+                  })}
+                </div>,
+              ];
+            })}
             empty="No housekeeping items need attention."
           />
           <TablePagination
@@ -854,24 +1655,97 @@ export function NightAuditOperationalPanel({
       )}
 
       {activeTab === "overbooking" && (
-        <Section title="Overbooking" state={result.sections.overbooking} count={filteredOverbooking.length} totalCount={result.overbooking.length}>
+        <Section
+          title="Overbooking"
+          state={result.sections.overbooking}
+          count={filteredOverbooking.length}
+          totalCount={result.overbooking.length}
+        >
           {result.sections.overbooking === "not_configured" ? (
-            <p className="p-4 text-sm text-muted-foreground">Overbooking is not configured for this property.</p>
+            <p className="p-4 text-sm text-muted-foreground">
+              Overbooking is not configured for this property.
+            </p>
           ) : (
             <>
               <SimpleTable
-                headers={["Date", "Room Type", "Capacity", "Effective Allowance", "Committed", "Excess", "Approval", "State", "Action"]}
-                rows={overbookingPage.rows.map((row) => [
-                  formatNa1Date(row.date),
-                  row.roomType,
-                  String(row.capacity),
-                  String(row.effectiveAllowance),
-                  String(row.committed),
-                  String(row.excess),
-                  row.approval === "approved" ? "Approved" : row.approval === "partial" ? `Partial (${row.approvedShortage})` : "None",
-                  <Chip key="s" status={row.status} />,
-                  link("Open Room & Inventory Overbooking", row.route, row.search),
-                ])}
+                headers={[
+                  "Date",
+                  "Room Type",
+                  "Capacity",
+                  "Allowance",
+                  "Committed",
+                  "Excess",
+                  "Status",
+                  "Issue",
+                  "Review State",
+                  "Action",
+                ]}
+                onRowClick={(idx) => {
+                  clearSelection();
+                  setSelectedOverbooking(overbookingPage.rows[idx] ?? null);
+                }}
+                selectedIndex={
+                  selectedOverbooking
+                    ? overbookingPage.rows.findIndex((r) => r.id === selectedOverbooking.id)
+                    : undefined
+                }
+                rows={overbookingPage.rows.map((row) => {
+                  const matchedEx = findWarningException({ category: "overbooking", id: row.id });
+                  return [
+                    formatNa1Date(row.date),
+                    row.roomType,
+                    String(row.capacity),
+                    String(row.effectiveAllowance),
+                    String(row.committed),
+                    String(row.excess),
+                    <Chip key="s" status={row.status} />,
+                    <span
+                      key="issue"
+                      className="text-xs text-foreground max-w-[200px] truncate block"
+                      title={`Overbooking ${row.approval}`}
+                    >
+                      Shortage: {row.excess} ({row.approval})
+                    </span>,
+                    renderReviewCell(row.status, matchedEx),
+                    <div
+                      key="act"
+                      className="flex items-center gap-1.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {row.status === "warning" &&
+                      matchedEx &&
+                      !matchedEx.warningReview &&
+                      !runClosed &&
+                      onReviewWarning ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+                          onClick={() => {
+                            if (matchedEx) setReviewTarget(matchedEx);
+                          }}
+                        >
+                          Mark Reviewed
+                        </Button>
+                      ) : null}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 gap-1 px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                        onClick={() => {
+                          clearSelection();
+                          setSelectedOverbooking(row);
+                        }}
+                      >
+                        <Eye className="size-3" />
+                        View
+                      </Button>
+                      {link("Open Room & Inventory Overbooking", row.route, row.search)}
+                    </div>,
+                  ];
+                })}
                 empty="No room type is short tonight or tomorrow."
               />
               <TablePagination
@@ -883,32 +1757,102 @@ export function NightAuditOperationalPanel({
             </>
           )}
           <p className="border-t border-border/50 px-4 py-2.5 text-xs text-muted-foreground">
-            Waitlist: {result.waitlist.state === "not_configured" ? "N/A" : `${result.waitlist.pendingCount} pending`}
-            {result.waitlist.anomalyCount > 0 ? ` · ${result.waitlist.anomalyCount} conversion anomaly(ies)` : ""}. Waitlist
-            never blocks close and does not consume inventory.
+            Waitlist:{" "}
+            {result.waitlist.state === "not_configured"
+              ? "N/A"
+              : `${result.waitlist.pendingCount} pending`}
+            {result.waitlist.anomalyCount > 0
+              ? ` · ${result.waitlist.anomalyCount} conversion anomaly(ies)`
+              : ""}
+            . Waitlist never blocks close and does not consume inventory.
           </p>
         </Section>
       )}
 
       {activeTab === "distribution" && (
-        <Section title="Distribution / Channels" state={result.sections.distribution} count={filteredDistribution.length} totalCount={result.distribution.length}>
+        <Section
+          title="Distribution / Channels"
+          state={result.sections.distribution}
+          count={filteredDistribution.length}
+          totalCount={result.distribution.length}
+        >
           {result.sections.distribution === "na" ? (
             <p className="p-4 text-sm text-muted-foreground">N/A — no channel connection.</p>
           ) : result.sections.distribution === "not_configured" ? (
-            <p className="p-4 text-sm text-muted-foreground">Distribution is not configured for this property.</p>
+            <p className="p-4 text-sm text-muted-foreground">
+              Distribution is not configured for this property.
+            </p>
           ) : result.sections.distribution === "unavailable" ? (
-            <p className="p-4 text-sm text-muted-foreground">Distribution status is unavailable. It never blocks close.</p>
+            <p className="p-4 text-sm text-muted-foreground">
+              Distribution status is unavailable. It never blocks close.
+            </p>
           ) : (
             <>
               <SimpleTable
-                headers={["Source", "Detail", "When", "State", "Action"]}
-                rows={distributionPage.rows.map((row) => [
-                  row.label,
-                  row.detail,
-                  row.occurredAt ?? "—",
-                  <Chip key="s" status={row.status} />,
-                  link("Open Distribution", row.route),
-                ])}
+                headers={["Source", "Detail", "When", "Status", "Issue", "Review State", "Action"]}
+                onRowClick={(idx) => {
+                  clearSelection();
+                  setSelectedDistribution(distributionPage.rows[idx] ?? null);
+                }}
+                selectedIndex={
+                  selectedDistribution
+                    ? distributionPage.rows.findIndex((r) => r.id === selectedDistribution.id)
+                    : undefined
+                }
+                rows={distributionPage.rows.map((row) => {
+                  const matchedEx = findWarningException({ category: "distribution", id: row.id });
+                  return [
+                    row.label,
+                    row.detail,
+                    row.occurredAt ?? "—",
+                    <Chip key="s" status={row.status} />,
+                    <span
+                      key="issue"
+                      className="text-xs text-foreground max-w-[200px] truncate block"
+                      title={row.detail}
+                    >
+                      {row.detail}
+                    </span>,
+                    renderReviewCell(row.status, matchedEx),
+                    <div
+                      key="act"
+                      className="flex items-center gap-1.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {row.status === "warning" &&
+                      matchedEx &&
+                      !matchedEx.warningReview &&
+                      !runClosed &&
+                      onReviewWarning ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+                          onClick={() => {
+                            if (matchedEx) setReviewTarget(matchedEx);
+                          }}
+                        >
+                          Mark Reviewed
+                        </Button>
+                      ) : null}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 gap-1 px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                        onClick={() => {
+                          clearSelection();
+                          setSelectedDistribution(row);
+                        }}
+                      >
+                        <Eye className="size-3" />
+                        View
+                      </Button>
+                      {link("Open Distribution", row.route)}
+                    </div>,
+                  ];
+                })}
                 empty="No known failures."
               />
               <TablePagination
@@ -923,17 +1867,85 @@ export function NightAuditOperationalPanel({
       )}
 
       {activeTab === "revenue" && (
-        <Section title="Revenue Readiness" state={result.sections.revenue} count={filteredRevenue.length} totalCount={result.revenueReadiness.length}>
+        <Section
+          title="Revenue Readiness"
+          state={result.sections.revenue}
+          count={filteredRevenue.length}
+          totalCount={result.revenueReadiness.length}
+        >
           <SimpleTable
-            headers={["Item", "Type", "Date", "Detail", "State", "Action"]}
-            rows={revenuePage.rows.map((row) => [
-              row.label,
-              row.kind === "approval" ? "Pending approval" : row.kind === "restriction" ? "Next-date restriction" : "Frozen nightly rate",
-              row.date ? formatNa1Date(row.date) : "—",
-              row.detail,
-              <Chip key="s" status={row.status} />,
-              link(row.kind === "snapshot" ? "Open Front Office" : "Open Rate & Revenue", row.route, row.search),
-            ])}
+            headers={["Item", "Type", "Date", "Status", "Issue", "Review State", "Action"]}
+            onRowClick={(idx) => {
+              clearSelection();
+              setSelectedRevenue(revenuePage.rows[idx] ?? null);
+            }}
+            selectedIndex={
+              selectedRevenue
+                ? revenuePage.rows.findIndex((r) => r.id === selectedRevenue.id)
+                : undefined
+            }
+            rows={revenuePage.rows.map((row) => {
+              const matchedEx = findWarningException({ category: "revenue", id: row.id });
+              return [
+                row.label,
+                row.kind === "approval"
+                  ? "Pending approval"
+                  : row.kind === "restriction"
+                    ? "Next-date restriction"
+                    : "Frozen nightly rate",
+                row.date ? formatNa1Date(row.date) : "—",
+                <Chip key="s" status={row.status} />,
+                <span
+                  key="issue"
+                  className="text-xs text-foreground max-w-[200px] truncate block"
+                  title={row.detail}
+                >
+                  {row.detail}
+                </span>,
+                renderReviewCell(row.status, matchedEx),
+                <div
+                  key="act"
+                  className="flex items-center gap-1.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {row.status === "warning" &&
+                  matchedEx &&
+                  !matchedEx.warningReview &&
+                  !runClosed &&
+                  onReviewWarning ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+                      onClick={() => {
+                        if (matchedEx) setReviewTarget(matchedEx);
+                      }}
+                    >
+                      Mark Reviewed
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 gap-1 px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={() => {
+                      clearSelection();
+                      setSelectedRevenue(row);
+                    }}
+                  >
+                    <Eye className="size-3" />
+                    View
+                  </Button>
+                  {link(
+                    row.kind === "snapshot" ? "Open Front Office" : "Open Rate & Revenue",
+                    row.route,
+                    row.search,
+                  )}
+                </div>,
+              ];
+            })}
             empty={
               result.sections.revenue === "not_configured"
                 ? "Rate & Revenue approvals are not configured."
@@ -950,21 +1962,92 @@ export function NightAuditOperationalPanel({
       )}
 
       {activeTab === "services" && (
-        <Section title="Service Operations" state={result.sections.services} count={filteredServices.length} totalCount={result.serviceOperations.rows.length}>
+        <Section
+          title="Service Operations"
+          state={result.sections.services}
+          count={filteredServices.length}
+          totalCount={result.serviceOperations.rows.length}
+        >
           {result.sections.services === "not_configured" ? (
-            <p className="p-4 text-sm text-muted-foreground">Service entitlements are not configured.</p>
+            <p className="p-4 text-sm text-muted-foreground">
+              Service entitlements are not configured.
+            </p>
           ) : (
             <>
               <SimpleTable
-                headers={["Room", "Service", "Kind", "Date", "Source Status", "State"]}
-                rows={servicesPage.rows.map((row) => [
-                  row.roomNumber || "—",
-                  row.service,
-                  row.kind,
-                  formatNa1Date(row.serviceDate),
-                  row.sourceStatus,
-                  <Chip key="s" status={row.status} />,
-                ])}
+                headers={[
+                  "Room",
+                  "Service",
+                  "Kind",
+                  "Date",
+                  "Status",
+                  "Issue",
+                  "Review State",
+                  "Action",
+                ]}
+                onRowClick={(idx) => {
+                  clearSelection();
+                  setSelectedService(servicesPage.rows[idx] ?? null);
+                }}
+                selectedIndex={
+                  selectedService
+                    ? servicesPage.rows.findIndex((r) => r.id === selectedService.id)
+                    : undefined
+                }
+                rows={servicesPage.rows.map((row) => {
+                  const matchedEx = findWarningException({ category: "services", id: row.id });
+                  return [
+                    row.roomNumber || "—",
+                    row.service,
+                    row.kind,
+                    formatNa1Date(row.serviceDate),
+                    <Chip key="s" status={row.status} />,
+                    <span
+                      key="issue"
+                      className="text-xs text-foreground max-w-[200px] truncate block"
+                      title={row.sourceStatus}
+                    >
+                      Source: {row.sourceStatus}
+                    </span>,
+                    renderReviewCell(row.status, matchedEx),
+                    <div
+                      key="act"
+                      className="flex items-center gap-1.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {row.status === "warning" &&
+                      matchedEx &&
+                      !matchedEx.warningReview &&
+                      !runClosed &&
+                      onReviewWarning ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+                          onClick={() => {
+                            if (matchedEx) setReviewTarget(matchedEx);
+                          }}
+                        >
+                          Mark Reviewed
+                        </Button>
+                      ) : null}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 gap-1 px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                        onClick={() => {
+                          clearSelection();
+                          setSelectedService(row);
+                        }}
+                      >
+                        <Eye className="size-3" />
+                        View
+                      </Button>
+                    </div>,
+                  ];
+                })}
                 empty={
                   result.access === "detail"
                     ? "No pending service entitlements for this business date."
@@ -980,58 +2063,203 @@ export function NightAuditOperationalPanel({
             </>
           )}
           <p className="border-t border-border/50 px-4 py-2.5 text-xs text-muted-foreground">
-            Services never block close. Missing service charges are not inferred — there is no canonical service-to-charge link.
+            Services never block close. Missing service charges are not inferred — there is no
+            canonical service-to-charge link.
           </p>
         </Section>
       )}
 
       {/* DETAIL INSPECTION DRAWER */}
-      <Sheet open={Boolean(selected)} onOpenChange={(open) => !open && setSelectedId(null)}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md" data-testid="night-audit-operations-detail">
+      <Sheet open={Boolean(selected)} onOpenChange={(open) => !open && clearSelection()}>
+        <SheetContent
+          side="right"
+          className="w-full overflow-y-auto sm:max-w-md"
+          data-testid="night-audit-operations-detail"
+        >
           {selected ? (
-            <>
+            <div className="space-y-4">
               <SheetHeader>
-                <SheetTitle>{selected.title}</SheetTitle>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide",
+                      selected.severity === "blocking"
+                        ? "border-red-200/80 bg-red-50 text-red-800"
+                        : selected.severity === "warning"
+                          ? "border-amber-200/80 bg-amber-50 text-amber-900"
+                          : "border-blue-200/80 bg-blue-50 text-blue-900",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "size-1.5 rounded-full",
+                        selected.severity === "blocking"
+                          ? "bg-red-500"
+                          : selected.severity === "warning"
+                            ? "bg-amber-500"
+                            : "bg-blue-500",
+                      )}
+                    />
+                    {selected.severity === "blocking"
+                      ? "Blocker"
+                      : selected.severity === "warning"
+                        ? "Warning"
+                        : "Info"}
+                  </span>
+                  {selected.sourceStatus ? (
+                    <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                      {selected.sourceStatus}
+                    </span>
+                  ) : null}
+                </div>
+                <SheetTitle className="mt-2 text-base font-semibold">{selected.title}</SheetTitle>
               </SheetHeader>
-              <dl className="mt-4 space-y-3 text-sm">
-                <Field label="Severity" value={statusLabel(issueStatus(selected))} />
-                <Field label="Issue" value={selected.description} />
-                <Field
-                  label="Reservation / room / guest"
-                  value={[selected.confirmationNumber, selected.roomNumber ? `Room ${selected.roomNumber}` : null, selected.guestName]
-                    .filter(Boolean)
-                    .join(" · ") || "—"}
-                />
-                <Field label="Audit date" value={formatNa1Date(result.businessDate)} />
-                <Field label="Detected" value={selected.dueDate ? formatNa1Date(selected.dueDate) : formatNa1Date(result.businessDate)} />
-                <Field label="Source status" value={selected.sourceStatus ?? "—"} />
-                <Field label="Owner module" value={selected.ownerModule} />
-                <Field label="Recommended action" value={selected.recommendedAction} />
-                <Field label="Last checked" value={result.checkedAt} />
-              </dl>
-              <Button asChild className="mt-4 w-full" variant="outline">
-                <Link
-                  to={selected.route as never}
-                  search={
-                    ({
-                      ...(selected.search as Record<string, unknown> ?? {}),
-                      ...(selected.confirmationNumber ? { q: selected.confirmationNumber } : {}),
-                      ...(selected.reservationId ? { reservationId: selected.reservationId } : {}),
-                      ...(selected.roomId ? { room: selected.roomId } : {}),
-                      returnTo: "/restaurant/pms/night-audit?tab=operations",
-                      returnToLabel: "Return to Night Audit",
-                    }) as never
-                  }
-                  className="gap-1.5"
-                >
-                  <span>Open {selected.ownerModule}</span>
-                  <ExternalLink className="size-3.5" />
-                </Link>
-              </Button>
-            </>
+
+              {(() => {
+                const destMeta = getDestinationMeta(selected);
+                const DestIcon = destMeta.icon;
+                const matchedEx = findWarningException(selected);
+                return (
+                  <>
+                    <div className="rounded-xl border border-border/70 bg-card p-4 shadow-2xs space-y-2.5">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        {selected.description}
+                      </p>
+                      <div className="flex items-center gap-2 pt-0.5">
+                        <span className="inline-flex items-center gap-1.5 rounded-md bg-stone-100 dark:bg-stone-800 px-2.5 py-1 text-xs font-medium text-stone-700 dark:text-stone-300">
+                          <DestIcon className="size-3.5 text-primary" />
+                          <span>{destMeta.destination}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <dl className="grid grid-cols-2 gap-2.5 text-xs">
+                      <Field label="Severity" value={statusLabel(issueStatus(selected))} />
+                      <Field
+                        label="Reservation / room / guest"
+                        value={
+                          [
+                            selected.confirmationNumber,
+                            selected.roomNumber ? `Room ${selected.roomNumber}` : null,
+                            selected.guestName,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "—"
+                        }
+                      />
+                      <Field label="Audit date" value={formatNa1Date(result.businessDate)} />
+                      <Field
+                        label="Detected"
+                        value={
+                          selected.dueDate
+                            ? formatNa1Date(selected.dueDate)
+                            : formatNa1Date(result.businessDate)
+                        }
+                      />
+                      <Field label="Source status" value={selected.sourceStatus ?? "—"} />
+                      <Field label="Owner module" value={selected.ownerModule} />
+                      <Field label="Recommended action" value={selected.recommendedAction} />
+                      <Field label="Last checked" value={result.checkedAt} />
+                    </dl>
+
+                    {selected.severity === "warning" ? (
+                      matchedEx?.warningReview ? (
+                        <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-3 text-xs text-emerald-950 space-y-1">
+                          <div className="flex items-center gap-1.5 font-semibold text-emerald-900">
+                            <CheckCircle2 className="size-3.5 text-emerald-600" />
+                            Warning Acknowledged & Reviewed
+                          </div>
+                          <p className="text-[11px] text-emerald-900/90">
+                            Reviewed by{" "}
+                            <strong>{matchedEx.warningReview.reviewerName ?? "Auditor"}</strong>
+                            {matchedEx.warningReview.reviewedAt
+                              ? ` on ${dateTime(matchedEx.warningReview.reviewedAt)}`
+                              : ""}
+                          </p>
+                          {matchedEx.warningReview.reviewNote ? (
+                            <p className="text-[11px] italic text-emerald-800">
+                              Note: &quot;{matchedEx.warningReview.reviewNote}&quot;
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-950">
+                          <div>
+                            <p className="font-semibold text-amber-900">Warning Review Required</p>
+                            <p className="text-[11px] text-amber-900/80">
+                              Can proceed to close with auditor sign-off.
+                            </p>
+                          </div>
+                          {matchedEx && !runClosed && onReviewWarning ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-7.5 px-3 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B38728]"
+                              onClick={() => setReviewTarget(matchedEx)}
+                            >
+                              Mark Reviewed
+                            </Button>
+                          ) : null}
+                        </div>
+                      )
+                    ) : null}
+
+                    {selected.severity === "blocking" ? (
+                      <div className="flex items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-950">
+                        <AlertTriangle className="size-4 shrink-0 text-amber-600 mt-0.5" />
+                        <p>
+                          Blockers clear automatically once resolved in{" "}
+                          <strong className="font-semibold">{selected.ownerModule}</strong> and
+                          Night Audit is rechecked.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    <div className="pt-2">
+                      <Button asChild className="h-9 w-full gap-2 font-semibold shadow-xs">
+                        <Link
+                          to={selected.route as never}
+                          search={
+                            {
+                              ...((selected.search as Record<string, unknown>) ?? {}),
+                              ...(selected.confirmationNumber
+                                ? { q: selected.confirmationNumber }
+                                : {}),
+                              ...(selected.reservationId
+                                ? { reservationId: selected.reservationId }
+                                : {}),
+                              ...(selected.roomId ? { room: selected.roomId } : {}),
+                              returnTo: "/restaurant/pms/night-audit?tab=operations",
+                              returnToLabel: "Return to Night Audit",
+                            } as never
+                          }
+                        >
+                          <DestIcon className="size-4" />
+                          <span>Open {selected.ownerModule}</span>
+                          <ArrowRight className="size-4" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
           ) : null}
         </SheetContent>
       </Sheet>
+
+      {reviewTarget ? (
+        <ReviewWarningDialog
+          open={Boolean(reviewTarget)}
+          onOpenChange={(open) => !open && setReviewTarget(null)}
+          row={reviewTarget}
+          busy={Boolean(reviewingWarning)}
+          onConfirm={(note) => {
+            onReviewWarning?.(reviewTarget.id, note);
+            setReviewTarget(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1057,7 +2285,11 @@ function IssueList({
     <ul className="mt-3 space-y-2 border-t border-border/60 p-4">
       {issues.slice(0, NIGHT_AUDIT_PAGE_SIZE).map((issue) => (
         <li key={issue.id} className="rounded-lg border border-border px-3 py-2 text-xs">
-          <button type="button" className="font-medium text-[#251605] dark:text-stone-200 hover:underline" onClick={() => onSelect(issue.id)}>
+          <button
+            type="button"
+            className="font-medium text-[#251605] dark:text-stone-200 hover:underline"
+            onClick={() => onSelect(issue.id)}
+          >
             {issue.title}
           </button>
           <span className="ml-2">
@@ -1097,20 +2329,31 @@ function Kpi({
       }}
       className={cn(
         "rounded-xl border border-border/70 bg-card p-3 shadow-2xs transition-all",
-        isClickable && "cursor-pointer hover:border-primary/40 hover:bg-muted/30 focus:outline-hidden",
+        isClickable &&
+          "cursor-pointer hover:border-primary/40 hover:bg-muted/30 focus:outline-hidden",
       )}
       data-testid="night-audit-operations-status"
     >
-      <p className="text-[10px] font-semibold tracking-wide uppercase text-muted-foreground">{label}</p>
+      <p className="text-[10px] font-semibold tracking-wide uppercase text-muted-foreground">
+        {label}
+      </p>
       <p
         className={cn(
           "mt-1 font-display text-lg font-bold",
-          tone === "blocked" ? "text-red-700" : tone === "warning" ? "text-amber-800" : tone === "ready" ? "text-emerald-700" : "text-foreground",
+          tone === "blocked"
+            ? "text-red-700"
+            : tone === "warning"
+              ? "text-amber-800"
+              : tone === "ready"
+                ? "text-emerald-700"
+                : "text-foreground",
         )}
       >
         {value}
       </p>
-      {subtext ? <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{subtext}</p> : null}
+      {subtext ? (
+        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{subtext}</p>
+      ) : null}
     </div>
   );
 }
@@ -1248,11 +2491,17 @@ function TablePagination({
   return (
     <div className="flex flex-wrap items-center justify-between border-t border-border/70 px-4 py-2.5 text-xs text-muted-foreground">
       <span>
-        Showing <span className="font-semibold text-foreground">{start}–{end}</span> of <span className="font-semibold text-foreground">{total}</span> records
+        Showing{" "}
+        <span className="font-semibold text-foreground">
+          {start}–{end}
+        </span>{" "}
+        of <span className="font-semibold text-foreground">{total}</span> records
       </span>
       {pages > 1 ? (
         <div className="flex items-center gap-2">
-          <span>Page {page} of {pages}</span>
+          <span>
+            Page {page} of {pages}
+          </span>
           <div className="flex gap-1.5">
             <Button
               type="button"
@@ -1285,10 +2534,14 @@ function SimpleTable({
   headers,
   rows,
   empty,
+  onRowClick,
+  selectedIndex,
 }: {
   headers: string[];
   rows: Array<Array<string | ReactNode>>;
   empty: string;
+  onRowClick?: (index: number) => void;
+  selectedIndex?: number;
 }) {
   if (rows.length === 0) return <p className="p-4 text-xs text-muted-foreground">{empty}</p>;
   return (
@@ -1304,15 +2557,26 @@ function SimpleTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
-          {rows.map((row, index) => (
-            <tr key={index} className="transition-colors hover:bg-muted/20">
-              {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="px-3 py-2.5 align-middle">
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {rows.map((row, index) => {
+            const isSelected = selectedIndex === index;
+            return (
+              <tr
+                key={index}
+                className={cn(
+                  "transition-colors hover:bg-muted/30",
+                  onRowClick && "cursor-pointer",
+                  isSelected && "bg-primary/5 ring-1 ring-inset ring-primary/20",
+                )}
+                onClick={() => onRowClick?.(index)}
+              >
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex} className="px-3 py-2.5 align-middle">
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

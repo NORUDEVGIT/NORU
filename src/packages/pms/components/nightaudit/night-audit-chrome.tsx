@@ -36,13 +36,43 @@ export function NightAuditChrome({
     >
       <div className="min-w-0 bg-[#F7F4EE]" data-testid="night-audit-desk">
         <header className="border-b border-border bg-background" data-testid="night-audit-desk-header">
-          <div className="px-5 pt-4 sm:px-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              {NIGHT_AUDIT_DESK_EYEBROW}
-            </p>
-            <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
-              {NIGHT_AUDIT_DESK_TITLE}
-            </h1>
+          <div className="flex flex-wrap items-center justify-between gap-4 px-5 pt-4 sm:px-6">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                {NIGHT_AUDIT_DESK_EYEBROW}
+              </p>
+              <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
+                {NIGHT_AUDIT_DESK_TITLE}
+              </h1>
+            </div>
+
+            {/* Primary mode switcher: Current Audit vs History */}
+            <div className="flex items-center rounded-xl border border-border bg-muted/40 p-1 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => onNavigate("control")}
+                className={cn(
+                  "rounded-lg px-4 py-1.5 transition-all cursor-pointer",
+                  active !== "history"
+                    ? "bg-[#251605] text-[#F7F4EE] shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Current Audit
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate("history")}
+                className={cn(
+                  "rounded-lg px-4 py-1.5 transition-all cursor-pointer",
+                  active === "history"
+                    ? "bg-[#251605] text-[#F7F4EE] shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                History
+              </button>
+            </div>
           </div>
           <nav
             data-testid="night-audit-workspace-nav"
@@ -57,8 +87,8 @@ export function NightAuditChrome({
                 onClick={() => onNavigate(item.id)}
                 aria-current={active === item.id ? "page" : undefined}
                 className={cn(
-                  "relative flex h-11 min-h-11 shrink-0 items-center px-3 text-xs font-medium transition-colors",
-                  active === item.id ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                  "relative flex h-9 min-h-9 shrink-0 items-center px-3 text-xs font-medium transition-colors cursor-pointer",
+                  active === item.id ? "text-foreground font-semibold" : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <span>{item.label}</span>

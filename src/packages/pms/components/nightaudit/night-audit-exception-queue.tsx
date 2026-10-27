@@ -42,6 +42,7 @@ import {
   filterExceptions,
   FISCAL_OVERRIDE_REASON_CATEGORIES,
   isFiscalOverrideableException,
+  warningReviewCounts,
   type ExceptionFilter,
 } from "@/packages/pms/lib/night-audit-workflow";
 import type { AuditException } from "@/packages/pms/lib/nightaudit.functions";
@@ -147,6 +148,8 @@ export function NightAuditExceptionQueue({
   role,
   authorizingFiscalOverride,
   onAuthorizeFiscalOverride,
+  onReviewWarning,
+  reviewingWarning,
 }: {
   exceptions: AuditException[];
   businessDate: string;
@@ -162,14 +165,18 @@ export function NightAuditExceptionQueue({
     reason: string,
     reasonCategory?: (typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number],
   ) => void;
+  onReviewWarning?: (exceptionId: string, note?: string) => void;
+  reviewingWarning?: boolean;
 }) {
   const [filter, setFilter] = useState<ExceptionFilter>(() => exceptionFilterForFocus(focus));
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<AuditException | null>(null);
   useEffect(() => setFilter(exceptionFilterForFocus(focus)), [focus]);
   useEffect(() => setPage(1), [filter, moduleSearch]);
 
   const counts = exceptionCounts(exceptions);
+  const reviewCounts = warningReviewCounts(exceptions);
   const rows = useMemo(
     () => filterExceptions(exceptions, { ...filter, search: `${filter.search} ${moduleSearch}`.trim() }),
     [exceptions, filter, moduleSearch],
@@ -212,7 +219,11 @@ export function NightAuditExceptionQueue({
           label="Warnings"
           value={counts.warnings}
           tone={counts.warnings > 0 ? "amber" : "green"}
-          subtext={counts.warnings > 0 ? "Review before sign-off" : "No open warnings"}
+          subtext={
+            counts.warnings > 0
+              ? `${reviewCounts.reviewedWarnings} reviewed · ${reviewCounts.unreviewedWarnings} unreviewed`
+              : "No open warnings"
+          }
           icon={<AlertTriangle className="size-4" />}
           active={filter.severity === "warning" && filter.status === "open"}
           onClick={() => {
@@ -339,6 +350,23 @@ export function NightAuditExceptionQueue({
             </SelectContent>
           </Select>
 
+          <Select
+            value={filter.reviewState ?? "all"}
+            onValueChange={(val) => set({ reviewState: val as ExceptionFilter["reviewState"] })}
+          >
+            <SelectTrigger
+              aria-label="Review State"
+              className="h-8.5 w-[145px] rounded-lg border border-input bg-card px-2.5 text-xs font-medium shadow-2xs hover:bg-muted/40 transition-colors focus:ring-1 focus:ring-primary"
+            >
+              <SelectValue placeholder="All reviews" />
+            </SelectTrigger>
+            <SelectContent className="text-xs">
+              <SelectItem value="all">All review states</SelectItem>
+              <SelectItem value="unreviewed">Unreviewed</SelectItem>
+              <SelectItem value="reviewed">Reviewed</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Button
             type="button"
             size="sm"
@@ -390,7 +418,8 @@ export function NightAuditExceptionQueue({
                   <th className="px-3.5 py-2.5 font-medium">Opened</th>
                   <th className="px-3.5 py-2.5 font-medium">Last checked</th>
                   <th className="px-3.5 py-2.5 font-medium">Resolved at</th>
-                  <th className="px-3.5 py-2.5 text-right font-medium" />
+                  <th className="px-3.5 py-2.5 font-medium">Review State</th>
+                  <th className="px-3.5 py-2.5 text-right font-medium">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
@@ -398,6 +427,7 @@ export function NightAuditExceptionQueue({
                   const meta = exceptionMeta(row.exceptionType);
                   const destMeta = getExceptionDestinationMeta(row, businessDate);
                   const DestIcon = destMeta.icon;
+                  const source = getExceptionSource(row, businessDate);
                   return (
                     <tr
                       key={row.id}
@@ -467,20 +497,56 @@ export function NightAuditExceptionQueue({
                       <td className="px-3.5 py-3 whitespace-nowrap text-muted-foreground align-middle">
                         {row.resolvedAt ? dateTime(row.resolvedAt) : "—"}
                       </td>
+                      <td className="px-3.5 py-3 align-middle">
+                        {row.warningReview ? (
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/80 rounded-full px-2 py-0.5">
+                              <CheckCircle2 className="size-3 text-emerald-600" />
+                              REVIEWED
+                            </span>
+                            <p className="text-[10px] text-muted-foreground truncate max-w-[130px]">
+                              {row.warningReview.reviewerName ?? "Auditor"} · {dateTime(row.warningReview.reviewedAt)}
+                            </p>
+                          </div>
+                        ) : row.severity === "warning" && row.status === "open" ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-900 bg-amber-50 border border-amber-200/80 rounded-full px-2 py-0.5">
+                            <Clock className="size-3 text-amber-600" />
+                            UNREVIEWED
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </td>
                       <td className="px-3.5 py-3 text-right align-middle">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="h-7.5 gap-1 px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedId(row.id);
-                          }}
-                        >
-                          <Eye className="size-3" />
-                          View
-                        </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {row.severity === "warning" && row.status === "open" && !row.warningReview && !runClosed && onReviewWarning ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReviewTarget(row);
+                              }}
+                            >
+                              Mark Reviewed
+                            </Button>
+                          ) : null}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7.5 gap-1 px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedId(row.id);
+                            }}
+                          >
+                            <Eye className="size-3" />
+                            View
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -541,14 +607,29 @@ export function NightAuditExceptionQueue({
               role={role}
               authorizingFiscalOverride={authorizingFiscalOverride}
               onAuthorizeFiscalOverride={onAuthorizeFiscalOverride}
+              onReviewClick={(row) => setReviewTarget(row)}
             />
           ) : null}
         </SheetContent>
       </Sheet>
+
+      {reviewTarget ? (
+        <ReviewWarningDialog
+          open={Boolean(reviewTarget)}
+          onOpenChange={(open) => !open && setReviewTarget(null)}
+          row={reviewTarget}
+          busy={Boolean(reviewingWarning)}
+          onConfirm={(note) => {
+            onReviewWarning?.(reviewTarget.id, note);
+            setReviewTarget(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getExceptionDestinationMeta(
   row: AuditException,
   businessDate: string,
@@ -787,6 +868,7 @@ export function getExceptionDestinationMeta(
   };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getExceptionSource(
   row: AuditException,
   businessDate: string,
@@ -1031,7 +1113,7 @@ export function getExceptionSource(
   };
 }
 
-function ExceptionDetail({
+export function ExceptionDetail({
   row,
   businessDate,
   checkedAt,
@@ -1039,6 +1121,7 @@ function ExceptionDetail({
   role,
   authorizingFiscalOverride,
   onAuthorizeFiscalOverride,
+  onReviewClick,
 }: {
   row: AuditException;
   businessDate: string;
@@ -1051,6 +1134,7 @@ function ExceptionDetail({
     reason: string,
     reasonCategory?: (typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number],
   ) => void;
+  onReviewClick?: (row: AuditException) => void;
 }) {
   const meta = exceptionMeta(row.exceptionType);
   const source = getExceptionSource(row, businessDate);
@@ -1143,6 +1227,44 @@ function ExceptionDetail({
           <p className="mt-1">Fiscal status remains {row.fiscalOverride.fiscalStatus}.</p>
           <p className="mt-1">Authorized by {row.fiscalOverride.overriddenBy ?? "—"} · {dateTime(row.fiscalOverride.overriddenAt)}</p>
           <p className="mt-1">Reason: {row.fiscalOverride.reason}</p>
+        </section>
+      ) : null}
+      {row.warningReview ? (
+        <section className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-xs space-y-1.5" data-testid="night-audit-warning-review-detail">
+          <div className="flex items-center gap-1.5 font-semibold text-emerald-950">
+            <CheckCircle2 className="size-4 text-emerald-600" />
+            <span>WARNING · REVIEWED</span>
+          </div>
+          <p className="text-emerald-900">
+            Reviewed by <strong>{row.warningReview.reviewerName ?? "Auditor"}</strong> · {dateTime(row.warningReview.reviewedAt)}
+          </p>
+          {row.warningReview.reviewNote ? (
+            <p className="text-emerald-950/90 bg-emerald-100/50 rounded-md p-2">
+              Note: {row.warningReview.reviewNote}
+            </p>
+          ) : (
+            <p className="mt-0.5 text-[11px] text-muted-foreground">No review note attached.</p>
+          )}
+        </section>
+      ) : row.severity === "warning" && row.status === "open" ? (
+        <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs space-y-2" data-testid="night-audit-warning-unreviewed-detail">
+          <div className="flex items-center gap-1.5 font-semibold text-amber-950">
+            <Clock className="size-4 text-amber-600" />
+            <span>WARNING · UNREVIEWED</span>
+          </div>
+          <p className="text-amber-900 leading-relaxed">
+            This warning condition does not block close, but requires auditor review before final sign-off.
+          </p>
+          {onReviewClick ? (
+            <Button
+              type="button"
+              size="sm"
+              className="bg-[#C89933] text-[#251605] hover:bg-[#B38728] font-semibold text-xs"
+              onClick={() => onReviewClick(row)}
+            >
+              Mark Reviewed
+            </Button>
+          ) : null}
         </section>
       ) : null}
       {canAuthorizeFiscalOverride(role, row) ? (
@@ -1244,5 +1366,94 @@ function Field({ label, value }: { label: string; value: string }) {
       <dt className="text-[10px] font-semibold tracking-wide uppercase text-muted-foreground">{label}</dt>
       <dd className="mt-1 font-medium text-foreground text-xs">{value}</dd>
     </div>
+  );
+}
+
+export function ReviewWarningDialog({
+  open,
+  onOpenChange,
+  row,
+  exception,
+  busy,
+  isSubmitting,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  row?: AuditException | null;
+  exception?: AuditException | null;
+  busy?: boolean;
+  isSubmitting?: boolean;
+  onConfirm: (note?: string) => void;
+}) {
+  const [note, setNote] = useState("");
+  const targetRow = row ?? exception;
+  const isBusy = Boolean(busy || isSubmitting);
+
+  useEffect(() => {
+    if (!open) {
+      setNote("");
+    }
+  }, [open]);
+
+  if (!targetRow) return null;
+
+  const meta = exceptionMeta(targetRow.exceptionType);
+
+  const handleConfirm = (e?: React.SyntheticEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const trimmed = note.trim();
+    onConfirm(trimmed.length > 0 ? trimmed : undefined);
+    onOpenChange(false);
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent data-testid="night-audit-review-warning-dialog" className="sm:max-w-md">
+        <form onSubmit={handleConfirm}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-base">Acknowledge Audit Warning</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Mark this warning as reviewed for the active business date close. The underlying source condition remains unchanged in its owner module.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="mt-3 space-y-3 text-xs">
+            <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-3">
+              <p className="font-semibold text-amber-950">{meta.title}</p>
+              <p className="mt-0.5 text-amber-900/90">{targetRow.message}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Source: {meta.ownerModule}</p>
+            </div>
+            <div>
+              <label htmlFor="warning-review-note" className="block text-xs font-semibold text-foreground">
+                Optional note <span className="font-normal text-muted-foreground">(e.g. supervisor notified)</span>
+              </label>
+              <textarea
+                id="warning-review-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                maxLength={500}
+                placeholder="Add an optional explanation or context…"
+                className="mt-1.5 w-full rounded-lg border border-input bg-background p-2.5 text-xs shadow-2xs focus:ring-1 focus:ring-primary"
+                rows={3}
+              />
+            </div>
+          </div>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel disabled={isBusy} type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isBusy}
+              type="button"
+              onClick={handleConfirm}
+              className="bg-[#C89933] text-[#251605] hover:bg-[#B38728] font-semibold text-xs"
+            >
+              {isBusy ? "Saving…" : "Mark Reviewed"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </form>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

@@ -6,6 +6,7 @@
  * summaries stored at close. Nothing here recalculates financial or
  * operational reconciliation, and nothing here writes.
  */
+import { localDateInZone } from "../../../shared/lib/property-time.ts";
 import { nextBusinessDate } from "./na1.ts";
 import { canViewNightAuditFinancialDetail } from "./night-audit-financial.ts";
 import {
@@ -281,6 +282,31 @@ export function isFiscalOverrideableException(
   );
 }
 
+export type WarningReview = {
+  id: string;
+  exceptionId: string;
+  reviewedBy: string | null;
+  /** Display name for the same reviewer. */
+  reviewerName?: string | null;
+  reviewedByMembershipId: string;
+  reviewedAt: string;
+  reviewNote: string | null;
+  /** Null while this review is the active one acknowledging the warning. */
+  invalidatedAt: string | null;
+  invalidatedReason: string | null;
+};
+
+/** True only while this exact warning review acknowledges the warning without being invalidated. */
+export function isActiveWarningReview(review: { invalidatedAt?: string | null }): boolean {
+  return !review.invalidatedAt;
+}
+
+export function isReviewableWarning(
+  row: Pick<WorkflowException, "severity" | "status">,
+): boolean {
+  return row.severity === "warning" && row.status === "open";
+}
+
 export type WorkflowException = {
   id: string;
   exceptionType: string;
@@ -295,6 +321,10 @@ export type WorkflowException = {
   fiscalOverride?: FiscalOverride | null;
   /** Every override event ever authorized for this exact exception row, oldest first. History only. */
   fiscalOverrideHistory?: FiscalOverride[];
+  /** The currently ACTIVE warning review, if any. Null once invalidated or never reviewed. */
+  warningReview?: WarningReview | null;
+  /** Every review event ever authorized for this exact warning row. History only. */
+  warningReviewHistory?: WarningReview[];
 };
 
 export type ExceptionFilter = {
@@ -303,6 +333,7 @@ export type ExceptionFilter = {
   domain: "all" | ExceptionDomain;
   category: "all" | ExceptionCategory;
   search: string;
+  reviewState?: "all" | "unreviewed" | "reviewed";
 };
 
 export const DEFAULT_EXCEPTION_FILTER: ExceptionFilter = {
@@ -311,12 +342,17 @@ export const DEFAULT_EXCEPTION_FILTER: ExceptionFilter = {
   domain: "all",
   category: "all",
   search: "",
+  reviewState: "all",
 };
 
 /** Entry filter for a Control Center or Run & Close link into Exceptions. */
 export function exceptionFilterForFocus(focus: string | undefined): ExceptionFilter {
   if (focus === "blockers") return { ...DEFAULT_EXCEPTION_FILTER, severity: "blocking" };
   if (focus === "warnings") return { ...DEFAULT_EXCEPTION_FILTER, severity: "warning" };
+  if (focus === "unreviewed")
+    return { ...DEFAULT_EXCEPTION_FILTER, severity: "warning", reviewState: "unreviewed" };
+  if (focus === "reviewed")
+    return { ...DEFAULT_EXCEPTION_FILTER, severity: "warning", reviewState: "reviewed" };
   if (focus === "financial" || focus === "operations")
     return { ...DEFAULT_EXCEPTION_FILTER, domain: focus };
   return DEFAULT_EXCEPTION_FILTER;
@@ -334,6 +370,12 @@ export function filterExceptions<T extends WorkflowException>(
       const meta = exceptionMeta(row.exceptionType);
       if (filter.domain !== "all" && meta.domain !== filter.domain) return false;
       if (filter.category !== "all" && meta.category !== filter.category) return false;
+      if (filter.reviewState && filter.reviewState !== "all") {
+        const isReviewed = row.warningReview != null && isActiveWarningReview(row.warningReview);
+        if (filter.reviewState === "reviewed" && !isReviewed) return false;
+        if (filter.reviewState === "unreviewed" && (row.severity !== "warning" || isReviewed))
+          return false;
+      }
       if (!needle) return true;
       return `${meta.title} ${meta.categoryLabel} ${row.message} ${row.referenceId ?? ""}`
         .toLowerCase()
@@ -363,6 +405,62 @@ export function exceptionCounts(rows: readonly WorkflowException[]): {
     resolved: rows.filter((row) => row.status === "resolved").length,
     fiscalOverrides: open.filter((row) => row.fiscalOverride != null).length,
   };
+}
+
+export function warningReviewCounts(rows: readonly WorkflowException[]): {
+  reviewedWarnings: number;
+  unreviewedWarnings: number;
+} {
+  const open = rows.filter((row) => row.status === "open");
+  const warnings = open.filter((row) => row.severity === "warning");
+  const reviewedWarnings = warnings.filter(
+    (row) => row.warningReview != null && isActiveWarningReview(row.warningReview),
+  ).length;
+  const unreviewedWarnings = warnings.length - reviewedWarnings;
+  return { reviewedWarnings, unreviewedWarnings };
+}
+
+/** Property-local calendar date for a review instant. */
+export function reviewCalendarDate(reviewedAt: string, timezone: string): string | null {
+  const parsed = new Date(reviewedAt);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return localDateInZone(timezone, parsed);
+}
+
+/**
+ * Reviewed warnings for the Review step.
+ * Today is the business date or the property's current calendar date.
+ * All time is every active review on this run, with no date cut.
+ */
+export function filterReviewedWarnings<
+  T extends {
+    severity: string;
+    status: string;
+    warningReview?: WarningReview | null;
+  },
+>(
+  rows: readonly T[],
+  filter: "today" | "all",
+  businessDate: string,
+  timezone: string,
+  now: Date = new Date(),
+): T[] {
+  const reviewed = rows.filter(
+    (row) =>
+      row.severity === "warning" &&
+      row.status === "open" &&
+      row.warningReview != null &&
+      isActiveWarningReview(row.warningReview),
+  );
+  if (filter === "all") return reviewed;
+  const auditDate = businessDate.slice(0, 10);
+  const today = localDateInZone(timezone, now);
+  return reviewed.filter((row) => {
+    const reviewedAt = row.warningReview?.reviewedAt;
+    if (!reviewedAt) return false;
+    const reviewedDate = reviewCalendarDate(reviewedAt, timezone);
+    return reviewedDate === auditDate || reviewedDate === today;
+  });
 }
 
 /** Hard blockers never take a manual status. Owner modules fix the source. */
@@ -447,12 +545,13 @@ export type CloseGateInput = {
   phone?: boolean;
   /** Night Audit Window for this caller. Omitted while the run loads. */
   window?: { allowsClose: boolean; message: string } | null;
+  unreviewedWarnings?: number;
 };
 
 export type CloseGate = { enabled: boolean; reason: string };
 
 /**
- * The Close Business Date button. Warnings never hold it. The server repeats
+ * The Close Business Date button. Warnings never hold it once reviewed. The server repeats
  * every check before close_business_date, so this only avoids a doomed click.
  */
 export function closeGate(input: CloseGateInput): CloseGate {
@@ -482,6 +581,10 @@ export function closeGate(input: CloseGateInput): CloseGate {
   if (input.overall === "unavailable")
     return hold("A required Night Audit check is unavailable. Close stays blocked.");
   if (input.overall === "blocked") return hold("Blockers are still open.");
+  if (input.unreviewedWarnings != null && input.unreviewedWarnings > 0)
+    return hold(
+      `${input.unreviewedWarnings} warning${input.unreviewedWarnings === 1 ? "" : "s"} must be reviewed before closing.`,
+    );
   if (!input.rechecked) return hold("Run Final Recheck before closing.");
   return {
     enabled: true,

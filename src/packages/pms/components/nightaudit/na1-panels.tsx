@@ -101,6 +101,7 @@ export function NaClosePanel({
   overallStatus = null,
   openBlockingExceptions = 0,
   warningCount = 0,
+  unreviewedWarnings = 0,
   runStatus = "open",
   rechecked = false,
   rechecking = false,
@@ -126,6 +127,7 @@ export function NaClosePanel({
   overallStatus?: NightAuditOverallStatus | null;
   openBlockingExceptions?: number;
   warningCount?: number;
+  unreviewedWarnings?: number;
   runStatus?: "open" | "ready" | "closed" | "failed" | "superseded";
   rechecked?: boolean;
   rechecking?: boolean;
@@ -148,6 +150,7 @@ export function NaClosePanel({
     runStatus: closed ? "closed" : runStatus,
     rechecked,
     phone,
+    unreviewedWarnings,
   });
   const showConfirm = !phone && canConfirmNightAudit(role) && !closed;
   const receptionist = role === "receptionist";

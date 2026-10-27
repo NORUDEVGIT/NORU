@@ -11,6 +11,8 @@ import {
   financialAllowsClose,
   financialEmptyCopy,
   financialIssuesToExceptions,
+  financialWarningIdentity,
+  matchFinancialWarningException,
   fiscalHandlerEnabled,
   matchesFinancialFilter,
   presentNightAuditFinancials,
@@ -327,6 +329,32 @@ describe("company and group accounts", () => {
     }));
     assert.equal(result.issues.some((row) => row.code === "transfer_unbalanced" && row.severity === "blocking"), true);
     assert.equal(result.accounts[0]?.status, "blocker");
+  });
+
+  it("reviews one financial warning without matching the other rows of the same kind", () => {
+    const first = "11111111-1111-4111-8111-111111111111";
+    const second = "22222222-2222-4222-8222-222222222222";
+    const exceptions = [
+      { id: "ex-1", exceptionType: "unallocated_guest_payment", severity: "warning", status: "open", referenceId: first },
+      { id: "ex-2", exceptionType: "unallocated_guest_payment", severity: "warning", status: "open", referenceId: second },
+    ];
+    assert.equal(matchFinancialWarningException(exceptions, { code: "unallocated_guest_payment", referenceId: second })?.id, "ex-2");
+    assert.equal(matchFinancialWarningException(exceptions, { code: "unallocated_guest_payment", referenceId: first })?.id, "ex-1");
+    const tax = financialWarningIdentity("tax_snapshot_mismatch", "2026-10-25:ETB:tax");
+    const service = financialWarningIdentity("service_snapshot_mismatch", "2026-10-25:ETB:service");
+    assert.equal(tax.exceptionType, "tax_snapshot_mismatch:2026-10-25:ETB:tax");
+    assert.equal(tax.referenceId, null);
+    assert.notEqual(tax.exceptionType, service.exceptionType);
+    assert.equal(
+      matchFinancialWarningException(
+        [
+          { id: "tax", exceptionType: tax.exceptionType, severity: "warning", status: "open", referenceId: null },
+          { id: "service", exceptionType: service.exceptionType, severity: "warning", status: "open", referenceId: null },
+        ],
+        { code: "service_snapshot_mismatch", referenceId: "2026-10-25:ETB:service" },
+      )?.id,
+      "service",
+    );
   });
 
   it("accepts a guest folio and company transfer that cancel", () => {

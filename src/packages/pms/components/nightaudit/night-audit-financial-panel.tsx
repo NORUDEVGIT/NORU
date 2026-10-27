@@ -7,6 +7,7 @@ import {
   BedDouble,
   Building2,
   CheckCircle2,
+  Clock,
   Coins,
   ExternalLink,
   Eye,
@@ -27,6 +28,7 @@ import {
 
 import {
   financialEmptyCopy,
+  matchFinancialWarningException,
   matchesFinancialFilter,
   NIGHT_AUDIT_FINANCIAL_CATEGORIES,
   type NightAuditFinancialCategory,
@@ -43,6 +45,24 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/shared/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
+import {
+  FISCAL_OVERRIDE_REASON_CATEGORIES,
+  exceptionMeta,
+  isFiscalOverrideableException,
+} from "@/packages/pms/lib/night-audit-workflow";
+import type { AuditException } from "@/packages/pms/lib/nightaudit.functions";
+import { ReviewWarningDialog } from "@/packages/pms/components/nightaudit/night-audit-exception-queue";
+import { formatNa1Date } from "@/packages/pms/lib/na1";
 import { cn } from "@/shared/lib/utils";
 
 export type FinancialSubTab =
@@ -208,12 +228,36 @@ export function NightAuditFinancialPanel({
   result,
   focus,
   onRefresh,
+  hideHero,
+  exceptions = [],
+  role = "",
+  businessDate,
+  authorizingFiscalOverride = false,
+  onAuthorizeFiscalOverride,
+  onReviewWarning,
+  reviewingWarning = false,
+  dateTime = (iso: string) => iso.replace("T", " ").slice(0, 16),
+  runClosed = false,
 }: {
   loading: boolean;
   error: string | null;
   result: NightAuditFinancialReconciliation | null;
   focus?: string | undefined;
   onRefresh: () => void;
+  hideHero?: boolean;
+  exceptions?: AuditException[];
+  role?: string;
+  businessDate?: string;
+  authorizingFiscalOverride?: boolean;
+  onAuthorizeFiscalOverride?: (
+    exceptionId: string,
+    reason: string,
+    reasonCategory?: (typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number],
+  ) => void;
+  onReviewWarning?: (exceptionId: string, note?: string) => Promise<boolean | void> | boolean | void;
+  reviewingWarning?: boolean;
+  dateTime?: (iso: string) => string;
+  runClosed?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<FinancialSubTab>("triage");
   const [severity, setSeverity] = useState<"all" | NightAuditRowStatus>("all");
@@ -221,6 +265,109 @@ export function NightAuditFinancialPanel({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedFiscalId, setSelectedFiscalId] = useState<string | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<AuditException | null>(null);
+  const [acknowledged, setAcknowledged] = useState<
+    Record<string, NonNullable<AuditException["warningReview"]>>
+  >({});
+  const [overrideTarget, setOverrideTarget] = useState<{
+    exceptionId: string;
+    referenceId: string;
+    fiscalStatus: string;
+    message: string;
+  } | null>(null);
+  const [overrideReason, setOverrideReason] = useState("");
+  const [overrideCategory, setOverrideCategory] = useState<(typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number] | "">("");
+
+  const findWarningException = (row: {
+    id?: string;
+    code?: string;
+    referenceId?: string | null;
+    category?: string;
+    issue?: string;
+    description?: string;
+  }): AuditException | undefined => {
+    if (!result) return undefined;
+    if (row.code && row.referenceId) {
+      const issue = result.issues.find(
+        (item) =>
+          item.severity === "warning" &&
+          item.code === row.code &&
+          item.referenceId === row.referenceId,
+      );
+      return issue ? matchFinancialWarningException(exceptions, issue) : undefined;
+    }
+    if (!row.id) return undefined;
+    const description = row.description ?? row.issue;
+    const candidates = result.issues.filter((item) => {
+      if (item.severity !== "warning" || item.referenceId !== row.id) return false;
+      if (row.category && item.category !== row.category) return false;
+      if (description && item.description !== description) return false;
+      return true;
+    });
+    if (candidates.length !== 1) return undefined;
+    return matchFinancialWarningException(exceptions, candidates[0]);
+  };
+
+  const shownReview = (matched?: AuditException) =>
+    matched?.warningReview ?? (matched ? acknowledged[matched.id] : undefined);
+
+  const renderReviewCell = (status: NightAuditRowStatus | string, matchedEx?: AuditException) => {
+    if (status !== "warning") {
+      return <span key="rev" className="text-muted-foreground text-xs">—</span>;
+    }
+    const review = shownReview(matchedEx);
+    if (review) {
+      return (
+        <div key="rev" className="space-y-0.5">
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/80 rounded-full px-2 py-0.5">
+            <CheckCircle2 className="size-3 text-emerald-600" />
+            REVIEWED
+          </span>
+          <p className="text-[10px] text-muted-foreground truncate max-w-[130px]">
+            {review.reviewerName ?? review.reviewedBy ?? "Auditor"}
+            {review.reviewedAt ? ` · ${dateTime(review.reviewedAt)}` : ""}
+          </p>
+        </div>
+      );
+    }
+    return (
+      <span key="rev" className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-900 bg-amber-50 border border-amber-200/80 rounded-full px-2 py-0.5">
+        <Clock className="size-3 text-amber-600" />
+        UNREVIEWED
+      </span>
+    );
+  };
+
+  const entityReview = (
+    row: { id: string; issue: string; status: string },
+    category: NightAuditFinancialCategory,
+  ) => {
+    if (row.status !== "warning") return null;
+    const matched = findWarningException({ id: row.id, issue: row.issue, category });
+    if (!matched) return renderReviewCell("warning");
+    return (
+      <div className="flex flex-col items-start gap-1">
+        {renderReviewCell("warning", matched)}
+        {!shownReview(matched) && !runClosed && onReviewWarning ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+            onClick={() => setReviewTarget(matched)}
+          >
+            Mark Reviewed
+          </Button>
+        ) : null}
+      </div>
+    );
+  };
+
+  const selectedFiscal = useMemo(() => {
+    if (!selectedFiscalId || !result?.fiscal) return null;
+    return result.fiscal.find((row) => row.id === selectedFiscalId) ?? null;
+  }, [selectedFiscalId, result?.fiscal]);
 
   // Sync initial focus to relevant sub-tab and filter
   useEffect(() => {
@@ -426,7 +573,8 @@ export function NightAuditFinancialPanel({
   return (
     <div className="space-y-5" data-testid="night-audit-financial">
       {/* 1. FINANCIAL HEALTH & LEDGER INTEGRITY RIBBON */}
-      <div className="rounded-2xl border border-border/70 bg-gradient-to-r from-card via-card to-muted/20 p-4 shadow-sm sm:p-5">
+      {!hideHero && (
+        <div className="rounded-2xl border border-border/70 bg-gradient-to-r from-card via-card to-muted/20 p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3.5">
             <div
@@ -538,6 +686,7 @@ export function NightAuditFinancialPanel({
           />
         </div>
       </div>
+      )}
 
       {/* 2. SUB-NAVIGATION TABS & SEARCH COMMAND BAR */}
       <div className="space-y-3">
@@ -700,68 +849,82 @@ export function NightAuditFinancialPanel({
               {issuePage.rows.map((row) => {
                 const meta = getDestinationMeta(row);
                 const DestinationIcon = meta.icon;
+                const matchedEx = findWarningException(row);
                 return (
-                  <div key={row.id} className="flex flex-col gap-3 p-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold", badge(row.severity === "blocking" ? "blocker" : row.severity))}>
-                          {statusIcon(row.severity === "blocking" ? "blocker" : row.severity)}
-                          {row.severity === "blocking" ? "Hard Blocker" : row.severity === "warning" ? "Warning" : "Info"}
-                        </span>
-                        <span className="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                          {CATEGORY_LABEL[row.category] ?? row.category}
-                        </span>
-                        <span className="inline-flex items-center gap-1 rounded-md bg-stone-100 dark:bg-stone-800 px-2 py-0.5 text-[11px] font-medium text-stone-700 dark:text-stone-300">
-                          <DestinationIcon className="size-3 text-primary" />
-                          <span>{meta.destination}</span>
-                        </span>
-                        {row.amount != null ? (
-                          <span className="rounded-md bg-stone-100 px-2 py-0.5 text-xs font-mono font-medium text-stone-800 dark:bg-stone-800 dark:text-stone-200">
-                            {money(row.amount, row.currency ?? null, Boolean(restricted))}
+                    <div key={row.id} className="flex flex-col gap-3 p-4 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold", badge(row.severity === "blocking" ? "blocker" : row.severity))}>
+                            {statusIcon(row.severity === "blocking" ? "blocker" : row.severity)}
+                            {row.severity === "blocking" ? "Hard Blocker" : row.severity === "warning" ? "Warning" : "Info"}
                           </span>
+                          <span className="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            {CATEGORY_LABEL[row.category] ?? row.category}
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-md bg-stone-100 dark:bg-stone-800 px-2 py-0.5 text-[11px] font-medium text-stone-700 dark:text-stone-300">
+                            <DestinationIcon className="size-3 text-primary" />
+                            <span>{meta.destination}</span>
+                          </span>
+                          {row.amount != null ? (
+                            <span className="rounded-md bg-stone-100 px-2 py-0.5 text-xs font-mono font-medium text-stone-800 dark:bg-stone-800 dark:text-stone-200">
+                              {money(row.amount, row.currency ?? null, Boolean(restricted))}
+                            </span>
+                          ) : null}
+                          {row.severity === "warning" ? renderReviewCell("warning", matchedEx) : null}
+                        </div>
+
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedId(row.id)}
+                            className="text-left font-display text-sm font-semibold text-foreground hover:underline"
+                          >
+                            {row.title}
+                          </button>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{row.description}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2 sm:self-center">
+                        {row.severity === "warning" && matchedEx && !shownReview(matchedEx) && !runClosed && onReviewWarning ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2.5 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+                            onClick={() => setReviewTarget(matchedEx)}
+                          >
+                            Mark Reviewed
+                          </Button>
                         ) : null}
-                      </div>
 
-                      <div>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setSelectedId(row.id)}
-                          className="text-left font-display text-sm font-semibold text-foreground hover:underline"
+                          className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground"
                         >
-                          {row.title}
-                        </button>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{row.description}</p>
+                          <Eye className="size-3.5" />
+                          Inspect
+                        </Button>
+
+                        <Link
+                          to={row.route as never}
+                          search={
+                            ({
+                              ...(row.search as Record<string, unknown> ?? {}),
+                              returnTo: "/restaurant/pms/night-audit?tab=financial",
+                              returnToLabel: "Return to Night Audit",
+                            }) as never
+                          }
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-2xs hover:bg-primary/90 transition-all"
+                        >
+                          <span>{meta.actionText}</span>
+                          <ArrowRight className="size-3" />
+                        </Link>
                       </div>
                     </div>
-
-                    <div className="flex shrink-0 items-center gap-2 sm:self-center">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedId(row.id)}
-                        className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        <Eye className="size-3.5" />
-                        Inspect
-                      </Button>
-
-                      <Link
-                        to={row.route as never}
-                        search={
-                          ({
-                            ...(row.search as Record<string, unknown> ?? {}),
-                            returnTo: "/restaurant/pms/night-audit?tab=financial",
-                            returnToLabel: "Return to Night Audit",
-                          }) as never
-                        }
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-2xs hover:bg-primary/90 transition-all"
-                      >
-                        <span>{meta.actionText}</span>
-                        <ArrowRight className="size-3" />
-                      </Link>
-                    </div>
-                  </div>
                 );
               })}
             </div>
@@ -797,9 +960,12 @@ export function NightAuditFinancialPanel({
               <StatusBadge status={row.status} />,
               <span className="text-muted-foreground">{row.issue || "—"}</span>,
               row.action ? (
-                <DirectLink label={row.action} route={row.route} search={row.search} />
+                <div className="flex flex-col items-start gap-1">
+                  <DirectLink label={row.action} route={row.route} search={row.search} />
+                  {entityReview(row, "guest_folios")}
+                </div>
               ) : (
-                "—"
+                entityReview(row, "guest_folios") ?? "—"
               ),
             ])}
             empty="No guest folios match your criteria in this reconciliation."
@@ -847,7 +1013,10 @@ export function NightAuditFinancialPanel({
               </span>,
               <StatusBadge status={row.status} />,
               <span className="text-muted-foreground">{row.issue || "Settled"}</span>,
-              <DirectLink label={row.action || "Open Invoices"} route={row.route} search={row.search} />,
+              <div className="flex flex-col items-start gap-1">
+                <DirectLink label={row.action || "Open Invoices"} route={row.route} search={row.search} />
+                {entityReview(row, "invoices")}
+              </div>,
             ])}
             empty="No issued guest invoices in this reconciliation."
           />
@@ -881,7 +1050,10 @@ export function NightAuditFinancialPanel({
               row.targetInvoice ?? "—",
               <StatusBadge status={row.status} />,
               <span className="text-muted-foreground">{row.issue || "Fully reconciled"}</span>,
-              <DirectLink label={row.action || "Search Cashiering"} route={row.route} search={row.search} />,
+              <div className="flex flex-col items-start gap-1">
+                <DirectLink label={row.action || "Search Cashiering"} route={row.route} search={row.search} />
+                {entityReview(row, "payments_deposits")}
+              </div>,
             ])}
             empty="No guest payments or deposits in this reconciliation."
           />
@@ -917,7 +1089,10 @@ export function NightAuditFinancialPanel({
                   </span>,
                   <StatusBadge status={row.status} />,
                   <span className="text-muted-foreground">{row.issue || "Balanced"}</span>,
-                  <DirectLink label={row.action || "Open Account"} route={row.route} search={row.search} />,
+                  <div className="flex flex-col items-start gap-1">
+                    <DirectLink label={row.action || "Open Account"} route={row.route} search={row.search} />
+                    {entityReview(row, "accounts")}
+                  </div>,
                 ])}
                 empty={financialEmptyCopy("accounts")}
               />
@@ -957,11 +1132,14 @@ export function NightAuditFinancialPanel({
                   <span className={cn("rounded px-2 py-0.5 text-xs font-semibold capitalize", row.state === "open" ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800")}>
                     {row.state}
                   </span>,
-                  row.action ? (
-                    <DirectLink label={row.action} route={row.route} search={row.search} />
-                  ) : (
-                    "—"
-                  ),
+                  <div className="flex flex-col items-start gap-1">
+                    {row.action ? (
+                      <DirectLink label={row.action} route={row.route} search={row.search} />
+                    ) : (
+                      <span>—</span>
+                    )}
+                    {entityReview(row, "drawers")}
+                  </div>,
                 ])}
                 empty={financialEmptyCopy("drawers")}
               />
@@ -986,23 +1164,178 @@ export function NightAuditFinancialPanel({
           {result.fiscalConfigured ? (
             <>
               <SimpleTable
-                headers={["Document", "Type", "Issued", "Fiscal Status", "External Reference", "Mode", "Audit Note", "Night Audit Override", "Action"]}
-                rows={fiscalPage.rows.map((row) => [
-                  <span className="font-mono font-semibold">{row.document}</span>,
-                  row.type,
-                  row.issuedAt ? row.issuedAt.slice(0, 10) : "—",
-                  <span className="font-mono text-xs">{row.fiscalStatus}</span>,
-                  row.externalReference ?? "—",
-                  row.mode ?? "—",
-                  <span className="text-muted-foreground">{row.issue || "Compliant"}</span>,
-                  row.nightAuditOverride ? (
-                    <span className="text-xs text-amber-900">
-                      Authorized · {row.nightAuditOverride.overriddenBy ?? "—"}<br />
-                      {row.nightAuditOverride.reason}
-                    </span>
-                  ) : "—",
-                  <DirectLink label={row.action || "Open Fiscal"} route={row.route} search={row.search} />,
-                ])}
+                headers={[
+                  "Severity",
+                  "Document",
+                  "Issue",
+                  "Source",
+                  "Status",
+                  "Review State",
+                  "Night Audit Override",
+                  "Action",
+                ]}
+                rows={fiscalPage.rows.map((row) => {
+                  const fiscalReview = findWarningException({ id: row.id, issue: row.issue, category: "fiscal" });
+                  const matchingException = exceptions?.find(
+                    (ex) =>
+                      (ex.id === row.id || ex.referenceId === row.id || (ex.message && row.document && ex.message.includes(row.document))) &&
+                      (ex.exceptionType.startsWith("fiscal_") || ex.exceptionType.includes("fiscal")),
+                  );
+                  const isOverridden = Boolean(row.nightAuditOverride || matchingException?.fiscalOverride);
+                  const overrideInfo = row.nightAuditOverride ?? (matchingException?.fiscalOverride ? {
+                    reason: matchingException.fiscalOverride.reason,
+                    reasonCategory: matchingException.fiscalOverride.reasonCategory,
+                    overriddenBy: matchingException.fiscalOverride.overriddenBy,
+                    overriddenAt: matchingException.fiscalOverride.overriddenAt,
+                  } : null);
+
+                  const isEligibleToOverride =
+                    (role === "owner" || role === "manager") &&
+                    !isOverridden &&
+                    Boolean(
+                      (matchingException && isFiscalOverrideableException(matchingException)) ||
+                      (row.status === "blocker" && row.fiscalStatus !== "REGISTERED" && row.fiscalStatus !== "CANCELLED" && row.fiscalStatus !== "UNRECOGNIZED")
+                    );
+
+                  const destMeta = getDestinationMeta({
+                    code: "fiscal_document",
+                    category: "fiscal",
+                    referenceId: row.id,
+                    route: row.route,
+                    search: row.search,
+                  });
+                  const DestIcon = destMeta.icon;
+
+                  return [
+                    <span
+                      key="sev"
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide",
+                        isOverridden
+                          ? "border-amber-200/80 bg-amber-50 text-amber-900"
+                          : row.status === "blocker"
+                            ? "border-red-200/80 bg-red-50 text-red-800"
+                            : row.status === "warning"
+                              ? "border-amber-200/80 bg-amber-50 text-amber-900"
+                              : "border-emerald-200/80 bg-emerald-50 text-emerald-900",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "size-1.5 rounded-full",
+                          isOverridden
+                            ? "bg-amber-500"
+                            : row.status === "blocker"
+                              ? "bg-red-500"
+                              : row.status === "warning"
+                                ? "bg-amber-500"
+                                : "bg-emerald-500",
+                        )}
+                      />
+                      {isOverridden ? "Fiscal override" : row.status === "blocker" ? "Blocker" : row.status === "warning" ? "Warning" : "Compliant"}
+                    </span>,
+
+                    <div key="doc" className="space-y-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-semibold text-foreground">{row.document}</span>
+                        <span className="inline-flex rounded-md bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 text-[10px] font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wide">
+                          {row.type}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">{row.issuedAt ? row.issuedAt.slice(0, 10) : "—"}</p>
+                    </div>,
+
+                    <div key="issue" className="max-w-[280px]">
+                      <span className="font-medium text-foreground">{row.issue || "Compliant"}</span>
+                      {row.externalReference ? (
+                        <p className="mt-0.5 font-mono text-[10px] text-muted-foreground truncate">
+                          Ref: {row.externalReference}
+                        </p>
+                      ) : row.mode ? (
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">Mode: {row.mode}</p>
+                      ) : null}
+                    </div>,
+
+                    <span
+                      key="src"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-stone-100/80 dark:bg-stone-800/80 px-2 py-0.5 text-[11px] font-medium text-stone-800 dark:text-stone-200"
+                    >
+                      <DestIcon className="size-3 text-primary shrink-0" />
+                      <span className="truncate max-w-[170px]">{destMeta.destination}</span>
+                    </span>,
+
+                    <span
+                      key="status"
+                      className={cn(
+                        "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                        isOverridden
+                          ? "bg-amber-100 text-amber-950"
+                          : row.status === "blocker"
+                            ? "bg-red-100 text-red-900"
+                            : row.status === "warning"
+                              ? "bg-amber-100/80 text-amber-950"
+                              : "bg-emerald-100 text-emerald-900",
+                      )}
+                    >
+                      {isOverridden ? "Overridden" : row.fiscalStatus}
+                    </span>,
+
+                    renderReviewCell(row.status, fiscalReview),
+
+                    overrideInfo ? (
+                      <div
+                        key="override"
+                        className="rounded-lg border border-amber-200/80 bg-amber-50/70 p-2 text-xs text-amber-950 space-y-0.5 max-w-xs"
+                        data-testid="night-audit-fiscal-override"
+                      >
+                        <div className="font-semibold text-[11px] flex items-center gap-1 text-amber-900">
+                          <span className="size-1.5 rounded-full bg-amber-600" />
+                          Night Audit Override
+                        </div>
+                        <p className="text-[11px] text-amber-950/90 font-medium">
+                          Reason: {overrideInfo.reason}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Authorized by {overrideInfo.overriddenBy ?? "Auditor"}
+                          {overrideInfo.overriddenAt ? ` · ${overrideInfo.overriddenAt.slice(0, 16).replace("T", " ")}` : ""}
+                        </p>
+                      </div>
+                    ) : (
+                      <span key="no-override" className="text-muted-foreground text-xs">—</span>
+                    ),
+
+                    <div key="act" className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      {row.status === "warning" && fiscalReview && !shownReview(fiscalReview) && !runClosed && onReviewWarning ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+                          onClick={() => setReviewTarget(fiscalReview)}
+                        >
+                          Mark Reviewed
+                        </Button>
+                      ) : null}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 gap-1 px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                        onClick={() => {
+                          setSelectedFiscalId(row.id);
+                        }}
+                      >
+                        <Eye className="size-3" />
+                        View
+                      </Button>
+                      <DirectLink label={destMeta.actionText || row.action || "Open Fiscal"} route={row.route} search={row.search} />
+                    </div>,
+                  ];
+                })}
+                onRowClick={(index) => {
+                  const clicked = fiscalPage.rows[index];
+                  if (clicked) setSelectedFiscalId(clicked.id);
+                }}
                 empty="No fiscal documents need attention."
               />
               <TablePagination
@@ -1028,13 +1361,51 @@ export function NightAuditFinancialPanel({
             <p className="text-sm text-muted-foreground">No frozen tax or service-charge lines for this business date.</p>
           ) : (
             <SimpleTable
-              headers={["Currency", "Tax Accrued", "Service Charge Accrued", "Occupancy Fee Treatment"]}
-              rows={result.taxSummary.map((row) => [
-                <span className="font-semibold text-foreground">{row.currency}</span>,
-                <span className="font-mono font-medium">{row.tax.toFixed(2)}</span>,
-                <span className="font-mono font-medium">{row.serviceCharge.toFixed(2)}</span>,
-                "Included in tax line",
-              ])}
+              headers={["Currency", "Tax Accrued", "Service Charge Accrued", "Occupancy Fee Treatment", "Review"]}
+              rows={result.taxSummary.map((row) => {
+                const taxReview = findWarningException({
+                  code: "tax_snapshot_mismatch",
+                  referenceId: `${result.businessDate}:${row.currency}:tax`,
+                });
+                const serviceReview = findWarningException({
+                  code: "service_snapshot_mismatch",
+                  referenceId: `${result.businessDate}:${row.currency}:service`,
+                });
+                const reviewControl = (matched?: AuditException, label?: string) =>
+                  matched ? (
+                    <div key={matched.id} className="flex flex-col items-start gap-1">
+                      <span className="text-[10px] font-medium text-muted-foreground">{label}</span>
+                      {renderReviewCell("warning", matched)}
+                      {!shownReview(matched) && !runClosed && onReviewWarning ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs font-semibold text-[#8B6A1A] border-[#C89933]/50 hover:bg-[#C89933]/10"
+                          onClick={() => setReviewTarget(matched)}
+                        >
+                          Mark Reviewed
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null;
+                return [
+                  <span className="font-semibold text-foreground">{row.currency}</span>,
+                  <span className="font-mono font-medium">{row.tax.toFixed(2)}</span>,
+                  <span className="font-mono font-medium">{row.serviceCharge.toFixed(2)}</span>,
+                  "Included in tax line",
+                  <div className="flex flex-col gap-2">
+                    {reviewControl(taxReview, "Tax") ?? reviewControl(serviceReview, "Service") ? (
+                      <>
+                        {reviewControl(taxReview, "Tax")}
+                        {reviewControl(serviceReview, "Service")}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </div>,
+                ];
+              })}
               empty="No frozen tax or service-charge lines for this business date."
             />
           )}
@@ -1042,9 +1413,30 @@ export function NightAuditFinancialPanel({
       )}
 
       {/* 4. SLIDE-OVER INSPECTION DRAWER */}
-      <Sheet open={Boolean(selected)} onOpenChange={(open) => !open && setSelectedId(null)}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md" data-testid="night-audit-financial-detail">
-          {selected ? (
+      <Sheet
+        open={Boolean(selected || selectedFiscal)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedId(null);
+            setSelectedFiscalId(null);
+          }
+        }}
+      >
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg" data-testid="night-audit-financial-detail">
+          {selectedFiscal ? (
+            <FiscalDetailView
+              row={selectedFiscal}
+              result={result}
+              businessDate={businessDate}
+              exceptions={exceptions}
+              acknowledged={acknowledged}
+              role={role}
+              onAuthorizeClick={(target) => setOverrideTarget(target)}
+              onReviewClick={(target) => setReviewTarget(target)}
+              runClosed={runClosed}
+              dateTime={dateTime}
+            />
+          ) : selected ? (
             <>
               <SheetHeader>
                 <div className="flex items-center gap-2">
@@ -1093,6 +1485,45 @@ export function NightAuditFinancialPanel({
                 </div>
               </dl>
 
+              {selected.severity === "warning" ? (() => {
+                const matchedEx = findWarningException(selected);
+                const review = shownReview(matchedEx);
+                return review ? (
+                  <div className="mt-4 rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-3 text-xs text-emerald-950 space-y-1">
+                    <div className="flex items-center gap-1.5 font-semibold text-emerald-900">
+                      <CheckCircle2 className="size-3.5 text-emerald-600" />
+                      Warning Acknowledged &amp; Reviewed
+                    </div>
+                    <p className="text-[11px] text-emerald-900/90">
+                      Reviewed by <strong>{review.reviewerName ?? review.reviewedBy ?? "Auditor"}</strong>
+                      {review.reviewedAt ? ` on ${dateTime(review.reviewedAt)}` : ""}
+                    </p>
+                    {review.reviewNote ? (
+                      <p className="text-[11px] italic text-emerald-800">
+                        Note: &quot;{review.reviewNote}&quot;
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-950">
+                    <div>
+                      <p className="font-semibold text-amber-900">Warning Review Required</p>
+                      <p className="text-[11px] text-amber-900/80">Can proceed to close with auditor sign-off.</p>
+                    </div>
+                    {!runClosed && onReviewWarning && matchedEx ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7.5 px-3 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B38728]"
+                        onClick={() => setReviewTarget(matchedEx)}
+                      >
+                        Mark Reviewed
+                      </Button>
+                    ) : null}
+                  </div>
+                );
+              })() : null}
+
               <div className="mt-6 border-t border-border pt-4">
                 <p className="text-xs text-muted-foreground">
                   Night Audit is strictly read-only. To resolve this item, open the source module and correct the record.
@@ -1118,6 +1549,109 @@ export function NightAuditFinancialPanel({
           ) : null}
         </SheetContent>
       </Sheet>
+
+      {overrideTarget && (
+        <AlertDialog open={Boolean(overrideTarget)} onOpenChange={(open) => !open && setOverrideTarget(null)}>
+          <AlertDialogContent data-testid="night-audit-fiscal-override-dialog">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Authorize fiscal close override?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This allows this business date to close while the fiscal issue remains unresolved. It does not change fiscal registration.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Fiscal document / reference</dt>
+                <dd className="font-semibold text-foreground font-mono">{overrideTarget.referenceId}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Fiscal status</dt>
+                <dd className="font-semibold text-foreground">{overrideTarget.fiscalStatus}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Business date</dt>
+                <dd className="font-semibold text-foreground">{formatNa1Date(businessDate || result.businessDate)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Fiscal error</dt>
+                <dd className="font-semibold text-foreground text-xs">{overrideTarget.message}</dd>
+              </div>
+            </dl>
+            <label className="block text-sm font-medium">
+              Override reason *
+              <textarea
+                className="mt-1 min-h-24 w-full rounded-md border border-input bg-background p-2 text-sm"
+                value={overrideReason}
+                onChange={(event) => setOverrideReason(event.target.value)}
+                maxLength={500}
+                placeholder="Reason for authorizing fiscal override for this close…"
+                required
+              />
+            </label>
+            <label className="block text-sm font-medium">
+              Reason category
+              <select
+                className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                value={overrideCategory}
+                onChange={(event) => setOverrideCategory(event.target.value as (typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number] | "")}
+              >
+                <option value="">Select a category</option>
+                {FISCAL_OVERRIDE_REASON_CATEGORIES.map((value) => (
+                  <option key={value} value={value}>{value.replaceAll("_", " ")}</option>
+                ))}
+              </select>
+            </label>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setOverrideTarget(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={!overrideReason.trim() || authorizingFiscalOverride}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+                onClick={() => {
+                  if (!overrideReason.trim()) return;
+                  onAuthorizeFiscalOverride?.(
+                    overrideTarget.exceptionId,
+                    overrideReason.trim(),
+                    overrideCategory || undefined,
+                  );
+                  setOverrideTarget(null);
+                  setOverrideReason("");
+                  setOverrideCategory("");
+                }}
+              >
+                {authorizingFiscalOverride ? "Authorizing…" : "Authorize Override"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      <ReviewWarningDialog
+        open={Boolean(reviewTarget)}
+        onOpenChange={(open) => !open && setReviewTarget(null)}
+        exception={reviewTarget}
+        onConfirm={async (note) => {
+          if (!reviewTarget || !onReviewWarning) return;
+          const target = reviewTarget;
+          const ok = await onReviewWarning(target.id, note);
+          if (ok === false) return;
+          setAcknowledged((current) => ({
+            ...current,
+            [target.id]: {
+              id: `local-${target.id}`,
+              exceptionId: target.id,
+              reviewedBy: "You",
+              reviewerName: "You",
+              reviewedByMembershipId: "",
+              reviewedAt: new Date().toISOString(),
+              reviewNote: note ?? null,
+              invalidatedAt: null,
+              invalidatedReason: null,
+            },
+          }));
+          setReviewTarget(null);
+        }}
+        isSubmitting={reviewingWarning}
+      />
     </div>
   );
 }
@@ -1319,10 +1853,12 @@ function SimpleTable({
   headers,
   rows,
   empty,
+  onRowClick,
 }: {
   headers: string[];
   rows: Array<Array<string | ReactNode>>;
   empty: string;
+  onRowClick?: (index: number) => void;
 }) {
   if (rows.length === 0) return <p className="p-4 text-xs text-muted-foreground">{empty}</p>;
   return (
@@ -1339,7 +1875,11 @@ function SimpleTable({
         </thead>
         <tbody className="divide-y divide-border/60">
           {rows.map((row, index) => (
-            <tr key={index} className="transition-colors hover:bg-muted/20">
+            <tr
+              key={index}
+              className={cn("transition-colors hover:bg-muted/20", onRowClick && "cursor-pointer hover:bg-muted/30")}
+              onClick={onRowClick ? () => onRowClick(index) : undefined}
+            >
               {row.map((cell, cellIndex) => (
                 <td key={cellIndex} className="px-3 py-2.5 align-middle">
                   {cell}
@@ -1349,6 +1889,274 @@ function SimpleTable({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function FiscalDetailView({
+  row,
+  result,
+  businessDate,
+  exceptions,
+  acknowledged,
+  role,
+  onAuthorizeClick,
+  onReviewClick,
+  runClosed,
+  dateTime,
+}: {
+  row: FiscalRow;
+  result: NightAuditFinancialReconciliation;
+  businessDate?: string;
+  exceptions?: AuditException[];
+  acknowledged?: Record<string, NonNullable<AuditException["warningReview"]>>;
+  role: string;
+  onAuthorizeClick: (target: {
+    exceptionId: string;
+    referenceId: string;
+    fiscalStatus: string;
+    message: string;
+  }) => void;
+  onReviewClick?: (target: AuditException) => void;
+  runClosed?: boolean;
+  dateTime?: (iso: string) => string;
+}) {
+  const matchingException = exceptions?.find(
+    (ex) =>
+      (ex.id === row.id || ex.referenceId === row.id) &&
+      (ex.exceptionType.startsWith("fiscal_") || ex.exceptionType.includes("fiscal")),
+  );
+  const fiscalWarning = result.issues.find(
+    (item) =>
+      item.severity === "warning" &&
+      item.category === "fiscal" &&
+      item.referenceId === row.id &&
+      item.description === row.issue,
+  );
+  const reviewException = fiscalWarning
+    ? matchFinancialWarningException(exceptions ?? [], fiscalWarning)
+    : undefined;
+  const fiscalReview = reviewException?.warningReview ?? (reviewException ? acknowledged?.[reviewException.id] : undefined);
+  const isOverridden = Boolean(row.nightAuditOverride || matchingException?.fiscalOverride);
+  const overrideInfo = row.nightAuditOverride ?? (matchingException?.fiscalOverride ? {
+    reason: matchingException.fiscalOverride.reason,
+    reasonCategory: matchingException.fiscalOverride.reasonCategory,
+    overriddenBy: matchingException.fiscalOverride.overriddenBy,
+    overriddenAt: matchingException.fiscalOverride.overriddenAt,
+  } : null);
+
+  const isEligibleToOverride =
+    (role === "owner" || role === "manager") &&
+    !isOverridden &&
+    Boolean(
+      (matchingException && isFiscalOverrideableException(matchingException)) ||
+      (row.status === "blocker" && row.fiscalStatus !== "REGISTERED" && row.fiscalStatus !== "CANCELLED" && row.fiscalStatus !== "UNRECOGNIZED")
+    );
+
+  const destMeta = getDestinationMeta({
+    code: "fiscal_document",
+    category: "fiscal",
+    referenceId: row.id,
+    route: row.route,
+    search: row.search,
+  });
+  const DestIcon = destMeta.icon;
+
+  return (
+    <div className="space-y-4">
+      <SheetHeader>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide",
+              isOverridden
+                ? "border-amber-200/80 bg-amber-50 text-amber-900"
+                : row.status === "blocker"
+                  ? "border-red-200/80 bg-red-50 text-red-800"
+                  : row.status === "warning"
+                    ? "border-amber-200/80 bg-amber-50 text-amber-900"
+                    : "border-emerald-200/80 bg-emerald-50 text-emerald-900",
+            )}
+          >
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                isOverridden
+                  ? "bg-amber-500"
+                  : row.status === "blocker"
+                    ? "bg-red-500"
+                    : row.status === "warning"
+                      ? "bg-amber-500"
+                      : "bg-emerald-500",
+              )}
+            />
+            {isOverridden ? "Fiscal override" : row.status === "blocker" ? "Blocker" : row.status === "warning" ? "Warning" : "Compliant"}
+          </span>
+          <span
+            className={cn(
+              "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+              isOverridden
+                ? "bg-amber-100 text-amber-950"
+                : row.status === "blocker"
+                  ? "bg-red-100 text-red-900"
+                  : row.status === "warning"
+                    ? "bg-amber-100/80 text-amber-950"
+                    : "bg-emerald-100 text-emerald-900",
+            )}
+          >
+            {isOverridden ? "Overridden" : row.fiscalStatus}
+          </span>
+        </div>
+        <SheetTitle className="mt-2 text-base font-semibold">
+          Fiscal Document: {row.document}
+        </SheetTitle>
+      </SheetHeader>
+
+      <div className="rounded-xl border border-border/70 bg-card p-4 shadow-2xs space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-display text-sm font-semibold text-foreground">
+            {row.type} · {row.document}
+          </p>
+          <span className="rounded-md bg-stone-100 dark:bg-stone-800 px-2 py-0.5 text-xs font-semibold uppercase text-stone-700 dark:text-stone-300">
+            {row.type}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          {row.issue || matchingException?.message || `Fiscal document ${row.document} (${row.type}) is currently ${row.fiscalStatus}.`}
+        </p>
+        <div className="flex items-center gap-2 pt-0.5">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-stone-100 dark:bg-stone-800 px-2.5 py-1 text-xs font-medium text-stone-700 dark:text-stone-300">
+            <DestIcon className="size-3.5 text-primary" />
+            <span>{destMeta.destination}</span>
+          </span>
+        </div>
+      </div>
+
+      <dl className="grid grid-cols-2 gap-2.5 text-xs">
+        <div className="rounded-lg border border-border p-2.5">
+          <dt className="text-muted-foreground">Document Number</dt>
+          <dd className="mt-0.5 font-mono font-semibold text-foreground">{row.document}</dd>
+        </div>
+        <div className="rounded-lg border border-border p-2.5">
+          <dt className="text-muted-foreground">Document Type</dt>
+          <dd className="mt-0.5 font-semibold text-foreground uppercase">{row.type}</dd>
+        </div>
+        <div className="rounded-lg border border-border p-2.5">
+          <dt className="text-muted-foreground">Fiscal Status</dt>
+          <dd className="mt-0.5 font-semibold text-foreground">{row.fiscalStatus}</dd>
+        </div>
+        <div className="rounded-lg border border-border p-2.5">
+          <dt className="text-muted-foreground">External Reference</dt>
+          <dd className="mt-0.5 font-mono text-muted-foreground truncate">{row.externalReference ?? "—"}</dd>
+        </div>
+        <div className="rounded-lg border border-border p-2.5">
+          <dt className="text-muted-foreground">Integration Mode</dt>
+          <dd className="mt-0.5 text-muted-foreground">{row.mode ?? "—"}</dd>
+        </div>
+        <div className="rounded-lg border border-border p-2.5">
+          <dt className="text-muted-foreground">Business Date</dt>
+          <dd className="mt-0.5 font-medium text-foreground">{formatNa1Date(businessDate || result.businessDate)}</dd>
+        </div>
+        <div className="rounded-lg border border-border p-2.5 col-span-2">
+          <dt className="text-muted-foreground">Target Destination</dt>
+          <dd className="mt-0.5 font-medium text-foreground">{destMeta.destination}</dd>
+        </div>
+      </dl>
+
+      {row.status === "warning" ? (
+        fiscalReview ? (
+          <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-3 text-xs text-emerald-950 space-y-1">
+            <div className="flex items-center gap-1.5 font-semibold text-emerald-900">
+              <CheckCircle2 className="size-3.5 text-emerald-600" />
+              Warning Acknowledged &amp; Reviewed
+            </div>
+            <p className="text-[11px] text-emerald-900/90">
+              Reviewed by <strong>{fiscalReview.reviewerName ?? fiscalReview.reviewedBy ?? "Auditor"}</strong>
+              {fiscalReview.reviewedAt && dateTime ? ` on ${dateTime(fiscalReview.reviewedAt)}` : ""}
+            </p>
+            {fiscalReview.reviewNote ? (
+              <p className="text-[11px] italic text-emerald-800">
+                Note: &quot;{fiscalReview.reviewNote}&quot;
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-950">
+            <div>
+              <p className="font-semibold text-amber-900">Warning Review Required</p>
+              <p className="text-[11px] text-amber-900/80">Can proceed to close with auditor sign-off.</p>
+            </div>
+            {!runClosed && onReviewClick && reviewException ? (
+              <Button
+                type="button"
+                size="sm"
+                className="h-7.5 px-3 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B38728]"
+                onClick={() => onReviewClick(reviewException)}
+              >
+                Mark Reviewed
+              </Button>
+            ) : null}
+          </div>
+        )
+      ) : null}
+
+      {row.status === "blocker" && !isOverridden ? (
+        <div className="flex items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-950">
+          <AlertTriangle className="size-4 shrink-0 text-amber-600 mt-0.5" />
+          <p>
+            Blockers clear automatically once resolved in <strong className="font-semibold">{destMeta.destination}</strong> and Night Audit is rechecked.
+          </p>
+        </div>
+      ) : null}
+
+      <div className="pt-2">
+        <Button asChild className="h-9 w-full gap-2 font-semibold shadow-xs">
+          <Link
+            to={row.route as never}
+            search={
+              ({
+                ...(row.search ?? {}),
+                returnTo: "/restaurant/pms/night-audit?tab=financial&focus=fiscal",
+                returnToLabel: "Return to Night Audit",
+              }) as never
+            }
+          >
+            <DestIcon className="size-4" />
+            <span>{destMeta.actionText || row.action || "Open Fiscal Registration"}</span>
+            <ArrowRight className="size-4" />
+          </Link>
+        </Button>
+      </div>
+
+      {overrideInfo ? (
+        <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs space-y-1" data-testid="night-audit-fiscal-override">
+          <p className="font-semibold text-amber-950">Overridden for close</p>
+          <p>Fiscal status remains {row.fiscalStatus}.</p>
+          <p>Authorized by {overrideInfo.overriddenBy ?? "Auditor"}{overrideInfo.overriddenAt ? ` · ${overrideInfo.overriddenAt.slice(0, 16).replace("T", " ")}` : ""}</p>
+          <p>Reason: {overrideInfo.reason}</p>
+        </section>
+      ) : null}
+
+      {isEligibleToOverride ? (
+        <div className="pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full border-amber-300 bg-amber-50/40 text-amber-950 hover:bg-amber-100/70 font-semibold"
+            onClick={() => {
+              const exId = matchingException?.id || row.id;
+              onAuthorizeClick({
+                exceptionId: exId,
+                referenceId: row.document || row.id,
+                fiscalStatus: row.fiscalStatus,
+                message: row.issue || matchingException?.message || `${row.type} ${row.document} is ${row.fiscalStatus}`,
+              });
+            }}
+          >
+            Authorize Fiscal Close Override
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

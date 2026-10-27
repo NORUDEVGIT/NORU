@@ -416,6 +416,36 @@ export function financialAllowsClose(status: NightAuditFinancialStatus): boolean
 
 const REFERENCE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** The stored exception identity for one financial issue. Two rows never share it. */
+export function financialWarningIdentity(
+  code: string,
+  referenceId: string,
+): { exceptionType: string; referenceId: string | null } {
+  if (REFERENCE_UUID.test(referenceId)) return { exceptionType: code, referenceId };
+  return {
+    exceptionType: referenceId ? `${code}:${referenceId}` : code,
+    referenceId: null,
+  };
+}
+
+export function matchFinancialWarningException<
+  T extends {
+    exceptionType: string;
+    severity: string;
+    status: string;
+    referenceId?: string | null;
+  },
+>(exceptions: readonly T[], row: { code: string; referenceId: string }): T | undefined {
+  const identity = financialWarningIdentity(row.code, row.referenceId);
+  return exceptions.find(
+    (exception) =>
+      exception.severity === "warning" &&
+      exception.status === "open" &&
+      exception.exceptionType === identity.exceptionType &&
+      (exception.referenceId ?? null) === identity.referenceId,
+  );
+}
+
 export function financialIssuesToExceptions(
   issues: readonly Pick<
     NightAuditFinancialIssue,
@@ -424,12 +454,12 @@ export function financialIssuesToExceptions(
 ): NightAuditFinancialException[] {
   return issues.flatMap((issue): NightAuditFinancialException[] => {
       if (issue.severity !== "blocking" && issue.severity !== "warning") return [];
-      const referenceIsUuid = REFERENCE_UUID.test(issue.referenceId);
+      const identity = financialWarningIdentity(issue.code, issue.referenceId);
       return [{
-        exceptionType: referenceIsUuid ? issue.code : `${issue.code}:${issue.referenceId}`,
+        exceptionType: identity.exceptionType,
         severity: issue.severity,
         referenceType: issue.referenceType,
-        referenceId: referenceIsUuid ? issue.referenceId : null,
+        referenceId: identity.referenceId,
         message: issue.description,
       }];
     });

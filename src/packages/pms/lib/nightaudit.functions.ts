@@ -73,6 +73,7 @@ import {
   persistedCloseFacts,
   type PersistedCloseRow,
   type FiscalOverride,
+  type WarningReview,
   canViewNightAuditOperationalDetail,
   historyRange,
   historySearchDates,
@@ -123,6 +124,10 @@ export interface AuditException {
   fiscalOverride: FiscalOverride | null;
   /** Every override event ever authorized for this exception row, oldest first. History only. */
   fiscalOverrideHistory: FiscalOverride[];
+  /** The currently ACTIVE warning review, if any. Null once invalidated or never reviewed. */
+  warningReview?: WarningReview | null;
+  /** Every review event ever authorized for this exact warning row. History only. */
+  warningReviewHistory?: WarningReview[];
 }
 
 export type NightAuditOtbState = "captured" | "not_captured" | "unknown";
@@ -447,6 +452,67 @@ async function fiscalOverrideHistoryForRun(
   return byException;
 }
 
+type WarningReviewRow = {
+  id: string;
+  exception_id: string;
+  restaurant_id: string;
+  night_audit_run_id: string;
+  business_date: string;
+  reviewed_by_membership_id: string;
+  reviewed_at: string;
+  review_note: string | null;
+  invalidated_at: string | null;
+  invalidated_reason: string | null;
+};
+
+const WARNING_REVIEW_COLUMNS =
+  "id, exception_id, restaurant_id, night_audit_run_id, business_date, reviewed_by_membership_id, reviewed_at, review_note, invalidated_at, invalidated_reason";
+
+/** Only the ACTIVE warning review per exception. Used for current-state UI and close gate. */
+async function warningReviewsForRun(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  restaurantId: string,
+  runId: string,
+): Promise<Map<string, WarningReviewRow>> {
+  const rows = await selectAll<WarningReviewRow>((from, to) =>
+    admin
+      .from("night_audit_warning_reviews")
+      .select(WARNING_REVIEW_COLUMNS)
+      .eq("restaurant_id", restaurantId)
+      .eq("night_audit_run_id", runId)
+      .is("invalidated_at", null)
+      .order("reviewed_at", { ascending: true })
+      .range(from, to),
+  );
+  return new Map(rows.map((row) => [row.exception_id, row]));
+}
+
+/** Every warning review event ever authorized on this run, active or invalidated. History display only. */
+async function warningReviewHistoryForRun(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  restaurantId: string,
+  runId: string,
+): Promise<Map<string, WarningReviewRow[]>> {
+  const rows = await selectAll<WarningReviewRow>((from, to) =>
+    admin
+      .from("night_audit_warning_reviews")
+      .select(WARNING_REVIEW_COLUMNS)
+      .eq("restaurant_id", restaurantId)
+      .eq("night_audit_run_id", runId)
+      .order("reviewed_at", { ascending: true })
+      .range(from, to),
+  );
+  const byException = new Map<string, WarningReviewRow[]>();
+  for (const row of rows) {
+    const list = byException.get(row.exception_id) ?? [];
+    list.push(row);
+    byException.set(row.exception_id, list);
+  }
+  return byException;
+}
+
 function effectiveFinancialStatus(
   financial: NightAuditFinancialReconciliation,
   exceptionRows: readonly ExceptionRow[],
@@ -604,6 +670,18 @@ async function syncRunExceptions(
       .in("exception_id", plan.resolveIds)
       .is("invalidated_at", null);
     if (invalidated.error) throw invalidated.error;
+
+    // The source condition is gone: active warning reviews are invalidated.
+    // If the warning recurs later, it starts unreviewed and requires fresh review.
+    const invalidatedReviews = await admin
+      .from("night_audit_warning_reviews")
+      .update({
+        invalidated_at: new Date().toISOString(),
+        invalidated_reason: "Source warning condition resolved.",
+      })
+      .in("exception_id", plan.resolveIds)
+      .is("invalidated_at", null);
+    if (invalidatedReviews.error) throw invalidatedReviews.error;
   }
 }
 
@@ -624,6 +702,24 @@ function toFiscalOverride(
   };
 }
 
+function toWarningReview(
+  row: WarningReviewRow,
+  names: ReadonlyMap<string, string>,
+): WarningReview {
+  const reviewerName = names.get(row.reviewed_by_membership_id) ?? null;
+  return {
+    id: row.id,
+    exceptionId: row.exception_id,
+    reviewedBy: reviewerName,
+    reviewerName,
+    reviewedByMembershipId: row.reviewed_by_membership_id,
+    reviewedAt: row.reviewed_at,
+    reviewNote: row.review_note,
+    invalidatedAt: row.invalidated_at,
+    invalidatedReason: row.invalidated_reason,
+  };
+}
+
 function toException(
   row: ExceptionRow,
   role: string,
@@ -633,8 +729,13 @@ function toException(
   names: ReadonlyMap<string, string> = new Map(),
   /** All override events (active + invalidated) for this exception. History screens only. */
   history: ReadonlyMap<string, FiscalOverrideRow[]> = new Map(),
+  /** ACTIVE warning review only. */
+  warningReviews: ReadonlyMap<string, WarningReviewRow> = new Map(),
+  /** All warning reviews for this exception row. History screens only. */
+  warningReviewHistory: ReadonlyMap<string, WarningReviewRow[]> = new Map(),
 ): AuditException {
   const override = overrides.get(row.id);
+  const review = warningReviews.get(row.id);
   return {
     id: row.id,
     exceptionType: row.exception_type,
@@ -653,6 +754,10 @@ function toException(
         : null,
     fiscalOverride: override ? toFiscalOverride(override, names) : null,
     fiscalOverrideHistory: (history.get(row.id) ?? []).map((item) => toFiscalOverride(item, names)),
+    warningReview: review ? toWarningReview(review, names) : null,
+    warningReviewHistory: (warningReviewHistory.get(row.id) ?? []).map((item) =>
+      toWarningReview(item, names),
+    ),
   };
 }
 
@@ -931,11 +1036,17 @@ export const runNightAudit = createServerFn({ method: "POST" })
         .range(from, to),
     );
     const overrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, run.id);
-    const overrideNames = await staffNames(
+    const warningReviews = await warningReviewsForRun(supabaseAdmin, data.restaurantId, run.id);
+    const warningReviewHistory = await warningReviewHistoryForRun(
       supabaseAdmin,
       data.restaurantId,
-      [...overrides.values()].map((row) => row.overridden_by_membership_id),
+      run.id,
     );
+    const staffIds = [
+      ...[...overrides.values()].map((row) => row.overridden_by_membership_id),
+      ...[...warningReviews.values()].map((row) => row.reviewed_by_membership_id),
+    ];
+    const staffMemberNames = await staffNames(supabaseAdmin, data.restaurantId, staffIds);
     const sources =
       run.status === "open" || run.status === "ready"
         ? liveExceptionSources(
@@ -946,7 +1057,18 @@ export const runNightAudit = createServerFn({ method: "POST" })
     const exceptions = finalRows
       .slice()
       .sort((a, b) => a.severity.localeCompare(b.severity) || a.id.localeCompare(b.id))
-      .map((row) => toException(row, me.role, sources, overrides, overrideNames));
+      .map((row) =>
+        toException(
+          row,
+          me.role,
+          sources,
+          overrides,
+          staffMemberNames,
+          new Map(),
+          warningReviews,
+          warningReviewHistory,
+        ),
+      );
 
     const blockingCount = exceptions.filter(
       (e) => e.severity === "blocking" && e.status === "open" && !e.fiscalOverride,
@@ -1166,6 +1288,7 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
     }
     const fiscalStatus = fiscalStatusForException(exception.exception_type);
     if (!fiscalStatus) return { ok: false, message: "This fiscal status is not overrideable." };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const inserted = await (supabaseAdmin as any).from("night_audit_fiscal_overrides").insert({
       restaurant_id: data.restaurantId,
       night_audit_run_id: runRow.id,
@@ -1184,6 +1307,136 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+export const reviewWarning = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator(
+    (d: { restaurantId: string; exceptionId: string; note?: string }) =>
+      z
+        .object({
+          restaurantId: idSchema,
+          exceptionId: z.string().min(1).max(100),
+          note: z.string().max(500).optional(),
+        })
+        .parse(d),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ ok: true; alreadyReviewed?: boolean } | { ok: false; message: string }> => {
+      const me = await requireCashierManager(context as never, data.restaurantId);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.exceptionId);
+      let row: {
+        id: string;
+        exception_type: string;
+        severity: "warning" | "blocking";
+        status: "open" | "resolved" | "ignored";
+        night_audit_run_id: string;
+      } | null = null;
+
+      if (isUuid) {
+        const { data: directRow } = await supabaseAdmin
+          .from("night_audit_exceptions")
+          .select("id, exception_type, severity, status, night_audit_run_id")
+          .eq("id", data.exceptionId)
+          .eq("restaurant_id", data.restaurantId)
+          .maybeSingle();
+        if (directRow) {
+          row = directRow as typeof row;
+        }
+      }
+
+      if (!row && !isUuid) {
+        const split = data.exceptionId.indexOf(":");
+        const code = split > 0 ? data.exceptionId.slice(0, split) : "";
+        const reference = split > 0 ? data.exceptionId.slice(split + 1) : "";
+        const referenceIsUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reference);
+        const { data: run } = await supabaseAdmin
+          .from("night_audit_runs")
+          .select("id")
+          .eq("restaurant_id", data.restaurantId)
+          .in("status", ["open", "ready"])
+          .order("business_date", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (run && code) {
+          let query = supabaseAdmin
+            .from("night_audit_exceptions")
+            .select("id, exception_type, severity, status, night_audit_run_id")
+            .eq("night_audit_run_id", run.id)
+            .eq("severity", "warning")
+            .eq("status", "open");
+          query = referenceIsUuid
+            ? query.eq("exception_type", code).eq("reference_id", reference)
+            : query.eq("exception_type", data.exceptionId).is("reference_id", null);
+          const { data: exactRows } = await query.limit(2);
+          if (exactRows && exactRows.length === 1) {
+            row = exactRows[0] as typeof row;
+          }
+        }
+      }
+
+      if (!row) return { ok: false, message: "Exception not found for this property." };
+      const exception = row;
+
+      if (exception.severity !== "warning") {
+        return {
+          ok: false,
+          message:
+            "Only warnings may be reviewed. Blockers must be resolved in source modules.",
+        };
+      }
+      if (exception.status !== "open") {
+        return { ok: false, message: "Only open warnings can be reviewed." };
+      }
+
+      const { data: run } = await supabaseAdmin
+        .from("night_audit_runs")
+        .select("id, status, business_date")
+        .eq("id", exception.night_audit_run_id)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (!run) return { ok: false, message: "Night Audit run not found for this property." };
+      const runRow = run as { id: string; status: string; business_date: string };
+      if (runRow.status === "closed") {
+        return { ok: false, message: "Closed Night Audit runs cannot be modified." };
+      }
+      if (runRow.status !== "open" && runRow.status !== "ready") {
+        return { ok: false, message: "Run is not open or ready for warning review." };
+      }
+
+      // Check if an active review already exists (idempotency)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: existingReview } = await (supabaseAdmin as any)
+        .from("night_audit_warning_reviews")
+        .select("id")
+        .eq("exception_id", exception.id)
+        .is("invalidated_at", null)
+        .maybeSingle();
+      if (existingReview) {
+        return { ok: true, alreadyReviewed: true };
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const inserted = await (supabaseAdmin as any).from("night_audit_warning_reviews").insert({
+        restaurant_id: data.restaurantId,
+        night_audit_run_id: runRow.id,
+        exception_id: exception.id,
+        business_date: runRow.business_date,
+        reviewed_by_membership_id: me.id,
+        review_note: (data.note ?? "").trim() || null,
+      });
+      if (inserted.error) {
+        if (/duplicate key/i.test(inserted.error.message)) return { ok: true, alreadyReviewed: true };
+        return { ok: false, message: nightAuditError(inserted.error.message).message };
+      }
+      return { ok: true };
+    },
+  );
 
 export const updateException = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1505,6 +1758,24 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         return rejected("A required Night Audit check is unavailable. Close stays blocked.");
       }
 
+      // Check that all currently active warnings have been reviewed
+      const openWarningRows = closeExceptionRows.filter(
+        (row) => row.severity === "warning" && row.status === "open",
+      );
+      const activeWarningReviews = await warningReviewsForRun(
+        supabaseAdmin,
+        data.restaurantId,
+        run.id,
+      );
+      const unreviewedWarnings = openWarningRows.filter((row) => !activeWarningReviews.has(row.id));
+      if (unreviewedWarnings.length > 0) {
+        return {
+          ok: false,
+          message: `${unreviewedWarnings.length} warning${unreviewedWarnings.length === 1 ? "" : "s"} must be reviewed before closing.`,
+          code: "NIGHT_AUDIT_WARNINGS_UNREVIEWED",
+        };
+      }
+
       let rows: Array<{ severity: string; status: string }> = [];
       try {
         rows = await selectAll<{ severity: string; status: string }>((from, to) =>
@@ -1526,6 +1797,8 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
       const summary = {
         finance: evaluation.finance,
         warnings: rows.filter((r) => r.severity === "warning").length,
+        reviewedWarnings: openWarningRows.length - unreviewedWarnings.length,
+        unreviewedWarnings: unreviewedWarnings.length,
         blockingResolved: rows.filter((r) => r.severity === "blocking").length,
         inHouse: evaluation.inHouseUnits,
         overstays: evaluation.overstays.length,
@@ -1916,17 +2189,29 @@ export const getNightAuditRun = createServerFn({ method: "GET" })
           : undefined;
       const overrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, r.id);
       const history = await fiscalOverrideHistoryForRun(supabaseAdmin, data.restaurantId, r.id);
-      const overrideNames = await staffNames(
+      const warningReviews = await warningReviewsForRun(supabaseAdmin, data.restaurantId, r.id);
+      const warningHistory = await warningReviewHistoryForRun(
         supabaseAdmin,
         data.restaurantId,
-        [...history.values()].flat().map((override) => override.overridden_by_membership_id),
+        r.id,
       );
+      const staffIds = [
+        ...[...history.values()].flat().map((override) => override.overridden_by_membership_id),
+        ...[...warningHistory.values()].flat().map((rev) => rev.reviewed_by_membership_id),
+      ];
+      const overrideNames = await staffNames(supabaseAdmin, data.restaurantId, staffIds);
       return {
         currency: property.currency,
         run: toRunRow(r, names, me.role, otb),
-        exceptions: exRows.map((ex) =>
-          toException(ex, me.role, new Map(), overrides, overrideNames, history),
-        ),
+        exceptions: exRows.map((ex) => {
+          const item = toException(ex, me.role, new Map(), overrides, overrideNames, history);
+          const review = warningReviews.get(ex.id);
+          item.warningReview = review ? toWarningReview(review, overrideNames) : null;
+          item.warningReviewHistory = (warningHistory.get(ex.id) ?? []).map((rev) =>
+            toWarningReview(rev, overrideNames),
+          );
+          return item;
+        }),
       };
     },
   );

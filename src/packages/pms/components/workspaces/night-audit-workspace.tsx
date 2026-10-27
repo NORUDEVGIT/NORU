@@ -22,6 +22,7 @@ import {
   getNightAuditRun,
   listNightAuditHistory,
   retryNightAuditOtbSnapshot,
+  reviewWarning,
   runNightAudit,
 } from "@/packages/pms/lib/nightaudit.functions";
 import { formatNa1Date, nightAuditOtbNotice } from "@/packages/pms/lib/na1";
@@ -77,7 +78,8 @@ export function NightAuditWorkspace({
   }, []);
 
   useEffect(() => {
-    if (initialTab === tab && (tab !== "history" || !initialRunId || initialRunId.length > 0)) return;
+    if (initialTab === tab && (tab !== "history" || !initialRunId || initialRunId.length > 0))
+      return;
     void navigate({
       to: "/restaurant/pms/night-audit",
       search: nightAuditSearch(tab, initialRunId),
@@ -91,6 +93,7 @@ export function NightAuditWorkspace({
   const close = useServerFn(closeBusinessDate);
   const authorizeFiscalOverride = useServerFn(authorizeFiscalCloseOverride);
   const retryOtb = useServerFn(retryNightAuditOtbSnapshot);
+  const reviewWarningFn = useServerFn(reviewWarning);
   const fetchRun = useServerFn(getNightAuditRun);
   const fetchFinancials = useServerFn(getNightAuditFinancials);
   const fetchOperations = useServerFn(getNightAuditOperations);
@@ -132,7 +135,9 @@ export function NightAuditWorkspace({
           ...(historyFilter.from ? { from: historyFilter.from } : {}),
           ...(historyFilter.to ? { to: historyFilter.to } : {}),
           ...(historyFilter.closedBy ? { closedBy: historyFilter.closedBy } : {}),
-          ...(historyFilter.search.trim() ? { search: historyFilter.search.trim().slice(0, 80) } : {}),
+          ...(historyFilter.search.trim()
+            ? { search: historyFilter.search.trim().slice(0, 80) }
+            : {}),
         },
       }),
     enabled: tab === "history",
@@ -163,7 +168,11 @@ export function NightAuditWorkspace({
         financialQuery.refetch(),
         operationsQuery.refetch(),
       ]);
-      const ok = Boolean(audit.data && financial.data && operations.data) && !audit.isError && !financial.isError && !operations.isError;
+      const ok =
+        Boolean(audit.data && financial.data && operations.data) &&
+        !audit.isError &&
+        !financial.isError &&
+        !operations.isError;
       setRecheckToken(ok && audit.data ? audit.data.checkedAt : null);
     } finally {
       setRechecking(false);
@@ -256,7 +265,8 @@ export function NightAuditWorkspace({
             }
           : prev,
       );
-      if (result.status === "failed") toast.warning("OTB snapshot failed again. The close is unaffected.");
+      if (result.status === "failed")
+        toast.warning("OTB snapshot failed again. The close is unaffected.");
       else {
         setCloseNotice(null);
         toast.success("OTB snapshot captured.");
@@ -268,8 +278,18 @@ export function NightAuditWorkspace({
   });
 
   const fiscalOverrideMutation = useMutation({
-    mutationFn: (input: { exceptionId: string; reason: string; reasonCategory?: "fiscal_device_offline" | "hardware_failure" | "network_failure" | "fiscal_authority_unavailable" | "integration_failure" | "vendor_support_pending" | "other" }) =>
-      authorizeFiscalOverride({ data: { restaurantId, ...input } }),
+    mutationFn: (input: {
+      exceptionId: string;
+      reason: string;
+      reasonCategory?:
+        | "fiscal_device_offline"
+        | "hardware_failure"
+        | "network_failure"
+        | "fiscal_authority_unavailable"
+        | "integration_failure"
+        | "vendor_support_pending"
+        | "other";
+    }) => authorizeFiscalOverride({ data: { restaurantId, ...input } }),
     onSuccess: (result) => {
       if (!result.ok) {
         toast.error(result.message);
@@ -282,7 +302,34 @@ export function NightAuditWorkspace({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  if (auditQuery.isLoading) return <p className="text-sm text-muted-foreground">Running night audit…</p>;
+  const reviewWarningMutation = useMutation({
+    mutationFn: (input: { exceptionId: string; note?: string }) =>
+      reviewWarningFn({ data: { restaurantId, ...input } }),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success("Warning reviewed.");
+      void queryClient.invalidateQueries({ queryKey: ["night-audit", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["night-audit-financial", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["night-audit-operations", restaurantId] });
+      void recheck();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const handleReviewWarning = async (exceptionId: string, note?: string) => {
+    try {
+      const result = await reviewWarningMutation.mutateAsync({ exceptionId, note });
+      return result.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  if (auditQuery.isLoading)
+    return <p className="text-sm text-muted-foreground">Running night audit…</p>;
   if (auditQuery.isError || !auditQuery.data) {
     return (
       <div className="space-y-2">
@@ -297,34 +344,62 @@ export function NightAuditWorkspace({
   }
   const state = auditQuery.data;
 
-  const financialSummary: FinancialSummaryView =
-    financialQuery.isError
-      ? { status: "unavailable", blockerCount: 0, warningCount: 0, openDrawerCount: 0, fiscalProblemCount: 0, fiscalOverrideCount: 0 }
-      : financialQuery.data
-        ? {
-            status: financialQuery.data.status,
-            blockerCount: financialQuery.data.summary.blockerCount,
-            warningCount: financialQuery.data.summary.warningCount,
-            openDrawerCount: financialQuery.data.summary.openDrawerCount,
-            fiscalProblemCount: financialQuery.data.summary.fiscalProblemCount,
-            fiscalOverrideCount: financialQuery.data.summary.fiscalOverrideCount ?? 0,
-          }
-        : { status: "loading", blockerCount: 0, warningCount: 0, openDrawerCount: 0, fiscalProblemCount: 0, fiscalOverrideCount: 0 };
+  const financialSummary: FinancialSummaryView = financialQuery.isError
+    ? {
+        status: "unavailable",
+        blockerCount: 0,
+        warningCount: 0,
+        openDrawerCount: 0,
+        fiscalProblemCount: 0,
+        fiscalOverrideCount: 0,
+      }
+    : financialQuery.data
+      ? {
+          status: financialQuery.data.status,
+          blockerCount: financialQuery.data.summary.blockerCount,
+          warningCount: financialQuery.data.summary.warningCount,
+          openDrawerCount: financialQuery.data.summary.openDrawerCount,
+          fiscalProblemCount: financialQuery.data.summary.fiscalProblemCount,
+          fiscalOverrideCount: financialQuery.data.summary.fiscalOverrideCount ?? 0,
+        }
+      : {
+          status: "loading",
+          blockerCount: 0,
+          warningCount: 0,
+          openDrawerCount: 0,
+          fiscalProblemCount: 0,
+          fiscalOverrideCount: 0,
+        };
 
-  const operationalSummary: OperationalSummaryView =
-    operationsQuery.isError
-      ? { status: "unavailable", blockerCount: 0, warningCount: 0, unresolvedArrivalCount: 0, overstayCount: 0, roomConflictCount: 0, overbookingIssueCount: 0 }
-      : operationsQuery.data
-        ? {
-            status: operationsQuery.data.status,
-            blockerCount: operationsQuery.data.summary.blockerCount,
-            warningCount: operationsQuery.data.summary.warningCount,
-            unresolvedArrivalCount: operationsQuery.data.summary.unresolvedArrivalCount,
-            overstayCount: operationsQuery.data.summary.overstayCount,
-            roomConflictCount: operationsQuery.data.summary.roomConflictCount,
-            overbookingIssueCount: operationsQuery.data.summary.overbookingIssueCount,
-          }
-        : { status: "loading", blockerCount: 0, warningCount: 0, unresolvedArrivalCount: 0, overstayCount: 0, roomConflictCount: 0, overbookingIssueCount: 0 };
+  const operationalSummary: OperationalSummaryView = operationsQuery.isError
+    ? {
+        status: "unavailable",
+        blockerCount: 0,
+        warningCount: 0,
+        unresolvedArrivalCount: 0,
+        overstayCount: 0,
+        roomConflictCount: 0,
+        overbookingIssueCount: 0,
+      }
+    : operationsQuery.data
+      ? {
+          status: operationsQuery.data.status,
+          blockerCount: operationsQuery.data.summary.blockerCount,
+          warningCount: operationsQuery.data.summary.warningCount,
+          unresolvedArrivalCount: operationsQuery.data.summary.unresolvedArrivalCount,
+          overstayCount: operationsQuery.data.summary.overstayCount,
+          roomConflictCount: operationsQuery.data.summary.roomConflictCount,
+          overbookingIssueCount: operationsQuery.data.summary.overbookingIssueCount,
+        }
+      : {
+          status: "loading",
+          blockerCount: 0,
+          warningCount: 0,
+          unresolvedArrivalCount: 0,
+          overstayCount: 0,
+          roomConflictCount: 0,
+          overbookingIssueCount: 0,
+        };
 
   const rechecked =
     recheckToken != null &&
@@ -336,7 +411,12 @@ export function NightAuditWorkspace({
     !operationsQuery.isError;
 
   return (
-    <NightAuditChrome membership={membership} active={tab} onNavigate={(id) => go(id)} onSearch={setModuleSearch}>
+    <NightAuditChrome
+      membership={membership}
+      active={tab}
+      onNavigate={(id) => go(id)}
+      onSearch={setModuleSearch}
+    >
       <NightAuditDesk
         tab={tab}
         focus={initialFocus}
@@ -397,24 +477,94 @@ export function NightAuditWorkspace({
         moduleSearch={moduleSearch}
         authorizingFiscalOverride={fiscalOverrideMutation.isPending}
         onAuthorizeFiscalOverride={(exceptionId, reason, reasonCategory) =>
-          fiscalOverrideMutation.mutate({ exceptionId, reason, ...(reasonCategory ? { reasonCategory } : {}) })
+          fiscalOverrideMutation.mutate({
+            exceptionId,
+            reason,
+            ...(reasonCategory ? { reasonCategory } : {}),
+          })
         }
+        onReviewWarning={handleReviewWarning}
+        reviewingWarning={reviewWarningMutation.isPending}
+        operationsResult={operationsQuery.data ?? null}
         operations={
           <NightAuditOperationalPanel
-            loading={operationsQuery.isLoading || (operationsQuery.isFetching && !operationsQuery.data)}
+            loading={
+              operationsQuery.isLoading || (operationsQuery.isFetching && !operationsQuery.data)
+            }
             error={operationsQuery.isError ? (operationsQuery.error as Error).message : null}
             result={operationsQuery.data ?? null}
             focus={tab === "operations" ? initialFocus : undefined}
             onRefresh={() => void recheck()}
+            allowedTabs={["arrivals", "departures"]}
+            hideHero
+            exceptions={state.exceptions}
+            onReviewWarning={handleReviewWarning}
+            reviewingWarning={reviewWarningMutation.isPending}
+            dateTime={dateTime}
+            runClosed={state.run.status === "closed"}
+          />
+        }
+        roomsOperations={
+          <NightAuditOperationalPanel
+            loading={
+              operationsQuery.isLoading || (operationsQuery.isFetching && !operationsQuery.data)
+            }
+            error={operationsQuery.isError ? (operationsQuery.error as Error).message : null}
+            result={operationsQuery.data ?? null}
+            focus={tab === "operations" ? initialFocus : undefined}
+            onRefresh={() => void recheck()}
+            allowedTabs={["rooms", "housekeeping"]}
+            hideHero
+            exceptions={state.exceptions}
+            onReviewWarning={handleReviewWarning}
+            reviewingWarning={reviewWarningMutation.isPending}
+            dateTime={dateTime}
+            runClosed={state.run.status === "closed"}
+          />
+        }
+        otherOperations={
+          <NightAuditOperationalPanel
+            loading={
+              operationsQuery.isLoading || (operationsQuery.isFetching && !operationsQuery.data)
+            }
+            error={operationsQuery.isError ? (operationsQuery.error as Error).message : null}
+            result={operationsQuery.data ?? null}
+            focus={tab === "operations" || tab === "exceptions" ? initialFocus : undefined}
+            onRefresh={() => void recheck()}
+            allowedTabs={["revenue", "overbooking", "distribution", "services"]}
+            hideHero
+            exceptions={state.exceptions}
+            onReviewWarning={handleReviewWarning}
+            reviewingWarning={reviewWarningMutation.isPending}
+            dateTime={dateTime}
+            runClosed={state.run.status === "closed"}
           />
         }
         financial={
           <NightAuditFinancialPanel
-            loading={financialQuery.isLoading || (financialQuery.isFetching && !financialQuery.data)}
+            loading={
+              financialQuery.isLoading || (financialQuery.isFetching && !financialQuery.data)
+            }
             error={financialQuery.isError ? (financialQuery.error as Error).message : null}
             result={financialQuery.data ?? null}
             focus={tab === "financial" ? initialFocus : undefined}
             onRefresh={() => void recheck()}
+            hideHero
+            exceptions={state.exceptions}
+            role={role}
+            businessDate={state.businessDate}
+            authorizingFiscalOverride={fiscalOverrideMutation.isPending}
+            onAuthorizeFiscalOverride={(exceptionId, reason, reasonCategory) =>
+              fiscalOverrideMutation.mutate({
+                exceptionId,
+                reason,
+                ...(reasonCategory ? { reasonCategory } : {}),
+              })
+            }
+            onReviewWarning={handleReviewWarning}
+            reviewingWarning={reviewWarningMutation.isPending}
+            dateTime={dateTime}
+            runClosed={state.run.status === "closed"}
           />
         }
       />
