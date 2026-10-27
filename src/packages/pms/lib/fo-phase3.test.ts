@@ -45,7 +45,7 @@ describe("FO Phase 3 — in-house read model", () => {
     assert.match(qv, /data-testid="fo-inhouse-qv"/);
     assert.match(qv, /Check Out/);
     assert.match(qv, /Move Room/);
-    assert.match(qv, /More actions/);
+    assert.match(qv, /FoGuestWorkspaceTabBar/);
     assert.doesNotMatch(qv, /Open Reservation/);
     assert.match(fo, /view === "inhouse"/);
     assert.match(fo, /InHouseWorkspace/);

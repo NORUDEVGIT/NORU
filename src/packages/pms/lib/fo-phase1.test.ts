@@ -4,7 +4,12 @@ import { describe, it } from "node:test";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { foSearchFromUnknown, groupRackRooms, LIVE_HORIZONS, parseCalendarHorizon } from "./front-office-shell.ts";
+import {
+  foSearchFromUnknown,
+  groupRackRooms,
+  LIVE_HORIZONS,
+  parseCalendarHorizon,
+} from "./front-office-shell.ts";
 import {
   assignedNotReadyQueueItem,
   filterRoomOpsHistory,
@@ -74,7 +79,17 @@ describe("FO Phase 1 — Room Quick View honesty", () => {
       currentStay: null,
       assignedArrival: null,
       unassignedArrival: false,
-      blocks: [{ id: "b1", kind: "room", blockType: "ooo", reason: "pipe", startDate: "2026-09-25", endDate: "2026-09-28", groupId: null }],
+      blocks: [
+        {
+          id: "b1",
+          kind: "room",
+          blockType: "ooo",
+          reason: "pipe",
+          startDate: "2026-09-25",
+          endDate: "2026-09-28",
+          groupId: null,
+        },
+      ],
       hasDiscrepancy: false,
     });
     assert.equal(vacantOoo.hasBlock, true);
@@ -156,7 +171,11 @@ describe("FO Phase 1 — rack grouping, horizon, URL", () => {
     assert.deepEqual(LIVE_HORIZONS, [1, 3, 7, 14, 30]);
     assert.equal(parseCalendarHorizon("3"), 3);
     assert.equal(parseCalendarHorizon("2"), undefined);
-    assert.equal(foSearchFromUnknown({ tab: "arrivals", horizon: "3", date: "2026-09-25", group: "floor" }).horizon, 3);
+    assert.equal(
+      foSearchFromUnknown({ tab: "arrivals", horizon: "3", date: "2026-09-25", group: "floor" })
+        .horizon,
+      3,
+    );
     assert.equal(foSearchFromUnknown({ tab: "arrivals", group: "floor" }).group, "floor");
   });
 
@@ -168,7 +187,10 @@ describe("FO Phase 1 — rack grouping, horizon, URL", () => {
     ];
     const floors = groupRackRooms(rooms, "floor");
     assert.equal(floors.length, 2);
-    assert.deepEqual(floors.flatMap((g) => g.rooms.map((r) => r.id)), ["r1", "r2", "r3"]);
+    assert.deepEqual(
+      floors.flatMap((g) => g.rooms.map((r) => r.id)),
+      ["r1", "r2", "r3"],
+    );
     const types = groupRackRooms(rooms, "room_type");
     assert.equal(types.length, 2);
     assert.equal(groupRackRooms(rooms, "none").length, 1);
@@ -179,7 +201,10 @@ describe("FO Phase 1 — writers and overlay contract", () => {
   it("reuses assign/move writers and keeps type-upgrade off the move writer", () => {
     const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
     const assignFn = dialogs.slice(dialogs.indexOf("export function AssignRoomDialog"));
-    assert.match(assignFn.slice(0, assignFn.indexOf("export function CheckInDialog")), /assignReservationRoom/);
+    assert.match(
+      assignFn.slice(0, assignFn.indexOf("export function CheckInDialog")),
+      /assignReservationRoom/,
+    );
     const moveFn = dialogs.slice(dialogs.indexOf("export function RoomMoveDialog"));
     const moveBody = moveFn.slice(0, moveFn.indexOf("export function StayDatesDialog"));
     assert.match(moveBody, /moveReservationRoom/);
@@ -221,7 +246,7 @@ describe("FO Phase 1 — writers and overlay contract", () => {
     assert.match(calendar, /data-testid="fo-room-identity"/);
     assert.match(calendar, /onSelectRoom\(room\.id\)/);
     assert.match(calendar, /data-testid="fo-reservation-bar"/);
-    assert.match(calendar, /onSelectStay\(stayFromReservation/);
+    assert.match(calendar, /onSelectStay\(foRackActionStay/);
     const workspace = readRel("../components/workspaces/front-office-workspace.tsx");
     assert.match(workspace, /RoomQuickViewSheet/);
     assert.match(workspace, /ReservationSideSheet/);

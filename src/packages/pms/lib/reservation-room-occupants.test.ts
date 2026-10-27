@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   additionalRoomOccupants,
   primaryRoomOccupant,
+  roomGuestDisplayName,
   roomOccupancyText,
   roomOccupantCapacity,
   roomOccupantsMutable,
@@ -181,5 +182,28 @@ describe("GROUP-RES-06 room occupant operations", () => {
     expect(roomOperationActions("cancelled")).toEqual([]);
     expect(plan).toContain("| GROUP-RES-06 | PASS WITH DEBT |");
     expect(plan).not.toContain("| GROUP-RES-07 |");
+  });
+});
+
+describe("room guest display name", () => {
+  it("shows the guest in that room, not the reservation primary guest", () => {
+    expect(
+      roomGuestDisplayName(
+        [{ name: "Aker Girma", isPrimary: true }],
+        "Test Guest",
+      ),
+    ).toBe("Aker Girma");
+    expect(roomGuestDisplayName([], "Test Guest")).toBe("Test Guest");
+    expect(
+      roomGuestDisplayName([{ name: "Guest C", isPrimary: false }], "Test Guest"),
+    ).toBe("Guest C");
+  });
+
+  it("room occupancy reads the unit occupant before the reservation header guest", () => {
+    const frontOffice = read("src/packages/pms/lib/frontoffice.functions.ts");
+    const housekeeping = read("src/packages/pms/lib/housekeeping.functions.ts");
+    expect(frontOffice).toContain("unitOccupantNames");
+    expect(frontOffice).toContain("unitGuestNames.get(occupiedRoom.reservationRoomId)");
+    expect(housekeeping).toContain("unitName || headerName");
   });
 });

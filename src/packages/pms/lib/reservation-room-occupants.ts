@@ -47,6 +47,20 @@ export function primaryRoomOccupant(
   return occupants.find((occupant) => occupant.isPrimary) ?? null;
 }
 
+/**
+ * Name to show for one room. The guest in that room wins. The reservation's
+ * primary guest is only used when this room has no occupant of its own.
+ */
+export function roomGuestDisplayName(
+  occupants: readonly Pick<ReservationRoomOccupant, "name" | "isPrimary">[],
+  headerGuestName: string,
+): string {
+  const primary = occupants.find((occupant) => occupant.isPrimary && occupant.name.trim());
+  if (primary) return primary.name;
+  const named = occupants.find((occupant) => occupant.name.trim());
+  return named?.name ?? headerGuestName;
+}
+
 export function additionalRoomOccupants(
   occupants: readonly ReservationRoomOccupant[],
 ): ReservationRoomOccupant[] {

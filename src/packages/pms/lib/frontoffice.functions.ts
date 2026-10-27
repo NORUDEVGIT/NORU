@@ -33,6 +33,7 @@ import {
   type FrontOfficeRoomTarget,
 } from "./reservation-room-units";
 import { isMissingSchemaError } from "./pms-set2-structure";
+import { unitOccupantNames } from "./room-unit-guest-names";
 
 export type { FrontOfficeDashboard } from "@/integrations/cross-package/front-office-dashboard.functions";
 export { getFrontOfficeDashboard } from "@/integrations/cross-package/front-office-dashboard.functions";
@@ -664,6 +665,13 @@ export const listOccupancy = createServerFn({ method: "POST" })
         reservationRoomId: stay.reservationRoomId,
       });
     }
+    const unitGuestNames = await unitOccupantNames(
+      context.supabase,
+      data.restaurantId,
+      [...byRoom.values()]
+        .map((row) => row.reservationRoomId)
+        .filter((id): id is string => Boolean(id)),
+    );
 
     return (
       (rooms ?? []) as unknown as Array<{
@@ -686,10 +694,14 @@ export const listOccupancy = createServerFn({ method: "POST" })
         status: room.status,
         occupancy: stay ? ("occupied" as const) : ("vacant" as const),
         guestName: stay
-          ? [stay.guest_profiles?.first_name, stay.guest_profiles?.last_name]
+          ? (occupiedRoom?.reservationRoomId
+              ? unitGuestNames.get(occupiedRoom.reservationRoomId)
+              : undefined) ||
+            [stay.guest_profiles?.first_name, stay.guest_profiles?.last_name]
               .filter(Boolean)
               .join(" ")
-              .trim() || "Guest"
+              .trim() ||
+            "Guest"
           : null,
         reservationId: stay?.id ?? null,
         reservationRoomId: occupiedRoom?.reservationRoomId ?? null,

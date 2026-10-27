@@ -113,3 +113,122 @@ describe("FO-04 operational unit rows", () => {
     expect(stayDateTargetsOneRoom(stay())).toBe(true);
   });
 });
+
+describe("FO-GR01B unit guest identity", () => {
+  const occupantUnits: FrontOfficeRoomTarget[] = [
+    unit({
+      id: "unit-a",
+      unitSequence: 1,
+      status: "checked_in",
+      roomId: "room-401",
+      roomNumber: "401",
+      occupants: [{ guestId: "guest-test", name: "Test Guest", isPrimary: true }],
+    }),
+    unit({
+      id: "unit-b",
+      unitSequence: 2,
+      status: "confirmed",
+      roomId: "room-101a",
+      roomNumber: "101A",
+      occupants: [{ guestId: "guest-aker", name: "Aker Girma", isPrimary: true, phone: "+251911" }],
+    }),
+    unit({
+      id: "unit-c",
+      unitSequence: 3,
+      status: "confirmed",
+      roomId: "room-102",
+      roomNumber: "102",
+      occupants: [{ guestId: "guest-c", name: "Guest C", isPrimary: true }],
+    }),
+  ];
+
+  it("1: a 2-unit reservation projects two separate stays with distinct guests", () => {
+    const twoArriving: FrontOfficeRoomTarget[] = [
+      unit({
+        id: "unit-x",
+        unitSequence: 1,
+        status: "confirmed",
+        roomId: "room-401",
+        roomNumber: "401",
+        occupants: [{ guestId: "guest-test", name: "Test Guest", isPrimary: true }],
+      }),
+      occupantUnits[1]!,
+    ];
+    const rows = projectOperationalStayRows(
+      [stay({ roomUnits: twoArriving, status: "confirmed" })],
+      "arrivals",
+      "2026-10-23",
+    );
+    expect(rows.map((row) => [row.reservationRoomId, row.guestId, row.guestName])).toEqual([
+      ["unit-x", "guest-test", "Test Guest"],
+      ["unit-b", "guest-aker", "Aker Girma"],
+    ]);
+    // Both rows share one reservation; this does not create a second reservation.
+    expect(rows.every((row) => row.id === "res-1")).toBe(true);
+  });
+
+  it("2: mixed statuses keep each unit's own guest (Unit A in-house, Unit B arrivals)", () => {
+    const master = stay({ roomUnits: occupantUnits.slice(0, 2), guestId: "booker-1", guestName: "Booker Name" });
+    const inHouse = projectOperationalStayRows([master], "in_house", "2026-10-23");
+    const arrivals = projectOperationalStayRows([master], "arrivals", "2026-10-23");
+
+    expect(inHouse).toHaveLength(1);
+    expect(inHouse[0]?.guestId).toBe("guest-test");
+    expect(inHouse[0]?.guestName).toBe("Test Guest");
+
+    expect(arrivals).toHaveLength(1);
+    expect(arrivals[0]?.guestId).toBe("guest-aker");
+    expect(arrivals[0]?.guestName).toBe("Aker Girma");
+  });
+
+  it("5: a 3-unit reservation projects primary, secondary, and tertiary occupants independently", () => {
+    const master = stay({
+      roomUnits: occupantUnits,
+      guestId: "booker-1",
+      guestName: "Booker Name",
+      status: "confirmed",
+    });
+    const rows = projectOperationalStayRows([master], "arrivals", "2026-10-23");
+    expect(rows.map((row) => [row.reservationRoomId, row.guestId, row.guestName])).toEqual([
+      ["unit-b", "guest-aker", "Aker Girma"],
+      ["unit-c", "guest-c", "Guest C"],
+    ]);
+    // Every row shares the same reservation number; no second reservation is created.
+    expect(rows.every((row) => row.id === "res-1")).toBe(true);
+  });
+
+  it("6: a unit with no primary occupant of its own keeps the header guest, not a sibling's", () => {
+    const noOccupant = unit({
+      id: "unit-d",
+      unitSequence: 1,
+      status: "confirmed",
+      roomId: "room-500",
+      roomNumber: "500",
+      occupants: [],
+    });
+    const master = stay({
+      roomUnits: [noOccupant, occupantUnits[1]!],
+      guestId: "booker-1",
+      guestName: "Booker Name",
+      status: "confirmed",
+    });
+    const rows = projectOperationalStayRows([master], "arrivals", "2026-10-23");
+    const unitD = rows.find((row) => row.reservationRoomId === "unit-d");
+    const unitB = rows.find((row) => row.reservationRoomId === "unit-b");
+    expect(unitD?.guestId).toBe("booker-1");
+    expect(unitD?.guestName).toBe("Booker Name");
+    // Never borrows the sibling's own occupant either.
+    expect(unitD?.guestId).not.toBe("guest-aker");
+    expect(unitB?.guestId).toBe("guest-aker");
+  });
+
+  it("9: focusing one unit never changes a sibling's guest identity (sibling isolation)", () => {
+    const master = stay({ roomUnits: occupantUnits, guestId: "booker-1", guestName: "Booker Name" });
+    const focusedB = focusFrontOfficeStay(master, "unit-b", "2026-10-23");
+    const focusedC = focusFrontOfficeStay(master, "unit-c", "2026-10-23");
+    expect(focusedB.guestName).toBe("Aker Girma");
+    expect(focusedC.guestName).toBe("Guest C");
+    expect(focusedB.reservationRoomId).toBe("unit-b");
+    expect(focusedC.reservationRoomId).toBe("unit-c");
+  });
+});

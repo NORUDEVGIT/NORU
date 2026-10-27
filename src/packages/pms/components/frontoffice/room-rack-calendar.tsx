@@ -11,28 +11,45 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   AlertTriangle,
+  ArrowRightLeft,
   Ban,
   BedDouble,
+  CalendarMinus,
+  CalendarPlus,
   Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Circle,
+  Clock,
   DoorOpen,
+  Eye,
   Filter,
   GripVertical,
   House,
   LogIn,
   LogOut,
+  MessageSquare,
+  MoreVertical,
+  Pencil,
   Percent,
+  Receipt,
   ScanSearch,
   Sparkles,
   Triangle,
   UserRound,
+  Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import {
   Collapsible,
   CollapsibleContent,
@@ -74,7 +91,6 @@ import {
   reservationBarPlacement,
   roomMatchesFilters,
   shouldShowDragHandle,
-  stayFromReservation,
   stayMatchesFilters,
   stayOverlapsRange,
   groupRackRooms,
@@ -116,15 +132,22 @@ import {
   type OccupancyRoom,
 } from "@/packages/pms/lib/frontoffice.functions";
 import { listRoomRack, type RackRoom } from "@/packages/pms/lib/housekeeping.functions";
-import {
-  listReservations,
-  type ReservationDetail,
-} from "@/packages/pms/lib/reservations.functions";
+import { listReservations } from "@/packages/pms/lib/reservations.functions";
 import { addDays, formatStayDate } from "@/packages/pms/lib/reservation-dates";
 import { cn } from "@/shared/lib/utils";
 import { deriveOpsStrip, type FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
 import { listFoExceptionFeeds } from "@/packages/pms/lib/fo-exceptions.functions";
 import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
+import {
+  foRackActionStay,
+  foRackUnitIdentity,
+  foRackBarMenuItems,
+  foRackMaintenanceRelevant,
+  projectRackStays,
+  type FoRackBarActionId,
+  type FoRackStay,
+  type FoRackBarMenuItem,
+} from "@/packages/pms/lib/fo-rack-bar-menu";
 
 type Viewport = "phone" | "wide";
 
@@ -141,6 +164,9 @@ export function RoomRackCalendar({
   onSelectStay,
   onSelectInHouse,
   onSelectRoom,
+  onRackAction,
+  canOpenCashiering,
+  staffRole,
   onRackSearchChange,
   onWalkIn,
 }: {
@@ -154,6 +180,9 @@ export function RoomRackCalendar({
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onSelectRoom: (roomId: string) => void;
+  onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
+  canOpenCashiering: boolean;
+  staffRole?: string;
   onRackSearchChange?: (next: {
     horizon: CalendarHorizon;
     date: string;
@@ -217,7 +246,14 @@ export function RoomRackCalendar({
       collectRackReservationPages(
         (page, size) =>
           fetchReservations({
-            data: { restaurantId, fromDate: focusDate, toDate: rangeEnd, page, pageSize: size },
+            data: {
+              restaurantId,
+              fromDate: focusDate,
+              toDate: rangeEnd,
+              page,
+              pageSize: size,
+              includeRoomUnits: true,
+            },
           }),
         pageSize,
       ),
@@ -245,7 +281,7 @@ export function RoomRackCalendar({
   });
 
   const rooms = occupancyQuery.data ?? [];
-  const stays = (reservationsQuery.data?.rows ?? []).filter((row) =>
+  const stays = projectRackStays(reservationsQuery.data?.rows ?? []).filter((row) =>
     stayOverlapsRange(row.arrivalDate, row.departureDate, focusDate, days),
   );
   const hkByRoom = new Map((hkQuery.data ?? []).map((r) => [r.id, r]));
@@ -465,6 +501,10 @@ export function RoomRackCalendar({
           onSelectStay={onSelectStay}
           onSelectInHouse={onSelectInHouse}
           onSelectRoom={onSelectRoom}
+          onRackAction={onRackAction}
+          canOpenCashiering={canOpenCashiering}
+          businessDate={today}
+          staffRole={staffRole}
         />
       ) : (
         <CalendarBoard
@@ -483,6 +523,10 @@ export function RoomRackCalendar({
           onSelectStay={onSelectStay}
           onSelectInHouse={onSelectInHouse}
           onSelectRoom={onSelectRoom}
+          onRackAction={onRackAction}
+          canOpenCashiering={canOpenCashiering}
+          businessDate={today}
+          staffRole={staffRole}
           onPreview={setPreview}
           onOpenConfirm={openConfirm}
         />
@@ -503,14 +547,14 @@ export function RoomRackCalendar({
   );
 }
 
-function previewRoomId(stay: ReservationDetail, preview: RackConfirmDraft | null): string | null {
+function previewRoomId(stay: FoRackStay, preview: RackConfirmDraft | null): string | null {
   if (preview?.kind === "move_room" && preview.reservationId === stay.id)
     return preview.targetRoomId;
   return stay.roomId;
 }
 
 function previewDates(
-  stay: ReservationDetail,
+  stay: FoRackStay,
   preview: RackConfirmDraft | null,
 ): { arrival: string; departure: string } {
   if (preview?.kind === "change_dates" && preview.reservationId === stay.id) {
@@ -881,7 +925,7 @@ function RackGroupSelect({
 
 function inHouseTargetForRoom(
   room: OccupancyRoom,
-  stays: readonly ReservationDetail[],
+  stays: readonly FoRackStay[],
 ): FoRackInHouseTarget | null {
   return foRackCheckedInStay({
     roomId: room.id,
@@ -896,36 +940,24 @@ function inHouseTargetForRoom(
 }
 
 function selectRackStay(
-  stay: ReservationDetail,
+  stay: FoRackStay,
   room: OccupancyRoom | null,
   businessDate: string,
   onSelectStay: (stay: FrontOfficeStay) => void,
   onSelectInHouse: (target: FoRackInHouseTarget) => void,
 ) {
   if (stay.status === "checked_in") {
-    const inHouse = room
-      ? foRackCheckedInStay({
-          roomId: room.id,
-          stays: [stay],
-          occupied:
-            room.reservationId === stay.id
-              ? {
-                  reservationId: room.reservationId,
-                  reservationRoomId: room.reservationRoomId,
-                }
-              : null,
-        })
-      : null;
-    if (inHouse) {
-      onSelectInHouse(inHouse);
+    const identity = foRackUnitIdentity(stay);
+    if (identity.kind === "unit") {
+      onSelectInHouse({ reservationId: stay.id, reservationRoomId: identity.reservationRoomId });
       return;
     }
-    if (!room || stay.roomId === room.id || stay.roomId == null) {
+    if (identity.kind === "header" && (!room || stay.roomId === room.id)) {
       onSelectInHouse({ reservationId: stay.id, reservationRoomId: null });
       return;
     }
   }
-  onSelectStay(stayFromReservation(stay, businessDate));
+  onSelectStay(foRackActionStay(stay, businessDate));
 }
 
 function CalendarBoard({
@@ -944,12 +976,16 @@ function CalendarBoard({
   onSelectStay,
   onSelectInHouse,
   onSelectRoom,
+  onRackAction,
+  canOpenCashiering,
+  businessDate,
+  staffRole,
   onPreview,
   onOpenConfirm,
 }: {
   rooms: OccupancyRoom[];
-  stays: ReservationDetail[];
-  unassigned: ReservationDetail[];
+  stays: FoRackStay[];
+  unassigned: FoRackStay[];
   hkByRoom: Map<string, RackRoom>;
   hkAvailable: boolean;
   focusDate: string;
@@ -962,12 +998,16 @@ function CalendarBoard({
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onSelectRoom: (roomId: string) => void;
+  onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
+  canOpenCashiering: boolean;
+  businessDate: string;
+  staffRole?: string;
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenConfirm: (next: RackConfirmDraft) => void;
 }) {
   const dates = dateRange(focusDate, days);
   const colMin = rackColumnMinPx(days);
-  const byRoom = new Map<string, ReservationDetail[]>();
+  const byRoom = new Map<string, FoRackStay[]>();
   for (const stay of stays) {
     const roomId = previewRoomId(stay, preview);
     if (!roomId) continue;
@@ -976,10 +1016,10 @@ function CalendarBoard({
     byRoom.set(roomId, list);
   }
 
-  function dropOnRoom(reservationId: string, room: OccupancyRoom) {
-    const stay = stays.find((row) => row.id === reservationId);
+  function dropOnRoom(rackKey: string, room: OccupancyRoom) {
+    const stay = stays.find((row) => row.rackKey === rackKey);
     if (!stay) return;
-    onRackDrop({ reservationId, targetRoomId: room.id }, {});
+    onRackDrop({ reservationId: stay.id, targetRoomId: room.id }, {});
     const verdict = classifyVerticalDrop({
       reservationId: stay.id,
       currentRoomId: stay.roomId,
@@ -1023,7 +1063,7 @@ function CalendarBoard({
     });
   }
 
-  function openDateConfirm(stay: ReservationDetail, nextArrival: string, nextDeparture: string) {
+  function openDateConfirm(stay: FoRackStay, nextArrival: string, nextDeparture: string) {
     onRackResizeRelease({ reservationId: stay.id, nextArrival, nextDeparture }, {});
     if (nextArrival === stay.arrivalDate && nextDeparture === stay.departureDate) {
       onPreview(null);
@@ -1109,6 +1149,10 @@ function CalendarBoard({
             preview={preview}
             onSelectStay={onSelectStay}
             onSelectInHouse={onSelectInHouse}
+            onRackAction={onRackAction}
+            canOpenCashiering={canOpenCashiering}
+            businessDate={businessDate}
+            staffRole={staffRole}
             onPreview={onPreview}
             onOpenDateConfirm={openDateConfirm}
           />
@@ -1143,6 +1187,13 @@ function CalendarBoard({
                 onSelectStay={onSelectStay}
                 onSelectInHouse={onSelectInHouse}
                 onSelectRoom={onSelectRoom}
+                onRackAction={onRackAction}
+                canOpenCashiering={canOpenCashiering}
+                businessDate={businessDate}
+                staffRole={staffRole}
+                maintenanceRelevant={foRackMaintenanceRelevant(
+                  hkByRoom.get(room.id)?.maintenanceStatus,
+                )}
                 onDropStay={(id) => dropOnRoom(id, room)}
                 onPreview={onPreview}
                 onOpenDateConfirm={openDateConfirm}
@@ -1165,10 +1216,14 @@ function UnassignedRow({
   preview,
   onSelectStay,
   onSelectInHouse,
+  onRackAction,
+  canOpenCashiering,
+  businessDate,
+  staffRole,
   onPreview,
   onOpenDateConfirm,
 }: {
-  stays: ReservationDetail[];
+  stays: FoRackStay[];
   focusDate: string;
   days: number;
   dates: string[];
@@ -1177,8 +1232,12 @@ function UnassignedRow({
   preview: RackConfirmDraft | null;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
+  onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
+  canOpenCashiering: boolean;
+  businessDate: string;
+  staffRole?: string;
   onPreview: (next: RackConfirmDraft | null) => void;
-  onOpenDateConfirm: (stay: ReservationDetail, arrival: string, departure: string) => void;
+  onOpenDateConfirm: (stay: FoRackStay, arrival: string, departure: string) => void;
 }) {
   return (
     <>
@@ -1212,6 +1271,11 @@ function UnassignedRow({
           preview={preview}
           onSelectStay={onSelectStay}
           onSelectInHouse={onSelectInHouse}
+          onRackAction={onRackAction}
+          canOpenCashiering={canOpenCashiering}
+          businessDate={businessDate}
+          staffRole={staffRole}
+          maintenanceRelevant={false}
           onPreview={onPreview}
           onOpenDateConfirm={onOpenDateConfirm}
         />
@@ -1236,6 +1300,11 @@ function RoomRow({
   onSelectStay,
   onSelectInHouse,
   onSelectRoom,
+  onRackAction,
+  canOpenCashiering,
+  businessDate,
+  staffRole,
+  maintenanceRelevant,
   onDropStay,
   onPreview,
   onOpenDateConfirm,
@@ -1243,7 +1312,7 @@ function RoomRow({
   room: OccupancyRoom;
   hk: RackRoom | null;
   hkAvailable: boolean;
-  stays: ReservationDetail[];
+  stays: FoRackStay[];
   focusDate: string;
   days: number;
   dates: string[];
@@ -1255,9 +1324,14 @@ function RoomRow({
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onSelectRoom: (roomId: string) => void;
+  onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
+  canOpenCashiering: boolean;
+  businessDate: string;
+  staffRole?: string;
+  maintenanceRelevant: boolean;
   onDropStay: (reservationId: string) => void;
   onPreview: (next: RackConfirmDraft | null) => void;
-  onOpenDateConfirm: (stay: ReservationDetail, arrival: string, departure: string) => void;
+  onOpenDateConfirm: (stay: FoRackStay, arrival: string, departure: string) => void;
 }) {
   const status = rackRoomStatusDisplay(room);
   const dropHandlers = showDrag
@@ -1303,7 +1377,7 @@ function RoomRow({
             }
             const confirmed = foRackConfirmedAssignedStay(stays);
             if (confirmed) {
-              onSelectStay(stayFromReservation(confirmed, confirmed.arrivalDate));
+              onSelectStay(foRackActionStay(confirmed, confirmed.arrivalDate));
               return;
             }
             onSelectRoom(room.id);
@@ -1385,6 +1459,11 @@ function RoomRow({
           hasOpenDiscrepancy={hasOpenDiscrepancy}
           onSelectStay={onSelectStay}
           onSelectInHouse={onSelectInHouse}
+          onRackAction={onRackAction}
+          canOpenCashiering={canOpenCashiering}
+          businessDate={businessDate}
+          staffRole={staffRole}
+          maintenanceRelevant={maintenanceRelevant}
           onPreview={onPreview}
           onOpenDateConfirm={onOpenDateConfirm}
         />
@@ -1404,10 +1483,15 @@ function BarTrack({
   hasOpenDiscrepancy = false,
   onSelectStay,
   onSelectInHouse,
+  onRackAction,
+  canOpenCashiering,
+  businessDate,
+  staffRole,
+  maintenanceRelevant = false,
   onPreview,
   onOpenDateConfirm,
 }: {
-  stays: ReservationDetail[];
+  stays: FoRackStay[];
   room: OccupancyRoom | null;
   focusDate: string;
   days: number;
@@ -1417,8 +1501,13 @@ function BarTrack({
   hasOpenDiscrepancy?: boolean;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
+  onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
+  canOpenCashiering: boolean;
+  businessDate: string;
+  staffRole?: string;
+  maintenanceRelevant?: boolean;
   onPreview: (next: RackConfirmDraft | null) => void;
-  onOpenDateConfirm: (stay: ReservationDetail, arrival: string, departure: string) => void;
+  onOpenDateConfirm: (stay: FoRackStay, arrival: string, departure: string) => void;
 }) {
   return (
     <div
@@ -1429,9 +1518,10 @@ function BarTrack({
         const dates = previewDates(stay, preview);
         const place = reservationBarPlacement(dates.arrival, dates.departure, focusDate, days);
         if (!place) return null;
+        const actionStay = foRackActionStay(stay, businessDate);
         return (
           <ReservationBar
-            key={stay.id}
+            key={stay.rackKey}
             stay={stay}
             startCol={place.startCol}
             endCol={place.endCol}
@@ -1461,10 +1551,93 @@ function BarTrack({
             }
             onCommitDates={(arrival, departure) => onOpenDateConfirm(stay, arrival, departure)}
             hasOpenDiscrepancy={hasOpenDiscrepancy}
+            menuItems={foRackBarMenuItems({
+              status: stay.status,
+              assigned: Boolean(stay.roomId),
+              arrivalDate: stay.arrivalDate,
+              businessDate,
+              canOpenCashiering,
+              maintenanceRelevant,
+              staffRole,
+            })}
+            onAction={(action) => onRackAction(action, actionStay)}
           />
         );
       })}
     </div>
+  );
+}
+
+const RACK_ACTION_ICONS: Record<FoRackBarActionId, typeof LogIn> = {
+  check_in: LogIn,
+  assign_room: BedDouble,
+  change_room: ArrowRightLeft,
+  edit_stay: Pencil,
+  no_show: Ban,
+  cancel: Ban,
+  open_folio: Receipt,
+  check_out: LogOut,
+  move_room: ArrowRightLeft,
+  extend_stay: CalendarPlus,
+  early_departure: CalendarMinus,
+  add_service: Sparkles,
+  guest_request: MessageSquare,
+  late_checkout: Clock,
+  open_maintenance: Wrench,
+  view_details: Eye,
+};
+
+function RackStayMenu({
+  items,
+  tone,
+  onAction,
+}: {
+  items: FoRackBarMenuItem[];
+  tone: "bar" | "card";
+  onAction: (action: FoRackBarActionId) => void;
+}) {
+  if (items.length === 0) return null;
+  const firstDestructive = items.findIndex((item) => item.tone === "destructive");
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Stay actions"
+          data-testid="fo-rack-bar-actions"
+          className={cn(
+            "inline-flex size-6 shrink-0 items-center justify-center rounded-sm",
+            tone === "bar"
+              ? "text-white/90 hover:bg-white/15"
+              : "text-[#251605] hover:bg-[#F3EEE4]",
+          )}
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <MoreVertical className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52" data-testid="fo-rack-bar-menu">
+        {items.map((item, index) => {
+          const Icon = RACK_ACTION_ICONS[item.id];
+          return (
+            <Fragment key={item.id}>
+              {firstDestructive === index && index > 0 ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuItem
+                data-testid={`fo-rack-bar-action-${item.id}`}
+                className={cn(
+                  item.tone === "destructive" && "text-destructive focus:text-destructive",
+                )}
+                onSelect={() => onAction(item.id)}
+              >
+                <Icon />
+                {item.label}
+              </DropdownMenuItem>
+            </Fragment>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -1476,24 +1649,29 @@ function ReservationBar({
   focusDate,
   showDrag,
   hasOpenDiscrepancy = false,
+  menuItems,
   onOpen,
+  onAction,
   onPreviewDates,
   onCommitDates,
 }: {
-  stay: ReservationDetail;
+  stay: FoRackStay;
   startCol: number;
   endCol: number;
   days: number;
   focusDate: string;
   showDrag: boolean;
   hasOpenDiscrepancy?: boolean;
-  onOpen: (stay: ReservationDetail) => void;
+  menuItems: FoRackBarMenuItem[];
+  onOpen: (stay: FoRackStay) => void;
+  onAction: (action: FoRackBarActionId) => void;
   onPreviewDates: (arrival: string, departure: string) => void;
   onCommitDates: (arrival: string, departure: string) => void;
 }) {
   const dragged = useRef(false);
   const badges = liveStayBadges({ ...stay, hasOpenDiscrepancy });
   const compact = badgeDisplayMode(days);
+  const iconOnly = endCol - startCol <= 1;
 
   return (
     <div
@@ -1521,7 +1699,7 @@ function ReservationBar({
       <button
         type="button"
         data-testid="fo-reservation-bar"
-        className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-2 py-1 text-left text-xs text-white"
+        className="flex min-w-0 flex-1 items-center gap-1 rounded-md py-1 pl-2 pr-8 text-left text-xs text-white"
         style={{ backgroundColor: reservationBarColor(stay.status) }}
         onPointerDown={
           showDrag
@@ -1556,17 +1734,30 @@ function ReservationBar({
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             onDragStart={(e) => {
-              e.dataTransfer.setData(FO_DRAG_MIME, stay.id);
-              e.dataTransfer.setData("text/plain", stay.id);
+              e.dataTransfer.setData(FO_DRAG_MIME, stay.rackKey);
+              e.dataTransfer.setData("text/plain", stay.rackKey);
               e.dataTransfer.effectAllowed = "move";
             }}
           >
             <GripVertical className="size-3.5" />
           </span>
         ) : null}
-        <span className="truncate font-medium">{stay.guestName}</span>
-        <StayBadgeStrip badges={badges} mode={compact} />
+        <span className={cn("font-medium", iconOnly ? "sr-only" : "truncate")}>
+          {stay.guestName}
+        </span>
+        {iconOnly ? null : <StayBadgeStrip badges={badges} mode={compact} />}
       </button>
+      <div
+        className={cn(
+          "absolute inset-y-0 z-20 flex items-center",
+          showDrag ? "right-1.5" : "right-0.5",
+        )}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <span aria-hidden className="mr-0.5 h-4 w-px bg-white/35" />
+        <RackStayMenu items={menuItems} tone="bar" onAction={onAction} />
+      </div>
       {showDrag ? (
         <span
           data-testid="fo-resize-end"
@@ -1591,7 +1782,7 @@ function ReservationBar({
 
 function startDateGesture(
   event: ReactPointerEvent<HTMLElement>,
-  stay: ReservationDetail,
+  stay: FoRackStay,
   mode: "arrival" | "departure" | "shift",
   days: number,
   focusDate: string,
@@ -1663,9 +1854,13 @@ function PhoneRackList({
   onSelectStay,
   onSelectInHouse,
   onSelectRoom,
+  onRackAction,
+  canOpenCashiering,
+  businessDate,
+  staffRole,
 }: {
   rooms: OccupancyRoom[];
-  stays: ReservationDetail[];
+  stays: FoRackStay[];
   hkByRoom: Map<string, RackRoom>;
   today: string;
   groupBy: RackGroupBy;
@@ -1674,6 +1869,10 @@ function PhoneRackList({
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onSelectRoom: (roomId: string) => void;
+  onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
+  canOpenCashiering: boolean;
+  businessDate: string;
+  staffRole?: string;
 }) {
   const todayStays = stays.filter((s) => s.arrivalDate <= today && s.departureDate > today);
   return (
@@ -1713,7 +1912,7 @@ function PhoneRackList({
                       }
                       const confirmed = foRackConfirmedAssignedStay(roomStays);
                       if (confirmed) {
-                        onSelectStay(stayFromReservation(confirmed, today));
+                        onSelectStay(foRackActionStay(confirmed, today));
                         return;
                       }
                       onSelectRoom(room.id);
@@ -1740,35 +1939,56 @@ function PhoneRackList({
         </div>
       ))}
       <ul className="space-y-2">
-        {todayStays.map((stay) => (
-          <li key={stay.id}>
-            <button
-              type="button"
-              data-testid="fo-phone-stay"
-              className="w-full rounded-xl border border-[#DDD4C5] bg-card p-3 text-left"
-              onClick={() => {
-                const room = stay.roomId
-                  ? (rooms.find((row) => row.id === stay.roomId) ?? null)
-                  : null;
-                selectRackStay(stay, room, today, onSelectStay, onSelectInHouse);
-              }}
-            >
-              <p className="font-medium">{stay.guestName}</p>
-              <p className="text-xs text-muted-foreground">
-                {stay.confirmationNumber} · {stay.roomNumber ?? "Unassigned"}
-              </p>
-              <StayBadgeStrip
-                badges={liveStayBadges({
-                  ...stay,
-                  hasOpenDiscrepancy: Boolean(
-                    stay.roomId && openDiscrepancyRoomIds.has(stay.roomId),
-                  ),
-                })}
-                mode="full"
-              />
-            </button>
-          </li>
-        ))}
+        {todayStays.map((stay) => {
+          const room = stay.roomId ? (rooms.find((row) => row.id === stay.roomId) ?? null) : null;
+          const actionStay = foRackActionStay(stay, businessDate);
+          return (
+            <li key={stay.rackKey} className="relative">
+              <button
+                type="button"
+                data-testid="fo-phone-stay"
+                className="w-full rounded-xl border border-[#DDD4C5] bg-card p-3 pr-10 text-left"
+                onClick={() => selectRackStay(stay, room, today, onSelectStay, onSelectInHouse)}
+              >
+                <p className="font-medium">{stay.guestName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {stay.confirmationNumber} · {stay.roomNumber ?? "Unassigned"}
+                </p>
+                <StayBadgeStrip
+                  badges={liveStayBadges({
+                    ...stay,
+                    hasOpenDiscrepancy: Boolean(
+                      stay.roomId && openDiscrepancyRoomIds.has(stay.roomId),
+                    ),
+                  })}
+                  mode="full"
+                />
+              </button>
+              <div
+                className="absolute right-2 top-2 flex items-center"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <span aria-hidden className="mr-0.5 h-4 w-px bg-[#DDD4C5]" />
+                <RackStayMenu
+                  items={foRackBarMenuItems({
+                    status: stay.status,
+                    assigned: Boolean(stay.roomId),
+                    arrivalDate: stay.arrivalDate,
+                    businessDate,
+                    canOpenCashiering,
+                    maintenanceRelevant: foRackMaintenanceRelevant(
+                      stay.roomId ? hkByRoom.get(stay.roomId)?.maintenanceStatus : null,
+                    ),
+                    staffRole,
+                  })}
+                  tone="card"
+                  onAction={(action) => onRackAction(action, actionStay)}
+                />
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

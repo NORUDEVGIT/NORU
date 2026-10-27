@@ -77,6 +77,7 @@ import {
   type AssignableRoom,
   type ReservationDetail,
 } from "@/packages/pms/lib/reservations.functions";
+import { unitAssignmentSnapshot } from "@/packages/pms/lib/room-assignment-snapshot";
 import { listRooms, listRoomTypes } from "@/packages/pms/lib/rooms.functions";
 import { storedRatePerNight } from "@/packages/pms/lib/reservation-detail-overview";
 import { ReservationRoomOccupants } from "@/packages/pms/components/workspaces/reservation-detail-room-occupants";
@@ -160,7 +161,8 @@ export function ReservationDetailRoomsTab({
     setNotes(unit?.assignmentNotes ?? "");
   }, [reservation, unitId]);
 
-  const activeUnit = units.find((unit) => unit.id === unitId) ?? units[0] ?? null;
+  const activeUnit =
+    units.find((unit) => unit.id === unitId) ?? (units.length === 1 ? units[0] : null) ?? null;
   const activeRoomTypeId = activeUnit?.roomTypeId ?? reservation.roomTypeId;
   const typesQuery = useQuery({
     queryKey: ["room-types", restaurantId, "reservation-detail-rooms"],
@@ -246,7 +248,11 @@ export function ReservationDetailRoomsTab({
     reservation.roomSubtotal,
     reservation.nights,
   );
-  const activeRoomId = activeUnit?.roomId ?? reservation.roomId;
+  const activeRoomId = activeUnit
+    ? activeUnit.roomId
+    : units.length === 0
+      ? reservation.roomId
+      : null;
   const activeStatus = activeUnit?.status ?? reservation.status;
   const lifecycle = {
     status: reservation.status,
@@ -277,9 +283,12 @@ export function ReservationDetailRoomsTab({
           reservationId: reservation.id,
           roomId: input.roomId,
           ...(input.reservationRoomId ? { reservationRoomId: input.reservationRoomId } : {}),
-          expectedRoomId:
-            units.find((unit) => unit.id === input.reservationRoomId)?.roomId ?? reservation.roomId,
-          expectedUpdatedAt: reservation.updatedAt,
+          ...unitAssignmentSnapshot({
+            units,
+            reservationRoomId: input.reservationRoomId,
+            headerRoomId: reservation.roomId,
+            updatedAt: reservation.updatedAt,
+          }),
         },
       }),
     onSuccess: () => {
