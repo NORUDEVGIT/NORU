@@ -20,6 +20,8 @@ import {
   type RoomingRateLabel,
 } from "@/packages/pms/components/bookings/create-reservation-rooming-list";
 import { CreateReservationPackages } from "@/packages/pms/components/bookings/create-reservation-packages";
+import { packageChargeFigures } from "@/packages/pms/lib/room-charge-guest-total";
+import { usePackageChargeRules } from "@/packages/pms/lib/use-package-charge-rules";
 import { CreateReservationRoomingSummary } from "@/packages/pms/components/bookings/create-reservation-rooming-summary";
 import { CreateReservationGuarantee } from "@/packages/pms/components/bookings/create-reservation-guarantee";
 import {
@@ -306,6 +308,7 @@ export function CreateReservationPage({
   onReturnToDesk?: () => void;
 }) {
   const restaurantId = membership.restaurant.id;
+  const packageChargeRules = usePackageChargeRules(restaurantId);
   const timezone = useRestaurantTimezone();
   const today = propertyToday(timezone);
   const walkInMode = isWalkInCreateMode(mode);
@@ -1443,9 +1446,13 @@ export function CreateReservationPage({
         bookingSource: sourceLabel || null,
         marketSegment: segmentLabel || null,
         externalReference: externalReference.trim() || null,
-        selectedPackageLines: selectedCreatePackages.map(
-          (card) => `${card.name} — ${card.price == null ? "—" : money(card.price)}`,
-        ),
+        selectedPackageLines: selectedCreatePackages.map((card) => {
+          const total =
+            card.price == null
+              ? null
+              : packageChargeFigures(card.price, packageChargeRules.data).total;
+          return `${card.name} — ${total == null ? "—" : money(total)}`;
+        }),
         selectedServiceLines: createdServiceNames,
         savedPreferenceLines: savedPreferenceRows.map((row) => `${row.label}: ${row.value}`),
         operationalGroupName: linkedGroupQuery.data?.group.name ?? null,
@@ -2632,7 +2639,10 @@ export function CreateReservationPage({
           totalRooms={groupMode ? stayTotals.rooms : 1}
           packages={selectedCreatePackages.map((card) => ({
             name: card.name,
-            price: card.price,
+            price:
+              card.price == null
+                ? null
+                : packageChargeFigures(card.price, packageChargeRules.data).total,
             chargeBasis: card.chargeType,
           }))}
           mealPlanLabel={selectedQuote?.plan.mealPlanName ?? null}
@@ -3018,7 +3028,10 @@ export function CreateReservationPage({
         key: card.activationId ?? card.id,
         name: card.name,
         category: card.category,
-        priceLabel: card.price == null ? "—" : money(card.price),
+        priceLabel:
+          card.price == null
+            ? "—"
+            : money(packageChargeFigures(card.price, packageChargeRules.data).total),
         chargeBasisLabel: card.chargeType,
         inclusions: card.components.join(", "),
       }))}
@@ -3428,6 +3441,7 @@ export function CreateReservationPage({
             merchandiseCurrency={displayCurrencyCode || propertyCurrencyCode}
             money={money}
             bookingScopeNote={groupPackageNote}
+            packageRules={packageChargeRules.data ?? null}
             selectedActivationIds={packageActivationIds}
             onToggleActivation={(activationId) =>
               setPackageActivationIds((current) =>

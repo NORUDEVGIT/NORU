@@ -109,3 +109,20 @@ export function previewPostedRoomCharge(
     lines,
   };
 }
+
+/** Taxes and service charges that post on a package charge. Rate-plan rules do not. */
+export function packageChargeScopeApplies(
+  scope: string | null | undefined,
+  basis?: string | null,
+): boolean {
+  if (scope === "all" || scope === "packages") return true;
+  if (scope) return false;
+  return basis === "all";
+}
+
+export function packageChargeFigures(
+  amount: number,
+  rules?: RoomChargeRules | null,
+): PostedRoomChargePreview {
+  return previewPostedRoomCharge(amount, rules?.taxes ?? [], rules?.services ?? []);
+}

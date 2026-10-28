@@ -12,7 +12,13 @@ export type TaxChargeType = (typeof TAX_CHARGE_TYPES)[number];
 export const TAX_BASIS = ["room", "folio", "fnb", "all"] as const;
 export type TaxBasis = (typeof TAX_BASIS)[number];
 
-export const TAX_APPLICABILITY_SCOPES = ["all", "rate_plans", "services", "departments"] as const;
+export const TAX_APPLICABILITY_SCOPES = [
+  "all",
+  "rate_plans",
+  "packages",
+  "services",
+  "departments",
+] as const;
 export type TaxApplicabilityScope = (typeof TAX_APPLICABILITY_SCOPES)[number] | "folio";
 
 export const FEE_BASIS = ["room", "folio", "stay", "person", "night"] as const;
@@ -66,6 +72,7 @@ export const TAX_BASIS_LABELS: Record<TaxBasis, string> = {
 export const TAX_APPLICABILITY_LABELS: Record<TaxApplicabilityScope, string> = {
   all: "All charges",
   rate_plans: "Rate plans only",
+  packages: "Packages only",
   services: "Services only",
   departments: "Selected departments",
   folio: "Folio charges",
@@ -86,6 +93,7 @@ export function applicabilityFromBasis(basis: TaxBasis): TaxApplicabilityScope {
 
 export function basisForApplicability(scope: TaxApplicabilityScope): TaxBasis {
   if (scope === "rate_plans") return "room";
+  if (scope === "packages") return "all";
   if (scope === "services" || scope === "departments") return "fnb";
   if (scope === "folio") return "folio";
   return "all";

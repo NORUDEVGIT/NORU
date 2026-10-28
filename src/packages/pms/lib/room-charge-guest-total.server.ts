@@ -35,8 +35,19 @@ function appliesToRoomCharge(row: { applicability_scope?: unknown; basis?: unkno
   return basis === "room" || basis === "all";
 }
 
-function asTax(row: Record<string, unknown>): RoomChargeTaxRule | null {
-  if (!appliesToRoomCharge(row)) return null;
+function appliesToPackageCharge(row: { applicability_scope?: unknown; basis?: unknown }) {
+  const scope = row.applicability_scope == null ? "" : String(row.applicability_scope);
+  if (scope === "all" || scope === "packages") return true;
+  if (scope) return false;
+  const basis = row.basis == null ? "" : String(row.basis);
+  return basis === "all";
+}
+
+function asTax(
+  row: Record<string, unknown>,
+  applies: (row: { applicability_scope?: unknown; basis?: unknown }) => boolean = appliesToRoomCharge,
+): RoomChargeTaxRule | null {
+  if (!applies(row)) return null;
   const rate = Number(row.amount);
   if (!(rate > 0)) return null;
   return {
@@ -48,8 +59,11 @@ function asTax(row: Record<string, unknown>): RoomChargeTaxRule | null {
   };
 }
 
-function asService(row: Record<string, unknown>): RoomChargeServiceRule | null {
-  if (!appliesToRoomCharge(row)) return null;
+function asService(
+  row: Record<string, unknown>,
+  applies: (row: { applicability_scope?: unknown; basis?: unknown }) => boolean = appliesToRoomCharge,
+): RoomChargeServiceRule | null {
+  if (!applies(row)) return null;
   const rate = Number(row.amount);
   if (!(rate > 0)) return null;
   return {
@@ -146,6 +160,55 @@ export async function loadRoomChargeRules(
     taxes: taxRules,
     services: serviceRows.flatMap((row) => {
       const service = asService(row as Record<string, unknown>);
+      return service ? [service] : [];
+    }),
+  };
+}
+
+/** Package taxes are not limited by the default room tax group. */
+export async function loadPackageChargeRules(
+  db: RoomChargeRuleDb,
+  restaurantId: string,
+): Promise<RoomChargeRules> {
+  let taxes = await db
+    .from("pms_taxes")
+    .select("id, code, name, charge_type, amount, basis, applicability_scope, calculation, active")
+    .eq("restaurant_id", restaurantId)
+    .eq("active", true);
+  if (taxes.error && missingColumn(taxes.error)) {
+    taxes = await db
+      .from("pms_taxes")
+      .select("id, code, name, charge_type, amount, basis, calculation, active")
+      .eq("restaurant_id", restaurantId)
+      .eq("active", true);
+  }
+  if (taxes.error) return EMPTY_RULES;
+
+  const taxRows = Array.isArray(taxes.data) ? taxes.data : [];
+  const taxRules = taxRows.flatMap((row) => {
+    const tax = asTax(row as Record<string, unknown>, appliesToPackageCharge);
+    return tax ? [tax] : [];
+  });
+
+  let services = await db
+    .from("pms_service_charges")
+    .select("code, name, charge_type, amount, basis, applicability_scope, active")
+    .eq("restaurant_id", restaurantId)
+    .eq("active", true);
+  if (services.error && missingColumn(services.error)) {
+    services = await db
+      .from("pms_service_charges")
+      .select("code, name, charge_type, amount, basis, active")
+      .eq("restaurant_id", restaurantId)
+      .eq("active", true);
+  }
+  if (services.error) return { taxes: taxRules, services: [] };
+
+  const serviceRows = Array.isArray(services.data) ? services.data : [];
+  return {
+    taxes: taxRules,
+    services: serviceRows.flatMap((row) => {
+      const service = asService(row as Record<string, unknown>, appliesToPackageCharge);
       return service ? [service] : [];
     }),
   };

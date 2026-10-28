@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireReservationManager } from "./reservations.server";
-import { previewPostedRoomCharge } from "./room-charge-guest-total";
-import { loadRoomChargeRules } from "./room-charge-guest-total.server";
+import { previewPostedRoomCharge, type RoomChargeRules } from "./room-charge-guest-total";
+import { loadPackageChargeRules, loadRoomChargeRules } from "./room-charge-guest-total.server";
 
 const idSchema = z.string().uuid();
 
@@ -28,4 +28,14 @@ export const quoteReservationRoomGuestTotal = createServerFn({ method: "POST" })
       return sum + previewPostedRoomCharge(amount, rules.taxes, rules.services).total;
     }, 0);
     return { total: Math.round(total * 100) / 100 };
+  });
+
+/** Taxes that post on a package charge. The stored package price is not changed. */
+export const getPackageChargeRules = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }): Promise<RoomChargeRules> => {
+    await requireReservationManager(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return loadPackageChargeRules(supabaseAdmin as never, data.restaurantId);
   });

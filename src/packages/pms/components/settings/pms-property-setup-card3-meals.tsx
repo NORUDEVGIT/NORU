@@ -72,13 +72,9 @@ import {
 
 } from "@/packages/pms/lib/meals-card3.functions";
 
-import { PmsCard3FoServices } from "@/packages/pms/components/settings/pms-card3-fo-services";
-
 import { PmsCard3MealServiceRules } from "@/packages/pms/components/settings/pms-card3-meal-service-rules";
 
 import {
-
-  saveFoServiceCard3,
 
   saveMealApplicabilityPolicyCard3,
 
@@ -324,8 +320,6 @@ export function PmsPropertySetupCard3Meals({
 
 const saveMealRules = useServerFn(saveMealApplicabilityPolicyCard3);
 
-const saveFoService = useServerFn(saveFoServiceCard3);
-
   const [mealSearch, setMealSearch] = useState("");
 
   const [packageSearch, setPackageSearch] = useState("");
@@ -559,34 +553,6 @@ const mealRulesMutation = useMutation({
 
 });
 
-const foServiceMutation = useMutation({
-
-  mutationFn: (input: {
-
-    id?: string;
-
-    name: string;
-
-    defaultAmount: number;
-
-    active: boolean;
-
-    sortOrder: number;
-
-  }) => saveFoService({ data: { restaurantId, ...input } }),
-
-  onSuccess: () => {
-
-    toast.success("Front-office service saved.");
-
-    invalidate();
-
-  },
-
-  onError: (error: Error) => toast.error(error.message),
-
-});
-
   void componentDraft;
 
 
@@ -615,9 +581,7 @@ const foServiceMutation = useMutation({
 
             Room types are inherited from Card 2. Rate plans are inherited from Phase 3. Room
 
-            room amenities are reused from Rooms & Operations. Front-office services used by packages
-
-            are maintained in this workspace. This configuration makes no reservation or
+            amenities are reused from Rooms & Operations. This configuration makes no reservation or
 
             folio operational changes.
 
@@ -704,18 +668,6 @@ const foServiceMutation = useMutation({
   pending={mealRulesMutation.isPending}
 
   onSave={(policy) => mealRulesMutation.mutate(policy)}
-
-/>
-
-<PmsCard3FoServices
-
-  services={snapshot.foServices}
-
-  canEdit={canEdit}
-
-  pending={foServiceMutation.isPending}
-
-  onSave={(input) => foServiceMutation.mutate(input)}
 
 />
 

@@ -106,6 +106,8 @@ import {
   resolveHistoryField,
 } from "@/packages/pms/lib/reservation-detail-group";
 import { quoteReservationRoomGuestTotal } from "@/packages/pms/lib/room-charge-guest-total.functions";
+import { packageChargeFigures } from "@/packages/pms/lib/room-charge-guest-total";
+import { usePackageChargeRules } from "@/packages/pms/lib/use-package-charge-rules";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
 import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
 import { getReservationCreateSourceChannel } from "@/packages/pms/lib/reservation-source-channel.functions";
@@ -130,7 +132,6 @@ import { ReservationPrintDocument } from "@/packages/pms/components/bookings/res
 import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
 import { snapshotDueDate } from "@/packages/pms/lib/reservation-detail-folio";
 import { guestProfilePreferenceChips } from "@/packages/pms/lib/reservation-detail-requests";
-import { appliedPackagesTotal } from "@/packages/pms/lib/reservation-detail-packages";
 import {
   reviewNoShowCopy,
   reviewRefundabilityCopy,
@@ -379,6 +380,7 @@ export function ReservationDetailWorkspace({
         ? [reservation.roomSubtotal]
         : [];
   const fetchRoomGuestTotal = useServerFn(quoteReservationRoomGuestTotal);
+  const packageChargeRules = usePackageChargeRules(restaurantId, canManage);
   const roomGuestTotalQuery = useQuery({
     queryKey: ["reservation-room-guest-total", restaurantId, roomChargeAmounts],
     queryFn: () => fetchRoomGuestTotal({ data: { restaurantId, amounts: roomChargeAmounts } }),
@@ -693,7 +695,9 @@ export function ReservationDetailWorkspace({
         chargeBasis: row.chargeBasis,
         quantity: Number.isFinite(row.quantity) ? row.quantity : null,
         unitAmount: Number.isFinite(row.unitAmount) ? money(row.unitAmount) : null,
-        amount: Number.isFinite(row.appliedAmount) ? money(row.appliedAmount) : null,
+        amount: Number.isFinite(row.appliedAmount)
+          ? money(packageChargeFigures(row.appliedAmount, packageChargeRules.data).total)
+          : null,
         inclusions:
           row.components
             .map((item) => item.label.trim() || item.componentType.trim())
@@ -703,7 +707,13 @@ export function ReservationDetailWorkspace({
       packagesKnown,
       packagesTotal:
         packagesKnown && appliedPackages.length > 0
-          ? money(appliedPackagesTotal(appliedPackages))
+          ? money(
+              appliedPackages.reduce(
+                (sum, row) =>
+                  sum + packageChargeFigures(row.appliedAmount, packageChargeRules.data).total,
+                0,
+              ),
+            )
           : null,
       paymentType: reservation.guaranteeMethod,
       paymentMethod: deposit?.tenderCode ?? reservation.guaranteeMethod,

@@ -19,6 +19,10 @@ import {
   createPackageUnselectableReason,
   type AvailablePackageCard,
 } from "@/packages/pms/lib/reservation-detail-packages";
+import {
+  packageChargeFigures,
+  type RoomChargeRules,
+} from "@/packages/pms/lib/room-charge-guest-total";
 
 export function CreateReservationPackages({
   loading,
@@ -34,6 +38,7 @@ export function CreateReservationPackages({
   selectedActivationIds = [],
   onToggleActivation,
   bookingScopeNote = null,
+  packageRules = null,
 }: {
   loading: boolean;
   error: boolean;
@@ -48,6 +53,7 @@ export function CreateReservationPackages({
   selectedActivationIds?: string[];
   onToggleActivation?: (activationId: string) => void;
   bookingScopeNote?: string | null;
+  packageRules?: RoomChargeRules | null;
 }) {
   const view = resolveCreatePackagesGateView({
     loading,
@@ -127,6 +133,7 @@ export function CreateReservationPackages({
               money={money}
               selectedActivationIds={selectedActivationIds}
               onToggleActivation={onToggleActivation}
+              packageRules={packageRules}
             />
           ) : (
             <div className="mt-3">
@@ -134,6 +141,7 @@ export function CreateReservationPackages({
                 cards={merchandiseCards}
                 currency={merchandiseCurrency}
                 money={money}
+                packageRules={packageRules}
                 emptyCopy="No packages match this room type and rate plan."
               />
             </div>
@@ -157,12 +165,14 @@ function PackageCatalogueTable({
   money,
   selectedActivationIds,
   onToggleActivation,
+  packageRules = null,
 }: {
   cards: AvailablePackageCard[];
   currency: string;
   money: (value: number) => string;
   selectedActivationIds: string[];
   onToggleActivation?: (activationId: string) => void;
+  packageRules?: RoomChargeRules | null;
 }) {
   if (cards.length === 0) {
     return (
@@ -185,7 +195,7 @@ function PackageCatalogueTable({
             <th className="w-7 py-1 font-medium" />
             <th className="w-[42%] py-1 pr-2 font-medium">Package</th>
             <th className="py-1 pr-2 font-medium">Description</th>
-            <th className="w-20 py-1 pr-2 text-right font-medium">Price ({currency})</th>
+            <th className="w-20 py-1 pr-2 text-right font-medium">Net ({currency})</th>
             <th className="w-9 py-1 pr-2 text-center font-medium">Qty</th>
             <th className="w-20 py-1 text-right font-medium">Total ({currency})</th>
           </tr>
@@ -196,7 +206,9 @@ function PackageCatalogueTable({
             const bindable = canBindCreatePackage(card) && activationId != null;
             const selected = activationId != null && selectedActivationIds.includes(activationId);
             const unavailable = createPackageUnselectableReason(card);
-            const amount = card.price == null ? "—" : money(card.price);
+            const figures = card.price == null ? null : packageChargeFigures(card.price, packageRules);
+            const net = figures == null ? "—" : money(figures.netAmount);
+            const total = figures == null ? "—" : money(figures.total);
             return (
               <tr
                 key={card.id}
@@ -258,13 +270,21 @@ function PackageCatalogueTable({
                   ) : null}
                 </td>
                 <td className="py-1 pr-2 text-right align-middle tabular-nums text-[#251605]">
-                  {amount}
+                  {net}
                 </td>
                 <td className="py-1 pr-2 text-center align-middle tabular-nums text-[#251605]">
                   1
                 </td>
-                <td className="py-1 text-right align-middle font-medium tabular-nums text-[#251605]">
-                  {amount}
+                <td
+                  className="py-1 text-right align-middle font-medium tabular-nums text-[#251605]"
+                  data-testid={`create-package-total-${card.id}`}
+                >
+                  {total}
+                  {figures && figures.lines.length > 0 ? (
+                    <span className="mt-0.5 block text-[10px] font-normal text-[#6B5E4E]">
+                      {figures.lines.map((line) => line.name).join(", ")}
+                    </span>
+                  ) : null}
                 </td>
               </tr>
             );

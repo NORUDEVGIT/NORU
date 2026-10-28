@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { previewPostedRoomCharge } from "./room-charge-guest-total.ts";
+import {
+  packageChargeFigures,
+  packageChargeScopeApplies,
+  previewPostedRoomCharge,
+} from "./room-charge-guest-total.ts";
 
 describe("posted room charge guest total", () => {
   it("adds exclusive VAT and occupancy fee on the same pretax rate", () => {
@@ -40,5 +44,20 @@ describe("posted room charge guest total", () => {
   it("leaves the rate unchanged when no room tax or service is set", () => {
     const posted = previewPostedRoomCharge(48000, [], []);
     assert.equal(posted.total, 48000);
+  });
+
+  it("adds a packages-only exclusive tax and keeps an all-charges tax on the package", () => {
+    assert.equal(packageChargeScopeApplies("packages"), true);
+    assert.equal(packageChargeScopeApplies("all"), true);
+    assert.equal(packageChargeScopeApplies("rate_plans"), false);
+    assert.equal(packageChargeScopeApplies("services"), false);
+    const posted = packageChargeFigures(200, {
+      taxes: [
+        { code: "PKG", name: "Package VAT", chargeType: "percentage", rate: 10, calculation: "exclusive" },
+      ],
+      services: [],
+    });
+    assert.equal(posted.netAmount, 200);
+    assert.equal(posted.total, 220);
   });
 });
