@@ -31,15 +31,18 @@ const legacyRun = readFileSync(
 );
 
 describe("Night Audit Phase 1 shell", () => {
-  it("keeps four tabs and the canonical route", () => {
+  it("keeps the Night Audit route and the financial navigation", () => {
     assert.deepEqual(
       NIGHT_AUDIT_TABS.map((tab) => tab.label),
-      ["Control Center", "Pre-Audit", "Reconciliation", "History"],
+      ["Control Center", "Financial", "Operations", "Exceptions", "Run & Close", "History"],
     );
     assert.equal(resolveNightAuditTab(undefined), "control");
     assert.equal(resolveNightAuditTab("summary"), "history");
+    assert.equal(resolveNightAuditTab("reconciliation"), "financial");
+    assert.equal(resolveNightAuditTab("pre-audit"), "operations");
     assert.equal(resolveNightAuditTab("not-a-tab"), "control");
     assert.deepEqual(nightAuditSearch("history", "run-1"), { tab: "history", run: "run-1" });
+    assert.deepEqual(nightAuditSearch("financial", null, "blockers"), { tab: "financial", focus: "blockers" });
     assert.deepEqual(nightAuditSearch("control", "run-1"), { tab: "control" });
     assert.match(route, /\/restaurant\/pms\/night-audit/);
     assert.match(route, /hidePackageRail/);
@@ -64,9 +67,12 @@ describe("Night Audit Phase 1 shell", () => {
     assert.match(workspace, /closeBusinessDate/);
     assert.doesNotMatch(workspace, /updateException/);
     assert.doesNotMatch(desk, /ChecklistPanel|ExceptionsPanel|NoShowPanel|RevenuePanel/);
-    assert.doesNotMatch(desk, /Run pre-audit|Retry|Ignore|Waive|City Ledger|Company Folios/i);
+    assert.doesNotMatch(desk, /Run pre-audit|Retry Fiscal|Ignore|Waive|Mark resolved/i);
     assert.doesNotMatch(desk, /recharts|ResponsiveContainer/);
-    assert.match(desk, /night-audit-reconciliation-hold/);
+    assert.match(desk, /night-audit-operations-tab/);
+    assert.match(desk, /night-audit-operations-kpis/);
+    assert.doesNotMatch(desk, /night-audit-operations-next/);
+    assert.match(desk, /night-audit-financial-kpis/);
     assert.match(desk, /getNightAuditRun|runDetail/);
   });
 });

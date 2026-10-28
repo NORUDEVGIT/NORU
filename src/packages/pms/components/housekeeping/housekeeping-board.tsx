@@ -396,7 +396,10 @@ export function HousekeepingBoardTab({
                   type="button"
                   className="text-xs text-muted-foreground"
                   onClick={() =>
-                    void navigate({ to: "/restaurant/pms/housekeeping", search: { tab: "inspections" } })
+                    void navigate({
+                      to: "/restaurant/pms/housekeeping",
+                      search: (prev: Record<string, unknown>) => ({ ...prev, tab: "inspections" }),
+                    })
                   }
                 >
                   View all
@@ -481,7 +484,17 @@ export function HousekeepingBoardTab({
         onClose={() => {
           setQvRoomId(null);
           if (openRoomId) {
-            void navigate({ to: HK_CANONICAL_PATH, search: { tab: "board" }, replace: true });
+            void navigate({
+              to: HK_CANONICAL_PATH,
+              search: (prev: Record<string, unknown>) => {
+                const { room: _omitted, ...rest } = prev ?? {};
+                return {
+                  ...rest,
+                  tab: "board",
+                };
+              },
+              replace: true,
+            });
           }
         }}
       />

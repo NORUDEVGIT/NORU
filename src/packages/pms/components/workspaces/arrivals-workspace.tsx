@@ -116,10 +116,14 @@ export function ArrivalsWorkspace({
   membership,
   variant = "arrivals",
   embedded = false,
+  initialSearch = "",
+  initialReservationId,
 }: {
   membership: RestaurantMembership;
   variant?: ArrivalsVariant;
   embedded?: boolean;
+  initialSearch?: string;
+  initialReservationId?: string;
 }) {
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
@@ -133,12 +137,12 @@ export function ArrivalsWorkspace({
   }, [today]);
   const [status, setStatus] = useState(variant === "checkin" ? "confirmed" : ALL);
   const [assignment, setAssignment] = useState(variant === "assignment" ? "unassigned" : ALL);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [vip, setVip] = useState(ALL);
   const [readiness, setReadiness] = useState(ALL);
   const [roomType, setRoomType] = useState(ALL);
   const [blocker, setBlocker] = useState(ALL);
-  const [qvId, setQvId] = useState<string | null>(null);
+  const [qvId, setQvId] = useState<string | null>(initialReservationId ?? null);
   const [qvRoomId, setQvRoomId] = useState<string | null>(null);
   const [checkIn, setCheckIn] = useState<FoArrivalQuickView | null>(null);
   const [assignStay, setAssignStay] = useState<FoArrivalDeskRow["stay"] | null>(null);
@@ -419,19 +423,23 @@ export function ArrivalsWorkspace({
         }}
         onAssign={(qv) => {
           setQvId(null);
+          setQvRoomId(null);
           setAssignStay(qv.stay);
         }}
         onEta={(qv) => {
           setQvId(null);
+          setQvRoomId(null);
           setEtaQv(qv);
         }}
         onRegister={(qv) => {
           setQvId(null);
+          setQvRoomId(null);
           setCheckInStep("registration");
           setCheckIn(qv);
         }}
         onCheckIn={(qv) => {
           setQvId(null);
+          setQvRoomId(null);
           setCheckInStep(qv.hints.needsDeposit && qv.registration.complete ? "deposit" : "stay");
           setCheckIn(qv);
         }}

@@ -1,12 +1,13 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { CalendarDays, ChevronDown, HelpCircle, MoreHorizontal, Search } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronDown, HelpCircle, MoreHorizontal, Search } from "lucide-react";
 
 import { NoruLogo } from "@/core/components/noru-logo";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PmsCommandChrome } from "@/packages/pms/components/pms-command-chrome";
 import { PMS_MODULE_NAV, type PmsModuleNavLabel } from "@/packages/pms/lib/pms-module-nav";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
+import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +44,9 @@ export function RoomInventoryChrome({
   onHelpClick,
   overflowItems = [],
   shellTestId = "room-inventory-command-shell",
+  returnTo,
+  returnToLabel,
+  suppressReturnButton = false,
   children,
 }: {
   membership: RestaurantMembership;
@@ -58,9 +62,17 @@ export function RoomInventoryChrome({
   onHelpClick?: () => void;
   overflowItems?: Array<{ label: string; onSelect: () => void; testId?: string }>;
   shellTestId?: string;
+  returnTo?: string | undefined;
+  returnToLabel?: string | undefined;
+  suppressReturnButton?: boolean;
   children: ReactNode;
 }) {
   const navigate = useNavigate();
+  const { hasPrevious, computedLabel, handleReturn } = resolvePmsReturnTo({
+    returnTo,
+    returnToLabel,
+  });
+  const showReturnButton = hasPrevious && !suppressReturnButton;
   const businessDate = usePropertyBusinessDate(
     membership.restaurant.id,
     membership.restaurant.timezone,
@@ -91,10 +103,21 @@ export function RoomInventoryChrome({
       onGuestSearch={() => void navigate({ to: "/restaurant/pms/guests" })}
       onQuickAction={() => undefined}
       nav={
-        <div className="flex min-w-0 items-center gap-5">
+        <div className="flex min-w-0 items-center gap-4">
           <Link to="/restaurant/pms" className="shrink-0">
             <NoruLogo size="sm" wordmarkClassName="text-white" />
           </Link>
+          {showReturnButton ? (
+            <button
+              type="button"
+              onClick={handleReturn}
+              data-testid="pms-chrome-return-to-previous"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1 text-xs font-semibold text-white shadow-xs hover:bg-white/20 transition-all cursor-pointer"
+            >
+              <ArrowLeft className="size-3.5 text-[#C89933]" />
+              <span>{computedLabel}</span>
+            </button>
+          ) : null}
           <nav
             className="hidden min-w-0 items-center gap-0.5 overflow-x-auto lg:flex"
             aria-label="PMS modules"
@@ -118,7 +141,18 @@ export function RoomInventoryChrome({
         </div>
       }
       mobile={
-        <div className="border-b border-border bg-card px-3 py-2 lg:hidden">
+        <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 lg:hidden">
+          {showReturnButton ? (
+            <button
+              type="button"
+              onClick={handleReturn}
+              data-testid="pms-chrome-return-to-previous-mobile"
+              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-foreground cursor-pointer"
+            >
+              <ArrowLeft className="size-3 text-[#C89933]" />
+              <span>{computedLabel}</span>
+            </button>
+          ) : null}
           <PmsSelect
             aria-label="PMS module"
             value={NAV_ITEMS.find((item) => item.label === activeModule)?.to ?? ""}

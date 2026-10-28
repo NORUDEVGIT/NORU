@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown } from "lucide-react";
+import { ArrowLeft, ChevronDown } from "lucide-react";
+
+import { Button } from "@/shared/components/ui/button";
+import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
 
 import type { RoomBlockCreatePrefill } from "@/packages/pms/components/rooms/room-inventory-blocks";
 import { RoomsDashboardTab } from "@/packages/pms/components/rooms/rooms-dashboard";
@@ -266,11 +269,19 @@ function SecondaryButton({
 export function RoomsWorkspace({
   membership,
   initialTab,
+  returnTo,
+  returnToLabel,
 }: {
   membership: RestaurantMembership;
   initialTab?: string | undefined;
+  returnTo?: string | undefined;
+  returnToLabel?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
+  const { hasPrevious, computedLabel, handleReturn } = resolvePmsReturnTo({
+    returnTo,
+    returnToLabel,
+  });
 
   const [view, setView] = useState<RoomInventoryView>(() => normalizeInitialView(initialTab));
 
@@ -433,25 +444,43 @@ export function RoomsWorkspace({
   return (
     <RoomInventoryChrome
       membership={membership}
+      suppressReturnButton
       onRoomSearch={(value) => {
         setCommandSearch(value);
         selectView("room-board");
       }}
     >
       <div className="min-w-0 bg-[#F7F4EE]">
-        <div className="border-b border-border bg-background">
-          <div className="px-5 pt-4 sm:px-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              Operations
-            </p>
+        <div className="border-b border-border bg-background" data-testid="rooms-desk-header">
+          <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4 sm:px-6">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Operations
+              </p>
 
-            <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
-              Room & Inventory
-            </h1>
+              <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
+                Room & Inventory
+              </h1>
 
-            <p className="mt-1 text-sm text-muted-foreground">
-              Manage room status, inventory, and operational readiness across your property.
-            </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Manage room status, inventory, and operational readiness across your property.
+              </p>
+            </div>
+
+            {hasPrevious ? (
+              <div className="flex items-center gap-2 pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReturn}
+                  data-testid="rooms-return-to-previous"
+                  className="h-8 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs hover:bg-[#FAF8F4] transition-all"
+                >
+                  <ArrowLeft className="size-3.5 text-[#8A6A24]" />
+                  {computedLabel}
+                </Button>
+              </div>
+            ) : null}
           </div>
 
           <div className="relative mt-3 flex items-end gap-3 px-5 sm:px-6">

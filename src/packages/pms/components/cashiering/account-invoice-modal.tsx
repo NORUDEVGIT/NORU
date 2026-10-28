@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import * as React from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -69,6 +70,7 @@ export function AccountInvoiceModal({
   onReprint,
   reprinting = false,
   onAllocate,
+  initialTab,
 }: {
   open: boolean;
   invoice: IssuedAccountInvoice | null;
@@ -86,8 +88,20 @@ export function AccountInvoiceModal({
   onReprint?: ((invoiceId: string) => void) | undefined;
   reprinting?: boolean | undefined;
   onAllocate?: ((invoiceId: string) => void) | undefined;
+  initialTab?: string | undefined;
 }) {
-  const [activeTab, setActiveTab] = useState<AccountInvoiceModalTabId>("preview");
+  const [activeTab, setActiveTab] = useState<AccountInvoiceModalTabId>(() => {
+    if (initialTab && ["preview", "fiscal", "settlement", "withholding", "credit-notes", "debit-notes"].includes(initialTab)) {
+      return initialTab as AccountInvoiceModalTabId;
+    }
+    return "preview";
+  });
+
+  React.useEffect(() => {
+    if (open && initialTab && ["preview", "fiscal", "settlement", "withholding", "credit-notes", "debit-notes"].includes(initialTab)) {
+      setActiveTab(initialTab as AccountInvoiceModalTabId);
+    }
+  }, [open, initialTab]);
   const [allocatePaymentId, setAllocatePaymentId] = useState<string | null>(null);
   const [paymentPickerOpen, setPaymentPickerOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);

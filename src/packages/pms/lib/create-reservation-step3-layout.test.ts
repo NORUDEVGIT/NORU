@@ -122,4 +122,18 @@ describe("reservation create step 3 policies and payment layout", () => {
     assert.match(page, /← Back/);
     assert.match(page, /Continue to Review & Confirm/);
   });
+
+  it("renders Expected Price Reminder under payment information in Step 3", () => {
+    const reminder = read("../components/bookings/create-reservation-price-reminder.tsx");
+    assert.match(policies, /priceReminder/);
+    assert.match(page, /CreateReservationPriceReminder/);
+    assert.match(page, /priceReminder=\{/);
+    assert.match(reminder, /Expected Price Reminder/);
+    assert.match(reminder, /data-testid="create-reservation-price-reminder"/);
+    assert.match(reminder, /data-testid="reminder-rate-plan-name"/);
+    assert.match(reminder, /data-testid="reminder-expected-total-amount"/);
+    assert.match(reminder, /reminder-packages/);
+    assert.match(reminder, /reminder-payment-balance/);
+  });
 });
+

@@ -7,8 +7,9 @@ import { requireRoutePackage } from "@/core/lib/route-package-guard";
 export const Route = createFileRoute("/restaurant/pms/night-audit")({
   ssr: false,
   validateSearch: (search: Record<string, unknown>) => ({
-    ...(typeof search.tab === "string" ? { tab: search.tab } : {}),
-    ...(typeof search.run === "string" ? { run: search.run } : {}),
+    ...(typeof search["tab"] === "string" ? { tab: search["tab"] } : {}),
+    ...(typeof search["run"] === "string" ? { run: search["run"] } : {}),
+    ...(typeof search["focus"] === "string" ? { focus: search["focus"] } : {}),
   }),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
@@ -36,7 +37,7 @@ export const Route = createFileRoute("/restaurant/pms/night-audit")({
 });
 
 function NightAuditPmsRoute() {
-  const search = Route.useSearch() as { tab?: string; run?: string };
+  const search = Route.useSearch() as { tab?: string; run?: string; focus?: string };
   return (
     <RestaurantShell
       active="Night Audit"
@@ -51,6 +52,7 @@ function NightAuditPmsRoute() {
           membership={m}
           initialTab={search.tab}
           {...(search.run ? { initialRunId: search.run } : {})}
+          {...(search.focus ? { initialFocus: search.focus } : {})}
         />
       )}
     </RestaurantShell>

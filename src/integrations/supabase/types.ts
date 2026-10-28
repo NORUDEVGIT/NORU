@@ -23532,6 +23532,53 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      post_folio_manual_charge: {
+        Args: {
+          _amount: number
+          _description: string
+          _folio_id: string
+          _idempotency_key: string
+          _membership_id: string
+          _nature_of_supplies: string
+          _restaurant_id: string
+        }
+        Returns: {
+          amount: number
+          category: string
+          charge_snapshot: Json | null
+          charge_source: string | null
+          created_at: string
+          department_id: string | null
+          description: string
+          financial_account_id: string | null
+          folio_id: string | null
+          folio_window_id: string | null
+          hotel_cashier_shift_id: string | null
+          id: string
+          idempotency_key: string | null
+          original_transaction_id: string | null
+          payment_method: string | null
+          posted_at: string
+          posted_by_membership_id: string | null
+          quantity: number | null
+          reference_id: string | null
+          reference_type: string | null
+          reservation_room_id: string | null
+          restaurant_id: string
+          service_type_id: string | null
+          tax_snapshot: Json | null
+          transaction_type: string
+          transfer_direction: string | null
+          transfer_id: string | null
+          unit_amount: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "folio_transactions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       post_folio_service_charge: {
         Args: {
           _description: string

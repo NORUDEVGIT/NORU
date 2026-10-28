@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { ArrowLeft } from "lucide-react";
+
+import { Button } from "@/shared/components/ui/button";
+import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { getDistributionAccess } from "@/packages/pms/lib/distribution.functions";
@@ -22,11 +26,19 @@ type TabKey = (typeof TABS)[number];
 export function DistributionWorkspace({
   membership,
   initialTab,
+  returnTo,
+  returnToLabel,
 }: {
   membership: RestaurantMembership;
   initialTab?: string | undefined;
+  returnTo?: string | undefined;
+  returnToLabel?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
+  const { hasPrevious, computedLabel, handleReturn } = resolvePmsReturnTo({
+    returnTo,
+    returnToLabel,
+  });
   const searchTab = initialTab;
   const [tab, setTab] = useState<TabKey>("overview");
 
@@ -59,16 +71,33 @@ export function DistributionWorkspace({
 
   return (
     <div className="space-y-5">
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Configuration · Distribution
-        </p>
-        <h1 className="font-display text-2xl">
-          <PageHeading fallback="Distribution" />
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Your NORU direct booking page and the channel foundation behind it.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3" data-testid="distribution-desk-header">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Configuration · Distribution
+          </p>
+          <h1 className="font-display text-2xl">
+            <PageHeading fallback="Distribution" />
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Your NORU direct booking page and the channel foundation behind it.
+          </p>
+        </div>
+
+        {hasPrevious ? (
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReturn}
+              data-testid="distribution-return-to-previous"
+              className="h-8 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs hover:bg-[#FAF8F4] transition-all"
+            >
+              <ArrowLeft className="size-3.5 text-[#8A6A24]" />
+              {computedLabel}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>

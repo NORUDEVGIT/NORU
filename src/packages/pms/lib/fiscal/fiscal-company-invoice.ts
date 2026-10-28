@@ -31,6 +31,8 @@ import {
   MANUAL_NATURE_MIXED,
   manualChargeNature,
   manualFiscalMapping,
+  manualIdentityNature,
+  manualNatureBlocksInvoice,
 } from "./fiscal-manual-item.ts";
 import {
   FISCAL_DOCUMENT_MODE,
@@ -163,6 +165,7 @@ type FrozenGroup = {
   serviceChargeTotal: number;
   taxLines: FrozenTax[];
   identityFrozen: boolean;
+  natureOfSupplies: string | null;
 };
 
 export function assessCompanyInvoiceFiscal(
@@ -231,10 +234,16 @@ export function assessCompanyInvoiceFiscal(
         .filter((nature): nature is string => Boolean(nature)),
     );
     const manualNature = manualChargeNature(anchored);
-    const needsManualIdentity = parsed.groups.some(
-      (group) => group.chargeSource === "manual" && !resolveItem(group, input.itemMappings),
-    );
-    if (needsManualIdentity && manualNature === "mixed") {
+    if (
+      manualNatureBlocksInvoice(
+        parsed.groups.map((group) => ({
+          chargeSource: group.chargeSource,
+          natureOfSupplies: group.natureOfSupplies,
+          mapped: resolveItem(group, input.itemMappings) != null,
+        })),
+        manualNature,
+      )
+    ) {
       reasons.push(MANUAL_NATURE_MIXED);
     }
     let previewSerial = 1001;
@@ -260,10 +269,11 @@ export function assessCompanyInvoiceFiscal(
         (group.chargeSource === "manual" && input.allowPreviewManualCode
           ? String(previewSerial++)
           : null);
+      const chosenNature = manualIdentityNature(group.natureOfSupplies, manualNature);
       const item =
         mapped ??
-        (group.chargeSource === "manual" && manualCode && manualNature !== "mixed"
-          ? manualFiscalMapping(manualCode, manualNature)
+        (group.chargeSource === "manual" && manualCode && chosenNature
+          ? manualFiscalMapping(manualCode, chosenNature)
           : null);
       if (!item) {
         missingItems.push(group.description);
@@ -509,6 +519,7 @@ function parseGroup(value: unknown): FrozenGroup | null {
     serviceChargeTotal: fiscalMoney(numberValue(row.serviceChargeTotal)),
     taxLines,
     identityFrozen: Boolean(chargeSource || serviceTypeId || departmentId),
+    natureOfSupplies: optionalText(chargeSnapshot?.natureOfSupplies),
   };
 }
 

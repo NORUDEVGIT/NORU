@@ -1,4 +1,11 @@
-import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Lock } from "lucide-react";
@@ -20,6 +27,8 @@ import { SearchableSelect } from "@/shared/components/ui/searchable-select";
 import { supabase } from "@/integrations/supabase/client";
 import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/shared/lib/property-time";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { BUSINESS_DATE_NORMAL_COPY } from "@/packages/pms/lib/business-date-recovery";
+import { nightAuditWindowConfigProblem } from "@/packages/pms/lib/night-audit-window";
 import {
   PropertySetupField,
   PropertySetupFormGrid,
@@ -206,8 +215,6 @@ function SelectField({
     </PropertySetupField>
   );
 }
-
-
 
 export function IdentityStep({
   restaurantId,
@@ -767,7 +774,11 @@ export function AddressStep({
         />
       </Panel>
 
-      <Panel title="Primary & Alternate Contacts" helper="Property contact details and channels" icon="contact">
+      <Panel
+        title="Primary & Alternate Contacts"
+        helper="Property contact details and channels"
+        icon="contact"
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           <PropertySetupPhoneField
             id="card1-phone"
@@ -1072,14 +1083,21 @@ export function CheckinStep({
   setDraft,
   canEdit,
   currentState,
+  businessDateAction,
 }: {
   draft: Card1Draft;
   setDraft: Dispatch<SetStateAction<Card1Draft>>;
   canEdit: boolean;
   currentState?: Card1CurrentState;
+  /** Owner-only recovery control. Absent for every other role. */
+  businessDateAction?: ReactNode;
 }) {
   const effectiveCurrentState = currentState ?? emptyCurrentState();
   const preview = liveBlockPreview(draft.businessDateBlockers);
+  const nightAuditWindowProblem = nightAuditWindowConfigProblem(
+    draft.businessDateConfig.nightAuditWindowStart,
+    draft.businessDateConfig.nightAuditWindowEnd,
+  );
   return (
     <div className="space-y-4" data-testid="pms-card1-step-checkin">
       <Panel
@@ -1305,6 +1323,13 @@ export function CheckinStep({
               data-testid="card1-business-date-current"
               className="h-11 bg-muted/40"
             />
+            <p
+              className="text-xs text-muted-foreground"
+              data-testid="card1-business-date-normal-copy"
+            >
+              {BUSINESS_DATE_NORMAL_COPY}
+            </p>
+            {businessDateAction}
           </div>
           <Field
             id="card1-system-date"
@@ -1318,7 +1343,12 @@ export function CheckinStep({
             value={effectiveCurrentState.propertyLocalTime || "—"}
             readOnly
           />
-          <Field id="card1-bd-status" label="Status" value={effectiveCurrentState.status} readOnly />
+          <Field
+            id="card1-bd-status"
+            label="Status"
+            value={effectiveCurrentState.status}
+            readOnly
+          />
           <Field
             id="card1-last-na"
             label="Last Successful Night Audit"
@@ -1382,6 +1412,14 @@ export function CheckinStep({
             }
           />
         </div>
+        {nightAuditWindowProblem ? (
+          <p
+            className="text-xs font-medium text-destructive"
+            data-testid="card1-night-audit-window-error"
+          >
+            {nightAuditWindowProblem}
+          </p>
+        ) : null}
         <ToggleRow
           id="card1-auto-roll"
           label="Automatic date rollover — Only after successful Night Audit"
@@ -1687,12 +1725,7 @@ export function BusinessDateStep({
   currentState: Card1CurrentState;
 }) {
   return (
-    <CheckinStep
-      draft={draft}
-      setDraft={setDraft}
-      canEdit={canEdit}
-      currentState={currentState}
-    />
+    <CheckinStep draft={draft} setDraft={setDraft} canEdit={canEdit} currentState={currentState} />
   );
 }
 

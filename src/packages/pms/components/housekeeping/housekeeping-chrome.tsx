@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import type { HousekeepingScope } from "@/core/lib/module-access";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
-import { Button } from "@/shared/components/ui/button";
+import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
 import {
   HK_AREA_ITEMS,
   HK_DESK_DESCRIPTION,
@@ -13,6 +13,7 @@ import {
   type HkAreaId,
   type HkResolvableAreaId,
 } from "@/packages/pms/lib/housekeeping-shell";
+import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
 
 export function HousekeepingChrome({
@@ -21,6 +22,8 @@ export function HousekeepingChrome({
   active,
   onNavigate,
   onSearch,
+  returnTo,
+  returnToLabel,
   children,
 }: {
   membership: RestaurantMembership;
@@ -28,9 +31,16 @@ export function HousekeepingChrome({
   active: HkResolvableAreaId;
   onNavigate: (id: HkAreaId) => void;
   onSearch: (value: string) => void;
+  returnTo?: string | undefined;
+  returnToLabel?: string | undefined;
   children: ReactNode;
 }) {
   const visible = visibleHkAreas(scope);
+  const { hasPrevious, computedLabel, handleReturn } = resolvePmsReturnTo({
+    returnTo,
+    returnToLabel,
+  });
+
   return (
     <RoomInventoryChrome
       membership={membership}
@@ -40,45 +50,35 @@ export function HousekeepingChrome({
       helpLabel="Housekeeping Desk operational workspace"
       shellTestId="hk-command-shell"
       onRoomSearch={onSearch}
+      suppressReturnButton
     >
       <div className="min-w-0 bg-[#F7F4EE]" data-testid="hk-desk">
         <header className="border-b border-border bg-background" data-testid="hk-desk-header">
-          <div className="px-5 pt-4 sm:px-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Operations
-                </p>
-                <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
-                  {HK_DESK_TITLE}
-                </h1>
-                <p className="mt-1 text-sm text-muted-foreground">{HK_DESK_DESCRIPTION}</p>
-              </div>
+          <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4 sm:px-6">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Operations
+              </p>
+              <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
+                {HK_DESK_TITLE}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">{HK_DESK_DESCRIPTION}</p>
+            </div>
 
-              <div className="flex items-center gap-2">
+            {hasPrevious ? (
+              <div className="flex items-center gap-2 pt-1">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    const params = new URLSearchParams(window.location.search);
-                    const returnTo = params.get("returnTo");
-                    if (returnTo) {
-                      window.location.href = returnTo;
-                      return;
-                    }
-                    if (window.history.length > 1 && document.referrer && document.referrer.includes("/restaurant/")) {
-                      window.history.back();
-                      return;
-                    }
-                    window.location.href = "/restaurant/pms/room-inventory?tab=maintenance";
-                  }}
-                  className="h-8 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs"
+                  onClick={handleReturn}
+                  data-testid="hk-return-to-previous"
+                  className="h-8 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs hover:bg-[#FAF8F4] transition-all"
                 >
-                  <ArrowLeft className="size-3.5" />
-                  Back to previous page
+                  <ArrowLeft className="size-3.5 text-[#8A6A24]" />
+                  {computedLabel}
                 </Button>
               </div>
-            </div>
+            ) : null}
           </div>
           <nav
             data-testid="hk-workspace-nav"

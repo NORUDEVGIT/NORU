@@ -21,7 +21,7 @@ import {
   type SourceFolioRow,
 } from "./cashiering-account-ownership";
 
-const idSchema = z.string().uuid();
+const idSchema = z.string().min(1);
 
 type ServiceClient = Awaited<
   typeof import("@/integrations/supabase/client.server")

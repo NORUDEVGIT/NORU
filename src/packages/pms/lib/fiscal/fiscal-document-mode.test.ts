@@ -338,7 +338,91 @@ describe("manual charge fiscal identity", () => {
     assert.equal(mixed.reasons.includes(MANUAL_NATURE_MIXED), true);
   });
 
-  it("does not ask the operator for an item code, unit, or catalogue service on a manual charge", () => {
+  it("uses the goods or service choice stored on a manual charge", () => {
+    const chosen = assessGuestInvoiceFiscal(
+      INVOICE_ID,
+      guestInput({
+        allowPreviewManualCode: true,
+        itemMappings: [
+          {
+            serviceTypeId: null,
+            departmentId: null,
+            chargeSource: "room",
+            isDefault: false,
+            externalItemCode: "1001",
+            externalUnit: "PCS",
+            natureOfSupplies: "service",
+            harmonizationCode: null,
+            active: true,
+          },
+          {
+            serviceTypeId: null,
+            departmentId: null,
+            chargeSource: "minibar",
+            isDefault: false,
+            externalItemCode: "1002",
+            externalUnit: "PCS",
+            natureOfSupplies: "goods",
+            harmonizationCode: null,
+            active: true,
+          },
+        ],
+        snapshot: {
+          ...(guestInput().snapshot as Record<string, unknown>),
+          groups: [
+            {
+              ok: true,
+              description: "Room",
+              chargeSource: "room",
+              parentTransactionId: "room-1",
+              subtotal: 100,
+              taxTotal: 0,
+              serviceChargeTotal: 0,
+              grossTotal: 100,
+              chargeSnapshot: null,
+              taxLines: [],
+              serviceLines: [],
+            },
+            {
+              ok: true,
+              description: "Minibar",
+              chargeSource: "minibar",
+              parentTransactionId: "goods-1",
+              subtotal: 50,
+              taxTotal: 0,
+              serviceChargeTotal: 0,
+              grossTotal: 50,
+              chargeSnapshot: null,
+              taxLines: [],
+              serviceLines: [],
+            },
+            {
+              ok: true,
+              description: "Late additional accommodation amount",
+              chargeSource: "manual",
+              parentTransactionId: "manual-1",
+              subtotal: 50,
+              taxTotal: 0,
+              serviceChargeTotal: 0,
+              grossTotal: 50,
+              chargeSnapshot: { natureOfSupplies: "goods" },
+              taxLines: [],
+              serviceLines: [],
+            },
+          ],
+          totals: { subtotal: 200, tax: 0, serviceCharge: 0, invoiceTotal: 200 },
+        },
+      }),
+    );
+    assert.equal(chosen.ok, true);
+    if (!chosen.ok) return;
+    const manual = chosen.payload.info.ItemList.find(
+      (line) => line.ProductDescription === "Late additional accommodation amount",
+    );
+    assert.equal(manual?.NatureOfSupplies, "goods");
+  });
+
+  it("asks for goods or service on a manual charge and does not ask for an item code", () => {
     const dialog = readFileSync(
       new URL("../../components/cashiering/post-charge-dialog.tsx", import.meta.url),
       "utf8",
@@ -349,11 +433,15 @@ describe("manual charge fiscal identity", () => {
     const service = poster.slice(poster.indexOf("export const postFolioServiceCharge"));
     assert.equal(dialog.includes("ItemCode"), false);
     assert.equal(dialog.includes('id="post-charge-unit"'), false);
-    assert.equal(dialog.includes("NatureOfSupplies"), false);
+    assert.match(dialog, /Nature of supplies/);
+    assert.match(dialog, /id="post-charge-nature"/);
+    assert.match(dialog, /natureOfSupplies: nature/);
     assert.match(manual, /description: z\.string\(\)\.min\(1\)\.max\(200\)/);
     assert.match(manual, /amount: z\.number\(\)\.finite\(\)/);
+    assert.match(manual, /natureOfSupplies: z\.enum\(\["goods", "service"\]\)/);
     assert.equal(manual.includes("serviceTypeId"), false);
     assert.match(manual, /requireCashierManager/);
+    assert.match(entry, /post_folio_manual_charge/);
     assert.match(service, /serviceTypeId: idSchema/);
   });
 });

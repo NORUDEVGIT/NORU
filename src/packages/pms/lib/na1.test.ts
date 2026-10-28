@@ -175,7 +175,7 @@ describe("NA-1 waive off", () => {
 
     const panels = readRel("../components/nightaudit/na1-panels.tsx");
     assert.equal(NA1_PHONE_CLOSE_COPY, "Use desktop to close");
-    assert.equal(NA1_CONFIRM_LABEL, "Confirm close");
+    assert.equal(NA1_CONFIRM_LABEL, "Close Business Date");
     assert.match(panels, /NA1_PHONE_CLOSE_COPY/);
     assert.match(panels, /NA1_CONFIRM_LABEL/);
     assert.doesNotMatch(panels, />Ignore</);

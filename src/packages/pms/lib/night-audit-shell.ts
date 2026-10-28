@@ -1,9 +1,11 @@
-/** Night Audit Phase 1 shell. Tabs are navigation only. They do not add writers. */
+/** Night Audit shell. Tabs navigate. They do not post, allocate, or close a drawer. */
 
 export const NIGHT_AUDIT_TABS = [
   { id: "control", label: "Control Center" },
-  { id: "pre-audit", label: "Pre-Audit" },
-  { id: "reconciliation", label: "Reconciliation" },
+  { id: "financial", label: "Financial" },
+  { id: "operations", label: "Operations" },
+  { id: "exceptions", label: "Exceptions" },
+  { id: "close", label: "Run & Close" },
   { id: "history", label: "History" },
 ] as const;
 
@@ -13,11 +15,12 @@ export const NIGHT_AUDIT_DESK_EYEBROW = "Operations";
 export const NIGHT_AUDIT_DESK_TITLE = "Night Audit Control";
 
 export const NIGHT_AUDIT_TAB_COPY: Record<NightAuditTabId, string> = {
-  control: "Review live blockers and close the current business date.",
-  "pre-audit": "The same live close blockers, before confirm. This is not a second audit run.",
-  reconciliation:
-    "Company, group, master, city ledger, and tax reconciliation are not live. Night Audit does not invent those balances.",
-  history: "Closed and open runs already stored for this property.",
+  control: "",
+  financial: "",
+  operations: "",
+  exceptions: "",
+  close: "",
+  history: "",
 };
 
 export const NIGHT_AUDIT_PAGE_SIZE = 10;
@@ -25,6 +28,9 @@ export const NIGHT_AUDIT_PAGE_SIZE = 10;
 const TAB_ALIASES: Record<string, NightAuditTabId> = {
   summary: "history",
   blockers: "control",
+  reconciliation: "financial",
+  "pre-audit": "operations",
+  run: "close",
 };
 
 export function resolveNightAuditTab(value: string | undefined | null): NightAuditTabId {
@@ -36,8 +42,10 @@ export function resolveNightAuditTab(value: string | undefined | null): NightAud
 export function nightAuditSearch(
   tab: NightAuditTabId,
   run?: string | null,
-): { tab: NightAuditTabId; run?: string } {
+  focus?: string | null,
+): { tab: NightAuditTabId; run?: string; focus?: string } {
   if (tab === "history" && run) return { tab, run };
+  if ((tab === "financial" || tab === "operations" || tab === "exceptions") && focus) return { tab, focus };
   return { tab };
 }
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
@@ -111,9 +111,13 @@ function timingLabel(row: FoDepartureDeskRow): string {
 export function DeparturesWorkspace({
   membership,
   embedded = false,
+  initialSearch = "",
+  initialReservationId,
 }: {
   membership: RestaurantMembership;
   embedded?: boolean;
+  initialSearch?: string;
+  initialReservationId?: string;
 }) {
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
@@ -122,19 +126,29 @@ export function DeparturesWorkspace({
   const queryClient = useQueryClient();
   const money = useMoney();
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [vip, setVip] = useState(ALL);
   const [roomType, setRoomType] = useState(ALL);
   const [late, setLate] = useState(ALL);
   const [blocker, setBlocker] = useState(ALL);
   const [overdue, setOverdue] = useState(ALL);
-  const [qvId, setQvId] = useState<string | null>(null);
+  const [qvId, setQvId] = useState<string | null>(initialReservationId ?? null);
   const [qvRoomId, setQvRoomId] = useState<string | null>(null);
   const [datesStay, setDatesStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
   const [checkOutStay, setCheckOutStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
   const [moveStay, setMoveStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
   const [unarrivedStay, setUnarrivedStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
   const [lateQv, setLateQv] = useState<FoDepartureQuickView | null>(null);
+
+  useEffect(() => {
+    setSearch(initialSearch);
+  }, [initialSearch]);
+
+  useEffect(() => {
+    if (initialReservationId) {
+      setQvId(initialReservationId);
+    }
+  }, [initialReservationId]);
 
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchDesk = useServerFn(listFrontOfficeDeparturesDesk);
@@ -185,6 +199,7 @@ export function DeparturesWorkspace({
 
   function closeOverlays() {
     setQvId(null);
+    setQvRoomId(null);
   }
 
   function onAction(action: DepartureQuickViewAction, qv: FoDepartureQuickView) {

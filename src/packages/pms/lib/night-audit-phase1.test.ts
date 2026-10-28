@@ -96,14 +96,16 @@ describe("NA-P1 date and ownership", () => {
     assert.match(resolvePropertyBusinessDate(null, ADDIS), /^\d{4}-\d{2}-\d{2}$/);
   });
 
-  it("does not read dayBoundary, the audit window, or automatic rollover", () => {
+  it("does not read dayBoundary or automatic rollover; only the close gate reads the audit window", () => {
     for (const source of [server, functions, na1Server]) {
       assert.doesNotMatch(source, /dayBoundary/);
-      assert.doesNotMatch(source, /nightAuditWindow/);
       assert.doesNotMatch(source, /automaticRollover/);
       assert.doesNotMatch(source, /approvalRequired/);
       assert.doesNotMatch(source, /lockDuringAudit/);
     }
+    assert.doesNotMatch(server, /nightAuditWindow/);
+    assert.doesNotMatch(na1Server, /nightAuditWindow/);
+    assert.match(functions, /nightAuditWindowConfig\(/);
     assert.match(server, /propertyDayBounds\(businessDate, timezone\)/);
     assert.match(server, /belongsToBusinessDate\(t\.posted_at, businessDate, timezone\)/);
     assert.doesNotMatch(server, /\$\{businessDate\}T00:00:00/);

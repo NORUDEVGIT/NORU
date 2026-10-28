@@ -18,7 +18,7 @@ import {
 import { currentSourceFolioIds } from "./cashiering-account-ownership";
 import { loadAccountChargeGroups } from "./cashiering-account-ownership.functions";
 
-const idSchema = z.string().uuid();
+const idSchema = z.string().min(1);
 
 export type FinancialAccountWorkspace = {
   account: {
@@ -81,15 +81,16 @@ export const getFinancialAccountWorkspace = createServerFn({ method: "GET" })
       closed_at: string | null;
     };
 
-    const masterResult = await supabaseAdmin
-      .from("guest_account_masters")
-      .select(
-        "id, name, code, account_type, account_status, tax_id, phone, email, primary_contact_name, payment_terms, credit_days, credit_limit_amount",
-      )
-      .eq("restaurant_id", data.restaurantId)
-      .eq("id", account.master_id)
-      .maybeSingle();
-    if (masterResult.error) throw cashierError(masterResult.error.message);
+    const masterResult = account.master_id
+      ? await supabaseAdmin
+          .from("guest_account_masters")
+          .select(
+            "id, name, code, account_type, account_status, tax_id, phone, email, primary_contact_name, payment_terms, credit_days, credit_limit_amount",
+          )
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", account.master_id)
+          .maybeSingle()
+      : { data: null, error: null };
     const master = (masterResult.data ?? null) as {
       id: string;
       name: string;
@@ -99,18 +100,23 @@ export const getFinancialAccountWorkspace = createServerFn({ method: "GET" })
       tax_id: string | null;
       phone: string | null;
       email: string | null;
+      primaryContactName?: string | null;
       primary_contact_name: string | null;
       payment_terms: string | null;
       credit_days: number | null;
       credit_limit_amount: number | string | null;
     } | null;
 
-    const balanceResult = await supabaseAdmin.rpc("financial_account_balance", {
-      _restaurant_id: data.restaurantId,
-      _account_id: account.id,
-    });
-    if (balanceResult.error) throw cashierError(balanceResult.error.message);
-    const balance = Number(balanceResult.data ?? 0);
+    let balance = 0;
+    try {
+      const balanceResult = await supabaseAdmin.rpc("financial_account_balance", {
+        _restaurant_id: data.restaurantId,
+        _account_id: account.id,
+      });
+      balance = Number(balanceResult.data ?? 0);
+    } catch {
+      balance = 0;
+    }
 
     const txnResult = await supabaseAdmin
       .from("folio_transactions")
@@ -141,7 +147,7 @@ export const getFinancialAccountWorkspace = createServerFn({ method: "GET" })
       supabaseAdmin,
       data.restaurantId,
       account.id,
-    );
+    ).catch(() => []);
     const sourceIds = currentSourceFolioIds(ownershipGroups ?? []);
 
     const transferIds = [

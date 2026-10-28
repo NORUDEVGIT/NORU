@@ -80,6 +80,7 @@ export function CashierControl({
   dateTime,
   onNavigate,
   selectedShiftId,
+  initialAction,
   onShiftDetailChange,
 }: {
   restaurantId: string;
@@ -91,6 +92,7 @@ export function CashierControl({
   dateTime: (iso: string | null | undefined) => string;
   onNavigate: (tab: CashieringTabId, extra?: Partial<CashieringSearchParams>) => void;
   selectedShiftId: string | null;
+  initialAction?: string | null;
   onShiftDetailChange: (shiftId: string | null) => void;
 }) {
   const queryClient = useQueryClient();
@@ -104,6 +106,13 @@ export function CashierControl({
     const timer = window.setInterval(() => setNow(Date.now()), 30000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (selectedShiftId && initialAction === "close") {
+      setCloseId(selectedShiftId);
+      setMode("close");
+    }
+  }, [selectedShiftId, initialAction]);
 
   const fetchShifts = useServerFn(listCashierShifts);
   const fetchActivity = useServerFn(getCashieringBusinessDateActivity);
@@ -312,6 +321,11 @@ export function CashierControl({
         shiftId={selectedShiftId}
         shift={shifts.find((row) => row.id === selectedShiftId) ?? null}
         shiftsLoading={shiftsQuery.isLoading}
+        canOperate={canOperate}
+        onInitiateClose={(id) => {
+          setCloseId(id);
+          setMode("close");
+        }}
         money={money}
         dateTime={dateTime}
         now={now}
@@ -1260,6 +1274,8 @@ function ShiftDetailDrawer({
   shiftId,
   shift,
   shiftsLoading,
+  canOperate,
+  onInitiateClose,
   money,
   dateTime,
   now,
@@ -1269,6 +1285,8 @@ function ShiftDetailDrawer({
   shiftId: string | null;
   shift: CashierShiftRow | null;
   shiftsLoading: boolean;
+  canOperate?: boolean;
+  onInitiateClose?: (shiftId: string) => void;
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
   now: number;
@@ -1320,15 +1338,30 @@ function ShiftDetailDrawer({
                       {shift.closedAt ? dateTime(shift.closedAt) : "Open"}
                     </p>
                   </div>
-                  <span
-                    className={
-                      shift.status === "open"
-                        ? "rounded-full border border-[#A3E0C1] bg-[#E7F6EE] px-2.5 py-1 text-[10px] font-semibold uppercase text-[#146C43]"
-                        : "rounded-full border border-[#DDD4C5] bg-[#FAF8F4] px-2.5 py-1 text-[10px] font-semibold uppercase text-[#5F554B]"
-                    }
-                  >
-                    {shift.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={
+                        shift.status === "open"
+                          ? "rounded-full border border-[#A3E0C1] bg-[#E7F6EE] px-2.5 py-1 text-[10px] font-semibold uppercase text-[#146C43]"
+                          : "rounded-full border border-[#DDD4C5] bg-[#FAF8F4] px-2.5 py-1 text-[10px] font-semibold uppercase text-[#5F554B]"
+                      }
+                    >
+                      {shift.status}
+                    </span>
+                    {shift.status === "open" && canOperate && onInitiateClose ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 bg-[#B91C1C] text-white hover:bg-[#991B1B] text-xs font-semibold px-2.5"
+                        onClick={() => {
+                          onClose();
+                          onInitiateClose(shift.id);
+                        }}
+                      >
+                        Reconcile &amp; Close
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
                 <dl className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
                   <ShiftDetailValue

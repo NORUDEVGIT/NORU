@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import type { LucideIcon } from "lucide-react";
 import {
+  ArrowLeft,
   BedDouble,
   Building2,
   CalendarDays,
@@ -142,11 +143,21 @@ export function GuestFolioPage({
   folioId,
   initialAction,
   initialTab,
+  initialPaymentId,
+  initialInvoiceId,
+  initialModalTab,
+  returnTo,
+  returnToLabel,
 }: {
   membership: RestaurantMembership;
   folioId: string;
   initialAction?: string | undefined;
   initialTab?: string | undefined;
+  initialPaymentId?: string | undefined;
+  initialInvoiceId?: string | undefined;
+  initialModalTab?: string | undefined;
+  returnTo?: string | undefined;
+  returnToLabel?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -192,6 +203,8 @@ export function GuestFolioPage({
     <CashieringChrome
       membership={membership}
       active="folios"
+      returnTo={returnTo}
+      returnToLabel={returnToLabel}
       onNavigate={go}
       onSearch={() => go("folios")}
       onPostPayment={() => go("overview")}
@@ -222,6 +235,9 @@ export function GuestFolioPage({
           workspace={workspace}
           initialAction={initialAction}
           initialTab={initialTab}
+          initialPaymentId={initialPaymentId}
+          initialInvoiceId={initialInvoiceId}
+          initialModalTab={initialModalTab}
           depositPolicySummary={depositPolicyQuery.data?.summary ?? null}
           correctionNotice={correctionNoticeQuery.data ?? null}
           onChanged={refresh}
@@ -326,6 +342,9 @@ function FolioWorkspaceBody({
   workspace,
   initialAction,
   initialTab,
+  initialPaymentId,
+  initialInvoiceId,
+  initialModalTab,
   depositPolicySummary,
   correctionNotice,
   onChanged,
@@ -337,6 +356,9 @@ function FolioWorkspaceBody({
   workspace: FolioWorkspace;
   initialAction?: string | undefined;
   initialTab?: string | undefined;
+  initialPaymentId?: string | undefined;
+  initialInvoiceId?: string | undefined;
+  initialModalTab?: string | undefined;
   depositPolicySummary: string | null;
   correctionNotice: {
     authorizer?: string | null;
@@ -410,6 +432,12 @@ function FolioWorkspaceBody({
   }, []);
 
   useEffect(() => {
+    if (initialAction === "allocate" || initialPaymentId) {
+      if (initialPaymentId) setAllocatePaymentId(initialPaymentId);
+      if (initialInvoiceId) setAllocateInvoiceId(initialInvoiceId);
+      setAllocateOpen(true);
+      return;
+    }
     if (!isFolioAction(initialAction)) return;
     if (initialAction === "close") {
       if (caps.canClose) setCloseOpen(true);
@@ -424,7 +452,7 @@ function FolioWorkspaceBody({
       adjustment: caps.canAdjust,
     };
     if (allowed[initialAction]) openEntry(initialAction);
-  }, [initialAction, caps]);
+  }, [initialAction, initialPaymentId, initialInvoiceId, caps]);
 
   function selectTab(next: FolioWorkspaceTabId) {
     setTab(next);
@@ -568,28 +596,30 @@ function FolioWorkspaceBody({
   return (
     <div className="space-y-4" data-testid="guest-folio-page">
       <div className="space-y-4 print:hidden">
-        <nav
-          className="flex items-center gap-1 text-xs text-muted-foreground"
-          aria-label="Breadcrumb"
-        >
-          <Link
-            to="/restaurant/pms/cashiering"
-            search={cashieringTabSearch("overview")}
-            className="hover:text-foreground"
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <nav
+            className="flex items-center gap-1 text-xs text-muted-foreground"
+            aria-label="Breadcrumb"
           >
-            Cashiering
-          </Link>
-          <ChevronRight className="size-3" />
-          <Link
-            to="/restaurant/pms/cashiering"
-            search={{ tab: "folios" }}
-            className="hover:text-foreground"
-          >
-            Folio Search
-          </Link>
-          <ChevronRight className="size-3" />
-          <span className="font-medium text-foreground">{folio.folioNumber}</span>
-        </nav>
+            <Link
+              to="/restaurant/pms/cashiering"
+              search={cashieringTabSearch("overview")}
+              className="hover:text-foreground"
+            >
+              Cashiering
+            </Link>
+            <ChevronRight className="size-3" />
+            <Link
+              to="/restaurant/pms/cashiering"
+              search={{ tab: "folios" }}
+              className="hover:text-foreground"
+            >
+              Folio Search
+            </Link>
+            <ChevronRight className="size-3" />
+            <span className="font-medium text-foreground">{folio.folioNumber}</span>
+          </nav>
+        </div>
 
         <header className={cn(CARD, "overflow-hidden")} data-testid="folio-header">
           <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
@@ -828,6 +858,8 @@ function FolioWorkspaceBody({
                 workspace={workspace}
                 money={money}
                 dateTime={dateTime}
+                initialInvoiceId={initialInvoiceId}
+                initialModalTab={initialModalTab}
                 onChanged={onChanged}
                 onPostCharge={() => openEntry("charge")}
                 onReprint={(invoice) => reprintMut.mutate(invoice)}

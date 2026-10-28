@@ -26,6 +26,7 @@ import {
   CreateReservationPoliciesGuarantee,
   EMPTY_CREATE_RESERVATION_POLICIES,
 } from "@/packages/pms/components/bookings/create-reservation-policies-guarantee";
+import { CreateReservationPriceReminder } from "@/packages/pms/components/bookings/create-reservation-price-reminder";
 import {
   earlyDeparturePenaltySummary,
   earlyDepartureReviewLabel,
@@ -2563,6 +2564,71 @@ export function CreateReservationPage({
           }
           onDepositDueDateChange={(value) =>
             setStep4Policies((current) => ({ ...current, depositDueDate: value }))
+          }
+        />
+      }
+      priceReminder={
+        <CreateReservationPriceReminder
+          money={money}
+          ratePlanName={
+            selectedQuote?.plan.name || selectedQuote?.plan.code || "Standard Rate"
+          }
+          roomTypeName={
+            groupMode
+              ? `${stayTotals.rooms} rooms · ${selectedMeta?.name || "Group"}`
+              : (selectedMeta?.name || stickyRoomTypeLabel(selectedMeta) || "Room")
+          }
+          ratePerNight={
+            pricingState.kind === "priced" && fromNightlyRate(pricingState.quote) != null
+              ? money(fromNightlyRate(pricingState.quote)!)
+              : "—"
+          }
+          datesValid={datesValid}
+          arrival={arrival}
+          departure={departure}
+          nights={nights}
+          adults={groupMode ? stayTotals.adults : adults}
+          children={groupMode ? stayTotals.children : children}
+          infants={groupMode ? stayTotals.infants : infants}
+          roomSubtotal={
+            groupMode
+              ? (groupReviewTotal?.complete && groupReviewTotal.total != null
+                  ? groupReviewTotal.total
+                  : (selectedQuote?.quote?.subtotal ?? null))
+              : (pricingState.kind === "priced"
+                  ? pricingState.quote.subtotal
+                  : (selectedQuote?.quote?.subtotal ?? null))
+          }
+          isGroup={groupMode}
+          totalRooms={groupMode ? stayTotals.rooms : 1}
+          packages={selectedCreatePackages.map((card) => ({
+            name: card.name,
+            price: card.price,
+            chargeBasis: card.chargeType,
+          }))}
+          mealPlanLabel={selectedQuote?.plan.mealPlanName ?? null}
+          breakfastIncluded={Boolean(
+            selectedQuote?.plan.breakfastIncluded ||
+              (selectedQuote?.breakfastLabel &&
+                selectedQuote.breakfastLabel !== "—" &&
+                selectedQuote.breakfastLabel !== "Not included"),
+          )}
+          paymentReceivedAmount={step4Policies.paymentReceivedAmount}
+          depositRequiredAmount={
+            ratePlanDepositPolicy
+              ? computeDepositRequirementAmount(
+                  ratePlanDepositPolicy,
+                  groupDeposit
+                    ? groupDeposit.quote
+                    : selectedQuote?.quote
+                      ? {
+                          subtotal: selectedQuote.quote.subtotal,
+                          nightly: selectedQuote.quote.nightly,
+                          currency: selectedQuote.quote.currency,
+                        }
+                      : null,
+                )
+              : null
           }
         />
       }

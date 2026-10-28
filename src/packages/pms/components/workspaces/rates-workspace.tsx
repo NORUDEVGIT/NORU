@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  ArrowLeft,
   CalendarDays,
   ChevronDown,
   Clock,
@@ -10,6 +11,9 @@ import {
   ShieldAlert,
   SlidersHorizontal,
 } from "lucide-react";
+
+import { Button } from "@/shared/components/ui/button";
+import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
 
 import {
   DropdownMenu,
@@ -141,6 +145,10 @@ export function RatesWorkspace({
   const restaurantId = membership.restaurant.id;
   const today = usePropertyBusinessDate(restaurantId, membership.restaurant.timezone);
   const navigate = useNavigate();
+  const { hasPrevious, computedLabel, handleReturn } = resolvePmsReturnTo({
+    returnTo: search.returnTo,
+    returnToLabel: search.returnToLabel,
+  });
 
   const [view, setView] = useState<RevenueWorkspaceView>(() =>
     normalizeRevenueView(search.view ?? search.tab),
@@ -570,9 +578,9 @@ export function RatesWorkspace({
   }
 
   return (
-    <RateRevenueChrome membership={membership}>
+    <RateRevenueChrome membership={membership} suppressReturnButton>
       <div className="min-w-0 bg-[#F7F4EE]">
-        <div className="border-b border-border bg-background">
+        <div className="border-b border-border bg-background" data-testid="rates-desk-header">
           <div className="px-5 pt-4 sm:px-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -587,18 +595,32 @@ export function RatesWorkspace({
                 </p>
               </div>
 
-              {access.canViewRates || access.canViewRestrictions ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex h-10 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-4 text-sm font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#FAF6F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#251605]"
-                    >
-                      <SlidersHorizontal className="size-4 text-[#8A641A]" />
-                      <span>Rate & Restriction Actions</span>
-                      <ChevronDown className="size-4 text-[#756A5B]" />
-                    </button>
-                  </DropdownMenuTrigger>
+              <div className="flex flex-wrap items-center gap-2">
+                {hasPrevious ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleReturn}
+                    data-testid="rates-return-to-previous"
+                    className="h-10 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs hover:bg-[#FAF8F4] transition-all"
+                  >
+                    <ArrowLeft className="size-3.5 text-[#8A6A24]" />
+                    {computedLabel}
+                  </Button>
+                ) : null}
+
+                {access.canViewRates || access.canViewRestrictions ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-10 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-4 text-sm font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#FAF6F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#251605]"
+                      >
+                        <SlidersHorizontal className="size-4 text-[#8A641A]" />
+                        <span>Rate & Restriction Actions</span>
+                        <ChevronDown className="size-4 text-[#756A5B]" />
+                      </button>
+                    </DropdownMenuTrigger>
                   <DropdownMenuContent
                     align="end"
                     sideOffset={6}
@@ -645,8 +667,9 @@ export function RatesWorkspace({
               ) : null}
             </div>
           </div>
+        </div>
 
-          <div className="relative mt-3 flex items-end gap-3 overflow-x-auto px-5 sm:px-6">
+        <div className="relative mt-3 flex items-end gap-3 overflow-x-auto px-5 sm:px-6">
             {primarySections.map((section) =>
               section.id === "more" ? (
                 <DropdownMenu key={section.id} open={moreOpen} onOpenChange={setMoreOpen}>

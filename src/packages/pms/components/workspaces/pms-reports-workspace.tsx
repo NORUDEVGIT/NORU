@@ -1,5 +1,7 @@
 /**
- * Reports workspace. Analytics readers stay on the existing desk.
+ * Reports workspace. Unified single-window report viewer.
+ * Users can switch between report types via the Report Type dropdown at any time.
+ * Analytics readers stay on the existing desk.
  * Police reads getPoliceStayReport. Cashier reads getCashierInvoiceReport.
  * Fiscal reads getFiscalRegistrationReport.
  * The house date is restaurants.business_date via getPropertyBusinessDate.
@@ -20,6 +22,7 @@ import { PoliceStayReportScreen } from "@/packages/pms/components/reports/police
 import { ServiceEntitlementReportScreen } from "@/packages/pms/components/reports/service-entitlement-report-screen";
 import { RevenueOverviewTab } from "@/packages/pms/components/rates/rates-tabs";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
+import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
 import {
   isAnalyticsReport,
   reportByCode,
@@ -53,6 +56,8 @@ function rowSearchFilters(search: ReportsRouteSearch): Partial<ReportsRouteSearc
   if (search.meal) filters.meal = search.meal;
   if (search.department) filters.department = search.department;
   if (search.stay === "in-house" || search.stay === "confirmed") filters.stay = search.stay;
+  if (search.returnTo) filters.returnTo = search.returnTo;
+  if (search.returnToLabel) filters.returnToLabel = search.returnToLabel;
   return filters;
 }
 
@@ -76,8 +81,31 @@ export function PmsReportsWorkspace({
   const businessDate = dateQuery.data?.businessDate ?? null;
   const timezone = dateQuery.data?.timezone ?? null;
 
+  const { hasPrevious, computedLabel, handleReturn } = resolvePmsReturnTo({
+    returnTo: search.returnTo,
+    returnToLabel: search.returnToLabel,
+  });
+
+  // Single window: if landing with no report selected or an analytics view, default directly to Police Stay Report
   useEffect(() => {
     const next = resolveReportsView(search);
+    if ((next.kind === "center" || next.kind === "analytics") && businessDate) {
+      const canonical = reportsSearch(
+        resolveReportsView({ report: "police" }),
+        {
+          stayDate: reportsReaderDate(businessDate),
+          returnTo: search.returnTo,
+          returnToLabel: search.returnToLabel,
+        },
+      );
+      void navigate({
+        to: "/restaurant/pms/reports",
+        search: canonical,
+        replace: true,
+      });
+      return;
+    }
+
     const filters = next.kind === "row" ? rowSearchFilters(search) : undefined;
     if (
       next.kind === "row" &&
@@ -118,39 +146,68 @@ export function PmsReportsWorkspace({
     });
   }, [businessDate, navigate, search]);
 
-  function goCenter(group?: ReportGroupId) {
+  function goReport(id: ReportId) {
+    const nextView = resolveReportsView({ report: id });
+    const filters: Partial<ReportsRouteSearch> = nextView.kind === "row" ? rowSearchFilters(search) : {};
+    if (search.returnTo) {
+      filters.returnTo = search.returnTo;
+      if (search.returnToLabel) filters.returnToLabel = search.returnToLabel;
+    }
+    if (nextView.kind === "row" && nextView.report === "police" && !filters.stayDate && businessDate) {
+      filters.stayDate = reportsReaderDate(businessDate);
+    }
+    if (
+      nextView.kind === "row" &&
+      (nextView.report === "cashier-invoice" || nextView.report === "fiscal-registration") &&
+      businessDate
+    ) {
+      const houseDate = reportsReaderDate(businessDate);
+      if (!filters.from) filters.from = houseDate;
+      if (!filters.to) filters.to = houseDate;
+      if (!filters.documentType) filters.documentType = "INV";
+    }
+    if (
+      nextView.kind === "row" &&
+      (nextView.report === "meal-service" || nextView.report === "service-fulfillment") &&
+      businessDate
+    ) {
+      if (!filters.serviceDate) filters.serviceDate = reportsReaderDate(businessDate);
+      if (nextView.report === "meal-service" && !filters.meal) filters.meal = "BREAKFAST";
+    }
     void navigate({
       to: "/restaurant/pms/reports",
-      search: reportsSearch(
-        group
-          ? { kind: "center", group, topic: null }
-          : { kind: "center", group: null, topic: null },
-      ),
+      search: reportsSearch(nextView, filters),
     });
   }
 
-  function goReport(id: ReportId) {
-    void navigate({
-      to: "/restaurant/pms/reports",
-      search: reportsSearch(resolveReportsView({ report: id })),
-    });
+  function goCenter(group?: ReportGroupId) {
+    goReport("police");
   }
 
   const revenue = reportByCode("revenue");
   const openRow = view.kind === "row" ? reportByCode(view.report) : null;
+  const currentReportId: ReportId =
+    view.kind === "row" || view.kind === "analytics" ? view.report : "police";
 
   let body = null;
   if (dateQuery.isLoading) {
-    body = <p className="text-sm text-muted-foreground">Loading the house date…</p>;
+    body = (
+      <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
+        Loading the house date…
+      </div>
+    );
   } else if (dateQuery.isError || !businessDate || !timezone) {
     body = (
-      <p className="text-sm text-muted-foreground">
+      <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center text-sm text-destructive">
         The house date could not be loaded, so reports are not shown.
-      </p>
+      </div>
     );
   } else if (view.kind === "missing") {
-    body = <ReportMissingState onBack={() => goCenter()} />;
-  } else if (view.kind === "row" && view.report === "police" && openRow?.kind === "row") {
+    body = <ReportMissingState onBack={() => goReport("police")} />;
+  } else if (
+    (view.kind === "row" && view.report === "police" && openRow?.kind === "row") ||
+    view.kind === "center"
+  ) {
     const detail = [membership.restaurant.address, membership.restaurant.city]
       .map((part) => (part ?? "").trim())
       .filter((part) => part.length > 0)
@@ -228,14 +285,28 @@ export function PmsReportsWorkspace({
       <ReportsDesk restaurantId={restaurantId} businessDate={businessDate} report={view.report} />
     );
   } else {
-    const scope = view.group ?? view.topic;
-    body = <ReportsCatalogue query={catalogueQuery} scope={scope} onOpenReport={goReport} />;
+    // Fallback: render police stay report in unified window
+    body = (
+      <PoliceStayReportScreen
+        restaurantId={restaurantId}
+        propertyName={membership.restaurant.name}
+        propertyDetail={null}
+        businessDate={reportsReaderDate(businessDate)}
+        timezone={timezone}
+        search={search}
+      />
+    );
   }
 
   return (
     <ReportsChrome
       membership={membership}
       view={view}
+      currentReportId={currentReportId}
+      onSelectReport={goReport}
+      hasPrevious={hasPrevious}
+      returnLabel={computedLabel}
+      onReturn={handleReturn}
       onOpenCenter={() => goCenter()}
       onOpenCategory={(group) => goCenter(group)}
       onSearch={setCatalogueQuery}

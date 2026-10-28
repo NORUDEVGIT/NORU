@@ -912,6 +912,7 @@ export function CashieringDesk({
           dateTime={dateTime}
           onNavigate={(next, extra) => onTab(next, null, extra)}
           selectedShiftId={searchParams.shift ?? null}
+          initialAction={searchParams.action ?? null}
           onShiftDetailChange={(shiftId) => {
             if (shiftId) {
               onTab("cashier-shift", null, { shift: shiftId });

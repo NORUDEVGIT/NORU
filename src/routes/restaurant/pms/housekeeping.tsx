@@ -11,6 +11,7 @@ export const Route = createFileRoute("/restaurant/pms/housekeeping")({
     ...(typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {}),
     ...(typeof search["room"] === "string" ? { room: search["room"] as string } : {}),
     ...(typeof search["returnTo"] === "string" ? { returnTo: search["returnTo"] as string } : {}),
+    ...(typeof search["returnToLabel"] === "string" ? { returnToLabel: search["returnToLabel"] as string } : {}),
   }),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
@@ -38,7 +39,12 @@ export const Route = createFileRoute("/restaurant/pms/housekeeping")({
 });
 
 function HousekeepingPmsRoute() {
-  const search = Route.useSearch() as { tab?: string; room?: string };
+  const search = Route.useSearch() as {
+    tab?: string;
+    room?: string;
+    returnTo?: string;
+    returnToLabel?: string;
+  };
   return (
     <RestaurantShell
       active="Housekeeping"
@@ -53,6 +59,8 @@ function HousekeepingPmsRoute() {
           membership={m}
           initialTab={search.tab ?? HK_LANDING_TAB}
           initialRoomId={search.room}
+          returnTo={search.returnTo}
+          returnToLabel={search.returnToLabel}
         />
       )}
     </RestaurantShell>

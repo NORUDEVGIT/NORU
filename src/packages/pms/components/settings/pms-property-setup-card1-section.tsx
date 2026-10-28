@@ -47,6 +47,7 @@ import {
   LegalStep,
   StructureStep,
 } from "@/packages/pms/components/settings/pms-property-setup-card1-steps";
+import { BusinessDateRecoveryControl } from "@/packages/pms/components/settings/business-date-recovery-dialog";
 
 export function PmsPropertySetupCard1Section({
   restaurantId,
@@ -55,6 +56,7 @@ export function PmsPropertySetupCard1Section({
   checklist: _checklist,
   canEdit,
   initialStep = "identity",
+  role = "",
 }: {
   restaurantId: string;
   snapshot: Card1Snapshot;
@@ -62,6 +64,7 @@ export function PmsPropertySetupCard1Section({
   checklist: Set1Checklist;
   canEdit: boolean;
   initialStep?: Card1StepId;
+  role?: string;
 }) {
   const queryClient = useQueryClient();
   const save = useServerFn(savePmsPropertySetupCard1);
@@ -281,6 +284,13 @@ export function PmsPropertySetupCard1Section({
               setDraft={setDraft}
               canEdit={canEdit}
               currentState={snapshot.currentState}
+              businessDateAction={
+                <BusinessDateRecoveryControl
+                  restaurantId={restaurantId}
+                  role={role}
+                  currentBusinessDate={snapshot.currentState.businessDate}
+                />
+              }
             />
           ) : null}
           {step === "legal" ? (

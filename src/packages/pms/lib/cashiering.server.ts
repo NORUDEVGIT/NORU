@@ -254,6 +254,7 @@ const CASHIER_ERRORS: Record<string, string> = {
   BILLING_DEPARTMENT_REQUIRED: "That guest service needs one billing department.",
   BILLING_DEPARTMENT_AMBIGUOUS: "That guest service has more than one billing department.",
   INVALID_QUANTITY: "Quantity must be a whole number from 1 to 99.",
+  INVALID_NATURE_OF_SUPPLIES: "Choose goods or service for this manual charge.",
 };
 
 /** Map RAISE EXCEPTION codes from the cashiering functions to user-facing text. */

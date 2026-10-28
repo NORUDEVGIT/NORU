@@ -56,6 +56,7 @@ export interface PostChargeFolio {
 }
 
 type ChargeSource = "service" | "manual";
+type FiscalSupplyNature = "goods" | "service";
 
 function useDebounced<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -138,6 +139,7 @@ export function PostChargeDialog({
   const [quantity, setQuantity] = useState(1);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+  const [nature, setNature] = useState<FiscalSupplyNature>("service");
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [postingAt, setPostingAt] = useState(() => new Date().toISOString());
   const [attempted, setAttempted] = useState(false);
@@ -172,6 +174,7 @@ export function PostChargeDialog({
     setQuantity(1);
     setDescription("");
     setAmount("");
+    setNature("service");
     setIdempotencyKey(crypto.randomUUID());
     setPostingAt(new Date().toISOString());
     setAttempted(false);
@@ -294,6 +297,7 @@ export function PostChargeDialog({
               amount: parsed ?? 0,
               description: description.trim(),
               idempotencyKey,
+              natureOfSupplies: nature,
             },
           }),
     onSuccess: (result) => {
@@ -316,6 +320,7 @@ export function PostChargeDialog({
     setQuantity(1);
     setDescription("");
     setAmount("");
+    setNature("service");
     setIdempotencyKey(crypto.randomUUID());
     setAttempted(false);
     setDescriptionTouched(false);
@@ -348,6 +353,7 @@ export function PostChargeDialog({
     setQuantity(1);
     setDescription("");
     setAmount("");
+    setNature("service");
     setIdempotencyKey(crypto.randomUUID());
     setAttempted(false);
     setDescriptionTouched(false);
@@ -507,6 +513,24 @@ export function PostChargeDialog({
                 </div>
               ) : null}
 
+              {source === "manual" ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="post-charge-nature">Nature of supplies</Label>
+                  <Select value={nature} onValueChange={(value) => setNature(value as FiscalSupplyNature)}>
+                    <SelectTrigger id="post-charge-nature" className="h-10 border-[#E8E1D7] bg-background" data-testid="post-charge-nature">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="border-[#E8E1D7]">
+                      <SelectItem value="service">Service</SelectItem>
+                      <SelectItem value="goods">Goods</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Stored with this charge and used when the invoice is registered for fiscal reporting.
+                  </p>
+                </div>
+              ) : null}
+
               <dl className="grid gap-3 border-t border-[#E8E1D7] pt-3 sm:grid-cols-2">
                 <ContextField icon={Receipt} label="Folio" value={`${folio.folioNumber} · ${folio.guestName}`} />
                 <ContextField icon={BedDouble} label="Room" value={roomLine(folio)} />
@@ -541,6 +565,9 @@ export function PostChargeDialog({
                 <SummaryLine label="Room" value={folio.roomNumber ?? "—"} />
                 {source === "service" && selected ? (
                   <SummaryLine label="Department" value={selected.departmentName || "—"} />
+                ) : null}
+                {source === "manual" ? (
+                  <SummaryLine label="Nature of supplies" value={nature === "goods" ? "Goods" : "Service"} />
                 ) : null}
               </dl>
               <div className="mt-4 border-t border-[#E8E1D7] pt-3">

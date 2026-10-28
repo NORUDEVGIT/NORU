@@ -9,9 +9,11 @@ import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-invent
  */
 export function RateRevenueChrome({
   membership,
+  suppressReturnButton = false,
   children,
 }: {
   membership: RestaurantMembership;
+  suppressReturnButton?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -22,6 +24,7 @@ export function RateRevenueChrome({
       showSearch={false}
       helpLabel="Rate & Revenue operational workspace"
       shellTestId="rate-revenue-command-shell"
+      suppressReturnButton={suppressReturnButton}
     >
       {children}
     </RoomInventoryChrome>

@@ -348,6 +348,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
             set2={query.data.set2 ?? emptySet2Snapshot()}
             checklist={checklist}
             canEdit={canEdit}
+            role={card1Query.data.role}
           />
         )
       ) : card2Open ? (

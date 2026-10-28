@@ -86,6 +86,8 @@ export function CashieringWorkspace({
     <CashieringChrome
       membership={membership}
       active={tab}
+      returnTo={search.returnTo}
+      returnToLabel={search.returnToLabel}
       onNavigate={(id) => go(id, null)}
       onSearch={(value) => {
         setModuleSearch(value);

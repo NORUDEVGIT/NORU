@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -71,6 +71,7 @@ export function GuestInvoiceModal({
   reprinting = false,
   onPostCharge,
   onAllocate,
+  initialTab,
 }: {
   open: boolean;
   invoice: IssuedFolioInvoiceRow | null;
@@ -87,8 +88,20 @@ export function GuestInvoiceModal({
   reprinting?: boolean | undefined;
   onPostCharge?: (() => void) | undefined;
   onAllocate?: ((invoiceId: string, paymentId?: string) => void) | undefined;
+  initialTab?: string | undefined;
 }) {
-  const [activeTab, setActiveTab] = useState<InvoiceModalTabId>("preview");
+  const [activeTab, setActiveTab] = useState<InvoiceModalTabId>(() => {
+    if (initialTab && ["preview", "fiscal", "settlement", "credit-notes", "debit-notes"].includes(initialTab)) {
+      return initialTab as InvoiceModalTabId;
+    }
+    return "preview";
+  });
+
+  useEffect(() => {
+    if (open && initialTab && ["preview", "fiscal", "settlement", "credit-notes", "debit-notes"].includes(initialTab)) {
+      setActiveTab(initialTab as InvoiceModalTabId);
+    }
+  }, [open, initialTab]);
   const [receiveOpen, setReceiveOpen] = useState(false);
   const queryClient = useQueryClient();
   const loadSettlement = useServerFn(getGuestInvoiceSettlement);

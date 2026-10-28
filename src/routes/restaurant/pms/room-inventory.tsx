@@ -8,8 +8,11 @@ import { requireRoutePackage } from "@/core/lib/route-package-guard";
 export const Route = createFileRoute("/restaurant/pms/room-inventory")({
   ssr: false,
 
-  validateSearch: (search: Record<string, unknown>) =>
-    typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {},
+  validateSearch: (search: Record<string, unknown>) => ({
+    ...(typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {}),
+    ...(typeof search["returnTo"] === "string" ? { returnTo: search["returnTo"] as string } : {}),
+    ...(typeof search["returnToLabel"] === "string" ? { returnToLabel: search["returnToLabel"] as string } : {}),
+  }),
 
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
@@ -49,7 +52,7 @@ export const Route = createFileRoute("/restaurant/pms/room-inventory")({
 });
 
 function RoomInventoryPmsRoute() {
-  const searchTab = (Route.useSearch() as { tab?: string }).tab;
+  const search = Route.useSearch() as { tab?: string; returnTo?: string; returnToLabel?: string };
 
   return (
     <RestaurantShell
@@ -60,7 +63,14 @@ function RoomInventoryPmsRoute() {
       hidePackageRail
       hideTopHeader
     >
-      {(m) => <RoomsWorkspace membership={m} initialTab={searchTab ?? "room-board"} />}
+      {(m) => (
+        <RoomsWorkspace
+          membership={m}
+          initialTab={search.tab ?? "room-board"}
+          returnTo={search.returnTo}
+          returnToLabel={search.returnToLabel}
+        />
+      )}
     </RestaurantShell>
   );
 }

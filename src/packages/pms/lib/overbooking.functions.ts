@@ -64,6 +64,11 @@ export async function loadOverbookingNights(
     _end: end,
   });
   if (error) return [];
+  return parseOverbookingNights(data);
+}
+
+/** Board RPC payload to typed nights. Callers decide how a failed RPC is treated. */
+export function parseOverbookingNights(data: unknown): OverbookingNight[] {
   const nights = (data as { nights?: unknown } | null)?.nights;
   if (!Array.isArray(nights)) return [];
   return nights.flatMap((night) => {

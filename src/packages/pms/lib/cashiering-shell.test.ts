@@ -109,4 +109,20 @@ describe("cashiering desk shell", () => {
       /guest_folios\.balance/,
     );
   });
+
+  it("provides Return to Night Audit across operational module desk headers", () => {
+    const rooms = read("../components/workspaces/rooms-workspace.tsx");
+    const rates = read("../components/workspaces/rates-workspace.tsx");
+    const distribution = read("../components/workspaces/distribution-workspace.tsx");
+    const guestServices = read("../../../routes/restaurant/pms/guest-services.tsx");
+    const fo = read("../components/frontoffice/front-office-chrome.tsx");
+    const hk = read("../components/housekeeping/housekeeping-chrome.tsx");
+
+    assert.match(rooms, /rooms-return-to-previous/);
+    assert.match(rates, /rates-return-to-previous/);
+    assert.match(distribution, /distribution-return-to-previous/);
+    assert.match(guestServices, /guest-services-return-to-previous/);
+    assert.match(fo, /fo-return-to-previous/);
+    assert.match(hk, /hk-return-to-previous/);
+  });
 });

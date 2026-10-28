@@ -833,6 +833,8 @@ export function FrontOfficeWorkspace({
     <FrontOfficeChrome
       membership={membership}
       active={view}
+      returnTo={search.returnTo}
+      returnToLabel={search.returnToLabel}
       onNavigate={goToFoTab}
       onQuickAction={onQuickAction}
       onGuestSearch={(term) => {
@@ -879,7 +881,13 @@ export function FrontOfficeWorkspace({
       ) : null}
       {view === "arrivals" ? (
         <ListFrame title="Arrivals">
-          <ArrivalsWorkspace membership={membership} variant="arrivals" embedded />
+          <ArrivalsWorkspace
+            membership={membership}
+            variant="arrivals"
+            embedded
+            initialSearch={search.q}
+            initialReservationId={search.reservationId}
+          />
         </ListFrame>
       ) : null}
       {view === "inhouse" ? (
@@ -889,7 +897,12 @@ export function FrontOfficeWorkspace({
       ) : null}
       {view === "departures" ? (
         <ListFrame title="Departures">
-          <DeparturesWorkspace membership={membership} embedded />
+          <DeparturesWorkspace
+            membership={membership}
+            embedded
+            initialSearch={search.q}
+            initialReservationId={search.reservationId}
+          />
         </ListFrame>
       ) : null}
       {view === "walkins" ? (

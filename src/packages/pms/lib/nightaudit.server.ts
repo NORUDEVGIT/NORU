@@ -46,6 +46,17 @@ export const NON_IGNORABLE_TYPES = new Set([
   "orphan_allocation",
   "occupied_restricted_room",
   "hk_conflict",
+  "fiscal_failed",
+  "fiscal_cancel_pending",
+  "fiscal_not_registered",
+  "fiscal_blocked",
+  "fiscal_unrecognized",
+  "withholding_mismatch",
+  "transfer_unbalanced",
+  "allocation_missing_invoice",
+  "allocation_invalid_document",
+  "occupied_maintenance_unavailable",
+  "overbooking_unapproved",
 ]);
 
 export interface DerivedException {

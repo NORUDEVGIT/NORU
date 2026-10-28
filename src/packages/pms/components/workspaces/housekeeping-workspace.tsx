@@ -33,12 +33,16 @@ export function HousekeepingWorkspace({
   initialRoomId,
   fromLegacy = false,
   defaultArea,
+  returnTo,
+  returnToLabel,
 }: {
   membership: RestaurantMembership;
   initialTab?: string | undefined;
   initialRoomId?: string | undefined;
   fromLegacy?: boolean;
   defaultArea?: HkResolvableAreaId;
+  returnTo?: string | undefined;
+  returnToLabel?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
@@ -58,20 +62,41 @@ export function HousekeepingWorkspace({
 
   useEffect(() => {
     if (!accessQuery.data) return;
+    const extra = {
+      ...(returnTo ? { returnTo } : {}),
+      ...(returnToLabel ? { returnToLabel } : {}),
+    };
     if (requested !== area) {
       const dest = hkAreaPath(area);
-      void navigate({ to: dest.to, search: dest.search, replace: true });
+      void navigate({
+        to: dest.to,
+        search: (prev: Record<string, unknown>) => ({ ...prev, ...dest.search, ...extra }),
+        replace: true,
+      });
       return;
     }
     if (!initialTab) {
       const dest = hkAreaPath(area);
-      void navigate({ to: dest.to, search: dest.search, replace: true });
+      void navigate({
+        to: dest.to,
+        search: (prev: Record<string, unknown>) => ({ ...prev, ...dest.search, ...extra }),
+        replace: true,
+      });
     }
-  }, [accessQuery.data, area, requested, initialTab, navigate]);
+  }, [accessQuery.data, area, requested, initialTab, navigate, returnTo, returnToLabel]);
 
   function goToArea(id: HkAreaId) {
     const dest = hkAreaPath(id);
-    void navigate({ to: dest.to, search: dest.search, replace: true });
+    void navigate({
+      to: dest.to,
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        ...dest.search,
+        ...(returnTo ? { returnTo } : {}),
+        ...(returnToLabel ? { returnToLabel } : {}),
+      }),
+      replace: true,
+    });
   }
 
   if (accessQuery.isLoading) {
@@ -99,6 +124,8 @@ export function HousekeepingWorkspace({
       active={area}
       onNavigate={goToArea}
       onSearch={() => undefined}
+      returnTo={returnTo}
+      returnToLabel={returnToLabel}
     >
       {area === "board" ? (
         <HousekeepingBoardTab

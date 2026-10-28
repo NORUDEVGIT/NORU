@@ -13,6 +13,7 @@ import { callerMembership } from "@/core/lib/workforce.server";
 import { withPmsPackage } from "./pms-package.server";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/shared/lib/property-time";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { nightAuditWindowConfigProblem } from "./night-audit-window";
 import {
   SET1_DENIED,
   canEditSet1,
@@ -956,6 +957,11 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
       loaded.row?.property_code ? String(loaded.row.property_code) : "",
     );
     const draft = draftFromSave(data.draft, assignedCode);
+    const nightAuditWindowProblem = nightAuditWindowConfigProblem(
+      draft.businessDateConfig.nightAuditWindowStart,
+      draft.businessDateConfig.nightAuditWindowEnd,
+    );
+    if (nightAuditWindowProblem) throw new Error(nightAuditWindowProblem);
     if (
       data.mode !== "draft" &&
       vatCertificateRequired(draft.vatRegistered) &&
@@ -1246,9 +1252,7 @@ export const saveCard1PropertyArea = createServerFn({ method: "POST" })
 
 export const deleteCard1PropertyArea = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) =>
-    z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
-  )
+  .validator((input: unknown) => z.object({ restaurantId: idSchema, id: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await withPmsPackage(
       data.restaurantId,

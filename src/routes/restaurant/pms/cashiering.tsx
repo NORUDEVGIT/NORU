@@ -10,7 +10,11 @@ export const Route = createFileRoute("/restaurant/pms/cashiering")({
     ...(typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {}),
     ...(typeof search["folio"] === "string" ? { folio: search["folio"] as string } : {}),
     ...(typeof search["shift"] === "string" ? { shift: search["shift"] as string } : {}),
+    ...(typeof search["action"] === "string" ? { action: search["action"] as string } : {}),
     ...(typeof search["account"] === "string" ? { account: search["account"] as string } : {}),
+    ...(typeof search["invoice"] === "string" ? { invoice: search["invoice"] as string } : {}),
+    ...(typeof search["payment"] === "string" ? { payment: search["payment"] as string } : {}),
+    ...(typeof search["modalTab"] === "string" ? { modalTab: search["modalTab"] as string } : {}),
     ...(typeof search["q"] === "string" ? { q: search["q"] as string } : {}),
     ...(typeof search["page"] === "number"
       ? { page: search["page"] as number }
@@ -33,14 +37,18 @@ export const Route = createFileRoute("/restaurant/pms/cashiering")({
     ...(typeof search["paymentState"] === "string"
       ? { paymentState: search["paymentState"] as string }
       : {}),
-    ...(search["activity"] === "all" ||
-    search["activity"] === "payment" ||
-    search["activity"] === "deposit" ||
-    search["activity"] === "refund" ||
-    search["activity"] === "transfer"
+    ...(typeof search["activity"] === "string" && (
+      search["activity"] === "all" ||
+      search["activity"] === "payment" ||
+      search["activity"] === "deposit" ||
+      search["activity"] === "refund" ||
+      search["activity"] === "transfer"
+    )
       ? { activity: search["activity"] }
       : {}),
     ...(typeof search["sort"] === "string" ? { sort: search["sort"] as string } : {}),
+    ...(typeof search["returnTo"] === "string" ? { returnTo: search["returnTo"] as string } : {}),
+    ...(typeof search["returnToLabel"] === "string" ? { returnToLabel: search["returnToLabel"] as string } : {}),
   }),
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();

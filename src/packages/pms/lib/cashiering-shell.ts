@@ -75,6 +75,8 @@ export type CashieringSearchParams = {
   activity?: CashieringActivityFilter;
   sort?: string;
   returnToTab?: CashieringTabId;
+  returnTo?: string;
+  returnToLabel?: string;
 };
 
 export function cashieringTabSearch(
@@ -87,3 +89,59 @@ export function cashieringTabSearch(
   else if (folio === null) delete next.folio;
   return next;
 }
+
+export function resolveCashieringReturnTo(props?: {
+  returnTo?: string;
+  returnToLabel?: string;
+}): {
+  effectiveReturnTo?: string;
+  computedLabel: string;
+  hasPrevious: boolean;
+  handleReturn: () => void;
+} {
+  const searchParams =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : null;
+  const paramReturnTo = searchParams?.get("returnTo") || undefined;
+  const paramReturnLabel = searchParams?.get("returnToLabel") || undefined;
+
+  const rawReturnTo = props?.returnTo || paramReturnTo;
+  const rawReturnLabel = props?.returnToLabel || paramReturnLabel;
+
+  // The return button must ONLY be visible when specifically coming from Night Audit via returnTo.
+  // Under no circumstances should it be shown during ordinary navigation or other origins.
+  const isFromNightAudit = Boolean(
+    rawReturnTo && rawReturnTo.includes("night-audit"),
+  );
+
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+
+  // If already at Night Audit, do not show the button.
+  const isAlreadyAtTarget = Boolean(pathname.includes("night-audit"));
+
+  const hasPrevious = Boolean(isFromNightAudit && !isAlreadyAtTarget);
+
+  const effectiveReturnTo = hasPrevious
+    ? rawReturnTo || "/restaurant/pms/night-audit"
+    : undefined;
+
+  const computedLabel = rawReturnLabel || "Return to Night Audit";
+
+  const handleReturn = () => {
+    if (effectiveReturnTo) {
+      window.location.href = effectiveReturnTo;
+      return;
+    }
+    window.location.href = "/restaurant/pms/night-audit";
+  };
+
+  return {
+    effectiveReturnTo,
+    computedLabel,
+    hasPrevious,
+    handleReturn,
+  };
+}
+
+export const resolvePmsReturnTo = resolveCashieringReturnTo;
