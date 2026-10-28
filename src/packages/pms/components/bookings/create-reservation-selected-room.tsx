@@ -230,14 +230,40 @@ export function CreateReservationSelectedRoom({
               value={rateCopy.ratePerNight}
             />
             <SummaryLine label="Nights" value={String(nights)} />
-            <div className="min-w-0">
-              <dt className="text-[10px] uppercase tracking-wide text-[#6B5E4E]">Stay total</dt>
-              <dd
-                className="text-lg font-semibold text-[#C89933]"
-                data-testid="selected-room-stay-total"
-              >
-                {rateCopy.totalAmount}
-              </dd>
+            <div className="col-span-2 min-w-0">
+              {selectedQuote?.quote?.guestCharges && selectedQuote.quote.guestCharges.length > 0 ? (
+                <div
+                  className="mb-1.5 space-y-1 rounded-[6px] border border-[#E7E0D4] bg-[#FAF8F5] px-2 py-1.5 text-xs"
+                  data-testid="selected-room-charge-breakdown"
+                >
+                  <div className="flex items-center justify-between gap-3 text-[#6B5E4E]">
+                    <span>Room rate</span>
+                    <span className="tabular-nums text-[#251605]">
+                      {money(selectedQuote.quote.subtotal)}
+                    </span>
+                  </div>
+                  {selectedQuote.quote.guestCharges.map((line) => (
+                    <div
+                      key={`${line.name}-${line.amount}`}
+                      className="flex items-center justify-between gap-3 text-[#6B5E4E]"
+                    >
+                      <span className="min-w-0 truncate">{line.name}</span>
+                      <span className="shrink-0 tabular-nums text-[#251605]">
+                        {money(line.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-[10px] uppercase tracking-wide text-[#6B5E4E]">Stay total</dt>
+                <dd
+                  className="text-lg font-semibold text-[#C89933]"
+                  data-testid="selected-room-stay-total"
+                >
+                  {rateCopy.totalAmount}
+                </dd>
+              </div>
             </div>
             <SummaryLine label="Included" value={includedItemsLabel(selectedQuote)} />
             <SummaryLine

@@ -121,7 +121,7 @@ describe("Rate plan package inclusion merchandising", () => {
     );
     assert.doesNotMatch(rateUi, /Included Services/);
     assert.doesNotMatch(rateUi, /Optional Add-ons/);
-    assert.match(rateUi, /money\(row\.quote\.subtotal\)/);
+    assert.match(rateUi, /money\(quotedGuestTotal\(row\.quote\)\)/);
     assert.doesNotMatch(rateUi, /packagePrice|package_price|quote\.subtotal \+/);
     assert.doesNotMatch(rateUi, /type="checkbox"|onSelectPackage|addPackage/);
   });

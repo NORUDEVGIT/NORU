@@ -550,10 +550,10 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
       readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /stickyRoomAssignmentLabel\(/);
     assert.match(page, /CreateReservationRate/);
-    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
+    assert.match(page, /money\(quotedGuestTotal\(pricingState\.quote\)\)/);
     const roomIdx = page.indexOf("stickyRoomAssignmentLabel(");
     const rateIdx = page.indexOf("CreateReservationRate");
-    const totalIdx = page.indexOf("money(pricingState.quote.subtotal)");
+    const totalIdx = page.indexOf("money(quotedGuestTotal(pricingState.quote))");
     assert.ok(roomIdx > 0 && rateIdx > 0 && totalIdx > rateIdx);
     assert.doesNotMatch(page, /replacePricingLines|removeStayTotal/);
   });

@@ -113,7 +113,7 @@ describe("Create Reservation Phase 1 Section 7 lock — AC-CR7-1…24", () => {
     assert.match(page, /stickyRoomAssignmentLabel/);
     assert.match(page, /ratePlan=/);
     assert.match(page, /stayTotal=/);
-    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
+    assert.match(page, /money\(quotedGuestTotal\(pricingState\.quote\)\)/);
     assert.doesNotMatch(page, /fake 0\.00|stay total 0\.00/);
   });
 
@@ -523,7 +523,7 @@ describe("Create Reservation Phase 1 Section 7 lock — AC-CR7-1…24", () => {
     const page =
       readRel("../components/bookings/create-reservation-page.tsx") +
       readRel("../../../routes/restaurant/bookings/new.tsx");
-    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
+    assert.match(page, /money\(quotedGuestTotal\(pricingState\.quote\)\)/);
     assert.match(page, /quoteStay/);
     assert.doesNotMatch(page, /nights \* nightly|clientTotal|browserTotal/);
     const roomIdx = page.indexOf("stickyRoomAssignmentLabel(");

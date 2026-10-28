@@ -47,6 +47,7 @@ import {
   quoteFolioRoomCharge,
   type FolioRoomChargeQuote,
 } from "@/packages/pms/lib/cashiering.functions";
+import { quoteReservationRoomGuestTotal } from "@/packages/pms/lib/room-charge-guest-total.functions";
 import { listPromotionActivations } from "@/packages/pms/lib/revenue/commercial-promotion-activation.functions";
 import {
   applyReservationPromotion,
@@ -106,6 +107,7 @@ export function ReservationDetailRatesTab({
   canManage,
   money,
   folio = null,
+  totalAmount,
   coverUrl,
   occupancyLabel,
   onBackToRooms,
@@ -122,6 +124,7 @@ export function ReservationDetailRatesTab({
     balance: number;
     transactions: ReadonlyArray<{ type: string; amount: number; category?: string | null }>;
   } | null;
+  totalAmount?: number | null;
   coverUrl: string | null;
   occupancyLabel: string | null;
   onBackToRooms: () => void;
@@ -137,6 +140,7 @@ export function ReservationDetailRatesTab({
   const submitRateNotes = useServerFn(saveRateNotes);
   const fetchPromotions = useServerFn(listPromotionActivations);
   const fetchRoomQuote = useServerFn(quoteFolioRoomCharge);
+  const fetchUnitGuestTotal = useServerFn(quoteReservationRoomGuestTotal);
   const [rateNotes, setRateNotes] = useState(reservation.rateNotes ?? "");
   const [planOpen, setPlanOpen] = useState(false);
   const [discountOpen, setDiscountOpen] = useState(false);
@@ -217,6 +221,18 @@ export function ReservationDetailRatesTab({
       roomQuoteAmount > 0,
     retry: false,
   });
+  const unitGuestAmounts =
+    roomQuoteAmount != null && Number.isFinite(roomQuoteAmount) && roomQuoteAmount > 0
+      ? [roomQuoteAmount]
+      : [];
+  const unitGuestTotalQuery = useQuery({
+    queryKey: ["reservation-room-guest-total", restaurantId, unitGuestAmounts],
+    queryFn: () =>
+      fetchUnitGuestTotal({ data: { restaurantId, amounts: unitGuestAmounts } }),
+    enabled: canManage && unitGuestAmounts.length > 0,
+    retry: false,
+  });
+  const stayGuestTotal = unitGuestTotalQuery.data?.total ?? roomQuoteAmount;
 
   const plan: RatePlan | null =
     (plansQuery.data ?? []).find((row) => row.id === read.unit.ratePlanId) ?? null;
@@ -347,6 +363,7 @@ export function ReservationDetailRatesTab({
                 occupancyLabel={occupancyLabel}
                 perNight={perNight}
                 money={money}
+                stayTotal={stayGuestTotal}
                 currency={currency}
                 editable={editable}
                 canChangePlan={canChangePlan}
@@ -400,6 +417,7 @@ export function ReservationDetailRatesTab({
           roomQuote={roomQuoteQuery.data ?? null}
           roomQuotePending={roomQuoteQuery.isFetching}
           folioOpen={folio?.status === "open"}
+          totalAmount={totalAmount}
         />
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white py-3">
@@ -585,6 +603,7 @@ function RateInformationCard({
   occupancyLabel,
   perNight,
   money,
+  stayTotal,
   currency,
   editable,
   canChangePlan,
@@ -598,6 +617,7 @@ function RateInformationCard({
   occupancyLabel: string | null;
   perNight: number | null;
   money: (value: number) => string;
+  stayTotal: number | null;
   currency: string;
   editable: boolean;
   canChangePlan: boolean;
@@ -666,7 +686,7 @@ function RateInformationCard({
           <Info label="Rate per Night" value={perNight == null ? DETAIL_DASH : money(perNight)} />
           <Info
             label="Total for Stay"
-            value={unit.roomSubtotal == null ? DETAIL_DASH : money(unit.roomSubtotal)}
+            value={stayTotal == null ? DETAIL_DASH : money(stayTotal)}
           />
           <Info label="Currency" value={reviewDash(currency)} />
         </dl>
@@ -1046,6 +1066,7 @@ function RatesSummaryRail({
   roomQuote,
   roomQuotePending,
   folioOpen,
+  totalAmount,
 }: {
   reservation: ReservationDetail;
   read: {
@@ -1061,6 +1082,7 @@ function RatesSummaryRail({
   roomQuote: FolioRoomChargeQuote | null;
   roomQuotePending: boolean;
   folioOpen: boolean;
+  totalAmount?: number | null;
 }) {
   const payment = read.cashiering.payment;
   const deposit = read.cashiering.deposit;
@@ -1085,7 +1107,7 @@ function RatesSummaryRail({
         paymentReceived={payment}
         paymentRefunded={refund}
         guestDeposit={deposit}
-        totalAmount={groupStay ? undefined : read.unit.roomSubtotal}
+        totalAmount={totalAmount}
       />
       <section
         className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"

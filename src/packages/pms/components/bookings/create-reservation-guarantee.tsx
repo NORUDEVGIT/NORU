@@ -97,7 +97,12 @@ export function CreateReservationGuarantee({
             Payment Type
           </Label>
           {/* Guarantee method — Setup tenders / cashier labels; not a payment capture. */}
-          <Select value={guaranteeMethod || undefined} onValueChange={onGuaranteeMethodChange}>
+          <Select
+            value={guaranteeMethod || PAYMENT_METHOD_NONE}
+            onValueChange={(value) =>
+              onGuaranteeMethodChange(value === PAYMENT_METHOD_NONE ? "" : value)
+            }
+          >
             <SelectTrigger
               id="guarantee-method"
               className={PMS_OP_SELECT_TRIGGER}
@@ -106,6 +111,7 @@ export function CreateReservationGuarantee({
               <SelectValue placeholder="Select payment type" />
             </SelectTrigger>
             <SelectContent className={NORU_MENU}>
+              <SelectItem value={PAYMENT_METHOD_NONE}>Select payment type</SelectItem>
               {options.map((option) => (
                 <SelectItem key={`${option.origin}-${option.value}`} value={option.value}>
                   {option.label}

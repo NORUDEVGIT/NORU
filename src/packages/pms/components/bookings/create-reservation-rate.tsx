@@ -3,6 +3,7 @@ import { createContext, useContext, type ReactNode } from "react";
 import {
   CREATE_RESERVATION_UNPRICED_BADGE,
   fromNightlyRate,
+  quotedGuestTotal,
   rateCatalogueCopy,
   type CreateRateQuoteRow,
 } from "@/packages/pms/lib/create-reservation-phase1-section5";
@@ -159,7 +160,7 @@ export function CreateReservationRate({
                       )}
                     </td>
                     <td className="w-36 px-2 py-1.5 text-right align-middle font-medium whitespace-nowrap tabular-nums text-[#251605]">
-                      {row.quote ? money(row.quote.subtotal) : "—"}
+                      {row.quote ? money(quotedGuestTotal(row.quote)) : "—"}
                     </td>
                   </tr>
                 );

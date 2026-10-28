@@ -184,6 +184,7 @@ import {
   canCreateUnpricedPending,
   canSubmitCreateReservation,
   fromNightlyRate,
+  quotedGuestTotal,
   rateCopyFromQuote,
   resolveCreatePricingState,
   shouldClearStaleRatePlan,
@@ -1099,6 +1100,7 @@ export function CreateReservationPage({
         previous?.ratePlan === quote?.ratePlan &&
         previous?.total === quote?.total &&
         previous?.nightly === quote?.nightly &&
+        previous?.guestTotal === quote?.guestTotal &&
         previous?.subtotal === quote?.subtotal &&
         previous?.policy?.cancellation === quote?.policy?.cancellation &&
         previous?.policy?.noShow === quote?.policy?.noShow &&
@@ -1156,6 +1158,7 @@ export function CreateReservationPage({
       total: copy.totalAmount,
       nightly: copy.ratePerNight,
       subtotal: quote.quote?.subtotal ?? null,
+      guestTotal: quote.quote ? quotedGuestTotal(quote.quote) : null,
       nightlyRates: quote.quote?.nightly.map((night) => night.rate) ?? [],
       policy: roomPolicyFromLabels({
         cancellationName: quote.plan.cancellationName,
@@ -1427,7 +1430,7 @@ export function CreateReservationPage({
         rate: selectedQuote?.quote
           ? `${selectedQuote.quote.ratePlanCode}${selectedQuote.quote.ratePlanName ? ` · ${selectedQuote.quote.ratePlanName}` : ""}`
           : null,
-        stayTotal: selectedQuote?.quote ? money(selectedQuote.quote.subtotal) : null,
+        stayTotal: selectedQuote?.quote ? money(quotedGuestTotal(selectedQuote.quote)) : null,
         unpriced: selectedQuote?.quote == null,
         guaranteeMethod:
           nextStatus === "confirmed" ? guaranteeLabel || null : guaranteeLabel || null,
@@ -1538,6 +1541,12 @@ export function CreateReservationPage({
       depositReference: step4Policies.depositReference,
       depositPaymentMethod: step4Policies.depositPaymentMethod,
       depositDueDate: step4Policies.depositDueDate,
+      paymentReceivedAmount: step4Policies.paymentReceivedAmount,
+      paymentReceivedTender: step4Policies.paymentReceivedTender,
+      paymentReceivedReference: step4Policies.paymentReceivedReference,
+      guestDepositAmount: step4Policies.guestDepositAmount,
+      guestDepositTender: step4Policies.guestDepositTender,
+      guestDepositReference: step4Policies.guestDepositReference,
     }),
     [
       adults,
@@ -1581,6 +1590,12 @@ export function CreateReservationPage({
       step4Policies.depositDueDate,
       step4Policies.depositPaymentMethod,
       step4Policies.depositReference,
+      step4Policies.paymentReceivedAmount,
+      step4Policies.paymentReceivedTender,
+      step4Policies.paymentReceivedReference,
+      step4Policies.guestDepositAmount,
+      step4Policies.guestDepositTender,
+      step4Policies.guestDepositReference,
       travelAgentContactId,
       travelAgentMaster,
       travelAgentOverride,
@@ -1666,9 +1681,15 @@ export function CreateReservationPage({
       setGuaranteeMethod(stored.guaranteeMethod);
       setStep4Policies((current) => ({
         ...current,
-        depositReference: stored.depositReference,
-        depositPaymentMethod: stored.depositPaymentMethod,
-        depositDueDate: stored.depositDueDate,
+        depositReference: stored.depositReference || "",
+        depositPaymentMethod: stored.depositPaymentMethod || "",
+        depositDueDate: stored.depositDueDate || "",
+        paymentReceivedAmount: stored.paymentReceivedAmount || "",
+        paymentReceivedTender: stored.paymentReceivedTender || "",
+        paymentReceivedReference: stored.paymentReceivedReference || "",
+        guestDepositAmount: stored.guestDepositAmount || "",
+        guestDepositTender: stored.guestDepositTender || "",
+        guestDepositReference: stored.guestDepositReference || "",
       }));
       setDraftRestored(true);
       setHoldCommercialDefaults(true);
@@ -2527,6 +2548,22 @@ export function CreateReservationPage({
         })
       : null;
 
+  const guestRoomCharge = (() => {
+    const selectedGuest = selectedQuote?.quote ? quotedGuestTotal(selectedQuote.quote) : null;
+    if (!groupMode) {
+      return pricingState.kind === "priced" ? quotedGuestTotal(pricingState.quote) : selectedGuest;
+    }
+    const parts = [
+      selectedGuest,
+      ...extraRoomUnits.map((unit) => {
+        const quote = extraRoomQuotes[unit.key];
+        return quote?.guestTotal ?? quote?.subtotal ?? null;
+      }),
+    ];
+    const summed = groupRoomTotal(parts);
+    return summed.complete && summed.total != null ? summed.total : selectedGuest;
+  })();
+
   const policiesSection = (
     <CreateReservationPoliciesGuarantee
       guarantee={
@@ -2590,15 +2627,7 @@ export function CreateReservationPage({
           adults={groupMode ? stayTotals.adults : adults}
           children={groupMode ? stayTotals.children : children}
           infants={groupMode ? stayTotals.infants : infants}
-          roomSubtotal={
-            groupMode
-              ? (groupReviewTotal?.complete && groupReviewTotal.total != null
-                  ? groupReviewTotal.total
-                  : (selectedQuote?.quote?.subtotal ?? null))
-              : (pricingState.kind === "priced"
-                  ? pricingState.quote.subtotal
-                  : (selectedQuote?.quote?.subtotal ?? null))
-          }
+          roomSubtotal={guestRoomCharge}
           isGroup={groupMode}
           totalRooms={groupMode ? stayTotals.rooms : 1}
           packages={selectedCreatePackages.map((card) => ({
@@ -2708,9 +2737,9 @@ export function CreateReservationPage({
             pricingState.kind === "priced" && fromNightlyRate(pricingState.quote) != null
               ? money(fromNightlyRate(pricingState.quote)!)
               : "—",
-          subtotal: selectedQuote?.quote?.subtotal ?? null,
+          subtotal: selectedQuote?.quote ? quotedGuestTotal(selectedQuote.quote) : null,
           subtotalLabel:
-            selectedQuote?.quote?.subtotal == null ? "—" : money(selectedQuote.quote.subtotal),
+            selectedQuote?.quote == null ? "—" : money(quotedGuestTotal(selectedQuote.quote)),
         },
         ...extraRoomUnits.map((unit, index) => {
           const quote = extraRoomQuotes[unit.key];
@@ -2721,8 +2750,13 @@ export function CreateReservationPage({
             occupancy: compactRoomOccupancy(unit.adults, unit.children, unit.infants),
             ratePlanName: quote?.ratePlan || "Not selected",
             ratePerNight: quote?.nightly || "—",
-            subtotal: quote?.subtotal ?? null,
-            subtotalLabel: quote?.subtotal == null ? "—" : money(quote.subtotal),
+            subtotal: quote?.guestTotal ?? quote?.subtotal ?? null,
+            subtotalLabel:
+              quote?.guestTotal != null
+                ? money(quote.guestTotal)
+                : quote?.subtotal == null
+                  ? "—"
+                  : money(quote.subtotal),
           };
         }),
       ]
@@ -2762,7 +2796,7 @@ export function CreateReservationPage({
                   pricingState.kind === "priced"
                     ? pricingState.quote.ratePlanName || pricingState.quote.ratePlanCode
                     : (selectedQuote?.plan.name ?? "—"),
-                total: pricingState.kind === "priced" ? money(pricingState.quote.subtotal) : "—",
+                total: pricingState.kind === "priced" ? money(quotedGuestTotal(pricingState.quote)) : "—",
               },
               ...extraRoomUnits.map((unit, index) => {
                 const quote = extraRoomQuotes[unit.key];
@@ -2794,7 +2828,7 @@ export function CreateReservationPage({
           ? money(fromNightlyRate(pricingState.quote)!)
           : "—"
       }
-      stayTotal={pricingState.kind === "priced" ? money(pricingState.quote.subtotal) : "—"}
+      stayTotal={pricingState.kind === "priced" ? money(quotedGuestTotal(pricingState.quote)) : "—"}
       includedItems={reviewIncludedItems([
         selectedQuote?.breakfastLabel,
         selectedQuote?.plan.mealPlanName,
@@ -2846,6 +2880,38 @@ export function CreateReservationPage({
               ?.label ?? step4Policies.depositPaymentMethod)
       }
       depositReference={step4Policies.depositReference.trim() || null}
+      paymentReceivedSummary={
+        step4Policies.paymentReceivedAmount.trim()
+          ? `${step4Policies.paymentReceivedAmount.trim()}${
+              step4Policies.paymentReceivedTender
+                ? ` · ${
+                    guaranteeOptions.find((row) => row.value === step4Policies.paymentReceivedTender)
+                      ?.label ?? step4Policies.paymentReceivedTender
+                  }`
+                : ""
+            }${
+              step4Policies.paymentReceivedReference.trim()
+                ? ` · Ref: ${step4Policies.paymentReceivedReference.trim()}`
+                : ""
+            }`
+          : null
+      }
+      guestDepositSummary={
+        step4Policies.guestDepositAmount.trim()
+          ? `${step4Policies.guestDepositAmount.trim()}${
+              step4Policies.guestDepositTender
+                ? ` · ${
+                    guaranteeOptions.find((row) => row.value === step4Policies.guestDepositTender)
+                      ?.label ?? step4Policies.guestDepositTender
+                  }`
+                : ""
+            }${
+              step4Policies.guestDepositReference.trim()
+                ? ` · Ref: ${step4Policies.guestDepositReference.trim()}`
+                : ""
+            }`
+          : null
+      }
       companyTerms={companyMaster?.paymentTerms ?? null}
       travelAgentTerms={travelAgentMaster?.paymentTerms ?? null}
       noShowPolicy={selectedQuote?.noShowPolicyName?.trim() || ""}

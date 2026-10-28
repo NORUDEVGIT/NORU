@@ -98,12 +98,14 @@ import { reservationHistoryChanges } from "@/packages/pms/lib/reservation-histor
 import {
   groupActionGate,
   groupCombinedSubtotal,
+  groupRoomUnits,
   historyContextLine,
   isGroupReservation,
   reservationHeaderGuestLabel,
   reservationHeaderRoomKpi,
   resolveHistoryField,
 } from "@/packages/pms/lib/reservation-detail-group";
+import { quoteReservationRoomGuestTotal } from "@/packages/pms/lib/room-charge-guest-total.functions";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
 import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
 import { getReservationCreateSourceChannel } from "@/packages/pms/lib/reservation-source-channel.functions";
@@ -367,6 +369,22 @@ export function ReservationDetailWorkspace({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const roomChargeAmounts = !reservation
+    ? []
+    : isGroupReservation(reservation)
+      ? groupRoomUnits(reservation)
+          .map((unit) => unit.roomSubtotal)
+          .filter((amount): amount is number => amount != null && Number.isFinite(amount))
+      : reservation.roomSubtotal != null && Number.isFinite(reservation.roomSubtotal)
+        ? [reservation.roomSubtotal]
+        : [];
+  const fetchRoomGuestTotal = useServerFn(quoteReservationRoomGuestTotal);
+  const roomGuestTotalQuery = useQuery({
+    queryKey: ["reservation-room-guest-total", restaurantId, roomChargeAmounts],
+    queryFn: () => fetchRoomGuestTotal({ data: { restaurantId, amounts: roomChargeAmounts } }),
+    enabled: canManage && roomChargeAmounts.length > 0,
+  });
+
   if (accessQuery.isLoading)
     return <p className="text-sm text-muted-foreground">Loading reservation…</p>;
   if (!canManage) {
@@ -468,6 +486,7 @@ export function ReservationDetailWorkspace({
   const headerRoomTotal = groupReservation
     ? groupCombinedSubtotal(reservation)
     : reservation.roomSubtotal;
+  const headerGuestTotal = roomGuestTotalQuery.data?.total ?? headerRoomTotal;
   const detailActionBar = detailActions ? (
     <ReservationDetailActionBar
       result={detailActions}
@@ -747,7 +766,7 @@ export function ReservationDetailWorkspace({
         paymentReceived={paymentReceived}
         paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
-        totalAmount={headerRoomTotal}
+        totalAmount={headerGuestTotal}
         onBackToOverview={() => setDetailTab("overview")}
         onSaved={invalidate}
       />
@@ -764,7 +783,7 @@ export function ReservationDetailWorkspace({
         paymentReceived={paymentReceived}
         paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
-        totalAmount={headerRoomTotal}
+        totalAmount={headerGuestTotal}
         onBackToOverview={() => setDetailTab("overview")}
         onSaved={invalidate}
       />
@@ -776,6 +795,7 @@ export function ReservationDetailWorkspace({
         canManage={stayMutable}
         money={money}
         folio={folioQuery.data ?? null}
+        totalAmount={headerGuestTotal}
         coverUrl={roomType?.coverUrl ?? null}
         occupancyLabel={
           roomType ? `${roomType.adultCapacity} adults · ${roomType.childCapacity} children` : null
@@ -796,6 +816,7 @@ export function ReservationDetailWorkspace({
         paymentReceived={paymentReceived}
         paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
+        totalAmount={headerGuestTotal}
         coverUrl={roomType?.coverUrl ?? null}
         occupancyLabel={
           roomType ? `${roomType.adultCapacity} adults · ${roomType.childCapacity} children` : null
@@ -817,6 +838,7 @@ export function ReservationDetailWorkspace({
         paymentReceived={paymentReceived}
         paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
+        totalAmount={headerGuestTotal}
         coverUrl={roomType?.coverUrl ?? null}
       />
     );
@@ -843,6 +865,7 @@ export function ReservationDetailWorkspace({
         paymentReceived={paymentReceived}
         paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
+        totalAmount={headerGuestTotal}
         coverUrl={roomType?.coverUrl ?? null}
         onBackToFolio={() => setDetailTab("folio")}
         onSaved={invalidate}
@@ -860,6 +883,7 @@ export function ReservationDetailWorkspace({
         paymentReceived={paymentReceived}
         paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
+        totalAmount={headerGuestTotal}
         coverUrl={roomType?.coverUrl ?? null}
         onBackToRequests={() => setDetailTab("requests")}
         onSaved={invalidate}
@@ -955,7 +979,10 @@ export function ReservationDetailWorkspace({
             reservationHeaderRoomKpi(reservation),
             {
               label: detailTab === "folio" ? "Reservation room total" : "Total Amount",
-              value: headerRoomTotal == null ? DETAIL_DASH : money(headerRoomTotal),
+              value:
+                (detailTab === "folio" ? headerRoomTotal : headerGuestTotal) == null
+                  ? DETAIL_DASH
+                  : money(detailTab === "folio" ? headerRoomTotal! : headerGuestTotal!),
             },
             {
               label: "Payment Received",
@@ -1036,6 +1063,7 @@ export function ReservationDetailWorkspace({
               {detailTab === "overview" ? (
                 <ReservationDetailOverviewDashboard
                   reservation={reservation}
+                  totalAmount={headerGuestTotal}
                   guest={guestQuery.data?.guest ?? null}
                   createdBy={createdBy}
                   coverUrl={roomType?.coverUrl ?? null}

@@ -98,6 +98,12 @@ export type CreateReservationDraft = {
   depositReference: string;
   depositPaymentMethod: string;
   depositDueDate: string;
+  paymentReceivedAmount?: string;
+  paymentReceivedTender?: string;
+  paymentReceivedReference?: string;
+  guestDepositAmount?: string;
+  guestDepositTender?: string;
+  guestDepositReference?: string;
 };
 
 export function createReservationDraftKey(propertyId: string, scopeId: string): string {
@@ -125,7 +131,13 @@ export function createReservationDraftIsMeaningful(
     draft.guaranteeMethod ||
     draft.depositReference ||
     draft.depositPaymentMethod ||
-    draft.depositDueDate
+    draft.depositDueDate ||
+    draft.paymentReceivedAmount ||
+    draft.paymentReceivedTender ||
+    draft.paymentReceivedReference ||
+    draft.guestDepositAmount ||
+    draft.guestDepositTender ||
+    draft.guestDepositReference
   ) {
     return true;
   }
@@ -221,6 +233,12 @@ export function parseCreateReservationDraft(payload: unknown): CreateReservation
     depositReference: text(record.depositReference),
     depositPaymentMethod: text(record.depositPaymentMethod),
     depositDueDate: text(record.depositDueDate),
+    paymentReceivedAmount: text(record.paymentReceivedAmount),
+    paymentReceivedTender: text(record.paymentReceivedTender),
+    paymentReceivedReference: text(record.paymentReceivedReference),
+    guestDepositAmount: text(record.guestDepositAmount),
+    guestDepositTender: text(record.guestDepositTender),
+    guestDepositReference: text(record.guestDepositReference),
   };
 }
 

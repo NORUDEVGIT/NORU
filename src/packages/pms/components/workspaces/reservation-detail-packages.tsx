@@ -61,6 +61,7 @@ export function ReservationDetailPackagesTab({
   paymentReceived = null,
   paymentRefunded = null,
   guestDeposit = null,
+  totalAmount,
   coverUrl,
 }: {
   restaurantId: string;
@@ -70,6 +71,7 @@ export function ReservationDetailPackagesTab({
   paymentReceived?: number | null;
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
+  totalAmount?: number | null;
   coverUrl: string | null;
 }) {
   const fetchCatalogue = useServerFn(getMealsCard3);
@@ -258,6 +260,7 @@ export function ReservationDetailPackagesTab({
           paymentReceived={paymentReceived}
           paymentRefunded={paymentRefunded}
           guestDeposit={guestDeposit}
+          totalAmount={totalAmount}
           money={money}
           coverUrl={coverUrl}
           nights={nights}
@@ -549,6 +552,7 @@ function PackagesSummaryRail({
   paymentReceived,
   paymentRefunded,
   guestDeposit,
+  totalAmount,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -558,6 +562,7 @@ function PackagesSummaryRail({
   paymentReceived: number | null;
   paymentRefunded: number | null;
   guestDeposit: number | null;
+  totalAmount?: number | null;
 }) {
   return (
     <ReservationDetailSummary
@@ -570,6 +575,7 @@ function PackagesSummaryRail({
       paymentReceived={paymentReceived}
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
+      totalAmount={totalAmount}
     />
   );
 }

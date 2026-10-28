@@ -80,6 +80,8 @@ export type CreateReservationReviewProps = {
   depositDueDate: string | null;
   depositPaymentMethod: string;
   depositReference: string | null;
+  paymentReceivedSummary?: string | null;
+  guestDepositSummary?: string | null;
   noShowPolicy: string;
   noShowPenalty: string | null;
   earlyDeparturePolicy: string;
@@ -281,6 +283,8 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
     ...filledRows([
       ["Deposit Due Date", dueDate],
       ["Payment Reference", props.depositReference],
+      ["Payment Received", props.paymentReceivedSummary],
+      ["Guest Deposit", props.guestDepositSummary],
     ]),
     ...paymentTerms.map((line) => ["Payment Terms", line] as [string, string]),
   ];

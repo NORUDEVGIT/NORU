@@ -77,7 +77,8 @@ export function ReservationDetailSummary({
   const assignment = groupAssignmentSummary(reservation);
   const combined = groupCombinedSubtotal(reservation);
   const computedRoomTotal = group ? combined : reservation.roomSubtotal;
-  const effectiveTotal = totalAmount !== undefined ? totalAmount : computedRoomTotal;
+  const roomRateAmount = computedRoomTotal;
+  const guestFacingTotal = totalAmount !== undefined ? totalAmount : computedRoomTotal;
   const paymentFigure =
     paymentReceived === undefined
       ? DETAIL_DASH
@@ -200,15 +201,15 @@ export function ReservationDetailSummary({
               {occupancy.rooms} room unit{occupancy.rooms === 1 ? "" : "s"}
             </p>
             <p className="font-medium text-[#251605]">
-              {roomTotalLabel} {effectiveTotal == null ? DETAIL_DASH : money(effectiveTotal)}
+              {roomTotalLabel} {guestFacingTotal == null ? DETAIL_DASH : money(guestFacingTotal)}
             </p>
           </>
         ) : (
           <>
-            <p>Room Rate {effectiveTotal == null ? DETAIL_DASH : money(effectiveTotal)}</p>
+            <p>Room Rate {roomRateAmount == null ? DETAIL_DASH : money(roomRateAmount)}</p>
             {packagesTotal != null ? <p>Packages {money(packagesTotal)}</p> : null}
             <p className="font-medium text-[#251605]">
-              {roomTotalLabel} {effectiveTotal == null ? DETAIL_DASH : money(effectiveTotal)}
+              {roomTotalLabel} {guestFacingTotal == null ? DETAIL_DASH : money(guestFacingTotal)}
             </p>
           </>
         )}

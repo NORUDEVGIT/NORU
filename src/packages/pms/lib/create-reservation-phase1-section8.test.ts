@@ -235,7 +235,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
     assert.doesNotMatch(CREATE_RESERVATION_STICKY_PACKAGES, /0\.00|£0|subtotal/);
     assert.match(page, /packagesSlot=/);
     assert.match(page, /CreateReservationPackages/);
-    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
+    assert.match(page, /money\(quotedGuestTotal\(pricingState\.quote\)\)/);
     assert.match(page, /stickyRoomAssignmentLabel\(/);
     const stayQuote = ratesServer.slice(
       ratesServer.indexOf("export interface StayQuote"),
@@ -369,9 +369,9 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
     assert.match(page, /ratePlan=/);
     assert.match(page, /stayTotal=/);
     assert.match(page, /stickyRoomAssignmentLabel\(/);
-    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
+    assert.match(page, /money\(quotedGuestTotal\(pricingState\.quote\)\)/);
     const roomIdx = page.indexOf("stickyRoomAssignmentLabel(");
-    const totalIdx = page.indexOf("money(pricingState.quote.subtotal)");
+    const totalIdx = page.indexOf("money(quotedGuestTotal(pricingState.quote))");
     const packagesIdx = page.indexOf("packagesSlot=");
     assert.ok(roomIdx > 0 && totalIdx > roomIdx && packagesIdx > totalIdx);
     assert.match(page, /CreateReservationGuarantee/);
@@ -479,7 +479,7 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
     assert.doesNotMatch(submitBlock, /package/);
     assert.match(page, /CreateReservationBookingDetails/);
     assert.match(page, /const UNASSIGNED = "unassigned"/);
-    assert.match(page, /stayTotal=\{pricingState\.kind === "priced" \? money\(pricingState\.quote\.subtotal\) : "—"\}/);
+    assert.match(page, /stayTotal=\{pricingState\.kind === "priced" \? money\(quotedGuestTotal\(pricingState\.quote\)\) : "—"\}/);
   });
 
   it("resolveCreatePackagesGateView maps loading / error around catalog detect", () => {

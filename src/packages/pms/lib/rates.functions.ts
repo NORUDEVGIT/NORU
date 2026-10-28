@@ -23,6 +23,8 @@ import { loadQuoteMerchandising } from "./rate-quote-read-model.server";
 import { breakfastLabelFromMealPlan, deriveCancellationDisplay } from "./cancellation-deadline";
 import { foreignRatePlanPolicyMessage } from "./rate-plan-policy-link";
 import { parsePackageInclusionType, type RatePlanPackageLink } from "./rate-plan-package-inclusion";
+import { previewPostedRoomCharge } from "./room-charge-guest-total";
+import { loadRoomChargeRules } from "./room-charge-guest-total.server";
 
 const idSchema = z.string().uuid();
 
@@ -1159,6 +1161,10 @@ export const quoteStay = createServerFn({ method: "POST" })
     );
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // The rate quote itself uses the trusted server client. Use that same
+    // client for the room-tax lookup so the displayed guest total cannot lose
+    // its tax lines because of the caller's read policy.
+    const roomChargeRules = await loadRoomChargeRules(supabaseAdmin as never, data.restaurantId);
 
     const out: RatePlanQuote[] = [];
     for (const plan of plans) {
@@ -1200,9 +1206,19 @@ export const quoteStay = createServerFn({ method: "POST" })
         });
         continue;
       }
+      const priced = toQuote(pricing);
+      const guest = previewPostedRoomCharge(
+        priced.subtotal,
+        roomChargeRules.taxes,
+        roomChargeRules.services,
+      );
       out.push({
         plan,
-        quote: toQuote(pricing),
+        quote: {
+          ...priced,
+          guestTotal: guest.total,
+          guestCharges: guest.lines,
+        },
         unavailableReason: null,
         breakfastLabel: breakfastLabelFromMealPlan(plan),
         includedServicesLabel: extra?.includedServicesLabel ?? "—",

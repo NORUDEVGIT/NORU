@@ -146,6 +146,10 @@ export type CreateStayQuoteView = {
   currency: string;
   nights: number;
   subtotal: number;
+  /** Rate plus room tax and service charge. Falls back to the rate when unset. */
+  guestTotal?: number;
+  /** Taxes and service charges that explain the difference from the room rate. */
+  guestCharges?: Array<{ name: string; amount: number }>;
   nightly: Array<{ date: string; rate: number }>;
 };
 
@@ -242,6 +246,12 @@ export function fromNightlyRate(quote: CreateStayQuoteView): number | null {
   return Math.min(...quote.nightly.map((night) => night.rate));
 }
 
+/** Amount the folio charges for this room: rate, tax, and occupancy or service when set. */
+export function quotedGuestTotal(quote: { subtotal: number; guestTotal?: number | null }): number {
+  const guest = quote.guestTotal;
+  return guest != null && Number.isFinite(guest) ? guest : quote.subtotal;
+}
+
 /** Display copy for a quoteStay row. Does not recompute the stay total. */
 export function rateCopyFromQuote(
   selectedQuote: CreateRateQuoteRow | null,
@@ -253,7 +263,7 @@ export function rateCopyFromQuote(
       ? quote.ratePlanName || quote.ratePlanCode
       : selectedQuote?.plan.name || "—",
     ratePerNight: quote && fromNightlyRate(quote) != null ? money(fromNightlyRate(quote)!) : "—",
-    totalAmount: quote ? money(quote.subtotal) : "—",
+    totalAmount: quote ? money(quotedGuestTotal(quote)) : "—",
     cancellationPolicy:
       selectedQuote?.cancellationLabel && selectedQuote.cancellationLabel !== "—"
         ? selectedQuote.cancellationLabel

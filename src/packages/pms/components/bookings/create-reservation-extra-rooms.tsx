@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import type { RoomPolicyValues } from "@/packages/pms/lib/create-reservation-group-step23";
+import { quotedGuestTotal } from "@/packages/pms/lib/create-reservation-phase1-section5";
 import { quoteStay } from "@/packages/pms/lib/rates.functions";
 import type { CreateRoomUnitInput } from "@/packages/pms/lib/reservation-room-units";
 import { Button } from "@/shared/components/ui/button";
@@ -28,6 +29,7 @@ export type ExtraRoomQuote = {
   total: string;
   nightly?: string;
   subtotal?: number | null;
+  guestTotal?: number | null;
   nightlyRates?: number[];
   policy?: RoomPolicyValues | null;
 };
@@ -166,9 +168,11 @@ function ExtraRoomCard({
     onQuote({
       typeName,
       ratePlan: selected?.plan.name ?? "—",
-      total: selected?.quote?.subtotal == null ? "—" : money(selected.quote.subtotal),
+      total: selected?.quote == null ? "—" : money(quotedGuestTotal(selected.quote)),
+      subtotal: selected?.quote?.subtotal ?? null,
+      guestTotal: selected?.quote ? quotedGuestTotal(selected.quote) : null,
     });
-  }, [money, onQuote, selected?.plan.name, selected?.quote?.subtotal, typeName, unit.roomTypeId]);
+  }, [money, onQuote, selected?.plan.name, selected?.quote?.guestTotal, selected?.quote?.subtotal, typeName, unit.roomTypeId]);
 
   return (
     <div className="grid gap-3 rounded-lg border border-[#EEE6D8] p-3 sm:grid-cols-2 lg:grid-cols-6">
@@ -250,7 +254,7 @@ function ExtraRoomCard({
         </Button>
       </div>
       <p className="sm:col-span-2 lg:col-span-6 text-xs text-muted-foreground">
-        Quoted room total {selected?.quote?.subtotal == null ? "—" : money(selected.quote.subtotal)}
+        Quoted room total {selected?.quote == null ? "—" : money(quotedGuestTotal(selected.quote))}
         . The server recalculates this on save.
       </p>
     </div>

@@ -36,6 +36,7 @@ import {
   listAssignableRooms,
 } from "@/packages/pms/lib/reservations.functions";
 import { quoteStay } from "@/packages/pms/lib/rates.functions";
+import { quotedGuestTotal } from "@/packages/pms/lib/create-reservation-phase1-section5";
 import {
   moveReservationRoom,
   type FrontOfficeStay,
@@ -879,7 +880,7 @@ export function WalkInDialog({
               <p className="text-xs text-muted-foreground">
                 {selectedQuote.quote.nights} night{selectedQuote.quote.nights === 1 ? "" : "s"} ·
                 nightly {money(selectedQuote.quote.nightly[0]?.rate ?? 0)} · total{" "}
-                {money(selectedQuote.quote.subtotal)}
+                {money(quotedGuestTotal(selectedQuote.quote))}
               </p>
             ) : quotesQuery.isError ? (
               <p className="text-xs text-destructive">Pricing unavailable for this stay.</p>
