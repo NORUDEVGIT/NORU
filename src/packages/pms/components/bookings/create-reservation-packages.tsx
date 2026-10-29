@@ -1,3 +1,4 @@
+import { Package } from "lucide-react";
 import {
   PackageCoverThumb,
   ReservationPackageMerchandiseGrid,
@@ -209,12 +210,12 @@ function PackageCatalogueTable({
         <table className="w-full border-collapse text-left text-xs">
           <thead>
             <tr className="border-b border-[#E6E1D8] bg-[#F7F4EE] text-[10px] uppercase tracking-wide text-[#6B5E4E]">
-              <th className="w-9 px-2.5 py-2 text-center font-medium" />
-              <th className="w-[36%] px-2.5 py-2 font-medium">Package</th>
-              <th className="px-2.5 py-2 font-medium">Description</th>
-              <th className="w-24 px-2.5 py-2 text-right font-medium">Price ({currency})</th>
-              <th className="w-10 px-2 py-2 text-center font-medium">Qty</th>
-              <th className="w-36 px-3 py-2 text-right font-medium">Total ({currency})</th>
+              <th className="w-10 px-3 py-3 text-center font-medium" />
+              <th className="w-[28%] min-w-[200px] px-3.5 py-3 font-medium">Package</th>
+              <th className="min-w-[170px] px-3.5 py-3 font-medium">Description</th>
+              <th className="w-28 px-3.5 py-3 text-right font-medium">Price ({currency})</th>
+              <th className="w-12 px-2 py-3 text-center font-medium">Qty</th>
+              <th className="w-56 min-w-[220px] px-4 py-3 text-right font-medium">Total ({currency})</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E6E1D8]">
@@ -241,7 +242,7 @@ function PackageCatalogueTable({
                   data-selected={selected ? "true" : "false"}
                   data-bindable={bindable ? "true" : "false"}
                 >
-                  <td className="px-2.5 py-2 text-center align-middle">
+                  <td className="px-3 py-3 text-center align-middle">
                     <div className="flex justify-center">
                       <Checkbox
                         checked={selected}
@@ -257,8 +258,8 @@ function PackageCatalogueTable({
                       />
                     </div>
                   </td>
-                  <td className="px-2.5 py-2 align-middle">
-                    <div className="flex min-w-0 items-center gap-2.5">
+                  <td className="px-3.5 py-3 align-middle">
+                    <div className="flex min-w-0 items-center gap-3">
                       <div
                         className="h-12 w-14 shrink-0 overflow-hidden rounded-[4px] border border-[#E6E1D8] bg-[#FAF8F5]"
                         data-testid={card.coverUrl ? "package-cover-image" : "package-cover-fallback"}
@@ -269,8 +270,8 @@ function PackageCatalogueTable({
                           className="!h-12 !w-14 !rounded-[4px] object-cover"
                         />
                       </div>
-                      <div className="min-w-0">
-                        <span className="block font-semibold text-xs text-[#251605] leading-snug">
+                      <div className="min-w-0 flex-1">
+                        <span className="block break-words font-semibold text-xs text-[#251605] leading-snug">
                           {card.name}
                         </span>
                         <span className="mt-0.5 inline-block text-[10px] font-medium text-[#7A5A1A]">
@@ -279,7 +280,7 @@ function PackageCatalogueTable({
                       </div>
                     </div>
                   </td>
-                  <td className="px-2.5 py-2 align-middle text-[#6B5E4E]">
+                  <td className="px-3.5 py-3 align-middle text-[#6B5E4E]">
                     <span className="line-clamp-2 leading-relaxed">{card.description.trim() || "—"}</span>
                     {card.chargeBasisHonesty ? (
                       <span className="mt-0.5 block text-[10px] text-[#8C7A64]">
@@ -295,23 +296,23 @@ function PackageCatalogueTable({
                       </span>
                     ) : null}
                   </td>
-                  <td className="px-2.5 py-2 text-right align-middle text-xs tabular-nums text-[#6B5E4E]">
+                  <td className="px-3.5 py-3 text-right align-middle text-xs tabular-nums text-[#6B5E4E]">
                     {amount}
                   </td>
-                  <td className="px-2 py-2 text-center align-middle text-xs tabular-nums font-medium text-[#6B5E4E]">
+                  <td className="px-2 py-3 text-center align-middle text-xs tabular-nums font-medium text-[#6B5E4E]">
                     1
                   </td>
                   <td
-                    className="px-3 py-2 text-right align-middle"
+                    className="px-4 py-3 text-right align-middle"
                     data-testid={`create-package-total-${card.id}`}
                   >
-                    <div className="flex flex-col items-end gap-0.5">
-                      <span className="font-semibold text-xs text-[#251605] tabular-nums">
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="font-bold text-sm text-[#251605] tabular-nums tracking-tight">
                         {total}
                       </span>
                       {hasTax ? (
-                        <div className="flex flex-col items-end">
-                          <span className="inline-flex items-center rounded-[3px] bg-[#F4EDE0] px-1.5 py-0.2 text-[9.5px] font-medium text-[#7A5A1A]">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="inline-flex items-center rounded bg-[#F4EDE0] px-1.5 py-0.5 text-[9.5px] font-medium text-[#7A5A1A]">
                             Incl. tax & fees
                           </span>
                           <span
@@ -332,12 +333,28 @@ function PackageCatalogueTable({
       </div>
 
       {selectedCards.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E6E1D8] bg-[#F7F4EE]/60 px-3.5 py-2 text-xs">
-          <span className="font-medium text-[#6B5E4E]">
-            Total for {selectedCards.length} selected {selectedCards.length === 1 ? "package" : "packages"}:
-          </span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-semibold text-sm text-[#251605] tabular-nums">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#E6E1D8] bg-[#FAF7F2] px-4 py-3.5 sm:px-5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EFE8DC] px-3 py-1 text-xs font-semibold text-[#5A4515]">
+              <Package className="size-3.5 text-[#C89933]" aria-hidden />
+              {selectedCards.length} {selectedCards.length === 1 ? "package" : "packages"} selected
+            </span>
+            <div className="hidden sm:flex flex-wrap items-center gap-1.5">
+              {selectedCards.map((c) => (
+                <span
+                  key={c.id}
+                  className="rounded-md border border-[#E6E1D8] bg-white px-2 py-0.5 text-[11px] font-medium text-[#6B5E4E]"
+                >
+                  {c.name}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-xs font-medium text-[#6B5E4E]">
+              Total Packages:
+            </span>
+            <span className="font-bold text-base text-[#251605] tabular-nums">
               {money(
                 selectedCards.reduce((sum, c) => {
                   const f = c.price == null ? null : packageChargeFigures(c.price, packageRules);
@@ -345,7 +362,7 @@ function PackageCatalogueTable({
                 }, 0),
               )}
             </span>
-            <span className="text-[10px] text-[#8C7A64] font-medium">
+            <span className="text-[10.5px] text-[#8C7A64] font-medium">
               (incl. taxes & fees)
             </span>
           </div>
