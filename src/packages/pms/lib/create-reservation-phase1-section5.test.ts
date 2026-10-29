@@ -138,11 +138,11 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     const rate = readRel("../components/bookings/create-reservation-rate.tsx");
     assert.match(page, /CreateReservationSelectedRoom/);
     assert.match(page, /selectedQuote=\{selectedQuote\}/);
-    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
+    assert.match(page, /money\(quotedGuestTotal\(pricingState\.quote\)\)/);
     assert.match(page, /selectedQuote/);
-    assert.match(page, /pricingState\.quote\.subtotal/);
+    assert.match(page, /quotedGuestTotal\(pricingState\.quote\)/);
     assert.match(page, /selectedQuote\?\.quote/);
-    assert.match(rate, /row\.quote\.subtotal/);
+    assert.match(rate, /quotedGuestTotal\(row\.quote\)/);
     assert.doesNotMatch(rate, /selected\.quote\.subtotal/);
     assert.equal(fromNightlyRate(sampleQuote), 110);
     const priced = resolveCreatePricingState({
@@ -188,7 +188,7 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     assert.match(rate, /CREATE_RESERVATION_UNPRICED_BADGE/);
     assert.equal(CREATE_RESERVATION_UNPRICED_BADGE, "Unpriced");
     assert.match(page, /canCreateUnpricedPending/);
-    assert.match(page, /stayTotal=\{pricingState\.kind === "priced" \? money\(pricingState\.quote\.subtotal\) : "—"\}/);
+    assert.match(page, /stayTotal=\{pricingState\.kind === "priced" \? money\(quotedGuestTotal\(pricingState\.quote\)\) : "—"\}/);
     assert.match(functions, /assertCreateReservationPricing/);
     assert.throws(
       () =>
@@ -312,7 +312,7 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     });
     assert.equal(loading.kind, "loading");
     assert.doesNotMatch(stickyPricingCopy(loading), /0\.00/);
-    assert.match(page, /stayTotal=\{pricingState\.kind === "priced" \? money\(pricingState\.quote\.subtotal\) : "—"\}/);
+    assert.match(page, /stayTotal=\{pricingState\.kind === "priced" \? money\(quotedGuestTotal\(pricingState\.quote\)\) : "—"\}/);
     assert.doesNotMatch(page, /money\(0\)|stay total 0\.00|fake 0\.00/i);
   });
 
@@ -565,7 +565,7 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
       readRel("../../../routes/restaurant/bookings/new.tsx");
     assert.match(page, /ratePlan=/);
     assert.match(page, /stayTotal=/);
-    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
+    assert.match(page, /money\(quotedGuestTotal\(pricingState\.quote\)\)/);
     assert.doesNotMatch(page, /Fixed Rate LIVE|legacy Individual create chrome/i);
   });
 
@@ -589,7 +589,7 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     assert.doesNotMatch(rate, /row\.breakfastLabel/);
     assert.match(selectedRoom, /quote\.breakfastLabel/);
     assert.match(selectedRoom, /rateCopy\.cancellationPolicy/);
-    assert.match(rate, /money\(row\.quote\.subtotal\)/);
+    assert.match(rate, /money\(quotedGuestTotal\(row\.quote\)\)/);
     assert.deepEqual(
       ratePlanMerchandisingLines({
         id: "p1",

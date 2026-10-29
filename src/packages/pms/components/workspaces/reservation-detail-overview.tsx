@@ -53,6 +53,7 @@ type GuestBits = {
 
 export function ReservationDetailOverviewDashboard({
   reservation,
+  totalAmount,
   guest,
   createdBy,
   coverUrl,
@@ -63,6 +64,7 @@ export function ReservationDetailOverviewDashboard({
   onEditTab,
 }: {
   reservation: ReservationDetailOverviewInput;
+  totalAmount?: number | null;
   guest: GuestBits | null;
   createdBy: string | null;
   coverUrl: string | null;
@@ -349,7 +351,7 @@ export function ReservationDetailOverviewDashboard({
                 ["Packages", dash],
                 ["Extra Services", dash],
                 ["Taxes & Fees", dash],
-                ["Total Amount", moneyOrDash(reservation.roomSubtotal)],
+                ["Total Amount", moneyOrDash(totalAmount ?? reservation.roomSubtotal)],
               ]}
             />
           )}

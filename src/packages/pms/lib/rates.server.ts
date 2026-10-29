@@ -192,6 +192,10 @@ export interface StayQuote {
   nights: number;
   rooms: number;
   subtotal: number;
+  /** Rate plus the room tax and service charge the folio will post. */
+  guestTotal?: number;
+  /** Taxes and service charges that explain the difference from the room rate. */
+  guestCharges?: Array<{ name: string; amount: number }>;
   nightly: NightlyRate[];
 }
 

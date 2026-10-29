@@ -91,6 +91,12 @@ function draft(patch: Partial<CreateReservationDraft> = {}): CreateReservationDr
     depositReference: "",
     depositPaymentMethod: "",
     depositDueDate: "",
+    paymentReceivedAmount: "",
+    paymentReceivedTender: "",
+    paymentReceivedReference: "",
+    guestDepositAmount: "",
+    guestDepositTender: "",
+    guestDepositReference: "",
     ...patch,
   };
 }
@@ -126,6 +132,12 @@ describe("create reservation draft persistence", () => {
       depositPaymentMethod: "cash",
       depositReference: "AUTH-1",
       depositDueDate: "2026-10-12",
+      paymentReceivedAmount: "250.00",
+      paymentReceivedTender: "cash",
+      paymentReceivedReference: "REC-99",
+      guestDepositAmount: "100.00",
+      guestDepositTender: "bank_transfer",
+      guestDepositReference: "DEP-88",
     });
     writeCreateReservationDraftTo(store, "property-a", "member-a", saved);
     const restored = readCreateReservationDraftFrom(store, "property-a", "member-a");
@@ -139,6 +151,12 @@ describe("create reservation draft persistence", () => {
     assert.equal(restored?.notes, "Staff note");
     assert.equal(restored?.depositPaymentMethod, "cash");
     assert.equal(restored?.depositReference, "AUTH-1");
+    assert.equal(restored?.paymentReceivedAmount, "250.00");
+    assert.equal(restored?.paymentReceivedTender, "cash");
+    assert.equal(restored?.paymentReceivedReference, "REC-99");
+    assert.equal(restored?.guestDepositAmount, "100.00");
+    assert.equal(restored?.guestDepositTender, "bank_transfer");
+    assert.equal(restored?.guestDepositReference, "DEP-88");
     assert.equal(createReservationDraftIsMeaningful(saved, defaults), true);
   });
 

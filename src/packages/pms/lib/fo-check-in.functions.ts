@@ -1069,6 +1069,33 @@ export const waiveCheckInKey = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export type ReservationServicePosting = {
+  posted: number;
+  skipped: number;
+  failed: boolean;
+};
+
+/** Posts priced reservation services to the folio. Never undoes the check-in. */
+async function postPendingReservationServices(
+  db: { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }> },
+  restaurantId: string,
+  reservationId: string,
+  membershipId: string,
+): Promise<ReservationServicePosting> {
+  try {
+    const { data, error } = await db.rpc("post_reservation_service_requests", {
+      _restaurant_id: restaurantId,
+      _reservation_id: reservationId,
+      _membership_id: membershipId,
+    });
+    if (error) return { posted: 0, skipped: 0, failed: true };
+    const row = (data ?? {}) as { posted?: number; skipped?: number };
+    return { posted: Number(row.posted ?? 0), skipped: Number(row.skipped ?? 0), failed: false };
+  } catch {
+    return { posted: 0, skipped: 0, failed: true };
+  }
+}
+
 export const completeFoCheckIn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
@@ -1089,6 +1116,7 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
       reservationRoomId: string | null;
       roomNumber: string | null;
       outcome: "completed" | "checked_in_stamp_pending";
+      servicePosting: ReservationServicePosting;
     }> => {
       const me = await requireReservationManager(context as never, data.restaurantId);
       const target = await loadCheckInUnitTarget({
@@ -1123,6 +1151,13 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
       });
       if (error) throw reservationError(error.message);
 
+      const servicePosting = await postPendingReservationServices(
+        supabaseAdmin as never,
+        data.restaurantId,
+        data.reservationId,
+        me.id,
+      );
+
       try {
         await writeCheckInUnitProgress({
           restaurantId: data.restaurantId,
@@ -1136,6 +1171,7 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
           reservationRoomId: target.reservationRoomId,
           roomNumber: target.roomNumber,
           outcome: "checked_in_stamp_pending",
+          servicePosting,
         };
       }
       return {
@@ -1143,6 +1179,7 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
         reservationRoomId: target.reservationRoomId,
         roomNumber: target.roomNumber,
         outcome: "completed",
+        servicePosting,
       };
     },
   );

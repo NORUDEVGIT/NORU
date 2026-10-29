@@ -51,6 +51,8 @@ describe("tax applicability scopes", () => {
     assert.match(server, /Rate plans only/);
     assert.match(server, /Services only/);
     assert.match(server, /All charges/);
+    assert.match(server, /Packages only/);
+    assert.equal(basisForApplicability("packages"), "all");
     assert.match(fns, /applicability_scope/);
     assert.match(fns, /Choose departments from this property/);
     assert.match(fns, /pms_departments/);
@@ -59,5 +61,11 @@ describe("tax applicability scopes", () => {
     assert.equal(applicabilityFromBasis("all"), "all");
     assert.equal(basisForApplicability("departments"), "fnb");
     assert.equal(basisForApplicability("rate_plans"), "room");
+    const packageTax = read("../../../../supabase/migrations/0188_package_tax_applicability.sql");
+    const packageTaxDrizzle = read("../../../../drizzle/migrations/0188_package_tax_applicability.sql");
+    assert.equal(packageTax, packageTaxDrizzle);
+    assert.match(packageTax, /WHEN _scope = 'packages' THEN _charge_source = 'package'/);
+    assert.match(packageTax, /append_folio_tax_and_service_lines/);
+    assert.match(packageTax, /'package'/);
   });
 });

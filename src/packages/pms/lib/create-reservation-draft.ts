@@ -31,7 +31,14 @@ export type CreateReservationDraftService = {
   serviceTypeId: string;
   name: string;
   description: string;
+  pricingUnit?: "per_service" | "per_room" | "per_item" | "per_person" | "per_night" | null;
+  unitAmount?: number | null;
+  departmentId?: string | null;
+  quantity?: number;
+  quantityEdited?: boolean;
 };
+
+const DRAFT_SERVICE_UNITS = ["per_service", "per_room", "per_item", "per_person", "per_night"] as const;
 
 export type CreateReservationDraftRoomUnit = {
   key: string;
@@ -98,6 +105,12 @@ export type CreateReservationDraft = {
   depositReference: string;
   depositPaymentMethod: string;
   depositDueDate: string;
+  paymentReceivedAmount?: string;
+  paymentReceivedTender?: string;
+  paymentReceivedReference?: string;
+  guestDepositAmount?: string;
+  guestDepositTender?: string;
+  guestDepositReference?: string;
 };
 
 export function createReservationDraftKey(propertyId: string, scopeId: string): string {
@@ -125,7 +138,13 @@ export function createReservationDraftIsMeaningful(
     draft.guaranteeMethod ||
     draft.depositReference ||
     draft.depositPaymentMethod ||
-    draft.depositDueDate
+    draft.depositDueDate ||
+    draft.paymentReceivedAmount ||
+    draft.paymentReceivedTender ||
+    draft.paymentReceivedReference ||
+    draft.guestDepositAmount ||
+    draft.guestDepositTender ||
+    draft.guestDepositReference
   ) {
     return true;
   }
@@ -221,6 +240,12 @@ export function parseCreateReservationDraft(payload: unknown): CreateReservation
     depositReference: text(record.depositReference),
     depositPaymentMethod: text(record.depositPaymentMethod),
     depositDueDate: text(record.depositDueDate),
+    paymentReceivedAmount: text(record.paymentReceivedAmount),
+    paymentReceivedTender: text(record.paymentReceivedTender),
+    paymentReceivedReference: text(record.paymentReceivedReference),
+    guestDepositAmount: text(record.guestDepositAmount),
+    guestDepositTender: text(record.guestDepositTender),
+    guestDepositReference: text(record.guestDepositReference),
   };
 }
 
@@ -408,11 +433,25 @@ function parseServices(value: unknown): CreateReservationDraftService[] {
     if (!item || typeof item !== "object") return [];
     const row = item as Record<string, unknown>;
     if (typeof row.serviceTypeId !== "string" || typeof row.name !== "string") return [];
+    const unit = DRAFT_SERVICE_UNITS.find((value) => value === row.pricingUnit) ?? null;
+    const quantity =
+      typeof row.quantity === "number" && Number.isInteger(row.quantity)
+        ? Math.min(99, Math.max(1, row.quantity))
+        : undefined;
     return [
       {
         serviceTypeId: row.serviceTypeId,
         name: row.name,
         description: typeof row.description === "string" ? row.description : "",
+        ...("pricingUnit" in row
+          ? {
+              pricingUnit: unit,
+              unitAmount: typeof row.unitAmount === "number" ? row.unitAmount : null,
+              departmentId: typeof row.departmentId === "string" ? row.departmentId : null,
+            }
+          : {}),
+        ...(quantity != null ? { quantity } : {}),
+        quantityEdited: row.quantityEdited === true,
       },
     ];
   });

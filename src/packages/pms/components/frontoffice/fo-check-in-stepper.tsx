@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { servicePostingNotice } from "@/packages/pms/lib/reservation-service-lines";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -511,6 +512,11 @@ export function FoCheckInStepper({
       toast.success(
         `Checked in · ${result.roomNumber ? `Room ${result.roomNumber}` : stay.roomTypeName}`,
       );
+      const notice = servicePostingNotice(result.servicePosting);
+      if (notice) {
+        if (notice.tone === "warning") toast.warning(notice.message);
+        else toast.success(notice.message);
+      }
       refreshDesk();
       onOpenChange(false);
     },

@@ -23,6 +23,8 @@ import { formatStayDate } from "@/packages/pms/components/bookings/reservation-b
 import { reviewDash } from "@/packages/pms/lib/create-reservation-review";
 import { getMealsCard3 } from "@/packages/pms/lib/meals-card3.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
+import { packageChargeFigures, type RoomChargeRules } from "@/packages/pms/lib/room-charge-guest-total";
+import { usePackageChargeRules } from "@/packages/pms/lib/use-package-charge-rules";
 import { ReservationPackageMerchandiseGrid } from "@/packages/pms/components/bookings/reservation-package-merchandise";
 import {
   appliedPackageAmountDisplay,
@@ -61,6 +63,7 @@ export function ReservationDetailPackagesTab({
   paymentReceived = null,
   paymentRefunded = null,
   guestDeposit = null,
+  totalAmount,
   coverUrl,
 }: {
   restaurantId: string;
@@ -70,8 +73,10 @@ export function ReservationDetailPackagesTab({
   paymentReceived?: number | null;
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
+  totalAmount?: number | null;
   coverUrl: string | null;
 }) {
+  const packageChargeRules = usePackageChargeRules(restaurantId);
   const fetchCatalogue = useServerFn(getMealsCard3);
   const fetchUnitPackages = useServerFn(getReservationUnitPackages);
   const submitApply = useServerFn(applyReservationRoomPackage);
@@ -123,8 +128,14 @@ export function ReservationDetailPackagesTab({
   });
   const options = uniquePackageFilterOptions(cards);
   const visible = filterAvailablePackages(cards, filters);
-  const unitPackageTotal = unitRead?.unitPackageTotal ?? 0;
-  const stayPackageTotal = unitRead?.stayPackageTotal ?? 0;
+  const packageRules = packageChargeRules.data ?? null;
+  const guestPackageAmount = (amount: number) => packageChargeFigures(amount, packageRules).total;
+  const unitPackageTotal = applied
+    .filter((row) => row.scope !== "stay")
+    .reduce((sum, row) => sum + guestPackageAmount(row.appliedAmount), 0);
+  const stayPackageTotal = applied
+    .filter((row) => row.scope === "stay")
+    .reduce((sum, row) => sum + guestPackageAmount(row.appliedAmount), 0);
   const unitLabel =
     unitRead?.unitLabel ??
     (selectedUnit
@@ -236,6 +247,7 @@ export function ReservationDetailPackagesTab({
             stayPackageTotal={stayPackageTotal}
             loading={unitQuery.isLoading}
             editable={editable}
+            packageRules={packageRules}
             onRemove={(row) => releasePackage.mutate(row)}
           />
           <AvailablePackagesCard
@@ -246,6 +258,7 @@ export function ReservationDetailPackagesTab({
             currency={unitRead?.currency || currency}
             editable={editable}
             loading={Boolean(unitId) && unitQuery.isLoading}
+            packageRules={packageRules}
             onFilters={setFilters}
             onAdd={(card) => {
               if (!card.addAllowed || !card.activationId) return;
@@ -258,6 +271,7 @@ export function ReservationDetailPackagesTab({
           paymentReceived={paymentReceived}
           paymentRefunded={paymentRefunded}
           guestDeposit={guestDeposit}
+          totalAmount={totalAmount}
           money={money}
           coverUrl={coverUrl}
           nights={nights}
@@ -280,6 +294,7 @@ function AppliedPackagesCard({
   stayPackageTotal,
   loading,
   editable,
+  packageRules,
   onRemove,
 }: {
   applied: UnitPackageManagementRow[];
@@ -293,6 +308,7 @@ function AppliedPackagesCard({
   stayPackageTotal: number;
   loading: boolean;
   editable: boolean;
+  packageRules: RoomChargeRules | null;
   onRemove: (row: UnitPackageManagementRow) => void;
 }) {
   return (
@@ -343,6 +359,7 @@ function AppliedPackagesCard({
                   unitAmount: row.unitAmount,
                   appliedAmount: row.appliedAmount,
                 });
+                const figures = packageChargeFigures(amount.amount, packageRules);
                 return (
                   <tr key={row.id} className="border-b border-[#F4EEE4]">
                     <td className="py-2 pr-2">{index + 1}</td>
@@ -372,7 +389,12 @@ function AppliedPackagesCard({
                     <td className="py-2 pr-2 text-right">{money(row.unitAmount)}</td>
                     <td className="py-2 pr-2 text-right">{row.quantity}</td>
                     <td className="py-2 pr-2 text-right">
-                      {money(amount.amount)}
+                      {money(figures.total)}
+                      {figures.netAmount !== figures.total ? (
+                        <p className="text-[10px] font-normal text-muted-foreground">
+                          Net {money(figures.netAmount)}
+                        </p>
+                      ) : null}
                       {amount.configuredOnly ? (
                         <p className="text-[10px] font-normal text-muted-foreground">Configured</p>
                       ) : null}
@@ -403,8 +425,8 @@ function AppliedPackagesCard({
         <p>Room package snapshot {money(unitPackageTotal)}</p>
         <p>Stay package snapshot {money(stayPackageTotal)}</p>
         <p className="text-[11px] text-muted-foreground">
-          These amounts are stored package snapshots. They stay separate from the room subtotal and
-          from posted folio charges, payments, deposits, refunds, and balance.
+          These totals include package tax. They stay separate from the room subtotal and from
+          posted payments, deposits, refunds, and balance.
         </p>
       </div>
     </section>
@@ -419,6 +441,7 @@ function AvailablePackagesCard({
   currency,
   editable,
   loading,
+  packageRules,
   onFilters,
   onAdd,
 }: {
@@ -429,6 +452,7 @@ function AvailablePackagesCard({
   currency: string;
   editable: boolean;
   loading: boolean;
+  packageRules: RoomChargeRules | null;
   onFilters: (next: PackageFilters) => void;
   onAdd: (card: ReturnType<typeof filterAvailablePackages>[number]) => void;
 }) {
@@ -491,6 +515,7 @@ function AvailablePackagesCard({
           cards={cards}
           currency={currency}
           money={money}
+          packageRules={packageRules}
           emptyCopy="No packages are listed for this room."
           renderFooter={(card) => (
             <Button
@@ -549,6 +574,7 @@ function PackagesSummaryRail({
   paymentReceived,
   paymentRefunded,
   guestDeposit,
+  totalAmount,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -558,6 +584,7 @@ function PackagesSummaryRail({
   paymentReceived: number | null;
   paymentRefunded: number | null;
   guestDeposit: number | null;
+  totalAmount?: number | null;
 }) {
   return (
     <ReservationDetailSummary
@@ -570,6 +597,7 @@ function PackagesSummaryRail({
       paymentReceived={paymentReceived}
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
+      totalAmount={totalAmount}
     />
   );
 }

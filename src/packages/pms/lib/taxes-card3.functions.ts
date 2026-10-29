@@ -55,7 +55,7 @@ const taxSchema = z
     name: z.string().trim().min(1).max(80),
     chargeType: z.enum(TAX_CHARGE_TYPES),
     amount: z.number().positive("Amount must be greater than zero."),
-    applicabilityScope: z.enum(["all", "rate_plans", "services", "departments", "folio"] as const),
+    applicabilityScope: z.enum(["all", "rate_plans", "packages", "services", "departments", "folio"] as const),
     departmentIds: z.array(idSchema).default([]),
     calculation: z.enum(TAX_CALCULATIONS),
     active: z.boolean(),
@@ -87,7 +87,7 @@ const serviceSchema = z
     name: z.string().trim().min(1).max(80),
     chargeType: z.enum(TAX_CHARGE_TYPES),
     amount: z.number().positive("Amount must be greater than zero."),
-    applicabilityScope: z.enum(["all", "rate_plans", "services", "departments", "folio"] as const),
+    applicabilityScope: z.enum(["all", "rate_plans", "packages", "services", "departments", "folio"] as const),
     departmentIds: z.array(idSchema).default([]),
     active: z.boolean(),
   })

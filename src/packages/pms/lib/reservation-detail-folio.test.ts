@@ -152,11 +152,14 @@ describe("Reservation Detail Folio & Payments tab", () => {
     expect(folioUi).toContain("Guest deposit credit");
     expect(folioUi).toContain("Service Charge");
     expect(folioUi).toContain("Refunds");
-    const cards = folioKpiCards(folio);
-    expect(cards).toHaveLength(1);
-    expect(cards[0]?.realFolio).toBe(true);
-    expect(cards[0]?.amountLabel).toBe("Balance");
-    expect(cards[0]?.amount).toBe(1200);
+    const cards = folioKpiCards(folio, 1385);
+    expect(cards).toHaveLength(2);
+    expect(cards[0]?.name).toBe("Total Amount");
+    expect(cards[0]?.amountLabel).toBe("Expected stay");
+    expect(cards[0]?.amount).toBe(1385);
+    expect(cards[1]?.realFolio).toBe(true);
+    expect(cards[1]?.amountLabel).toBe("Balance");
+    expect(cards[1]?.amount).toBe(1200);
     expect(paymentRows(folio)).toHaveLength(2);
     expect(
       folioDepositStatus(

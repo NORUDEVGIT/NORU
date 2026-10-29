@@ -107,6 +107,9 @@ export function ReservationDetailRoomsTab({
   paymentReceived = null,
   paymentRefunded = null,
   guestDeposit = null,
+  totalAmount,
+  packagesTotal = 0,
+  servicesTotal = 0,
   coverUrl,
   occupancyLabel,
   onBackToGuest,
@@ -122,6 +125,9 @@ export function ReservationDetailRoomsTab({
   paymentReceived?: number | null;
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
+  totalAmount?: number | null;
+  packagesTotal?: number;
+  servicesTotal?: number;
   coverUrl: string | null;
   occupancyLabel: string | null;
   onBackToGuest: () => void;
@@ -483,6 +489,7 @@ export function ReservationDetailRoomsTab({
               bedType={roomType?.beds?.[0]?.bedType ?? roomType?.bedType ?? null}
               perNight={perNight}
               money={money}
+              totalAmount={totalAmount}
               actions={menuActions}
               assigning={assign.isPending}
               onAction={(action) => runRoomAction(action)}
@@ -524,6 +531,9 @@ export function ReservationDetailRoomsTab({
           paymentReceived={paymentReceived}
           paymentRefunded={paymentRefunded}
           guestDeposit={guestDeposit}
+          totalAmount={totalAmount}
+          packagesTotal={packagesTotal}
+          servicesTotal={servicesTotal}
           nights={nights}
         />
       </div>
@@ -587,6 +597,7 @@ function RoomSummaryCard({
   bedType,
   perNight,
   money,
+  totalAmount,
   actions,
   assigning,
   onAction,
@@ -601,10 +612,12 @@ function RoomSummaryCard({
   bedType: string | null;
   perNight: number | null;
   money: (value: number) => string;
+  totalAmount?: number | null;
   actions: RoomMenuAction[];
   assigning: boolean;
   onAction: (action: RoomMenuAction) => void;
 }) {
+  const stayTotal = totalAmount !== undefined ? totalAmount : reservation.roomSubtotal;
   return (
     <section
       className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
@@ -691,8 +704,8 @@ function RoomSummaryCard({
           <dt className="text-muted-foreground">Nights</dt>
           <dd>{reservation.nights}</dd>
           <dt className="text-muted-foreground">Total Amount</dt>
-          <dd>
-            {reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
+          <dd data-testid="rooms-total-amount">
+            {stayTotal == null ? DETAIL_DASH : money(stayTotal)}
           </dd>
         </dl>
       </div>
@@ -1021,6 +1034,9 @@ function RoomsSummaryRail({
   paymentReceived,
   paymentRefunded,
   guestDeposit,
+  totalAmount,
+  packagesTotal = 0,
+  servicesTotal = 0,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -1029,6 +1045,9 @@ function RoomsSummaryRail({
   paymentReceived: number | null;
   paymentRefunded: number | null;
   guestDeposit: number | null;
+  totalAmount?: number | null;
+  packagesTotal?: number;
+  servicesTotal?: number;
 }) {
   return (
     <ReservationDetailSummary
@@ -1040,6 +1059,9 @@ function RoomsSummaryRail({
       paymentReceived={paymentReceived}
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
+      totalAmount={totalAmount}
+      packagesTotal={packagesTotal > 0 ? packagesTotal : undefined}
+      servicesTotal={servicesTotal > 0 ? servicesTotal : undefined}
     />
   );
 }

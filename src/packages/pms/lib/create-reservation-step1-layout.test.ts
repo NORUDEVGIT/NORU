@@ -159,7 +159,7 @@ describe("Create reservation Step 1 desk layout", () => {
     assert.doesNotMatch(rate, /row\.cancellationLabel/);
     assert.doesNotMatch(rate, /row\.breakfastLabel/);
     assert.doesNotMatch(rate, /CREATE_RESERVATION_QUOTE_SERVER_COPY/);
-    assert.match(rate, /money\(row\.quote\.subtotal\)/);
+    assert.match(rate, /money\(quotedGuestTotal\(row\.quote\)\)/);
     assert.doesNotMatch(rate, /quote\.nightly\.reduce|sumNightly/);
     assert.match(page, /onSelect=\{selectRoomType\}/);
     assert.match(page, /selectRoomAndRate\(type, planId\)/);

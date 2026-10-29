@@ -8,7 +8,6 @@ import {
   Baby,
   Calendar,
   CalendarDays,
-  Car,
   Clock,
   DoorOpen,
   FileText,
@@ -70,6 +69,8 @@ export function ReservationDetailStayTab({
   paymentRefunded: initialPaymentRefunded,
   guestDeposit: initialGuestDeposit,
   totalAmount: initialTotalAmount,
+  packagesTotal = 0,
+  servicesTotal = 0,
   onBackToOverview,
   onSaved,
 }: {
@@ -84,6 +85,8 @@ export function ReservationDetailStayTab({
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
   totalAmount?: number | null;
+  packagesTotal?: number;
+  servicesTotal?: number;
   onBackToOverview: () => void;
   onSaved: () => void;
 }) {
@@ -143,8 +146,6 @@ export function ReservationDetailStayTab({
       draft.adults !== initialDraft.adults ||
       draft.children !== initialDraft.children ||
       draft.infants !== initialDraft.infants ||
-      (draft.arrivalTransport || "") !== (initialDraft.arrivalTransport || "") ||
-      (draft.pickupNote || "") !== (initialDraft.pickupNote || "") ||
       (draft.stayNotes || "") !== (initialDraft.stayNotes || "")
     );
   }, [draft, initialDraft]);
@@ -495,53 +496,8 @@ export function ReservationDetailStayTab({
             </section>
           </div>
 
-          {/* Row 3: Arrival transport & Pickup note */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {/* Arrival transport */}
-            <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <Car className="size-4 text-[#D97706]" />
-                <h2 className="font-display text-base font-semibold text-[#251605]">
-                  Arrival transport
-                </h2>
-              </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Flight or other transport text stored on this reservation.
-              </p>
-              <Input
-                id="stay-transport"
-                maxLength={200}
-                disabled={!editable}
-                value={draft.arrivalTransport}
-                onChange={(event) => patch({ arrivalTransport: event.target.value })}
-                placeholder="Add arrival transport details..."
-                className="mt-3.5 h-9 w-full rounded-lg border-[#DDD4C5] bg-white px-3 text-sm text-[#251605] placeholder:text-muted-foreground/60 disabled:bg-[#FAF8F5]"
-              />
-            </section>
-
-            {/* Pickup note */}
-            <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <FileText className="size-4 text-[#D97706]" />
-                <h2 className="font-display text-base font-semibold text-[#251605]">Pickup note</h2>
-              </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                A note on the reservation. This does not create a pickup request or a service order.
-              </p>
-              <Input
-                id="stay-pickup"
-                maxLength={200}
-                disabled={!editable}
-                value={draft.pickupNote}
-                onChange={(event) => patch({ pickupNote: event.target.value })}
-                placeholder="Add pickup note..."
-                className="mt-3.5 h-9 w-full rounded-lg border-[#DDD4C5] bg-white px-3 text-sm text-[#251605] placeholder:text-muted-foreground/60 disabled:bg-[#FAF8F5]"
-              />
-            </section>
-          </div>
-
-          {/* Row 4: Internal Notes */}
-          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
+          {/* Internal Notes */}
+          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 sm:p-5 shadow-sm">
             <div className="flex items-center gap-2">
               <FileText className="size-4 text-[#D97706]" />
               <h2 className="font-display text-base font-semibold text-[#251605]">
@@ -558,7 +514,7 @@ export function ReservationDetailStayTab({
               value={draft.stayNotes}
               onChange={(e) => patch({ stayNotes: e.target.value.slice(0, STAY_NOTES_MAX) })}
               placeholder="Add internal notes here..."
-              className="mt-3 min-h-[72px] sm:min-h-[80px] w-full rounded-lg border-[#DDD4C5] bg-white p-3 text-sm text-[#251605] placeholder:text-muted-foreground/60 resize-y disabled:bg-[#FAF8F5]"
+              className="mt-3 min-h-[140px] sm:min-h-[160px] w-full rounded-lg border-[#DDD4C5] bg-white p-3 text-sm text-[#251605] placeholder:text-muted-foreground/60 resize-y disabled:bg-[#FAF8F5]"
             />
             <p className="mt-1 text-right text-[11px] text-muted-foreground">
               {draft.stayNotes.length}/{STAY_NOTES_MAX}
@@ -576,6 +532,8 @@ export function ReservationDetailStayTab({
           paymentRefunded={effectivePaymentRefunded}
           guestDeposit={effectiveGuestDeposit}
           totalAmount={initialTotalAmount}
+          packagesTotal={packagesTotal}
+          servicesTotal={servicesTotal}
         />
       </div>
 
@@ -632,6 +590,8 @@ function StaySummaryRail({
   paymentRefunded,
   guestDeposit,
   totalAmount,
+  packagesTotal = 0,
+  servicesTotal = 0,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -641,6 +601,8 @@ function StaySummaryRail({
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
   totalAmount?: number | null;
+  packagesTotal?: number;
+  servicesTotal?: number;
 }) {
   return (
     <ReservationDetailSummary
@@ -653,6 +615,8 @@ function StaySummaryRail({
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
       totalAmount={totalAmount}
+      packagesTotal={packagesTotal > 0 ? packagesTotal : undefined}
+      servicesTotal={servicesTotal > 0 ? servicesTotal : undefined}
     />
   );
 }

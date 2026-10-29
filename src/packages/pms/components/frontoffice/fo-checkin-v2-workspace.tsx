@@ -101,6 +101,10 @@ import {
 } from "@/packages/pms/lib/reservation-cashiering-summary";
 import { getReservationCashieringSummary } from "@/packages/pms/lib/fo-check-in.functions";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
+import { usePackageChargeRules } from "@/packages/pms/lib/use-package-charge-rules";
+import { useReservationServiceCharges } from "@/packages/pms/lib/use-reservation-service-charges";
+import { serviceLineDetail } from "@/packages/pms/lib/reservation-service-lines";
+import { packageChargeFigures } from "@/packages/pms/lib/room-charge-guest-total";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -1489,10 +1493,12 @@ function InternalNotesSection({ notes }: { notes?: string | null }) {
 }
 
 function PackagesRateSection({
+  restaurantId,
   unit,
   reservation,
   money,
 }: {
+  restaurantId: string;
   unit: CheckInUnitRead;
   reservation: ReservationDetail | null;
   money: (amount: number) => string;
@@ -1502,6 +1508,8 @@ function PackagesRateSection({
     view.siblings.length === 0 ? uniformNightlyAmount(reservation?.nightlyRates) : null;
   const nightlyText = moneyText(money, nightly);
   const charge = moneyText(money, unit.subtotal);
+  const packageRules = usePackageChargeRules(restaurantId, unit.packages.length > 0);
+  const services = useReservationServiceCharges(restaurantId, reservation?.id ?? null);
   return (
     <SectionCard
       title="Packages & Rate"
@@ -1515,19 +1523,45 @@ function PackagesRateSection({
         {unit.packages.length > 0 ? (
           <>
             <p className="my-1.5 text-xs text-[#6B5E4E]">
-              Package amounts are reservation snapshots, not posted folio charges.
+              Package amounts include the taxes the folio posts on them.
             </p>
             {unit.packages.map((pkg) => (
               <FieldRow
                 key={pkg.id}
                 label={pkg.packageName}
-                value={moneyText(money, pkg.appliedAmount) ?? "—"}
+                value={
+                  pkg.appliedAmount == null
+                    ? "—"
+                    : (moneyText(
+                        money,
+                        packageChargeFigures(pkg.appliedAmount, packageRules.data).total,
+                      ) ?? "—")
+                }
               />
             ))}
           </>
         ) : (
           <FieldRow label="Packages" value="None" />
         )}
+        {services.lines.length > 0 ? (
+          <div data-testid="fo-ci-v2-services">
+            <p className="my-1.5 text-xs text-[#6B5E4E]">
+              Reservation services post to the folio at check-in, taxed by pricing unit.
+            </p>
+            {services.lines.map(({ charge: line, figures }) => {
+              const detail = serviceLineDetail(line, money);
+              return (
+                <FieldRow
+                  key={line.id}
+                  label={detail ? `${line.serviceName} · ${detail}` : line.serviceName}
+                  value={`${figures.total != null ? money(figures.total) : "—"} · ${
+                    line.folioTransactionId ? "Posted" : "Pending"
+                  }`}
+                />
+              );
+            })}
+          </div>
+        ) : null}
       </dl>
     </SectionCard>
   );
@@ -1977,7 +2011,12 @@ export function FoCheckInV2Workspace({
                         pending={cashieringQuery.isLoading}
                         money={money}
                       />
-                      <PackagesRateSection unit={unit} reservation={reservation} money={money} />
+                      <PackagesRateSection
+                        restaurantId={restaurantId}
+                        unit={unit}
+                        reservation={reservation}
+                        money={money}
+                      />
                     </div>
                     {unit.siblings.length > 0 ? (
                       <SiblingRoomsSection

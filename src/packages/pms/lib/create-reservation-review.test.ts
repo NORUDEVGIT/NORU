@@ -99,7 +99,7 @@ describe("Create Reservation Step 4 review workspace", () => {
     assert.match(page, /selectedServiceRequests=\{selectedServiceRequests\}/);
     assert.match(
       page,
-      /stayTotal=\{pricingState\.kind === "priced" \? money\(pricingState\.quote\.subtotal\) : "—"\}/,
+      /stayTotal=\{pricingState\.kind === "priced" \? money\(quotedGuestTotal\(pricingState\.quote\)\) : "—"\}/,
     );
     assert.doesNotMatch(reviewUi, /Grand Total|grandCommercialSubtotal|card\.price \*/);
     assert.doesNotMatch(reviewUi, /\/restaurant\/pms\/reservations\/new/);

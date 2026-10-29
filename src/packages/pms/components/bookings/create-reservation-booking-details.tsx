@@ -5,6 +5,12 @@ import { Building2, ClipboardList, FileText, Package, Radio, RefreshCw, Users } 
 
 import { CreateReservationMasterPicker } from "@/packages/pms/components/bookings/create-reservation-master-picker";
 import {
+  CreateReservationServiceList,
+  type CreateServiceSelection,
+} from "@/packages/pms/components/bookings/reservation-service-picker";
+import type { ServiceStayContext } from "@/packages/pms/lib/reservation-service-lines";
+import type { ServiceChargeRules } from "@/packages/pms/lib/room-charge-guest-total";
+import {
   type ContextPickOption,
   type PickedReservationMaster,
   type ReservationTypeMode,
@@ -58,11 +64,7 @@ const SPECIAL_REQUEST_MAX = 500;
 const SUMMARY_NONE = "__summary_none__";
 const NORU_MENU = "z-[80] max-h-60 rounded-[6px] border-[#CCCCCC] bg-white text-sm text-[#251605]";
 
-export type CreateServiceSelection = {
-  serviceTypeId: string;
-  name: string;
-  description: string;
-};
+export type { CreateServiceSelection };
 
 const CONTROL = PMS_OP_INPUT;
 const SELECT_CONTROL = PMS_OP_SELECT_TRIGGER;
@@ -98,6 +100,9 @@ export function CreateReservationBookingDetails({
   serviceTypesLoading,
   selectedServiceRequests,
   onSelectedServiceRequestsChange,
+  serviceStay,
+  serviceRules,
+  money,
   packagesSlot,
   relationTab: relationTabProp,
   onRelationTabChange,
@@ -179,6 +184,9 @@ export function CreateReservationBookingDetails({
   serviceTypesLoading: boolean;
   selectedServiceRequests: CreateServiceSelection[];
   onSelectedServiceRequestsChange: (next: CreateServiceSelection[]) => void;
+  serviceStay: ServiceStayContext;
+  serviceRules?: ServiceChargeRules | null;
+  money: (value: number) => string;
   packagesSlot: ReactNode;
   relationTab?: "company" | "travel_agent" | "group";
   onRelationTabChange?: (tab: "company" | "travel_agent" | "group") => void;
@@ -1010,58 +1018,14 @@ export function CreateReservationBookingDetails({
             ) : serviceTypes.length === 0 ? (
               <p className="text-xs text-muted-foreground">No service types configured.</p>
             ) : (
-              <ul className="max-h-32 space-y-0.5 overflow-y-auto pr-1">
-                {serviceTypes.map((row) => {
-                  const selected = selectedServiceRequests.find(
-                    (item) => item.serviceTypeId === row.id,
-                  );
-                  return (
-                    <li key={row.id} className="grid gap-1">
-                      <label className="flex items-center gap-2 text-xs text-[#251605]">
-                        <Checkbox
-                          checked={Boolean(selected)}
-                          onCheckedChange={(checked) => {
-                            if (checked === true) {
-                              onSelectedServiceRequestsChange([
-                                ...selectedServiceRequests,
-                                { serviceTypeId: row.id, name: row.name, description: "" },
-                              ]);
-                              return;
-                            }
-                            onSelectedServiceRequestsChange(
-                              selectedServiceRequests.filter(
-                                (item) => item.serviceTypeId !== row.id,
-                              ),
-                            );
-                          }}
-                        />
-                        <span className="min-w-0 flex-1 font-medium">{row.name}</span>
-                        <span className="shrink-0 rounded-full bg-[#F3EDE3] px-2 py-0.5 text-[11px] font-medium text-[#4A4034]">
-                          {row.categoryName}
-                        </span>
-                      </label>
-                      {selected ? (
-                        <Input
-                          className={cn(CONTROL, "ml-6")}
-                          value={selected.description}
-                          placeholder={row.name}
-                          aria-label={`Description for ${row.name}`}
-                          data-testid="selected-service-description"
-                          onChange={(event) =>
-                            onSelectedServiceRequestsChange(
-                              selectedServiceRequests.map((item) =>
-                                item.serviceTypeId === row.id
-                                  ? { ...item, description: event.target.value }
-                                  : item,
-                              ),
-                            )
-                          }
-                        />
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
+              <CreateReservationServiceList
+                serviceTypes={serviceTypes}
+                selected={selectedServiceRequests}
+                onChange={onSelectedServiceRequestsChange}
+                stay={serviceStay}
+                rules={serviceRules}
+                money={money}
+              />
             )}
           </div>
           <div className="mt-3 grid items-stretch gap-3 border-t border-[#CCCCCC] pt-3 lg:grid-cols-2">

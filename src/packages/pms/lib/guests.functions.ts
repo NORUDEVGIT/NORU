@@ -24,6 +24,11 @@ import { callerMembership } from "@/core/lib/workforce.server";
 import { guestCreateBlocked } from "./pms-set3-rates-guest";
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 import { isMissingSchemaError } from "./pms-set2-structure";
+import {
+  SERVICE_QUANTITY_MAX,
+  effectiveServiceQuantity,
+  type ServicePricingUnit,
+} from "./room-charge-guest-total";
 import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
 import {
   kindFromTypeCode,
@@ -2969,6 +2974,12 @@ export type GuestServiceHistoryItem = {
   priority: GuestServicePriority;
   amount: number | null;
   currency: string | null;
+  quantity: number | null;
+  pricingUnit: ServicePricingUnit | null;
+  unitAmount: number | null;
+  departmentId: string | null;
+  folioTransactionId: string | null;
+  postedAt: string | null;
   requestedByName: string | null;
   assignedMembershipId: string | null;
   assignedName: string | null;
@@ -2982,7 +2993,25 @@ export type GuestServiceTypeOption = {
   active: boolean;
   amount: number | null;
   currency: string | null;
+  pricingUnit: ServicePricingUnit | null;
+  /** Single active billing department; null when none or ambiguous. */
+  departmentId: string | null;
+  chargeableToFolio: boolean;
 };
+
+const SERVICE_PRICING_UNIT_VALUES: readonly ServicePricingUnit[] = [
+  "per_service",
+  "per_room",
+  "per_item",
+  "per_person",
+  "per_night",
+];
+
+function asServicePricingUnit(value: unknown): ServicePricingUnit | null {
+  return SERVICE_PRICING_UNIT_VALUES.includes(value as ServicePricingUnit)
+    ? (value as ServicePricingUnit)
+    : null;
+}
 
 export type GuestServiceStaffOption = {
   id: string;
@@ -3088,22 +3117,64 @@ async function loadGuestServiceWorkspace(
     preferred_at?: string | null;
     assigned_membership_id?: string | null;
     cancelled_at?: string | null;
+    quantity?: number | null;
+    pricing_unit?: string | null;
+    unit_amount?: number | string | null;
+    folio_transaction_id?: string | null;
+    posted_at?: string | null;
   };
   const rows = (result.data ?? []) as HistoryRow[];
+  const chargeById = new Map<string, HistoryRow>();
+  if (rows.length > 0) {
+    const charges = await supabaseAdmin
+      .from("guest_service_history")
+      .select("id, quantity, pricing_unit, unit_amount, folio_transaction_id, posted_at")
+      .eq("restaurant_id", restaurantId)
+      .in(
+        "id",
+        rows.map((row) => row.id),
+      );
+    if (!charges.error) {
+      for (const row of (charges.data ?? []) as HistoryRow[]) chargeById.set(row.id, row);
+    }
+  }
 
-  const typesRes = await supabaseAdmin
+  let typesRes = await supabaseAdmin
     .from("pms_guest_service_types")
-    .select("id, name, code, active, category_id")
+    .select("id, name, code, active, category_id, chargeable_to_folio")
     .eq("restaurant_id", restaurantId)
     .order("display_order");
+  if (typesRes.error && isMissingSchemaError(typesRes.error)) {
+    typesRes = await supabaseAdmin
+      .from("pms_guest_service_types")
+      .select("id, name, code, active, category_id")
+      .eq("restaurant_id", restaurantId)
+      .order("display_order");
+  }
   const categoriesRes = await supabaseAdmin
     .from("pms_guest_service_categories")
     .select("id, name")
     .eq("restaurant_id", restaurantId);
   const pricingRes = await supabaseAdmin
     .from("pms_guest_service_pricing")
-    .select("service_type_id, amount, currency_code, active")
+    .select("service_type_id, amount, currency_code, pricing_unit, active")
     .eq("restaurant_id", restaurantId);
+  const billingRes = await supabaseAdmin
+    .from("pms_guest_service_department_assignments")
+    .select("service_type_id, department_id, active, is_billing_department")
+    .eq("restaurant_id", restaurantId)
+    .eq("active", true)
+    .eq("is_billing_department", true);
+  const billingDepartments = new Map<string, string[]>();
+  for (const row of (billingRes.error ? [] : (billingRes.data ?? [])) as Array<{
+    service_type_id: string;
+    department_id: string;
+  }>) {
+    billingDepartments.set(row.service_type_id, [
+      ...(billingDepartments.get(row.service_type_id) ?? []),
+      row.department_id,
+    ]);
+  }
   const categoryName = new Map(
     ((categoriesRes.data ?? []) as Array<{ id: string; name: string }>).map((row) => [
       row.id,
@@ -3116,13 +3187,18 @@ async function loadGuestServiceWorkspace(
         service_type_id: string;
         amount: number | string;
         currency_code: string;
+        pricing_unit?: string | null;
         active: boolean;
       }>
     )
       .filter((row) => row.active)
       .map((row) => [
         row.service_type_id,
-        { amount: Number(row.amount), currency: row.currency_code },
+        {
+          amount: Number(row.amount),
+          currency: row.currency_code,
+          pricingUnit: asServicePricingUnit(row.pricing_unit),
+        },
       ]),
   );
   const types: GuestServiceTypeOption[] = (
@@ -3132,16 +3208,23 @@ async function loadGuestServiceWorkspace(
       code: string;
       active: boolean;
       category_id: string;
+      chargeable_to_folio?: boolean | null;
     }>
-  ).map((row) => ({
-    id: row.id,
-    name: row.name,
-    code: row.code,
-    categoryName: categoryName.get(row.category_id) ?? "Service",
-    active: row.active,
-    amount: priceByType.get(row.id)?.amount ?? null,
-    currency: priceByType.get(row.id)?.currency ?? null,
-  }));
+  ).map((row) => {
+    const departments = billingDepartments.get(row.id) ?? [];
+    return {
+      id: row.id,
+      name: row.name,
+      code: row.code,
+      categoryName: categoryName.get(row.category_id) ?? "Service",
+      active: row.active,
+      amount: priceByType.get(row.id)?.amount ?? null,
+      currency: priceByType.get(row.id)?.currency ?? null,
+      pricingUnit: priceByType.get(row.id)?.pricingUnit ?? null,
+      departmentId: departments.length === 1 ? departments[0] : null,
+      chargeableToFolio: row.chargeable_to_folio === true,
+    };
+  });
   const typeById = new Map(types.map((type) => [type.id, type]));
 
   const reservationIds = [
@@ -3220,6 +3303,7 @@ async function loadGuestServiceWorkspace(
     notes,
     items: rows.map((row) => {
       const type = typeById.get(row.service_type_id);
+      const charge = chargeById.get(row.id);
       const stay = row.reservation_id ? stayById.get(row.reservation_id) : null;
       const status = isGuestServiceStatus(row.status) ? row.status : "requested";
       const priority =
@@ -3242,6 +3326,12 @@ async function loadGuestServiceWorkspace(
         priority,
         amount: row.amount == null ? null : Number(row.amount),
         currency: row.currency,
+        quantity: charge?.quantity == null ? null : Number(charge.quantity),
+        pricingUnit: asServicePricingUnit(charge?.pricing_unit),
+        unitAmount: charge?.unit_amount == null ? null : Number(charge.unit_amount),
+        departmentId: type?.departmentId ?? null,
+        folioTransactionId: charge?.folio_transaction_id ?? null,
+        postedAt: charge?.posted_at ?? null,
         requestedByName: row.created_by_membership_id
           ? (actorNames.get(row.created_by_membership_id) ?? null)
           : null,
@@ -3270,6 +3360,7 @@ export const createGuestServiceRequest = createServerFn({ method: "POST" })
         preferredAt: z.string().nullable().optional(),
         specialInstructions: z.string().trim().max(GUEST_SERVICE_DESCRIPTION_MAX).optional(),
         assignedMembershipId: idSchema.nullable().optional(),
+        quantity: z.number().int().min(1).max(SERVICE_QUANTITY_MAX).optional(),
       })
       .parse(input),
   )
@@ -3283,12 +3374,20 @@ export const createGuestServiceRequest = createServerFn({ method: "POST" })
       if (data.reservationId) {
         await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
       }
-      const type = await supabaseAdmin
+      let type = await supabaseAdmin
         .from("pms_guest_service_types")
-        .select("id, active")
+        .select("id, active, chargeable_to_folio")
         .eq("restaurant_id", data.restaurantId)
         .eq("id", data.serviceTypeId)
         .maybeSingle();
+      if (type.error && isMissingSchemaError(type.error)) {
+        type = await supabaseAdmin
+          .from("pms_guest_service_types")
+          .select("id, active")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", data.serviceTypeId)
+          .maybeSingle();
+      }
       if (type.error && isMissingSchemaError(type.error)) {
         return {
           ok: false,
@@ -3323,15 +3422,26 @@ export const createGuestServiceRequest = createServerFn({ method: "POST" })
       }
       const pricing = await supabaseAdmin
         .from("pms_guest_service_pricing")
-        .select("amount, currency_code, active")
+        .select("amount, currency_code, pricing_unit, active")
         .eq("restaurant_id", data.restaurantId)
         .eq("service_type_id", data.serviceTypeId)
         .maybeSingle();
       const priced = pricing.data as {
         amount: number | string;
         currency_code: string;
+        pricing_unit?: string | null;
         active: boolean;
       } | null;
+      const pricingUnit = priced?.active ? asServicePricingUnit(priced.pricing_unit) : null;
+      const unitAmount = priced?.active ? Number(priced.amount) : null;
+      const chargeable =
+        (type.data as { chargeable_to_folio?: boolean | null }).chargeable_to_folio === true;
+      const quantity =
+        data.reservationId && chargeable && pricingUnit && unitAmount != null && unitAmount > 0
+          ? effectiveServiceQuantity(pricingUnit, data.quantity ?? 1)
+          : null;
+      const lineAmount =
+        unitAmount == null ? null : Math.round(unitAmount * (quantity ?? 1) * 100) / 100;
       const numbered = await supabaseAdmin.rpc("next_guest_service_number", {
         _restaurant_id: data.restaurantId,
       });
@@ -3351,15 +3461,26 @@ export const createGuestServiceRequest = createServerFn({ method: "POST" })
         priority: data.priority,
         preferred_at: data.preferredAt ?? null,
         assigned_membership_id: data.assignedMembershipId ?? null,
-        amount: priced?.active ? Number(priced.amount) : null,
+        amount: lineAmount,
         currency: priced?.active ? priced.currency_code : null,
         created_by_membership_id: me.id,
       };
+      const charge =
+        quantity == null
+          ? {}
+          : { quantity, pricing_unit: pricingUnit, unit_amount: unitAmount };
       let inserted = await supabaseAdmin
         .from("guest_service_history")
-        .insert(payload)
+        .insert({ ...payload, ...charge })
         .select("id")
         .maybeSingle();
+      if (inserted.error && quantity != null && isMissingSchemaError(inserted.error)) {
+        inserted = await supabaseAdmin
+          .from("guest_service_history")
+          .insert(payload)
+          .select("id")
+          .maybeSingle();
+      }
       if (inserted.error && isMissingSchemaError(inserted.error)) {
         inserted = await supabaseAdmin
           .from("guest_service_history")

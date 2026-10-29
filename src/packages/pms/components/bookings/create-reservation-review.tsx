@@ -80,6 +80,8 @@ export type CreateReservationReviewProps = {
   depositDueDate: string | null;
   depositPaymentMethod: string;
   depositReference: string | null;
+  paymentReceivedSummary?: string | null;
+  guestDepositSummary?: string | null;
   noShowPolicy: string;
   noShowPenalty: string | null;
   earlyDeparturePolicy: string;
@@ -88,7 +90,14 @@ export type CreateReservationReviewProps = {
   onEdit: (step: number) => void;
   selectedPackages?: ReviewSelectedPackage[];
   savedPreferences?: Array<{ typeId: string; label: string; value: string }>;
-  selectedServiceRequests?: Array<{ serviceTypeId: string; name: string; description: string }>;
+  selectedServiceRequests?: Array<{
+    serviceTypeId: string;
+    name: string;
+    description: string;
+    /** "3 nights × $50.00"; null for per-service prices. */
+    detail?: string | null;
+    priceLabel?: string | null;
+  }>;
   roomLines?: Array<{
     label: string;
     typeName: string;
@@ -196,7 +205,9 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
     refundabilityLabel: props.refundabilityLabel,
     preferences: preferences.map((row) => `${row.label}: ${row.value}`),
     serviceRequests: services.map((row) =>
-      row.description.trim() ? `${row.name} — ${row.description.trim()}` : row.name,
+      [row.name, row.detail, row.priceLabel, row.description.trim() || null]
+        .filter((part): part is string => Boolean(part))
+        .join(" · "),
     ),
     specialRequests: props.specialRequests,
     roomAssignment: props.roomAssignment,
@@ -281,6 +292,8 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
     ...filledRows([
       ["Deposit Due Date", dueDate],
       ["Payment Reference", props.depositReference],
+      ["Payment Received", props.paymentReceivedSummary],
+      ["Guest Deposit", props.guestDepositSummary],
     ]),
     ...paymentTerms.map((line) => ["Payment Terms", line] as [string, string]),
   ];
@@ -588,9 +601,21 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
               ) : (
                 <ul className="space-y-0.5 text-sm text-[#251605]">
                   {services.map((row) => (
-                    <li key={row.serviceTypeId}>
-                      {row.name}
-                      {row.description.trim() ? ` — ${row.description.trim()}` : ""}
+                    <li
+                      key={row.serviceTypeId}
+                      className="flex items-start justify-between gap-3"
+                      data-testid="review-service-line"
+                    >
+                      <span className="min-w-0">
+                        {row.name}
+                        {row.description.trim() ? ` — ${row.description.trim()}` : ""}
+                        {row.detail ? (
+                          <span className="block text-xs text-[#6B5E4E]">{row.detail}</span>
+                        ) : null}
+                      </span>
+                      {row.priceLabel ? (
+                        <span className="shrink-0 font-medium">{row.priceLabel}</span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

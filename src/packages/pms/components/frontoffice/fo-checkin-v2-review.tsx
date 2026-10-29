@@ -32,6 +32,8 @@ import {
 } from "@/packages/pms/components/frontoffice/fo-checkin-v2-review-panels";
 import { RegistrationPrintLayer } from "@/packages/pms/components/frontoffice/fo-checkin-v2-review-print";
 import { completeFoCheckIn } from "@/packages/pms/lib/fo-check-in.functions";
+import { servicePostingNotice } from "@/packages/pms/lib/reservation-service-lines";
+import { toast } from "sonner";
 import {
   registrationCompletionProjection,
   type CheckInReadiness,
@@ -404,6 +406,11 @@ export const FoCheckInV2Review = forwardRef<
       });
       outcomeRef.current = result.outcome;
       setOutcome(result.outcome);
+      const notice = servicePostingNotice(result.servicePosting);
+      if (notice) {
+        if (notice.tone === "warning") toast.warning(notice.message);
+        else toast.success(notice.message);
+      }
       setCompletedAt(new Date().toISOString());
       setConfirmOpen(false);
       onRefresh();

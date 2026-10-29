@@ -7,6 +7,7 @@ import { labelTransactionType } from "@/packages/pms/components/cashiering/folio
 import { InventoryStatusBadge } from "@/packages/pms/components/rooms/room-inventory-shared";
 import type { FolioTransactionRow, FolioWorkspace } from "@/packages/pms/lib/cashiering.functions";
 import { correctableGroupRemainder } from "@/packages/pms/lib/cashiering-transfer-allocate";
+import { serviceUnitQuantityLabel } from "@/packages/pms/lib/room-charge-guest-total";
 import {
   chargeGroupRemainder,
   isParentTransferCharge,
@@ -399,8 +400,17 @@ export function ChargeDetailsSheet({
                 <Field label="Code" value={dash(snapshotText(row, "code"))} />
                 <Field label="Category" value={dash(snapshotText(row, "categoryName"))} />
                 <Field label="Pricing unit" value={pricingUnitLabel(snapshotText(row, "pricingUnit"))} />
-                <Field label="Quantity" value={quantity == null ? "—" : String(quantity)} />
+                <Field
+                  label={serviceUnitQuantityLabel(snapshotText(row, "pricingUnit"))}
+                  value={quantity == null ? "—" : String(quantity)}
+                />
                 <Field label="Unit price" value={unitAmount == null ? "—" : money(unitAmount)} />
+                {quantity != null && unitAmount != null && quantity > 1 ? (
+                  <Field
+                    label="Calculation"
+                    value={`${quantity} × ${money(unitAmount)} = ${money(Math.round(quantity * unitAmount * 100) / 100)}`}
+                  />
+                ) : null}
                 <Field label="Entered subtotal" value={entered == null ? "—" : money(entered)} />
                 <Field label="Description" value={dash(row.description)} />
                 {transferDestinations(group, rows, workspace).map((destination) => (

@@ -81,7 +81,11 @@ export type ReservationRoomOccupant = {
   name: string;
   isPrimary: boolean;
   phone?: string | null;
+  email?: string | null;
   gender?: string | null;
+  nationality?: string | null;
+  dateOfBirth?: string | null;
+  idDocumentType?: string | null;
   idDocumentNumber?: string | null;
   notes?: string | null;
 };
@@ -92,7 +96,11 @@ export type ReservationRoomOccupantSource = {
   name: string;
   isPrimary: boolean;
   phone?: string | null;
+  email?: string | null;
   gender?: string | null;
+  nationality?: string | null;
+  dateOfBirth?: string | null;
+  idDocumentType?: string | null;
   idDocumentNumber?: string | null;
   notes?: string | null;
 };

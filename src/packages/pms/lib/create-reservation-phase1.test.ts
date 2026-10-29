@@ -409,7 +409,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /createReservation/);
     assert.match(page, /data-testid="selected-room-rate"|CreateReservationSelectedRoom/);
-    assert.match(page, /money\(pricingState\.quote\.subtotal\)/);
+    assert.match(page, /money\(quotedGuestTotal\(pricingState\.quote\)\)/);
     assert.match(CREATE_RESERVATION_SUMMARY_NO_TOTAL, /No stay total is shown/);
     assert.doesNotMatch(page, /create-reservation-summary|Collapse summary/);
     assert.doesNotMatch(page, /createFileRoute\("\/restaurant\/bookings\/create"\)/);

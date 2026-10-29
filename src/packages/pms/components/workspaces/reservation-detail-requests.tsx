@@ -72,7 +72,18 @@ import {
   type GuestProfile,
   type GuestServiceHistoryItem,
 } from "@/packages/pms/lib/guests.functions";
+import {
+  ServicePriceSummary,
+  ServiceQuantityStepper,
+} from "@/packages/pms/components/bookings/reservation-service-picker";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
+import {
+  seedServiceQuantity,
+  serviceLineDetail,
+  serviceLineFigures,
+} from "@/packages/pms/lib/reservation-service-lines";
+import type { ServiceChargeRules } from "@/packages/pms/lib/room-charge-guest-total";
+import { useServiceChargeRules } from "@/packages/pms/lib/use-service-charge-rules";
 import {
   DETAIL_DASH,
   depositStatusLabel,
@@ -124,6 +135,7 @@ export function ReservationDetailRequestsTab({
   paymentReceived = null,
   paymentRefunded = null,
   guestDeposit = null,
+  totalAmount,
   coverUrl,
   onBackToFolio,
   onSaved,
@@ -138,6 +150,7 @@ export function ReservationDetailRequestsTab({
   paymentReceived?: number | null;
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
+  totalAmount?: number | null;
   coverUrl: string | null;
   onBackToFolio: () => void;
   onSaved: () => void;
@@ -165,6 +178,13 @@ export function ReservationDetailRequestsTab({
   const [draftDescription, setDraftDescription] = useState("");
   const [draftPreferredAt, setDraftPreferredAt] = useState("");
   const [draftAssignedId, setDraftAssignedId] = useState(NONE);
+  const [draftQuantity, setDraftQuantity] = useState(1);
+  const serviceRules = useServiceChargeRules(restaurantId);
+  const stayContext = {
+    nights,
+    persons: reservation.adults + reservation.children,
+    rooms: reservation.roomsRequested ?? 1,
+  };
 
   useEffect(() => {
     setNotes(reservation.notes ?? "");
@@ -193,10 +213,44 @@ export function ReservationDetailRequestsTab({
     specialRequests: reservation.specialRequests,
   });
   const activeTypes = useMemo(() => types.filter((type) => type.active), [types]);
+  const selectedType = activeTypes.find((type) => type.id === draftTypeId) ?? null;
+  const pendingServiceTotal = useMemo(
+    () =>
+      Math.round(
+        stayItems.reduce((sum, item) => {
+          if (item.folioTransactionId || item.quantity == null || item.unitAmount == null) {
+            return sum;
+          }
+          return (
+            sum +
+            (serviceLineFigures(
+              {
+                pricingUnit: item.pricingUnit,
+                unitAmount: item.unitAmount,
+                quantity: item.quantity,
+                departmentId: item.departmentId,
+              },
+              serviceRules.data,
+            ).total ?? 0)
+          );
+        }, 0) * 100,
+      ) / 100,
+    [stayItems, serviceRules.data],
+  );
 
   useEffect(() => {
     if (!draftTypeId && activeTypes[0]) setDraftTypeId(activeTypes[0].id);
   }, [activeTypes, draftTypeId]);
+
+  useEffect(() => {
+    setDraftQuantity(seedServiceQuantity(selectedType?.pricingUnit ?? null, stayContext));
+  }, [
+    draftTypeId,
+    selectedType?.pricingUnit,
+    stayContext.nights,
+    stayContext.persons,
+    stayContext.rooms,
+  ]);
 
   function invalidateServices() {
     void queryClient.invalidateQueries({
@@ -249,6 +303,7 @@ export function ReservationDetailRequestsTab({
           reservationId: reservation.id,
           preferredAt: draftPreferredAt ? new Date(draftPreferredAt).toISOString() : null,
           assignedMembershipId: draftAssignedId === NONE ? null : draftAssignedId,
+          quantity: draftQuantity,
         },
       });
     },
@@ -261,6 +316,7 @@ export function ReservationDetailRequestsTab({
       setCreateOpen(false);
       setDraftDescription("");
       setDraftPreferredAt("");
+      setDraftQuantity(seedServiceQuantity(selectedType?.pricingUnit ?? null, stayContext));
       invalidateServices();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -418,6 +474,7 @@ export function ReservationDetailRequestsTab({
               types={types}
               staff={staff}
               money={money}
+              serviceRules={serviceRules.data ?? null}
               dateTime={dateTime}
               statusFilter={statusFilter}
               search={search}
@@ -494,6 +551,8 @@ export function ReservationDetailRequestsTab({
           paymentReceived={paymentReceived}
           paymentRefunded={paymentRefunded}
           guestDeposit={guestDeposit}
+          totalAmount={totalAmount}
+          servicesTotal={pendingServiceTotal}
           money={money}
           coverUrl={coverUrl}
           nights={nights}
@@ -628,6 +687,25 @@ export function ReservationDetailRequestsTab({
                 onChange={(e) => setDraftPreferredAt(e.target.value)}
               />
             </div>
+            {selectedType ? (
+              <div className="space-y-2 rounded-md border border-[#EEE6D8] bg-[#FAF8F5] p-2.5">
+                <ServiceQuantityStepper
+                  id="request-service-quantity"
+                  unit={selectedType.pricingUnit}
+                  value={draftQuantity}
+                  onChange={setDraftQuantity}
+                />
+                <ServicePriceSummary
+                  unitAmount={selectedType.amount}
+                  pricingUnit={selectedType.pricingUnit}
+                  quantity={draftQuantity}
+                  departmentId={selectedType.departmentId}
+                  currency={selectedType.currency}
+                  rules={serviceRules.data ?? null}
+                  money={money}
+                />
+              </div>
+            ) : null}
             <div className="space-y-1">
               <Label>Assigned to</Label>
               <Select value={draftAssignedId} onValueChange={setDraftAssignedId}>
@@ -707,6 +785,8 @@ function ServiceRequestsCard({
   items,
   types,
   staff,
+  money,
+  serviceRules,
   dateTime,
   statusFilter,
   search,
@@ -720,6 +800,7 @@ function ServiceRequestsCard({
   types: Array<{ id: string; categoryName: string }>;
   staff: Array<{ id: string; name: string }>;
   money: (value: number) => string;
+  serviceRules: ServiceChargeRules | null;
   dateTime: (iso: string | null | undefined) => string;
   statusFilter: GuestServiceStatus | "all";
   search: string;
@@ -781,12 +862,13 @@ function ServiceRequestsCard({
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full min-w-[880px] text-left text-sm">
             <thead className="border-b border-[#EEE6D8] text-[11px] uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="py-2 pr-2">#</th>
                 <th className="py-2 pr-2">Request</th>
                 <th className="py-2 pr-2">Category</th>
+                <th className="py-2 pr-2">Charge</th>
                 <th className="py-2 pr-2">Assigned To</th>
                 <th className="py-2 pr-2">Priority</th>
                 <th className="py-2 pr-2">Requested For</th>
@@ -804,6 +886,9 @@ function ServiceRequestsCard({
                     <td className="py-2 pr-2">{index + 1}</td>
                     <td className="py-2 pr-2">{reviewDash(item.notes || item.serviceName)}</td>
                     <td className="py-2 pr-2">{serviceCategoryLabel(item, types)}</td>
+                    <td className="py-2 pr-2" data-testid="service-request-charge">
+                      <ServiceChargeCell item={item} rules={serviceRules} money={money} />
+                    </td>
                     <td className="py-2 pr-2">{reviewDash(item.assignedName)}</td>
                     <td className="py-2 pr-2">
                       <PriorityPill priority={item.priority} />
@@ -888,6 +973,45 @@ function ServiceRequestsCard({
   );
 }
 
+function ServiceChargeCell({
+  item,
+  rules,
+  money,
+}: {
+  item: GuestServiceHistoryItem;
+  rules: ServiceChargeRules | null;
+  money: (value: number) => string;
+}) {
+  if (item.quantity == null || item.unitAmount == null) {
+    return <span className="text-xs text-muted-foreground">{DETAIL_DASH}</span>;
+  }
+  const line = {
+    pricingUnit: item.pricingUnit,
+    unitAmount: item.unitAmount,
+    quantity: item.quantity,
+    departmentId: item.departmentId,
+  };
+  const figures = serviceLineFigures(line, rules);
+  const detail = serviceLineDetail(line, money);
+  return (
+    <span className="grid gap-0.5 text-xs">
+      <span className="font-medium text-[#251605]">
+        {figures.total != null ? money(figures.total) : DETAIL_DASH}
+      </span>
+      {detail ? <span className="text-muted-foreground">{detail}</span> : null}
+      <span
+        className={cn(
+          "w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold",
+          item.folioTransactionId ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800",
+        )}
+        data-testid="service-request-post-state"
+      >
+        {item.folioTransactionId ? "Posted to folio" : "Posts at check-in"}
+      </span>
+    </span>
+  );
+}
+
 function PriorityPill({ priority }: { priority: GuestServicePriority }) {
   return (
     <span
@@ -913,6 +1037,8 @@ function RequestsSummaryRail({
   paymentReceived,
   paymentRefunded,
   guestDeposit,
+  totalAmount,
+  servicesTotal,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -921,6 +1047,8 @@ function RequestsSummaryRail({
   paymentReceived: number | null;
   paymentRefunded: number | null;
   guestDeposit: number | null;
+  totalAmount?: number | null;
+  servicesTotal?: number;
 }) {
   return (
     <ReservationDetailSummary
@@ -932,6 +1060,8 @@ function RequestsSummaryRail({
       paymentReceived={paymentReceived}
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
+      totalAmount={totalAmount}
+      servicesTotal={servicesTotal}
     />
   );
 }

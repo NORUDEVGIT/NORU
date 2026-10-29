@@ -1,6 +1,7 @@
 import {
   CalendarDays,
   CheckCircle2,
+  ConciergeBell,
   Package,
   Receipt,
   Users,
@@ -12,6 +13,14 @@ export type PriceReminderPackage = {
   name: string;
   price: number | null;
   chargeBasis: string;
+};
+
+export type PriceReminderService = {
+  name: string;
+  /** e.g. "3 nights × $50.00"; null for per-service prices. */
+  detail: string | null;
+  net: number | null;
+  total: number | null;
 };
 
 export type CreateReservationPriceReminderProps = {
@@ -30,6 +39,7 @@ export type CreateReservationPriceReminderProps = {
   isGroup?: boolean;
   totalRooms?: number;
   packages?: PriceReminderPackage[];
+  services?: PriceReminderService[];
   mealPlanLabel?: string | null;
   breakfastIncluded?: boolean;
   paymentReceivedAmount?: string;
@@ -52,6 +62,7 @@ export function CreateReservationPriceReminder({
   isGroup = false,
   totalRooms = 1,
   packages = [],
+  services = [],
   mealPlanLabel,
   breakfastIncluded = false,
   paymentReceivedAmount = "",
@@ -60,9 +71,18 @@ export function CreateReservationPriceReminder({
   const packagesTotal = packages.reduce((sum, pkg) => {
     return sum + (pkg.price != null && Number.isFinite(pkg.price) && pkg.price > 0 ? pkg.price : 0);
   }, 0);
+  const servicesTotal = services.reduce((sum, service) => {
+    return (
+      sum +
+      (service.total != null && Number.isFinite(service.total) && service.total > 0
+        ? service.total
+        : 0)
+    );
+  }, 0);
 
   const roomCharges = roomSubtotal != null && Number.isFinite(roomSubtotal) ? roomSubtotal : null;
-  const totalExpected = roomCharges != null ? roomCharges + packagesTotal : null;
+  const totalExpected =
+    roomCharges != null ? Math.round((roomCharges + packagesTotal + servicesTotal) * 100) / 100 : null;
 
   const parsedPayment = Number(paymentReceivedAmount.trim());
   const paymentAmount = Number.isFinite(parsedPayment) && parsedPayment > 0 ? parsedPayment : 0;
@@ -218,6 +238,48 @@ export function CreateReservationPriceReminder({
         )}
       </div>
 
+      {services.length > 0 ? (
+        <div className="mt-3 border-t border-[#E7E0D4] pt-3" data-testid="reminder-services-section">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5 font-medium text-[#251605]">
+                <ConciergeBell className="size-3.5 text-[#C89933]" aria-hidden />
+                Selected Services ({services.length})
+              </span>
+              <span className="font-semibold text-[#251605]" data-testid="reminder-services-total">
+                {servicesTotal > 0 ? money(servicesTotal) : "—"}
+              </span>
+            </div>
+            <ul className="space-y-1 text-xs" data-testid="reminder-services-list">
+              {services.map((service, index) => (
+                <li
+                  key={`${service.name}-${index}`}
+                  className="flex items-start justify-between gap-2 rounded bg-[#FAF8F5] px-2 py-1 text-[11px] text-[#6B5E4E]"
+                  data-testid="reminder-service-item"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-[#251605]">{service.name}</span>
+                    {service.detail ? (
+                      <span className="block text-[#8A7A68]">{service.detail}</span>
+                    ) : null}
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block font-medium text-[#251605]">
+                      {service.total != null ? money(service.total) : "Not priced"}
+                    </span>
+                    {service.net != null &&
+                    service.total != null &&
+                    Math.abs(service.total - service.net) >= 0.005 ? (
+                      <span className="block text-[10px] text-[#8A7A68]">Net {money(service.net)}</span>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : null}
+
       {/* Total Expected Price box */}
       <div
         className="mt-3 rounded-[6px] border border-[#DDD4C5] bg-[#FBF6EE] p-3 space-y-2"
@@ -237,6 +299,12 @@ export function CreateReservationPriceReminder({
             <div className="flex justify-between">
               <span>Selected Packages & Add-ons</span>
               <span className="font-medium text-[#251605]">{money(packagesTotal)}</span>
+            </div>
+          ) : null}
+          {servicesTotal > 0 ? (
+            <div className="flex justify-between">
+              <span>Selected Services</span>
+              <span className="font-medium text-[#251605]">{money(servicesTotal)}</span>
             </div>
           ) : null}
         </div>

@@ -4,6 +4,10 @@ import { Package } from "lucide-react";
 import { reviewDash } from "@/packages/pms/lib/create-reservation-review";
 import { DETAIL_DASH } from "@/packages/pms/lib/reservation-detail-overview";
 import type { AvailablePackageCard } from "@/packages/pms/lib/reservation-detail-packages";
+import {
+  packageChargeFigures,
+  type RoomChargeRules,
+} from "@/packages/pms/lib/room-charge-guest-total";
 
 export function PackageCoverThumb({
   coverUrl,
@@ -48,14 +52,19 @@ export function ReservationPackageMerchandiseCard({
   currency,
   money,
   footer,
+  packageRules = null,
 }: {
   card: AvailablePackageCard;
   currency: string;
   money: (value: number) => string;
   footer?: ReactNode;
+  packageRules?: RoomChargeRules | null;
 }) {
   const status = packageEligibilityBadge(card);
   const componentOverflow = card.components.length > 3 ? card.components.length - 3 : 0;
+  const figures = card.price == null ? null : packageChargeFigures(card.price, packageRules);
+  const total = figures?.total ?? card.price;
+  const net = figures?.netAmount ?? card.price;
 
   return (
     <article
@@ -104,13 +113,18 @@ export function ReservationPackageMerchandiseCard({
         {card.applicabilityRoom} · {card.applicabilityRate}
       </p>
       <div className="mt-3">
-        <p className="text-sm font-medium text-[#251605]">
-          {card.price == null ? DETAIL_DASH : money(card.price)}
+        <p className="text-sm font-medium text-[#251605]" data-testid="package-merchandise-total">
+          {total == null ? DETAIL_DASH : money(total)}
           <span className="ml-1 text-[11px] font-normal text-muted-foreground">
             {currency}
             {card.chargeType ? ` · ${card.chargeType}` : ""}
           </span>
         </p>
+        {net != null && total != null && net !== total ? (
+          <p className="text-[10px] text-muted-foreground" data-testid="package-merchandise-net">
+            Net {money(net)}
+          </p>
+        ) : null}
         {card.chargeBasisHonesty ? (
           <p className="mt-1 text-[10px] leading-snug text-amber-900/80">
             {card.chargeBasisHonesty}
@@ -128,12 +142,14 @@ export function ReservationPackageMerchandiseGrid({
   money,
   emptyCopy,
   renderFooter,
+  packageRules = null,
 }: {
   cards: AvailablePackageCard[];
   currency: string;
   money: (value: number) => string;
   emptyCopy: string;
   renderFooter?: (card: AvailablePackageCard) => ReactNode;
+  packageRules?: RoomChargeRules | null;
 }) {
   if (cards.length === 0) {
     return (
@@ -156,6 +172,7 @@ export function ReservationPackageMerchandiseGrid({
           card={card}
           currency={currency}
           money={money}
+          packageRules={packageRules}
           footer={renderFooter?.(card)}
         />
       ))}

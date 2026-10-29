@@ -61,8 +61,15 @@ export const saveStayCompanionProfile = createServerFn({ method: "POST" })
         guestId: idSchema,
         firstName: z.string().trim().min(1).max(120),
         lastName: z.string().trim().max(120).nullable(),
-        phone: z.string().trim().max(60).nullable(),
+        phone: z.string().trim().max(60).nullable().optional(),
+        email: z.string().trim().max(200).nullable().optional(),
         gender: z.enum(["female", "male", "other", "unspecified"]).nullable(),
+        nationality: z.string().trim().max(120).nullable().optional(),
+        dateOfBirth: z.string().trim().max(20).nullable().optional(),
+        idDocumentType: z
+          .enum(["passport", "national_id", "driving_licence", "other"])
+          .nullable()
+          .optional(),
         idDocumentNumber: z.string().trim().max(80).nullable(),
         relationship: z.string().trim().max(80),
         age: z.string().trim().max(20),
@@ -85,16 +92,22 @@ export const saveStayCompanionProfile = createServerFn({ method: "POST" })
       data.age,
       (existing.data as { notes?: string | null }).notes,
     );
+    const updatePayload: Record<string, unknown> = {
+      first_name: data.firstName,
+      last_name: data.lastName,
+      phone: data.phone ?? null,
+      gender: data.gender,
+      id_document_number: data.idDocumentNumber,
+      notes,
+    };
+    if (data.nationality !== undefined) updatePayload.nationality = data.nationality;
+    if (data.email !== undefined) updatePayload.email = data.email;
+    if (data.dateOfBirth !== undefined) updatePayload.date_of_birth = data.dateOfBirth;
+    if (data.idDocumentType !== undefined) updatePayload.id_document_type = data.idDocumentType;
+
     const updated = await supabaseAdmin
       .from("guest_profiles")
-      .update({
-        first_name: data.firstName,
-        last_name: data.lastName,
-        phone: data.phone,
-        gender: data.gender,
-        id_document_number: data.idDocumentNumber,
-        notes,
-      })
+      .update(updatePayload)
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.guestId);
     if (updated.error) throw reservationError(updated.error.message);
