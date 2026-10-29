@@ -31,7 +31,14 @@ export type CreateReservationDraftService = {
   serviceTypeId: string;
   name: string;
   description: string;
+  pricingUnit?: "per_service" | "per_room" | "per_item" | "per_person" | "per_night" | null;
+  unitAmount?: number | null;
+  departmentId?: string | null;
+  quantity?: number;
+  quantityEdited?: boolean;
 };
+
+const DRAFT_SERVICE_UNITS = ["per_service", "per_room", "per_item", "per_person", "per_night"] as const;
 
 export type CreateReservationDraftRoomUnit = {
   key: string;
@@ -426,11 +433,25 @@ function parseServices(value: unknown): CreateReservationDraftService[] {
     if (!item || typeof item !== "object") return [];
     const row = item as Record<string, unknown>;
     if (typeof row.serviceTypeId !== "string" || typeof row.name !== "string") return [];
+    const unit = DRAFT_SERVICE_UNITS.find((value) => value === row.pricingUnit) ?? null;
+    const quantity =
+      typeof row.quantity === "number" && Number.isInteger(row.quantity)
+        ? Math.min(99, Math.max(1, row.quantity))
+        : undefined;
     return [
       {
         serviceTypeId: row.serviceTypeId,
         name: row.name,
         description: typeof row.description === "string" ? row.description : "",
+        ...("pricingUnit" in row
+          ? {
+              pricingUnit: unit,
+              unitAmount: typeof row.unitAmount === "number" ? row.unitAmount : null,
+              departmentId: typeof row.departmentId === "string" ? row.departmentId : null,
+            }
+          : {}),
+        ...(quantity != null ? { quantity } : {}),
+        quantityEdited: row.quantityEdited === true,
       },
     ];
   });

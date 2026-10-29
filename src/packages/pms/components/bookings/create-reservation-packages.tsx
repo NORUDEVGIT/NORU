@@ -118,14 +118,23 @@ export function CreateReservationPackages({
           className="mt-4 border-t border-border pt-4"
           data-testid="create-reservation-package-merch"
         >
-          <p className="text-xs font-medium text-[#251605]">
-            Available packages configured for the selected room and rate.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {operational
-              ? "Package prices stay separate from the room quote."
-              : CREATE_RESERVATION_PACKAGES_NOT_ATTACHED}
-          </p>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-medium text-[#251605]">
+                Available packages configured for the selected room and rate.
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {operational
+                  ? "Package prices stay separate from the room quote."
+                  : CREATE_RESERVATION_PACKAGES_NOT_ATTACHED}
+              </p>
+            </div>
+            {operational && selectedActivationIds.length > 0 ? (
+              <span className="inline-flex items-center rounded-full bg-[#F4EDE0] px-2.5 py-0.5 text-xs font-medium text-[#7A5A1A]">
+                {selectedActivationIds.length} {selectedActivationIds.length === 1 ? "package" : "packages"} selected
+              </span>
+            ) : null}
+          </div>
           {operational ? (
             <PackageCatalogueTable
               cards={visibleCards}
@@ -176,8 +185,8 @@ function PackageCatalogueTable({
 }) {
   if (cards.length === 0) {
     return (
-      <div className="space-y-1" data-testid="create-reservation-packages-empty">
-        <p className="text-sm text-[#251605]">
+      <div className="space-y-1 py-2" data-testid="create-reservation-packages-empty">
+        <p className="text-sm font-medium text-[#251605]">
           No packages are available for the selected room and rate.
         </p>
         <p className="text-xs text-muted-foreground">
@@ -187,110 +196,162 @@ function PackageCatalogueTable({
     );
   }
 
+  const selectedCards = cards.filter(
+    (card) => card.activationId && selectedActivationIds.includes(card.activationId),
+  );
+
   return (
-    <div className="min-w-0" data-testid="create-reservation-packages-readonly">
-      <table className="w-full table-fixed border-collapse text-left text-xs">
-        <thead>
-          <tr className="border-b border-[#CCCCCC] text-[10px] uppercase tracking-wide text-[#6B5E4E]">
-            <th className="w-7 py-1 font-medium" />
-            <th className="w-[42%] py-1 pr-2 font-medium">Package</th>
-            <th className="py-1 pr-2 font-medium">Description</th>
-            <th className="w-20 py-1 pr-2 text-right font-medium">Net ({currency})</th>
-            <th className="w-9 py-1 pr-2 text-center font-medium">Qty</th>
-            <th className="w-20 py-1 text-right font-medium">Total ({currency})</th>
-          </tr>
-        </thead>
-        <tbody>
-          {cards.map((card) => {
-            const activationId = card.activationId;
-            const bindable = canBindCreatePackage(card) && activationId != null;
-            const selected = activationId != null && selectedActivationIds.includes(activationId);
-            const unavailable = createPackageUnselectableReason(card);
-            const figures = card.price == null ? null : packageChargeFigures(card.price, packageRules);
-            const net = figures == null ? "—" : money(figures.netAmount);
-            const total = figures == null ? "—" : money(figures.total);
-            return (
-              <tr
-                key={card.id}
-                className={cn(
-                  "border-b border-[#E7E0D4]",
-                  selected && "bg-[#FBF6EE] shadow-[inset_3px_0_0_#C89933]",
-                )}
-                data-testid={`create-package-${card.id}`}
-                data-selected={selected ? "true" : "false"}
-                data-bindable={bindable ? "true" : "false"}
-              >
-                <td className="py-1 pr-1 align-middle">
-                  <Checkbox
-                    checked={selected}
-                    disabled={!bindable || !onToggleActivation || !activationId}
-                    aria-label={`Select ${card.name}`}
-                    data-testid={activationId ? `create-package-toggle-${activationId}` : undefined}
-                    onCheckedChange={() => {
-                      if (bindable && activationId && onToggleActivation) {
-                        onToggleActivation(activationId);
-                      }
-                    }}
-                  />
-                </td>
-                <td className="py-1.5 pr-2 align-middle font-medium text-[#251605]">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div
-                      className="h-16 w-20 shrink-0 overflow-hidden rounded-[6px]"
-                      data-testid={card.coverUrl ? "package-cover-image" : "package-cover-fallback"}
-                    >
-                      <PackageCoverThumb
-                        coverUrl={card.coverUrl}
-                        name={card.name}
-                        className="!h-16 !rounded-[6px] object-cover"
+    <div
+      className="min-w-0 overflow-hidden rounded-[8px] border border-[#CCCCCC] bg-white shadow-xs"
+      data-testid="create-reservation-packages-readonly"
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-left text-xs">
+          <thead>
+            <tr className="border-b border-[#E6E1D8] bg-[#F7F4EE] text-[10px] uppercase tracking-wide text-[#6B5E4E]">
+              <th className="w-9 px-2.5 py-2 text-center font-medium" />
+              <th className="w-[36%] px-2.5 py-2 font-medium">Package</th>
+              <th className="px-2.5 py-2 font-medium">Description</th>
+              <th className="w-24 px-2.5 py-2 text-right font-medium">Price ({currency})</th>
+              <th className="w-10 px-2 py-2 text-center font-medium">Qty</th>
+              <th className="w-36 px-3 py-2 text-right font-medium">Total ({currency})</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#E6E1D8]">
+            {cards.map((card) => {
+              const activationId = card.activationId;
+              const bindable = canBindCreatePackage(card) && activationId != null;
+              const selected = activationId != null && selectedActivationIds.includes(activationId);
+              const unavailable = createPackageUnselectableReason(card);
+              const amount = card.price == null ? "—" : money(card.price);
+              const figures =
+                card.price == null ? null : packageChargeFigures(card.price, packageRules);
+              const hasTax = figures != null && figures.total !== figures.netAmount;
+              const total = figures == null ? amount : money(figures.total);
+              const taxAndFee = figures ? figures.tax + figures.serviceCharge : 0;
+
+              return (
+                <tr
+                  key={card.id}
+                  className={cn(
+                    "transition-colors hover:bg-[#FAF8F5]/70",
+                    selected && "bg-[#FBF6EE] shadow-[inset_3px_0_0_#C89933]",
+                  )}
+                  data-testid={`create-package-${card.id}`}
+                  data-selected={selected ? "true" : "false"}
+                  data-bindable={bindable ? "true" : "false"}
+                >
+                  <td className="px-2.5 py-2 text-center align-middle">
+                    <div className="flex justify-center">
+                      <Checkbox
+                        checked={selected}
+                        disabled={!bindable || !onToggleActivation || !activationId}
+                        aria-label={`Select ${card.name}`}
+                        data-testid={activationId ? `create-package-toggle-${activationId}` : undefined}
+                        onCheckedChange={() => {
+                          if (bindable && activationId && onToggleActivation) {
+                            onToggleActivation(activationId);
+                          }
+                        }}
+                        className="size-4 rounded-[3px] border-[#CCCCCC] data-[state=checked]:border-[#C89933] data-[state=checked]:bg-[#C89933]"
                       />
                     </div>
-                    <div className="min-w-0">
-                      <span className="block break-words leading-snug">{card.name}</span>
-                      <span className="mt-0.5 block text-[10px] font-normal text-[#6B5E4E]">
-                        {card.chargeType}
-                      </span>
+                  </td>
+                  <td className="px-2.5 py-2 align-middle">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <div
+                        className="h-12 w-14 shrink-0 overflow-hidden rounded-[4px] border border-[#E6E1D8] bg-[#FAF8F5]"
+                        data-testid={card.coverUrl ? "package-cover-image" : "package-cover-fallback"}
+                      >
+                        <PackageCoverThumb
+                          coverUrl={card.coverUrl}
+                          name={card.name}
+                          className="!h-12 !w-14 !rounded-[4px] object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block font-semibold text-xs text-[#251605] leading-snug">
+                          {card.name}
+                        </span>
+                        <span className="mt-0.5 inline-block text-[10px] font-medium text-[#7A5A1A]">
+                          {card.chargeType}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td className="py-1.5 pr-2 align-middle text-[#6B5E4E]">
-                  <span className="line-clamp-2">{card.description.trim() || "—"}</span>
-                  {card.chargeBasisHonesty ? (
-                    <span className="mt-0.5 block text-[10px] text-[#6B5E4E]">
-                      {card.chargeBasisHonesty}
-                    </span>
-                  ) : null}
-                  {unavailable ? (
-                    <span
-                      className="mt-0.5 block text-[10px] font-medium text-[#6B5E4E]"
-                      data-testid={`create-package-unavailable-${card.id}`}
-                    >
-                      {unavailable}
-                    </span>
-                  ) : null}
-                </td>
-                <td className="py-1 pr-2 text-right align-middle tabular-nums text-[#251605]">
-                  {net}
-                </td>
-                <td className="py-1 pr-2 text-center align-middle tabular-nums text-[#251605]">
-                  1
-                </td>
-                <td
-                  className="py-1 text-right align-middle font-medium tabular-nums text-[#251605]"
-                  data-testid={`create-package-total-${card.id}`}
-                >
-                  {total}
-                  {figures && figures.lines.length > 0 ? (
-                    <span className="mt-0.5 block text-[10px] font-normal text-[#6B5E4E]">
-                      {figures.lines.map((line) => line.name).join(", ")}
-                    </span>
-                  ) : null}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  </td>
+                  <td className="px-2.5 py-2 align-middle text-[#6B5E4E]">
+                    <span className="line-clamp-2 leading-relaxed">{card.description.trim() || "—"}</span>
+                    {card.chargeBasisHonesty ? (
+                      <span className="mt-0.5 block text-[10px] text-[#8C7A64]">
+                        {card.chargeBasisHonesty}
+                      </span>
+                    ) : null}
+                    {unavailable ? (
+                      <span
+                        className="mt-0.5 inline-flex items-center rounded-[3px] bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700"
+                        data-testid={`create-package-unavailable-${card.id}`}
+                      >
+                        {unavailable}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="px-2.5 py-2 text-right align-middle text-xs tabular-nums text-[#6B5E4E]">
+                    {amount}
+                  </td>
+                  <td className="px-2 py-2 text-center align-middle text-xs tabular-nums font-medium text-[#6B5E4E]">
+                    1
+                  </td>
+                  <td
+                    className="px-3 py-2 text-right align-middle"
+                    data-testid={`create-package-total-${card.id}`}
+                  >
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="font-semibold text-xs text-[#251605] tabular-nums">
+                        {total}
+                      </span>
+                      {hasTax ? (
+                        <div className="flex flex-col items-end">
+                          <span className="inline-flex items-center rounded-[3px] bg-[#F4EDE0] px-1.5 py-0.2 text-[9.5px] font-medium text-[#7A5A1A]">
+                            Incl. tax & fees
+                          </span>
+                          <span
+                            className="text-[10px] text-[#8C7A64] tabular-nums"
+                            title={figures.lines.map((l) => `${l.name}: ${money(l.amount)}`).join(", ")}
+                          >
+                            +{money(taxAndFee)} ({figures.lines.map((l) => l.name).join(", ")})
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {selectedCards.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E6E1D8] bg-[#F7F4EE]/60 px-3.5 py-2 text-xs">
+          <span className="font-medium text-[#6B5E4E]">
+            Total for {selectedCards.length} selected {selectedCards.length === 1 ? "package" : "packages"}:
+          </span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-semibold text-sm text-[#251605] tabular-nums">
+              {money(
+                selectedCards.reduce((sum, c) => {
+                  const f = c.price == null ? null : packageChargeFigures(c.price, packageRules);
+                  return sum + (f?.total ?? c.price ?? 0);
+                }, 0),
+              )}
+            </span>
+            <span className="text-[10px] text-[#8C7A64] font-medium">
+              (incl. taxes & fees)
+            </span>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
+

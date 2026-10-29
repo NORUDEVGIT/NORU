@@ -23,7 +23,7 @@ import { formatStayDate } from "@/packages/pms/components/bookings/reservation-b
 import { reviewDash } from "@/packages/pms/lib/create-reservation-review";
 import { getMealsCard3 } from "@/packages/pms/lib/meals-card3.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
-import { packageChargeFigures } from "@/packages/pms/lib/room-charge-guest-total";
+import { packageChargeFigures, type RoomChargeRules } from "@/packages/pms/lib/room-charge-guest-total";
 import { usePackageChargeRules } from "@/packages/pms/lib/use-package-charge-rules";
 import { ReservationPackageMerchandiseGrid } from "@/packages/pms/components/bookings/reservation-package-merchandise";
 import {
@@ -247,6 +247,7 @@ export function ReservationDetailPackagesTab({
             stayPackageTotal={stayPackageTotal}
             loading={unitQuery.isLoading}
             editable={editable}
+            packageRules={packageRules}
             onRemove={(row) => releasePackage.mutate(row)}
           />
           <AvailablePackagesCard
@@ -257,6 +258,7 @@ export function ReservationDetailPackagesTab({
             currency={unitRead?.currency || currency}
             editable={editable}
             loading={Boolean(unitId) && unitQuery.isLoading}
+            packageRules={packageRules}
             onFilters={setFilters}
             onAdd={(card) => {
               if (!card.addAllowed || !card.activationId) return;
@@ -292,6 +294,7 @@ function AppliedPackagesCard({
   stayPackageTotal,
   loading,
   editable,
+  packageRules,
   onRemove,
 }: {
   applied: UnitPackageManagementRow[];
@@ -305,6 +308,7 @@ function AppliedPackagesCard({
   stayPackageTotal: number;
   loading: boolean;
   editable: boolean;
+  packageRules: RoomChargeRules | null;
   onRemove: (row: UnitPackageManagementRow) => void;
 }) {
   return (
@@ -437,6 +441,7 @@ function AvailablePackagesCard({
   currency,
   editable,
   loading,
+  packageRules,
   onFilters,
   onAdd,
 }: {
@@ -447,6 +452,7 @@ function AvailablePackagesCard({
   currency: string;
   editable: boolean;
   loading: boolean;
+  packageRules: RoomChargeRules | null;
   onFilters: (next: PackageFilters) => void;
   onAdd: (card: ReturnType<typeof filterAvailablePackages>[number]) => void;
 }) {

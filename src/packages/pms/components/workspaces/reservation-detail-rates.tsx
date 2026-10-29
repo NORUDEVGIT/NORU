@@ -50,6 +50,7 @@ import {
 import { quoteReservationRoomGuestTotal } from "@/packages/pms/lib/room-charge-guest-total.functions";
 import { packageChargeFigures, type RoomChargeRules } from "@/packages/pms/lib/room-charge-guest-total";
 import { usePackageChargeRules } from "@/packages/pms/lib/use-package-charge-rules";
+import { useReservationServiceCharges } from "@/packages/pms/lib/use-reservation-service-charges";
 import { listPromotionActivations } from "@/packages/pms/lib/revenue/commercial-promotion-activation.functions";
 import {
   applyReservationPromotion,
@@ -144,6 +145,7 @@ export function ReservationDetailRatesTab({
   const fetchRoomQuote = useServerFn(quoteFolioRoomCharge);
   const fetchUnitGuestTotal = useServerFn(quoteReservationRoomGuestTotal);
   const packageChargeRules = usePackageChargeRules(restaurantId);
+  const reservationServices = useReservationServiceCharges(restaurantId, reservation.id);
   const [rateNotes, setRateNotes] = useState(reservation.rateNotes ?? "");
   const [planOpen, setPlanOpen] = useState(false);
   const [discountOpen, setDiscountOpen] = useState(false);
@@ -427,6 +429,7 @@ export function ReservationDetailRatesTab({
           folioOpen={folio?.status === "open"}
           totalAmount={totalAmount}
           packageGuestTotal={packages.length > 0 ? packageGuestTotal : null}
+          servicesTotal={reservationServices.pendingTotal}
         />
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white py-3">
@@ -1081,6 +1084,7 @@ function RatesSummaryRail({
   folioOpen,
   totalAmount,
   packageGuestTotal = null,
+  servicesTotal = 0,
 }: {
   reservation: ReservationDetail;
   read: {
@@ -1098,6 +1102,7 @@ function RatesSummaryRail({
   folioOpen: boolean;
   totalAmount?: number | null;
   packageGuestTotal?: number | null;
+  servicesTotal?: number;
 }) {
   const payment = read.cashiering.payment;
   const deposit = read.cashiering.deposit;
@@ -1120,6 +1125,7 @@ function RatesSummaryRail({
             ? shownPackageTotal
             : undefined
         }
+        servicesTotal={!groupStay && servicesTotal > 0 ? servicesTotal : undefined}
         paymentReceived={payment}
         paymentRefunded={refund}
         guestDeposit={deposit}
@@ -1135,6 +1141,9 @@ function RatesSummaryRail({
           not subtracted from payment.
         </p>
         <dl className="space-y-1 text-sm">
+          {servicesTotal > 0 ? (
+            <Info label="Services total" value={money(servicesTotal)} />
+          ) : null}
           <Info label="Refund" value={refund != null && refund > 0 ? money(refund) : DETAIL_DASH} />
           <Info label="Posted tax" value={postedTax == null ? DETAIL_DASH : money(postedTax)} />
           <Info

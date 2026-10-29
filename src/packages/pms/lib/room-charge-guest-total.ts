@@ -126,3 +126,108 @@ export function packageChargeFigures(
 ): PostedRoomChargePreview {
   return previewPostedRoomCharge(amount, rules?.taxes ?? [], rules?.services ?? []);
 }
+
+/** Same stack as create-reservation Expected Total: room + packages + services. */
+export function sumReservationGuestTotal(
+  room: number | null | undefined,
+  packages = 0,
+  services = 0,
+): number | null {
+  const packageAmount = Number.isFinite(packages) && packages > 0 ? packages : 0;
+  const serviceAmount = Number.isFinite(services) && services > 0 ? services : 0;
+  if (room == null && packageAmount <= 0 && serviceAmount <= 0) return null;
+  return Math.round(((room ?? 0) + packageAmount + serviceAmount) * 100) / 100;
+}
+
+export type ServicePricingUnit = "per_service" | "per_room" | "per_item" | "per_person" | "per_night";
+
+export const SERVICE_QUANTITY_MAX = 99;
+
+/** Department-scoped rules are keyed by billing department id. */
+export type ServiceChargeRules = RoomChargeRules & {
+  departmentTaxes: Record<string, RoomChargeTaxRule[]>;
+  departmentServices: Record<string, RoomChargeServiceRule[]>;
+};
+
+export function serviceQuantityEditable(unit: string | null | undefined): boolean {
+  return unit === "per_room" || unit === "per_item" || unit === "per_person" || unit === "per_night";
+}
+
+export function serviceUnitLabel(unit: string | null | undefined): string {
+  switch (unit) {
+    case "per_service":
+      return "Per service";
+    case "per_room":
+      return "Per room";
+    case "per_item":
+      return "Per item";
+    case "per_person":
+      return "Per person";
+    case "per_night":
+      return "Per night";
+    default:
+      return "—";
+  }
+}
+
+export function serviceUnitQuantityLabel(unit: string | null | undefined): string {
+  switch (unit) {
+    case "per_room":
+      return "Rooms";
+    case "per_person":
+      return "Persons";
+    case "per_night":
+      return "Nights";
+    default:
+      return "Quantity";
+  }
+}
+
+export function clampServiceQuantity(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(SERVICE_QUANTITY_MAX, Math.max(1, Math.round(value)));
+}
+
+export function defaultServiceQuantity(
+  unit: string | null | undefined,
+  stay: { nights?: number | null; persons?: number | null; rooms?: number | null },
+): number {
+  switch (unit) {
+    case "per_night":
+      return clampServiceQuantity(stay.nights ?? 1);
+    case "per_person":
+      return clampServiceQuantity(stay.persons ?? 1);
+    case "per_room":
+      return clampServiceQuantity(stay.rooms ?? 1);
+    default:
+      return 1;
+  }
+}
+
+export function effectiveServiceQuantity(unit: string | null | undefined, quantity: number): number {
+  return serviceQuantityEditable(unit) ? clampServiceQuantity(quantity) : 1;
+}
+
+export function serviceRulesForDepartment(
+  rules: ServiceChargeRules | null | undefined,
+  departmentId: string | null | undefined,
+): RoomChargeRules {
+  if (!rules) return { taxes: [], services: [] };
+  const extraTaxes = departmentId ? (rules.departmentTaxes[departmentId] ?? []) : [];
+  const extraServices = departmentId ? (rules.departmentServices[departmentId] ?? []) : [];
+  return {
+    taxes: [...rules.taxes, ...extraTaxes],
+    services: [...rules.services, ...extraServices],
+  };
+}
+
+/** Mirrors post_folio_service_charge: entered amount = unit amount x quantity, taxed as source service. */
+export function serviceChargeFigures(
+  unitAmount: number,
+  quantity: number,
+  rules?: ServiceChargeRules | null,
+  departmentId?: string | null,
+): PostedRoomChargePreview {
+  const scoped = serviceRulesForDepartment(rules, departmentId);
+  return previewPostedRoomCharge(roundMoney(unitAmount * quantity), scoped.taxes, scoped.services);
+}

@@ -40,6 +40,7 @@ export function ReservationDetailSummary({
   nights,
   testId,
   packagesTotal,
+  servicesTotal,
   folioBalance,
   showFolioBalance = false,
   paymentReceived,
@@ -54,6 +55,7 @@ export function ReservationDetailSummary({
   nights: number;
   testId: string;
   packagesTotal?: number;
+  servicesTotal?: number;
   folioBalance?: number | null;
   showFolioBalance?: boolean;
   paymentReceived?: number | null;
@@ -208,6 +210,9 @@ export function ReservationDetailSummary({
           <>
             <p>Room Rate {roomRateAmount == null ? DETAIL_DASH : money(roomRateAmount)}</p>
             {packagesTotal != null ? <p>Packages {money(packagesTotal)}</p> : null}
+            {servicesTotal != null && servicesTotal > 0 ? (
+              <p data-testid="rates-services-total">Services {money(servicesTotal)}</p>
+            ) : null}
             <p className="font-medium text-[#251605]">
               {roomTotalLabel} {guestFacingTotal == null ? DETAIL_DASH : money(guestFacingTotal)}
             </p>

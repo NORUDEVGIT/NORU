@@ -1,4 +1,9 @@
-import type { RoomChargeRules, RoomChargeServiceRule, RoomChargeTaxRule } from "./room-charge-guest-total.ts";
+import type {
+  RoomChargeRules,
+  RoomChargeServiceRule,
+  RoomChargeTaxRule,
+  ServiceChargeRules,
+} from "./room-charge-guest-total.ts";
 
 type DbError = { code?: string; message?: string } | null;
 type DbResult = { data: unknown; error: DbError };
@@ -163,6 +168,95 @@ export async function loadRoomChargeRules(
       return service ? [service] : [];
     }),
   };
+}
+
+function serviceScope(row: { applicability_scope?: unknown }): string {
+  return row.applicability_scope == null ? "" : String(row.applicability_scope);
+}
+
+function appliesToServiceCharge(row: { applicability_scope?: unknown }) {
+  const scope = serviceScope(row);
+  return scope === "all" || scope === "services" || scope === "folio";
+}
+
+async function departmentTargets(
+  db: RoomChargeRuleDb,
+  table: string,
+  idColumn: string,
+  restaurantId: string,
+): Promise<Map<string, string[]>> {
+  const result = await db.from(table).select(`${idColumn}, department_id`).eq("restaurant_id", restaurantId);
+  const byRule = new Map<string, string[]>();
+  if (result.error || !Array.isArray(result.data)) return byRule;
+  for (const row of result.data as Array<Record<string, unknown>>) {
+    const ruleId = String(row[idColumn] ?? "");
+    const departmentId = String(row.department_id ?? "");
+    if (!ruleId || !departmentId) continue;
+    byRule.set(ruleId, [...(byRule.get(ruleId) ?? []), departmentId]);
+  }
+  return byRule;
+}
+
+/**
+ * Taxes and service charges post_folio_service_charge applies (source 'service').
+ * Department-scoped rules apply only to services billed to a targeted department.
+ */
+export async function loadServiceChargeRules(
+  db: RoomChargeRuleDb,
+  restaurantId: string,
+): Promise<ServiceChargeRules> {
+  const empty: ServiceChargeRules = { ...EMPTY_RULES, departmentTaxes: {}, departmentServices: {} };
+  const taxes = await db
+    .from("pms_taxes")
+    .select("id, code, name, charge_type, amount, applicability_scope, calculation, active")
+    .eq("restaurant_id", restaurantId)
+    .eq("active", true);
+  if (taxes.error) return empty;
+
+  const rules: ServiceChargeRules = { taxes: [], services: [], departmentTaxes: {}, departmentServices: {} };
+  const taxRows = (Array.isArray(taxes.data) ? taxes.data : []) as Array<Record<string, unknown>>;
+  const taxTargets = taxRows.some((row) => serviceScope(row) === "departments")
+    ? await departmentTargets(db, "pms_tax_department_targets", "tax_id", restaurantId)
+    : new Map<string, string[]>();
+  for (const row of taxRows) {
+    if (serviceScope(row) === "departments") {
+      const tax = asTax(row, () => true);
+      if (!tax) continue;
+      for (const departmentId of taxTargets.get(String(row.id ?? "")) ?? []) {
+        rules.departmentTaxes[departmentId] = [...(rules.departmentTaxes[departmentId] ?? []), tax];
+      }
+      continue;
+    }
+    const tax = asTax(row, appliesToServiceCharge);
+    if (tax) rules.taxes.push(tax);
+  }
+
+  const services = await db
+    .from("pms_service_charges")
+    .select("id, code, name, charge_type, amount, applicability_scope, active")
+    .eq("restaurant_id", restaurantId)
+    .eq("active", true);
+  if (services.error) return rules;
+  const serviceRows = (Array.isArray(services.data) ? services.data : []) as Array<Record<string, unknown>>;
+  const serviceTargets = serviceRows.some((row) => serviceScope(row) === "departments")
+    ? await departmentTargets(db, "pms_service_charge_department_targets", "service_charge_id", restaurantId)
+    : new Map<string, string[]>();
+  for (const row of serviceRows) {
+    if (serviceScope(row) === "departments") {
+      const service = asService(row, () => true);
+      if (!service) continue;
+      for (const departmentId of serviceTargets.get(String(row.id ?? "")) ?? []) {
+        rules.departmentServices[departmentId] = [
+          ...(rules.departmentServices[departmentId] ?? []),
+          service,
+        ];
+      }
+      continue;
+    }
+    const service = asService(row, appliesToServiceCharge);
+    if (service) rules.services.push(service);
+  }
+  return rules;
 }
 
 /** Package taxes are not limited by the default room tax group. */

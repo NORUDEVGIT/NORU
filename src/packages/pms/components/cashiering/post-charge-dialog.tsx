@@ -22,6 +22,11 @@ import {
   type FolioServiceChargePreview,
 } from "@/packages/pms/lib/cashiering.functions";
 import { stayNights } from "@/packages/pms/lib/folio-workspace";
+import {
+  defaultServiceQuantity,
+  serviceQuantityEditable,
+  serviceUnitQuantityLabel,
+} from "@/packages/pms/lib/room-charge-guest-total";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -53,6 +58,9 @@ export interface PostChargeFolio {
   reservationId: string | null;
   arrivalDate?: string | null;
   departureDate?: string | null;
+  adults?: number | null;
+  children?: number | null;
+  roomCount?: number | null;
 }
 
 type ChargeSource = "service" | "manual";
@@ -111,11 +119,12 @@ function catalogueUnitPrice(
 }
 
 function defaultQuantity(item: ChargeableGuestService, folio: PostChargeFolio): number {
-  if (item.pricingUnit === "per_night") {
-    const nights = stayNights(folio.arrivalDate, folio.departureDate);
-    return Math.min(99, Math.max(1, nights ?? 1));
-  }
-  return 1;
+  const persons = (folio.adults ?? 0) + (folio.children ?? 0);
+  return defaultServiceQuantity(item.pricingUnit, {
+    nights: stayNights(folio.arrivalDate, folio.departureDate),
+    persons: persons > 0 ? persons : 1,
+    rooms: folio.roomCount ?? 1,
+  });
 }
 
 export function PostChargeDialog({
@@ -193,7 +202,8 @@ export function PostChargeDialog({
   const services = (servicesQuery.data ?? []) as ChargeableGuestService[];
   const selected = services.find((item) => item.serviceTypeId === serviceTypeId) ?? null;
   const blockReason = selected ? servicePostBlockReason(selected) : null;
-  const quantityEditable = selected?.quantityMode === "editable";
+  const quantityEditable =
+    selected?.quantityMode === "editable" || serviceQuantityEditable(selected?.pricingUnit);
 
   const departments = useMemo(() => {
     const names = new Map<string, string>();
@@ -458,7 +468,13 @@ export function PostChargeDialog({
                       ? money(servicePreview.unitAmount)
                       : catalogueUnitPrice(selected, money)
                   }
-                  subtotal={previewReady && servicePreview ? money(servicePreview.enteredAmount) : "—"}
+                  subtotal={
+                    previewReady && servicePreview
+                      ? quantityEditable
+                        ? `${money(servicePreview.unitAmount)} × ${quantity} = ${money(servicePreview.enteredAmount)}`
+                        : money(servicePreview.enteredAmount)
+                      : "—"
+                  }
                 />
               ) : (
                 <div>
@@ -763,8 +779,11 @@ function ServiceFields({
       </div>
       <dl className="grid gap-3 sm:grid-cols-2">
         <ReadOnlyField label="Pricing unit" value={selected ? pricingUnitLabel(selected.pricingUnit) : "—"} />
+        {selected && !quantityEditable ? (
+          <ReadOnlyField label="Quantity" value="Price only (per service)" />
+        ) : (
         <div className="space-y-1.5">
-          <Label htmlFor="post-charge-quantity">Quantity</Label>
+          <Label htmlFor="post-charge-quantity">{serviceUnitQuantityLabel(selected?.pricingUnit)}</Label>
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -800,6 +819,7 @@ function ServiceFields({
           </div>
           {quantityError ? <p className="text-xs text-destructive">{quantityError}</p> : null}
         </div>
+        )}
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Unit price</p>
           <p className="mt-1 truncate text-sm font-medium" data-testid="service-unit-price">

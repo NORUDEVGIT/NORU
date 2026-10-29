@@ -69,6 +69,8 @@ export function ReservationDetailStayTab({
   paymentRefunded: initialPaymentRefunded,
   guestDeposit: initialGuestDeposit,
   totalAmount: initialTotalAmount,
+  packagesTotal = 0,
+  servicesTotal = 0,
   onBackToOverview,
   onSaved,
 }: {
@@ -83,6 +85,8 @@ export function ReservationDetailStayTab({
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
   totalAmount?: number | null;
+  packagesTotal?: number;
+  servicesTotal?: number;
   onBackToOverview: () => void;
   onSaved: () => void;
 }) {
@@ -528,6 +532,8 @@ export function ReservationDetailStayTab({
           paymentRefunded={effectivePaymentRefunded}
           guestDeposit={effectiveGuestDeposit}
           totalAmount={initialTotalAmount}
+          packagesTotal={packagesTotal}
+          servicesTotal={servicesTotal}
         />
       </div>
 
@@ -584,6 +590,8 @@ function StaySummaryRail({
   paymentRefunded,
   guestDeposit,
   totalAmount,
+  packagesTotal = 0,
+  servicesTotal = 0,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -593,6 +601,8 @@ function StaySummaryRail({
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
   totalAmount?: number | null;
+  packagesTotal?: number;
+  servicesTotal?: number;
 }) {
   return (
     <ReservationDetailSummary
@@ -605,6 +615,8 @@ function StaySummaryRail({
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
       totalAmount={totalAmount}
+      packagesTotal={packagesTotal > 0 ? packagesTotal : undefined}
+      servicesTotal={servicesTotal > 0 ? servicesTotal : undefined}
     />
   );
 }

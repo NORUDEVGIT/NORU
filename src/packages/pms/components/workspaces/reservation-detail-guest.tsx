@@ -82,9 +82,31 @@ import { folioLedgerSummary } from "@/packages/pms/lib/reservation-detail-folio"
 import type { GuestPreferences, GuestProfile } from "@/packages/pms/lib/guests.functions";
 import { REVIEW_ROOM_PREFERENCE_FLAGS } from "@/packages/pms/lib/create-reservation-review";
 import { cn } from "@/shared/lib/utils";
+import { SearchableSelect } from "@/shared/components/ui/searchable-select";
+import {
+  ISO_COUNTRIES,
+  countryCodeFromInput,
+  countryNameFromInput,
+} from "@/packages/pms/lib/pms-geography";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
+import {
+  ID_DOCUMENT_TYPES,
+  ID_DOCUMENT_LABELS,
+  type IdDocumentType,
+} from "@/packages/pms/lib/fo-check-in";
 
 const FIELD =
   "h-9 w-full rounded-lg border border-[#DDD4C5] bg-white px-3 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#FAF8F5]";
+
+const COUNTRY_OPTIONS = ISO_COUNTRIES.map((row) => ({ value: row.code, label: row.name }));
+
+function getCountryCode(val: string): string {
+  if (!val) return "";
+  const code = countryCodeFromInput(val);
+  if (code) return code;
+  if (val.trim().toLowerCase() === "ethiopian") return "ET";
+  return val;
+}
 
 type AccompanyingFormState = {
   id: string;
@@ -96,6 +118,7 @@ type AccompanyingFormState = {
   nationality: string;
   phone: string;
   email: string;
+  idDocumentType: string;
   idPassport: string;
   status: "local" | "stored";
   reservationRoomId?: string;
@@ -126,6 +149,8 @@ export function ReservationDetailGuestTab({
   paymentRefunded: initialPaymentRefunded,
   guestDeposit: initialGuestDeposit,
   totalAmount: initialTotalAmount,
+  packagesTotal = 0,
+  servicesTotal = 0,
   onBackToOverview,
   onSaved,
 }: {
@@ -140,6 +165,8 @@ export function ReservationDetailGuestTab({
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
   totalAmount?: number | null;
+  packagesTotal?: number;
+  servicesTotal?: number;
   onBackToOverview: () => void;
   onSaved: () => void;
 }) {
@@ -253,9 +280,10 @@ export function ReservationDetailGuestTab({
       relationship: "spouse",
       dateOfBirth: "",
       gender: "female",
-      nationality: "Ethiopian",
+      nationality: "Ethiopia",
       phone: "",
       email: "",
+      idDocumentType: "passport",
       idPassport: "",
       status: "local",
       reservationRoomId: stayRoomUnitId(reservation) ?? undefined,
@@ -270,11 +298,12 @@ export function ReservationDetailGuestTab({
       firstName,
       lastName: lastName ?? "",
       relationship: row.relationship || "spouse",
-      dateOfBirth: "",
+      dateOfBirth: row.dateOfBirth || "",
       gender: row.gender || "female",
-      nationality: "Ethiopian",
-      phone: row.contact.includes("@") ? "" : row.contact,
-      email: row.contact.includes("@") ? row.contact : "",
+      nationality: row.nationality || "Ethiopia",
+      phone: row.phone || (row.contact.includes("@") ? "" : row.contact),
+      email: row.email || (row.contact.includes("@") ? row.contact : ""),
+      idDocumentType: row.idDocumentType || "passport",
       idPassport: row.idPassport,
       status: row.status,
       reservationRoomId: row.reservationRoomId,
@@ -297,6 +326,9 @@ export function ReservationDetailGuestTab({
       const phone = companionForm.phone.trim() || null;
       const email = companionForm.email.trim() || null;
       const documentNumber = companionForm.idPassport.trim() || null;
+      const idDocumentType = companionForm.idDocumentType.trim() || null;
+      const nationality = companionForm.nationality.trim() || null;
+      const dateOfBirth = companionForm.dateOfBirth.trim() || null;
       const stored = companionForm.status === "stored";
       let guestId = stored ? companionForm.id : "";
 
@@ -325,8 +357,9 @@ export function ReservationDetailGuestTab({
                   phone,
                   email,
                   gender,
-                  nationality: companionForm.nationality || null,
-                  dateOfBirth: companionForm.dateOfBirth || null,
+                  nationality,
+                  dateOfBirth,
+                  idDocumentType: (idDocumentType as any) || null,
                   idDocumentNumber: documentNumber,
                   notes: companionProfileNotes(
                     companionForm.relationship,
@@ -355,7 +388,11 @@ export function ReservationDetailGuestTab({
           firstName: companionForm.firstName.trim(),
           lastName: companionForm.lastName.trim(),
           phone,
+          email,
           gender,
+          nationality,
+          dateOfBirth,
+          idDocumentType: (idDocumentType as any) || null,
           idDocumentNumber: documentNumber,
           relationship: companionForm.relationship,
           age: calculateAge(companionForm.dateOfBirth),
@@ -519,6 +556,8 @@ export function ReservationDetailGuestTab({
           paymentRefunded={effectivePaymentRefunded}
           guestDeposit={effectiveGuestDeposit}
           totalAmount={initialTotalAmount}
+          packagesTotal={packagesTotal}
+          servicesTotal={servicesTotal}
         />
       </div>
 
@@ -641,21 +680,28 @@ export function ReservationDetailGuestTab({
                 </Select>
               </FieldBlock>
               <FieldBlock label="Nationality *">
-                <Input
-                  className={FIELD}
-                  value={companionForm.nationality}
-                  onChange={(e) =>
-                    setCompanionForm({ ...companionForm, nationality: e.target.value })
-                  }
-                  placeholder="e.g. Ethiopian"
+                <SearchableSelect
+                  id="companion-nationality"
+                  value={getCountryCode(companionForm.nationality)}
+                  options={COUNTRY_OPTIONS}
+                  placeholder="Select nationality"
+                  searchPlaceholder="Search countries..."
+                  className={cn(FIELD, "justify-between font-normal")}
+                  onChange={(code) => {
+                    const name = countryNameFromInput(code);
+                    setCompanionForm({ ...companionForm, nationality: name });
+                  }}
                 />
               </FieldBlock>
               <FieldBlock label="Phone">
-                <Input
-                  className={FIELD}
+                <CanonicalPhoneInput
+                  id="companion-phone"
                   value={companionForm.phone}
-                  onChange={(e) => setCompanionForm({ ...companionForm, phone: e.target.value })}
+                  onChange={(phone) => setCompanionForm({ ...companionForm, phone })}
+                  defaultIso={getCountryCode(companionForm.nationality) || "ET"}
                   placeholder="Phone number"
+                  size="modal"
+                  className={FIELD}
                 />
               </FieldBlock>
               <FieldBlock label="Email">
@@ -667,18 +713,35 @@ export function ReservationDetailGuestTab({
                   placeholder="Email address"
                 />
               </FieldBlock>
-              <div className="sm:col-span-2">
-                <FieldBlock label="ID / Passport *">
-                  <Input
-                    className={FIELD}
-                    value={companionForm.idPassport}
-                    onChange={(e) =>
-                      setCompanionForm({ ...companionForm, idPassport: e.target.value })
-                    }
-                    placeholder="Document or passport number"
-                  />
-                </FieldBlock>
-              </div>
+              <FieldBlock label="Document Type *">
+                <Select
+                  value={companionForm.idDocumentType || "passport"}
+                  onValueChange={(value) =>
+                    setCompanionForm({ ...companionForm, idDocumentType: value })
+                  }
+                >
+                  <SelectTrigger className={FIELD}>
+                    <SelectValue placeholder="Select document type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ID_DOCUMENT_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {ID_DOCUMENT_LABELS[type]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FieldBlock>
+              <FieldBlock label="ID / Passport *">
+                <Input
+                  className={FIELD}
+                  value={companionForm.idPassport}
+                  onChange={(e) =>
+                    setCompanionForm({ ...companionForm, idPassport: e.target.value })
+                  }
+                  placeholder="Document or passport number"
+                />
+              </FieldBlock>
             </div>
           ) : null}
           <DialogFooter className="mt-4 flex items-center justify-end gap-2">
@@ -1144,7 +1207,14 @@ function AccompanyingGuestsCard({
               rows.map((row, index) => (
                 <tr key={row.id} className="border-b border-[#F4EEE4]">
                   <td className="py-2 pr-2 text-muted-foreground">{index + 1}</td>
-                  <td className="py-2 pr-2 font-medium text-[#251605]">{reviewDash(row.name)}</td>
+                  <td className="py-2 pr-2 font-medium text-[#251605]">
+                    <div>{reviewDash(row.name)}</div>
+                    {row.nationality ? (
+                      <div className="text-[10px] font-normal text-muted-foreground">
+                        {row.nationality}
+                      </div>
+                    ) : null}
+                  </td>
                   <td className="py-2 pr-2 text-muted-foreground">
                     {reviewDash(accompanyingRelationshipLabel(row.relationship))}
                   </td>
@@ -1153,7 +1223,14 @@ function AccompanyingGuestsCard({
                     {reviewDash(row.gender)}
                   </td>
                   <td className="py-2 pr-2 text-muted-foreground">
-                    {maskIdNumber(row.idPassport) ?? DETAIL_DASH}
+                    <div className="flex flex-col">
+                      <span>{maskIdNumber(row.idPassport) ?? DETAIL_DASH}</span>
+                      {row.idDocumentType ? (
+                        <span className="text-[10px] uppercase text-muted-foreground/75">
+                          {ID_DOCUMENT_LABELS[row.idDocumentType as IdDocumentType] ?? row.idDocumentType}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="py-2 pr-2 text-muted-foreground">{reviewDash(row.contact)}</td>
                   <td className="py-2 text-right">
@@ -1315,6 +1392,8 @@ function GuestSummaryRail({
   paymentRefunded,
   guestDeposit,
   totalAmount,
+  packagesTotal = 0,
+  servicesTotal = 0,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -1324,6 +1403,8 @@ function GuestSummaryRail({
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
   totalAmount?: number | null;
+  packagesTotal?: number;
+  servicesTotal?: number;
 }) {
   return (
     <ReservationDetailSummary
@@ -1336,6 +1417,8 @@ function GuestSummaryRail({
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
       totalAmount={totalAmount}
+      packagesTotal={packagesTotal > 0 ? packagesTotal : undefined}
+      servicesTotal={servicesTotal > 0 ? servicesTotal : undefined}
     />
   );
 }

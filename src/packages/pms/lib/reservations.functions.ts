@@ -1134,7 +1134,8 @@ export const getReservation = createServerFn({ method: "POST" })
               is_primary: boolean;
             }>);
       const guestIds = [...new Set(occupantRows.map((occupant) => occupant.guest_id))];
-      const profileSelect = "id, first_name, last_name, phone, gender, id_document_number, notes";
+      const profileSelect =
+        "id, first_name, last_name, phone, email, gender, nationality, date_of_birth, id_document_type, id_document_number, notes";
       const richProfiles =
         guestIds.length === 0
           ? { data: [], error: null }
@@ -1169,7 +1170,11 @@ export const getReservation = createServerFn({ method: "POST" })
               [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() || "Guest",
             isPrimary: occupant.is_primary,
             phone: profile?.phone ?? null,
+            email: profile?.email ?? null,
             gender: profile?.gender ?? null,
+            nationality: profile?.nationality ?? null,
+            dateOfBirth: profile?.date_of_birth ?? null,
+            idDocumentType: profile?.id_document_type ?? null,
             idDocumentNumber: profile?.id_document_number ?? null,
             notes: profile?.notes ?? null,
           };

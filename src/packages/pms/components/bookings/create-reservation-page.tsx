@@ -20,8 +20,18 @@ import {
   type RoomingRateLabel,
 } from "@/packages/pms/components/bookings/create-reservation-rooming-list";
 import { CreateReservationPackages } from "@/packages/pms/components/bookings/create-reservation-packages";
-import { packageChargeFigures } from "@/packages/pms/lib/room-charge-guest-total";
+import {
+  effectiveServiceQuantity,
+  packageChargeFigures,
+} from "@/packages/pms/lib/room-charge-guest-total";
 import { usePackageChargeRules } from "@/packages/pms/lib/use-package-charge-rules";
+import { useServiceChargeRules } from "@/packages/pms/lib/use-service-charge-rules";
+import {
+  serviceLineDetail,
+  serviceLineFigures,
+  type ServiceStayContext,
+} from "@/packages/pms/lib/reservation-service-lines";
+import { reseedServiceSelections } from "@/packages/pms/components/bookings/reservation-service-picker";
 import { CreateReservationRoomingSummary } from "@/packages/pms/components/bookings/create-reservation-rooming-summary";
 import { CreateReservationGuarantee } from "@/packages/pms/components/bookings/create-reservation-guarantee";
 import {
@@ -309,6 +319,7 @@ export function CreateReservationPage({
 }) {
   const restaurantId = membership.restaurant.id;
   const packageChargeRules = usePackageChargeRules(restaurantId);
+  const serviceChargeRules = useServiceChargeRules(restaurantId);
   const timezone = useRestaurantTimezone();
   const today = propertyToday(timezone);
   const walkInMode = isWalkInCreateMode(mode);
@@ -1402,10 +1413,24 @@ export function CreateReservationPage({
               priority: "normal",
               description: row.description.trim() || row.name,
               reservationId: result.id,
+              quantity: effectiveServiceQuantity(row.pricingUnit ?? null, row.quantity ?? 1),
             },
           });
-          if (created.ok) createdServiceNames.push(row.name);
-          else toast.error(created.message);
+          if (created.ok) {
+            const line = {
+              pricingUnit: row.pricingUnit ?? null,
+              unitAmount: row.unitAmount ?? null,
+              quantity: row.quantity ?? 1,
+              departmentId: row.departmentId ?? null,
+            };
+            const figures = serviceLineFigures(line, serviceChargeRules.data);
+            const detail = serviceLineDetail(line, money);
+            createdServiceNames.push(
+              [row.name, detail, figures.total != null ? money(figures.total) : null]
+                .filter(Boolean)
+                .join(" — "),
+            );
+          } else toast.error(created.message);
         }
       }
       const sourceLabel =
@@ -1752,6 +1777,53 @@ export function CreateReservationPage({
     availabilitySearchActive,
     roomTypeId,
   ]);
+
+  const serviceStayTotals = groupMode ? groupStayTotals(currentRooming()) : null;
+  const serviceStay: ServiceStayContext = {
+    nights: Math.max(1, nights),
+    persons: Math.max(
+      1,
+      serviceStayTotals
+        ? serviceStayTotals.adults + serviceStayTotals.children
+        : adults + children,
+    ),
+    rooms: Math.max(1, serviceStayTotals ? serviceStayTotals.rooms : 1),
+  };
+  useEffect(() => {
+    setSelectedServiceRequests((current) => reseedServiceSelections(current, serviceStay));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceStay.nights, serviceStay.persons, serviceStay.rooms]);
+  useEffect(() => {
+    if (activeServiceTypes.length === 0) return;
+    setSelectedServiceRequests((current) => {
+      if (current.every((row) => row.pricingUnit !== undefined)) return current;
+      return current.map((row) => {
+        if (row.pricingUnit !== undefined) return row;
+        const type = activeServiceTypes.find((item) => item.id === row.serviceTypeId);
+        if (!type) return row;
+        return {
+          ...row,
+          pricingUnit: type.pricingUnit,
+          unitAmount: type.amount,
+          departmentId: type.departmentId,
+          quantity: row.quantity ?? 1,
+        };
+      });
+    });
+  }, [activeServiceTypes]);
+  const selectedServiceFigures = selectedServiceRequests.map((row) => {
+    const line = {
+      pricingUnit: row.pricingUnit ?? null,
+      unitAmount: row.unitAmount ?? null,
+      quantity: row.quantity ?? 1,
+      departmentId: row.departmentId ?? null,
+    };
+    return {
+      row,
+      line,
+      figures: serviceLineFigures(line, serviceChargeRules.data),
+    };
+  });
 
   if (accessQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (!canManage) {
@@ -2645,6 +2717,12 @@ export function CreateReservationPage({
                 : packageChargeFigures(card.price, packageChargeRules.data).total,
             chargeBasis: card.chargeType,
           }))}
+          services={selectedServiceFigures.map(({ row, line, figures }) => ({
+            name: row.name,
+            detail: serviceLineDetail(line, money),
+            net: figures.net,
+            total: figures.total,
+          }))}
           mealPlanLabel={selectedQuote?.plan.mealPlanName ?? null}
           breakfastIncluded={Boolean(
             selectedQuote?.plan.breakfastIncluded ||
@@ -3023,7 +3101,13 @@ export function CreateReservationPage({
       leadGuestPreferences={groupMode}
       packageScopeNote={groupMode ? "Booking-level package" : null}
       savedPreferences={savedPreferenceRows}
-      selectedServiceRequests={selectedServiceRequests}
+      selectedServiceRequests={selectedServiceFigures.map(({ row, line, figures }) => ({
+        serviceTypeId: row.serviceTypeId,
+        name: row.name,
+        description: row.description,
+        detail: serviceLineDetail(line, money),
+        priceLabel: figures.total != null ? money(figures.total) : null,
+      }))}
       selectedPackages={selectedCreatePackages.map((card) => ({
         key: card.activationId ?? card.id,
         name: card.name,
@@ -3428,6 +3512,9 @@ export function CreateReservationPage({
         serviceTypesLoading={Boolean(guest) && serviceCatalogueQuery.isLoading}
         selectedServiceRequests={selectedServiceRequests}
         onSelectedServiceRequestsChange={setSelectedServiceRequests}
+        serviceStay={serviceStay}
+        serviceRules={serviceChargeRules.data ?? null}
+        money={money}
         packagesSlot={
           <CreateReservationPackages
             loading={set3Query.isLoading || set3Query.isFetching}

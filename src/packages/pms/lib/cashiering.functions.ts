@@ -43,6 +43,7 @@ import {
   type FolioDepositLine,
   type FolioFinancialSummary,
 } from "./folio-workspace";
+import { serviceQuantityEditable } from "./room-charge-guest-total";
 
 const idSchema = z.string().uuid();
 
@@ -123,6 +124,9 @@ export interface FolioDetail extends FolioRow {
   arrivalDate: string | null;
   departureDate: string | null;
   reservationStatus: string | null;
+  adults?: number | null;
+  children?: number | null;
+  roomCount?: number | null;
   guaranteeMethod?: string | null;
   salesChannel?: string | null;
   ratePlanId?: string | null;
@@ -621,7 +625,7 @@ export async function loadGuestFolio(
     .select(
       "id, folio_number, status, currency, opened_at, closed_at, reservation_id, guest_id, settlement_exception, " +
         "guest_profiles!guest_folios_guest_same_property(first_name, last_name, email, phone, nationality, vip_status), " +
-        "hotel_reservations!guest_folios_reservation_same_property(id, confirmation_number, arrival_date, departure_date, status, company_master_id, group_account_master_id, market_segment, commercial_booking_source, commercial_sales_channel, guarantee_method, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name), rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property(id, code, name))",
+        "hotel_reservations!guest_folios_reservation_same_property(id, confirmation_number, arrival_date, departure_date, status, adults, children, company_master_id, group_account_master_id, market_segment, commercial_booking_source, commercial_sales_channel, guarantee_method, hotel_rooms!hotel_reservations_room_same_type(room_number), room_types!hotel_reservations_type_same_property(name), rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property(id, code, name))",
     )
     .eq("id", folioId)
     .eq("restaurant_id", restaurantId)
@@ -653,6 +657,8 @@ export async function loadGuestFolio(
       arrival_date: string;
       departure_date: string;
       status: string;
+      adults?: number | null;
+      children?: number | null;
       company_master_id: string | null;
       group_account_master_id: string | null;
       market_segment: string | null;
@@ -755,7 +761,8 @@ export async function loadGuestFolio(
   }));
 
   const reservation = f.hotel_reservations;
-  const [invoiceLoad, marketSegment, bookingSource, salesChannel] = await Promise.all([
+  const reservationKey = reservation?.id ?? f.reservation_id;
+  const [invoiceLoad, marketSegment, bookingSource, salesChannel, roomUnits] = await Promise.all([
     loadGuestFolioInvoices(supabaseAdmin, restaurantId, f.id),
     resolveCatalogueLabel(
       supabaseAdmin,
@@ -770,6 +777,14 @@ export async function loadGuestFolio(
       reservation?.commercial_booking_source,
     ),
     resolveSalesChannelLabel(supabaseAdmin, restaurantId, reservation?.commercial_sales_channel),
+    reservationKey
+      ? supabaseAdmin
+          .from("hotel_reservation_rooms")
+          .select("id", { count: "exact", head: true })
+          .eq("restaurant_id", restaurantId)
+          .eq("reservation_id", reservationKey)
+          .then((result) => (result.error ? null : result.count))
+      : Promise.resolve(null),
   ]);
 
   return {
@@ -790,6 +805,9 @@ export async function loadGuestFolio(
     arrivalDate: f.hotel_reservations?.arrival_date ?? null,
     departureDate: f.hotel_reservations?.departure_date ?? null,
     reservationStatus: f.hotel_reservations?.status ?? null,
+    adults: f.hotel_reservations?.adults ?? null,
+    children: f.hotel_reservations?.children ?? null,
+    roomCount: roomUnits && roomUnits > 0 ? roomUnits : null,
     guaranteeMethod: f.hotel_reservations?.guarantee_method ?? null,
     salesChannel,
     openedAt: f.opened_at,
@@ -1764,7 +1782,6 @@ function readChargeableService(value: unknown): ChargeableGuestService | null {
     row.pricingUnit == null || row.pricingUnit === "" ? null : String(row.pricingUnit);
   if (rawUnit && !PRICING_UNITS.includes(rawUnit as ChargePricingUnit)) return null;
   const pricingUnit = rawUnit as ChargePricingUnit | null;
-  const fixed = pricingUnit == null || pricingUnit === "per_service" || pricingUnit === "per_room";
   return {
     serviceTypeId,
     code: String(row.code ?? ""),
@@ -1778,7 +1795,7 @@ function readChargeableService(value: unknown): ChargeableGuestService | null {
     pricingUnit,
     currency: String(row.currency ?? ""),
     unitAmount: row.unitAmount == null || row.unitAmount === "" ? null : Number(row.unitAmount),
-    quantityMode: fixed ? "fixed" : "editable",
+    quantityMode: serviceQuantityEditable(pricingUnit) ? "editable" : "fixed",
     chargeable: row.chargeable === true,
     priced: row.priced === true,
     currencyMatches: row.currencyMatches === true,

@@ -70,6 +70,9 @@ export function ReservationDetailFolioTab({
   paymentReceived = null,
   paymentRefunded = null,
   guestDeposit = null,
+  totalAmount = null,
+  packagesTotal = 0,
+  servicesTotal = 0,
   coverUrl,
 }: {
   restaurantId: string;
@@ -78,6 +81,9 @@ export function ReservationDetailFolioTab({
   paymentReceived?: number | null;
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
+  totalAmount?: number | null;
+  packagesTotal?: number;
+  servicesTotal?: number;
   coverUrl: string | null;
 }) {
   const queryClient = useQueryClient();
@@ -131,7 +137,7 @@ export function ReservationDetailFolioTab({
 
   const folio = folioQuery.data ?? null;
   const summary = folioLedgerSummary(folio);
-  const cards = folioKpiCards(folio);
+  const cards = folioKpiCards(folio, totalAmount);
   const issuedInvoice = folio?.issuedInvoice ?? folio?.issuedInvoices[0] ?? null;
   const cashierCanOperate = accessQuery.data?.canOperate ?? false;
   const cashierCanManage = accessQuery.data?.canManage ?? false;
@@ -284,7 +290,9 @@ export function ReservationDetailFolioTab({
           money={money}
           coverUrl={coverUrl}
           nights={nights}
-          packagesTotal={summary?.packageCharges ?? 0}
+          packagesTotal={packagesTotal}
+          servicesTotal={servicesTotal}
+          totalAmount={totalAmount}
           folioBalance={summary?.balance ?? folio?.balance ?? null}
         />
       </div>
@@ -741,6 +749,8 @@ function FolioSummaryRail({
   coverUrl,
   nights,
   packagesTotal,
+  servicesTotal,
+  totalAmount,
   folioBalance,
   paymentReceived,
   paymentRefunded,
@@ -751,6 +761,8 @@ function FolioSummaryRail({
   coverUrl: string | null;
   nights: number;
   packagesTotal: number;
+  servicesTotal: number;
+  totalAmount: number | null;
   folioBalance: number | null;
   paymentReceived: number | null;
   paymentRefunded: number | null;
@@ -763,12 +775,14 @@ function FolioSummaryRail({
       money={money}
       coverUrl={coverUrl}
       nights={nights}
-      packagesTotal={packagesTotal}
+      packagesTotal={packagesTotal > 0 ? packagesTotal : undefined}
+      servicesTotal={servicesTotal > 0 ? servicesTotal : undefined}
       folioBalance={folioBalance}
       paymentReceived={paymentReceived}
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
-      roomTotalLabel="Reservation room total"
+      totalAmount={totalAmount}
+      roomTotalLabel="Total Amount"
       showFolioBalance
     />
   );

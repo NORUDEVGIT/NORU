@@ -162,8 +162,19 @@ export function netPaidFromLedger(summary: FolioLedgerSummary | null): number | 
   return roundMoney(summary.payments - summary.refunds);
 }
 
-export function folioKpiCards(folio: FolioDetail | null): FolioKpiCard[] {
+export function folioKpiCards(
+  folio: FolioDetail | null,
+  reservationTotal: number | null = null,
+): FolioKpiCard[] {
   return [
+    {
+      id: "stay",
+      name: "Total Amount",
+      status: folio ? folioActiveLabel(folio.status) : "Quoted",
+      amountLabel: "Expected stay",
+      amount: reservationTotal,
+      realFolio: Boolean(folio),
+    },
     {
       id: "room",
       name: "Guest Folio",

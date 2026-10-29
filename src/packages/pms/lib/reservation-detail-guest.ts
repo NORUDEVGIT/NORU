@@ -35,8 +35,13 @@ export type AccompanyingGuestDraft = {
   relationship: string;
   age: string;
   gender: string;
+  nationality?: string;
+  dateOfBirth?: string;
+  idDocumentType?: string;
   idPassport: string;
   contact: string;
+  phone?: string;
+  email?: string;
   status: "local" | "stored";
   reservationRoomId?: string;
 };
@@ -275,8 +280,13 @@ export function accompanyingFromReservation(
         relationship: meta.relationship,
         age: meta.age,
         gender: occupant.gender ?? "",
+        nationality: occupant.nationality ?? "",
+        dateOfBirth: occupant.dateOfBirth ?? "",
+        idDocumentType: occupant.idDocumentType ?? "",
         idPassport: occupant.idDocumentNumber ?? "",
-        contact: occupant.phone ?? "",
+        contact: occupant.phone ?? occupant.email ?? "",
+        phone: occupant.phone ?? "",
+        email: occupant.email ?? "",
         status: "stored",
         reservationRoomId: unit.id,
       });

@@ -108,6 +108,8 @@ export function ReservationDetailRoomsTab({
   paymentRefunded = null,
   guestDeposit = null,
   totalAmount,
+  packagesTotal = 0,
+  servicesTotal = 0,
   coverUrl,
   occupancyLabel,
   onBackToGuest,
@@ -124,6 +126,8 @@ export function ReservationDetailRoomsTab({
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
   totalAmount?: number | null;
+  packagesTotal?: number;
+  servicesTotal?: number;
   coverUrl: string | null;
   occupancyLabel: string | null;
   onBackToGuest: () => void;
@@ -528,6 +532,8 @@ export function ReservationDetailRoomsTab({
           paymentRefunded={paymentRefunded}
           guestDeposit={guestDeposit}
           totalAmount={totalAmount}
+          packagesTotal={packagesTotal}
+          servicesTotal={servicesTotal}
           nights={nights}
         />
       </div>
@@ -1029,6 +1035,8 @@ function RoomsSummaryRail({
   paymentRefunded,
   guestDeposit,
   totalAmount,
+  packagesTotal = 0,
+  servicesTotal = 0,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -1038,6 +1046,8 @@ function RoomsSummaryRail({
   paymentRefunded: number | null;
   guestDeposit: number | null;
   totalAmount?: number | null;
+  packagesTotal?: number;
+  servicesTotal?: number;
 }) {
   return (
     <ReservationDetailSummary
@@ -1050,6 +1060,8 @@ function RoomsSummaryRail({
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
       totalAmount={totalAmount}
+      packagesTotal={packagesTotal > 0 ? packagesTotal : undefined}
+      servicesTotal={servicesTotal > 0 ? servicesTotal : undefined}
     />
   );
 }

@@ -106,8 +106,10 @@ import {
   resolveHistoryField,
 } from "@/packages/pms/lib/reservation-detail-group";
 import { quoteReservationRoomGuestTotal } from "@/packages/pms/lib/room-charge-guest-total.functions";
-import { packageChargeFigures } from "@/packages/pms/lib/room-charge-guest-total";
+import { packageChargeFigures, sumReservationGuestTotal } from "@/packages/pms/lib/room-charge-guest-total";
+import { reservationServicePrintLine } from "@/packages/pms/lib/reservation-service-lines";
 import { usePackageChargeRules } from "@/packages/pms/lib/use-package-charge-rules";
+import { useReservationServiceCharges } from "@/packages/pms/lib/use-reservation-service-charges";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
 import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
 import { getReservationCreateSourceChannel } from "@/packages/pms/lib/reservation-source-channel.functions";
@@ -381,6 +383,11 @@ export function ReservationDetailWorkspace({
         : [];
   const fetchRoomGuestTotal = useServerFn(quoteReservationRoomGuestTotal);
   const packageChargeRules = usePackageChargeRules(restaurantId, canManage);
+  const reservationServices = useReservationServiceCharges(
+    restaurantId,
+    reservation?.id,
+    canManage && Boolean(reservation?.id),
+  );
   const roomGuestTotalQuery = useQuery({
     queryKey: ["reservation-room-guest-total", restaurantId, roomChargeAmounts],
     queryFn: () => fetchRoomGuestTotal({ data: { restaurantId, amounts: roomChargeAmounts } }),
@@ -488,7 +495,19 @@ export function ReservationDetailWorkspace({
   const headerRoomTotal = groupReservation
     ? groupCombinedSubtotal(reservation)
     : reservation.roomSubtotal;
-  const headerGuestTotal = roomGuestTotalQuery.data?.total ?? headerRoomTotal;
+  const baseGuestTotal = roomGuestTotalQuery.data?.total ?? headerRoomTotal;
+  const headerPackageTotal = Math.round(
+    (commercialQuery.data?.packages ?? []).reduce(
+      (sum, row) => sum + packageChargeFigures(row.appliedAmount, packageChargeRules.data).total,
+      0,
+    ) * 100,
+  ) / 100;
+  const headerServiceTotal = reservationServices.total;
+  const headerGuestTotal = sumReservationGuestTotal(
+    baseGuestTotal,
+    headerPackageTotal,
+    headerServiceTotal,
+  );
   const detailActionBar = detailActions ? (
     <ReservationDetailActionBar
       result={detailActions}
@@ -739,7 +758,19 @@ export function ReservationDetailWorkspace({
       preferences: guestProfilePreferenceChips(guestQuery.data?.preferences).map(
         (chip) => chip.label,
       ),
-      serviceRequests: [],
+      serviceRequests: reservationServices.lines.map((row) =>
+        reservationServicePrintLine(
+          row.charge.serviceName,
+          {
+            pricingUnit: row.charge.pricingUnit,
+            unitAmount: row.charge.unitAmount,
+            quantity: row.charge.quantity,
+            departmentId: row.charge.departmentId,
+          },
+          money,
+          reservationServices.rules.data,
+        ),
+      ),
       specialRequests: reservation.specialRequests,
       roomAssignment: reservation.roomNumber ? `Room ${reservation.roomNumber}` : null,
       reservationKind: persistedGroup ? "group" : "single",
@@ -777,6 +808,8 @@ export function ReservationDetailWorkspace({
         paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
         totalAmount={headerGuestTotal}
+        packagesTotal={headerPackageTotal}
+        servicesTotal={headerServiceTotal}
         onBackToOverview={() => setDetailTab("overview")}
         onSaved={invalidate}
       />
@@ -794,6 +827,8 @@ export function ReservationDetailWorkspace({
         paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
         totalAmount={headerGuestTotal}
+        packagesTotal={headerPackageTotal}
+        servicesTotal={headerServiceTotal}
         onBackToOverview={() => setDetailTab("overview")}
         onSaved={invalidate}
       />
@@ -827,6 +862,8 @@ export function ReservationDetailWorkspace({
         paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
         totalAmount={headerGuestTotal}
+        packagesTotal={headerPackageTotal}
+        servicesTotal={headerServiceTotal}
         coverUrl={roomType?.coverUrl ?? null}
         occupancyLabel={
           roomType ? `${roomType.adultCapacity} adults · ${roomType.childCapacity} children` : null
@@ -860,6 +897,9 @@ export function ReservationDetailWorkspace({
         paymentReceived={paymentReceived}
         paymentRefunded={paymentRefunded}
         guestDeposit={guestDepositReceived}
+        totalAmount={headerGuestTotal}
+        packagesTotal={headerPackageTotal}
+        servicesTotal={headerServiceTotal}
         coverUrl={roomType?.coverUrl ?? null}
       />
     );
@@ -988,11 +1028,8 @@ export function ReservationDetailWorkspace({
             },
             reservationHeaderRoomKpi(reservation),
             {
-              label: detailTab === "folio" ? "Reservation room total" : "Total Amount",
-              value:
-                (detailTab === "folio" ? headerRoomTotal : headerGuestTotal) == null
-                  ? DETAIL_DASH
-                  : money(detailTab === "folio" ? headerRoomTotal! : headerGuestTotal!),
+              label: "Total Amount",
+              value: headerGuestTotal == null ? DETAIL_DASH : money(headerGuestTotal),
             },
             {
               label: "Payment Received",
