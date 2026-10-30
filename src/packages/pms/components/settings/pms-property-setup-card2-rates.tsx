@@ -69,6 +69,17 @@ import {
   type EarlyDeparturePenaltyType,
 } from "@/packages/pms/lib/early-departure-policy";
 import { formatRateValidity } from "@/packages/pms/lib/pms-property-setup-card2";
+import {
+  computeRatePlanBaseFromDefaults,
+  occupancyFieldsFromRoomTypeDefaults,
+  occupancyFieldsFromSavedRatePlan,
+  roomTypeBaseIsConfigured,
+  type RatePlanPricingMethod,
+} from "@/packages/pms/lib/rate-plan-from-defaults";
+import {
+  parseOptionalIncludedField,
+  RatePlanPricingSetup,
+} from "@/packages/pms/components/settings/rate-plan-pricing-setup";
 import { cn } from "@/shared/lib/utils";
 
 const NONE = "__none__";
@@ -990,6 +1001,9 @@ function PlanDrawer({
     depositPolicyId: string | null;
     noShowPolicyId: string | null;
     earlyDeparturePolicyId: string | null;
+    includedOccupancy: number | null;
+    extraAdultRate: number | null;
+    extraChildRate: number | null;
     active: boolean;
   }) => void;
 }) {
@@ -998,7 +1012,22 @@ function PlanDrawer({
   const [code, setCode] = useState(value?.code ?? "");
   const [name, setName] = useState(value?.name ?? "");
   const [description, setDescription] = useState(value?.description ?? "");
-  const [baseRate, setBaseRate] = useState(value?.baseRate ?? 0);
+  const initialType = roomTypes.find((row) => row.id === (value?.roomTypeId ?? roomTypes[0]?.id));
+  const createDefaults = occupancyFieldsFromRoomTypeDefaults(initialType);
+  const savedOccupancy = occupancyFieldsFromSavedRatePlan(value);
+  const [baseRate, setBaseRate] = useState(() => {
+    if (value) return value.baseRate;
+    const computed = computeRatePlanBaseFromDefaults({
+      method: roomTypeBaseIsConfigured(initialType?.baseNightlyRate) ? "use_base" : "fixed",
+      roomTypeBase: initialType?.baseNightlyRate,
+      fixedPrice: 0,
+    });
+    return computed.ok ? computed.baseRate : 0;
+  });
+  const [pricingMethod, setPricingMethod] = useState<RatePlanPricingMethod>(
+    value ? "fixed" : roomTypeBaseIsConfigured(initialType?.baseNightlyRate) ? "use_base" : "fixed",
+  );
+  const [methodPercent, setMethodPercent] = useState(10);
   const [validFrom, setValidFrom] = useState(value?.validFrom ?? "");
   const [validTo, setValidTo] = useState(value?.validTo ?? "");
   const [mealPlanId, setMealPlanId] = useState(value?.mealPlanId ?? NONE);
@@ -1011,14 +1040,49 @@ function PlanDrawer({
   const [earlyDeparturePolicyId, setEarlyDeparturePolicyId] = useState(
     value?.earlyDeparturePolicyId ?? NONE,
   );
+  const selectedType = roomTypes.find((row) => row.id === roomTypeId);
+  const [includedOccupancy, setIncludedOccupancy] = useState(
+    value ? savedOccupancy.includedOccupancy : createDefaults.includedOccupancy,
+  );
+  const [extraAdultRate, setExtraAdultRate] = useState(
+    value ? savedOccupancy.extraAdultRate : createDefaults.extraAdultRate,
+  );
+  const [extraChildRate, setExtraChildRate] = useState(
+    value ? savedOccupancy.extraChildRate : createDefaults.extraChildRate,
+  );
   const [active, setActive] = useState(value?.active ?? true);
+
+  function applyPricingMethod(method: RatePlanPricingMethod, percent = methodPercent) {
+    setPricingMethod(method);
+    if (value) return;
+    const computed = computeRatePlanBaseFromDefaults({
+      method,
+      roomTypeBase: selectedType?.baseNightlyRate,
+      percent,
+      fixedPrice: method === "fixed" ? baseRate : selectedType?.baseNightlyRate,
+    });
+    if (computed.ok) setBaseRate(computed.baseRate);
+  }
+
+  function copyRoomTypeDefaults(nextType = selectedType) {
+    if (!nextType) return;
+    const next = occupancyFieldsFromRoomTypeDefaults(nextType);
+    setIncludedOccupancy(next.includedOccupancy);
+    setExtraAdultRate(next.extraAdultRate);
+    setExtraChildRate(next.extraChildRate);
+    const computed = computeRatePlanBaseFromDefaults({
+      method: "use_base",
+      roomTypeBase: nextType.baseNightlyRate,
+    });
+    if (computed.ok) setBaseRate(computed.baseRate);
+  }
 
   return (
     <Card3OverlapSheet
       open={open}
       onClose={onClose}
       title={value ? "Edit rate plan" : "Add rate plan"}
-      description="Choose an existing Card 2 room type. Setup changes do not reprice confirmed reservations."
+      description="Choose an existing Card 2 room type. Pricing method is create-time only — only the final base rate is saved. Room Type changes do not update this Rate Plan."
       canEdit={canEdit && Boolean(categoryId) && Boolean(roomTypeId)}
       pending={pending}
       submitLabel="Save rate plan"
@@ -1039,6 +1103,9 @@ function PlanDrawer({
           depositPolicyId: optionalId(depositPolicyId),
           noShowPolicyId: optionalId(noShowPolicyId),
           earlyDeparturePolicyId: optionalId(earlyDeparturePolicyId),
+          includedOccupancy: parseOptionalIncludedField(includedOccupancy),
+          extraAdultRate: extraAdultRate.trim() === "" ? null : Number(extraAdultRate),
+          extraChildRate: extraChildRate.trim() === "" ? null : Number(extraChildRate),
           active,
         })
       }
@@ -1061,7 +1128,31 @@ function PlanDrawer({
         </div>
         <div className="space-y-1">
           <Label>Room type (Card 2)</Label>
-          <Select value={roomTypeId} disabled={!canEdit} onValueChange={setRoomTypeId}>
+          <Select
+            value={roomTypeId}
+            disabled={!canEdit}
+            onValueChange={(nextId) => {
+              setRoomTypeId(nextId);
+              const nextType = roomTypes.find((row) => row.id === nextId);
+              if (!value && nextType) {
+                const next = occupancyFieldsFromRoomTypeDefaults(nextType);
+                setIncludedOccupancy(next.includedOccupancy);
+                setExtraAdultRate(next.extraAdultRate);
+                setExtraChildRate(next.extraChildRate);
+                const nextMethod = roomTypeBaseIsConfigured(nextType.baseNightlyRate)
+                  ? pricingMethod
+                  : "fixed";
+                setPricingMethod(nextMethod);
+                const computed = computeRatePlanBaseFromDefaults({
+                  method: nextMethod,
+                  roomTypeBase: nextType.baseNightlyRate,
+                  percent: methodPercent,
+                  fixedPrice: nextType.baseNightlyRate ?? 0,
+                });
+                if (computed.ok) setBaseRate(computed.baseRate);
+              }
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select a room type" />
             </SelectTrigger>
@@ -1250,18 +1341,31 @@ function PlanDrawer({
             </Select>
           </div>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="plan-rate">Base rate</Label>
-          <Input
-            id="plan-rate"
-            type="number"
-            min={0}
-            step="any"
-            value={baseRate}
-            disabled={!canEdit}
-            onChange={(event) => setBaseRate(Number(event.target.value))}
-          />
-        </div>
+        <RatePlanPricingSetup
+          canEdit={canEdit}
+          isCreate={!value}
+          selectedType={selectedType}
+          savedBaseRate={value?.baseRate}
+          pricingMethod={pricingMethod}
+          methodPercent={methodPercent}
+          baseRate={baseRate}
+          includedOccupancy={includedOccupancy}
+          extraAdultRate={extraAdultRate}
+          extraChildRate={extraChildRate}
+          onPricingMethodChange={(method) => applyPricingMethod(method)}
+          onPercentChange={(percent) => {
+            setMethodPercent(percent);
+            applyPricingMethod(pricingMethod, percent);
+          }}
+          onBaseRateChange={(rate) => {
+            setPricingMethod("fixed");
+            setBaseRate(rate);
+          }}
+          onIncludedChange={setIncludedOccupancy}
+          onExtraAdultChange={setExtraAdultRate}
+          onExtraChildChange={setExtraChildRate}
+          onRecalculateFromType={() => copyRoomTypeDefaults()}
+        />
         <div className="flex items-center justify-between rounded-xl border px-3 py-2">
           <Label htmlFor="plan-active">Active</Label>
           <Switch

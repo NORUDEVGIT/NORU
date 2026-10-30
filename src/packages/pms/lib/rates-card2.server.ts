@@ -40,6 +40,14 @@ export type Card2RoomTypeRef = {
   code: string;
   name: string;
   active: boolean;
+  /** SETUP DEFAULT ONLY. NOT READ DIRECTLY BY price_hotel_stay. */
+  baseNightlyRate: number | null;
+  standardOccupancy: number;
+  /** SETUP DEFAULT ONLY. NOT READ DIRECTLY BY price_hotel_stay. */
+  extraAdultRateDefault: number | null;
+  /** SETUP DEFAULT ONLY. NOT READ DIRECTLY BY price_hotel_stay. */
+  extraChildRateDefault: number | null;
+  maxOccupancy?: number | null;
 };
 
 export type RateCategoryRow = {
@@ -135,6 +143,10 @@ export type RatePlanRow = {
   noShowPolicyName: string;
   earlyDeparturePolicyId: string | null;
   earlyDeparturePolicyName: string;
+  /** Live occupancy authority after save. Room Type defaults are not re-read. */
+  includedOccupancy: number | null;
+  extraAdultRate: number | null;
+  extraChildRate: number | null;
   active: boolean;
 };
 

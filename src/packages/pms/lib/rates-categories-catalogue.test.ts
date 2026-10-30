@@ -111,7 +111,18 @@ describe("NORU PMS — Property Setup: Predefined Rate Category Catalogue", () =
 
     // Preserves existing BAR ID and rate plan relationships
     const snapshot: RatesCard2Snapshot = {
-      roomTypes: [{ id: "rt-1", code: "DLX", name: "Deluxe", active: true }],
+      roomTypes: [
+        {
+          id: "rt-1",
+          code: "DLX",
+          name: "Deluxe",
+          active: true,
+          baseNightlyRate: null,
+          standardOccupancy: 2,
+          extraAdultRateDefault: null,
+          extraChildRateDefault: null,
+        },
+      ],
       categories: configuredWithBar,
       plans: [
         {
@@ -179,7 +190,18 @@ describe("NORU PMS — Property Setup: Predefined Rate Category Catalogue", () =
   it("37. Readiness does NOT require all 20 categories and page load is read-only", () => {
     // Snapshot with only 1 category and 1 active plan
     const snapshot: RatesCard2Snapshot = {
-      roomTypes: [{ id: "rt-1", code: "STD", name: "Standard", active: true }],
+      roomTypes: [
+        {
+          id: "rt-1",
+          code: "STD",
+          name: "Standard",
+          active: true,
+          baseNightlyRate: null,
+          standardOccupancy: 2,
+          extraAdultRateDefault: null,
+          extraChildRateDefault: null,
+        },
+      ],
       categories: [{ id: "cat-1", code: "BAR", name: "Best Available Rate", active: true }],
       plans: [
         {

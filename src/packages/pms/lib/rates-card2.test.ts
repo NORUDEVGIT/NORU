@@ -84,12 +84,26 @@ function emptyPlanFields() {
     noShowPolicyName: "",
     earlyDeparturePolicyId: null as string | null,
     earlyDeparturePolicyName: "",
+    includedOccupancy: null as number | null,
+    extraAdultRate: null as number | null,
+    extraChildRate: null as number | null,
   };
 }
 
 function makeSnapshot(partial?: Partial<RatesCard2Snapshot>): RatesCard2Snapshot {
   return {
-    roomTypes: [{ id: "rt-1", code: "DLX", name: "Deluxe Room", active: true }],
+    roomTypes: [
+      {
+        id: "rt-1",
+        code: "DLX",
+        name: "Deluxe Room",
+        active: true,
+        baseNightlyRate: 12500,
+        standardOccupancy: 2,
+        extraAdultRateDefault: 1200,
+        extraChildRateDefault: 600,
+      },
+    ],
     categories: [{ id: "cat-1", code: "BAR", name: "Best Available Rate", active: true }],
     mealPlans: [],
     cancellationPolicies: [],

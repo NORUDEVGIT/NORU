@@ -66,6 +66,7 @@ import {
   PropertySetupRemoveButton,
 } from "@/packages/pms/components/settings/setup-kit";
 import { RoomTypeImagesDialog } from "@/packages/pms/components/rooms/room-type-dialogs";
+import { RoomTypeWizard } from "@/packages/pms/components/settings/room-type-wizard/room-type-wizard";
 
 type TypeForm = {
   id?: string;
@@ -392,6 +393,7 @@ export function PmsPropertySetupCard2RoomTypes({
 
   const [typeForm, setTypeForm] = useState<TypeForm>(emptyType);
   const [typeEditorOpen, setTypeEditorOpen] = useState(false);
+  const [wizardType, setWizardType] = useState<RoomType | null | undefined>(undefined);
   const [imagesFor, setImagesFor] = useState<RoomType | null>(null);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [addClassOpen, setAddClassOpen] = useState(false);
@@ -704,6 +706,24 @@ export function PmsPropertySetupCard2RoomTypes({
     bulk.wingId,
   );
 
+  if (wizardType !== undefined) {
+    return (
+      <RoomTypeWizard
+        restaurantId={restaurantId}
+        canEdit={canEdit}
+        initialType={wizardType}
+        initialRoomsForType={
+          wizardType ? rooms.filter((room) => room.roomTypeId === wizardType.id) : []
+        }
+        onClose={() => setWizardType(undefined)}
+        onCompleted={() => {
+          setWizardType(undefined);
+          refresh();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-5" data-testid="pms-card2-room-types-form">
       <section className="rounded-xl border border-[#D9D2C4] bg-white px-4 py-3 shadow-sm">
@@ -746,18 +766,16 @@ export function PmsPropertySetupCard2RoomTypes({
           <div>
             <h3 className="font-display text-lg text-[#251605]">Room Types</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Configure the room types used by this property.
-            </p>
+            Configure room types with the guided setup wizard (rooms, amenities, pricing defaults,
+            photos, review).
+          </p>
           </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
             disabled={disabled}
-            onClick={() => {
-              setTypeForm(emptyType());
-              setTypeEditorOpen(true);
-            }}
+            onClick={() => setWizardType(null)}
           >
             <Plus className="mr-1 h-4 w-4" />
             New room type
@@ -822,10 +840,7 @@ export function PmsPropertySetupCard2RoomTypes({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          setTypeForm(typeFromRow(row));
-                          setTypeEditorOpen(true);
-                        }}
+                        onClick={() => setWizardType(row)}
                       >
                         Edit
                       </Button>

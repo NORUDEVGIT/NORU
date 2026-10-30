@@ -25,7 +25,18 @@ const ui = readFileSync(
 
 function snapshot(partial?: Partial<RatesCard3Snapshot>): RatesCard3Snapshot {
   return {
-    roomTypes: [{ id: "rt1", code: "DLX", name: "Deluxe", active: true }],
+    roomTypes: [
+      {
+        id: "rt1",
+        code: "DLX",
+        name: "Deluxe",
+        active: true,
+        baseNightlyRate: null,
+        standardOccupancy: 2,
+        extraAdultRateDefault: null,
+        extraChildRateDefault: null,
+      },
+    ],
     categories: [],
     plans: [],
     calendar: [],
@@ -60,6 +71,9 @@ describe("Card 3 Phase 3 rates readiness", () => {
             refundabilityId: null,
             minAdvanceDays: null,
             maxAdvanceDays: null,
+            includedOccupancy: null,
+            extraAdultRate: null,
+            extraChildRate: null,
             active: true,
           },
         ],
@@ -87,6 +101,9 @@ describe("Card 3 Phase 3 rates readiness", () => {
             refundabilityId: null,
             minAdvanceDays: null,
             maxAdvanceDays: null,
+            includedOccupancy: null,
+            extraAdultRate: null,
+            extraChildRate: null,
             active: true,
           },
         ],
@@ -144,7 +161,7 @@ describe("Card 3 Phase 3 rates readiness", () => {
   it("exposes description and validity on Card 3 rate plans without a new column", () => {
     assert.match(
       fns,
-      /valid_from, valid_to, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days/,
+      /valid_from, valid_to, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days, included_occupancy, extra_adult_rate, extra_child_rate/,
     );
     assert.match(fns, /description: data\.description/);
     assert.match(fns, /valid_from: data\.validFrom/);

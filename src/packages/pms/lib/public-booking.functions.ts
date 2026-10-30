@@ -126,28 +126,48 @@ export const searchStay = createServerFn({ method: "POST" })
 
       const ids = candidates.map((t) => t.id);
 
-      const [{ data: amenityRows }, { data: imageRows }, { data: planRows }] = await Promise.all([
-        db
-          .from("room_type_amenities")
-          .select("room_type_id, room_amenities ( name )")
-          .eq("restaurant_id", property.id)
-          .in("room_type_id", ids),
-        db
-          .from("room_type_images")
-          .select("room_type_id, storage_path, is_cover, display_order")
-          .eq("restaurant_id", property.id)
-          .in("room_type_id", ids)
-          .order("display_order"),
-        db
-          .from("hotel_rate_plans")
-          .select("id, room_type_id, name, description")
-          .eq("restaurant_id", property.id)
-          .in("room_type_id", ids)
-          .eq("active", true)
-          .order("name"),
-      ]);
+      const [{ data: amenityRows }, { data: imageRows }, { data: planRows }, { data: bedRows }] =
+        await Promise.all([
+          db
+            .from("room_type_amenities")
+            .select("room_type_id, room_amenities ( name )")
+            .eq("restaurant_id", property.id)
+            .in("room_type_id", ids),
+          db
+            .from("room_type_images")
+            .select("room_type_id, storage_path, is_cover, display_order")
+            .eq("restaurant_id", property.id)
+            .in("room_type_id", ids)
+            .order("display_order"),
+          db
+            .from("hotel_rate_plans")
+            .select("id, room_type_id, name, description")
+            .eq("restaurant_id", property.id)
+            .in("room_type_id", ids)
+            .eq("active", true)
+            .order("name"),
+          db
+            .from("room_type_beds")
+            .select("room_type_id, bed_type, bed_size, bed_count, sort_order")
+            .eq("restaurant_id", property.id)
+            .in("room_type_id", ids)
+            .order("sort_order"),
+        ]);
 
       const signed = await signRoomImages((imageRows ?? []).map((r) => r.storage_path));
+      const bedsByType = new Map<
+        string,
+        Array<{ bed_type: string; bed_size: string | null; bed_count: number | null }>
+      >();
+      for (const bed of bedRows ?? []) {
+        const list = bedsByType.get(bed.room_type_id) ?? [];
+        list.push({
+          bed_type: String(bed.bed_type ?? ""),
+          bed_size: bed.bed_size ?? null,
+          bed_count: bed.bed_count == null ? null : Number(bed.bed_count),
+        });
+        bedsByType.set(bed.room_type_id, list);
+      }
 
       const offers: PublicRoomTypeOffer[] = [];
       for (const type of candidates) {
@@ -168,6 +188,9 @@ export const searchStay = createServerFn({ method: "POST" })
             _room_type_id: type.id,
             _arrival: data.arrival,
             _departure: data.departure,
+            _adults: data.adults,
+            _children: data.children,
+            _infants: 0,
           });
           plans.push({
             ratePlanId: plan.id,
@@ -180,6 +203,20 @@ export const searchStay = createServerFn({ method: "POST" })
 
         const typeImages = (imageRows ?? []).filter((i) => i.room_type_id === type.id);
         const cover = typeImages.find((i) => i.is_cover) ?? typeImages[0];
+        const beds = bedsByType.get(type.id) ?? [];
+        let bedType: string | null = null;
+        let bedCount: number | null = null;
+        if (beds.length > 0) {
+          bedType = beds
+            .map((bed) =>
+              `${bed.bed_count ?? 1} ${bed.bed_size ? `${bed.bed_size} ` : ""}${bed.bed_type}`.trim(),
+            )
+            .join(", ");
+          bedCount = beds.reduce((sum, bed) => sum + (bed.bed_count ?? 1), 0);
+        } else if (type.bed_type) {
+          bedType = String(type.bed_type);
+          bedCount = type.bed_count == null ? null : Number(type.bed_count);
+        }
 
         offers.push({
           roomTypeId: type.id,
@@ -188,8 +225,8 @@ export const searchStay = createServerFn({ method: "POST" })
           maxOccupancy: type.max_occupancy,
           adultCapacity: type.adult_capacity,
           childCapacity: type.child_capacity,
-          bedType: type.bed_type,
-          bedCount: type.bed_count,
+          bedType,
+          bedCount,
           roomSize: type.room_size,
           roomView: type.room_view,
           amenities: (amenityRows ?? [])

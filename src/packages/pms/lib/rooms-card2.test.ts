@@ -279,12 +279,18 @@ describe("Card 2 Phase 1 API wiring", () => {
     assert.match(functions, /export const saveRoom/);
     assert.match(functions, /export const bulkCreateRooms/);
     assert.match(functions, /export const evaluateCard2RoomTypesReadiness/);
+    assert.match(functions, /export const checkRoomTypeCodeAvailable/);
+    assert.match(functions, /export const checkRoomNumberAvailable/);
     assert.match(functions, /requireRoomManager/);
     assert.match(functions, /requireSupabaseAuth/);
     assert.match(functions, /\.eq\("restaurant_id", data\.restaurantId\)/);
     assert.match(functions, /from\("room_type_beds"\)/);
     assert.match(functions, /from\("hotel_room_links"\)/);
     assert.match(functions, /from\("hotel_rooms"\)\.insert\(rows\)/);
+    assert.match(functions, /requireBuilding: true/);
+    assert.match(functions, /excludeNumbers/);
+    assert.match(functions, /legacyBedType/);
+    assert.match(functions, /base_nightly_rate/);
     assert.doesNotMatch(functions, /for \(const .+ of generated\.labels\)[\s\S]*saveRoom/);
     assert.match(functions, /housekeeping_status/);
     assert.match(functions, /maintenance_status/);

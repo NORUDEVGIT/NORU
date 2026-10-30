@@ -33,6 +33,11 @@ export type Card2RoomTypeRef = {
   code: string;
   name: string;
   active: boolean;
+  baseNightlyRate: number | null;
+  standardOccupancy: number;
+  extraAdultRateDefault: number | null;
+  extraChildRateDefault: number | null;
+  maxOccupancy?: number | null;
 };
 
 export type RateCategoryRow = {
@@ -80,6 +85,9 @@ export type RatePlanRow = {
   refundabilityId: string | null;
   minAdvanceDays: number | null;
   maxAdvanceDays: number | null;
+  includedOccupancy: number | null;
+  extraAdultRate: number | null;
+  extraChildRate: number | null;
   active: boolean;
 };
 

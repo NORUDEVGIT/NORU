@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
+import { ratePlanOccupancyValidationError } from "./occupancy-allocation";
 import { saveRateCancellationPolicyCard2 } from "./rates-card2.functions";
 import {
   CARD3_RATES_AUDIT_SECTION,
@@ -51,6 +52,9 @@ const planSchema = z.object({
   refundabilityId: idSchema.nullable().optional(),
   minAdvanceDays: z.number().int().min(0).max(365).nullable().optional(),
   maxAdvanceDays: z.number().int().min(0).max(365).nullable().optional(),
+  includedOccupancy: z.number().int().min(1).max(20).nullable().optional(),
+  extraAdultRate: z.number().min(0).max(10_000_000).nullable().optional(),
+  extraChildRate: z.number().min(0).max(10_000_000).nullable().optional(),
   active: z.boolean(),
 }).superRefine((value, ctx) => {
   if (value.validFrom && value.validTo && value.validTo < value.validFrom) {
@@ -111,6 +115,20 @@ function mapRoomType(row: any): Card2RoomTypeRef {
     code: String(row.code ?? ""),
     name: String(row.name ?? ""),
     active: row.active !== false,
+    baseNightlyRate:
+      row.base_nightly_rate == null || row.base_nightly_rate === ""
+        ? null
+        : Number(row.base_nightly_rate),
+    standardOccupancy: Number(row.standard_occupancy ?? 1),
+    extraAdultRateDefault:
+      row.extra_adult_rate_default == null || row.extra_adult_rate_default === ""
+        ? null
+        : Number(row.extra_adult_rate_default),
+    extraChildRateDefault:
+      row.extra_child_rate_default == null || row.extra_child_rate_default === ""
+        ? null
+        : Number(row.extra_child_rate_default),
+    maxOccupancy: row.max_occupancy == null || row.max_occupancy === "" ? null : Number(row.max_occupancy),
   };
 }
 
@@ -124,13 +142,27 @@ function mapCategory(row: any): RateCategoryRow {
 }
 
 async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCard3Snapshot> {
-  const [types, categories, plans, calendar, cancellation, refundability] = await Promise.all([
-    db.from("room_types").select("id, code, name, active").eq("restaurant_id", restaurantId).order("code"),
+  let types = await db
+    .from("room_types")
+    .select(
+      "id, code, name, active, standard_occupancy, max_occupancy, base_nightly_rate, extra_adult_rate_default, extra_child_rate_default",
+    )
+    .eq("restaurant_id", restaurantId)
+    .order("code");
+  if (types.error && (types.error.code === "42703" || types.error.code === "PGRST204")) {
+    types = await db
+      .from("room_types")
+      .select("id, code, name, active, standard_occupancy, max_occupancy")
+      .eq("restaurant_id", restaurantId)
+      .order("code");
+  }
+
+  const [categories, plans, calendar, cancellation, refundability] = await Promise.all([
     db.from("hotel_rate_categories").select("id, code, name, active").eq("restaurant_id", restaurantId).order("code"),
     db
       .from("hotel_rate_plans")
       .select(
-        "id, code, name, description, rate_category_id, room_type_id, currency, base_rate, valid_from, valid_to, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days, active",
+        "id, code, name, description, rate_category_id, room_type_id, currency, base_rate, valid_from, valid_to, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days, included_occupancy, extra_adult_rate, extra_child_rate, active",
       )
       .eq("restaurant_id", restaurantId)
       .order("code"),
@@ -151,7 +183,21 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCa
       .eq("restaurant_id", restaurantId)
       .order("code"),
   ]);
-  for (const result of [types, categories, plans, calendar]) {
+  let planData = plans.data;
+  if (plans.error && (plans.error.code === "42703" || plans.error.code === "PGRST204")) {
+    const fallback = await db
+      .from("hotel_rate_plans")
+      .select(
+        "id, code, name, description, rate_category_id, room_type_id, currency, base_rate, valid_from, valid_to, cancellation_policy_id, refundability_id, min_advance_days, max_advance_days, active",
+      )
+      .eq("restaurant_id", restaurantId)
+      .order("code");
+    if (fallback.error) unavailable(fallback.error);
+    planData = fallback.data;
+  } else if (plans.error) {
+    unavailable(plans.error);
+  }
+  for (const result of [types, categories, calendar]) {
     if (result.error) unavailable(result.error);
   }
   if (cancellation.error && cancellation.error.code !== "42P01" && cancellation.error.code !== "PGRST205") {
@@ -186,7 +232,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCa
       : "refundable") as RateRefundabilityRow["kind"],
     active: row.active !== false,
   }));
-  const planRows: RatePlanRow[] = (plans.data ?? []).map((row: any) => {
+  const planRows: RatePlanRow[] = (planData ?? []).map((row: any) => {
     const type = typeById.get(row.room_type_id);
     const category = categoryById.get(row.rate_category_id);
     return {
@@ -207,6 +253,9 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCa
       refundabilityId: row.refundability_id ?? null,
       minAdvanceDays: row.min_advance_days == null ? null : Number(row.min_advance_days),
       maxAdvanceDays: row.max_advance_days == null ? null : Number(row.max_advance_days),
+      includedOccupancy: row.included_occupancy == null ? null : Number(row.included_occupancy),
+      extraAdultRate: row.extra_adult_rate == null ? null : Number(row.extra_adult_rate),
+      extraChildRate: row.extra_child_rate == null ? null : Number(row.extra_child_rate),
       active: row.active !== false,
     };
   });
@@ -299,13 +348,23 @@ export const saveRatePlanCard3 = createServerFn({ method: "POST" })
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const [category, roomType, restaurant] = await Promise.all([
       db.from("hotel_rate_categories").select("id").eq("id", data.categoryId).eq("restaurant_id", data.restaurantId).maybeSingle(),
-      db.from("room_types").select("id").eq("id", data.roomTypeId).eq("restaurant_id", data.restaurantId).maybeSingle(),
+      db.from("room_types").select("id, max_occupancy").eq("id", data.roomTypeId).eq("restaurant_id", data.restaurantId).maybeSingle(),
       db.from("restaurants").select("currency_code").eq("id", data.restaurantId).maybeSingle(),
     ]);
     if (category.error) unavailable(category.error);
     if (roomType.error) unavailable(roomType.error);
     if (!category.data) throw new Error("That rate category doesn't belong to this property.");
     if (!roomType.data) throw new Error("That room type doesn't belong to this property.");
+    const occupancyError = ratePlanOccupancyValidationError({
+      includedOccupancy: data.includedOccupancy,
+      extraAdultRate: data.extraAdultRate,
+      extraChildRate: data.extraChildRate,
+      maxOccupancy:
+        (roomType.data as { max_occupancy?: number | null }).max_occupancy == null
+          ? null
+          : Number((roomType.data as { max_occupancy?: number | null }).max_occupancy),
+    });
+    if (occupancyError) throw new Error(occupancyError);
 
     const payload = {
       restaurant_id: data.restaurantId,
@@ -322,14 +381,32 @@ export const saveRatePlanCard3 = createServerFn({ method: "POST" })
       refundability_id: data.refundabilityId ?? null,
       min_advance_days: data.minAdvanceDays ?? null,
       max_advance_days: data.maxAdvanceDays ?? null,
+      included_occupancy: data.includedOccupancy ?? null,
+      extra_adult_rate: data.extraAdultRate ?? null,
+      extra_child_rate: data.extraChildRate ?? null,
       active: data.active,
     };
-    if (data.id) {
-      const updated = await db.from("hotel_rate_plans").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId);
-      if (updated.error) unavailable(updated.error);
-    } else {
-      const inserted = await db.from("hotel_rate_plans").insert(payload);
-      if (inserted.error) unavailable(inserted.error);
+    const occupancyConfigured =
+      data.includedOccupancy != null || data.extraAdultRate != null || data.extraChildRate != null;
+    const written = data.id
+      ? await db.from("hotel_rate_plans").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+      : await db.from("hotel_rate_plans").insert(payload);
+    if (written.error && (written.error.code === "42703" || written.error.code === "PGRST204")) {
+      if (occupancyConfigured) {
+        throw new Error("Rate Plan occupancy pricing is unavailable until migration 0191 is applied.");
+      }
+      const {
+        included_occupancy: _included,
+        extra_adult_rate: _extraAdult,
+        extra_child_rate: _extraChild,
+        ...basePayload
+      } = payload;
+      const retry = data.id
+        ? await db.from("hotel_rate_plans").update(basePayload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
+        : await db.from("hotel_rate_plans").insert(basePayload);
+      if (retry.error) unavailable(retry.error);
+    } else if (written.error) {
+      unavailable(written.error);
     }
     await writeAudit(db, data.restaurantId, context.userId, "card3_rate_plan_saved", {
       detail: `${data.code} ${data.name}`,

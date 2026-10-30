@@ -5405,7 +5405,10 @@ export type Database = {
           deposit_policy_id: string | null
           description: string | null
           early_departure_policy_id: string | null
+          extra_adult_rate: number | null
+          extra_child_rate: number | null
           id: string
+          included_occupancy: number | null
           max_advance_days: number | null
           meal_plan_id: string | null
           min_advance_days: number | null
@@ -5430,7 +5433,10 @@ export type Database = {
           deposit_policy_id?: string | null
           description?: string | null
           early_departure_policy_id?: string | null
+          extra_adult_rate?: number | null
+          extra_child_rate?: number | null
           id?: string
+          included_occupancy?: number | null
           max_advance_days?: number | null
           meal_plan_id?: string | null
           min_advance_days?: number | null
@@ -5455,7 +5461,10 @@ export type Database = {
           deposit_policy_id?: string | null
           description?: string | null
           early_departure_policy_id?: string | null
+          extra_adult_rate?: number | null
+          extra_child_rate?: number | null
           id?: string
+          included_occupancy?: number | null
           max_advance_days?: number | null
           meal_plan_id?: string | null
           min_advance_days?: number | null
