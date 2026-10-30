@@ -80,6 +80,7 @@ import {
 import { unitAssignmentSnapshot } from "@/packages/pms/lib/room-assignment-snapshot";
 import { listRooms, listRoomTypes } from "@/packages/pms/lib/rooms.functions";
 import { storedRatePerNight } from "@/packages/pms/lib/reservation-detail-overview";
+import { guestRatePerNight } from "@/packages/pms/lib/room-charge-guest-total";
 import { ReservationRoomOccupants } from "@/packages/pms/components/workspaces/reservation-detail-room-occupants";
 import { RoomTypeChangeDialog } from "@/packages/pms/components/workspaces/reservation-room-type-change";
 import {
@@ -110,6 +111,7 @@ export function ReservationDetailRoomsTab({
   totalAmount,
   packagesTotal = 0,
   servicesTotal = 0,
+  roomGuestTotal = null,
   coverUrl,
   occupancyLabel,
   onBackToGuest,
@@ -128,6 +130,7 @@ export function ReservationDetailRoomsTab({
   totalAmount?: number | null;
   packagesTotal?: number;
   servicesTotal?: number;
+  roomGuestTotal?: number | null;
   coverUrl: string | null;
   occupancyLabel: string | null;
   onBackToGuest: () => void;
@@ -249,11 +252,9 @@ export function ReservationDetailRoomsTab({
   const rows = filterRoomAssignmentRows(allRows, filters);
   const assigned = assignmentLabel(reservation);
   const nights = nightsBetween(reservation.arrivalDate, reservation.departureDate);
-  const perNight = storedRatePerNight(
-    reservation.nightlyRates,
-    reservation.roomSubtotal,
-    reservation.nights,
-  );
+  const perNight =
+    guestRatePerNight(roomGuestTotal, nights) ??
+    storedRatePerNight(reservation.nightlyRates, reservation.roomSubtotal, reservation.nights);
   const activeRoomId = activeUnit
     ? activeUnit.roomId
     : units.length === 0
@@ -534,6 +535,7 @@ export function ReservationDetailRoomsTab({
           totalAmount={totalAmount}
           packagesTotal={packagesTotal}
           servicesTotal={servicesTotal}
+          roomGuestTotal={roomGuestTotal}
           nights={nights}
         />
       </div>
@@ -1037,6 +1039,7 @@ function RoomsSummaryRail({
   totalAmount,
   packagesTotal = 0,
   servicesTotal = 0,
+  roomGuestTotal = null,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -1048,6 +1051,7 @@ function RoomsSummaryRail({
   totalAmount?: number | null;
   packagesTotal?: number;
   servicesTotal?: number;
+  roomGuestTotal?: number | null;
 }) {
   return (
     <ReservationDetailSummary
@@ -1062,6 +1066,7 @@ function RoomsSummaryRail({
       totalAmount={totalAmount}
       packagesTotal={packagesTotal > 0 ? packagesTotal : undefined}
       servicesTotal={servicesTotal > 0 ? servicesTotal : undefined}
+      roomGuestTotal={roomGuestTotal}
     />
   );
 }

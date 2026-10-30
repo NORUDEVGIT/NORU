@@ -4,6 +4,7 @@ import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import { stayRoomUnitId } from "@/packages/pms/lib/reservation-detail-guest";
 import {
   DETAIL_DASH,
+  OVERVIEW_LABEL_UNAVAILABLE,
   snapshotDisplayName,
   snapshotField,
   storedRatePerNight,
@@ -11,6 +12,8 @@ import {
 import type { RatePlan } from "@/packages/pms/lib/rates.functions";
 import type { ReservationRoomUnit } from "@/packages/pms/lib/reservation-room-units";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const RATE_NOTES_MAX = 500;
 
@@ -64,11 +67,23 @@ export function assignmentLabel(reservation: ReservationDetail): "Assigned" | "N
   return reservation.roomId && reservation.roomNumber ? "Assigned" : "Not Assigned";
 }
 
-export function marketSegmentLabel(value: string | null | undefined): string {
+export function marketSegmentLabel(
+  value: string | null | undefined,
+  marketSegments?: Array<{ id: string; name?: string | null; code?: string | null }> | null,
+): string {
   const raw = (value ?? "").trim();
   if (!raw) return "";
-  const found = DEFAULT_MARKET_SEGMENTS.find((row) => row.value === raw);
-  return found?.label ?? raw;
+  if (marketSegments && marketSegments.length > 0) {
+    const match = marketSegments.find((row) => row.id === raw || row.code === raw);
+    const name = match?.name?.trim();
+    if (name && !UUID_RE.test(name)) return name;
+  }
+  const found = DEFAULT_MARKET_SEGMENTS.find(
+    (row) => row.value === raw || row.value.toLowerCase() === raw.toLowerCase(),
+  );
+  if (found) return found.label;
+  if (UUID_RE.test(raw)) return OVERVIEW_LABEL_UNAVAILABLE;
+  return raw;
 }
 
 export function storedNightlyRates(

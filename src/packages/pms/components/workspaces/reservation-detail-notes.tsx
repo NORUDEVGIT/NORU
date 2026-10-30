@@ -104,6 +104,7 @@ export function ReservationDetailNotesTab({
   paymentRefunded = null,
   guestDeposit = null,
   totalAmount,
+  roomGuestTotal = null,
   coverUrl,
   onBackToRequests,
   onSaved,
@@ -119,6 +120,7 @@ export function ReservationDetailNotesTab({
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
   totalAmount?: number | null;
+  roomGuestTotal?: number | null;
   coverUrl: string | null;
   onBackToRequests: () => void;
   onSaved: () => void;
@@ -633,6 +635,7 @@ export function ReservationDetailNotesTab({
           paymentRefunded={paymentRefunded}
           guestDeposit={guestDeposit}
           totalAmount={totalAmount}
+          roomGuestTotal={roomGuestTotal}
           money={money}
           coverUrl={coverUrl}
           nights={nights}
@@ -820,6 +823,7 @@ function NotesSummaryRail({
   paymentRefunded,
   guestDeposit,
   totalAmount,
+  roomGuestTotal = null,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -829,6 +833,7 @@ function NotesSummaryRail({
   paymentRefunded: number | null;
   guestDeposit: number | null;
   totalAmount?: number | null;
+  roomGuestTotal?: number | null;
 }) {
   return (
     <ReservationDetailSummary
@@ -841,6 +846,7 @@ function NotesSummaryRail({
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
       totalAmount={totalAmount}
+      roomGuestTotal={roomGuestTotal}
     />
   );
 }

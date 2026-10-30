@@ -151,6 +151,7 @@ export function ReservationDetailGuestTab({
   totalAmount: initialTotalAmount,
   packagesTotal = 0,
   servicesTotal = 0,
+  roomGuestTotal = null,
   onBackToOverview,
   onSaved,
 }: {
@@ -167,6 +168,7 @@ export function ReservationDetailGuestTab({
   totalAmount?: number | null;
   packagesTotal?: number;
   servicesTotal?: number;
+  roomGuestTotal?: number | null;
   onBackToOverview: () => void;
   onSaved: () => void;
 }) {
@@ -558,6 +560,7 @@ export function ReservationDetailGuestTab({
           totalAmount={initialTotalAmount}
           packagesTotal={packagesTotal}
           servicesTotal={servicesTotal}
+          roomGuestTotal={roomGuestTotal}
         />
       </div>
 
@@ -1394,6 +1397,7 @@ function GuestSummaryRail({
   totalAmount,
   packagesTotal = 0,
   servicesTotal = 0,
+  roomGuestTotal = null,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -1405,6 +1409,7 @@ function GuestSummaryRail({
   totalAmount?: number | null;
   packagesTotal?: number;
   servicesTotal?: number;
+  roomGuestTotal?: number | null;
 }) {
   return (
     <ReservationDetailSummary
@@ -1419,6 +1424,7 @@ function GuestSummaryRail({
       totalAmount={totalAmount}
       packagesTotal={packagesTotal > 0 ? packagesTotal : undefined}
       servicesTotal={servicesTotal > 0 ? servicesTotal : undefined}
+      roomGuestTotal={roomGuestTotal}
     />
   );
 }

@@ -41,6 +41,7 @@ export function ReservationDetailSummary({
   testId,
   packagesTotal,
   servicesTotal,
+  roomGuestTotal,
   folioBalance,
   showFolioBalance = false,
   paymentReceived,
@@ -56,6 +57,7 @@ export function ReservationDetailSummary({
   testId: string;
   packagesTotal?: number;
   servicesTotal?: number;
+  roomGuestTotal?: number | null;
   folioBalance?: number | null;
   showFolioBalance?: boolean;
   paymentReceived?: number | null;
@@ -79,7 +81,7 @@ export function ReservationDetailSummary({
   const assignment = groupAssignmentSummary(reservation);
   const combined = groupCombinedSubtotal(reservation);
   const computedRoomTotal = group ? combined : reservation.roomSubtotal;
-  const roomRateAmount = computedRoomTotal;
+  const roomRateAmount = roomGuestTotal ?? computedRoomTotal;
   const guestFacingTotal = totalAmount !== undefined ? totalAmount : computedRoomTotal;
   const paymentFigure =
     paymentReceived === undefined

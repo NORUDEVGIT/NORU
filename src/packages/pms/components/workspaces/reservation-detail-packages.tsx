@@ -64,6 +64,7 @@ export function ReservationDetailPackagesTab({
   paymentRefunded = null,
   guestDeposit = null,
   totalAmount,
+  roomGuestTotal = null,
   coverUrl,
 }: {
   restaurantId: string;
@@ -74,6 +75,7 @@ export function ReservationDetailPackagesTab({
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
   totalAmount?: number | null;
+  roomGuestTotal?: number | null;
   coverUrl: string | null;
 }) {
   const packageChargeRules = usePackageChargeRules(restaurantId);
@@ -272,6 +274,7 @@ export function ReservationDetailPackagesTab({
           paymentRefunded={paymentRefunded}
           guestDeposit={guestDeposit}
           totalAmount={totalAmount}
+          roomGuestTotal={roomGuestTotal}
           money={money}
           coverUrl={coverUrl}
           nights={nights}
@@ -575,6 +578,7 @@ function PackagesSummaryRail({
   paymentRefunded,
   guestDeposit,
   totalAmount,
+  roomGuestTotal = null,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -585,6 +589,7 @@ function PackagesSummaryRail({
   paymentRefunded: number | null;
   guestDeposit: number | null;
   totalAmount?: number | null;
+  roomGuestTotal?: number | null;
 }) {
   return (
     <ReservationDetailSummary
@@ -597,6 +602,7 @@ function PackagesSummaryRail({
       paymentReceived={paymentReceived}
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
+      roomGuestTotal={roomGuestTotal}
       totalAmount={totalAmount}
     />
   );

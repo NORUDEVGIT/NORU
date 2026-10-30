@@ -54,13 +54,14 @@ import {
 } from "@/packages/pms/components/reservations/reservation-workspace-overlay";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 import { WAVE4_GROUP_ACCOUNT_COPY } from "@/packages/pms/lib/guest-profile-wave4";
-// Wave 4 guest account integration: listReservationsForGuestAccount reads reservations linked to account masters (not Sales & Events group blocks).
+// Wave 4 guest account integration: account master queries read reservations linked to account masters (not Sales & Events group blocks).
 import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import { ReservationEditWorkspace } from "@/packages/pms/components/workspaces/reservation-edit-workspace";
 import { ReservationCancelWorkspace } from "@/packages/pms/components/workspaces/reservation-cancel-workspace";
 import { ReservationNoShowWorkspace } from "@/packages/pms/components/workspaces/reservation-noshow-workspace";
 import { getReservationDesk } from "@/packages/pms/lib/reservation-workspace/desk.server";
 import { getReservationQuickView } from "@/packages/pms/lib/reservation-workspace/quick-view.server";
+import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
 import type {
   OperationalReservationView,
   ReservationDeskRow,
@@ -276,6 +277,7 @@ export function ReservationsWorkspace({
   const loadDesk = useServerFn(getReservationDesk);
   const loadQuickView = useServerFn(getReservationQuickView);
   const loadRoomTypes = useServerFn(listRoomTypes);
+  const loadSet6 = useServerFn(getPmsSet6Snapshot);
   const submitStatus = useServerFn(setReservationStatus);
   const submitCopy = useServerFn(copyReservation);
   const canManageActions = RESERVATION_ACTION_ROLES.has(membership.role);
@@ -361,6 +363,12 @@ export function ReservationsWorkspace({
   const roomTypesQuery = useQuery({
     queryKey: ["reservation-desk-room-types", restaurantId],
     queryFn: () => loadRoomTypes({ data: { restaurantId, includeInactive: false } }),
+    staleTime: 5 * 60_000,
+  });
+
+  const set6Query = useQuery({
+    queryKey: ["reservation-desk-set6", restaurantId],
+    queryFn: () => loadSet6({ data: { restaurantId } }),
     staleTime: 5 * 60_000,
   });
 
@@ -1085,6 +1093,8 @@ export function ReservationsWorkspace({
                     onRetry={() => void quickViewQuery.refetch()}
                     businessDate={snapshot?.businessDate ?? ""}
                     canManage={canManageActions}
+                    sourceCodes={set6Query.data?.snapshot.sourceCodes}
+                    marketSegments={set6Query.data?.snapshot.marketSegments}
                     onAction={(actionId) => {
                       if (selectedRow) {
                         handleReservationAction(actionId, selectedRow, quickViewQuery.data);
@@ -1194,6 +1204,8 @@ export function ReservationsWorkspace({
             onRetry={() => void quickViewQuery.refetch()}
             businessDate={snapshot?.businessDate ?? ""}
             canManage={canManageActions}
+            sourceCodes={set6Query.data?.snapshot.sourceCodes}
+            marketSegments={set6Query.data?.snapshot.marketSegments}
             onAction={(actionId) => {
               if (selectedRow) {
                 handleReservationAction(actionId, selectedRow, quickViewQuery.data);
@@ -1483,6 +1495,8 @@ function QuickViewRail({
   businessDate,
   canManage,
   onAction,
+  sourceCodes,
+  marketSegments,
 }: {
   collapsed: boolean;
   onToggle: () => void;
@@ -1495,6 +1509,8 @@ function QuickViewRail({
   businessDate: string;
   canManage: boolean;
   onAction: (actionId: ReservationContextActionId) => void;
+  sourceCodes?: Array<{ id: string; name: string; code?: string | null }> | null;
+  marketSegments?: Array<{ id: string; name: string; code?: string | null }> | null;
 }) {
   if (collapsed) {
     return (
@@ -1547,6 +1563,8 @@ function QuickViewRail({
         businessDate={businessDate}
         canManage={canManage}
         onAction={onAction}
+        sourceCodes={sourceCodes}
+        marketSegments={marketSegments}
       />
     </div>
   );

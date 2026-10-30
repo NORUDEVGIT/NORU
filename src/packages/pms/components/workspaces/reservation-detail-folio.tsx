@@ -73,6 +73,7 @@ export function ReservationDetailFolioTab({
   totalAmount = null,
   packagesTotal = 0,
   servicesTotal = 0,
+  roomGuestTotal = null,
   coverUrl,
 }: {
   restaurantId: string;
@@ -84,6 +85,7 @@ export function ReservationDetailFolioTab({
   totalAmount?: number | null;
   packagesTotal?: number;
   servicesTotal?: number;
+  roomGuestTotal?: number | null;
   coverUrl: string | null;
 }) {
   const queryClient = useQueryClient();
@@ -293,6 +295,7 @@ export function ReservationDetailFolioTab({
           packagesTotal={packagesTotal}
           servicesTotal={servicesTotal}
           totalAmount={totalAmount}
+          roomGuestTotal={roomGuestTotal}
           folioBalance={summary?.balance ?? folio?.balance ?? null}
         />
       </div>
@@ -751,6 +754,7 @@ function FolioSummaryRail({
   packagesTotal,
   servicesTotal,
   totalAmount,
+  roomGuestTotal = null,
   folioBalance,
   paymentReceived,
   paymentRefunded,
@@ -763,6 +767,7 @@ function FolioSummaryRail({
   packagesTotal: number;
   servicesTotal: number;
   totalAmount: number | null;
+  roomGuestTotal?: number | null;
   folioBalance: number | null;
   paymentReceived: number | null;
   paymentRefunded: number | null;
@@ -782,6 +787,7 @@ function FolioSummaryRail({
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
       totalAmount={totalAmount}
+      roomGuestTotal={roomGuestTotal}
       roomTotalLabel="Total Amount"
       showFolioBalance
     />
