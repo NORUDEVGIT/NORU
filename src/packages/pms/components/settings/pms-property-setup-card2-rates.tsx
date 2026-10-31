@@ -69,6 +69,18 @@ import {
   type EarlyDeparturePenaltyType,
 } from "@/packages/pms/lib/early-departure-policy";
 import { formatRateValidity } from "@/packages/pms/lib/pms-property-setup-card2";
+import {
+  computeRatePlanBaseFromDefaults,
+  occupancyFieldsFromRoomTypeDefaults,
+  occupancyFieldsFromSavedRatePlan,
+  roomTypeBaseIsConfigured,
+  type RatePlanPricingMethod,
+} from "@/packages/pms/lib/rate-plan-from-defaults";
+import {
+  parseOptionalIncludedField,
+  RatePlanPricingSetup,
+} from "@/packages/pms/components/settings/rate-plan-pricing-setup";
+import { suggestRatePlanCode } from "@/packages/pms/lib/rates-card2-code";
 import { cn } from "@/shared/lib/utils";
 
 const NONE = "__none__";
@@ -236,8 +248,8 @@ export function PmsPropertySetupCard2Rates({
       );
       setCategoryDraft(null);
       invalidate();
-    } catch (error: any) {
-      toast.error(error?.message ?? "Failed to add rate category.");
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message ?? "Failed to add rate category.");
     } finally {
       setBatchPending(false);
     }
@@ -276,8 +288,7 @@ export function PmsPropertySetupCard2Rates({
   });
 
   const noShowMut = useMutation({
-    mutationFn: (input: Parameters<typeof saveNoShow>[0]["data"]) =>
-      saveNoShow({ data: input }),
+    mutationFn: (input: Parameters<typeof saveNoShow>[0]["data"]) => saveNoShow({ data: input }),
     onSuccess: () => {
       toast.success("No-show policy saved.");
       setNoShowDraft(null);
@@ -450,14 +461,7 @@ export function PmsPropertySetupCard2Rates({
             onAdd={() => setNoShowDraft("new")}
             canEdit={canEdit}
             empty="No no-show policies yet. Defines charge and release time when a guest fails to arrive."
-            columns={[
-              "Code",
-              "Name",
-              "Release time",
-              "Penalty",
-              "Default",
-              "Status",
-            ]}
+            columns={["Code", "Name", "Release time", "Penalty", "Default", "Status"]}
             rows={filteredNoShowPolicies.map((row) => ({
               id: row.id,
               cells: [
@@ -468,7 +472,7 @@ export function PmsPropertySetupCard2Rates({
                   ? `${row.penaltyValue}% stay`
                   : row.penaltyType === "fixed_amount"
                     ? `${currencyCode} ${row.penaltyValue}`
-                    : POLICY_PENALTY_TYPE_LABELS[row.penaltyType] ?? row.penaltyType,
+                    : (POLICY_PENALTY_TYPE_LABELS[row.penaltyType] ?? row.penaltyType),
                 row.isDefault ? "Default" : "—",
                 <Card3StatusDot key="status" active={row.active} />,
               ],
@@ -615,7 +619,13 @@ function CategoryDrawer({
   configuredCategories: readonly RateCategoryRow[];
   pending: boolean;
   onClose: () => void;
-  onSave: (payload: { id?: string; code: string; name: string; active: boolean; isCustom?: boolean }) => void;
+  onSave: (payload: {
+    id?: string;
+    code: string;
+    name: string;
+    active: boolean;
+    isCustom?: boolean;
+  }) => void;
   onSavePredefined: (presets: PredefinedRateCategory[]) => Promise<void>;
 }) {
   const isEditing = value !== null;
@@ -761,7 +771,8 @@ function CategoryDrawer({
           {customPredefinedConflict ? (
             <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
               <p className="font-semibold">
-                {customPredefinedConflict.name} is already available in the predefined Rate Categories. Select it from the predefined list.
+                {customPredefinedConflict.name} is already available in the predefined Rate
+                Categories. Select it from the predefined list.
               </p>
               <Button
                 type="button"
@@ -828,9 +839,7 @@ function CategoryDrawer({
 
   // Default: Add mode - Predefined Catalogue View:
   const submitText =
-    selectedPresets.length > 1
-      ? `Add ${selectedPresets.length} Categories`
-      : "Add Category";
+    selectedPresets.length > 1 ? `Add ${selectedPresets.length} Categories` : "Add Category";
 
   return (
     <Card3OverlapSheet
@@ -990,6 +999,9 @@ function PlanDrawer({
     depositPolicyId: string | null;
     noShowPolicyId: string | null;
     earlyDeparturePolicyId: string | null;
+    includedOccupancy: number | null;
+    extraAdultRate: number | null;
+    extraChildRate: number | null;
     active: boolean;
   }) => void;
 }) {
@@ -997,8 +1009,24 @@ function PlanDrawer({
   const [roomTypeId, setRoomTypeId] = useState(value?.roomTypeId ?? roomTypes[0]?.id ?? "");
   const [code, setCode] = useState(value?.code ?? "");
   const [name, setName] = useState(value?.name ?? "");
+  const [codeManuallyEdited, setCodeManuallyEdited] = useState(Boolean(value?.code));
   const [description, setDescription] = useState(value?.description ?? "");
-  const [baseRate, setBaseRate] = useState(value?.baseRate ?? 0);
+  const initialType = roomTypes.find((row) => row.id === (value?.roomTypeId ?? roomTypes[0]?.id));
+  const createDefaults = occupancyFieldsFromRoomTypeDefaults(initialType);
+  const savedOccupancy = occupancyFieldsFromSavedRatePlan(value);
+  const [baseRate, setBaseRate] = useState(() => {
+    if (value) return value.baseRate;
+    const computed = computeRatePlanBaseFromDefaults({
+      method: roomTypeBaseIsConfigured(initialType?.baseNightlyRate) ? "use_base" : "fixed",
+      roomTypeBase: initialType?.baseNightlyRate,
+      fixedPrice: 0,
+    });
+    return computed.ok ? computed.baseRate : 0;
+  });
+  const [pricingMethod, setPricingMethod] = useState<RatePlanPricingMethod>(
+    value ? "fixed" : roomTypeBaseIsConfigured(initialType?.baseNightlyRate) ? "use_base" : "fixed",
+  );
+  const [methodPercent, setMethodPercent] = useState(10);
   const [validFrom, setValidFrom] = useState(value?.validFrom ?? "");
   const [validTo, setValidTo] = useState(value?.validTo ?? "");
   const [mealPlanId, setMealPlanId] = useState(value?.mealPlanId ?? NONE);
@@ -1011,14 +1039,49 @@ function PlanDrawer({
   const [earlyDeparturePolicyId, setEarlyDeparturePolicyId] = useState(
     value?.earlyDeparturePolicyId ?? NONE,
   );
+  const selectedType = roomTypes.find((row) => row.id === roomTypeId);
+  const [includedOccupancy, setIncludedOccupancy] = useState(
+    value ? savedOccupancy.includedOccupancy : createDefaults.includedOccupancy,
+  );
+  const [extraAdultRate, setExtraAdultRate] = useState(
+    value ? savedOccupancy.extraAdultRate : createDefaults.extraAdultRate,
+  );
+  const [extraChildRate, setExtraChildRate] = useState(
+    value ? savedOccupancy.extraChildRate : createDefaults.extraChildRate,
+  );
   const [active, setActive] = useState(value?.active ?? true);
+
+  function applyPricingMethod(method: RatePlanPricingMethod, percent = methodPercent) {
+    setPricingMethod(method);
+    if (value) return;
+    const computed = computeRatePlanBaseFromDefaults({
+      method,
+      roomTypeBase: selectedType?.baseNightlyRate,
+      percent,
+      fixedPrice: method === "fixed" ? baseRate : selectedType?.baseNightlyRate,
+    });
+    if (computed.ok) setBaseRate(computed.baseRate);
+  }
+
+  function copyRoomTypeDefaults(nextType = selectedType) {
+    if (!nextType) return;
+    const next = occupancyFieldsFromRoomTypeDefaults(nextType);
+    setIncludedOccupancy(next.includedOccupancy);
+    setExtraAdultRate(next.extraAdultRate);
+    setExtraChildRate(next.extraChildRate);
+    const computed = computeRatePlanBaseFromDefaults({
+      method: "use_base",
+      roomTypeBase: nextType.baseNightlyRate,
+    });
+    if (computed.ok) setBaseRate(computed.baseRate);
+  }
 
   return (
     <Card3OverlapSheet
       open={open}
       onClose={onClose}
       title={value ? "Edit rate plan" : "Add rate plan"}
-      description="Choose an existing Card 2 room type. Setup changes do not reprice confirmed reservations."
+      description="Choose an existing Card 2 room type. Pricing method is create-time only — only the final base rate is saved. Room Type changes do not update this Rate Plan."
       canEdit={canEdit && Boolean(categoryId) && Boolean(roomTypeId)}
       pending={pending}
       submitLabel="Save rate plan"
@@ -1039,6 +1102,9 @@ function PlanDrawer({
           depositPolicyId: optionalId(depositPolicyId),
           noShowPolicyId: optionalId(noShowPolicyId),
           earlyDeparturePolicyId: optionalId(earlyDeparturePolicyId),
+          includedOccupancy: parseOptionalIncludedField(includedOccupancy),
+          extraAdultRate: extraAdultRate.trim() === "" ? null : Number(extraAdultRate),
+          extraChildRate: extraChildRate.trim() === "" ? null : Number(extraChildRate),
           active,
         })
       }
@@ -1061,7 +1127,31 @@ function PlanDrawer({
         </div>
         <div className="space-y-1">
           <Label>Room type (Card 2)</Label>
-          <Select value={roomTypeId} disabled={!canEdit} onValueChange={setRoomTypeId}>
+          <Select
+            value={roomTypeId}
+            disabled={!canEdit}
+            onValueChange={(nextId) => {
+              setRoomTypeId(nextId);
+              const nextType = roomTypes.find((row) => row.id === nextId);
+              if (!value && nextType) {
+                const next = occupancyFieldsFromRoomTypeDefaults(nextType);
+                setIncludedOccupancy(next.includedOccupancy);
+                setExtraAdultRate(next.extraAdultRate);
+                setExtraChildRate(next.extraChildRate);
+                const nextMethod = roomTypeBaseIsConfigured(nextType.baseNightlyRate)
+                  ? pricingMethod
+                  : "fixed";
+                setPricingMethod(nextMethod);
+                const computed = computeRatePlanBaseFromDefaults({
+                  method: nextMethod,
+                  roomTypeBase: nextType.baseNightlyRate,
+                  percent: methodPercent,
+                  fixedPrice: nextType.baseNightlyRate ?? 0,
+                });
+                if (computed.ok) setBaseRate(computed.baseRate);
+              }
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select a room type" />
             </SelectTrigger>
@@ -1075,21 +1165,37 @@ function PlanDrawer({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="plan-code">Code</Label>
-          <Input
-            id="plan-code"
-            value={code}
-            disabled={!canEdit}
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="plan-name">Name</Label>
+          <Label htmlFor="plan-name">Rate Plan Name</Label>
           <Input
             id="plan-name"
             value={name}
             disabled={!canEdit}
-            onChange={(event) => setName(event.target.value)}
+            placeholder="e.g. Best Available Rate"
+            onChange={(event) => {
+              const newName = event.target.value;
+              setName(newName);
+              if (!codeManuallyEdited) {
+                setCode(suggestRatePlanCode(newName));
+              }
+            }}
+          />
+        </div>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="plan-code">Rate Plan Code</Label>
+            {!codeManuallyEdited && code && (
+              <span className="text-[10px] text-muted-foreground">Auto-generated from name</span>
+            )}
+          </div>
+          <Input
+            id="plan-code"
+            value={code}
+            disabled={!canEdit}
+            placeholder="e.g. BAR"
+            onChange={(event) => {
+              setCodeManuallyEdited(true);
+              setCode(event.target.value.toUpperCase());
+            }}
           />
         </div>
         <div className="space-y-1">
@@ -1250,18 +1356,31 @@ function PlanDrawer({
             </Select>
           </div>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="plan-rate">Base rate</Label>
-          <Input
-            id="plan-rate"
-            type="number"
-            min={0}
-            step="any"
-            value={baseRate}
-            disabled={!canEdit}
-            onChange={(event) => setBaseRate(Number(event.target.value))}
-          />
-        </div>
+        <RatePlanPricingSetup
+          canEdit={canEdit}
+          isCreate={!value}
+          selectedType={selectedType}
+          savedBaseRate={value?.baseRate}
+          pricingMethod={pricingMethod}
+          methodPercent={methodPercent}
+          baseRate={baseRate}
+          includedOccupancy={includedOccupancy}
+          extraAdultRate={extraAdultRate}
+          extraChildRate={extraChildRate}
+          onPricingMethodChange={(method) => applyPricingMethod(method)}
+          onPercentChange={(percent) => {
+            setMethodPercent(percent);
+            applyPricingMethod(pricingMethod, percent);
+          }}
+          onBaseRateChange={(rate) => {
+            setPricingMethod("fixed");
+            setBaseRate(rate);
+          }}
+          onIncludedChange={setIncludedOccupancy}
+          onExtraAdultChange={setExtraAdultRate}
+          onExtraChildChange={setExtraChildRate}
+          onRecalculateFromType={() => copyRoomTypeDefaults()}
+        />
         <div className="flex items-center justify-between rounded-xl border px-3 py-2">
           <Label htmlFor="plan-active">Active</Label>
           <Switch
@@ -1306,13 +1425,17 @@ function CancellationDrawer({
   const [code, setCode] = useState(value?.code ?? "");
   const [name, setName] = useState(value?.name ?? "");
   const [description, setDescription] = useState(value?.description ?? "");
-  const [policyKind, setPolicyKind] = useState<CancellationPolicyKind>(value?.policyKind ?? "flexible");
+  const [policyKind, setPolicyKind] = useState<CancellationPolicyKind>(
+    value?.policyKind ?? "flexible",
+  );
   const [windowValue, setWindowValue] = useState(String(value?.windowValue ?? 24));
   const [windowUnit, setWindowUnit] = useState<CancellationWindowUnit>(
     value?.windowUnit ?? "hours_before_arrival",
   );
   const [cutoffTime, setCutoffTime] = useState(value?.cutoffTime ?? "");
-  const [penaltyType, setPenaltyType] = useState<CancellationPenaltyType>(value?.penaltyType ?? "none");
+  const [penaltyType, setPenaltyType] = useState<CancellationPenaltyType>(
+    value?.penaltyType ?? "none",
+  );
   const [penaltyValue, setPenaltyValue] = useState(String(value?.penaltyValue ?? 0));
   const [active, setActive] = useState(value?.active ?? true);
   const showWindow = policyKind !== "non_refundable";
@@ -1760,12 +1883,7 @@ function NoShowDrawer({
         </div>
         <div className="flex items-center justify-between rounded-xl border px-3 py-2">
           <Label htmlFor="ns-active">Active</Label>
-          <Switch
-            id="ns-active"
-            checked={active}
-            disabled={!canEdit}
-            onCheckedChange={setActive}
-          />
+          <Switch id="ns-active" checked={active} disabled={!canEdit} onCheckedChange={setActive} />
         </div>
       </div>
     </Card3OverlapSheet>

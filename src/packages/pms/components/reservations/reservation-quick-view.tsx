@@ -19,6 +19,10 @@ import {
 import { ReservationStatusBadge } from "@/packages/pms/components/bookings/reservation-bits";
 import { VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
+  DEFAULT_BOOKING_SOURCES,
+  DEFAULT_MARKET_SEGMENTS,
+} from "@/packages/pms/lib/create-reservation-phase1";
+import {
   getReservationContextActions,
   type ReservationContextActionId,
 } from "@/packages/pms/components/reservations/reservation-context-actions";
@@ -49,6 +53,44 @@ const EXCEPTION_LABELS: Record<QuickViewExceptionKey, string> = {
   overdue_departure: "Overstay",
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function formatQuickViewBookingSource(
+  value: string | null | undefined,
+  sourceCodes?: Array<{ id: string; name: string; code?: string | null }> | null,
+): string {
+  const raw = (value ?? "").trim();
+  if (!raw) return "—";
+  if (sourceCodes && sourceCodes.length > 0) {
+    const match = sourceCodes.find((row) => row.id === raw || row.code === raw);
+    if (match?.name?.trim()) return match.name.trim();
+  }
+  const defaultOption = DEFAULT_BOOKING_SOURCES.find(
+    (row) => row.value === raw || row.value.toLowerCase() === raw.toLowerCase(),
+  );
+  if (defaultOption) return defaultOption.label;
+  if (UUID_REGEX.test(raw)) return "Not available";
+  return humanize(raw);
+}
+
+function formatQuickViewMarketSegment(
+  value: string | null | undefined,
+  marketSegments?: Array<{ id: string; name: string; code?: string | null }> | null,
+): string {
+  const raw = (value ?? "").trim();
+  if (!raw) return "—";
+  if (marketSegments && marketSegments.length > 0) {
+    const match = marketSegments.find((row) => row.id === raw || row.code === raw);
+    if (match?.name?.trim()) return match.name.trim();
+  }
+  const defaultOption = DEFAULT_MARKET_SEGMENTS.find(
+    (row) => row.value === raw || row.value.toLowerCase() === raw.toLowerCase(),
+  );
+  if (defaultOption) return defaultOption.label;
+  if (UUID_REGEX.test(raw)) return "Not available";
+  return humanize(raw);
+}
+
 export function ReservationQuickViewPanel({
   row,
   loading,
@@ -59,6 +101,8 @@ export function ReservationQuickViewPanel({
   businessDate,
   canManage,
   onAction,
+  sourceCodes,
+  marketSegments,
 }: {
   row: ReservationDeskRow | null;
   loading: boolean;
@@ -69,6 +113,8 @@ export function ReservationQuickViewPanel({
   businessDate: string;
   canManage: boolean;
   onAction: (actionId: ReservationContextActionId) => void;
+  sourceCodes?: Array<{ id: string; name: string; code?: string | null }> | null;
+  marketSegments?: Array<{ id: string; name: string; code?: string | null }> | null;
 }) {
   const [tab, setTab] = useState<QuickViewTab>("overview");
 
@@ -158,7 +204,13 @@ export function ReservationQuickViewPanel({
           <QuickViewError detail={errorDetail} onRetry={onRetry} />
         ) : quickView ? (
           <div id={`quick-view-${tab}`} role="tabpanel">
-            {tab === "overview" ? <OverviewTab quickView={quickView} /> : null}
+            {tab === "overview" ? (
+              <OverviewTab
+                quickView={quickView}
+                sourceCodes={sourceCodes}
+                marketSegments={marketSegments}
+              />
+            ) : null}
             {tab === "guest" ? <GuestTab quickView={quickView} /> : null}
             {tab === "stay" ? <StayDetailsTab quickView={quickView} /> : null}
             {tab === "notes" ? <NotesTab quickView={quickView} /> : null}
@@ -192,7 +244,15 @@ export function ReservationQuickViewPanel({
   );
 }
 
-function OverviewTab({ quickView }: { quickView: ReservationQuickView }) {
+function OverviewTab({
+  quickView,
+  sourceCodes,
+  marketSegments,
+}: {
+  quickView: ReservationQuickView;
+  sourceCodes?: Array<{ id: string; name: string; code?: string | null }> | null;
+  marketSegments?: Array<{ id: string; name: string; code?: string | null }> | null;
+}) {
   return (
     <div className="space-y-4">
       <DetailSection icon={<CalendarDays className="size-3.5" />} title="Stay Summary">
@@ -232,8 +292,20 @@ function OverviewTab({ quickView }: { quickView: ReservationQuickView }) {
               label="Room Total"
               value={formatMoney(quickView.commercial.roomSubtotal, quickView.commercial.currency)}
             />
-            <Info label="Booking Source" value={quickView.commercial.commercialBookingSource} />
-            <Info label="Market Segment" value={quickView.commercial.marketSegment} />
+            <Info
+              label="Booking Source"
+              value={formatQuickViewBookingSource(
+                quickView.commercial.commercialBookingSource,
+                sourceCodes,
+              )}
+            />
+            <Info
+              label="Market Segment"
+              value={formatQuickViewMarketSegment(
+                quickView.commercial.marketSegment,
+                marketSegments,
+              )}
+            />
             <Info label="Guarantee" value={quickView.commercial.guaranteeMethod} />
           </dl>
         </DetailCard>

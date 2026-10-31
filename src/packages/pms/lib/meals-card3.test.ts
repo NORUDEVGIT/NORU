@@ -46,7 +46,18 @@ function snapshot(partial?: Partial<MealsCard3Snapshot>): MealsCard3Snapshot {
     mealPlans: [],
     packages: [],
     components: [],
-    roomTypes: [{ id: "rt1", code: "DLX", name: "Deluxe", active: true }],
+    roomTypes: [
+      {
+        id: "rt1",
+        code: "DLX",
+        name: "Deluxe",
+        active: true,
+        baseNightlyRate: null,
+        standardOccupancy: 2,
+        extraAdultRateDefault: null,
+        extraChildRateDefault: null,
+      },
+    ],
     roomAmenities: [{ id: "ra1", code: "WIFI", name: "Wi-Fi", category: "general", active: true }],
     ratePlans: [{ id: "rp1", code: "BAR", name: "Best available", active: true }],
     foServices: [{ id: "fs1", name: "Airport transfer", defaultAmount: 0, sortOrder: 0, active: true }],
@@ -151,7 +162,7 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
   it("exposes exactly the four Phase 4 tabs and the isolated API files", () => {
     assert.deepEqual(
       CARD3_MEALS_TABS.map((tab) => tab.label),
-      ["Overview", "Meal Plans", "Packages", "Package Components"],
+      ["Overview", "Meal Plans", "Package Components", "Packages"],
     );
     assert.equal(existsSync(join(here, "meals-card3.server.ts")), true);
     assert.equal(existsSync(join(here, "meals-card3.functions.ts")), true);
@@ -163,14 +174,19 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
   });
 
   it("wires the Phase 4 workspace, inherited catalogues, editing, search, audit, and loading state", () => {
-    assert.match(section, /getMealsCard3/);
-    assert.match(section, /PmsPropertySetupCard3Meals/);
-    assert.match(section, /domain\?\.id === "meal-plans-packages"/);
+    const card2Section = readFileSync(
+      new URL("../components/settings/pms-property-setup-card2-section.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.doesNotMatch(section, /PmsPropertySetupCard3Meals/);
+    assert.doesNotMatch(section, /getMealsCard3/);
+    assert.doesNotMatch(section, /meal-plans-packages/);
+    assert.match(card2Section, /PmsPropertySetupCard3Meals/);
+    assert.match(card2Section, /getMealsCard3/);
+    assert.match(card2Section, /meal-plans-packages/);
     assert.match(section, /currencyQuery\.isLoading/);
-    assert.match(section, /mealsQuery\.isLoading/);
     assert.match(section, /currencyStatus/);
     assert.match(section, /taxesStatus/);
-    assert.match(section, /mealsStatus/);
     assert.match(section, /paymentsStatus/);
     assert.match(section, /billingStatus/);
     assert.match(section, /commercialStatus/);

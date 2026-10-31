@@ -57,7 +57,7 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.equal(CARD3_HASH, "financial-commercial");
     assert.equal(CARD3_HREF, `${SET1_HUB_HREF}#financial-commercial`);
     assert.equal(CARD3_PROMOTIONS_HREF, card3DomainHref("revenue-commercial-rules"));
-    assert.equal(CARD3_PACKAGES_HREF, card3DomainHref("meal-plans-packages"));
+    assert.equal(CARD3_PACKAGES_HREF, `${SET1_HUB_HREF}?card2Step=meal-plans-packages#rooms-inventory`);
     assert.equal(card3DomainFromSearch("?card3Domain=revenue-commercial-rules"), "revenue-commercial-rules");
     assert.equal(card3DomainFromSearch("?card3Domain=unknown"), null);
     assert.match(section, /card3DomainFromSearch/);
@@ -71,14 +71,13 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
       [
         "Currency & Financial Settings",
         "Taxes & Fees",
-        "Meal Plans & Packages",
         "Payments & Deposits",
         "Billing & Invoicing",
         "Corporate & Contract Rates",
         "Revenue & Commercial Rules",
       ],
     );
-    assert.equal(CARD3_DOMAINS.length, 7);
+    assert.equal(CARD3_DOMAINS.length, 6);
     assert.equal(CARD3_PROGRESS_PERCENT, 0);
     assert.equal(CARD3_PROGRESS_LABEL, "Not Started");
     assert.doesNotMatch(lib, /86%/);

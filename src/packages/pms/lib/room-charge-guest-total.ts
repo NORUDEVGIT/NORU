@@ -127,6 +127,17 @@ export function packageChargeFigures(
   return previewPostedRoomCharge(amount, rules?.taxes ?? [], rules?.services ?? []);
 }
 
+/** Guest-facing nightly rate from a taxed stay total. Null when nights are unknown. */
+export function guestRatePerNight(
+  guestTotal: number | null | undefined,
+  nights: number | null | undefined,
+): number | null {
+  if (guestTotal == null || !Number.isFinite(guestTotal) || !(nights != null && nights > 0)) {
+    return null;
+  }
+  return Math.round((guestTotal / nights) * 100) / 100;
+}
+
 /** Same stack as create-reservation Expected Total: room + packages + services. */
 export function sumReservationGuestTotal(
   room: number | null | undefined,

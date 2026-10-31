@@ -200,10 +200,8 @@ export function Set3RatesSection({
         )}
       </div>
 
-      {/* Phase B: Packages are now managed exclusively in Settings →
-          Financial & Commercial → Meal Plans & Packages (Package Master).
-          The SET3 PackageDialog and its writer (savePmsPackage) have been
-          retired. The underlying pms_packages table and data are unchanged. */}
+      {/* Packages are managed in Settings → Rooms & Operations →
+          Meal Plans & Packages (Package Master). */}
       <div className="space-y-3 border-t border-border pt-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-medium text-[#251605]">Packages</h3>
@@ -243,7 +241,7 @@ export function Set3RatesSection({
               >
                 Meal Plans &amp; Packages
               </a>{" "}
-              in Financial &amp; Commercial settings.
+              in Rooms &amp; Operations settings.
             </p>
           </>
         )}

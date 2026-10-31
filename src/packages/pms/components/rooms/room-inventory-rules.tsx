@@ -1319,7 +1319,7 @@ function SettingsLink({
   section,
 }: {
   label?: string;
-  step?: "room-types" | "amenities" | "housekeeping" | "inventory-rules" | "maintenance" | "rates-pricing";
+  step?: "room-types" | "amenities" | "housekeeping" | "inventory-rules" | "maintenance" | "rates-pricing" | "meal-plans-packages";
   section?: string;
 }) {
   const sectionParam = section ? `&section=${encodeURIComponent(section)}` : "";

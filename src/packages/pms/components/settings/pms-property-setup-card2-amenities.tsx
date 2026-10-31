@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  ChevronDown,
+  ChevronUp,
   FolderPlus,
   Image as ImageIcon,
   Link as LinkIcon,
@@ -13,6 +15,11 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/shared/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -59,10 +66,7 @@ import {
   type CanonicalAmenityCategory,
 } from "@/packages/pms/lib/rooms-card2-amenities.server";
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
-import {
-  AmenityIconDisplay,
-  PRESET_AMENITY_ICONS,
-} from "./amenity-icon-resolver";
+import { AmenityIconDisplay, PRESET_AMENITY_ICONS } from "./amenity-icon-resolver";
 
 type CatalogForm = {
   id?: string;
@@ -157,19 +161,24 @@ export function PmsPropertySetupCard2Amenities({
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [newCatName, setNewCatName] = useState("");
   const [newCatIcon, setNewCatIcon] = useState("");
-  const [newCatIconType, setNewCatIconType] = useState<"upload" | "url" | "preset" | "fallback">("fallback");
+  const [newCatIconType, setNewCatIconType] = useState<"upload" | "url" | "preset" | "fallback">(
+    "fallback",
+  );
   const [newCatIconSignedUrl, setNewCatIconSignedUrl] = useState<string | null>(null);
   const [newCatIconTab, setNewCatIconTab] = useState<"preset" | "upload" | "url">("preset");
   const [newCatError, setNewCatError] = useState("");
   const [isUploadingCatIcon, setIsUploadingCatIcon] = useState(false);
 
   // Room type & overrides manager states
+  const [roomTypeAmenitiesOpen, setRoomTypeAmenitiesOpen] = useState(false);
   const [typeManagerOpen, setTypeManagerOpen] = useState(false);
   const [overrideManagerOpen, setOverrideManagerOpen] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState("");
   const [typeAmenityIds, setTypeAmenityIds] = useState<string[]>([]);
   const [typeAmenitySearch, setTypeAmenitySearch] = useState("");
-  const [selectedTypeCategory, setSelectedTypeCategory] = useState<string>(CANONICAL_AMENITY_CATEGORIES[0]);
+  const [selectedTypeCategory, setSelectedTypeCategory] = useState<string>(
+    CANONICAL_AMENITY_CATEGORIES[0],
+  );
   const [typeCategorySearch, setTypeCategorySearch] = useState("");
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [addAmenityId, setAddAmenityId] = useState("");
@@ -215,15 +224,13 @@ export function PmsPropertySetupCard2Amenities({
   const effectiveQuery = useQuery({
     queryKey: ["pms-card2-effective", restaurantId, selectedRoomId],
     enabled: Boolean(selectedRoomId),
-    queryFn: () =>
-      fetchEffective({ data: { restaurantId, roomId: selectedRoomId } }),
+    queryFn: () => fetchEffective({ data: { restaurantId, roomId: selectedRoomId } }),
   });
 
   const overridesQuery = useQuery({
     queryKey: ["pms-card2-overrides", restaurantId, selectedRoomId],
     enabled: Boolean(selectedRoomId),
-    queryFn: () =>
-      fetchOverrides({ data: { restaurantId, roomId: selectedRoomId } }),
+    queryFn: () => fetchOverrides({ data: { restaurantId, roomId: selectedRoomId } }),
   });
 
   const amenities = amenitiesQuery.data ?? [];
@@ -232,10 +239,7 @@ export function PmsPropertySetupCard2Amenities({
 
   const types = typesQuery.data ?? [];
   const rooms = roomsQuery.data ?? [];
-  const uncategorized = uncategorizedAmenityCount(
-    amenities,
-    customCategoryNames,
-  );
+  const uncategorized = uncategorizedAmenityCount(amenities, customCategoryNames);
   const activeAmenityCount = amenities.filter((row) => row.active).length;
   const typesConfigured = types.filter(
     (row) => row.active && (row.amenityIds?.length ?? 0) > 0,
@@ -297,10 +301,7 @@ export function PmsPropertySetupCard2Amenities({
   const categoryAmenities = useMemo(() => {
     return amenities.filter((row) => {
       if (selectedCategory === "Category Required") {
-        return !isApprovedAmenityCategory(
-          row.category,
-          customCategoryNames,
-        );
+        return !isApprovedAmenityCategory(row.category, customCategoryNames);
       }
       return row.category?.trim().toLowerCase() === selectedCategory.trim().toLowerCase();
     });
@@ -320,9 +321,7 @@ export function PmsPropertySetupCard2Amenities({
 
   // Currently selected category nav metadata
   const selectedCategoryMeta = useMemo(() => {
-    return categoryNavItems.find(
-      (c) => c.name.toLowerCase() === selectedCategory.toLowerCase(),
-    );
+    return categoryNavItems.find((c) => c.name.toLowerCase() === selectedCategory.toLowerCase());
   }, [categoryNavItems, selectedCategory]);
 
   useEffect(() => {
@@ -340,9 +339,7 @@ export function PmsPropertySetupCard2Amenities({
   function toggleTypeAmenity(amenityId: string) {
     if (disabled) return;
     setTypeAmenityIds((prev) =>
-      prev.includes(amenityId)
-        ? prev.filter((id) => id !== amenityId)
-        : [...prev, amenityId],
+      prev.includes(amenityId) ? prev.filter((id) => id !== amenityId) : [...prev, amenityId],
     );
   }
 
@@ -350,9 +347,7 @@ export function PmsPropertySetupCard2Amenities({
     if (disabled) return;
     const catActiveIds = amenities
       .filter(
-        (a) =>
-          a.active &&
-          a.category?.trim().toLowerCase() === categoryName.trim().toLowerCase(),
+        (a) => a.active && a.category?.trim().toLowerCase() === categoryName.trim().toLowerCase(),
       )
       .map((a) => a.id);
     setTypeAmenityIds((prev) => Array.from(new Set([...prev, ...catActiveIds])));
@@ -362,10 +357,7 @@ export function PmsPropertySetupCard2Amenities({
     if (disabled) return;
     const catIdsSet = new Set(
       amenities
-        .filter(
-          (a) =>
-            a.category?.trim().toLowerCase() === categoryName.trim().toLowerCase(),
-        )
+        .filter((a) => a.category?.trim().toLowerCase() === categoryName.trim().toLowerCase())
         .map((a) => a.id),
     );
     setTypeAmenityIds((prev) => prev.filter((id) => !catIdsSet.has(id)));
@@ -496,9 +488,7 @@ export function PmsPropertySetupCard2Amenities({
   });
 
   async function writeOverrides(
-    overrides:
-      | { amenityId: string; kind: AmenityOverrideKind }[]
-      | { reset: true },
+    overrides: { amenityId: string; kind: AmenityOverrideKind }[] | { reset: true },
   ) {
     const result =
       "reset" in overrides
@@ -515,8 +505,12 @@ export function PmsPropertySetupCard2Amenities({
     }
 
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["pms-card2-overrides", restaurantId, selectedRoomId] }),
-      queryClient.invalidateQueries({ queryKey: ["pms-card2-effective", restaurantId, selectedRoomId] }),
+      queryClient.invalidateQueries({
+        queryKey: ["pms-card2-overrides", restaurantId, selectedRoomId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["pms-card2-effective", restaurantId, selectedRoomId],
+      }),
       queryClient.invalidateQueries({ queryKey: ["pms-card2-amenities-ready", restaurantId] }),
     ]);
 
@@ -569,9 +563,7 @@ export function PmsPropertySetupCard2Amenities({
   const effective = effectiveQuery.data?.ok ? effectiveQuery.data : null;
   const currentOverrides = overridesQuery.data?.ok ? overridesQuery.data.overrides : [];
 
-  const selectedTypeAmenities = amenities.filter((row) =>
-    typeAmenityIds.includes(row.id),
-  );
+  const selectedTypeAmenities = amenities.filter((row) => typeAmenityIds.includes(row.id));
 
   const inheritedAmenities =
     effective?.inherited.filter(
@@ -581,17 +573,14 @@ export function PmsPropertySetupCard2Amenities({
   const removedAmenities = effective?.removed ?? [];
 
   const addable = amenities.filter(
-    (row) =>
-      row.active && !(effective?.effective ?? []).some((item) => item.id === row.id),
+    (row) => row.active && !(effective?.effective ?? []).some((item) => item.id === row.id),
   );
 
   const disabled = !canEdit;
 
   function newAmenity() {
     const defaultCat =
-      selectedCategory === "Category Required"
-        ? CANONICAL_AMENITY_CATEGORIES[0]
-        : selectedCategory;
+      selectedCategory === "Category Required" ? CANONICAL_AMENITY_CATEGORIES[0] : selectedCategory;
     setForm(emptyCatalog(defaultCat));
     setFormError("");
     setAmenityIconTab("preset");
@@ -614,11 +603,7 @@ export function PmsPropertySetupCard2Amenities({
     });
     setFormError("");
     setAmenityIconTab(
-      row.icon.startsWith("http")
-        ? "url"
-        : row.icon.includes("/")
-          ? "upload"
-          : "preset",
+      row.icon.startsWith("http") ? "url" : row.icon.includes("/") ? "upload" : "preset",
     );
     setCatalogEditorOpen(true);
   }
@@ -775,14 +760,16 @@ export function PmsPropertySetupCard2Amenities({
   return (
     <div className="space-y-6" data-testid="pms-card2-amenities-form">
       {/* SECTION 1: Master/Detail Category-First Amenity Catalog */}
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm" data-testid="pms-amenity-catalog-section">
+      <section
+        className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm"
+        data-testid="pms-amenity-catalog-section"
+      >
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#EDE6D8] pb-4">
           <div>
-            <h3 className="font-display text-lg text-[#251605]">
-              Amenity Catalog
-            </h3>
+            <h3 className="font-display text-lg text-[#251605]">Amenity Catalog</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Category-first catalogue with 14 approved canonical categories, rich icon scanning, and custom classifications.
+              Category-first catalogue with 14 approved canonical categories, rich icon scanning,
+              and custom classifications.
             </p>
           </div>
 
@@ -845,7 +832,10 @@ export function PmsPropertySetupCard2Amenities({
               </Button>
             </div>
 
-            <nav className="space-y-1 max-h-[640px] overflow-y-auto pr-1" aria-label="Amenity Categories">
+            <nav
+              className="space-y-1 max-h-[640px] overflow-y-auto pr-1"
+              aria-label="Amenity Categories"
+            >
               {categoryNavItems.map((cat) => {
                 const isSelected = selectedCategory.toLowerCase() === cat.name.toLowerCase();
                 return (
@@ -917,7 +907,8 @@ export function PmsPropertySetupCard2Amenities({
                     {selectedCategory}
                   </h4>
                   <p className="text-xs text-muted-foreground">
-                    {filteredCategoryAmenities.length} of {categoryAmenities.length} amenities matching
+                    {filteredCategoryAmenities.length} of {categoryAmenities.length} amenities
+                    matching
                   </p>
                 </div>
               </div>
@@ -1008,7 +999,18 @@ export function PmsPropertySetupCard2Amenities({
                       }}
                     >
                       <span className="sr-only">Edit</span>
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                      <svg
+                        className="h-3.5 w-3.5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        <path d="m15 5 4 4" />
+                      </svg>
                     </Button>
                   </div>
                 </div>
@@ -1045,263 +1047,325 @@ export function PmsPropertySetupCard2Amenities({
         </div>
       </section>
 
-      {/* SECTION 2: Room Type Amenities — CATEGORY-FIRST COMPACT CHECKBOX UI */}
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm" data-testid="pms-room-type-amenities-section">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#EDE6D8] pb-4">
-          <div>
-            <h3 className="font-display text-lg text-[#251605]">
-              Room Type Amenities
-            </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Category-first compact checkbox selector. Selections across categories persist when switching.
-            </p>
+      {/* SECTION 2: Room Type Amenities — Collapsible (collapsed by default) */}
+      <Collapsible
+        open={roomTypeAmenitiesOpen}
+        onOpenChange={setRoomTypeAmenitiesOpen}
+        className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm"
+        data-testid="pms-room-type-amenities-section"
+      >
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 ${
+            roomTypeAmenitiesOpen ? "border-b border-[#EDE6D8] pb-4" : "cursor-pointer select-none"
+          }`}
+          onClick={() => {
+            if (!roomTypeAmenitiesOpen) {
+              setRoomTypeAmenitiesOpen(true);
+            }
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-display text-lg text-[#251605]">Room Type Amenities</h3>
+                <span className="rounded-full bg-[#EDE6D8] px-2 py-0.5 text-xs font-medium text-[#5C4528]">
+                  {types.length} {types.length === 1 ? "type" : "types"}
+                </span>
+              </div>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Category-first compact checkbox selector. Selections across categories persist when
+                switching.
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="w-64">
-              <Select
-                disabled={disabled}
-                value={selectedTypeId || undefined}
-                onValueChange={setSelectedTypeId}
-              >
-                <SelectTrigger className="bg-white">
-                  <SelectValue placeholder="Select a room type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {types.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.displayName || row.name} ({row.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+            {roomTypeAmenitiesOpen ? (
+              <>
+                <div className="w-64">
+                  <Select
+                    disabled={disabled}
+                    value={selectedTypeId || undefined}
+                    onValueChange={setSelectedTypeId}
+                  >
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Select a room type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {types.map((row) => (
+                        <SelectItem key={row.id} value={row.id}>
+                          {row.displayName || row.name} ({row.code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <Button
-              type="button"
-              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-              size="sm"
-              disabled={disabled || !selectedTypeId || saveTypeMutation.isPending}
-              onClick={() => saveTypeMutation.mutate()}
-            >
-              {saveTypeMutation.isPending ? "Saving..." : "Save Assignments"}
-            </Button>
+                <Button
+                  type="button"
+                  className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+                  size="sm"
+                  disabled={disabled || !selectedTypeId || saveTypeMutation.isPending}
+                  onClick={() => saveTypeMutation.mutate()}
+                >
+                  {saveTypeMutation.isPending ? "Saving..." : "Save Assignments"}
+                </Button>
+              </>
+            ) : null}
+
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-[#251605]"
+                aria-label={
+                  roomTypeAmenitiesOpen
+                    ? "Collapse Room Type Amenities"
+                    : "Expand Room Type Amenities"
+                }
+              >
+                {roomTypeAmenitiesOpen ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
+            </CollapsibleTrigger>
           </div>
         </div>
 
-        {selectedType ? (
-          <div className="mt-4 space-y-4">
-            {/* Top Selection Status Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#F7F4EE] px-4 py-2.5 border border-[#EDE6D8]">
-              <span className="text-sm font-medium text-[#251605]">
-                {typeAmenityIds.length} amenities selected for {selectedType.displayName || selectedType.name}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                All changes persist when switching categories. Click "Save Assignments" to commit.
-              </span>
-            </div>
-
-            {/* Category-First Master / Detail Grid */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
-              {/* Category Navigator (4 cols) */}
-              <div className="lg:col-span-4 rounded-xl border border-[#E6DFD3] bg-[#FDFCFB] p-3 space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2">
-                  Categories ({categoryNavItems.length})
+        <CollapsibleContent>
+          {selectedType ? (
+            <div className="mt-4 space-y-4">
+              {/* Top Selection Status Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#F7F4EE] px-4 py-2.5 border border-[#EDE6D8]">
+                <span className="text-sm font-medium text-[#251605]">
+                  {typeAmenityIds.length} amenities selected for{" "}
+                  {selectedType.displayName || selectedType.name}
                 </span>
-
-                <nav className="space-y-1 max-h-[520px] overflow-y-auto pr-1" aria-label="Room Type Amenity Categories">
-                  {categoryNavItems.map((cat) => {
-                    const isSelected = selectedTypeCategory.toLowerCase() === cat.name.toLowerCase();
-                    const inCat = amenities.filter(
-                      (a) => a.active && a.category?.trim().toLowerCase() === cat.name.toLowerCase(),
-                    );
-                    const selectedInCat = inCat.filter((a) => typeAmenityIds.includes(a.id)).length;
-
-                    return (
-                      <button
-                        key={cat.name}
-                        type="button"
-                        onClick={() => setSelectedTypeCategory(cat.name)}
-                        className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
-                          isSelected
-                            ? "bg-white border-2 border-[#C89933] shadow-sm text-[#251605] font-semibold"
-                            : "hover:bg-[#F7F4EE] text-[#4A3B2C] border border-transparent"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="flex h-6 w-6 shrink-0 items-center justify-center">
-                            <AmenityIconDisplay
-                              icon={cat.icon}
-                              signedUrl={cat.signedUrl}
-                              categoryName={cat.name}
-                              size={22}
-                              className={`h-5.5 w-5.5 shrink-0 ${isSelected ? "text-[#C89933]" : "text-[#5C4528]"}`}
-                            />
-                          </div>
-                          <span className="truncate text-sm">{cat.name}</span>
-                        </div>
-
-                        <span
-                          className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
-                            selectedInCat > 0
-                              ? "bg-[#C89933]/20 text-[#251605] font-semibold"
-                              : "bg-[#EDE6D8] text-muted-foreground"
-                          }`}
-                        >
-                          {selectedInCat} / {inCat.length}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </nav>
+                <span className="text-xs text-muted-foreground">
+                  All changes persist when switching categories. Click "Save Assignments" to commit.
+                </span>
               </div>
 
-              {/* Selected Category Checkbox Grid (8 cols) */}
-              <div className="lg:col-span-8 space-y-4">
-                {/* Header with category info, Selected Count, and Select All / Clear */}
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#EDE6D8] bg-[#F7F4EE] p-3.5">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white border border-[#E6DFD3] shadow-xs">
-                      <AmenityIconDisplay
-                        icon={categoryNavItems.find((c) => c.name.toLowerCase() === selectedTypeCategory.toLowerCase())?.icon}
-                        categoryName={selectedTypeCategory}
-                        size={22}
-                        className="h-5.5 w-5.5 text-[#251605]"
-                      />
-                    </div>
-                    <div>
-                      <h4 className="font-display text-sm font-semibold text-[#251605]">
-                        {selectedTypeCategory}
-                      </h4>
-                      <p className="text-xs text-muted-foreground">
-                        {
-                          amenities.filter(
-                            (a) =>
-                              a.active &&
-                              a.category?.trim().toLowerCase() === selectedTypeCategory.trim().toLowerCase() &&
-                              typeAmenityIds.includes(a.id),
-                          ).length
-                        }{" "}
-                        of{" "}
-                        {
-                          amenities.filter(
-                            (a) =>
-                              a.active &&
-                              a.category?.trim().toLowerCase() === selectedTypeCategory.trim().toLowerCase(),
-                          ).length
-                        }{" "}
-                        selected
-                      </p>
-                    </div>
-                  </div>
+              {/* Category-First Master / Detail Grid */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
+                {/* Category Navigator (4 cols) */}
+                <div className="lg:col-span-4 rounded-xl border border-[#E6DFD3] bg-[#FDFCFB] p-3 space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2">
+                    Categories ({categoryNavItems.length})
+                  </span>
 
-                  {/* Select All | Clear Actions for THIS category only */}
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs px-2.5 bg-white"
-                      disabled={disabled}
-                      onClick={() => handleSelectAllCurrentCategory(selectedTypeCategory)}
-                    >
-                      Select All
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs px-2.5 text-muted-foreground hover:text-[#251605]"
-                      disabled={disabled}
-                      onClick={() => handleClearCurrentCategory(selectedTypeCategory)}
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                </div>
+                  <nav
+                    className="space-y-1 max-h-[520px] overflow-y-auto pr-1"
+                    aria-label="Room Type Amenity Categories"
+                  >
+                    {categoryNavItems.map((cat) => {
+                      const isSelected =
+                        selectedTypeCategory.toLowerCase() === cat.name.toLowerCase();
+                      const inCat = amenities.filter(
+                        (a) =>
+                          a.active && a.category?.trim().toLowerCase() === cat.name.toLowerCase(),
+                      );
+                      const selectedInCat = inCat.filter((a) =>
+                        typeAmenityIds.includes(a.id),
+                      ).length;
 
-                {/* In-category search box */}
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="pl-9 bg-white"
-                    placeholder={`Search amenities in ${selectedTypeCategory}...`}
-                    value={typeCategorySearch}
-                    onChange={(e) => setTypeCategorySearch(e.target.value)}
-                  />
-                </div>
-
-                {/* Compact CHECKBOX GRID (36-42px height, 18-20px icon, 13-14px label, 2-3 cols) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                  {amenities
-                    .filter((a) => {
-                      if (!a.active) return false;
-                      const inCat = a.category?.trim().toLowerCase() === selectedTypeCategory.trim().toLowerCase();
-                      if (!inCat) return false;
-                      if (!typeCategorySearch.trim()) return true;
-                      return a.name.toLowerCase().includes(typeCategorySearch.trim().toLowerCase());
-                    })
-                    .map((amenity) => {
-                      const isChecked = typeAmenityIds.includes(amenity.id);
                       return (
-                        <div
-                          key={amenity.id}
-                          role="checkbox"
-                          aria-checked={isChecked}
-                          tabIndex={0}
-                          onClick={() => toggleTypeAmenity(amenity.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === " " || e.key === "Enter") {
-                              e.preventDefault();
-                              toggleTypeAmenity(amenity.id);
-                            }
-                          }}
-                          className={`h-[40px] px-3 rounded-lg border flex items-center gap-2.5 cursor-pointer transition-all select-none outline-none focus-visible:ring-2 focus-visible:ring-[#C89933] ${
-                            isChecked
-                              ? "bg-[#FBF8F2] border-[#C89933] text-[#251605] shadow-xs"
-                              : "bg-white border-[#EDE6D8] hover:border-[#C89933]/50 hover:bg-[#FDFCFB] text-[#4A3B2C]"
+                        <button
+                          key={cat.name}
+                          type="button"
+                          onClick={() => setSelectedTypeCategory(cat.name)}
+                          className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
+                            isSelected
+                              ? "bg-white border-2 border-[#C89933] shadow-sm text-[#251605] font-semibold"
+                              : "hover:bg-[#F7F4EE] text-[#4A3B2C] border border-transparent"
                           }`}
                         >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            disabled={disabled}
-                            readOnly
-                            className="h-4 w-4 rounded border-gray-300 text-[#C89933] focus:ring-[#C89933] pointer-events-none"
-                          />
-                          <div className="flex h-5 w-5 shrink-0 items-center justify-center">
-                            <AmenityIconDisplay
-                              icon={amenity.icon}
-                              signedUrl={amenity.iconUrl}
-                              categoryName={amenity.category}
-                              size={18}
-                              className="h-4.5 w-4.5 shrink-0 text-[#251605]"
-                            />
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                              <AmenityIconDisplay
+                                icon={cat.icon}
+                                signedUrl={cat.signedUrl}
+                                categoryName={cat.name}
+                                size={22}
+                                className={`h-5.5 w-5.5 shrink-0 ${isSelected ? "text-[#C89933]" : "text-[#5C4528]"}`}
+                              />
+                            </div>
+                            <span className="truncate text-sm">{cat.name}</span>
                           </div>
-                          <span className="text-[13px] font-medium truncate flex-1">
-                            {amenity.name.replace(/\u200B/g, "")}
+
+                          <span
+                            className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
+                              selectedInCat > 0
+                                ? "bg-[#C89933]/20 text-[#251605] font-semibold"
+                                : "bg-[#EDE6D8] text-muted-foreground"
+                            }`}
+                          >
+                            {selectedInCat} / {inCat.length}
                           </span>
-                        </div>
+                        </button>
                       );
                     })}
+                  </nav>
+                </div>
+
+                {/* Selected Category Checkbox Grid (8 cols) */}
+                <div className="lg:col-span-8 space-y-4">
+                  {/* Header with category info, Selected Count, and Select All / Clear */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#EDE6D8] bg-[#F7F4EE] p-3.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white border border-[#E6DFD3] shadow-xs">
+                        <AmenityIconDisplay
+                          icon={
+                            categoryNavItems.find(
+                              (c) => c.name.toLowerCase() === selectedTypeCategory.toLowerCase(),
+                            )?.icon
+                          }
+                          categoryName={selectedTypeCategory}
+                          size={22}
+                          className="h-5.5 w-5.5 text-[#251605]"
+                        />
+                      </div>
+                      <div>
+                        <h4 className="font-display text-sm font-semibold text-[#251605]">
+                          {selectedTypeCategory}
+                        </h4>
+                        <p className="text-xs text-muted-foreground">
+                          {
+                            amenities.filter(
+                              (a) =>
+                                a.active &&
+                                a.category?.trim().toLowerCase() ===
+                                  selectedTypeCategory.trim().toLowerCase() &&
+                                typeAmenityIds.includes(a.id),
+                            ).length
+                          }{" "}
+                          of{" "}
+                          {
+                            amenities.filter(
+                              (a) =>
+                                a.active &&
+                                a.category?.trim().toLowerCase() ===
+                                  selectedTypeCategory.trim().toLowerCase(),
+                            ).length
+                          }{" "}
+                          selected
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Select All | Clear Actions for THIS category only */}
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs px-2.5 bg-white"
+                        disabled={disabled}
+                        onClick={() => handleSelectAllCurrentCategory(selectedTypeCategory)}
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs px-2.5 text-muted-foreground hover:text-[#251605]"
+                        disabled={disabled}
+                        onClick={() => handleClearCurrentCategory(selectedTypeCategory)}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* In-category search box */}
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      className="pl-9 bg-white"
+                      placeholder={`Search amenities in ${selectedTypeCategory}...`}
+                      value={typeCategorySearch}
+                      onChange={(e) => setTypeCategorySearch(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Compact CHECKBOX GRID (36-42px height, 18-20px icon, 13-14px label, 2-3 cols) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                    {amenities
+                      .filter((a) => {
+                        if (!a.active) return false;
+                        const inCat =
+                          a.category?.trim().toLowerCase() ===
+                          selectedTypeCategory.trim().toLowerCase();
+                        if (!inCat) return false;
+                        if (!typeCategorySearch.trim()) return true;
+                        return a.name
+                          .toLowerCase()
+                          .includes(typeCategorySearch.trim().toLowerCase());
+                      })
+                      .map((amenity) => {
+                        const isChecked = typeAmenityIds.includes(amenity.id);
+                        return (
+                          <div
+                            key={amenity.id}
+                            role="checkbox"
+                            aria-checked={isChecked}
+                            tabIndex={0}
+                            onClick={() => toggleTypeAmenity(amenity.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === " " || e.key === "Enter") {
+                                e.preventDefault();
+                                toggleTypeAmenity(amenity.id);
+                              }
+                            }}
+                            className={`h-[40px] px-3 rounded-lg border flex items-center gap-2.5 cursor-pointer transition-all select-none outline-none focus-visible:ring-2 focus-visible:ring-[#C89933] ${
+                              isChecked
+                                ? "bg-[#FBF8F2] border-[#C89933] text-[#251605] shadow-xs"
+                                : "bg-white border-[#EDE6D8] hover:border-[#C89933]/50 hover:bg-[#FDFCFB] text-[#4A3B2C]"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              disabled={disabled}
+                              readOnly
+                              className="h-4 w-4 rounded border-gray-300 text-[#C89933] focus:ring-[#C89933] pointer-events-none"
+                            />
+                            <div className="flex h-5 w-5 shrink-0 items-center justify-center">
+                              <AmenityIconDisplay
+                                icon={amenity.icon}
+                                signedUrl={amenity.iconUrl}
+                                categoryName={amenity.category}
+                                size={18}
+                                className="h-4.5 w-4.5 shrink-0 text-[#251605]"
+                              />
+                            </div>
+                            <span className="text-[13px] font-medium truncate flex-1">
+                              {amenity.name.replace(/\u200B/g, "")}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <p className="pt-6 text-sm text-muted-foreground text-center">
-            Select a room type to configure its default amenities.
-          </p>
-        )}
-      </section>
+          ) : (
+            <p className="pt-6 text-sm text-muted-foreground text-center">
+              Select a room type to configure its default amenities.
+            </p>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* SECTION 3: Room-Specific Overrides (PRESERVED) */}
       <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="font-display text-lg text-[#251605]">
-              Room-Specific Overrides
-            </h3>
+            <h3 className="font-display text-lg text-[#251605]">Room-Specific Overrides</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               Override inherited room-type amenities for an individual physical room.
             </p>
@@ -1373,9 +1437,7 @@ export function PmsPropertySetupCard2Amenities({
             />
           </div>
         ) : selectedRoom && effectiveQuery.data && !effectiveQuery.data.ok ? (
-          <p className="mt-3 text-sm text-destructive">
-            {effectiveQuery.data.message}
-          </p>
+          <p className="mt-3 text-sm text-destructive">{effectiveQuery.data.message}</p>
         ) : null}
       </section>
 
@@ -1551,24 +1613,16 @@ export function PmsPropertySetupCard2Amenities({
                   <p className="text-xs font-medium text-[#251605] truncate">
                     {newCatName.trim() || "Category Name Preview"}
                   </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    22px scannable icon preview
-                  </p>
+                  <p className="text-[11px] text-muted-foreground">22px scannable icon preview</p>
                 </div>
               </div>
             </div>
 
-            {newCatError ? (
-              <p className="text-xs text-destructive">{newCatError}</p>
-            ) : null}
+            {newCatError ? <p className="text-xs text-destructive">{newCatError}</p> : null}
           </div>
 
           <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#EDE6D8] bg-white px-5 py-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setAddCategoryOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setAddCategoryOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -1580,12 +1634,7 @@ export function PmsPropertySetupCard2Amenities({
                   setNewCatError("Category name is required.");
                   return;
                 }
-                if (
-                  isDuplicateCategoryName(
-                    newCatName,
-                    customCategoryNames,
-                  )
-                ) {
+                if (isDuplicateCategoryName(newCatName, customCategoryNames)) {
                   setNewCatError("A category with this name already exists.");
                   return;
                 }
@@ -1623,18 +1672,14 @@ export function PmsPropertySetupCard2Amenities({
 
           <div className="space-y-5 p-5">
             <div>
-              <h4 className="mb-3 text-sm font-semibold text-[#251605]">
-                Basic Information
-              </h4>
+              <h4 className="mb-3 text-sm font-semibold text-[#251605]">Basic Information</h4>
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Amenity Name *">
                   <Input
                     disabled={disabled}
                     placeholder="e.g. King Bed, Espresso Machine"
                     value={form.name}
-                    onChange={(event) =>
-                      setForm({ ...form, name: event.target.value })
-                    }
+                    onChange={(event) => setForm({ ...form, name: event.target.value })}
                   />
                 </Field>
 
@@ -1643,9 +1688,7 @@ export function PmsPropertySetupCard2Amenities({
                     disabled={disabled}
                     placeholder="e.g. BED-KING, ESPRESSO"
                     value={form.code}
-                    onChange={(event) =>
-                      setForm({ ...form, code: event.target.value })
-                    }
+                    onChange={(event) => setForm({ ...form, code: event.target.value })}
                   />
                 </Field>
 
@@ -1653,9 +1696,7 @@ export function PmsPropertySetupCard2Amenities({
                   <Select
                     disabled={disabled}
                     value={form.category}
-                    onValueChange={(value) =>
-                      setForm({ ...form, category: value })
-                    }
+                    onValueChange={(value) => setForm({ ...form, category: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
@@ -1751,7 +1792,9 @@ export function PmsPropertySetupCard2Amenities({
                         onChange={(e) => void handleAmenityIconFile(e.target.files?.[0])}
                       />
                       <p className="text-xs text-muted-foreground">
-                        {isUploadingAmenityIcon ? "Uploading..." : "Upload PNG, JPEG, or WEBP icon (max 1 MB)"}
+                        {isUploadingAmenityIcon
+                          ? "Uploading..."
+                          : "Upload PNG, JPEG, or WEBP icon (max 1 MB)"}
                       </p>
                       <Button
                         type="button"
@@ -1770,9 +1813,7 @@ export function PmsPropertySetupCard2Amenities({
                         className="bg-white"
                         placeholder="https://example.com/icons/wifi.png"
                         value={form.icon}
-                        onChange={(e) =>
-                          setForm({ ...form, icon: e.target.value, iconUrl: null })
-                        }
+                        onChange={(e) => setForm({ ...form, icon: e.target.value, iconUrl: null })}
                       />
                     </div>
                   )}
@@ -1799,18 +1840,14 @@ export function PmsPropertySetupCard2Amenities({
                     disabled={disabled}
                     placeholder="Optional description shown in room detail or guest notes"
                     value={form.description}
-                    onChange={(event) =>
-                      setForm({ ...form, description: event.target.value })
-                    }
+                    onChange={(event) => setForm({ ...form, description: event.target.value })}
                   />
                 </Field>
               </div>
             </div>
 
             <div className="border-t border-[#EDE6D8] pt-5">
-              <h4 className="mb-3 text-sm font-semibold text-[#251605]">
-                Visibility & Behavior
-              </h4>
+              <h4 className="mb-3 text-sm font-semibold text-[#251605]">Visibility & Behavior</h4>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Toggle
                   label="Active"
@@ -1822,40 +1859,28 @@ export function PmsPropertySetupCard2Amenities({
                   label="Complimentary"
                   checked={form.complimentary}
                   disabled={disabled}
-                  onChange={(complimentary) =>
-                    setForm({ ...form, complimentary })
-                  }
+                  onChange={(complimentary) => setForm({ ...form, complimentary })}
                 />
                 <Toggle
                   label="Display to Guest"
                   checked={form.displayToGuest}
                   disabled={disabled}
-                  onChange={(displayToGuest) =>
-                    setForm({ ...form, displayToGuest })
-                  }
+                  onChange={(displayToGuest) => setForm({ ...form, displayToGuest })}
                 />
                 <Toggle
                   label="Internal Only"
                   checked={form.internalOnly}
                   disabled={disabled}
-                  onChange={(internalOnly) =>
-                    setForm({ ...form, internalOnly })
-                  }
+                  onChange={(internalOnly) => setForm({ ...form, internalOnly })}
                 />
               </div>
             </div>
 
-            {formError ? (
-              <p className="text-sm text-destructive">{formError}</p>
-            ) : null}
+            {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
           </div>
 
           <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#EDE6D8] bg-white px-5 py-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setCatalogEditorOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setCatalogEditorOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -1889,9 +1914,7 @@ export function PmsPropertySetupCard2Amenities({
             <DialogHeader className="space-y-1 text-left">
               <DialogTitle className="font-sans text-lg font-semibold text-[#251605]">
                 Manage amenities
-                {selectedType
-                  ? ` — ${selectedType.displayName || selectedType.name}`
-                  : ""}
+                {selectedType ? ` — ${selectedType.displayName || selectedType.name}` : ""}
               </DialogTitle>
               <DialogDescription className="text-sm text-muted-foreground">
                 Select the default amenities inherited by rooms of this type.
@@ -1906,9 +1929,7 @@ export function PmsPropertySetupCard2Amenities({
                 className="pl-9"
                 placeholder="Search amenities"
                 value={typeAmenitySearch}
-                onChange={(event) =>
-                  setTypeAmenitySearch(event.target.value)
-                }
+                onChange={(event) => setTypeAmenitySearch(event.target.value)}
               />
             </div>
 
@@ -1949,7 +1970,9 @@ export function PmsPropertySetupCard2Amenities({
                                 if (e.target.checked) {
                                   setTypeAmenityIds([...typeAmenityIds, amenity.id]);
                                 } else {
-                                  setTypeAmenityIds(typeAmenityIds.filter((id) => id !== amenity.id));
+                                  setTypeAmenityIds(
+                                    typeAmenityIds.filter((id) => id !== amenity.id),
+                                  );
                                 }
                               }}
                               className="h-4 w-4 rounded border-gray-300 text-[#C89933] focus:ring-[#C89933]"
@@ -1973,11 +1996,7 @@ export function PmsPropertySetupCard2Amenities({
           </div>
 
           <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#EDE6D8] bg-white px-5 py-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setTypeManagerOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setTypeManagerOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -1993,10 +2012,7 @@ export function PmsPropertySetupCard2Amenities({
       </Dialog>
 
       {/* DIALOG 4: Manage Room Overrides (PRESERVED) */}
-      <Dialog
-        open={overrideManagerOpen}
-        onOpenChange={setOverrideManagerOpen}
-      >
+      <Dialog open={overrideManagerOpen} onOpenChange={setOverrideManagerOpen}>
         <DialogContent className="block max-h-[88dvh] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto rounded-xl border border-[#CCCCCC] bg-white p-0 shadow-xl">
           <div className="sticky top-0 z-10 border-b border-[#EDE6D8] bg-white px-5 py-4">
             <DialogHeader className="space-y-1 text-left">
@@ -2004,7 +2020,8 @@ export function PmsPropertySetupCard2Amenities({
                 Room Overrides — Room {selectedRoom?.roomNumber}
               </DialogTitle>
               <DialogDescription className="text-sm text-muted-foreground">
-                Override inherited room-type amenities specifically for Room {selectedRoom?.roomNumber}.
+                Override inherited room-type amenities specifically for Room{" "}
+                {selectedRoom?.roomNumber}.
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -2136,7 +2153,9 @@ export function PmsPropertySetupCard2Amenities({
                         className="flex items-center justify-between p-2.5 rounded-lg border border-red-200 bg-red-50/50"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-sm line-through text-muted-foreground">{a.name}</span>
+                          <span className="text-sm line-through text-muted-foreground">
+                            {a.name}
+                          </span>
                           <span className="text-xs text-red-700 font-medium">(Removed)</span>
                         </div>
                         <Button
@@ -2171,10 +2190,7 @@ export function PmsPropertySetupCard2Amenities({
             >
               Reset to Defaults
             </Button>
-            <Button
-              type="button"
-              onClick={() => setOverrideManagerOpen(false)}
-            >
+            <Button type="button" onClick={() => setOverrideManagerOpen(false)}>
               Done
             </Button>
           </div>
@@ -2267,11 +2283,7 @@ function Toggle({
   return (
     <div className="flex items-center justify-between rounded-xl border border-[#EDE6D8] px-3 py-2">
       <Label className="text-[#251605]">{label}</Label>
-      <Switch
-        checked={checked}
-        disabled={disabled}
-        onCheckedChange={onChange}
-      />
+      <Switch checked={checked} disabled={disabled} onCheckedChange={onChange} />
     </div>
   );
 }

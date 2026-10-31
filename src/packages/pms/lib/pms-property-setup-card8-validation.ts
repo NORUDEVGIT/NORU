@@ -125,7 +125,7 @@ export const CARD8_VALIDATION_ADAPTERS: Card8ValidationAdapter[] = [
     href: propertySetupRedirectHref("#rooms-inventory"),
     classification: "SUPPORTED",
     source:
-      "evaluateRoomTypesRoomsReadiness, amenities, evaluateCard2HousekeepingReadiness, evaluateCard2InventoryReadiness, evaluateCard2MaintenanceReadiness, evaluateRatesCard2Readiness",
+      "evaluateRoomTypesRoomsReadiness, evaluateRatesCard2Readiness, amenities, evaluateMealsCard3Readiness, evaluateCard2HousekeepingReadiness, evaluateCard2InventoryReadiness, evaluateCard2MaintenanceReadiness",
     note: "Do not use stored evaluateCard2StepStatus as the rule engine.",
   },
   {
@@ -135,7 +135,7 @@ export const CARD8_VALIDATION_ADAPTERS: Card8ValidationAdapter[] = [
     hash: "financial-commercial",
     href: propertySetupRedirectHref("#financial-commercial"),
     classification: "SUPPORTED",
-    source: "evaluate*Card3Readiness for seven domains",
+    source: "evaluate*Card3Readiness for six domains",
     note: "No buildCard3ValidationReport yet. Compose domain evaluators only.",
   },
   {

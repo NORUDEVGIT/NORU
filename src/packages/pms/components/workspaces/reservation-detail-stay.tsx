@@ -71,6 +71,7 @@ export function ReservationDetailStayTab({
   totalAmount: initialTotalAmount,
   packagesTotal = 0,
   servicesTotal = 0,
+  roomGuestTotal = null,
   onBackToOverview,
   onSaved,
 }: {
@@ -87,6 +88,7 @@ export function ReservationDetailStayTab({
   totalAmount?: number | null;
   packagesTotal?: number;
   servicesTotal?: number;
+  roomGuestTotal?: number | null;
   onBackToOverview: () => void;
   onSaved: () => void;
 }) {
@@ -534,6 +536,7 @@ export function ReservationDetailStayTab({
           totalAmount={initialTotalAmount}
           packagesTotal={packagesTotal}
           servicesTotal={servicesTotal}
+          roomGuestTotal={roomGuestTotal}
         />
       </div>
 
@@ -592,6 +595,7 @@ function StaySummaryRail({
   totalAmount,
   packagesTotal = 0,
   servicesTotal = 0,
+  roomGuestTotal = null,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
@@ -603,6 +607,7 @@ function StaySummaryRail({
   totalAmount?: number | null;
   packagesTotal?: number;
   servicesTotal?: number;
+  roomGuestTotal?: number | null;
 }) {
   return (
     <ReservationDetailSummary
@@ -617,6 +622,7 @@ function StaySummaryRail({
       totalAmount={totalAmount}
       packagesTotal={packagesTotal > 0 ? packagesTotal : undefined}
       servicesTotal={servicesTotal > 0 ? servicesTotal : undefined}
+      roomGuestTotal={roomGuestTotal}
     />
   );
 }

@@ -48,7 +48,11 @@ import {
   type FolioRoomChargeQuote,
 } from "@/packages/pms/lib/cashiering.functions";
 import { quoteReservationRoomGuestTotal } from "@/packages/pms/lib/room-charge-guest-total.functions";
-import { packageChargeFigures, type RoomChargeRules } from "@/packages/pms/lib/room-charge-guest-total";
+import {
+  guestRatePerNight,
+  packageChargeFigures,
+  type RoomChargeRules,
+} from "@/packages/pms/lib/room-charge-guest-total";
 import { usePackageChargeRules } from "@/packages/pms/lib/use-package-charge-rules";
 import { useReservationServiceCharges } from "@/packages/pms/lib/use-reservation-service-charges";
 import { listPromotionActivations } from "@/packages/pms/lib/revenue/commercial-promotion-activation.functions";
@@ -98,6 +102,7 @@ import {
   packageInclusionLabel,
 } from "@/packages/pms/lib/reservation-detail-packages";
 import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
+import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 import { cn } from "@/shared/lib/utils";
 
@@ -111,11 +116,13 @@ export function ReservationDetailRatesTab({
   money,
   folio = null,
   totalAmount,
+  roomGuestTotal = null,
   coverUrl,
   occupancyLabel,
   onBackToRooms,
   onOpenPackages,
   onSaved,
+  marketSegments: marketSegmentsProp,
 }: {
   restaurantId: string;
   reservation: ReservationDetail;
@@ -128,15 +135,18 @@ export function ReservationDetailRatesTab({
     transactions: ReadonlyArray<{ type: string; amount: number; category?: string | null }>;
   } | null;
   totalAmount?: number | null;
+  roomGuestTotal?: number | null;
   coverUrl: string | null;
   occupancyLabel: string | null;
   onBackToRooms: () => void;
   onOpenPackages: () => void;
   onSaved: () => void;
+  marketSegments?: Array<{ id: string; name: string; code?: string | null }> | null;
 }) {
   const fetchPlans = useServerFn(listRatePlans);
   const fetchCommercial = useServerFn(getReservationCommercialAttribution);
   const fetchCatalogue = useServerFn(getMealsCard3);
+  const fetchSet6 = useServerFn(getPmsSet6Snapshot);
   const submitReprice = useServerFn(repriceReservation);
   const submitPromotion = useServerFn(applyReservationPromotion);
   const submitRemovePromotion = useServerFn(removeReservationPromotion);
@@ -146,6 +156,13 @@ export function ReservationDetailRatesTab({
   const fetchUnitGuestTotal = useServerFn(quoteReservationRoomGuestTotal);
   const packageChargeRules = usePackageChargeRules(restaurantId);
   const reservationServices = useReservationServiceCharges(restaurantId, reservation.id);
+  const set6Query = useQuery({
+    queryKey: ["pms-set6", restaurantId, "reservation-detail-rates"],
+    queryFn: () => fetchSet6({ data: { restaurantId } }),
+    enabled: Boolean(restaurantId) && !marketSegmentsProp,
+    staleTime: 5 * 60_000,
+  });
+  const marketSegments = marketSegmentsProp ?? set6Query.data?.snapshot.marketSegments ?? [];
   const [rateNotes, setRateNotes] = useState(reservation.rateNotes ?? "");
   const [planOpen, setPlanOpen] = useState(false);
   const [discountOpen, setDiscountOpen] = useState(false);
@@ -242,7 +259,8 @@ export function ReservationDetailRatesTab({
   const plan: RatePlan | null =
     (plansQuery.data ?? []).find((row) => row.id === read.unit.ratePlanId) ?? null;
   const rows = useMemo(() => nightlyBreakdownRows(read.unit, plan), [read.unit, plan]);
-  const perNight = stayRatePerNight(read.unit);
+  const perNight =
+    guestRatePerNight(stayGuestTotal, read.unit.nights) ?? stayRatePerNight(read.unit);
   const currency = read.unit.currency?.trim() || "ETB";
   const promotion = read.promotion;
   const packages = read.packages ?? [];
@@ -361,6 +379,7 @@ export function ReservationDetailRatesTab({
               money={money}
               editable={canChangePlan && Boolean(read.selectedUnitId)}
               onChangePlan={() => setPlanOpen(true)}
+              roomGuestTotal={roomGuestTotal}
             />
           ) : (
             <>
@@ -381,7 +400,7 @@ export function ReservationDetailRatesTab({
               />
               <DailyRateBreakdownCard
                 rows={rows}
-                roomSubtotal={read.unit.roomSubtotal}
+                roomSubtotal={stayGuestTotal}
                 money={money}
                 currency={currency}
               />
@@ -428,6 +447,7 @@ export function ReservationDetailRatesTab({
           roomQuotePending={roomQuoteQuery.isFetching}
           folioOpen={folio?.status === "open"}
           totalAmount={totalAmount}
+          roomGuestTotal={roomGuestTotal}
           packageGuestTotal={packages.length > 0 ? packageGuestTotal : null}
           servicesTotal={reservationServices.pendingTotal}
         />
@@ -537,14 +557,16 @@ function GroupRoomRates({
   money,
   editable,
   onChangePlan,
+  roomGuestTotal = null,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
   editable: boolean;
   onChangePlan: () => void;
+  roomGuestTotal?: number | null;
 }) {
   const sections = groupRoomRateSections(reservation);
-  const combined = groupCombinedSubtotal(reservation);
+  const combined = roomGuestTotal ?? groupCombinedSubtotal(reservation);
   return (
     <section
       className="space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
@@ -693,7 +715,7 @@ function RateInformationCard({
           <Info label="Rate Code" value={reviewDash(plan?.code)} />
           <Info
             label="Market Segment"
-            value={reviewDash(marketSegmentLabel(reservation.marketSegment))}
+            value={reviewDash(marketSegmentLabel(reservation.marketSegment, marketSegments))}
           />
           <Info label="Rate per Night" value={perNight == null ? DETAIL_DASH : money(perNight)} />
           <Info
@@ -1083,6 +1105,7 @@ function RatesSummaryRail({
   roomQuotePending,
   folioOpen,
   totalAmount,
+  roomGuestTotal = null,
   packageGuestTotal = null,
   servicesTotal = 0,
 }: {
@@ -1101,6 +1124,7 @@ function RatesSummaryRail({
   roomQuotePending: boolean;
   folioOpen: boolean;
   totalAmount?: number | null;
+  roomGuestTotal?: number | null;
   packageGuestTotal?: number | null;
   servicesTotal?: number;
 }) {
@@ -1126,6 +1150,7 @@ function RatesSummaryRail({
             : undefined
         }
         servicesTotal={!groupStay && servicesTotal > 0 ? servicesTotal : undefined}
+        roomGuestTotal={roomGuestTotal}
         paymentReceived={payment}
         paymentRefunded={refund}
         guestDeposit={deposit}

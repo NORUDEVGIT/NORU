@@ -40,6 +40,18 @@ import {
   type RateRefundabilityRow,
   type RatesCard3Snapshot,
 } from "@/packages/pms/lib/rates-card3.server";
+import {
+  computeRatePlanBaseFromDefaults,
+  occupancyFieldsFromRoomTypeDefaults,
+  occupancyFieldsFromSavedRatePlan,
+  roomTypeBaseIsConfigured,
+  type RatePlanPricingMethod,
+} from "@/packages/pms/lib/rate-plan-from-defaults";
+import {
+  parseOptionalIncludedField,
+  RatePlanPricingSetup,
+} from "@/packages/pms/components/settings/rate-plan-pricing-setup";
+import { suggestRatePlanCode } from "@/packages/pms/lib/rates-card2-code";
 
 function matchesQuery(query: string, ...values: string[]) {
   const q = query.trim().toLowerCase();
@@ -69,7 +81,9 @@ export function PmsPropertySetupCard3Rates({
   const [categoryDraft, setCategoryDraft] = useState<RateCategoryRow | "new" | null>(null);
   const [planDraft, setPlanDraft] = useState<RatePlanRow | "new" | null>(null);
   const [calendarDraft, setCalendarDraft] = useState<RateCalendarRow | "new" | null>(null);
-  const [refundabilityDraft, setRefundabilityDraft] = useState<RateRefundabilityRow | "new" | null>(null);
+  const [refundabilityDraft, setRefundabilityDraft] = useState<RateRefundabilityRow | "new" | null>(
+    null,
+  );
   const [refundabilitySearch, setRefundabilitySearch] = useState("");
 
   const query = useQuery({
@@ -110,7 +124,10 @@ export function PmsPropertySetupCard3Rates({
     [calendar, calendarSearch],
   );
   const filteredRefundability = useMemo(
-    () => refundabilityCodes.filter((row) => matchesQuery(refundabilitySearch, row.code, row.name, row.kind)),
+    () =>
+      refundabilityCodes.filter((row) =>
+        matchesQuery(refundabilitySearch, row.code, row.name, row.kind),
+      ),
     [refundabilityCodes, refundabilitySearch],
   );
 
@@ -221,8 +238,8 @@ export function PmsPropertySetupCard3Rates({
           />
 
           <p className="rounded-xl border border-[#E8E1D4] bg-white px-4 py-3 text-sm text-[#5C5346]">
-            Cancellation policies are edited on Card 2 Rate &amp; Pricing. This page can still attach an
-            existing policy on a rate plan; it does not write the catalogue.
+            Cancellation policies are edited on Card 2 Rate &amp; Pricing. This page can still
+            attach an existing policy on a rate plan; it does not write the catalogue.
           </p>
 
           <Card3ListSection
@@ -238,7 +255,12 @@ export function PmsPropertySetupCard3Rates({
             columns={["Code", "Name", "Kind", "Status"]}
             rows={filteredRefundability.map((row) => ({
               id: row.id,
-              cells: [row.code, row.name, row.kind.replaceAll("_", " "), <Card3StatusDot active={row.active} />],
+              cells: [
+                row.code,
+                row.name,
+                row.kind.replaceAll("_", " "),
+                <Card3StatusDot active={row.active} />,
+              ],
               onEdit: () => setRefundabilityDraft(row),
             }))}
           />
@@ -297,7 +319,11 @@ export function PmsPropertySetupCard3Rates({
             key={refundabilityDraft === "new" ? "rf-new" : (refundabilityDraft?.id ?? "rf-closed")}
             open={refundabilityDraft !== null}
             canEdit={canEdit}
-            value={refundabilityDraft === "new" || refundabilityDraft === null ? null : refundabilityDraft}
+            value={
+              refundabilityDraft === "new" || refundabilityDraft === null
+                ? null
+                : refundabilityDraft
+            }
             pending={refundabilityMut.isPending}
             onClose={() => setRefundabilityDraft(null)}
             onSave={(payload) => refundabilityMut.mutate({ restaurantId, ...payload })}
@@ -406,6 +432,9 @@ function PlanDrawer({
     refundabilityId: string | null;
     minAdvanceDays: number | null;
     maxAdvanceDays: number | null;
+    includedOccupancy: number | null;
+    extraAdultRate: number | null;
+    extraChildRate: number | null;
     active: boolean;
   }) => void;
 }) {
@@ -414,17 +443,70 @@ function PlanDrawer({
   const [roomTypeId, setRoomTypeId] = useState(value?.roomTypeId ?? roomTypes[0]?.id ?? "");
   const [code, setCode] = useState(value?.code ?? "");
   const [name, setName] = useState(value?.name ?? "");
+  const [codeManuallyEdited, setCodeManuallyEdited] = useState(Boolean(value?.code));
   const [description, setDescription] = useState(value?.description ?? "");
-  const [baseRate, setBaseRate] = useState(value?.baseRate ?? 0);
+  const initialType = roomTypes.find((row) => row.id === (value?.roomTypeId ?? roomTypes[0]?.id));
+  const createDefaults = occupancyFieldsFromRoomTypeDefaults(initialType);
+  const savedOccupancy = occupancyFieldsFromSavedRatePlan(value);
+  const [baseRate, setBaseRate] = useState(() => {
+    if (value) return value.baseRate;
+    const computed = computeRatePlanBaseFromDefaults({
+      method: roomTypeBaseIsConfigured(initialType?.baseNightlyRate) ? "use_base" : "fixed",
+      roomTypeBase: initialType?.baseNightlyRate,
+      fixedPrice: 0,
+    });
+    return computed.ok ? computed.baseRate : 0;
+  });
+  const [pricingMethod, setPricingMethod] = useState<RatePlanPricingMethod>(
+    value ? "fixed" : roomTypeBaseIsConfigured(initialType?.baseNightlyRate) ? "use_base" : "fixed",
+  );
+  const [methodPercent, setMethodPercent] = useState(10);
   const [validFrom, setValidFrom] = useState(value?.validFrom ?? "");
   const [validTo, setValidTo] = useState(value?.validTo ?? "");
-  const [cancellationPolicyId, setCancellationPolicyId] = useState(value?.cancellationPolicyId ?? none);
+  const [cancellationPolicyId, setCancellationPolicyId] = useState(
+    value?.cancellationPolicyId ?? none,
+  );
   const [refundabilityId, setRefundabilityId] = useState(value?.refundabilityId ?? none);
   const [minAdvanceDays, setMinAdvanceDays] = useState(value?.minAdvanceDays ?? 0);
   const [maxAdvanceDays, setMaxAdvanceDays] = useState(value?.maxAdvanceDays ?? 0);
   const [hasMinAdvance, setHasMinAdvance] = useState(value?.minAdvanceDays != null);
   const [hasMaxAdvance, setHasMaxAdvance] = useState(value?.maxAdvanceDays != null);
+  const selectedType = roomTypes.find((row) => row.id === roomTypeId);
+  const [includedOccupancy, setIncludedOccupancy] = useState(
+    value ? savedOccupancy.includedOccupancy : createDefaults.includedOccupancy,
+  );
+  const [extraAdultRate, setExtraAdultRate] = useState(
+    value ? savedOccupancy.extraAdultRate : createDefaults.extraAdultRate,
+  );
+  const [extraChildRate, setExtraChildRate] = useState(
+    value ? savedOccupancy.extraChildRate : createDefaults.extraChildRate,
+  );
   const [active, setActive] = useState(value?.active ?? true);
+
+  function applyPricingMethod(method: RatePlanPricingMethod, percent = methodPercent) {
+    setPricingMethod(method);
+    if (value) return;
+    const computed = computeRatePlanBaseFromDefaults({
+      method,
+      roomTypeBase: selectedType?.baseNightlyRate,
+      percent,
+      fixedPrice: method === "fixed" ? baseRate : selectedType?.baseNightlyRate,
+    });
+    if (computed.ok) setBaseRate(computed.baseRate);
+  }
+
+  function copyRoomTypeDefaults(nextType = selectedType) {
+    if (!nextType) return;
+    const next = occupancyFieldsFromRoomTypeDefaults(nextType);
+    setIncludedOccupancy(next.includedOccupancy);
+    setExtraAdultRate(next.extraAdultRate);
+    setExtraChildRate(next.extraChildRate);
+    const computed = computeRatePlanBaseFromDefaults({
+      method: "use_base",
+      roomTypeBase: nextType.baseNightlyRate,
+    });
+    if (computed.ok) setBaseRate(computed.baseRate);
+  }
 
   return (
     <Card3OverlapSheet
@@ -450,6 +532,9 @@ function PlanDrawer({
           refundabilityId: refundabilityId === none ? null : refundabilityId,
           minAdvanceDays: hasMinAdvance ? minAdvanceDays : null,
           maxAdvanceDays: hasMaxAdvance ? maxAdvanceDays : null,
+          includedOccupancy: parseOptionalIncludedField(includedOccupancy),
+          extraAdultRate: extraAdultRate.trim() === "" ? null : Number(extraAdultRate),
+          extraChildRate: extraChildRate.trim() === "" ? null : Number(extraChildRate),
           active,
         })
       }
@@ -472,7 +557,31 @@ function PlanDrawer({
         </div>
         <div className="space-y-1">
           <Label>Room type (Card 2)</Label>
-          <Select value={roomTypeId} disabled={!canEdit} onValueChange={setRoomTypeId}>
+          <Select
+            value={roomTypeId}
+            disabled={!canEdit}
+            onValueChange={(nextId) => {
+              setRoomTypeId(nextId);
+              const nextType = roomTypes.find((row) => row.id === nextId);
+              if (!value && nextType) {
+                const next = occupancyFieldsFromRoomTypeDefaults(nextType);
+                setIncludedOccupancy(next.includedOccupancy);
+                setExtraAdultRate(next.extraAdultRate);
+                setExtraChildRate(next.extraChildRate);
+                const nextMethod = roomTypeBaseIsConfigured(nextType.baseNightlyRate)
+                  ? pricingMethod
+                  : "fixed";
+                setPricingMethod(nextMethod);
+                const computed = computeRatePlanBaseFromDefaults({
+                  method: nextMethod,
+                  roomTypeBase: nextType.baseNightlyRate,
+                  percent: methodPercent,
+                  fixedPrice: nextType.baseNightlyRate ?? 0,
+                });
+                if (computed.ok) setBaseRate(computed.baseRate);
+              }
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select a room type" />
             </SelectTrigger>
@@ -486,21 +595,37 @@ function PlanDrawer({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="plan-code">Code</Label>
-          <Input
-            id="plan-code"
-            value={code}
-            disabled={!canEdit}
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="plan-name">Name</Label>
+          <Label htmlFor="plan-name">Rate Plan Name</Label>
           <Input
             id="plan-name"
             value={name}
             disabled={!canEdit}
-            onChange={(event) => setName(event.target.value)}
+            placeholder="e.g. Best Available Rate"
+            onChange={(event) => {
+              const newName = event.target.value;
+              setName(newName);
+              if (!codeManuallyEdited) {
+                setCode(suggestRatePlanCode(newName));
+              }
+            }}
+          />
+        </div>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="plan-code">Rate Plan Code</Label>
+            {!codeManuallyEdited && code && (
+              <span className="text-[10px] text-muted-foreground">Auto-generated from name</span>
+            )}
+          </div>
+          <Input
+            id="plan-code"
+            value={code}
+            disabled={!canEdit}
+            placeholder="e.g. BAR"
+            onChange={(event) => {
+              setCodeManuallyEdited(true);
+              setCode(event.target.value.toUpperCase());
+            }}
           />
         </div>
         <div className="space-y-1">
@@ -535,31 +660,50 @@ function PlanDrawer({
             />
           </div>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="plan-rate">Base rate</Label>
-          <Input
-            id="plan-rate"
-            type="number"
-            min={0}
-            step="any"
-            value={baseRate}
-            disabled={!canEdit}
-            onChange={(event) => setBaseRate(Number(event.target.value))}
-          />
-        </div>
+        <RatePlanPricingSetup
+          canEdit={canEdit}
+          isCreate={!value}
+          selectedType={selectedType}
+          savedBaseRate={value?.baseRate}
+          pricingMethod={pricingMethod}
+          methodPercent={methodPercent}
+          baseRate={baseRate}
+          includedOccupancy={includedOccupancy}
+          extraAdultRate={extraAdultRate}
+          extraChildRate={extraChildRate}
+          onPricingMethodChange={(method) => applyPricingMethod(method)}
+          onPercentChange={(percent) => {
+            setMethodPercent(percent);
+            applyPricingMethod(pricingMethod, percent);
+          }}
+          onBaseRateChange={(rate) => {
+            setPricingMethod("fixed");
+            setBaseRate(rate);
+          }}
+          onIncludedChange={setIncludedOccupancy}
+          onExtraAdultChange={setExtraAdultRate}
+          onExtraChildChange={setExtraChildRate}
+          onRecalculateFromType={() => copyRoomTypeDefaults()}
+        />
         <div className="space-y-1">
           <Label>Cancellation policy</Label>
-          <Select value={cancellationPolicyId} disabled={!canEdit} onValueChange={setCancellationPolicyId}>
+          <Select
+            value={cancellationPolicyId}
+            disabled={!canEdit}
+            onValueChange={setCancellationPolicyId}
+          >
             <SelectTrigger>
               <SelectValue placeholder="None" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={none}>None</SelectItem>
-              {cancellationPolicies.filter((row) => row.active).map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  {row.code} — {row.name}
-                </SelectItem>
-              ))}
+              {cancellationPolicies
+                .filter((row) => row.active)
+                .map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.code} — {row.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -571,11 +715,13 @@ function PlanDrawer({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={none}>None</SelectItem>
-              {refundabilityCodes.filter((row) => row.active).map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  {row.code} — {row.name}
-                </SelectItem>
-              ))}
+              {refundabilityCodes
+                .filter((row) => row.active)
+                .map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.code} — {row.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -763,15 +909,29 @@ function RefundabilityDrawer({
       <div className="space-y-3">
         <div className="space-y-1">
           <Label htmlFor="rf-code">Code</Label>
-          <Input id="rf-code" value={code} disabled={!canEdit} onChange={(event) => setCode(event.target.value.toUpperCase())} />
+          <Input
+            id="rf-code"
+            value={code}
+            disabled={!canEdit}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
+          />
         </div>
         <div className="space-y-1">
           <Label htmlFor="rf-name">Name</Label>
-          <Input id="rf-name" value={name} disabled={!canEdit} onChange={(event) => setName(event.target.value)} />
+          <Input
+            id="rf-name"
+            value={name}
+            disabled={!canEdit}
+            onChange={(event) => setName(event.target.value)}
+          />
         </div>
         <div className="space-y-1">
           <Label>Kind</Label>
-          <Select value={kind} disabled={!canEdit} onValueChange={(next) => setKind(next as RateRefundabilityRow["kind"])}>
+          <Select
+            value={kind}
+            disabled={!canEdit}
+            onValueChange={(next) => setKind(next as RateRefundabilityRow["kind"])}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>

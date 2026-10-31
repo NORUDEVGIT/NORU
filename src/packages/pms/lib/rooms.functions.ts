@@ -34,6 +34,7 @@ import {
   occupancyErrors,
   roomLinkErrors,
   sequentialRoomLabels,
+  ROOM_CANNOT_LEAVE_TYPE,
   uniqueViolationMessage,
   type LocationIds,
   type LocationMasters,
@@ -315,6 +316,122 @@ async function replaceRoomLinks(
   return { ok: true };
 }
 
+const ROOM_OPERATION_TABLES = [
+  "hotel_reservation_rooms",
+  "hotel_reservations",
+  "housekeeping_tasks",
+  "housekeeping_history",
+  "pms_operational_inventory_blocks",
+  "pms_room_inventory_events",
+] as const;
+
+async function operatedRoomIds(
+  supabase: DbClient,
+  restaurantId: string,
+  roomIds: string[],
+): Promise<Set<string>> {
+  const used = new Set<string>();
+  if (roomIds.length === 0) return used;
+  const checks = await Promise.all(
+    ROOM_OPERATION_TABLES.map((table) =>
+      supabase
+        .from(table)
+        .select("room_id")
+        .eq("restaurant_id", restaurantId)
+        .in("room_id", roomIds),
+    ),
+  );
+  for (const result of checks) {
+    if (result.error && isMissingSchemaError(result.error)) continue;
+    if (result.error) {
+      for (const id of roomIds) used.add(id);
+      return used;
+    }
+    for (const row of result.data ?? []) {
+      if (typeof row.room_id === "string" && row.room_id) used.add(row.room_id);
+    }
+  }
+  return used;
+}
+
+async function roomCannotLeaveType(
+  supabase: DbClient,
+  restaurantId: string,
+  roomId: string,
+): Promise<string | null> {
+  const used = await operatedRoomIds(supabase, restaurantId, [roomId]);
+  return used.has(roomId) ? ROOM_CANNOT_LEAVE_TYPE : null;
+}
+
+async function deactivatePhysicalRoomRow(
+  supabase: DbClient,
+  restaurantId: string,
+  roomId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { error } = await supabase
+    .from("hotel_rooms")
+    .update({ active: false, sellable: false })
+    .eq("id", roomId)
+    .eq("restaurant_id", restaurantId);
+  if (error) return { ok: false, message: "Could not deactivate the room." };
+  return { ok: true };
+}
+
+async function detachUnusedRoom(
+  supabase: DbClient,
+  restaurantId: string,
+  roomId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const blocked = await roomCannotLeaveType(supabase, restaurantId, roomId);
+  if (blocked) return { ok: false, message: blocked };
+
+  // hotel_rooms has no DELETE RLS policy; admin is required after the history gate.
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  await Promise.all([
+    supabaseAdmin
+      .from("housekeeping_history")
+      .update({ room_id: null })
+      .eq("restaurant_id", restaurantId)
+      .eq("room_id", roomId),
+    supabaseAdmin
+      .from("pms_room_inventory_events")
+      .update({ room_id: null })
+      .eq("restaurant_id", restaurantId)
+      .eq("room_id", roomId),
+    supabaseAdmin
+      .from("hotel_room_links")
+      .delete()
+      .eq("restaurant_id", restaurantId)
+      .or(`room_id.eq.${roomId},other_room_id.eq.${roomId}`),
+    supabaseAdmin
+      .from("hotel_room_amenity_overrides")
+      .delete()
+      .eq("restaurant_id", restaurantId)
+      .eq("room_id", roomId),
+  ]);
+
+  const { error } = await supabaseAdmin
+    .from("hotel_rooms")
+    .delete()
+    .eq("id", roomId)
+    .eq("restaurant_id", restaurantId);
+  if (error) {
+    return {
+      ok: false,
+      message: error.code === "23503" ? ROOM_CANNOT_LEAVE_TYPE : "Could not remove the room.",
+    };
+  }
+
+  const { data: stillThere } = await supabaseAdmin
+    .from("hotel_rooms")
+    .select("id")
+    .eq("id", roomId)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (stillThere) return { ok: false, message: ROOM_CANNOT_LEAVE_TYPE };
+  return { ok: true };
+}
+
 export interface RoomAmenity {
   id: string;
   name: string;
@@ -368,6 +485,12 @@ export interface RoomType {
   defaultBuildingId: string | null;
   defaultWingId: string | null;
   preferredFloorId: string | null;
+  /** SETUP DEFAULT ONLY. NOT READ DIRECTLY BY price_hotel_stay. */
+  baseNightlyRate: number | null;
+  /** SETUP DEFAULT ONLY. NOT READ DIRECTLY BY price_hotel_stay. */
+  extraAdultRateDefault: number | null;
+  /** SETUP DEFAULT ONLY. NOT READ DIRECTLY BY price_hotel_stay. */
+  extraChildRateDefault: number | null;
   beds: RoomTypeBed[];
   amenityIds: string[];
   roomCount: number;
@@ -405,6 +528,8 @@ export interface HotelRoom {
   active: boolean;
   notes: string | null;
   links: HotelRoomLink[];
+  /** True when the room has reservation, housekeeping, or inventory history. */
+  hasOperations?: boolean;
 }
 
 /** Rooms access is owner/manager only; the flag drives nav + UI affordances. */
@@ -564,6 +689,18 @@ export const listRoomTypes = createServerFn({ method: "POST" })
       defaultBuildingId: t.default_building_id ?? null,
       defaultWingId: t.default_wing_id ?? null,
       preferredFloorId: t.preferred_floor_id ?? null,
+      baseNightlyRate:
+        t.base_nightly_rate == null || t.base_nightly_rate === ""
+          ? null
+          : Number(t.base_nightly_rate),
+      extraAdultRateDefault:
+        t.extra_adult_rate_default == null || t.extra_adult_rate_default === ""
+          ? null
+          : Number(t.extra_adult_rate_default),
+      extraChildRateDefault:
+        t.extra_child_rate_default == null || t.extra_child_rate_default === ""
+          ? null
+          : Number(t.extra_child_rate_default),
       beds: bedsByType.get(t.id) ?? [],
       amenityIds: amenityMap.get(t.id) ?? [],
       roomCount: counts.get(t.id) ?? 0,
@@ -608,6 +745,12 @@ const roomTypeInput = z.object({
   preferredFloorId: idSchema.nullable().optional(),
   beds: z.array(roomTypeBedInput).max(20).optional(),
   amenityIds: z.array(idSchema).max(50).optional(),
+  /** SETUP DEFAULT ONLY. NOT READ DIRECTLY BY price_hotel_stay. */
+  baseNightlyRate: z.number().min(0).max(10_000_000).nullable().optional(),
+  /** SETUP DEFAULT ONLY. NOT READ DIRECTLY BY price_hotel_stay. */
+  extraAdultRateDefault: z.number().min(0).max(10_000_000).nullable().optional(),
+  /** SETUP DEFAULT ONLY. NOT READ DIRECTLY BY price_hotel_stay. */
+  extraChildRateDefault: z.number().min(0).max(10_000_000).nullable().optional(),
 });
 
 export const saveRoomType = createServerFn({ method: "POST" })
@@ -651,13 +794,24 @@ export const saveRoomType = createServerFn({ method: "POST" })
     const code = data.code.toUpperCase();
     const { data: duplicate } = await pmsDb(context.supabase)
       .from("room_types")
-      .select("id")
+      .select("id, name, code")
       .eq("restaurant_id", data.restaurantId)
       .eq("code", code)
       .maybeSingle();
     if (duplicate && duplicate.id !== data.id) {
-      return { ok: false as const, message: "That room type code is already used." };
+      const usedBy = String(duplicate.name ?? duplicate.code ?? "another room type");
+      return {
+        ok: false as const,
+        message: `${code} already exists. Used by: ${usedBy}`,
+      };
     }
+
+    // Dual-write legacy bed_type/bed_count from first room_type_beds row for older readers.
+    const legacyBedType =
+      blankToNull(data.bedType) ??
+      (normalizedBeds[0] ? normalizedBeds[0].bedType : null);
+    const legacyBedCount =
+      data.bedCount ?? (normalizedBeds[0] ? normalizedBeds[0].bedCount : null);
 
     const payload = {
       restaurant_id: data.restaurantId,
@@ -678,8 +832,8 @@ export const saveRoomType = createServerFn({ method: "POST" })
       connecting_eligible: data.connectingEligible ?? false,
       accessible_eligible: data.accessibleEligible ?? false,
       smoking_policy: data.smokingPolicy ?? "non_smoking",
-      bed_type: blankToNull(data.bedType),
-      bed_count: data.bedCount ?? null,
+      bed_type: legacyBedType,
+      bed_count: legacyBedCount,
       room_size: blankToNull(data.roomSize),
       room_view: blankToNull(data.roomView),
       sellable: data.sellable,
@@ -687,15 +841,32 @@ export const saveRoomType = createServerFn({ method: "POST" })
       default_building_id: data.defaultBuildingId ?? null,
       default_wing_id: data.defaultWingId ?? null,
       preferred_floor_id: data.preferredFloorId ?? null,
+      base_nightly_rate: data.baseNightlyRate ?? null,
+      extra_adult_rate_default: data.extraAdultRateDefault ?? null,
+      extra_child_rate_default: data.extraChildRateDefault ?? null,
     };
+
+    const {
+      base_nightly_rate: _baseNightly,
+      extra_adult_rate_default: _extraAdultDefault,
+      extra_child_rate_default: _extraChildDefault,
+      ...payloadWithoutPricingDefaults
+    } = payload;
 
     let roomTypeId = data.id ?? null;
     if (roomTypeId) {
-      const { error } = await pmsDb(context.supabase)
+      let { error } = await pmsDb(context.supabase)
         .from("room_types")
         .update(payload)
         .eq("id", roomTypeId)
         .eq("restaurant_id", data.restaurantId);
+      if (error && (error.code === "42703" || error.code === "PGRST204")) {
+        ({ error } = await pmsDb(context.supabase)
+          .from("room_types")
+          .update(payloadWithoutPricingDefaults)
+          .eq("id", roomTypeId)
+          .eq("restaurant_id", data.restaurantId));
+      }
       if (error) {
         return {
           ok: false as const,
@@ -703,11 +874,18 @@ export const saveRoomType = createServerFn({ method: "POST" })
         };
       }
     } else {
-      const { data: created, error } = await pmsDb(context.supabase)
+      let { data: created, error } = await pmsDb(context.supabase)
         .from("room_types")
         .insert({ ...payload, created_by_staff_membership_id: me.id })
         .select("id")
         .maybeSingle();
+      if (error && (error.code === "42703" || error.code === "PGRST204")) {
+        ({ data: created, error } = await pmsDb(context.supabase)
+          .from("room_types")
+          .insert({ ...payloadWithoutPricingDefaults, created_by_staff_membership_id: me.id })
+          .select("id")
+          .maybeSingle());
+      }
       if (error || !created) {
         return {
           ok: false as const,
@@ -761,6 +939,94 @@ export const saveRoomType = createServerFn({ method: "POST" })
 
     await persistCard2RoomTypesReadiness(pmsDb(context.supabase), data.restaurantId);
     return { ok: true as const, id: roomTypeId };
+  });
+
+export type RoomTypeCodeAvailability = {
+  available: boolean;
+  code: string;
+  usedBy?: { id: string; name: string; code: string };
+};
+
+export const checkRoomTypeCodeAvailable = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        code: z.string().trim().min(1).max(20),
+        excludeId: idSchema.optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<RoomTypeCodeAvailability> => {
+    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    const code = data.code.trim().toUpperCase();
+    const { data: row } = await pmsDb(context.supabase)
+      .from("room_types")
+      .select("id, name, code")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("code", code)
+      .maybeSingle();
+    if (row && row.id !== data.excludeId) {
+      return {
+        available: false,
+        code,
+        usedBy: { id: row.id, name: String(row.name ?? ""), code: String(row.code ?? code) },
+      };
+    }
+    return { available: true, code };
+  });
+
+export type RoomNumberAvailability = {
+  available: boolean;
+  roomNumber: string;
+  reclaimable?: boolean;
+  usedBy?: {
+    roomNumber: string;
+    roomTypeName: string | null;
+    building: string | null;
+    floor: string | null;
+  };
+};
+
+export const checkRoomNumberAvailable = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        roomNumber: z.string().trim().min(1).max(20),
+        excludeId: idSchema.optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<RoomNumberAvailability> => {
+    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    const roomNumber = data.roomNumber.trim();
+    const { data: row } = await pmsDb(context.supabase)
+      .from("hotel_rooms")
+      .select("id, room_number, building, floor, room_types ( name )")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("room_number", roomNumber)
+      .maybeSingle();
+    if (row && row.id !== data.excludeId) {
+      const usedBy = {
+        roomNumber: String(row.room_number ?? roomNumber),
+        roomTypeName: (row.room_types as { name?: string } | null)?.name ?? null,
+        building: row.building ?? null,
+        floor: row.floor ?? null,
+      };
+      const blocked = await roomCannotLeaveType(
+        pmsDb(context.supabase),
+        data.restaurantId,
+        row.id,
+      );
+      if (!blocked) {
+        return { available: true, roomNumber, reclaimable: true, usedBy };
+      }
+      return { available: false, roomNumber, usedBy };
+    }
+    return { available: true, roomNumber };
   });
 
 export const setRoomTypeActive = createServerFn({ method: "POST" })
@@ -829,6 +1095,7 @@ export const listRooms = createServerFn({ method: "POST" })
         { id: link.id, otherRoomId: link.other_room_id, kind: link.kind as RoomLinkKind },
       ]);
     }
+    const operatedIds = await operatedRoomIds(pmsDb(context.supabase), data.restaurantId, roomIds);
 
     return (rows ?? []).map((r: any) => ({
       id: r.id,
@@ -863,6 +1130,7 @@ export const listRooms = createServerFn({ method: "POST" })
       active: r.active,
       notes: r.notes,
       links: linksByRoom.get(r.id) ?? [],
+      hasOperations: operatedIds.has(r.id),
     }));
   });
 
@@ -947,6 +1215,7 @@ export const saveRoom = createServerFn({ method: "POST" })
     const locationIssue = locationHierarchyError(
       { buildingId: data.buildingId, wingId: data.wingId, floorId: data.floorId },
       masters,
+      { requireBuilding: true },
     );
     if (locationIssue) return { ok: false as const, message: locationIssue };
 
@@ -955,22 +1224,75 @@ export const saveRoom = createServerFn({ method: "POST" })
     const [{ data: numberDup }, { data: codeDup }] = await Promise.all([
       pmsDb(context.supabase)
         .from("hotel_rooms")
-        .select("id")
+        .select("id, room_number, building, floor, room_types ( name )")
         .eq("restaurant_id", data.restaurantId)
         .eq("room_number", roomNumber)
         .maybeSingle(),
       pmsDb(context.supabase)
         .from("hotel_rooms")
-        .select("id")
+        .select("id, room_number, building, floor, room_types ( name )")
         .eq("restaurant_id", data.restaurantId)
         .eq("room_code", roomCode)
         .maybeSingle(),
     ]);
+    let reclaimId: string | null = null;
     if (numberDup && numberDup.id !== data.id) {
-      return { ok: false as const, message: "That room number already exists." };
+      const blocked = await roomCannotLeaveType(
+        pmsDb(context.supabase),
+        data.restaurantId,
+        numberDup.id,
+      );
+      if (blocked) {
+        const typeName = (numberDup.room_types as { name?: string } | null)?.name;
+        const where = [typeName, numberDup.building, numberDup.floor].filter(Boolean).join(" · ");
+        return {
+          ok: false as const,
+          message: where
+            ? `Room ${roomNumber} already exists. ${where}`
+            : `Room ${roomNumber} already exists.`,
+        };
+      }
+      if (!data.id) {
+        reclaimId = numberDup.id;
+      } else {
+        const detached = await detachUnusedRoom(
+          pmsDb(context.supabase),
+          data.restaurantId,
+          numberDup.id,
+        );
+        if (!detached.ok) {
+          return { ok: false as const, message: detached.message };
+        }
+      }
     }
-    if (codeDup && codeDup.id !== data.id) {
-      return { ok: false as const, message: "That room code already exists." };
+    if (codeDup && codeDup.id !== data.id && codeDup.id !== reclaimId) {
+      const blocked = await roomCannotLeaveType(
+        pmsDb(context.supabase),
+        data.restaurantId,
+        codeDup.id,
+      );
+      if (blocked) {
+        const typeName = (codeDup.room_types as { name?: string } | null)?.name;
+        const where = [typeName, codeDup.building, codeDup.floor].filter(Boolean).join(" · ");
+        return {
+          ok: false as const,
+          message: where
+            ? `Room code ${roomCode} already exists. ${where}`
+            : `Room code ${roomCode} already exists.`,
+        };
+      }
+      if (!data.id && !reclaimId) {
+        reclaimId = codeDup.id;
+      } else {
+        const detached = await detachUnusedRoom(
+          pmsDb(context.supabase),
+          data.restaurantId,
+          codeDup.id,
+        );
+        if (!detached.ok) {
+          return { ok: false as const, message: detached.message };
+        }
+      }
     }
 
     let building = blankToNull(data.building) ?? masters.building?.name ?? null;
@@ -998,7 +1320,7 @@ export const saveRoom = createServerFn({ method: "POST" })
       notes: blankToNull(data.notes),
     };
 
-    let roomId = data.id ?? null;
+    let roomId = data.id ?? reclaimId;
     if (roomId) {
       const payload = roomPersistencePayload(masterDataPayload, "update");
       const { error } = await pmsDb(context.supabase)
@@ -1073,6 +1395,54 @@ export const setRoomActive = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+export const releaseRoomFromRoomType = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        id: idSchema,
+        roomTypeId: idSchema.optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requireRoomManager(context as never, data.restaurantId);
+    const { data: room } = await pmsDb(context.supabase)
+      .from("hotel_rooms")
+      .select("id, room_number, room_type_id")
+      .eq("id", data.id)
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (!room) return { ok: false as const, message: "Room not found." };
+    if (data.roomTypeId && room.room_type_id !== data.roomTypeId) {
+      return { ok: false as const, message: "That room is not assigned to this room type." };
+    }
+    const blocked = await roomCannotLeaveType(pmsDb(context.supabase), data.restaurantId, room.id);
+    if (blocked) {
+      const deactivated = await deactivatePhysicalRoomRow(
+        pmsDb(context.supabase),
+        data.restaurantId,
+        room.id,
+      );
+      if (!deactivated.ok) return { ok: false as const, message: deactivated.message };
+      await persistCard2RoomTypesReadiness(pmsDb(context.supabase), data.restaurantId);
+      return {
+        ok: true as const,
+        action: "deactivated" as const,
+        roomNumber: String(room.room_number ?? ""),
+      };
+    }
+    const detached = await detachUnusedRoom(pmsDb(context.supabase), data.restaurantId, room.id);
+    if (!detached.ok) return { ok: false as const, message: detached.message };
+    await persistCard2RoomTypesReadiness(pmsDb(context.supabase), data.restaurantId);
+    return {
+      ok: true as const,
+      action: "removed" as const,
+      roomNumber: String(room.room_number ?? ""),
+    };
+  });
+
 const bulkCreateRoomsInput = z.object({
   restaurantId: idSchema,
   roomTypeId: idSchema,
@@ -1084,6 +1454,8 @@ const bulkCreateRoomsInput = z.object({
   quantity: z.number().int().nullable().optional(),
   prefix: z.string().trim().max(10).nullable().optional(),
   suffix: z.string().trim().max(10).nullable().optional(),
+  /** Room numbers the user explicitly removed from the preview before create. */
+  excludeNumbers: z.array(z.string().trim().min(1).max(20)).max(200).optional(),
   smoking: z.boolean().optional(),
   accessible: z.boolean().optional(),
   status: z.enum(ROOM_STATUSES).optional(),
@@ -1131,6 +1503,12 @@ export const bulkCreateRooms = createServerFn({ method: "POST" })
       return { ...empty, validationErrors: generated.validationErrors };
     }
 
+    const excluded = new Set((data.excludeNumbers ?? []).map((n) => n.trim()).filter(Boolean));
+    const labels = generated.labels.filter((label) => !excluded.has(label.roomNumber));
+    if (labels.length < 1) {
+      return { ...empty, validationErrors: ["No rooms left to create after exclusions."] };
+    }
+
     const { data: type } = await pmsDb(context.supabase)
       .from("room_types")
       .select("id")
@@ -1155,24 +1533,59 @@ export const bulkCreateRooms = createServerFn({ method: "POST" })
 
     const { data: existing } = await pmsDb(context.supabase)
       .from("hotel_rooms")
-      .select("room_number, room_code")
+      .select("id, room_number, room_code")
       .eq("restaurant_id", data.restaurantId);
     const conflicts = batchLabelConflicts(
-      generated.labels,
+      labels,
       (existing ?? []).map((row: any) => ({
         roomNumber: row.room_number,
         roomCode: row.room_code,
       })),
     );
     if (conflicts.numbers.length > 0 || conflicts.codes.length > 0) {
-      return {
-        ...empty,
-        conflicts: { roomNumbers: conflicts.numbers, roomCodes: conflicts.codes },
-        validationErrors: ["One or more room numbers or codes already exist."],
-      };
+      const clashNumbers = new Set(conflicts.numbers);
+      const clashCodes = new Set(conflicts.codes);
+      const clashRows = (existing ?? []).filter(
+        (row: { id: string; room_number: string; room_code: string | null }) =>
+          clashNumbers.has(row.room_number) ||
+          (row.room_code != null && clashCodes.has(row.room_code)),
+      );
+      const hardNumbers: string[] = [];
+      const hardCodes: string[] = [];
+      const reclaimIds: string[] = [];
+      for (const row of clashRows) {
+        const blocked = await roomCannotLeaveType(
+          pmsDb(context.supabase),
+          data.restaurantId,
+          row.id,
+        );
+        if (blocked) {
+          if (clashNumbers.has(row.room_number)) hardNumbers.push(row.room_number);
+          if (row.room_code && clashCodes.has(row.room_code)) hardCodes.push(row.room_code);
+        } else {
+          reclaimIds.push(row.id);
+        }
+      }
+      if (hardNumbers.length > 0 || hardCodes.length > 0) {
+        return {
+          ...empty,
+          conflicts: { roomNumbers: hardNumbers, roomCodes: hardCodes },
+          validationErrors: ["One or more room numbers or codes already exist."],
+        };
+      }
+      for (const roomId of reclaimIds) {
+        const detached = await detachUnusedRoom(
+          pmsDb(context.supabase),
+          data.restaurantId,
+          roomId,
+        );
+        if (!detached.ok) {
+          return { ...empty, validationErrors: [detached.message] };
+        }
+      }
     }
 
-    const rows = generated.labels.map((label) => ({
+    const rows = labels.map((label) => ({
       restaurant_id: data.restaurantId,
       room_type_id: data.roomTypeId,
       room_number: label.roomNumber,

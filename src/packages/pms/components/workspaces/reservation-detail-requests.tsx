@@ -136,6 +136,7 @@ export function ReservationDetailRequestsTab({
   paymentRefunded = null,
   guestDeposit = null,
   totalAmount,
+  roomGuestTotal = null,
   coverUrl,
   onBackToFolio,
   onSaved,
@@ -151,6 +152,7 @@ export function ReservationDetailRequestsTab({
   paymentRefunded?: number | null;
   guestDeposit?: number | null;
   totalAmount?: number | null;
+  roomGuestTotal?: number | null;
   coverUrl: string | null;
   onBackToFolio: () => void;
   onSaved: () => void;
@@ -552,6 +554,7 @@ export function ReservationDetailRequestsTab({
           paymentRefunded={paymentRefunded}
           guestDeposit={guestDeposit}
           totalAmount={totalAmount}
+          roomGuestTotal={roomGuestTotal}
           servicesTotal={pendingServiceTotal}
           money={money}
           coverUrl={coverUrl}
@@ -1038,6 +1041,7 @@ function RequestsSummaryRail({
   paymentRefunded,
   guestDeposit,
   totalAmount,
+  roomGuestTotal = null,
   servicesTotal,
 }: {
   reservation: ReservationDetail;
@@ -1048,6 +1052,7 @@ function RequestsSummaryRail({
   paymentRefunded: number | null;
   guestDeposit: number | null;
   totalAmount?: number | null;
+  roomGuestTotal?: number | null;
   servicesTotal?: number;
 }) {
   return (
@@ -1061,6 +1066,7 @@ function RequestsSummaryRail({
       paymentRefunded={paymentRefunded}
       guestDeposit={guestDeposit}
       totalAmount={totalAmount}
+      roomGuestTotal={roomGuestTotal}
       servicesTotal={servicesTotal}
     />
   );

@@ -10,6 +10,7 @@ import {
   card2RoomTypesStepStatus,
   cascadeLocationIds,
   evaluateRoomTypesRoomsReadiness,
+  firstActiveBuildingId,
   floorsForBuildingAndWing,
   locationHierarchyError,
   mergeCard2RoomTypesStatus,
@@ -18,13 +19,19 @@ import {
   roomLinkErrors,
   sequentialRoomLabels,
   uniqueViolationMessage,
+  withSelectedLocation,
   wingsForBuilding,
+  ROOM_CANNOT_LEAVE_TYPE,
   ROOM_TYPE_BEDS_SEQUENTIAL_LIMITATION,
 } from "./rooms-card2.server.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const functions = readFileSync(join(here, "rooms.functions.ts"), "utf8");
 const card1Fns = readFileSync(join(here, "pms-property-setup-card1.functions.ts"), "utf8");
+const wizardStep1 = readFileSync(
+  join(here, "../components/settings/room-type-wizard/room-type-wizard-step1.tsx"),
+  "utf8",
+);
 
 describe("Card 2 Phase 1 room type occupancy and beds", () => {
   it("rejects negative occupancy and adults+children above max", () => {
@@ -146,6 +153,23 @@ describe("Card 2 Phase 1 location, numbering, links", () => {
       changed: "wing",
     });
     assert.equal(wingChange.floorId, "");
+    assert.equal(
+      firstActiveBuildingId([
+        { id: "b3", active: false },
+        { id: "main", active: true },
+      ]),
+      "main",
+    );
+    assert.deepEqual(
+      withSelectedLocation(
+        [
+          { id: "w1", active: true },
+          { id: "w2", active: false },
+        ],
+        "w2",
+      ).map((row) => row.id),
+      ["w1", "w2"],
+    );
     assert.deepEqual(
       cascadeLocationIds({
         buildingId: "",
@@ -279,12 +303,18 @@ describe("Card 2 Phase 1 API wiring", () => {
     assert.match(functions, /export const saveRoom/);
     assert.match(functions, /export const bulkCreateRooms/);
     assert.match(functions, /export const evaluateCard2RoomTypesReadiness/);
+    assert.match(functions, /export const checkRoomTypeCodeAvailable/);
+    assert.match(functions, /export const checkRoomNumberAvailable/);
     assert.match(functions, /requireRoomManager/);
     assert.match(functions, /requireSupabaseAuth/);
     assert.match(functions, /\.eq\("restaurant_id", data\.restaurantId\)/);
     assert.match(functions, /from\("room_type_beds"\)/);
     assert.match(functions, /from\("hotel_room_links"\)/);
     assert.match(functions, /from\("hotel_rooms"\)\.insert\(rows\)/);
+    assert.match(functions, /requireBuilding: true/);
+    assert.match(functions, /excludeNumbers/);
+    assert.match(functions, /legacyBedType/);
+    assert.match(functions, /base_nightly_rate/);
     assert.doesNotMatch(functions, /for \(const .+ of generated\.labels\)[\s\S]*saveRoom/);
     assert.match(functions, /housekeeping_status/);
     assert.match(functions, /maintenance_status/);
@@ -305,5 +335,31 @@ describe("Card 2 Phase 1 API wiring", () => {
       uniqueViolationMessage({ code: "23505", message: "hotel_rooms_room_number_key" }, "fail"),
       "That room number already exists.",
     );
+  });
+
+  it("releases unused rooms so the number can move to another room type", () => {
+    assert.match(functions, /export const releaseRoomFromRoomType/);
+    assert.match(functions, /async function roomCannotLeaveType/);
+    assert.match(functions, /async function detachUnusedRoom/);
+    assert.match(functions, /async function deactivatePhysicalRoomRow/);
+    assert.match(functions, /action: "deactivated"/);
+    assert.match(functions, /housekeeping_history/);
+    assert.match(functions, /pms_room_inventory_events/);
+    assert.match(functions, /reclaimable: true/);
+    assert.match(functions, /hotel_reservation_rooms/);
+    assert.match(functions, /housekeeping_tasks/);
+    assert.match(functions, /pms_operational_inventory_blocks/);
+    assert.match(functions, /ROOM_CANNOT_LEAVE_TYPE/);
+    assert.match(functions, /hasOperations/);
+    const olderList = readFileSync(
+      join(here, "../components/settings/pms-property-setup-card2-room-types.tsx"),
+      "utf8",
+    );
+    assert.match(olderList, /row.hasOperations \? \(row.active \? "Deactivate" : "Inactive"\) : "Remove"/);
+    assert.match(wizardStep1, /firstActiveBuildingId/);
+    assert.match(wizardStep1, /releaseRoomFromRoomType/);
+    assert.match(wizardStep1, /The number is free for other room types/);
+    assert.doesNotMatch(wizardStep1, /persisted \? "Deactivate"/);
+    assert.match(ROOM_CANNOT_LEAVE_TYPE, /cannot leave its room type/);
   });
 });

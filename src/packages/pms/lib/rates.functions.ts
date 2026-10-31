@@ -25,6 +25,7 @@ import { foreignRatePlanPolicyMessage } from "./rate-plan-policy-link";
 import { parsePackageInclusionType, type RatePlanPackageLink } from "./rate-plan-package-inclusion";
 import { previewPostedRoomCharge } from "./room-charge-guest-total";
 import { loadRoomChargeRules } from "./room-charge-guest-total.server";
+import { ratePlanOccupancyValidationError } from "./occupancy-allocation";
 
 const idSchema = z.string().uuid();
 
@@ -650,6 +651,9 @@ export const saveRatePlan = createServerFn({ method: "POST" })
         earlyDeparturePolicyId: idSchema.nullable().optional(),
         minAdvanceDays: z.number().int().min(0).max(365).nullable().optional(),
         maxAdvanceDays: z.number().int().min(0).max(365).nullable().optional(),
+        includedOccupancy: z.number().int().min(1).max(20).nullable().optional(),
+        extraAdultRate: z.number().min(0).max(10_000_000).nullable().optional(),
+        extraChildRate: z.number().min(0).max(10_000_000).nullable().optional(),
         active: z.boolean().optional(),
       })
       .parse(input),
@@ -667,7 +671,7 @@ export const saveRatePlan = createServerFn({ method: "POST" })
         .maybeSingle(),
       context.supabase
         .from("room_types")
-        .select("id")
+        .select("id, max_occupancy")
         .eq("id", data.roomTypeId)
         .eq("restaurant_id", data.restaurantId)
         .maybeSingle(),
@@ -680,6 +684,16 @@ export const saveRatePlan = createServerFn({ method: "POST" })
     if (!category)
       return { ok: false, message: "That rate category doesn't belong to this property." };
     if (!roomType) return { ok: false, message: "That room type doesn't belong to this property." };
+    const occupancyError = ratePlanOccupancyValidationError({
+      includedOccupancy: data.includedOccupancy,
+      extraAdultRate: data.extraAdultRate,
+      extraChildRate: data.extraChildRate,
+      maxOccupancy:
+        (roomType as { max_occupancy?: number | null }).max_occupancy == null
+          ? null
+          : Number((roomType as { max_occupancy?: number | null }).max_occupancy),
+    });
+    if (occupancyError) return { ok: false, message: occupancyError };
 
     const [depositLookup, noShowLookup, earlyDepartureLookup] = await Promise.all([
       data.depositPolicyId
@@ -747,23 +761,39 @@ export const saveRatePlan = createServerFn({ method: "POST" })
       ...(data.earlyDeparturePolicyId !== undefined
         ? { early_departure_policy_id: data.earlyDeparturePolicyId }
         : {}),
+      ...(data.includedOccupancy !== undefined ? { included_occupancy: data.includedOccupancy } : {}),
+      ...(data.extraAdultRate !== undefined ? { extra_adult_rate: data.extraAdultRate } : {}),
+      ...(data.extraChildRate !== undefined ? { extra_child_rate: data.extraChildRate } : {}),
     };
+
+    const occupancyWriteRequested =
+      data.includedOccupancy !== undefined ||
+      data.extraAdultRate !== undefined ||
+      data.extraChildRate !== undefined;
+    const occupancyUnavailable =
+      "Rate Plan occupancy pricing is unavailable until migration 0191 is applied.";
 
     if (data.ratePlanId) {
       const { error } = await context.supabase
         .from("hotel_rate_plans")
-        .update(payload)
+        .update(payload as never)
         .eq("id", data.ratePlanId)
         .eq("restaurant_id", data.restaurantId);
+      if (error && occupancyWriteRequested && missingColumn(error)) {
+        return { ok: false, message: occupancyUnavailable };
+      }
       if (error) return { ok: false, message: rateError(error.message).message };
       return { ok: true, id: data.ratePlanId };
     }
 
     const { data: created, error } = await context.supabase
       .from("hotel_rate_plans")
-      .insert({ ...payload, created_by_membership_id: me.id })
+      .insert({ ...payload, created_by_membership_id: me.id } as never)
       .select("id")
       .single();
+    if (error && occupancyWriteRequested && missingColumn(error)) {
+      return { ok: false, message: occupancyUnavailable };
+    }
     if (error) return { ok: false, message: rateError(error.message).message };
     return { ok: true, id: created.id };
   });

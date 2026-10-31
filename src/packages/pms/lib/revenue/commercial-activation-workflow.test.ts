@@ -295,8 +295,8 @@ describe("RR-P5-UI-03 commercial activation workflow", () => {
     assert.match(promoDrawer, /CARD3_PROMOTIONS_HREF/);
     assert.match(packageDrawer, /CARD3_PACKAGES_HREF/);
     assert.equal(CARD3_PROMOTIONS_HREF, `${SET1_HUB_HREF}?card3Domain=revenue-commercial-rules#financial-commercial`);
-    assert.equal(CARD3_PACKAGES_HREF, `${SET1_HUB_HREF}?card3Domain=meal-plans-packages#financial-commercial`);
-    assert.equal(card3DomainFromSearch("?card3Domain=meal-plans-packages"), "meal-plans-packages");
+    assert.equal(CARD3_PACKAGES_HREF, `${SET1_HUB_HREF}?card2Step=meal-plans-packages#rooms-inventory`);
+    assert.equal(card3DomainFromSearch("?card3Domain=meal-plans-packages"), null);
     assert.equal(card3DomainHref("revenue-commercial-rules"), CARD3_PROMOTIONS_HREF);
   });
 });

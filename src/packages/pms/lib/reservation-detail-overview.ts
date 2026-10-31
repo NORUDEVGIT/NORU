@@ -7,6 +7,10 @@ import {
   reviewRefundabilityCopy,
 } from "@/packages/pms/lib/create-reservation-review";
 import { resolveGuaranteeMethodOptions } from "@/packages/pms/lib/create-reservation-phase1-section7";
+import {
+  DEFAULT_BOOKING_SOURCES,
+  DEFAULT_MARKET_SEGMENTS,
+} from "@/packages/pms/lib/create-reservation-phase1";
 import { earlyDeparturePenaltySummary } from "@/packages/pms/lib/early-departure-policy";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 import type { ReservationStatus } from "@/packages/pms/lib/reservations.server";
@@ -132,6 +136,14 @@ export function overviewCatalogueLabel(
   const match = rows?.find((row) => row.id === raw || row.code === raw);
   const name = match?.name?.trim();
   if (name && !UUID_RE.test(name)) return name;
+  const defSegment = DEFAULT_MARKET_SEGMENTS.find(
+    (row) => row.value === raw || row.value.toLowerCase() === raw.toLowerCase(),
+  );
+  if (defSegment) return defSegment.label;
+  const defSource = DEFAULT_BOOKING_SOURCES.find(
+    (row) => row.value === raw || row.value.toLowerCase() === raw.toLowerCase(),
+  );
+  if (defSource) return defSource.label;
   if (UUID_RE.test(raw)) return OVERVIEW_LABEL_UNAVAILABLE;
   return raw;
 }
@@ -268,12 +280,13 @@ export function channelLabel(
 export function sourceLabel(
   source: string | null | undefined,
   commercialBookingSource: string | null | undefined,
+  rows?: OverviewCatalogueRow[] | null,
 ): string {
-  const commercial = reviewDash(commercialBookingSource);
-  if (commercial !== DETAIL_DASH) return commercial;
+  const commercial = (commercialBookingSource ?? "").trim();
+  if (commercial) return overviewCatalogueLabel(commercial, rows);
   if (source === "staff") return "Staff";
   if (source === "walk_in") return "Walk-in";
-  return reviewDash(source);
+  return overviewCatalogueLabel(source, rows);
 }
 
 export function depositStatusLabel(deposit: DetailDepositView | null): string {

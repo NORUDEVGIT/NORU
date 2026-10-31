@@ -10,6 +10,7 @@ import {
   serviceChargeFigures,
   serviceQuantityEditable,
   serviceUnitQuantityLabel,
+  guestRatePerNight,
   sumReservationGuestTotal,
 } from "./room-charge-guest-total.ts";
 
@@ -115,5 +116,7 @@ describe("service pricing units", () => {
     assert.equal(sumReservationGuestTotal(1000, 220, 165), 1385);
     assert.equal(sumReservationGuestTotal(null, 0, 0), null);
     assert.equal(sumReservationGuestTotal(null, 220, 0), 220);
+    assert.equal(guestRatePerNight(1150, 2), 575);
+    assert.equal(guestRatePerNight(null, 2), null);
   });
 });

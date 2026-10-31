@@ -40,6 +40,7 @@ import {
   type ReservationDetailOverviewInput,
 } from "@/packages/pms/lib/reservation-detail-overview";
 import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
+import { guestRatePerNight } from "@/packages/pms/lib/room-charge-guest-total";
 import {
   groupCombinedSubtotal,
   groupRoomRateSections,
@@ -51,9 +52,21 @@ type GuestBits = {
   idDocumentNumber?: string | null;
 };
 
+export type OverviewChargeLine = {
+  name: string;
+  detail?: string | null;
+  amount?: number | null;
+};
+
 export function ReservationDetailOverviewDashboard({
   reservation,
   totalAmount,
+  roomGuestTotal,
+  packages = [],
+  packagesTotal = 0,
+  services = [],
+  servicesTotal = 0,
+  roomTax = 0,
   guest,
   createdBy,
   coverUrl,
@@ -65,6 +78,12 @@ export function ReservationDetailOverviewDashboard({
 }: {
   reservation: ReservationDetailOverviewInput;
   totalAmount?: number | null;
+  roomGuestTotal?: number | null;
+  packages?: OverviewChargeLine[];
+  packagesTotal?: number;
+  services?: OverviewChargeLine[];
+  servicesTotal?: number;
+  roomTax?: number;
   guest: GuestBits | null;
   createdBy: string | null;
   coverUrl: string | null;
@@ -81,11 +100,13 @@ export function ReservationDetailOverviewDashboard({
 }) {
   const dash = DETAIL_DASH;
   const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
-  const ratePerNight = storedRatePerNight(
+  const storedNightly = storedRatePerNight(
     reservation.nightlyRates,
     reservation.roomSubtotal,
     reservation.nights,
   );
+  const guestRoomTotal = roomGuestTotal ?? reservation.roomSubtotal;
+  const ratePerNight = guestRatePerNight(guestRoomTotal, reservation.nights) ?? storedNightly;
   const currency = reservation.currency;
   const moneyOrDash = (value: number | null | undefined) =>
     value == null ? dash : money(value, currency);
@@ -338,22 +359,60 @@ export function ReservationDetailOverviewDashboard({
                 </div>
               ))}
               <p className="font-medium text-[#251605]">
-                Combined Room Total {moneyOrDash(groupCombinedSubtotal(reservation))}
+                Combined Room Total {moneyOrDash(guestRoomTotal ?? groupCombinedSubtotal(reservation))}
+              </p>
+              <OverviewChargeBlock
+                label="Packages"
+                lines={packages}
+                total={packagesTotal}
+                moneyOrDash={moneyOrDash}
+                testId="overview-rate-packages"
+              />
+              <OverviewChargeBlock
+                label="Extra Services"
+                lines={services}
+                total={servicesTotal}
+                moneyOrDash={moneyOrDash}
+                testId="overview-rate-services"
+              />
+              <p className="text-sm text-[#251605]">
+                Taxes & Fees {roomTax > 0 ? moneyOrDash(roomTax) : dash}
+              </p>
+              <p className="font-medium text-[#251605]">
+                Total Amount {moneyOrDash(totalAmount ?? reservation.roomSubtotal)}
               </p>
             </div>
           ) : (
-            <OverviewFields
-              rows={[
-                ["Rate Plan", ratePlan],
-                ["Rate per Night", moneyOrDash(ratePerNight)],
-                ["Nights", String(reservation.nights)],
-                ["Room Total", moneyOrDash(reservation.roomSubtotal)],
-                ["Packages", dash],
-                ["Extra Services", dash],
-                ["Taxes & Fees", dash],
-                ["Total Amount", moneyOrDash(totalAmount ?? reservation.roomSubtotal)],
-              ]}
-            />
+            <div className="space-y-3">
+              <OverviewFields
+                rows={[
+                  ["Rate Plan", ratePlan],
+                  ["Rate per Night", moneyOrDash(ratePerNight)],
+                  ["Nights", String(reservation.nights)],
+                  ["Room Total", moneyOrDash(guestRoomTotal)],
+                ]}
+              />
+              <OverviewChargeBlock
+                label="Packages"
+                lines={packages}
+                total={packagesTotal}
+                moneyOrDash={moneyOrDash}
+                testId="overview-rate-packages"
+              />
+              <OverviewChargeBlock
+                label="Extra Services"
+                lines={services}
+                total={servicesTotal}
+                moneyOrDash={moneyOrDash}
+                testId="overview-rate-services"
+              />
+              <OverviewFields
+                rows={[
+                  ["Taxes & Fees", roomTax > 0 ? moneyOrDash(roomTax) : dash],
+                  ["Total Amount", moneyOrDash(totalAmount ?? reservation.roomSubtotal)],
+                ]}
+              />
+            </div>
           )}
         </OverviewCard>
 
@@ -478,6 +537,52 @@ function OverviewFields({ rows }: { rows: Array<[string, string]> }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+function OverviewChargeBlock({
+  label,
+  lines,
+  total,
+  moneyOrDash,
+  testId,
+}: {
+  label: string;
+  lines: OverviewChargeLine[];
+  total: number;
+  moneyOrDash: (value: number | null | undefined) => string;
+  testId: string;
+}) {
+  if (lines.length === 0) {
+    return (
+      <OverviewFields
+        rows={[[label, DETAIL_DASH]]}
+      />
+    );
+  }
+  return (
+    <div className="space-y-1.5" data-testid={testId}>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-sm font-medium text-[#251605]">{moneyOrDash(total)}</p>
+      </div>
+      <ul className="space-y-1">
+        {lines.map((line, index) => (
+          <li
+            key={`${line.name}-${index}`}
+            className="flex items-start justify-between gap-3 text-xs text-[#251605]"
+          >
+            <span className="min-w-0">
+              <span className="block truncate font-medium">{line.name}</span>
+              {line.detail ? (
+                <span className="block text-[11px] text-muted-foreground">{line.detail}</span>
+              ) : null}
+            </span>
+            <span className="shrink-0">{line.amount == null ? DETAIL_DASH : moneyOrDash(line.amount)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

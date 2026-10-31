@@ -84,12 +84,26 @@ function emptyPlanFields() {
     noShowPolicyName: "",
     earlyDeparturePolicyId: null as string | null,
     earlyDeparturePolicyName: "",
+    includedOccupancy: null as number | null,
+    extraAdultRate: null as number | null,
+    extraChildRate: null as number | null,
   };
 }
 
 function makeSnapshot(partial?: Partial<RatesCard2Snapshot>): RatesCard2Snapshot {
   return {
-    roomTypes: [{ id: "rt-1", code: "DLX", name: "Deluxe Room", active: true }],
+    roomTypes: [
+      {
+        id: "rt-1",
+        code: "DLX",
+        name: "Deluxe Room",
+        active: true,
+        baseNightlyRate: 12500,
+        standardOccupancy: 2,
+        extraAdultRateDefault: 1200,
+        extraChildRateDefault: 600,
+      },
+    ],
     categories: [{ id: "cat-1", code: "BAR", name: "Best Available Rate", active: true }],
     mealPlans: [],
     cancellationPolicies: [],
@@ -103,13 +117,13 @@ function makeSnapshot(partial?: Partial<RatesCard2Snapshot>): RatesCard2Snapshot
 }
 
 describe("NORU PMS — Rate & Pricing Move to Rooms & Operations (Card 2)", () => {
-  it("establishes Card 2 as the canonical Settings owner with step 6", () => {
+  it("establishes Card 2 as the canonical Settings owner with step 2", () => {
     assert.equal(CARD2_RATES_STEP, "rates-pricing");
-    const step6 = CARD2_STEPS.find((row) => row.id === "rates-pricing");
-    assert.ok(step6, "Card 2 steps must include rates-pricing");
-    assert.equal(step6.number, 6);
-    assert.equal(step6.title, "Rate & Pricing");
-    assert.equal(CARD2_STEPS.length, 6);
+    const ratesStep = CARD2_STEPS.find((row) => row.id === "rates-pricing");
+    assert.ok(ratesStep, "Card 2 steps must include rates-pricing");
+    assert.equal(ratesStep.number, 2);
+    assert.equal(ratesStep.title, "Rate & Pricing");
+    assert.equal(CARD2_STEPS.length, 7);
 
     assert.equal(
       card2StepHref("rates-pricing"),
@@ -128,7 +142,7 @@ describe("NORU PMS — Rate & Pricing Move to Rooms & Operations (Card 2)", () =
       false,
       "Card 3 domains must not include rates-pricing",
     );
-    assert.equal(CARD3_DOMAINS.length, 7);
+    assert.equal(CARD3_DOMAINS.length, 6);
 
     assert.doesNotMatch(card3Section, /PmsPropertySetupCard3Rates/);
     assert.doesNotMatch(card3Section, /"rates-pricing"/);

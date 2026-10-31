@@ -5,6 +5,7 @@
  * No persistence, APIs, schema, or financial business logic.
  */
 
+import { CARD2_MEALS_HREF } from "./pms-property-setup-card2.ts";
 import { SET1_HUB_HREF, withReturnTo } from "./pms-set1-foundation.ts";
 
 export { withReturnTo };
@@ -22,7 +23,7 @@ export const CARD3_SIDEBAR_OUT =
 
 export const CARD3_PROGRESS_PERCENT = 0;
 export const CARD3_PROGRESS_LABEL = "Not Started";
-export const CARD3_PROGRESS_DETAIL = "0 of 7 domains configured";
+export const CARD3_PROGRESS_DETAIL = "0 of 6 domains configured";
 
 export const CARD3_DOMAIN_PLACEHOLDER = "This workspace will be implemented in Phase 1.";
 export const CARD3_BACK_LABEL = "Financial & Commercial";
@@ -40,12 +41,6 @@ export const CARD3_DOMAINS = [
     title: "Taxes & Fees",
     description: "Configure taxes, fees and additional charges.",
     icon: "receipt",
-  },
-  {
-    id: "meal-plans-packages",
-    title: "Meal Plans & Packages",
-    description: "Create meal plans and commercial packages.",
-    icon: "utensils",
   },
   {
     id: "payments-deposits",
@@ -85,7 +80,14 @@ export function card3DomainHref(domainId: Card3DomainId): string {
 }
 
 export const CARD3_PROMOTIONS_HREF = card3DomainHref("revenue-commercial-rules");
-export const CARD3_PACKAGES_HREF = card3DomainHref("meal-plans-packages");
+export const CARD3_PACKAGES_HREF = CARD2_MEALS_HREF;
+export const CARD3_LEGACY_MEALS_DOMAIN = "meal-plans-packages";
+
+export function card3LegacyMealsRedirectHref(search: string): string | null {
+  const raw = search.startsWith("?") ? search.slice(1) : search;
+  const value = new URLSearchParams(raw).get(CARD3_DOMAIN_QUERY);
+  return value === CARD3_LEGACY_MEALS_DOMAIN ? CARD2_MEALS_HREF : null;
+}
 
 export function card3DomainFromSearch(search: string): Card3DomainId | null {
   const raw = search.startsWith("?") ? search.slice(1) : search;

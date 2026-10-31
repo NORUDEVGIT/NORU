@@ -48,7 +48,7 @@ describe("PMS Property Setup Card 2 Phase 0 shell", () => {
     assert.equal(CARD2_TITLE, "Rooms & Operations");
     assert.equal(
       CARD2_SUBTITLE,
-      "Configure room types, physical rooms, amenities, housekeeping, inventory and maintenance rules.",
+      "Configure room types, rates, amenities, meal plans, housekeeping, inventory and maintenance rules.",
     );
     assert.equal(CARD2_HASH, "rooms-inventory");
     assert.equal(CARD2_HREF, `${SET1_HUB_HREF}#rooms-inventory`);
@@ -60,18 +60,21 @@ describe("PMS Property Setup Card 2 Phase 0 shell", () => {
       CARD2_STEPS.map((row) => row.title),
       [
         "Room Types & Rooms",
+        "Rate & Pricing",
         "Amenities",
+        "Meal Plans & Packages",
         "Housekeeping",
         "Inventory Rules",
         "Maintenance",
-        "Rate & Pricing",
       ],
     );
     assert.equal(CARD2_STEPS[0]?.id, "room-types");
-    assert.equal(nextCard2Step("room-types"), "amenities");
+    assert.equal(nextCard2Step("room-types"), "rates-pricing");
     assert.equal(previousCard2Step("room-types"), null);
-    assert.equal(nextCard2Step("maintenance"), "rates-pricing");
-    assert.equal(nextCard2Step("rates-pricing"), null);
+    assert.equal(nextCard2Step("amenities"), "meal-plans-packages");
+    assert.equal(nextCard2Step("meal-plans-packages"), "housekeeping");
+    assert.equal(nextCard2Step("maintenance"), null);
+    assert.equal(nextCard2Step("rates-pricing"), "amenities");
   });
 
   it("does not invent completion and does not collide with SET2 rooms", () => {
@@ -94,6 +97,9 @@ describe("PMS Property Setup Card 2 Phase 0 shell", () => {
     assert.match(hub, /card2Steps=/);
     assert.match(section, /PropertySetupWorkspaceShell/);
     assert.match(section, /PmsPropertySetupCard2RoomTypes/);
+    assert.match(section, /PmsPropertySetupCard2Rates/);
+    assert.match(section, /PmsPropertySetupCard3Meals/);
+    assert.match(hub, /card3LegacyMealsRedirectHref/);
     assert.match(section, /onSaveDraft/);
     assert.match(section, /pms-card2-status-rail/);
     assert.doesNotMatch(section, /CARD1_PMS_NAV/);
