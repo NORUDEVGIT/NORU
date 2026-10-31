@@ -51,6 +51,7 @@ import {
   parseOptionalIncludedField,
   RatePlanPricingSetup,
 } from "@/packages/pms/components/settings/rate-plan-pricing-setup";
+import { suggestRatePlanCode } from "@/packages/pms/lib/rates-card2-code";
 
 function matchesQuery(query: string, ...values: string[]) {
   const q = query.trim().toLowerCase();
@@ -80,7 +81,9 @@ export function PmsPropertySetupCard3Rates({
   const [categoryDraft, setCategoryDraft] = useState<RateCategoryRow | "new" | null>(null);
   const [planDraft, setPlanDraft] = useState<RatePlanRow | "new" | null>(null);
   const [calendarDraft, setCalendarDraft] = useState<RateCalendarRow | "new" | null>(null);
-  const [refundabilityDraft, setRefundabilityDraft] = useState<RateRefundabilityRow | "new" | null>(null);
+  const [refundabilityDraft, setRefundabilityDraft] = useState<RateRefundabilityRow | "new" | null>(
+    null,
+  );
   const [refundabilitySearch, setRefundabilitySearch] = useState("");
 
   const query = useQuery({
@@ -121,7 +124,10 @@ export function PmsPropertySetupCard3Rates({
     [calendar, calendarSearch],
   );
   const filteredRefundability = useMemo(
-    () => refundabilityCodes.filter((row) => matchesQuery(refundabilitySearch, row.code, row.name, row.kind)),
+    () =>
+      refundabilityCodes.filter((row) =>
+        matchesQuery(refundabilitySearch, row.code, row.name, row.kind),
+      ),
     [refundabilityCodes, refundabilitySearch],
   );
 
@@ -232,8 +238,8 @@ export function PmsPropertySetupCard3Rates({
           />
 
           <p className="rounded-xl border border-[#E8E1D4] bg-white px-4 py-3 text-sm text-[#5C5346]">
-            Cancellation policies are edited on Card 2 Rate &amp; Pricing. This page can still attach an
-            existing policy on a rate plan; it does not write the catalogue.
+            Cancellation policies are edited on Card 2 Rate &amp; Pricing. This page can still
+            attach an existing policy on a rate plan; it does not write the catalogue.
           </p>
 
           <Card3ListSection
@@ -249,7 +255,12 @@ export function PmsPropertySetupCard3Rates({
             columns={["Code", "Name", "Kind", "Status"]}
             rows={filteredRefundability.map((row) => ({
               id: row.id,
-              cells: [row.code, row.name, row.kind.replaceAll("_", " "), <Card3StatusDot active={row.active} />],
+              cells: [
+                row.code,
+                row.name,
+                row.kind.replaceAll("_", " "),
+                <Card3StatusDot active={row.active} />,
+              ],
               onEdit: () => setRefundabilityDraft(row),
             }))}
           />
@@ -308,7 +319,11 @@ export function PmsPropertySetupCard3Rates({
             key={refundabilityDraft === "new" ? "rf-new" : (refundabilityDraft?.id ?? "rf-closed")}
             open={refundabilityDraft !== null}
             canEdit={canEdit}
-            value={refundabilityDraft === "new" || refundabilityDraft === null ? null : refundabilityDraft}
+            value={
+              refundabilityDraft === "new" || refundabilityDraft === null
+                ? null
+                : refundabilityDraft
+            }
             pending={refundabilityMut.isPending}
             onClose={() => setRefundabilityDraft(null)}
             onSave={(payload) => refundabilityMut.mutate({ restaurantId, ...payload })}
@@ -428,6 +443,7 @@ function PlanDrawer({
   const [roomTypeId, setRoomTypeId] = useState(value?.roomTypeId ?? roomTypes[0]?.id ?? "");
   const [code, setCode] = useState(value?.code ?? "");
   const [name, setName] = useState(value?.name ?? "");
+  const [codeManuallyEdited, setCodeManuallyEdited] = useState(Boolean(value?.code));
   const [description, setDescription] = useState(value?.description ?? "");
   const initialType = roomTypes.find((row) => row.id === (value?.roomTypeId ?? roomTypes[0]?.id));
   const createDefaults = occupancyFieldsFromRoomTypeDefaults(initialType);
@@ -447,7 +463,9 @@ function PlanDrawer({
   const [methodPercent, setMethodPercent] = useState(10);
   const [validFrom, setValidFrom] = useState(value?.validFrom ?? "");
   const [validTo, setValidTo] = useState(value?.validTo ?? "");
-  const [cancellationPolicyId, setCancellationPolicyId] = useState(value?.cancellationPolicyId ?? none);
+  const [cancellationPolicyId, setCancellationPolicyId] = useState(
+    value?.cancellationPolicyId ?? none,
+  );
   const [refundabilityId, setRefundabilityId] = useState(value?.refundabilityId ?? none);
   const [minAdvanceDays, setMinAdvanceDays] = useState(value?.minAdvanceDays ?? 0);
   const [maxAdvanceDays, setMaxAdvanceDays] = useState(value?.maxAdvanceDays ?? 0);
@@ -577,21 +595,37 @@ function PlanDrawer({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="plan-code">Code</Label>
-          <Input
-            id="plan-code"
-            value={code}
-            disabled={!canEdit}
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="plan-name">Name</Label>
+          <Label htmlFor="plan-name">Rate Plan Name</Label>
           <Input
             id="plan-name"
             value={name}
             disabled={!canEdit}
-            onChange={(event) => setName(event.target.value)}
+            placeholder="e.g. Best Available Rate"
+            onChange={(event) => {
+              const newName = event.target.value;
+              setName(newName);
+              if (!codeManuallyEdited) {
+                setCode(suggestRatePlanCode(newName));
+              }
+            }}
+          />
+        </div>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="plan-code">Rate Plan Code</Label>
+            {!codeManuallyEdited && code && (
+              <span className="text-[10px] text-muted-foreground">Auto-generated from name</span>
+            )}
+          </div>
+          <Input
+            id="plan-code"
+            value={code}
+            disabled={!canEdit}
+            placeholder="e.g. BAR"
+            onChange={(event) => {
+              setCodeManuallyEdited(true);
+              setCode(event.target.value.toUpperCase());
+            }}
           />
         </div>
         <div className="space-y-1">
@@ -653,17 +687,23 @@ function PlanDrawer({
         />
         <div className="space-y-1">
           <Label>Cancellation policy</Label>
-          <Select value={cancellationPolicyId} disabled={!canEdit} onValueChange={setCancellationPolicyId}>
+          <Select
+            value={cancellationPolicyId}
+            disabled={!canEdit}
+            onValueChange={setCancellationPolicyId}
+          >
             <SelectTrigger>
               <SelectValue placeholder="None" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={none}>None</SelectItem>
-              {cancellationPolicies.filter((row) => row.active).map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  {row.code} — {row.name}
-                </SelectItem>
-              ))}
+              {cancellationPolicies
+                .filter((row) => row.active)
+                .map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.code} — {row.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -675,11 +715,13 @@ function PlanDrawer({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={none}>None</SelectItem>
-              {refundabilityCodes.filter((row) => row.active).map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  {row.code} — {row.name}
-                </SelectItem>
-              ))}
+              {refundabilityCodes
+                .filter((row) => row.active)
+                .map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.code} — {row.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -867,15 +909,29 @@ function RefundabilityDrawer({
       <div className="space-y-3">
         <div className="space-y-1">
           <Label htmlFor="rf-code">Code</Label>
-          <Input id="rf-code" value={code} disabled={!canEdit} onChange={(event) => setCode(event.target.value.toUpperCase())} />
+          <Input
+            id="rf-code"
+            value={code}
+            disabled={!canEdit}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
+          />
         </div>
         <div className="space-y-1">
           <Label htmlFor="rf-name">Name</Label>
-          <Input id="rf-name" value={name} disabled={!canEdit} onChange={(event) => setName(event.target.value)} />
+          <Input
+            id="rf-name"
+            value={name}
+            disabled={!canEdit}
+            onChange={(event) => setName(event.target.value)}
+          />
         </div>
         <div className="space-y-1">
           <Label>Kind</Label>
-          <Select value={kind} disabled={!canEdit} onValueChange={(next) => setKind(next as RateRefundabilityRow["kind"])}>
+          <Select
+            value={kind}
+            disabled={!canEdit}
+            onValueChange={(next) => setKind(next as RateRefundabilityRow["kind"])}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>

@@ -200,10 +200,6 @@ export function RatePlanPricingSetup({
               disabled={!canEdit}
               onChange={(event) => onIncludedChange(event.target.value)}
             />
-            <p className="text-[11px] text-muted-foreground">
-              Number of adult/child guests included in the nightly rate before extra-person pricing
-              applies.
-            </p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="plan-extra-adult">Extra adult</Label>
@@ -216,9 +212,6 @@ export function RatePlanPricingSetup({
               disabled={!canEdit}
               onChange={(event) => onExtraAdultChange(event.target.value)}
             />
-            <p className="text-[11px] text-muted-foreground">
-              Additional nightly amount for each chargeable adult beyond included occupancy.
-            </p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="plan-extra-child">Extra child</Label>
@@ -231,9 +224,6 @@ export function RatePlanPricingSetup({
               disabled={!canEdit}
               onChange={(event) => onExtraChildChange(event.target.value)}
             />
-            <p className="text-[11px] text-muted-foreground">
-              Additional nightly amount for each chargeable child beyond included occupancy.
-            </p>
           </div>
         </div>
         <p className="text-xs text-muted-foreground">

@@ -80,6 +80,7 @@ import {
   parseOptionalIncludedField,
   RatePlanPricingSetup,
 } from "@/packages/pms/components/settings/rate-plan-pricing-setup";
+import { suggestRatePlanCode } from "@/packages/pms/lib/rates-card2-code";
 import { cn } from "@/shared/lib/utils";
 
 const NONE = "__none__";
@@ -247,8 +248,8 @@ export function PmsPropertySetupCard2Rates({
       );
       setCategoryDraft(null);
       invalidate();
-    } catch (error: any) {
-      toast.error(error?.message ?? "Failed to add rate category.");
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message ?? "Failed to add rate category.");
     } finally {
       setBatchPending(false);
     }
@@ -287,8 +288,7 @@ export function PmsPropertySetupCard2Rates({
   });
 
   const noShowMut = useMutation({
-    mutationFn: (input: Parameters<typeof saveNoShow>[0]["data"]) =>
-      saveNoShow({ data: input }),
+    mutationFn: (input: Parameters<typeof saveNoShow>[0]["data"]) => saveNoShow({ data: input }),
     onSuccess: () => {
       toast.success("No-show policy saved.");
       setNoShowDraft(null);
@@ -461,14 +461,7 @@ export function PmsPropertySetupCard2Rates({
             onAdd={() => setNoShowDraft("new")}
             canEdit={canEdit}
             empty="No no-show policies yet. Defines charge and release time when a guest fails to arrive."
-            columns={[
-              "Code",
-              "Name",
-              "Release time",
-              "Penalty",
-              "Default",
-              "Status",
-            ]}
+            columns={["Code", "Name", "Release time", "Penalty", "Default", "Status"]}
             rows={filteredNoShowPolicies.map((row) => ({
               id: row.id,
               cells: [
@@ -479,7 +472,7 @@ export function PmsPropertySetupCard2Rates({
                   ? `${row.penaltyValue}% stay`
                   : row.penaltyType === "fixed_amount"
                     ? `${currencyCode} ${row.penaltyValue}`
-                    : POLICY_PENALTY_TYPE_LABELS[row.penaltyType] ?? row.penaltyType,
+                    : (POLICY_PENALTY_TYPE_LABELS[row.penaltyType] ?? row.penaltyType),
                 row.isDefault ? "Default" : "—",
                 <Card3StatusDot key="status" active={row.active} />,
               ],
@@ -626,7 +619,13 @@ function CategoryDrawer({
   configuredCategories: readonly RateCategoryRow[];
   pending: boolean;
   onClose: () => void;
-  onSave: (payload: { id?: string; code: string; name: string; active: boolean; isCustom?: boolean }) => void;
+  onSave: (payload: {
+    id?: string;
+    code: string;
+    name: string;
+    active: boolean;
+    isCustom?: boolean;
+  }) => void;
   onSavePredefined: (presets: PredefinedRateCategory[]) => Promise<void>;
 }) {
   const isEditing = value !== null;
@@ -772,7 +771,8 @@ function CategoryDrawer({
           {customPredefinedConflict ? (
             <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
               <p className="font-semibold">
-                {customPredefinedConflict.name} is already available in the predefined Rate Categories. Select it from the predefined list.
+                {customPredefinedConflict.name} is already available in the predefined Rate
+                Categories. Select it from the predefined list.
               </p>
               <Button
                 type="button"
@@ -839,9 +839,7 @@ function CategoryDrawer({
 
   // Default: Add mode - Predefined Catalogue View:
   const submitText =
-    selectedPresets.length > 1
-      ? `Add ${selectedPresets.length} Categories`
-      : "Add Category";
+    selectedPresets.length > 1 ? `Add ${selectedPresets.length} Categories` : "Add Category";
 
   return (
     <Card3OverlapSheet
@@ -1011,6 +1009,7 @@ function PlanDrawer({
   const [roomTypeId, setRoomTypeId] = useState(value?.roomTypeId ?? roomTypes[0]?.id ?? "");
   const [code, setCode] = useState(value?.code ?? "");
   const [name, setName] = useState(value?.name ?? "");
+  const [codeManuallyEdited, setCodeManuallyEdited] = useState(Boolean(value?.code));
   const [description, setDescription] = useState(value?.description ?? "");
   const initialType = roomTypes.find((row) => row.id === (value?.roomTypeId ?? roomTypes[0]?.id));
   const createDefaults = occupancyFieldsFromRoomTypeDefaults(initialType);
@@ -1166,21 +1165,37 @@ function PlanDrawer({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="plan-code">Code</Label>
-          <Input
-            id="plan-code"
-            value={code}
-            disabled={!canEdit}
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="plan-name">Name</Label>
+          <Label htmlFor="plan-name">Rate Plan Name</Label>
           <Input
             id="plan-name"
             value={name}
             disabled={!canEdit}
-            onChange={(event) => setName(event.target.value)}
+            placeholder="e.g. Best Available Rate"
+            onChange={(event) => {
+              const newName = event.target.value;
+              setName(newName);
+              if (!codeManuallyEdited) {
+                setCode(suggestRatePlanCode(newName));
+              }
+            }}
+          />
+        </div>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="plan-code">Rate Plan Code</Label>
+            {!codeManuallyEdited && code && (
+              <span className="text-[10px] text-muted-foreground">Auto-generated from name</span>
+            )}
+          </div>
+          <Input
+            id="plan-code"
+            value={code}
+            disabled={!canEdit}
+            placeholder="e.g. BAR"
+            onChange={(event) => {
+              setCodeManuallyEdited(true);
+              setCode(event.target.value.toUpperCase());
+            }}
           />
         </div>
         <div className="space-y-1">
@@ -1410,13 +1425,17 @@ function CancellationDrawer({
   const [code, setCode] = useState(value?.code ?? "");
   const [name, setName] = useState(value?.name ?? "");
   const [description, setDescription] = useState(value?.description ?? "");
-  const [policyKind, setPolicyKind] = useState<CancellationPolicyKind>(value?.policyKind ?? "flexible");
+  const [policyKind, setPolicyKind] = useState<CancellationPolicyKind>(
+    value?.policyKind ?? "flexible",
+  );
   const [windowValue, setWindowValue] = useState(String(value?.windowValue ?? 24));
   const [windowUnit, setWindowUnit] = useState<CancellationWindowUnit>(
     value?.windowUnit ?? "hours_before_arrival",
   );
   const [cutoffTime, setCutoffTime] = useState(value?.cutoffTime ?? "");
-  const [penaltyType, setPenaltyType] = useState<CancellationPenaltyType>(value?.penaltyType ?? "none");
+  const [penaltyType, setPenaltyType] = useState<CancellationPenaltyType>(
+    value?.penaltyType ?? "none",
+  );
   const [penaltyValue, setPenaltyValue] = useState(String(value?.penaltyValue ?? 0));
   const [active, setActive] = useState(value?.active ?? true);
   const showWindow = policyKind !== "non_refundable";
@@ -1864,12 +1883,7 @@ function NoShowDrawer({
         </div>
         <div className="flex items-center justify-between rounded-xl border px-3 py-2">
           <Label htmlFor="ns-active">Active</Label>
-          <Switch
-            id="ns-active"
-            checked={active}
-            disabled={!canEdit}
-            onCheckedChange={setActive}
-          />
+          <Switch id="ns-active" checked={active} disabled={!canEdit} onCheckedChange={setActive} />
         </div>
       </div>
     </Card3OverlapSheet>

@@ -3,10 +3,10 @@ import type { RoomType } from "@/packages/pms/lib/rooms.functions";
 
 export const ROOM_TYPE_WIZARD_STEPS = [
   { id: 1, title: "Room Type & Rooms" },
-  { id: 2, title: "Amenities" },
-  { id: 3, title: "Pricing Defaults" },
+  { id: 2, title: "Pricing & Occupancy" },
+  { id: 3, title: "Amenities" },
   { id: 4, title: "Photos" },
-  { id: 5, title: "Review & Complete" },
+  { id: 5, title: "Review" },
 ] as const;
 
 export type WizardStepId = (typeof ROOM_TYPE_WIZARD_STEPS)[number]["id"];

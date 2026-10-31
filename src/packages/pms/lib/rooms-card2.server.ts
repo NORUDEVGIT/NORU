@@ -230,6 +230,20 @@ export function floorsForBuildingAndWing<T extends CascadeFloor>(
   return inBuilding.filter((row) => row.wingId == null || row.wingId === wingId);
 }
 
+export function firstActiveBuildingId(
+  buildings: { id: string; active: boolean }[],
+): string {
+  return buildings.find((row) => row.active)?.id ?? buildings[0]?.id ?? "";
+}
+
+/** Keep the current value visible even if that location was deactivated. */
+export function withSelectedLocation<T extends { id: string; active: boolean }>(
+  rows: T[],
+  selectedId: string | null | undefined,
+): T[] {
+  return rows.filter((row) => row.active || row.id === selectedId);
+}
+
 /** Drop wing/floor that are invalid after a parent change. Empty building clears both. */
 export function cascadeLocationIds(input: {
   buildingId: string;
@@ -467,6 +481,9 @@ export function mergeCard2RoomTypesStatus(
     card2Steps: { ...parsed.card2Steps, "room-types": stepStatus },
   };
 }
+
+export const ROOM_CANNOT_LEAVE_TYPE =
+  "This room has reservations or operational history and cannot leave its room type. Deactivate it instead.";
 
 export function uniqueViolationMessage(
   error: { code?: string; message?: string; details?: string } | null,
