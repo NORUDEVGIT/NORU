@@ -29,10 +29,8 @@ import {
 export const CARD3_MEALS_TABS = [
   { id: "overview", label: "Overview" },
   { id: "meal-plans", label: "Meal Plans" },
-  // Phase B: one unified Packages entry replaces the old three-section layout
-  { id: "packages", label: "Packages" },
-  // Phase E placeholder — will become nested includes inside the Package editor
   { id: "package-components", label: "Package Components" },
+  { id: "packages", label: "Packages" },
 ] as const;
 export type Card3MealsTabId = (typeof CARD3_MEALS_TABS)[number]["id"];
 

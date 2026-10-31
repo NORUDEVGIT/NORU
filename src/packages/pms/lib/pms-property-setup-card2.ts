@@ -13,7 +13,7 @@ export { withReturnTo };
 export const CARD2_TITLE = "Rooms & Operations";
 export const CARD2_WORKSPACE_TITLE = "Rooms & Operations";
 export const CARD2_SUBTITLE =
-  "Configure room types, physical rooms, amenities, housekeeping, inventory and maintenance rules.";
+  "Configure room types, rates, amenities, meal plans, housekeeping, inventory and maintenance rules.";
 export const CARD2_PURPOSE = CARD2_SUBTITLE;
 export const CARD2_HASH = "rooms-inventory";
 export const CARD2_HREF = `${SET1_HUB_HREF}#${CARD2_HASH}`;
@@ -28,34 +28,40 @@ export const CARD2_STEPS = [
     placeholder: "Room Types & Rooms configuration will be implemented in Phase 1.",
   },
   {
-    id: "amenities",
+    id: "rates-pricing",
     number: 2,
+    title: "Rate & Pricing",
+    placeholder: "Rate & Pricing configuration is available in this Card 2 step.",
+  },
+  {
+    id: "amenities",
+    number: 3,
     title: "Amenities",
     placeholder: "Amenities configuration is available in this Card 2 step.",
   },
   {
+    id: "meal-plans-packages",
+    number: 4,
+    title: "Meal Plans & Packages",
+    placeholder: "Meal Plans & Packages configuration is available in this Card 2 step.",
+  },
+  {
     id: "housekeeping",
-    number: 3,
+    number: 5,
     title: "Housekeeping",
     placeholder: "Housekeeping configuration will be implemented in a later phase.",
   },
   {
     id: "inventory-rules",
-    number: 4,
+    number: 6,
     title: "Inventory Rules",
     placeholder: "Inventory Rules configuration is available in this Card 2 step.",
   },
   {
     id: "maintenance",
-    number: 5,
+    number: 7,
     title: "Maintenance",
     placeholder: "Maintenance configuration will be implemented in a later phase.",
-  },
-  {
-    id: "rates-pricing",
-    number: 6,
-    title: "Rate & Pricing",
-    placeholder: "Rate & Pricing configuration is available in this Card 2 step.",
   },
 ] as const;
 
@@ -64,6 +70,8 @@ export type Card2StepId = (typeof CARD2_STEPS)[number]["id"];
 export const CARD2_STEP_QUERY = "card2Step";
 export const CARD2_RATES_STEP: Card2StepId = "rates-pricing";
 export const CARD2_RATES_HREF = `${SET1_HUB_HREF}?${CARD2_STEP_QUERY}=rates-pricing#${CARD2_HASH}`;
+export const CARD2_MEALS_STEP: Card2StepId = "meal-plans-packages";
+export const CARD2_MEALS_HREF = `${SET1_HUB_HREF}?${CARD2_STEP_QUERY}=meal-plans-packages#${CARD2_HASH}`;
 
 export function card2StepHref(stepId: Card2StepId): string {
   return `${SET1_HUB_HREF}?${CARD2_STEP_QUERY}=${encodeURIComponent(stepId)}#${CARD2_HASH}`;

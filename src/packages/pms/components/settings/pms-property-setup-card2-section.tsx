@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 
 import { PmsPropertySetupCard2RoomTypes } from "@/packages/pms/components/settings/pms-property-setup-card2-room-types";
 import { PmsPropertySetupCard2Housekeeping } from "@/packages/pms/components/settings/pms-property-setup-card2-housekeeping";
@@ -15,6 +17,8 @@ import {
   type MaintenanceRailStats,
 } from "@/packages/pms/components/settings/pms-property-setup-card2-maintenance";
 import { PmsPropertySetupCard2Rates } from "@/packages/pms/components/settings/pms-property-setup-card2-rates";
+import { PmsPropertySetupCard3Meals } from "@/packages/pms/components/settings/pms-property-setup-card3-meals";
+import { getMealsCard3 } from "@/packages/pms/lib/meals-card3.functions";
 import {
   PropertySetupPanel,
   PropertySetupStatusRail,
@@ -108,6 +112,21 @@ export function PmsPropertySetupCard2Section({
   );
   const [ratesBlockers, setRatesBlockers] = useState<string[]>([]);
   const [ratesWarnings, setRatesWarnings] = useState<string[]>([]);
+  const [mealsStatus, setMealsStatus] = useState<PropertySetupCardStatus>(
+    card2Steps?.["meal-plans-packages"] ?? "not_started",
+  );
+  const [mealsBlockers, setMealsBlockers] = useState<string[]>([]);
+  const loadMeals = useServerFn(getMealsCard3);
+  const mealsQuery = useQuery({
+    queryKey: ["pms-card3-meals", restaurantId],
+    queryFn: () => loadMeals({ data: { restaurantId } }),
+  });
+  useEffect(() => {
+    const readiness = mealsQuery.data?.readiness;
+    if (!readiness) return;
+    setMealsStatus(readiness.status);
+    setMealsBlockers(readiness.blockers);
+  }, [mealsQuery.data?.readiness]);
   const [continuePending, setContinuePending] = useState(false);
   const actionsRef = useRef<{
     saveDraft: () => Promise<boolean>;
@@ -124,6 +143,7 @@ export function PmsPropertySetupCard2Section({
     "inventory-rules": inventoryStatus,
     maintenance: maintenanceStatus,
     "rates-pricing": ratesStatus,
+    "meal-plans-packages": mealsStatus,
   };
   const railSections = CARD2_STEPS.map((row) => ({
     id: row.id,
@@ -136,7 +156,9 @@ export function PmsPropertySetupCard2Section({
       ? housekeepingBlockers
       : step === "rates-pricing"
         ? ratesBlockers
-        : step === "inventory-rules"
+        : step === "meal-plans-packages"
+          ? mealsBlockers
+          : step === "inventory-rules"
           ? (inventoryStats?.blockers ?? [])
           : step === "amenities"
             ? (amenitiesStats?.blockers ?? [])
@@ -187,6 +209,13 @@ export function PmsPropertySetupCard2Section({
       setRatesStatus(status);
       setRatesBlockers(blockers);
       setRatesWarnings(warnings);
+    },
+    [],
+  );
+  const onMealsReadiness = useCallback(
+    (status: PropertySetupCardStatus, blockers: string[]) => {
+      setMealsStatus(status);
+      setMealsBlockers(blockers);
     },
     [],
   );
@@ -300,6 +329,17 @@ export function PmsPropertySetupCard2Section({
         <p className="text-sm text-muted-foreground">
           {ratesBlockers.length} blockers · {ratesWarnings.length} warnings
         </p>
+      </PropertySetupPanel>
+    ) : step === "meal-plans-packages" ? (
+      <PropertySetupPanel
+        title="Meal Plans & Packages"
+        icon="meal"
+        helper="Meal plans first, then package components, then packages."
+      >
+        <p className="text-sm text-[#251605]">
+          {amenitiesStatusLabel(mealsStatus, mealsBlockers)}
+        </p>
+        <p className="text-sm text-muted-foreground">{mealsBlockers.length} blockers</p>
       </PropertySetupPanel>
     ) : null;
 
@@ -420,6 +460,13 @@ export function PmsPropertySetupCard2Section({
                 canEdit={canEdit}
                 onReadiness={onRatesReadiness}
                 onNavigateToRoomTypes={() => setStep("room-types")}
+              />
+            ) : step === "meal-plans-packages" ? (
+              <PmsPropertySetupCard3Meals
+                restaurantId={restaurantId}
+                canEdit={canEdit}
+                embedded
+                onReadiness={onMealsReadiness}
               />
             ) : (
               <PropertySetupPanel title={current.title} icon="room">

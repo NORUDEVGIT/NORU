@@ -263,7 +263,7 @@ describe("RR-P5-UI-04 commercial history", () => {
     assert.match(drawer, /CARD3_PROMOTIONS_HREF/);
     assert.match(drawer, /CARD3_PACKAGES_HREF/);
     assert.ok(CARD3_PROMOTIONS_HREF.includes("card3Domain=revenue-commercial-rules"));
-    assert.ok(CARD3_PACKAGES_HREF.includes("card3Domain=meal-plans-packages"));
+    assert.ok(CARD3_PACKAGES_HREF.includes("card2Step=meal-plans-packages"));
     assert.match(applyPromo, /\["commercial-change-history"\]/);
     assert.match(applyPackage, /\["commercial-change-history"\]/);
     assert.match(overview, /View full history/);

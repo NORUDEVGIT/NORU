@@ -77,21 +77,34 @@ async function runCard2(db: DbClient, restaurantId: string): Promise<Card8Adapte
     import("./rates-card2.functions"),
     import("./rates-card2.server"),
   ]);
-  const [roomTypes, amenitiesInput, housekeepingSnapshot, inventory, maintenance, ratesSnapshot] =
-    await Promise.all([
-      loadCard2RoomTypesReadiness(db, restaurantId),
-      loadAmenitiesReadinessInput(db, restaurantId),
-      loadCard2HousekeepingSnapshot(db, restaurantId, false),
-      loadCard2InventoryValidation(db, restaurantId),
-      loadCard2MaintenanceValidation(db, restaurantId),
-      loadRatesCard2Snapshot(db, restaurantId),
-    ]);
+  const [
+    roomTypes,
+    amenitiesInput,
+    housekeepingSnapshot,
+    inventory,
+    maintenance,
+    ratesSnapshot,
+    { loadMealsCard3Snapshot },
+    { evaluateMealsCard3Readiness },
+  ] = await Promise.all([
+    loadCard2RoomTypesReadiness(db, restaurantId),
+    loadAmenitiesReadinessInput(db, restaurantId),
+    loadCard2HousekeepingSnapshot(db, restaurantId, false),
+    loadCard2InventoryValidation(db, restaurantId),
+    loadCard2MaintenanceValidation(db, restaurantId),
+    loadRatesCard2Snapshot(db, restaurantId),
+    import("./meals-card3.functions"),
+    import("./meals-card3.server"),
+  ]);
   const amenities = evaluateAmenitiesReadiness(amenitiesInput);
   const housekeeping = evaluateCard2HousekeepingReadiness(housekeepingSnapshot);
   const rates = evaluateRatesCard2Readiness(ratesSnapshot);
+  const meals = evaluateMealsCard3Readiness(await loadMealsCard3Snapshot(db, restaurantId));
   return adaptCard8DomainSlices(2, "rooms", [
     { id: "room-types", label: "Room Types & Rooms", blockers: roomTypes.blockers },
+    { id: "rates-pricing", label: "Rate & Pricing", blockers: rates.blockers },
     { id: "amenities", label: "Amenities", blockers: amenities.blockers },
+    { id: "meal-plans-packages", label: "Meal Plans & Packages", blockers: meals.blockers },
     {
       id: "housekeeping",
       label: "Housekeeping",
@@ -100,7 +113,6 @@ async function runCard2(db: DbClient, restaurantId: string): Promise<Card8Adapte
     },
     { id: "inventory-rules", label: "Inventory Rules", blockers: inventory.blockers },
     { id: "maintenance", label: "Maintenance", blockers: maintenance.blockers },
-    { id: "rates-pricing", label: "Rate & Pricing", blockers: rates.blockers },
   ]);
 }
 
@@ -110,8 +122,6 @@ async function runCard3(db: DbClient, restaurantId: string): Promise<Card8Adapte
     { evaluateCurrencyCard3Readiness },
     { loadTaxesCard3Snapshot },
     { evaluateTaxesCard3Readiness },
-    { loadMealsCard3Snapshot },
-    { evaluateMealsCard3Readiness },
     { loadPaymentsCard3Snapshot },
     { evaluatePaymentsCard3Readiness },
     { loadBillingCard3Snapshot },
@@ -125,8 +135,6 @@ async function runCard3(db: DbClient, restaurantId: string): Promise<Card8Adapte
     import("./currency-card3.server"),
     import("./taxes-card3.functions"),
     import("./taxes-card3.server"),
-    import("./meals-card3.functions"),
-    import("./meals-card3.server"),
     import("./payments-card3.functions"),
     import("./payments-card3.server"),
     import("./billing-card3.functions"),
@@ -139,7 +147,6 @@ async function runCard3(db: DbClient, restaurantId: string): Promise<Card8Adapte
   const snapshots = await Promise.all([
     loadCurrencyCard3Snapshot(db, restaurantId),
     loadTaxesCard3Snapshot(db, restaurantId),
-    loadMealsCard3Snapshot(db, restaurantId),
     loadPaymentsCard3Snapshot(db, restaurantId),
     loadBillingCard3Snapshot(db, restaurantId),
     loadCorporateCard3Snapshot(db, restaurantId),
@@ -148,16 +155,14 @@ async function runCard3(db: DbClient, restaurantId: string): Promise<Card8Adapte
   const readiness = [
     evaluateCurrencyCard3Readiness(snapshots[0]),
     evaluateTaxesCard3Readiness(snapshots[1]),
-    evaluateMealsCard3Readiness(snapshots[2]),
-    evaluatePaymentsCard3Readiness(snapshots[3]),
-    evaluateBillingCard3Readiness(snapshots[4]),
-    evaluateCorporateCard3Readiness(snapshots[5]),
-    evaluateCommercialCard3Readiness(snapshots[6]),
+    evaluatePaymentsCard3Readiness(snapshots[2]),
+    evaluateBillingCard3Readiness(snapshots[3]),
+    evaluateCorporateCard3Readiness(snapshots[4]),
+    evaluateCommercialCard3Readiness(snapshots[5]),
   ];
   const labels = [
     "Currency",
     "Taxes",
-    "Meals",
     "Payments",
     "Billing",
     "Corporate",

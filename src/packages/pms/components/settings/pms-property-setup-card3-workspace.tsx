@@ -11,7 +11,6 @@ export const DOMAIN_ICON_KEYS: Record<Card3Domain["icon"], PropertySetupFieldIco
   banknote: "money",
   receipt: "tax",
   tag: "tag",
-  utensils: "meal",
   "credit-card": "payment",
   "file-text": "document",
   building: "facility",

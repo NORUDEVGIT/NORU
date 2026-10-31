@@ -51,6 +51,7 @@ import {
 } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 
 import type { Card3Domain } from "@/packages/pms/lib/pms-property-setup-card3";
+import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 
 import {
 
@@ -292,15 +293,23 @@ export function PmsPropertySetupCard3Meals({
 
   domain,
 
+  embedded = false,
+
+  onReadiness,
+
 }: {
 
   restaurantId: string;
 
   canEdit: boolean;
 
-  domain: Card3Domain;
+  domain?: Card3Domain;
 
-  onBack: () => void;
+  embedded?: boolean;
+
+  onReadiness?: (status: PropertySetupCardStatus, blockers: string[]) => void;
+
+  onBack?: () => void;
 
 }) {
 
@@ -347,6 +356,12 @@ const saveMealRules = useServerFn(saveMealApplicabilityPolicyCard3);
   });
 
   const snapshot: MealsCard3Snapshot | undefined = query.data?.snapshot;
+
+  useEffect(() => {
+    const readiness = query.data?.readiness;
+    if (!readiness || !onReadiness) return;
+    onReadiness(readiness.status, readiness.blockers);
+  }, [onReadiness, query.data?.readiness]);
 
   const mealPlans = useMemo(() => snapshot?.mealPlans ?? [], [snapshot?.mealPlans]);
 
@@ -557,9 +572,9 @@ const mealRulesMutation = useMutation({
 
 
 
-  return (
+  const mealsBody = (
 
-    <PmsPropertySetupCard3Workspace domain={domain}>
+    <>
 
       {query.isLoading ? (
 
@@ -814,6 +829,18 @@ const mealRulesMutation = useMutation({
         </div>
 
       )}
+
+    </>
+
+  );
+
+  if (embedded || !domain) return mealsBody;
+
+  return (
+
+    <PmsPropertySetupCard3Workspace domain={domain}>
+
+      {mealsBody}
 
     </PmsPropertySetupCard3Workspace>
 

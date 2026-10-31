@@ -89,7 +89,11 @@ import {
   type PropertySetupCardStatus,
 } from "@/packages/pms/lib/pms-property-setup-card1";
 import { CARD2_HASH, isCard2WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card2";
-import { CARD3_HASH, isCard3WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card3";
+import {
+  CARD3_HASH,
+  card3LegacyMealsRedirectHref,
+  isCard3WorkspaceHash,
+} from "@/packages/pms/lib/pms-property-setup-card3";
 import { CARD5_HASH, isCard5WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card5";
 import { CARD6_HASH, isCard6WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card6";
 import { CARD7_HASH, isCard7WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card7";
@@ -175,6 +179,10 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       }
       if (raw === "card-3" || raw === "card3") {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD3_HASH}`);
+      }
+      const mealsRedirect = card3LegacyMealsRedirectHref(window.location.search);
+      if (mealsRedirect) {
+        window.history.replaceState(null, "", mealsRedirect);
       }
       if (raw === "card-5" || raw === "card5") {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD5_HASH}`);
