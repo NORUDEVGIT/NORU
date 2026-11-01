@@ -2,7 +2,15 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, BedDouble, Check, Printer } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BedDouble,
+  Check,
+  ChevronDown,
+  ExternalLink,
+  Printer,
+} from "lucide-react";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/core/state/property-format";
@@ -51,6 +59,12 @@ import {
 } from "@/packages/pms/lib/reservations.functions";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { Label } from "@/shared/components/ui/label";
 import {
   Select,
@@ -61,6 +75,16 @@ import {
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
+
+/* Palette: brown text, gold accents, white surfaces. */
+const PRIMARY_BUTTON =
+  "rounded-full bg-[#C89933] font-bold text-[#251605] hover:bg-[#B98B2D] disabled:opacity-50";
+const DARK_BUTTON =
+  "rounded-full bg-[#4a2c1a] font-bold text-white hover:bg-[#3a2214] disabled:opacity-50";
+const OUTLINE_BUTTON =
+  "rounded-full border-[#e9dfd0] bg-white font-semibold text-[#4a2c1a] shadow-none hover:bg-[#f5ead0]";
+const GHOST_BUTTON = "rounded-full font-semibold text-[#4a2c1a] hover:bg-[#f5ead0]";
+const MENU_ITEM = "gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[#4a2c1a]";
 
 function SectionCard({
   title,
@@ -74,14 +98,20 @@ function SectionCard({
   className?: string;
 }) {
   return (
-    <section className={cn("rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm", className)}>
+    <section
+      className={cn("rounded-2xl border border-[#e9dfd0] bg-white p-5 shadow-sm", className)}
+    >
       <header className="mb-3">
-        <h2 className="text-sm font-semibold text-[#251605]">{title}</h2>
-        {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
+        <h2 className="font-display text-base font-semibold text-[#4a2c1a]">{title}</h2>
+        {subtitle ? <p className="text-xs text-[#7A6B58]">{subtitle}</p> : null}
       </header>
       {children}
     </section>
   );
+}
+
+function SummaryHeading({ children }: { children: ReactNode }) {
+  return <p className="mb-1.5 text-xs font-bold text-[#8C6D23]">{children}</p>;
 }
 
 export function ReservationNoShowWorkspace({
@@ -283,7 +313,7 @@ export function ReservationNoShowWorkspace({
   }
   if (!reservation) {
     return (
-      <div className="grid h-full place-items-center p-8 text-sm text-muted-foreground">
+      <div className="grid h-full place-items-center p-8 text-sm text-[#7A6B58]">
         Loading reservation…
       </div>
     );
@@ -304,70 +334,102 @@ export function ReservationNoShowWorkspace({
         })
       : predictedNoShowUpdates({ assignedRoom: reservation.roomNumber, feeRequired });
 
+  const currentStepIndex = NOSHOW_RESERVATION_STEPS.findIndex((row) => row.id === step);
+
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col bg-[#F7F4EE]"
+      className="flex min-h-0 flex-1 flex-col bg-[#fbfbfb]"
       data-testid="noshow-reservation-workspace"
     >
-      <header className="shrink-0 border-b border-[#DDD4C5] bg-white px-5 py-3">
+      <header className="shrink-0 border-b border-[#e9dfd0] bg-white px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-xl font-semibold text-[#251605]">
+              <h1 className="font-display text-xl font-semibold text-[#4a2c1a]">
                 {step === "complete"
-                  ? "No-Show Processed"
-                  : `No-Show Processing — ${reservation.confirmationNumber}`}
+                  ? "No-show processed"
+                  : `No-show · ${reservation.confirmationNumber}`}
               </h1>
               <ReservationStatusBadge status={reservation.status} />
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-[#7A6B58]">
               {step === "complete"
-                ? "The reservation has been marked as No-Show."
-                : "Process guest no-show using the existing Front Office no-show writer."}
+                ? "The reservation has been marked as no-show."
+                : "Process a guest no-show using the existing Front Office writer."}
             </p>
             {step === "complete" ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Reservation {reservation.confirmationNumber} · Marked{" "}
-                {dateTime(reservation.updatedAt)}
+              <p className="mt-1 text-xs text-[#7A6B58]">
+                Marked {dateTime(reservation.updatedAt)}
               </p>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenReservation(reservation.id)}
-            >
-              View Reservation
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
-              <Printer className="size-3.5" />
-              Print
-            </Button>
-          </div>
-        </div>
-        <ol className="mt-4 grid grid-cols-3 gap-2" data-testid="noshow-reservation-stepper">
-          {NOSHOW_RESERVATION_STEPS.map((item, index) => {
-            const current = NOSHOW_RESERVATION_STEPS.findIndex((row) => row.id === step);
-            const active = item.id === step;
-            return (
-              <li
-                key={item.id}
-                className={cn(
-                  "rounded-lg border px-3 py-2 text-sm",
-                  active ? "border-[#1F6FEB] bg-[#EEF4FF]" : "border-[#E6DFD4] bg-white",
-                )}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={cn(OUTLINE_BUTTON, "gap-2 px-4")}
+                data-testid="noshow-more-menu"
               >
-                <p
-                  className={cn(
-                    "font-medium",
-                    index <= current ? "text-[#1F6FEB]" : "text-[#251605]",
-                  )}
-                >
-                  {index + 1}. {item.label}
-                </p>
-                <p className="text-xs text-muted-foreground">{item.hint}</p>
+                More
+                <ChevronDown className="size-4 text-[#c9a24a]" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="min-w-[200px] rounded-2xl border-[#e9dfd0] bg-white p-1.5 shadow-[0_8px_24px_rgba(74,44,26,0.15)]"
+            >
+              <DropdownMenuItem
+                className={MENU_ITEM}
+                onSelect={() => onOpenReservation(reservation.id)}
+              >
+                <ExternalLink className="size-4 text-[#c9a24a]" />
+                View reservation
+              </DropdownMenuItem>
+              <DropdownMenuItem className={MENU_ITEM} onSelect={() => window.print()}>
+                <Printer className="size-4 text-[#c9a24a]" />
+                Print
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <ol
+          className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2"
+          data-testid="noshow-reservation-stepper"
+        >
+          {NOSHOW_RESERVATION_STEPS.map((item, index) => {
+            const active = item.id === step;
+            const done = index < currentStepIndex || step === "complete";
+            return (
+              <li key={item.id} className="flex items-center gap-3">
+                <span className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "grid size-6 place-items-center rounded-full text-xs font-bold",
+                      active
+                        ? "bg-[#C89933] text-[#251605]"
+                        : done
+                          ? "bg-[#4a2c1a] text-white"
+                          : "bg-[#f1ede6] text-[#7A6B58]",
+                    )}
+                  >
+                    {done && !active ? <Check className="size-3.5" /> : index + 1}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-sm",
+                      active ? "font-bold text-[#4a2c1a]" : "font-medium text-[#7A6B58]",
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                </span>
+                {index < NOSHOW_RESERVATION_STEPS.length - 1 ? (
+                  <span aria-hidden="true" className="h-px w-8 bg-[#e9dfd0]" />
+                ) : null}
               </li>
             );
           })}
@@ -375,50 +437,49 @@ export function ReservationNoShowWorkspace({
       </header>
 
       {step === "complete" ? (
-        <div className="mx-5 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          <p className="font-semibold">No-Show Completed</p>
-          <p>
-            The reservation was marked no-show with completeFoNoShow. Only events that writer
-            actually performs are listed below.
-          </p>
+        <div className="mx-5 mt-4 flex items-start gap-3 rounded-2xl border border-[#c9a24a] bg-[#f5ead0] px-4 py-3 text-sm text-[#4a2c1a]">
+          <Check className="mt-0.5 size-4 shrink-0 text-[#8C6D23]" />
+          <div>
+            <p className="font-bold">No-show completed.</p>
+            <p className="text-[#7A6B58]">
+              The reservation was marked no-show. Only events the writer actually performs are
+              listed below.
+            </p>
+          </div>
         </div>
       ) : null}
 
       <div className="flex min-h-0 flex-1">
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           <div className="grid gap-4 xl:grid-cols-2">
-            <SectionCard
-              title={step === "complete" ? "Reservation Details (No-Show)" : "Reservation Details"}
-            >
+            <SectionCard title={step === "complete" ? "Reservation (no-show)" : "Reservation"}>
               <div className="flex gap-3">
                 {coverUrl ? (
-                  <img src={coverUrl} alt="" className="h-24 w-32 rounded-lg object-cover" />
+                  <img src={coverUrl} alt="" className="h-24 w-32 rounded-xl object-cover" />
                 ) : (
-                  <div className="grid h-24 w-32 place-items-center rounded-lg bg-[#F4E9D0] text-[#765719]">
+                  <div className="grid h-24 w-32 place-items-center rounded-xl bg-[#f5ead0] text-[#8C6D23]">
                     <BedDouble className="size-8" />
                   </div>
                 )}
                 <div>
-                  <p className="font-semibold text-[#251605]">{reservation.roomTypeName}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {reviewDash(reservation.ratePlanName)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="font-semibold text-[#4a2c1a]">{reservation.roomTypeName}</p>
+                  <p className="text-sm text-[#7A6B58]">{reviewDash(reservation.ratePlanName)}</p>
+                  <p className="text-xs text-[#7A6B58]">
                     {reservation.adults} Adults · {reservation.nights} nights
                     {reservation.roomNumber ? ` · Room ${reservation.roomNumber}` : " · Unassigned"}
                   </p>
                 </div>
               </div>
-              <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+              <dl className="mt-4 grid gap-3 text-sm text-[#4a2c1a] sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs text-muted-foreground">Stay Dates</dt>
+                  <dt className="text-xs text-[#7A6B58]">Stay dates</dt>
                   <dd>
                     {formatStayDate(reservation.arrivalDate)} →{" "}
                     {formatStayDate(reservation.departureDate)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Expected Arrival</dt>
+                  <dt className="text-xs text-[#7A6B58]">Expected arrival</dt>
                   <dd>
                     {reservation.expectedArrivalAt
                       ? dateTime(reservation.expectedArrivalAt)
@@ -426,41 +487,41 @@ export function ReservationNoShowWorkspace({
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Current date / business date</dt>
+                  <dt className="text-xs text-[#7A6B58]">Business date</dt>
                   <dd>{businessDate || DETAIL_DASH}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Reservation No.</dt>
+                  <dt className="text-xs text-[#7A6B58]">Reservation no.</dt>
                   <dd>{reservation.confirmationNumber}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Guest</dt>
+                  <dt className="text-xs text-[#7A6B58]">Guest</dt>
                   <dd>{reservation.guestName}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Status</dt>
+                  <dt className="text-xs text-[#7A6B58]">Status</dt>
                   <dd className="capitalize">{reservation.status.replaceAll("_", " ")}</dd>
                 </div>
               </dl>
             </SectionCard>
 
             {step === "complete" ? (
-              <SectionCard title="No-Show Information">
-                <dl className="grid gap-2 text-sm sm:grid-cols-2">
+              <SectionCard title="No-show information">
+                <dl className="grid gap-3 text-sm text-[#4a2c1a] sm:grid-cols-2">
                   <div>
-                    <dt className="text-xs text-muted-foreground">Reason for No-Show</dt>
+                    <dt className="text-xs text-[#7A6B58]">Reason</dt>
                     <dd>{reviewDash(audit?.notes ?? composedReason)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted-foreground">Additional Notes</dt>
+                    <dt className="text-xs text-[#7A6B58]">Additional notes</dt>
                     <dd>{reviewDash(notes)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted-foreground">Marked By</dt>
+                    <dt className="text-xs text-[#7A6B58]">Marked by</dt>
                     <dd>{reviewDash(audit?.actorName)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted-foreground">Date & Time</dt>
+                    <dt className="text-xs text-[#7A6B58]">Date & time</dt>
                     <dd>
                       {audit?.createdAt
                         ? dateTime(audit.createdAt)
@@ -468,21 +529,23 @@ export function ReservationNoShowWorkspace({
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted-foreground">Reference</dt>
+                    <dt className="text-xs text-[#7A6B58]">Reference</dt>
                     <dd>{reservation.confirmationNumber}</dd>
                   </div>
                 </dl>
               </SectionCard>
             ) : (
-              <SectionCard title="Arrival Status">
+              <SectionCard title="Arrival status">
                 <div
                   className={cn(
-                    "rounded-lg px-3 py-3 text-sm",
-                    eligible ? "bg-rose-50 text-rose-900" : "bg-[#F7F4EE] text-muted-foreground",
+                    "rounded-xl px-3 py-3 text-sm",
+                    eligible
+                      ? "border border-[#c9a24a] bg-[#f5ead0] text-[#4a2c1a]"
+                      : "bg-[#faf7f1] text-[#7A6B58]",
                   )}
                 >
-                  <p className="font-semibold">
-                    {eligible ? "Guest has not arrived" : "Not eligible to mark No-Show from Desk"}
+                  <p className="font-bold">
+                    {eligible ? "Guest has not arrived" : "Not eligible to mark no-show from Desk"}
                   </p>
                   <p className="mt-1 text-xs">
                     Desk eligibility is confirmed + arrival on or before the property business date.
@@ -494,12 +557,14 @@ export function ReservationNoShowWorkspace({
             )}
 
             {step !== "complete" ? (
-              <SectionCard title="Cancellation Policy Check">
-                <p className="text-sm font-medium">{cancelPolicy?.name ?? DETAIL_DASH}</p>
-                <p className="text-sm text-muted-foreground">
+              <SectionCard title="Cancellation policy">
+                <p className="text-sm font-semibold text-[#4a2c1a]">
+                  {cancelPolicy?.name ?? DETAIL_DASH}
+                </p>
+                <p className="text-sm text-[#7A6B58]">
                   {cancelPolicy?.deadlineLabel ?? DETAIL_DASH}
                 </p>
-                <p className="mt-2 text-sm">
+                <p className="mt-2 text-sm text-[#4a2c1a]">
                   No-show policy:{" "}
                   {noShowPolicyLabel(
                     reservation.refundabilitySnapshot,
@@ -508,10 +573,10 @@ export function ReservationNoShowWorkspace({
                 </p>
                 <div
                   className={cn(
-                    "mt-3 rounded-lg px-3 py-2 text-sm",
+                    "mt-3 rounded-xl px-3 py-2 text-sm",
                     cancelPolicy?.outcome === "penalty_applies"
-                      ? "bg-amber-50 text-amber-900"
-                      : "bg-[#F7F4EE] text-muted-foreground",
+                      ? "border border-[#c9a24a] bg-[#f5ead0] text-[#4a2c1a]"
+                      : "bg-[#faf7f1] text-[#7A6B58]",
                   )}
                 >
                   {cancelPolicy?.outcomeLabel ?? "Not evaluated"}. This screen does not calculate a
@@ -520,28 +585,34 @@ export function ReservationNoShowWorkspace({
               </SectionCard>
             ) : null}
 
-            <SectionCard title={step === "complete" ? "Financial Summary" : "Financial Impact"}>
+            <SectionCard title={step === "complete" ? "Financial summary" : "Financial impact"}>
               <table className="w-full text-sm" data-testid="noshow-finance-table">
-                <thead className="text-left text-[11px] uppercase text-muted-foreground">
+                <thead className="border-b border-[#efe7d8] text-left text-xs font-semibold text-[#7A6B58]">
                   <tr>
-                    <th className="py-2">Description</th>
-                    <th>Amount</th>
+                    <th className="py-2 pr-3">Description</th>
+                    <th className="pr-3">Amount</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {financeRows.map((row) => (
-                    <tr key={row.description} className="border-t border-[#EEE7DC]">
-                      <td className="py-2">{row.description}</td>
-                      <td>{row.amount}</td>
-                      <td>{row.status}</td>
+                    <tr key={row.description} className="border-t border-[#efe7d8]">
+                      <td className="py-2 pr-3 font-medium text-[#4a2c1a]">{row.description}</td>
+                      <td className="pr-3 text-[#4a2c1a]">{row.amount}</td>
+                      <td className="text-[#7A6B58]">{row.status}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <p className="mt-2 text-xs text-muted-foreground">{NOSHOW_COLLECT_CASHIERING}</p>
+              <p className="mt-2 text-xs text-[#7A6B58]">{NOSHOW_COLLECT_CASHIERING}</p>
               {ctx?.folio.folioNumber ? (
-                <Button type="button" variant="outline" size="sm" className="mt-2" asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn(OUTLINE_BUTTON, "mt-2")}
+                  asChild
+                >
                   <a href={cashieringRefundHref(ctx.folio.folioNumber)}>Open folio in Cashiering</a>
                 </Button>
               ) : null}
@@ -549,10 +620,10 @@ export function ReservationNoShowWorkspace({
 
             <div className="grid gap-4">
               {step !== "complete" ? (
-                <SectionCard title="Room Inventory Impact">
-                  <ul className="space-y-2 text-sm">
+                <SectionCard title="Room inventory">
+                  <ul className="space-y-2 text-sm text-[#4a2c1a]">
                     <li className="flex gap-2">
-                      <Check className="mt-0.5 size-4 text-emerald-600" />
+                      <Check className="mt-0.5 size-4 shrink-0 text-[#C89933]" />
                       {reservation.roomNumber
                         ? `If room ${reservation.roomNumber} is still assigned after the RPC, completeFoNoShow clears room_id.`
                         : "No assigned room to release."}
@@ -561,21 +632,19 @@ export function ReservationNoShowWorkspace({
                 </SectionCard>
               ) : null}
 
-              <SectionCard
-                title={step === "complete" ? "System Updates" : "Related System Updates"}
-              >
+              <SectionCard title={step === "complete" ? "System updates" : "Related updates"}>
                 <ul className="space-y-2 text-sm">
                   {systemRows.map((row) => (
                     <li key={row.id} className="flex gap-2">
                       <Check
                         className={cn(
-                          "mt-0.5 size-4",
-                          row.guaranteed ? "text-emerald-600" : "text-muted-foreground",
+                          "mt-0.5 size-4 shrink-0",
+                          row.guaranteed ? "text-[#C89933]" : "text-[#c9bfae]",
                         )}
                       />
                       <span>
-                        <span className="font-medium">{row.title}</span>
-                        <span className="block text-xs text-muted-foreground">{row.detail}</span>
+                        <span className="font-semibold text-[#4a2c1a]">{row.title}</span>
+                        <span className="block text-xs text-[#7A6B58]">{row.detail}</span>
                       </span>
                     </li>
                   ))}
@@ -584,14 +653,16 @@ export function ReservationNoShowWorkspace({
 
               {step === "complete" ? (
                 <SectionCard title="Communication">
-                  <p className="text-sm text-muted-foreground">{NOSHOW_COMM_GAP}</p>
+                  <p className="text-sm text-[#7A6B58]">{NOSHOW_COMM_GAP}</p>
                 </SectionCard>
               ) : (
                 <>
-                  <SectionCard title="No-Show Details">
+                  <SectionCard title="No-show details">
                     <div className="grid gap-3">
                       <div className="grid gap-1.5">
-                        <Label>Reason for No-Show</Label>
+                        <Label className="text-[11px] font-medium text-[#7A6B58]">
+                          Reason for no-show
+                        </Label>
                         <Select value={reason} onValueChange={setReason}>
                           <SelectTrigger>
                             <SelectValue />
@@ -606,7 +677,9 @@ export function ReservationNoShowWorkspace({
                         </Select>
                       </div>
                       <div className="grid gap-1.5">
-                        <Label>Additional Notes (Optional)</Label>
+                        <Label className="text-[11px] font-medium text-[#7A6B58]">
+                          Additional notes (optional)
+                        </Label>
                         <Textarea
                           rows={3}
                           maxLength={500}
@@ -614,33 +687,33 @@ export function ReservationNoShowWorkspace({
                           onChange={(event) => setNotes(event.target.value)}
                         />
                       </div>
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <label className="flex items-center gap-2 text-sm text-[#7A6B58]">
                         <Checkbox disabled checked />
-                        Mark reservation as No-Show (completeFoNoShow sets reservation status)
+                        Mark reservation as no-show (completeFoNoShow sets the status)
                       </label>
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <label className="flex items-center gap-2 text-sm text-[#7A6B58]">
                         <Checkbox disabled checked={false} />
                         Blacklist guest
                       </label>
-                      <p className="text-xs text-muted-foreground">{NOSHOW_BLACKLIST_GAP}</p>
+                      <p className="text-xs text-[#7A6B58]">{NOSHOW_BLACKLIST_GAP}</p>
                     </div>
                   </SectionCard>
                   <SectionCard title="Communication">
                     <div className="space-y-2 text-sm">
-                      <label className="flex items-center gap-2 text-muted-foreground">
+                      <label className="flex items-center gap-2 text-[#7A6B58]">
                         <Checkbox disabled checked={false} />
                         Send no-show notification to guest
                       </label>
-                      <label className="flex items-center gap-2 text-muted-foreground">
+                      <label className="flex items-center gap-2 text-[#7A6B58]">
                         <Checkbox disabled checked={false} />
                         Send notification to company / travel agent
                       </label>
-                      <label className="flex items-center gap-2 text-muted-foreground">
+                      <label className="flex items-center gap-2 text-[#7A6B58]">
                         <Checkbox disabled checked={false} />
                         Send internal notification to staff
                       </label>
                     </div>
-                    <p className="mt-2 text-xs text-muted-foreground">{NOSHOW_COMM_GAP}</p>
+                    <p className="mt-2 text-xs text-[#7A6B58]">{NOSHOW_COMM_GAP}</p>
                   </SectionCard>
                 </>
               )}
@@ -653,23 +726,23 @@ export function ReservationNoShowWorkspace({
               title="Confirm no-show"
               subtitle="Nothing is written until you confirm."
             >
-              <dl className="grid gap-2 text-sm sm:grid-cols-2">
+              <dl className="grid gap-3 text-sm text-[#4a2c1a] sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs text-muted-foreground">Reason</dt>
+                  <dt className="text-xs text-[#7A6B58]">Reason</dt>
                   <dd>{composedReason}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Eligibility</dt>
+                  <dt className="text-xs text-[#7A6B58]">Eligibility</dt>
                   <dd>{eligible ? "Desk-eligible" : "Not eligible"}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Room release</dt>
+                  <dt className="text-xs text-[#7A6B58]">Room release</dt>
                   <dd>
                     {reservation.roomNumber ? `Room ${reservation.roomNumber}` : "Unassigned"}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Fee</dt>
+                  <dt className="text-xs text-[#7A6B58]">Fee</dt>
                   <dd>
                     {feeRequired
                       ? posted
@@ -682,14 +755,14 @@ export function ReservationNoShowWorkspace({
                 </div>
               </dl>
               {feeRequired && !posted && !waived ? (
-                <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <div className="mt-3 rounded-xl border border-[#c9a24a] bg-[#f5ead0] px-3 py-2.5 text-sm text-[#4a2c1a]">
                   <p>{FEE_REQUIRED_BANNER}</p>
                   {ctx?.canWaive ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="mt-2"
+                      className={cn(OUTLINE_BUTTON, "mt-2")}
                       disabled={waive.isPending}
                       onClick={() => waive.mutate()}
                     >
@@ -702,51 +775,45 @@ export function ReservationNoShowWorkspace({
           ) : null}
         </div>
 
-        <aside className="hidden w-[320px] shrink-0 overflow-y-auto border-l border-[#DDD4C5] bg-white p-4 xl:block">
-          <h2 className="text-sm font-semibold text-[#251605]">Reservation Summary</h2>
-          <p className="mb-4 text-xs text-muted-foreground">
+        <aside className="hidden w-[320px] shrink-0 overflow-y-auto border-l border-[#e9dfd0] bg-white p-5 xl:block">
+          <h2 className="font-display text-base font-semibold text-[#4a2c1a]">Summary</h2>
+          <p className="mb-4 text-xs text-[#7A6B58]">
             {step === "complete"
-              ? "This reservation is marked as No-Show."
-              : "This reservation will be marked as No-Show."}
+              ? "This reservation is marked as no-show."
+              : "This reservation will be marked as no-show."}
           </p>
-          <div className="space-y-4 text-sm">
-            <div className="flex gap-2">
-              <span className="grid size-10 place-items-center rounded-full bg-[#F4E9D0] text-xs font-semibold text-[#765719]">
+          <div className="space-y-5 text-sm text-[#4a2c1a]">
+            <div className="flex gap-2.5">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#f5ead0] text-xs font-bold text-[#4a2c1a]">
                 {guestInitials(reservation.guestName)}
               </span>
-              <div>
-                <p className="font-medium">{reservation.guestName}</p>
-                <p className="text-xs text-muted-foreground">{reservation.confirmationNumber}</p>
+              <div className="min-w-0">
+                <p className="font-semibold">{reservation.guestName}</p>
+                <p className="text-xs text-[#7A6B58]">{reservation.confirmationNumber}</p>
                 <p className="text-xs">{reviewDash(reservation.guestPhone)}</p>
               </div>
             </div>
             <section>
-              <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                Stay Information
-              </p>
+              <SummaryHeading>Stay</SummaryHeading>
               <p>
                 {formatStayDate(reservation.arrivalDate)} →{" "}
                 {formatStayDate(reservation.departureDate)}
               </p>
             </section>
             <section>
-              <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                Room & Rate Information
-              </p>
+              <SummaryHeading>Room & rate</SummaryHeading>
               {coverUrl ? (
-                <img src={coverUrl} alt="" className="mb-2 h-20 w-full rounded-lg object-cover" />
+                <img src={coverUrl} alt="" className="mb-2 h-20 w-full rounded-xl object-cover" />
               ) : null}
-              <p className="font-medium">{reservation.roomTypeName}</p>
-              <p className="font-semibold">
+              <p className="font-semibold">{reservation.roomTypeName}</p>
+              <p className="font-display text-base font-bold">
                 {reservation.roomSubtotal == null
                   ? DETAIL_DASH
                   : moneyFmt(reservation.roomSubtotal)}
               </p>
             </section>
             <section>
-              <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                Additional Information
-              </p>
+              <SummaryHeading>Details</SummaryHeading>
               <p>Source {sourceLabel(reservation.source, reservation.commercialBookingSource)}</p>
               <p>Channel {channelLabel(reservation.source, reservation.salesChannel)}</p>
             </section>
@@ -754,14 +821,19 @@ export function ReservationNoShowWorkspace({
         </aside>
       </div>
 
-      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white px-5 py-3">
+      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#e9dfd0] bg-white px-5 py-3">
         {step === "details" ? (
           <>
-            <Button type="button" variant="ghost" onClick={onBackToDesk}>
+            <Button type="button" variant="ghost" className={GHOST_BUTTON} onClick={onBackToDesk}>
               <ArrowLeft className="size-3.5" />
               Back
             </Button>
-            <Button type="button" disabled={!reviewOk} onClick={() => setStep("confirm")}>
+            <Button
+              type="button"
+              className={PRIMARY_BUTTON}
+              disabled={!reviewOk}
+              onClick={() => setStep("confirm")}
+            >
               Continue
               <ArrowRight className="size-3.5" />
             </Button>
@@ -769,28 +841,38 @@ export function ReservationNoShowWorkspace({
         ) : null}
         {step === "confirm" ? (
           <>
-            <Button type="button" variant="ghost" onClick={() => setStep("details")}>
+            <Button
+              type="button"
+              variant="ghost"
+              className={GHOST_BUTTON}
+              onClick={() => setStep("details")}
+            >
               <ArrowLeft className="size-3.5" />
-              Back to Reservation
+              Back to reservation
             </Button>
             <Button
               type="button"
-              variant="destructive"
+              className={DARK_BUTTON}
               disabled={!confirmOk || mutateNoShow.isPending}
               onClick={() => mutateNoShow.mutate()}
             >
-              Process No-Show
+              Process no-show
               <ArrowRight className="size-3.5" />
             </Button>
           </>
         ) : null}
         {step === "complete" ? (
           <>
-            <Button type="button" variant="ghost" onClick={() => onOpenReservation(reservation.id)}>
+            <Button
+              type="button"
+              variant="ghost"
+              className={GHOST_BUTTON}
+              onClick={() => onOpenReservation(reservation.id)}
+            >
               <ArrowLeft className="size-3.5" />
-              Back to Reservation
+              Back to reservation
             </Button>
-            <Button type="button" onClick={onBackToDesk}>
+            <Button type="button" className={PRIMARY_BUTTON} onClick={onBackToDesk}>
               Go to Reservation Desk
               <ArrowRight className="size-3.5" />
             </Button>

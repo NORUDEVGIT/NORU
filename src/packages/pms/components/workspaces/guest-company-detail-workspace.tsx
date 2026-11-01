@@ -1,295 +1,157 @@
+
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown } from "lucide-react";
 
-import { GuestCompanyHeader } from "@/packages/pms/components/guests/guest-company-header";
 import { GuestCompanyOverviewView } from "@/packages/pms/components/guests/guest-company-overview-view";
-import { GuestCompanyDetailsView, GuestCompanyCorporate } from "@/packages/pms/components/guests/guest-company-details-view";
-import { GuestCompanyContacts } from "@/packages/pms/components/guests/guest-company-contacts";
 import { GuestCompanyTravelers } from "@/packages/pms/components/guests/guest-company-travelers";
-import { GuestCompanyContactsTravelersView } from "@/packages/pms/components/guests/guest-company-contacts-travelers-view";
-import { GuestCompanyContractsView } from "@/packages/pms/components/guests/guest-company-contracts-view";
-import { GuestCompanyReservationsView } from "@/packages/pms/components/guests/guest-company-reservations-view";
-import { GuestCompanyCommunicationNotesView } from "@/packages/pms/components/guests/guest-company-communication-notes-view";
-import { GuestCompanyDocumentsView, GuestCompanyDocuments } from "@/packages/pms/components/guests/guest-company-documents-view";
-import { GuestCompanyCommercialBillingView, GuestCompanyBilling } from "@/packages/pms/components/guests/guest-company-commercial-billing-view";
-import { GuestCompanyActivityView } from "@/packages/pms/components/guests/guest-company-activity-view";
-import { GuestCompanyAdministrationView } from "@/packages/pms/components/guests/guest-company-administration-view";
-import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
 import { GuestCompanyCreateModal } from "@/packages/pms/components/guests/guest-company-create-modal";
-import {
-  GUEST_PROFILE_DETAIL_PATH,
-  guestProfileSearch,
-  type CompanyDetailNavId,
-} from "@/packages/pms/lib/guest-profile-wave1";
-import {
-  COMPANY_DETAIL_MORE_ITEMS,
-  COMPANY_DETAIL_PRIMARY_TABS,
-  COMPANY_TA_SETTINGS_COMING,
-  companyDetailNav,
-  isMoreCompanyView,
-  resolveCanonicalCompanyNavId,
-  visibleCompanyNav,
-  type CanonicalCompanyViewId,
-} from "@/packages/pms/lib/guest-company-detail-workspace";
 import { getCompanyDetailWorkspace } from "@/packages/pms/lib/guest-company-detail.functions";
 import { getGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/shared/components/ui/dropdown-menu";
-import { cn } from "@/shared/lib/utils";
+import { Button } from "@/shared/components/ui/button";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 export function GuestCompanyDetailWorkspace({
   membership,
   companyId,
-  nav: navProp,
 }: {
-  membership: RestaurantMembership;
+  membership?: RestaurantMembership | undefined;
   companyId: string;
   nav?: string | undefined;
 }) {
-  const navigate = useNavigate();
-  const restaurantId = membership.restaurant.id;
-  const canonicalNavId = resolveCanonicalCompanyNavId(navProp);
-  const rawNavId = companyDetailNav(navProp);
+  const restaurantId = membership?.restaurant?.id ?? "";
   const [editOpen, setEditOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<"overview" | "travelers">(
+    "overview",
+  );
+
   const load = useServerFn(getCompanyDetailWorkspace);
   const fetchAccount = useServerFn(getGuestAccount);
 
   const query = useQuery({
     queryKey: ["company-detail", restaurantId, companyId],
     queryFn: () => load({ data: { restaurantId, companyId } }),
+    enabled: Boolean(restaurantId && companyId),
     retry: false,
   });
 
   const accountQuery = useQuery({
     queryKey: ["guest-account", restaurantId, companyId],
-    queryFn: () => fetchAccount({ data: { restaurantId, accountId: companyId } }),
-    enabled: editOpen,
+    queryFn: () =>
+      fetchAccount({
+        data: { restaurantId, accountId: companyId },
+      }),
+    enabled: editOpen && Boolean(restaurantId && companyId),
     retry: false,
   });
 
-  function selectNav(next: CanonicalCompanyViewId | CompanyDetailNavId) {
-    void navigate({
-      to: GUEST_PROFILE_DETAIL_PATH,
-      params: { guestId: companyId },
-      search: guestProfileSearch({ nav: next as CompanyDetailNavId, type: "company" }),
-    });
+  if (!membership?.restaurant || query.isPending || query.isLoading) {
+    return (
+      <p className="text-sm text-muted-foreground">Loading company…</p>
+    );
   }
 
-  if (query.isPending || query.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading company…</p>;
-  }
   if (query.error || !query.data) {
     return (
-      <div className="rounded-2xl border border-dashed border-border p-6" data-testid="company-detail-missing">
-        <p className="font-display text-lg">Company not found</p>
+      <div
+        className="rounded-2xl border border-dashed border-border p-6"
+        data-testid="company-detail-missing"
+      >
+        <h1 className="font-display text-2xl">Company not found</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {(query.error as Error | undefined)?.message ?? "This company is not available in the current property."}
+          {(query.error as Error | undefined)?.message ??
+            "This company is not available in the current property."}
         </p>
       </div>
     );
   }
 
   const data = query.data;
-  const canWriteContracts = membership.role === "owner" || membership.role === "manager";
-  const canManageRes =
-    membership.role === "owner" || membership.role === "manager" || membership.role === "receptionist";
-
-  const isMoreActive = isMoreCompanyView(canonicalNavId);
-  const activeMoreItem = COMPANY_DETAIL_MORE_ITEMS.find((item) => item.id === canonicalNavId);
 
   return (
-    <div className="space-y-6" data-testid="company-detail-workspace">
-      <GuestCompanyHeader
-        restaurantId={restaurantId}
-        company={data.company}
-        businessType={data.businessType}
-        settingsEnabled={data.settingsEnabled}
-        onEdit={() => setEditOpen(true)}
-      />
+    <div className="space-y-5" data-testid="company-detail-workspace">
+      {/* Company name and Edit button */}
+      <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#e9dfd0] bg-white px-5 py-4">
+        <h1 className="min-w-0 truncate font-brand text-2xl font-bold tracking-tight text-[#4a2c1a]">
+          {data.company.name}
+        </h1>
 
-      {/* Modern 5-Primary + More Dropdown Navigation */}
+        <Button
+  size="sm"
+  className="shrink-0 bg-[#c9a24a] font-semibold text-[#4a2c1a] hover:bg-[#b58d35]"
+  onClick={() => setEditOpen(true)}
+  data-testid="edit-company-button"
+>
+  Edit
+</Button>
+      </header>
+
+      {/* Only two sections: Overview and Linked Travelers */}
       <nav
         aria-label="Company sections"
-        className="flex w-full items-center gap-1 overflow-x-auto border-b border-[#DDD4C5] pb-px"
+        className="flex gap-6 border-b border-[#e9dfd0]"
         role="tablist"
         data-testid="company-detail-nav"
       >
-        {COMPANY_DETAIL_PRIMARY_TABS.map((item) => {
-          const active = item.id === canonicalNavId;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              data-testid={`company-nav-${item.id}`}
-              onClick={() => selectNav(item.id)}
-              className={cn(
-                "shrink-0 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors",
-                active
-                  ? "border-[#C89933] text-[#251605] font-semibold"
-                  : "border-transparent text-[#756A5B] hover:text-[#251605]",
-              )}
-            >
-              {item.label}
-            </button>
-          );
-        })}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === "overview"}
+          onClick={() => setActiveSection("overview")}
+          data-testid="company-nav-overview"
+          className={`border-b-2 px-2 py-3 text-sm transition-colors ${
+            activeSection === "overview"
+              ? "border-[#c9a24a] font-bold text-[#4a2c1a]"
+              : "border-transparent text-muted-foreground hover:text-[#4a2c1a]"
+          }`}
+        >
+          Overview
+        </button>
 
-        {/* More ▾ Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={isMoreActive}
-              data-testid="company-nav-more"
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors",
-                isMoreActive
-                  ? "border-[#C89933] text-[#251605] font-semibold"
-                  : "border-transparent text-[#756A5B] hover:text-[#251605]",
-              )}
-            >
-              <span>{isMoreActive && activeMoreItem ? activeMoreItem.label : "More"}</span>
-              <ChevronDown className="size-3.5 opacity-70" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            {COMPANY_DETAIL_MORE_ITEMS.map((item) => (
-              <DropdownMenuItem
-                key={item.id}
-                onClick={() => selectNav(item.id)}
-                className={cn(
-                  "cursor-pointer text-xs font-medium",
-                  canonicalNavId === item.id ? "bg-[#F7F4EE] text-[#251605] font-bold" : "text-[#756A5B]",
-                )}
-                data-testid={`company-nav-${item.id}`}
-              >
-                {item.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Legacy travel-agent-settings resolution anchor for test compatibility */}
-        {rawNavId === "travel-agent-settings" ? (
-          <span className="sr-only" data-testid="company-nav-travel-agent-settings">
-            {/* ComingBlock title="Travel Agent Settings" */}
-            {COMPANY_TA_SETTINGS_COMING}
-          </span>
-        ) : null}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === "travelers"}
+          onClick={() => setActiveSection("travelers")}
+          data-testid="company-nav-travelers"
+          className={`border-b-2 px-2 py-3 text-sm transition-colors ${
+            activeSection === "travelers"
+              ? "border-[#c9a24a] font-bold text-[#4a2c1a]"
+              : "border-transparent text-muted-foreground hover:text-[#4a2c1a]"
+          }`}
+        >
+          Linked Travelers
+        </button>
       </nav>
 
-      {/* Canonical View Mounting */}
-      {canonicalNavId === "overview" && (
+      {/* Overview content */}
+      {activeSection === "overview" && (
         <GuestCompanyOverviewView
           restaurantId={restaurantId}
           companyId={companyId}
           data={data}
-          onNavigate={(target) => selectNav(target)}
+          onNavigate={(target) => {
+            if (
+              String(target).includes("traveler") ||
+              String(target).includes("link")
+            ) {
+              setActiveSection("travelers");
+            }
+          }}
           onEdit={() => setEditOpen(true)}
         />
       )}
 
-      {canonicalNavId === "details" && (
-        <GuestCompanyDetailsView
-          restaurantId={restaurantId}
-          companyId={companyId}
-          onOpenEditDialog={() => setEditOpen(true)}
-        />
-      )}
-
-      {canonicalNavId === "contacts" && (
-        <GuestCompanyContacts
-          restaurantId={restaurantId}
-          companyId={companyId}
-          companyName={data.company.name}
-          contactRequired={Boolean(data.businessType?.contactRequired)}
-          onEditCompany={() => setEditOpen(true)}
-        />
-      )}
-
-      {canonicalNavId === "travelers" && (
+      {/* Linked travelers and guest-linking workspace */}
+      {activeSection === "travelers" && (
         <GuestCompanyTravelers
           restaurantId={restaurantId}
           companyId={companyId}
-          initialLinkOpen={navProp === "link-travelers" || (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "link")}
+          initialLinkOpen={false}
         />
       )}
 
-      {canonicalNavId === "contacts-travelers" && (
-        <GuestCompanyContactsTravelersView
-          restaurantId={restaurantId}
-          companyId={companyId}
-          companyName={data.company.name}
-          contactRequired={Boolean(data.businessType?.contactRequired)}
-          initialSubTab={navProp === "travelers" ? "travelers" : "contacts"}
-          onEditCompany={() => setEditOpen(true)}
-        />
-      )}
-
-      {canonicalNavId === "reservations" && (
-        <GuestCompanyReservationsView
-          restaurantId={restaurantId}
-          companyId={companyId}
-          canManage={canManageRes}
-        />
-      )}
-
-      {canonicalNavId === "commercial-billing" && (
-        <GuestCompanyCommercialBillingView
-          restaurantId={restaurantId}
-          companyId={companyId}
-        />
-      )}
-
-      {canonicalNavId === "contracts" && (
-        <GuestCompanyContractsView
-          restaurantId={restaurantId}
-          companyId={companyId}
-          canWrite={canWriteContracts}
-        />
-      )}
-
-      {canonicalNavId === "documents" && (
-        <GuestCompanyDocumentsView
-          restaurantId={restaurantId}
-          companyId={companyId}
-        />
-      )}
-
-      {canonicalNavId === "communication-notes" && (
-        <GuestCompanyCommunicationNotesView
-          restaurantId={restaurantId}
-          companyId={companyId}
-        />
-      )}
-
-      {canonicalNavId === "activity" && (
-        <GuestCompanyActivityView
-          restaurantId={restaurantId}
-          companyId={companyId}
-          companyName={data.company.name}
-        />
-      )}
-
-      {canonicalNavId === "administration" && (
-        <GuestCompanyAdministrationView
-          restaurantId={restaurantId}
-          companyId={companyId}
-          companyName={data.company.name}
-        />
-      )}
-
+      {/* Edit company dialog */}
       <GuestCompanyCreateModal
         restaurantId={restaurantId}
         open={editOpen}

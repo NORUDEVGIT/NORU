@@ -215,3 +215,132 @@
     transform: none;
   }
 }
+
+/* NORU PMS Welcome Banner */
+.noru-pms-welcome {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  padding: 1.75rem 2rem;
+  background: radial-gradient(circle at 92% 0, rgba(201, 160, 67, 0.25), transparent 45%),
+              linear-gradient(135deg, #2b1a0c 0%, #4a2d14 65%, #5a3a1c 100%);
+  color: #fbf3e2;
+  border: 1px solid rgba(201, 160, 67, 0.4);
+  box-shadow: 0 10px 28px rgba(43, 26, 12, 0.22);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.noru-pms-welcome-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.noru-pms-eyebrow {
+  font-family: var(--font-brand, "Fraunces", serif);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #e8c673;
+}
+
+.noru-pms-welcome h1 {
+  font-family: var(--font-brand, "Fraunces", serif);
+  font-size: 2.25rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.noru-pms-welcome p {
+  color: rgba(251, 243, 226, 0.85);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.noru-pms-business-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #e8c673;
+  background: rgba(201, 160, 67, 0.15);
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(201, 160, 67, 0.3);
+  width: fit-content;
+}
+
+.noru-pms-welcome-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 160, 67, 0.25) 0%, rgba(43, 26, 12, 0.85) 100%);
+  border: 2px solid #c9a043;
+  color: #e8c673;
+  box-shadow: 0 0 24px rgba(201, 160, 67, 0.35);
+}
+
+/* Ethiopian Flag Ribbon */
+.ethiopian-ribbon {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #436436 0%, #436436 33.3%, #c9a043 33.3%, #c9a043 66.6%, #a8423a 66.6%, #a8423a 100%);
+}
+
+
+/* NORU PMS guest workspace styling — additive */
+.pms-guest-workspace {
+  width: 100%;
+  min-width: 0;
+  color: var(--foreground);
+}
+
+.pms-guest-workspace .guest-profile-shell {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Keep forms and cards from overflowing their workspace */
+.pms-guest-workspace input,
+.pms-guest-workspace select,
+.pms-guest-workspace textarea {
+  max-width: 100%;
+}
+
+/* ===== Filled fields: gold tint =====
+ * Needs data-filled="true" on <input>/<textarea> (set in input.tsx / textarea.tsx).
+ * Dropdowns (Radix Select) tint once a value is chosen. The guest search box
+ * and the directory filter dropdowns are excluded.
+ */
+input[data-filled="true"]:not(:disabled):not([readonly]):not([type="file"]):not([data-testid="guest-listing-search"]),
+textarea[data-filled="true"]:not(:disabled):not([readonly]),
+button[role="combobox"]:not([data-placeholder]):not(:disabled):not([data-testid$="-filter"]):not([data-testid="guest-sort"]) {
+  background-color: color-mix(in oklab, var(--accent) 14%, var(--card));
+  border-color: color-mix(in oklab, var(--accent) 70%, var(--border));
+  font-weight: 600;
+}
+
+/* ===== Autofilled fields: gold instead of browser blue ===== */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px color-mix(in oklab, var(--accent) 14%, var(--card)) inset !important;
+  box-shadow: 0 0 0 1000px color-mix(in oklab, var(--accent) 14%, var(--card)) inset !important;
+  -webkit-text-fill-color: var(--foreground) !important;
+  caret-color: var(--foreground);
+  border-color: color-mix(in oklab, var(--accent) 70%, var(--border)) !important;
+  transition: background-color 9999s ease-out 0s;
+}

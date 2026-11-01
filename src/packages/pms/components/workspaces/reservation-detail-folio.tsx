@@ -1,65 +1,32 @@
-import { useState, type ReactNode } from "react";
-import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import {
-  BedDouble,
-  CalendarDays,
-  CreditCard,
-  FileText,
-  MoreHorizontal,
-  Plus,
-  Shield,
-  UserRound,
-  Wallet,
-} from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
-import { Label } from "@/shared/components/ui/label";
-import { Textarea } from "@/shared/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
-import {
-  formatStayDate,
-  ReservationStatusBadge,
-} from "@/packages/pms/components/bookings/reservation-bits";
+import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { labelTransactionType } from "@/packages/pms/components/cashiering/folio-bits";
 import {
   CloseFolioDialog,
   FolioEntryDialog,
 } from "@/packages/pms/components/cashiering/folio-dialogs";
-import { guestInitials, reviewDash } from "@/packages/pms/lib/create-reservation-review";
-import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
-import {
-  DETAIL_DASH,
-  depositStatusLabel,
-  parseDepositRequirementSnapshot,
-  snapshotDisplayName,
-  snapshotField,
-} from "@/packages/pms/lib/reservation-detail-overview";
-import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
+import { reviewDash } from "@/packages/pms/lib/create-reservation-review";
+import { parseDepositRequirementSnapshot } from "@/packages/pms/lib/reservation-detail-overview";
 import {
   depositPaidFromLedger,
-  FOLIO_BILLING_EDIT_GAP_COPY,
-  FOLIO_ADD_FOLIO_GAP_COPY,
-  FOLIO_INVOICE_GAP_COPY,
-  FOLIO_LINE_BALANCE_GAP,
-  FOLIO_LINE_QTY_GAP,
   FOLIO_MISSING_COPY,
-  FOLIO_NOTES_GAP_COPY,
-  FOLIO_NOTES_MAX,
   folioDepositStatus,
   folioKpiCards,
   folioLedgerSummary,
   ledgerReference,
-  paymentMethodLabel,
-  paymentRows,
   snapshotDueDate,
 } from "@/packages/pms/lib/reservation-detail-folio";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
@@ -69,25 +36,32 @@ import {
   getDefaultDepositPolicy,
   getFolio,
   getReservationFolio,
-  type FolioDetail,
 } from "@/packages/pms/lib/cashiering.functions";
 import type { TransactionType } from "@/packages/pms/lib/cashiering.server";
 import { useRestaurantTime } from "@/core/state/property-format";
+import { cn } from "@/shared/lib/utils";
+
+const CARD = "rounded-xl border border-gray-200 bg-white p-4";
+const BTN_PRIMARY = "bg-[#4A2C0F] text-white hover:bg-[#3a2209]";
+const BTN_OUTLINE = "border-gray-200 bg-white text-[#4A2C0F] hover:bg-gray-50";
+const MUTED = "text-muted-foreground";
+const TH = "border-b border-gray-200 text-[11px] uppercase tracking-wide";
+const ROW = "border-b border-gray-100";
+const MENU_ITEM = "text-[#251605] focus:bg-gray-100";
 
 export function ReservationDetailFolioTab({
   restaurantId,
   reservation,
-  canManage,
   money,
-  coverUrl,
   onBackToPackages,
 }: {
   restaurantId: string;
   reservation: ReservationDetail;
-  canManage: boolean;
   money: (value: number) => string;
-  coverUrl: string | null;
-  onBackToPackages: () => void;
+  onBackToPackages?: () => void;
+  // Kept optional so existing callers don't break; this page doesn't use them.
+  canManage?: boolean;
+  coverUrl?: string | null;
 }) {
   const queryClient = useQueryClient();
   const { dateTime } = useRestaurantTime();
@@ -96,13 +70,9 @@ export function ReservationDetailFolioTab({
   const fetchFolio = useServerFn(getFolio);
   const fetchDepositPolicy = useServerFn(getDefaultDepositPolicy);
   const fetchCorrectionNotice = useServerFn(getCashieringCorrectionNotice);
-  const [notes, setNotes] = useState("");
   const [entryType, setEntryType] = useState<TransactionType | null>(null);
   const [closeOpen, setCloseOpen] = useState(false);
-  const cancelled = reservation.status === "cancelled";
-  const editable = canManage && !cancelled;
   const currency = reservation.currency?.trim() || "ETB";
-  const nights = nightsBetween(reservation.arrivalDate, reservation.departureDate);
 
   const accessQuery = useQuery({
     queryKey: ["cashiering-access", restaurantId, "reservation-detail-folio"],
@@ -136,9 +106,17 @@ export function ReservationDetailFolioTab({
   const folio = folioQuery.data ?? null;
   const summary = folioLedgerSummary(folio);
   const cards = folioKpiCards(folio, summary);
-  const cashierCanOperate = accessQuery.data?.canOperate ?? false;
-  const cashierCanManage = accessQuery.data?.canManage ?? false;
+  const canOperate = accessQuery.data?.canOperate ?? false;
+  const canManageCashier = accessQuery.data?.canManage ?? false;
   const open = folio?.status === "open";
+  const rows = folio?.transactions ?? [];
+
+  // Missing amounts show as 0, never a dash.
+  const amount = (value: number | null | undefined) => money(value ?? 0);
+
+  const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
+  const depositPaid = depositPaidFromLedger(summary) ?? 0;
+  const dueDate = snapshotDueDate(reservation.depositRequirementSnapshot);
 
   function refresh() {
     void queryClient.invalidateQueries({
@@ -148,19 +126,15 @@ export function ReservationDetailFolioTab({
     void queryClient.invalidateQueries({ queryKey: ["cashiering-folios", restaurantId] });
   }
 
-  function refuseMissingFolio() {
-    toast.message(FOLIO_MISSING_COPY);
-  }
-
   function startEntry(type: TransactionType) {
     if (!folio || !open) {
-      refuseMissingFolio();
+      toast.message(FOLIO_MISSING_COPY);
       return;
     }
     setEntryType(type);
   }
 
-  const accessError =
+  const error =
     accessQuery.error instanceof Error
       ? accessQuery.error.message
       : previewQuery.error instanceof Error
@@ -171,110 +145,214 @@ export function ReservationDetailFolioTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-folio">
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="space-y-4">
-          <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-start justify-between gap-2">
-              <div>
-                <h2 className="font-display text-base text-[#251605]">Folio & Payments</h2>
-                <p className="text-xs text-muted-foreground">
-                  View folio(s), charges, payments and balance for this reservation.
-                </p>
-              </div>
+      <div className="min-h-0 flex-1 space-y-4">
+        {/* Header: title, actions and balances */}
+        <section className={CARD} data-testid="room-folio">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="font-display text-base text-[#251605]">
+                Folio & Payments
+                {folio ? (
+                  <span
+                    className={cn(
+                      "ml-2 text-xs font-semibold",
+                      open ? "text-emerald-700" : MUTED,
+                    )}
+                  >
+                    {open ? "Active" : "Closed"}
+                  </span>
+                ) : null}
+              </h2>
+              <p className={cn("text-xs", MUTED)}>
+                {folio ? folio.folioNumber : FOLIO_MISSING_COPY}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className={BTN_PRIMARY}
+                disabled={!open || !canManageCashier}
+                onClick={() => startEntry("charge")}
+              >
+                Post Charge
+              </Button>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={!editable}
-                onClick={() => toast.message(FOLIO_ADD_FOLIO_GAP_COPY)}
+                className={BTN_OUTLINE}
+                disabled={!open || !canOperate}
+                onClick={() => startEntry("payment")}
               >
-                <Plus className="mr-1 size-3.5" />
-                Add Folio
+                Post Payment
               </Button>
-            </div>
-            {accessError ? <p className="mb-3 text-sm text-destructive">{accessError}</p> : null}
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              {cards.map((card) => (
-                <article
-                  key={card.id}
-                  className="rounded-lg border border-[#EEE6D8] bg-[#FFFcf7] p-3"
-                  data-testid={`folio-kpi-${card.id}`}
-                >
-                  <p className="text-sm font-medium text-[#251605]">{card.name}</p>
-                  <p
-                    className={`mt-1 text-[11px] font-semibold ${
-                      card.status === "Active" ? "text-emerald-700" : "text-muted-foreground"
-                    }`}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className={BTN_OUTLINE}
+                    disabled={!folio}
+                    aria-label="More folio actions"
                   >
-                    {card.status}
-                  </p>
-                  <p className="mt-2 font-display text-lg text-[#251605]">
-                    {card.amount == null ? DETAIL_DASH : money(card.amount)}
-                  </p>
-                </article>
-              ))}
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-white">
+                  <DropdownMenuItem className={MENU_ITEM} onClick={() => startEntry("deposit")}>
+                    Add deposit credit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className={MENU_ITEM} onClick={() => startEntry("refund")}>
+                    Refund
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className={MENU_ITEM} onClick={() => startEntry("discount")}>
+                    Discount
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className={MENU_ITEM} onClick={() => startEntry("adjustment")}>
+                    Adjustment
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className={MENU_ITEM}
+                    onClick={() => (open ? setCloseOpen(true) : toast.message(FOLIO_MISSING_COPY))}
+                  >
+                    Close folio
+                  </DropdownMenuItem>
+                  {folio ? (
+                    <DropdownMenuItem asChild className={MENU_ITEM}>
+                      <Link
+                        to="/restaurant/pms/cashiering/folios/$folioId"
+                        params={{ folioId: folio.id }}
+                      >
+                        Open in Cashiering
+                      </Link>
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
+          </div>
+
+          {error ? <p className="mb-3 text-sm text-destructive">{error}</p> : null}
+
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {cards.map((card) => (
+              <article
+                key={card.id}
+                className="rounded-lg border border-gray-200 bg-gray-50 p-3"
+                data-testid={`folio-kpi-${card.id}`}
+              >
+                <p className="text-sm font-medium text-[#251605]">{card.name}</p>
+                <p
+                  className={cn(
+                    "mt-1 text-[11px] font-semibold",
+                    card.status === "Active" ? "text-emerald-700" : MUTED,
+                  )}
+                >
+                  {card.status}
+                </p>
+                <p className="mt-2 font-display text-lg text-[#251605]">{amount(card.amount)}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {/* Folio lines */}
+        <section className={CARD}>
+          <h2 className="mb-3 font-display text-base text-[#251605]">Folio Lines</h2>
+          {rows.length === 0 ? (
+            <p className={cn("py-6 text-center text-sm", MUTED)}>
+              {folio ? "No posted lines yet." : FOLIO_MISSING_COPY}
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm text-[#251605]">
+                <thead className={cn(TH, MUTED)}>
+                  <tr>
+                    <th className="px-2 py-2">Date</th>
+                    <th className="py-2 pr-2">Type</th>
+                    <th className="py-2 pr-2">Description</th>
+                    <th className="py-2 pr-2">Reference</th>
+                    <th className="py-2 pr-2 text-right">Amount ({currency})</th>
+                    <th className="py-2">User</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id} className={ROW}>
+                      <td className={cn("px-2 py-2", MUTED)}>{dateTime(row.postedAt)}</td>
+                      <td className="py-2 pr-2">{labelTransactionType(row.type)}</td>
+                      <td className="py-2 pr-2">
+                        {reviewDash(row.description)}
+                        {row.roomUnitLabel ? (
+                          <span className={cn("ml-1 text-[11px]", MUTED)}>{row.roomUnitLabel}</span>
+                        ) : null}
+                      </td>
+                      <td className="py-2 pr-2">{reviewDash(ledgerReference(row))}</td>
+                      <td
+                        className={cn(
+                          "py-2 pr-2 text-right",
+                          row.amount < 0 && "text-emerald-700",
+                        )}
+                      >
+                        {money(row.amount)}
+                      </td>
+                      <td className="py-2">{reviewDash(row.postedBy)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* Summary and deposit */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className={CARD} data-testid="folio-summary">
+            <h2 className="mb-3 font-display text-base text-[#251605]">Summary</h2>
+            <dl className="space-y-1 text-sm">
+              <Line label="Room Charges" value={amount(summary?.roomCharges)} />
+              <Line label="Package Charges" value={amount(summary?.packageCharges)} />
+              <Line label="Other Charges" value={amount(summary?.otherCharges)} />
+              <Line label="Taxes & Fees" value={amount(summary?.taxes)} />
+              <Line label="Discounts" value={amount(summary?.discounts)} />
+              <Line label="Adjustments" value={amount(summary?.adjustments)} />
+              <Line label="Total Charges" value={amount(summary?.totalCharges)} />
+              <Line label="Total Payments" value={amount(summary?.totalPayments)} />
+              <Line label="Balance" value={amount(summary?.balance)} emphasize />
+            </dl>
           </section>
-          <RoomFolioCard
-            folio={folio}
-            money={money}
-            currency={currency}
-            dateTime={dateTime}
-            canPostCharge={Boolean(open && cashierCanManage)}
-            canPostPayment={Boolean(open && cashierCanOperate)}
-            onCharge={() => startEntry("charge")}
-            onPayment={() => startEntry("payment")}
-            onInvoice={() => toast.message(FOLIO_INVOICE_GAP_COPY)}
-            onOverflow={(type) => startEntry(type)}
-            onClose={() => {
-              if (!folio || !open) return refuseMissingFolio();
-              setCloseOpen(true);
-            }}
-          />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <FolioSummaryCard summary={summary} money={money} />
-            <PaymentMethodsCard
-              folio={folio}
-              money={money}
-              currency={currency}
-              dateTime={dateTime}
-              canAdd={Boolean(open && cashierCanOperate)}
-              onAdd={() => startEntry("payment")}
-            />
-          </div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <DepositInfoCard reservation={reservation} summary={summary} money={money} />
-            <BillingRoutingCard reservation={reservation} editable={editable} />
-            <FolioNotesCard value={notes} editable={editable} onChange={setNotes} />
-          </div>
+
+          <section className={CARD} data-testid="deposit-information">
+            <h2 className="mb-3 font-display text-base text-[#251605]">Deposit</h2>
+            <dl className="space-y-1 text-sm">
+              <Line
+                label="Required"
+                value={`${amount(deposit?.amount)}${deposit?.name ? ` (${deposit.name})` : ""}`}
+              />
+              <Line label="Paid" value={amount(depositPaid)} />
+              <Line label="Due Date" value={dueDate ? formatStayDate(dueDate) : "Not set"} />
+              <Line label="Status" value={folioDepositStatus(deposit, depositPaid)} />
+            </dl>
+          </section>
         </div>
-        <FolioSummaryRail
-          reservation={reservation}
-          money={money}
-          coverUrl={coverUrl}
-          nights={nights}
-          packagesTotal={summary?.packageCharges ?? 0}
-          folioBalance={folio?.balance ?? null}
-        />
       </div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white py-3">
-        <Button type="button" variant="outline" size="sm" onClick={onBackToPackages}>
-          Back to Packages
-        </Button>
-        <div className="flex gap-2">
+
+      {onBackToPackages ? (
+        <div className="mt-4 border-t border-gray-200 bg-white py-3">
           <Button
             type="button"
+            variant="outline"
             size="sm"
-            disabled={!editable}
-            onClick={() => toast.message(FOLIO_NOTES_GAP_COPY)}
+            className={BTN_OUTLINE}
+            onClick={onBackToPackages}
           >
-            Save Changes
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => setNotes("")}>
-            Cancel
+            Back
           </Button>
         </div>
-      </div>
+      ) : null}
+
       {folio ? (
         <>
           <FolioEntryDialog
@@ -313,209 +391,7 @@ export function ReservationDetailFolioTab({
   );
 }
 
-function RoomFolioCard({
-  folio,
-  money,
-  currency,
-  dateTime,
-  canPostCharge,
-  canPostPayment,
-  onCharge,
-  onPayment,
-  onInvoice,
-  onOverflow,
-  onClose,
-}: {
-  folio: FolioDetail | null;
-  money: (value: number) => string;
-  currency: string;
-  dateTime: (iso: string | null | undefined) => string;
-  canPostCharge: boolean;
-  canPostPayment: boolean;
-  onCharge: () => void;
-  onPayment: () => void;
-  onInvoice: () => void;
-  onOverflow: (type: TransactionType) => void;
-  onClose: () => void;
-}) {
-  const rows = folio?.transactions ?? [];
-  return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="room-folio"
-    >
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="font-display text-base text-[#251605]">
-            Room Folio{" "}
-            {folio ? (
-              <span className="ml-2 text-xs font-semibold text-emerald-700">
-                {folio.status === "open" ? "Active" : "Inactive"}
-              </span>
-            ) : (
-              <span className="ml-2 text-xs font-semibold text-muted-foreground">Inactive</span>
-            )}
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Room charges, packages and related transactions.
-            {folio ? ` ${folio.folioNumber}` : ""}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          <Button type="button" size="sm" disabled={!canPostCharge} onClick={onCharge}>
-            Post Charge
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={!canPostPayment}
-            onClick={onPayment}
-          >
-            Post Payment
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={onInvoice}>
-            Create Invoice
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" size="icon" variant="outline" aria-label="More folio actions">
-                <MoreHorizontal className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onOverflow("deposit")}>
-                Add deposit credit
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onOverflow("refund")}>Refund</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onOverflow("discount")}>Discount</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onOverflow("adjustment")}>
-                Adjustment
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onClose}>Close folio</DropdownMenuItem>
-              {folio ? (
-                <DropdownMenuItem asChild>
-                  <Link
-                    to="/restaurant/pms/cashiering/folios/$folioId"
-                    params={{ folioId: folio.id }}
-                  >
-                    Open in Cashiering
-                  </Link>
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-      {rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-[#E4D6B8] px-4 py-8 text-center text-sm text-muted-foreground">
-          {folio ? "No posted lines yet." : FOLIO_MISSING_COPY}
-        </p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="border-b border-[#EEE6D8] text-[11px] uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="py-2 pr-2">Date</th>
-                <th className="py-2 pr-2">Type</th>
-                <th className="py-2 pr-2">Description</th>
-                <th className="py-2 pr-2">Reference</th>
-                <th className="py-2 pr-2 text-right">Qty</th>
-                <th className="py-2 pr-2 text-right">Amount ({currency})</th>
-                <th className="py-2 pr-2 text-right">Balance ({currency})</th>
-                <th className="py-2 pr-2">User</th>
-                <th className="py-2">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-[#F4EEE4]">
-                  <td className="py-2 pr-2 text-muted-foreground">{dateTime(row.postedAt)}</td>
-                  <td className="py-2 pr-2">{labelTransactionType(row.type)}</td>
-                  <td className="py-2 pr-2">
-                    {reviewDash(row.description)}
-                    {row.roomUnitLabel ? (
-                      <span className="ml-1 text-[11px] text-muted-foreground">
-                        {row.roomUnitLabel}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="py-2 pr-2">{reviewDash(ledgerReference(row))}</td>
-                  <td className="py-2 pr-2 text-right">{FOLIO_LINE_QTY_GAP}</td>
-                  <td
-                    className={`py-2 pr-2 text-right ${row.amount < 0 ? "text-emerald-700" : ""}`}
-                  >
-                    {money(row.amount)}
-                  </td>
-                  <td className="py-2 pr-2 text-right">{FOLIO_LINE_BALANCE_GAP}</td>
-                  <td className="py-2 pr-2">{reviewDash(row.postedBy)}</td>
-                  <td className="py-2">
-                    {folio ? (
-                      <Button
-                        asChild
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Open folio line in Cashiering"
-                      >
-                        <Link
-                          to="/restaurant/pms/cashiering/folios/$folioId"
-                          params={{ folioId: folio.id }}
-                        >
-                          <MoreHorizontal className="size-3.5" />
-                        </Link>
-                      </Button>
-                    ) : (
-                      DETAIL_DASH
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function FolioSummaryCard({
-  summary,
-  money,
-}: {
-  summary: ReturnType<typeof folioLedgerSummary>;
-  money: (value: number) => string;
-}) {
-  function value(amount: number | null | undefined) {
-    return amount == null ? DETAIL_DASH : money(amount);
-  }
-  return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="folio-summary"
-    >
-      <h2 className="mb-3 font-display text-base text-[#251605]">Folio Summary</h2>
-      {summary ? (
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
-          <SummaryLine label="Room Charges" value={value(summary.roomCharges)} />
-          <SummaryLine label="Payments" value={value(summary.payments)} />
-          <SummaryLine label="Package Charges" value={value(summary.packageCharges)} />
-          <SummaryLine label="Adjustments" value={value(summary.adjustments)} />
-          <SummaryLine label="Other Charges" value={value(summary.otherCharges)} />
-          <SummaryLine label="Total Payments" value={value(summary.totalPayments)} />
-          <SummaryLine label="Discounts" value={value(summary.discounts)} />
-          <SummaryLine label="Balance" value={value(summary.balance)} emphasize />
-          <SummaryLine label="Taxes & Fees" value={value(summary.taxes)} />
-          <span />
-          <SummaryLine label="Total Charges" value={value(summary.totalCharges)} />
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">{FOLIO_MISSING_COPY}</p>
-      )}
-    </section>
-  );
-}
-
-function SummaryLine({
+function Line({
   label,
   value,
   emphasize,
@@ -525,236 +401,14 @@ function SummaryLine({
   emphasize?: boolean;
 }) {
   return (
-    <p className={`flex justify-between gap-3 ${emphasize ? "font-medium text-[#251605]" : ""}`}>
-      <span className="text-muted-foreground">{label}</span>
-      <span>{value}</span>
-    </p>
-  );
-}
-
-function PaymentMethodsCard({
-  folio,
-  money,
-  currency,
-  dateTime,
-  canAdd,
-  onAdd,
-}: {
-  folio: FolioDetail | null;
-  money: (value: number) => string;
-  currency: string;
-  dateTime: (iso: string | null | undefined) => string;
-  canAdd: boolean;
-  onAdd: () => void;
-}) {
-  const rows = paymentRows(folio);
-  return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="payment-methods"
-    >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="font-display text-base text-[#251605]">Payment Methods</h2>
-        <Button type="button" size="sm" variant="outline" disabled={!canAdd} onClick={onAdd}>
-          Add Payment
-        </Button>
-      </div>
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No payments posted on this folio.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-[#EEE6D8] text-[11px] uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="py-2 pr-2">Date</th>
-                <th className="py-2 pr-2">Method</th>
-                <th className="py-2 pr-2">Reference</th>
-                <th className="py-2 pr-2 text-right">Amount ({currency})</th>
-                <th className="py-2 pr-2">Status</th>
-                <th className="py-2">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-[#F4EEE4]">
-                  <td className="py-2 pr-2">{dateTime(row.postedAt)}</td>
-                  <td className="py-2 pr-2">{reviewDash(paymentMethodLabel(row.paymentMethod))}</td>
-                  <td className="py-2 pr-2">{reviewDash(row.referenceType)}</td>
-                  <td className="py-2 pr-2 text-right">{money(Math.abs(row.amount))}</td>
-                  <td className="py-2 pr-2">Posted</td>
-                  <td className="py-2">
-                    {folio ? (
-                      <Button
-                        asChild
-                        size="icon"
-                        variant="ghost"
-                        aria-label="Open payment in Cashiering"
-                      >
-                        <Link
-                          to="/restaurant/pms/cashiering/folios/$folioId"
-                          params={{ folioId: folio.id }}
-                        >
-                          <MoreHorizontal className="size-3.5" />
-                        </Link>
-                      </Button>
-                    ) : (
-                      DETAIL_DASH
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+    <div
+      className={cn(
+        "flex justify-between gap-3 text-[#251605]",
+        emphasize && "rounded bg-gray-100 px-1 font-semibold",
       )}
-    </section>
-  );
-}
-
-function DepositInfoCard({
-  reservation,
-  summary,
-  money,
-}: {
-  reservation: ReservationDetail;
-  summary: ReturnType<typeof folioLedgerSummary>;
-  money: (value: number) => string;
-}) {
-  const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
-  const paid = depositPaidFromLedger(summary);
-  const due = snapshotDueDate(reservation.depositRequirementSnapshot);
-  return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="deposit-information"
     >
-      <h2 className="mb-3 font-display text-base text-[#251605]">Deposit Information</h2>
-      <dl className="space-y-1 text-sm">
-        <InfoRow
-          label="Required Deposit"
-          value={
-            deposit?.amount == null
-              ? DETAIL_DASH
-              : `${money(deposit.amount)}${deposit.name ? ` (${deposit.name})` : ""}`
-          }
-        />
-        <InfoRow label="Paid Amount" value={paid == null ? DETAIL_DASH : money(paid)} />
-        <InfoRow label="Due Date" value={due ? formatStayDate(due) : DETAIL_DASH} />
-        <InfoRow label="Status" value={folioDepositStatus(deposit, paid)} />
-      </dl>
-    </section>
-  );
-}
-
-function BillingRoutingCard({
-  reservation,
-  editable,
-}: {
-  reservation: ReservationDetail;
-  editable: boolean;
-}) {
-  return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="billing-routing"
-    >
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-display text-base text-[#251605]">Billing & Routing</h2>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={!editable}
-          onClick={() => toast.message(FOLIO_BILLING_EDIT_GAP_COPY)}
-        >
-          Edit
-        </Button>
-      </div>
-      <dl className="space-y-1 text-sm">
-        <InfoRow label="Bill To" value={reservation.guestName} />
-        <InfoRow label="Routing" value={DETAIL_DASH} />
-        <InfoRow label="Company" value={reviewDash(reservation.companyName)} />
-        <InfoRow label="Travel Agent" value={reviewDash(reservation.travelAgentName)} />
-        <InfoRow label="Special Instructions" value={reviewDash(reservation.specialRequests)} />
-      </dl>
-    </section>
-  );
-}
-
-function FolioNotesCard({
-  value,
-  editable,
-  onChange,
-}: {
-  value: string;
-  editable: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="folio-notes"
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-display text-base text-[#251605]">Notes</h2>
-        <Button type="button" size="sm" variant="ghost" disabled={!editable}>
-          Edit
-        </Button>
-      </div>
-      <Label htmlFor="folio-tab-notes" className="sr-only">
-        Folio or payment notes
-      </Label>
-      <Textarea
-        id="folio-tab-notes"
-        maxLength={FOLIO_NOTES_MAX}
-        disabled={!editable}
-        value={value}
-        onChange={(e) => onChange(e.target.value.slice(0, FOLIO_NOTES_MAX))}
-        placeholder="Add folio or payment notes…"
-        className="min-h-24"
-      />
-      <p className="mt-1 text-right text-[11px] text-muted-foreground">
-        {value.length}/{FOLIO_NOTES_MAX}
-      </p>
-      <p className="mt-1 text-[11px] text-muted-foreground">{FOLIO_NOTES_GAP_COPY}</p>
-    </section>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-3">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right text-[#251605]">{value}</dd>
+      <dt className={emphasize ? "text-[#4A2C0F]" : MUTED}>{label}</dt>
+      <dd className="text-right">{value}</dd>
     </div>
-  );
-}
-
-function FolioSummaryRail({
-  reservation,
-  money,
-  coverUrl,
-  nights,
-  packagesTotal,
-  folioBalance,
-}: {
-  reservation: ReservationDetail;
-  money: (value: number) => string;
-  coverUrl: string | null;
-  nights: number;
-  packagesTotal: number;
-  folioBalance: number | null;
-}) {
-  return (
-    <ReservationDetailSummary
-      testId="reservation-folio-summary"
-      reservation={reservation}
-      money={money}
-      coverUrl={coverUrl}
-      nights={nights}
-      packagesTotal={packagesTotal}
-      folioBalance={folioBalance}
-      showFolioBalance
-    />
   );
 }

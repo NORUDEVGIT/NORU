@@ -1,29 +1,70 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
-import { isGroupReservation } from "@/packages/pms/lib/reservation-detail-group";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import {
-  BedDouble,
-  CalendarDays,
-  CreditCard,
-  FileText,
-  Search,
-  Shield,
-  UserRound,
-} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { BedDouble, FileText, SlidersHorizontal, Users } from "lucide-react";
 
+import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
+import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import { reviewDash } from "@/packages/pms/lib/create-reservation-review";
+import {
+  CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS,
+  CREATE_RESERVATION_GUEST_SEARCH_LIMIT,
+} from "@/packages/pms/lib/create-reservation-phase1";
+import { guestListItems, listGuests } from "@/packages/pms/lib/guests.functions";
+import {
+  GROUP_RATE_CHANGE_UNAVAILABLE,
+  groupCombinedSubtotal,
+  groupRoomRateSections,
+  isGroupReservation,
+} from "@/packages/pms/lib/reservation-detail-group";
+import { DETAIL_DASH } from "@/packages/pms/lib/reservation-detail-overview";
+import {
+  nightlyBreakdownRows,
+  rateCancellationLabel,
+  rateChangePolicyLabel,
+  ratePlanMealLabel,
+  ratePlanRestrictions,
+  stayRatePerNight,
+} from "@/packages/pms/lib/reservation-detail-rates";
+import {
+  buildRoomAssignmentRows,
+  buildRoomPrefDraft,
+  ROOM_ASSIGNMENT_PREFS,
+  ROOM_PREF_SAVE_COPY,
+  specialRequestsFromPrefs,
+  type RoomAssignmentPrefId,
+} from "@/packages/pms/lib/reservation-detail-rooms";
+import {
+  ROOM_OCCUPANT_IDENTITY_NOTE,
+  ROOM_PRIMARY_REMOVAL_NOTE,
+  additionalRoomOccupants,
+  primaryRoomOccupant,
+  roomDisplayName,
+  roomOccupancyText,
+  roomOccupantCapacity,
+  roomOccupantsMutable,
+  roomOperationActions,
+  roomStatusLabel,
+  type RoomOperationAction,
+} from "@/packages/pms/lib/reservation-room-occupants";
+import type { ReservationRoomUnit } from "@/packages/pms/lib/reservation-room-units";
+import { listRatePlans, repriceReservation } from "@/packages/pms/lib/rates.functions";
+import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
+import {
+  amendReservation,
+  assignReservationRoom,
+  manageReservationRoomGuest,
+  type AssignableRoom,
+  type ReservationDetail,
+} from "@/packages/pms/lib/reservations.functions";
+import { listRooms, listRoomTypes } from "@/packages/pms/lib/rooms.functions";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/shared/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -31,51 +72,66 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { Textarea } from "@/shared/components/ui/textarea";
-import {
-  formatStayDate,
-  ReservationStatusBadge,
-} from "@/packages/pms/components/bookings/reservation-bits";
-import { guestInitials, reviewDash } from "@/packages/pms/lib/create-reservation-review";
-import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
-import {
-  DETAIL_DASH,
-  depositStatusLabel,
-  parseDepositRequirementSnapshot,
-  snapshotDisplayName,
-  snapshotField,
-} from "@/packages/pms/lib/reservation-detail-overview";
-import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
-import {
-  ASSIGNMENT_NOTES_GAP_COPY,
-  ASSIGNMENT_NOTES_MAX,
-  assignmentLabel,
-  buildRoomAssignmentRows,
-  buildRoomPrefDraft,
-  emptyRoomFilters,
-  filterRoomAssignmentRows,
-  ROOM_ASSIGNMENT_PREFS,
-  ROOM_PREF_SAVE_COPY,
-  specialRequestsFromPrefs,
-  uniqueFilterOptions,
-  type RoomAssignmentFilters,
-  type RoomAssignmentPrefId,
-} from "@/packages/pms/lib/reservation-detail-rooms";
-import {
-  amendReservation,
-  assignReservationRoom,
-  type AssignableRoom,
-  type ReservationDetail,
-} from "@/packages/pms/lib/reservations.functions";
-import { listRooms, listRoomTypes } from "@/packages/pms/lib/rooms.functions";
-import { storedRatePerNight } from "@/packages/pms/lib/reservation-detail-overview";
-import { ReservationRoomOccupants } from "@/packages/pms/components/workspaces/reservation-detail-room-occupants";
-import type { RoomOperationAction } from "@/packages/pms/lib/reservation-room-occupants";
 import { cn } from "@/shared/lib/utils";
 
-const FIELD =
-  "h-8 w-full rounded-md border border-[#DDD4C5] bg-white px-2 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#F7F2EA]";
-const ALL = "__all";
+const FIELD = "h-9 w-full rounded-lg border-gray-200 bg-white text-sm";
+const BTN_PRIMARY = "bg-[#4A2C0F] text-white hover:bg-[#3a2209]";
+const MUTED = "text-muted-foreground";
+const NONE = "__none";
+const TH = "border-b border-gray-200 text-[11px] uppercase";
+
+/* ------------------------------------------------------------------ */
+/* Shared pieces                                                       */
+/* ------------------------------------------------------------------ */
+
+function Card({
+  icon: Icon,
+  title,
+  description,
+  testId,
+  children,
+}: {
+  icon?: LucideIcon;
+  title: string;
+  description?: string;
+  testId?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4" data-testid={testId}>
+      <div className="mb-3">
+        <h3 className="flex items-center gap-2 text-sm font-bold text-[#251605]">
+          {Icon ? <Icon className={cn("size-4", MUTED)} /> : null}
+          {title}
+        </h3>
+        {description ? <p className={cn("mt-0.5 text-xs", MUTED)}>{description}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <Label className={cn("text-[11px]", MUTED)}>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function Summary({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div>
+      <dt className={cn("text-xs", MUTED)}>{label}</dt>
+      <dd className={cn("text-[#251605]", strong ? "font-semibold" : "font-medium")}>{value}</dd>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Main tab: room, rate, occupants and preferences                     */
+/* ------------------------------------------------------------------ */
 
 export function ReservationDetailRoomsTab({
   restaurantId,
@@ -83,10 +139,7 @@ export function ReservationDetailRoomsTab({
   assignableRooms,
   canManage,
   money,
-  coverUrl,
-  occupancyLabel,
   onBackToGuest,
-  onChangeRoomType,
   onSaved,
   onOperate,
 }: {
@@ -95,25 +148,38 @@ export function ReservationDetailRoomsTab({
   assignableRooms: AssignableRoom[];
   canManage: boolean;
   money: (value: number) => string;
-  coverUrl: string | null;
-  occupancyLabel: string | null;
   onBackToGuest: () => void;
-  onChangeRoomType: () => void;
   onSaved: () => void;
   onOperate?: (action: RoomOperationAction, reservationRoomId: string) => void;
+  // Kept optional so existing callers don't break.
+  coverUrl?: string | null;
+  occupancyLabel?: string | null;
+  onChangeRoomType?: () => void;
+  onBackToRooms?: () => void;
 }) {
-  const fetchRooms = useServerFn(listRooms);
   const fetchTypes = useServerFn(listRoomTypes);
-  const submitAssign = useServerFn(assignReservationRoom);
+  const fetchRooms = useServerFn(listRooms);
+  const fetchPlans = useServerFn(listRatePlans);
+  const fetchCommercial = useServerFn(getReservationCommercialAttribution);
   const submitAmend = useServerFn(amendReservation);
-  const [filters, setFilters] = useState<RoomAssignmentFilters>(emptyRoomFilters);
-  const [selectedId, setSelectedId] = useState(reservation.roomId ?? "");
+  const submitAssign = useServerFn(assignReservationRoom);
+  const submitReprice = useServerFn(repriceReservation);
+
+  const [typeId, setTypeId] = useState(reservation.roomTypeId);
+  const [roomId, setRoomId] = useState(reservation.roomId ?? "");
+  const [planId, setPlanId] = useState(reservation.ratePlanId ?? "");
   const [prefs, setPrefs] = useState(() => buildRoomPrefDraft(reservation.specialRequests));
-  const [notes, setNotes] = useState("");
+
+  function resetDraft() {
+    setTypeId(reservation.roomTypeId);
+    setRoomId(reservation.roomId ?? "");
+    setPlanId(reservation.ratePlanId ?? "");
+    setPrefs(buildRoomPrefDraft(reservation.specialRequests));
+  }
 
   useEffect(() => {
-    setSelectedId(reservation.roomId ?? "");
-    setPrefs(buildRoomPrefDraft(reservation.specialRequests));
+    resetDraft();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reservation]);
 
   const typesQuery = useQuery({
@@ -126,147 +192,368 @@ export function ReservationDetailRoomsTab({
     queryFn: () => fetchRooms({ data: { restaurantId, roomTypeId: reservation.roomTypeId } }),
     retry: false,
   });
+  const plansQuery = useQuery({
+    queryKey: ["rate-plans", restaurantId, typeId, true, "reservation-detail-rooms"],
+    queryFn: () => fetchPlans({ data: { restaurantId, roomTypeId: typeId, activeOnly: true } }),
+    enabled: canManage,
+    retry: false,
+  });
+  const commercialQuery = useQuery({
+    queryKey: ["reservation-commercial", restaurantId, reservation.id, "rooms-tab"],
+    queryFn: () =>
+      fetchCommercial({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          roomSubtotal: reservation.roomSubtotal,
+        },
+      }),
+    retry: false,
+  });
 
-  const roomType = (typesQuery.data ?? []).find((row) => row.id === reservation.roomTypeId) ?? null;
-  const allRows = useMemo(
+  const types = typesQuery.data ?? [];
+  const plans = plansQuery.data ?? [];
+  const currentType = types.find((row) => row.id === reservation.roomTypeId) ?? null;
+  const currentPlan = plans.find((row) => row.id === reservation.ratePlanId) ?? null;
+  const selectedPlan = plans.find((row) => row.id === planId) ?? null;
+  const selectedType = types.find((row) => row.id === typeId) ?? null;
+  const promotion = commercialQuery.data?.promotion ?? null;
+
+  // Eligible rooms only exist for the current room type.
+  const roomRows = useMemo(
     () =>
       buildRoomAssignmentRows({
         rooms: roomsQuery.data ?? [],
         assignable: assignableRooms,
-        roomType,
-      }),
-    [roomsQuery.data, assignableRooms, roomType],
+        roomType: currentType,
+      }).filter((row) => row.eligible || row.id === reservation.roomId),
+    [roomsQuery.data, assignableRooms, currentType, reservation.roomId],
   );
-  const options = uniqueFilterOptions(allRows);
-  const rows = filterRoomAssignmentRows(allRows, filters);
-  const assigned = assignmentLabel(reservation);
-  const nights = nightsBetween(reservation.arrivalDate, reservation.departureDate);
-  const perNight = storedRatePerNight(
-    reservation.nightlyRates,
-    reservation.roomSubtotal,
-    reservation.nights,
-  );
-  const cancelled = reservation.status === "cancelled";
-  const editable = canManage && !cancelled && ["pending", "confirmed"].includes(reservation.status);
+  const selectedRoom = roomRows.find((row) => row.id === roomId) ?? null;
 
-  const assign = useMutation({
-    mutationFn: (roomId: string | null) =>
-      submitAssign({ data: { restaurantId, reservationId: reservation.id, roomId } }),
+  const group = isGroupReservation(reservation);
+  const singleRoom = !group && (reservation.rooms ?? []).length <= 1;
+  const editable =
+    canManage && ["pending", "confirmed"].includes(reservation.status) && singleRoom;
+
+  const typeChanged = typeId !== reservation.roomTypeId;
+  const roomChanged = !typeChanged && roomId !== (reservation.roomId ?? "");
+  const planChanged = planId !== (reservation.ratePlanId ?? "");
+  const newRequests = specialRequestsFromPrefs(reservation.specialRequests, prefs);
+  const prefsChanged = newRequests !== (reservation.specialRequests ?? "");
+
+  const changes: string[] = [];
+  if (typeChanged) changes.push(`Room type → ${selectedType?.name ?? "new type"}`);
+  if (roomChanged) changes.push(`Room → ${selectedRoom?.roomNumber ?? "Unassigned"}`);
+  if (planChanged && planId) changes.push(`Rate plan → ${selectedPlan?.name ?? "new plan"}`);
+  if (prefsChanged) changes.push("Room preferences");
+
+  const perNight = stayRatePerNight(reservation);
+  const nightly = useMemo(
+    () => nightlyBreakdownRows(reservation, currentPlan),
+    [reservation, currentPlan],
+  );
+  const currency = reservation.currency?.trim() || "ETB";
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (typeChanged && !planId) {
+        throw new Error("Choose a rate plan for the new room type.");
+      }
+      // 1. Room type and preferences go through amend. A new type clears the room number.
+      if (typeChanged || prefsChanged) {
+        await submitAmend({
+          data: {
+            restaurantId,
+            reservationId: reservation.id,
+            guestId: reservation.guestId,
+            roomTypeId: typeId,
+            roomId: typeChanged ? null : reservation.roomId,
+            arrival: reservation.arrivalDate,
+            departure: reservation.departureDate,
+            adults: reservation.adults,
+            children: reservation.children,
+            notes: reservation.notes,
+            specialRequests: newRequests,
+            ratePlanId: typeChanged ? planId : reservation.ratePlanId,
+          },
+        });
+      }
+      // 2. Room number.
+      if (roomChanged) {
+        await submitAssign({
+          data: { restaurantId, reservationId: reservation.id, roomId: roomId || null },
+        });
+      }
+      // 3. Rates are recalculated on the server from the chosen plan.
+      if (planId && (planChanged || typeChanged)) {
+        const result = await submitReprice({
+          data: { restaurantId, reservationId: reservation.id, ratePlanId: planId },
+        });
+        if (!result.ok) throw new Error(result.message);
+      }
+    },
     onSuccess: () => {
-      toast.success("Room assignment updated.");
+      toast.success("Room details updated.");
       onSaved();
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const savePrefs = useMutation({
-    mutationFn: () =>
-      submitAmend({
-        data: {
-          restaurantId,
-          reservationId: reservation.id,
-          guestId: reservation.guestId,
-          roomTypeId: reservation.roomTypeId,
-          roomId: reservation.roomId,
-          arrival: reservation.arrivalDate,
-          departure: reservation.departureDate,
-          adults: reservation.adults,
-          children: reservation.children,
-          notes: reservation.notes,
-          specialRequests: specialRequestsFromPrefs(reservation.specialRequests, prefs),
-          ratePlanId: reservation.ratePlanId,
-        },
-      }),
-    onSuccess: () => {
-      toast.success("Room preferences saved for this stay.");
-      onSaved();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  function assignSelected() {
-    if ((reservation.rooms ?? []).length > 1) {
-      toast.error("Choose which room this action applies to.");
-      return;
-    }
-    const target = selectedId || reservation.roomId;
-    if (!target) {
-      toast.error("Select an eligible room first.");
-      return;
-    }
-    const row = allRows.find((item) => item.id === target);
-    if (row && !row.eligible) {
-      toast.error("That room is not assignable for these dates.");
-      return;
-    }
-    assign.mutate(target);
+  function onTypeChange(next: string) {
+    setTypeId(next);
+    setRoomId("");
+    setPlanId(next === reservation.roomTypeId ? (reservation.ratePlanId ?? "") : "");
   }
+
+  const roomLabel = reservation.roomNumber ?? "Unassigned";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-rooms">
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="space-y-4">
-          <ReservationRoomOccupants
-            restaurantId={restaurantId}
-            reservation={reservation}
-            canManage={canManage}
-            onChanged={onSaved}
-            onOperate={onOperate}
-          />
-          {isGroupReservation(reservation) ? null : (
-            <>
-              <RoomSummaryCard
-                reservation={reservation}
-                assigned={assigned}
-                coverUrl={coverUrl}
-                occupancyLabel={occupancyLabel}
-                roomSize={roomType?.roomSize ?? null}
-                view={roomType?.roomView ?? null}
-                bedType={roomType?.beds?.[0]?.bedType ?? roomType?.bedType ?? null}
-                perNight={perNight}
-                money={money}
-                editable={editable}
-                onAssign={assignSelected}
-                onChangeRoomType={onChangeRoomType}
-                assigning={assign.isPending}
-              />
-              <AvailableRoomsCard
-                rows={rows}
-                filters={filters}
-                options={options}
-                selectedId={selectedId}
-                editable={editable}
-                assigning={assign.isPending}
-                onFilters={setFilters}
-                onSelect={setSelectedId}
-                onAssign={(id) => {
-                  if ((reservation.rooms ?? []).length > 1) {
-                    toast.error("Choose which room this action applies to.");
-                    return;
-                  }
-                  setSelectedId(id);
-                  assign.mutate(id);
-                }}
-              />
-            </>
-          )}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <RoomPreferencesCard
-              prefs={prefs}
-              editable={editable}
-              onToggle={(id, checked) => setPrefs((current) => ({ ...current, [id]: checked }))}
+      <div className="min-h-0 flex-1 space-y-4">
+        {/* 1. Room and rate: summary + one simple editor */}
+        <Card
+          icon={BedDouble}
+          title="Room & Rate"
+          description="Change room type, room number or rate plan, then press Save Changes."
+          testId="rooms-summary"
+        >
+          <dl className="mb-4 grid grid-cols-2 gap-x-3 gap-y-2 text-sm sm:grid-cols-4">
+            <Summary label="Room type" value={reviewDash(reservation.roomTypeName)} />
+            <Summary label="Room number" value={roomLabel} />
+            <Summary label="Rate plan" value={reviewDash(reservation.ratePlanName)} />
+            <Summary
+              label="Per night"
+              value={perNight == null ? DETAIL_DASH : money(perNight)}
             />
-            <AssignmentNotesCard value={notes} editable={editable} onChange={setNotes} />
-          </div>
-        </div>
-        <RoomsSummaryRail
+            <Summary label="Nights" value={String(reservation.nights)} />
+            <Summary
+              label="Room total"
+              value={
+                (group ? groupCombinedSubtotal(reservation) : reservation.roomSubtotal) == null
+                  ? DETAIL_DASH
+                  : money(
+                      (group
+                        ? groupCombinedSubtotal(reservation)
+                        : reservation.roomSubtotal) as number,
+                    )
+              }
+              strong
+            />
+          </dl>
+
+          {singleRoom ? (
+            <div className="space-y-3 rounded-lg bg-gray-50 p-3">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label="Room type">
+                  <Select value={typeId} disabled={!editable} onValueChange={onTypeChange}>
+                    <SelectTrigger className={FIELD} data-testid="change-room-type">
+                      <SelectValue placeholder="Select room type" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
+                      {types.map((row) => (
+                        <SelectItem key={row.id} value={row.id}>
+                          {row.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                <Field label="Room number">
+                  <Select
+                    value={roomId || NONE}
+                    disabled={!editable || typeChanged}
+                    onValueChange={(value) => setRoomId(value === NONE ? "" : value)}
+                  >
+                    <SelectTrigger className={FIELD} data-testid="change-room-number">
+                      <SelectValue placeholder="Select room" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
+                      <SelectItem value={NONE}>Unassigned</SelectItem>
+                      {roomRows.map((row) => (
+                        <SelectItem key={row.id} value={row.id}>
+                          {row.roomNumber}
+                          {row.floor ? ` · Floor ${row.floor}` : ""}
+                          {row.statusLabel ? ` · ${row.statusLabel}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                <Field label="Rate plan">
+                  <Select value={planId} disabled={!editable} onValueChange={setPlanId}>
+                    <SelectTrigger className={FIELD} data-testid="change-rate-plan">
+                      <SelectValue placeholder="Select rate plan" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
+                      {plans.map((row) => (
+                        <SelectItem key={row.id} value={row.id}>
+                          {row.code} — {row.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+
+              {typeChanged ? (
+                <p className="text-[11px] text-amber-800">
+                  The room number is cleared when the room type changes. Pick a rate plan for the
+                  new type, save, then assign a room number.
+                </p>
+              ) : null}
+              {changes.length > 0 ? (
+                <p className="text-xs font-medium text-[#251605]" data-testid="pending-changes">
+                  Will change: {changes.join(" · ")}
+                </p>
+              ) : (
+                <p className={cn("text-xs", MUTED)}>No changes yet.</p>
+              )}
+            </div>
+          ) : (
+            <p className={cn("rounded-lg bg-gray-50 p-3 text-xs", MUTED)}>
+              {group
+                ? GROUP_RATE_CHANGE_UNAVAILABLE
+                : "This reservation has more than one room. Use the buttons on each room below."}
+            </p>
+          )}
+        </Card>
+
+        {/* 2. Rooms and occupants */}
+        <RoomsAndOccupants
+          restaurantId={restaurantId}
           reservation={reservation}
-          money={money}
-          coverUrl={coverUrl}
-          nights={nights}
+          canManage={canManage}
+          onChanged={onSaved}
+          onOperate={onOperate}
         />
+
+        {/* 3. Rates: per room for groups, nightly table for single rooms */}
+        {group ? (
+          <GroupRates reservation={reservation} money={money} />
+        ) : nightly.length > 0 ? (
+          <Card title="Nightly Rates" testId="daily-rate-breakdown">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] text-left text-sm text-[#251605]">
+                <thead className={cn(TH, MUTED)}>
+                  <tr>
+                    <th className="py-2 pr-2">Date</th>
+                    <th className="py-2 pr-2">Day</th>
+                    <th className="py-2 pr-2 text-right">Rate ({currency})</th>
+                    <th className="py-2">Inclusions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {nightly.map((row) => (
+                    <tr key={row.date} className="border-b border-gray-100">
+                      <td className="py-1.5 pr-2">{formatStayDate(row.date)}</td>
+                      <td className="py-1.5 pr-2">{row.weekday}</td>
+                      <td className="py-1.5 pr-2 text-right">{money(row.total)}</td>
+                      <td className="py-1.5">{row.inclusion || DETAIL_DASH}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-50 font-semibold">
+                    <td className="py-2 pr-2" colSpan={2}>
+                      Total
+                    </td>
+                    <td className="py-2 pr-2 text-right">
+                      {reservation.roomSubtotal == null
+                        ? DETAIL_DASH
+                        : money(reservation.roomSubtotal)}
+                    </td>
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        ) : (
+          <Card title="Nightly Rates" testId="daily-rate-breakdown">
+            <p className={cn("text-sm", MUTED)}>No pricing snapshot for this reservation.</p>
+          </Card>
+        )}
+
+        {/* 4. Rate plan and discount */}
+        {!group ? (
+          <Card
+            icon={FileText}
+            title="Rate Plan Details"
+            description="From the plan applied to this reservation."
+            testId="rate-plan-details"
+          >
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+              <Summary
+                label="Plan"
+                value={reviewDash(reservation.ratePlanName ?? currentPlan?.name)}
+              />
+              <Summary label="Code" value={reviewDash(currentPlan?.code)} />
+              <Summary label="Meal plan" value={ratePlanMealLabel(currentPlan)} />
+              <Summary
+                label="Currency"
+                value={reviewDash(reservation.currency ?? currentPlan?.currency)}
+              />
+              <Summary
+                label="Cancellation"
+                value={rateCancellationLabel(reservation, currentPlan)}
+              />
+              <Summary
+                label="Change policy"
+                value={rateChangePolicyLabel(reservation, currentPlan)}
+              />
+              <Summary
+                label="Other restrictions"
+                value={reviewDash(ratePlanRestrictions(currentPlan))}
+              />
+              <Summary
+                label="Discount"
+                value={
+                  promotion
+                    ? `${reviewDash(promotion.promotionName || promotion.promotionCode)} (−${money(
+                        promotion.discountAmount,
+                      )})`
+                    : "None"
+                }
+              />
+            </dl>
+          </Card>
+        ) : null}
+
+        {/* 5. Room preferences */}
+        {singleRoom ? (
+          <Card
+            icon={SlidersHorizontal}
+            title="Room Preferences"
+            description="Saved with the other changes."
+            testId="room-preferences"
+          >
+            <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+              {ROOM_ASSIGNMENT_PREFS.map((pref) => (
+                <label
+                  key={pref.id}
+                  className={cn("flex items-center gap-2", !editable && "opacity-60")}
+                >
+                  <Checkbox
+                    checked={prefs[pref.id]}
+                    disabled={!editable}
+                    onCheckedChange={(value) =>
+                      setPrefs((current) => ({
+                        ...current,
+                        [pref.id as RoomAssignmentPrefId]: value === true,
+                      }))
+                    }
+                  />
+                  {pref.label}
+                </label>
+              ))}
+            </div>
+            <p className={cn("mt-3 text-[11px]", MUTED)}>{ROOM_PREF_SAVE_COPY}</p>
+          </Card>
+        ) : null}
       </div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white py-3">
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 bg-white py-3">
         <Button type="button" variant="outline" size="sm" onClick={onBackToGuest}>
           Back to Guest
         </Button>
@@ -274,22 +561,13 @@ export function ReservationDetailRoomsTab({
           <Button
             type="button"
             size="sm"
-            disabled={!editable || savePrefs.isPending}
-            onClick={() => savePrefs.mutate()}
+            className={BTN_PRIMARY}
+            disabled={!editable || changes.length === 0 || save.isPending}
+            onClick={() => save.mutate()}
           >
-            {savePrefs.isPending ? "Saving…" : "Save Changes"}
+            {save.isPending ? "Saving…" : "Save Changes"}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setPrefs(buildRoomPrefDraft(reservation.specialRequests));
-              setNotes("");
-              setFilters(emptyRoomFilters());
-              setSelectedId(reservation.roomId ?? "");
-            }}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={resetDraft}>
             Cancel
           </Button>
         </div>
@@ -298,395 +576,443 @@ export function ReservationDetailRoomsTab({
   );
 }
 
-function RoomSummaryCard({
+/* ------------------------------------------------------------------ */
+/* Group reservations: rate per room                                   */
+/* ------------------------------------------------------------------ */
+
+function GroupRates({
   reservation,
-  assigned,
-  coverUrl,
-  occupancyLabel,
-  roomSize,
-  view,
-  bedType,
-  perNight,
   money,
-  editable,
-  onAssign,
-  onChangeRoomType,
-  assigning,
 }: {
   reservation: ReservationDetail;
-  assigned: string;
-  coverUrl: string | null;
-  occupancyLabel: string | null;
-  roomSize: string | null;
-  view: string | null;
-  bedType: string | null;
-  perNight: number | null;
   money: (value: number) => string;
-  editable: boolean;
-  onAssign: () => void;
-  onChangeRoomType: () => void;
-  assigning: boolean;
 }) {
+  const sections = groupRoomRateSections(reservation);
+  const combined = groupCombinedSubtotal(reservation);
   return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="rooms-summary"
-    >
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h2 className="font-display text-base text-[#251605]">Room(s) for this Reservation</h2>
-          <p className="text-xs text-muted-foreground">
-            View and manage room assignment, room details and room preferences.
-          </p>
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline" size="sm" disabled={!editable}>
-              Room Assignment Actions
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="z-[80]">
-            <DropdownMenuItem disabled={assigning} onClick={onAssign}>
-              Assign Room
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onChangeRoomType}>Change Room Type</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto]">
-        <div className="flex gap-3">
-          {coverUrl ? (
-            <img src={coverUrl} alt="" className="h-24 w-32 rounded-md object-cover" />
-          ) : (
-            <div className="flex h-24 w-32 items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68]">
-              <BedDouble className="size-8" />
-            </div>
-          )}
-          <div className="min-w-0 text-sm">
-            <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              Room 1
-              <span
-                className={cn(
-                  "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                  assigned === "Assigned"
-                    ? "bg-emerald-50 text-emerald-800"
-                    : "bg-amber-50 text-amber-800",
-                )}
-              >
-                {assigned}
+    <Card title="Rates by Room" testId="rates-group-rooms">
+      <div className="space-y-3">
+        {sections.map((section) => (
+          <div key={section.sequence} className="border-b border-gray-100 pb-3 text-sm last:border-0">
+            <p className="font-medium text-[#251605]">
+              Room {section.sequence}
+              <span className={cn("ml-2 text-xs font-normal", MUTED)}>
+                {section.occupant} · {section.roomTypeName} · {section.ratePlanName}
               </span>
             </p>
-            <p className="font-medium text-[#251605]">{reviewDash(reservation.roomTypeName)}</p>
-            <p className="text-xs text-muted-foreground">
-              {reservation.adults} Adults
-              {occupancyLabel ? ` · ${occupancyLabel}` : bedType ? ` · ${bedType}` : ""}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {roomSize ? `${roomSize}` : ""}
-              {view ? `${roomSize ? " · " : ""}${view}` : occupancyLabel ? "" : ""}
+            {section.nights.length === 0 ? (
+              <p className={cn("mt-1 text-xs", MUTED)}>No nightly snapshot for this room.</p>
+            ) : (
+              <table className="mt-2 w-full text-left text-xs text-[#251605]">
+                <tbody>
+                  {section.nights.map((night) => (
+                    <tr key={`${section.sequence}-${night.date}`} className="border-b border-gray-50">
+                      <td className="py-1">{formatStayDate(night.date)}</td>
+                      <td className="py-1 text-right">{money(night.rate)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p className="mt-1 text-xs font-medium text-[#251605]">
+              Room subtotal {section.subtotal == null ? DETAIL_DASH : money(section.subtotal)}
             </p>
           </div>
-        </div>
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
-          <dt className="text-muted-foreground">Rate Plan</dt>
-          <dd>{reviewDash(reservation.ratePlanName)}</dd>
-          <dt className="text-muted-foreground">Rate per Night</dt>
-          <dd>{perNight == null ? DETAIL_DASH : money(perNight)}</dd>
-          <dt className="text-muted-foreground">Nights</dt>
-          <dd>{reservation.nights}</dd>
-          <dt className="text-muted-foreground">Total Amount</dt>
-          <dd>
-            {reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
-          </dd>
-        </dl>
-        <div className="flex flex-col gap-2">
-          <Button type="button" size="sm" disabled={!editable || assigning} onClick={onAssign}>
-            {assigning ? "Assigning…" : "Assign Room"}
-          </Button>
+        ))}
+        <p className="rounded bg-gray-100 px-2 py-1.5 text-sm font-semibold text-[#251605]">
+          Combined room total {combined == null ? DETAIL_DASH : money(combined)}
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Rooms and occupants                                                 */
+/* ------------------------------------------------------------------ */
+
+function RoomsAndOccupants({
+  restaurantId,
+  reservation,
+  canManage,
+  onChanged,
+  onOperate,
+}: {
+  restaurantId: string;
+  reservation: ReservationDetail;
+  canManage: boolean;
+  onChanged: () => void;
+  onOperate?: (action: RoomOperationAction, reservationRoomId: string) => void;
+}) {
+  const units = reservation.rooms ?? [];
+  const [addingRoomId, setAddingRoomId] = useState<string | null>(null);
+  const manage = useServerFn(manageReservationRoomGuest);
+  const mutation = useMutation({
+    mutationFn: (input: {
+      reservationRoomId: string;
+      guestId: string;
+      action: "add" | "remove" | "set_primary";
+    }) =>
+      manage({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          reservationRoomId: input.reservationRoomId,
+          guestId: input.guestId,
+          action: input.action,
+        },
+      }),
+    onSuccess: () => {
+      setAddingRoomId(null);
+      onChanged();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  if (units.length === 0) return null;
+  const multi = units.length > 1;
+
+  return (
+    <Card
+      icon={Users}
+      title={multi ? "Rooms & Occupants" : "Room Occupants"}
+      description={ROOM_OCCUPANT_IDENTITY_NOTE}
+      testId="reservation-room-occupants"
+    >
+      <div className="space-y-4">
+        {units.map((unit) => (
+          <RoomOccupantBlock
+            key={unit.id}
+            restaurantId={restaurantId}
+            reservation={reservation}
+            unit={unit}
+            multi={multi}
+            canManage={canManage}
+            adding={addingRoomId === unit.id}
+            pending={mutation.isPending}
+            onAdd={() => setAddingRoomId(unit.id)}
+            onCancelAdd={() => setAddingRoomId(null)}
+            onChoose={(guestId, action) =>
+              mutation.mutate({ reservationRoomId: unit.id, guestId, action })
+            }
+            onOperate={onOperate}
+          />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function RoomOccupantBlock({
+  restaurantId,
+  reservation,
+  unit,
+  multi,
+  canManage,
+  adding,
+  pending,
+  onAdd,
+  onCancelAdd,
+  onChoose,
+  onOperate,
+}: {
+  restaurantId: string;
+  reservation: ReservationDetail;
+  unit: ReservationRoomUnit;
+  multi: boolean;
+  canManage: boolean;
+  adding: boolean;
+  pending: boolean;
+  onAdd: () => void;
+  onCancelAdd: () => void;
+  onChoose: (guestId: string, action: "add" | "remove" | "set_primary") => void;
+  onOperate?: (action: RoomOperationAction, reservationRoomId: string) => void;
+}) {
+  const mutable = canManage && roomOccupantsMutable(unit.status);
+  const primary = primaryRoomOccupant(unit.occupants);
+  const additional = additionalRoomOccupants(unit.occupants);
+  const capacity = roomOccupantCapacity(unit.adults, unit.children);
+  const atCapacity = unit.occupants.length >= capacity;
+  const roomType = roomDisplayName(unit, reservation.roomTypeId, reservation.roomTypeName);
+  const roomNumber =
+    unit.roomNumber ?? (unit.unitSequence === 1 ? reservation.roomNumber : null) ?? "Unassigned";
+  const operations = roomOperationActions(unit.status);
+
+  return (
+    <article
+      className="border-b border-[#e9dfd0] pb-4 last:border-b-0 last:pb-0"
+      data-testid={`room-unit-${unit.unitSequence}`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-bold text-[#251605]">
+          Room {unit.unitSequence}
+          {multi ? (
+            <span className={cn("ml-2 text-xs font-normal", MUTED)}>
+              {roomNumber} · {roomType} ·{" "}
+              {roomOccupancyText(unit.adults, unit.children, unit.infants)}
+            </span>
+          ) : null}
+        </p>
+        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-[#4a2c1a]">
+          {roomStatusLabel(unit.status)}
+        </span>
+      </div>
+
+      <div className="mt-3 space-y-1.5" data-testid={`room-occupants-${unit.unitSequence}`}>
+        <OccupantRow
+          sequence={unit.unitSequence}
+          name={primary?.name ?? "No primary occupant"}
+          guestId={primary?.guestId ?? null}
+          primary
+          canRemove={mutable && Boolean(primary) && additional.length === 0}
+          pending={pending}
+          onRemove={primary ? () => onChoose(primary.guestId, "remove") : undefined}
+        />
+        {additional.map((occupant) => (
+          <OccupantRow
+            key={occupant.guestId}
+            sequence={unit.unitSequence}
+            name={occupant.name}
+            guestId={occupant.guestId}
+            primary={false}
+            canRemove={mutable}
+            pending={pending}
+            onMakePrimary={mutable ? () => onChoose(occupant.guestId, "set_primary") : undefined}
+            onRemove={() => onChoose(occupant.guestId, "remove")}
+          />
+        ))}
+      </div>
+      {mutable && additional.length > 0 && primary ? (
+        <p className={cn("mt-1 text-[11px]", MUTED)}>{ROOM_PRIMARY_REMOVAL_NOTE}</p>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {mutable ? (
           <Button
             type="button"
             variant="outline"
             size="sm"
-            disabled={!editable}
-            onClick={onChangeRoomType}
+            className="h-8 text-xs"
+            data-testid={`add-guest-${unit.unitSequence}`}
+            disabled={atCapacity || pending}
+            onClick={onAdd}
           >
-            Change Room Type
+            Add Guest
           </Button>
-        </div>
+        ) : null}
+        {canManage && onOperate
+          ? operations.map((action) => (
+              <Button
+                key={action}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                data-testid={`room-action-${action}-${unit.unitSequence}`}
+                onClick={() => onOperate(action, unit.id)}
+              >
+                {action === "assign_room"
+                  ? "Assign Room"
+                  : action === "change_room"
+                    ? "Change Room"
+                    : action === "check_in"
+                      ? "Check In"
+                      : "Check Out"}
+              </Button>
+            ))
+          : null}
       </div>
-    </section>
-  );
-}
-
-function AvailableRoomsCard({
-  rows,
-  filters,
-  options,
-  selectedId,
-  editable,
-  assigning,
-  onFilters,
-  onSelect,
-  onAssign,
-}: {
-  rows: ReturnType<typeof filterRoomAssignmentRows>;
-  filters: RoomAssignmentFilters;
-  options: ReturnType<typeof uniqueFilterOptions>;
-  selectedId: string;
-  editable: boolean;
-  assigning: boolean;
-  onFilters: (next: RoomAssignmentFilters) => void;
-  onSelect: (id: string) => void;
-  onAssign: (id: string) => void;
-}) {
-  function patch(next: Partial<RoomAssignmentFilters>) {
-    onFilters({ ...filters, ...next });
-  }
-  return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="available-rooms"
-    >
-      <h2 className="font-display text-base text-[#251605]">Available Rooms</h2>
-      <p className="mb-3 text-xs text-muted-foreground">
-        Select a room to assign to this reservation. Only eligible rooms can be assigned.
-      </p>
-      <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        <FilterSelect
-          label="Floor"
-          value={filters.floor}
-          options={options.floors}
-          onChange={(floor) => patch({ floor })}
-        />
-        <FilterSelect
-          label="View"
-          value={filters.view}
-          options={options.views}
-          onChange={(view) => patch({ view })}
-        />
-        <FilterSelect
-          label="Room Status"
-          value={filters.status}
-          options={options.statuses}
-          onChange={(status) => patch({ status })}
-        />
-        <FilterSelect
-          label="Features"
-          value={filters.feature}
-          options={options.features}
-          onChange={(feature) => patch({ feature })}
-        />
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">Search room number</Label>
-          <div className="relative">
-            <Search className="absolute left-2 top-2 size-3.5 text-muted-foreground" />
-            <Input
-              className={`${FIELD} pl-7`}
-              value={filters.search}
-              placeholder="Search room number…"
-              onChange={(e) => patch({ search: e.target.value })}
-            />
-          </div>
-        </div>
-      </div>
-      {rows.length === 0 ? (
-        <p
-          className="py-6 text-center text-sm text-muted-foreground"
-          data-testid="available-rooms-empty"
-        >
-          No eligible rooms match these filters.
+      {mutable && atCapacity ? (
+        <p className={cn("mt-1 text-[11px]", MUTED)}>
+          Every booked adult and child already has a name.
         </p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-[#EEE6D8] text-[11px] uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="py-2 pr-2">Room No.</th>
-                <th className="py-2 pr-2">Room Type</th>
-                <th className="py-2 pr-2">Floor</th>
-                <th className="py-2 pr-2">View</th>
-                <th className="py-2 pr-2">Bed Type</th>
-                <th className="py-2 pr-2">Status</th>
-                <th className="py-2 pr-2">Features</th>
-                <th className="py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-[#F4EEE4]">
-                  <td className="py-2 pr-2">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="reservation-room-select"
-                        checked={selectedId === row.id}
-                        disabled={!editable || !row.eligible}
-                        onChange={() => onSelect(row.id)}
-                      />
-                      {row.roomNumber}
-                    </label>
-                  </td>
-                  <td className="py-2 pr-2">{reviewDash(row.roomTypeName)}</td>
-                  <td className="py-2 pr-2">{reviewDash(row.floor)}</td>
-                  <td className="py-2 pr-2">{reviewDash(row.view)}</td>
-                  <td className="py-2 pr-2">{reviewDash(row.bedType)}</td>
-                  <td className="py-2 pr-2">
-                    <span
-                      className={cn(
-                        "text-xs font-medium",
-                        row.statusTone === "ready" && "text-emerald-700",
-                        row.statusTone === "warn" && "text-amber-700",
-                        row.statusTone === "blocked" && "text-red-700",
-                      )}
-                    >
-                      {row.statusLabel}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-2 text-xs">{row.features.join(" · ") || DETAIL_DASH}</td>
-                  <td className="py-2">
-                    {row.eligible ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={!editable || assigning}
-                        onClick={() => onAssign(row.id)}
-                      >
-                        Select
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Unavailable</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+      ) : null}
+      {!roomOccupantsMutable(unit.status) ? (
+        <p
+          className={cn("mt-1 text-[11px]", MUTED)}
+          data-testid={`room-occupants-locked-${unit.unitSequence}`}
+        >
+          Occupants on this room are kept for history.
+        </p>
+      ) : null}
+      {adding ? (
+        <AddGuestSearch
+          restaurantId={restaurantId}
+          sequence={unit.unitSequence}
+          takenGuestIds={unit.occupants.map((occupant) => occupant.guestId)}
+          pending={pending}
+          onCancel={onCancelAdd}
+          onSelect={(guestId) => onChoose(guestId, "add")}
+        />
+      ) : null}
+    </article>
   );
 }
 
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
+function OccupantRow({
+  sequence,
+  name,
+  guestId,
+  primary,
+  canRemove,
+  pending,
+  onMakePrimary,
+  onRemove,
 }: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
+  sequence: number;
+  name: string;
+  guestId: string | null;
+  primary: boolean;
+  canRemove: boolean;
+  pending: boolean;
+  onMakePrimary?: () => void;
+  onRemove?: () => void;
 }) {
   return (
-    <div className="space-y-1">
-      <Label className="text-[11px] text-muted-foreground">{label}</Label>
-      <Select value={value || ALL} onValueChange={(next) => onChange(next === ALL ? "" : next)}>
-        <SelectTrigger className={FIELD}>
-          <SelectValue placeholder={label} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL}>All {label}</SelectItem>
-          {options.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <span className="text-sm font-semibold text-[#251605]">{name}</span>
+      {primary && guestId ? (
+        <span
+          className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-[#4a2c1a]"
+          data-testid={`primary-occupant-${sequence}`}
+        >
+          Primary
+        </span>
+      ) : null}
+      {!primary && guestId ? (
+        <span className={cn("text-[10px]", MUTED)} data-testid={`additional-occupant-${sequence}`}>
+          Additional
+        </span>
+      ) : null}
+      {guestId ? (
+        <Link
+          to="/restaurant/pms/guests/$guestId"
+          params={{ guestId }}
+          className="text-[11px] font-medium text-[#8a641a] underline-offset-2 hover:underline"
+        >
+          View Guest
+        </Link>
+      ) : null}
+      {onMakePrimary ? (
+        <button
+          type="button"
+          className="text-[11px] font-medium text-[#251605] underline-offset-2 hover:underline disabled:opacity-50"
+          data-testid={`change-primary-${sequence}`}
+          disabled={pending}
+          onClick={onMakePrimary}
+        >
+          Change Primary
+        </button>
+      ) : null}
+      {canRemove && onRemove ? (
+        <button
+          type="button"
+          className="text-[11px] font-medium text-destructive underline-offset-2 hover:underline disabled:opacity-50"
+          data-testid={`remove-guest-${sequence}`}
+          disabled={pending}
+          onClick={onRemove}
+        >
+          Remove Guest
+        </button>
+      ) : null}
     </div>
   );
 }
 
-function RoomPreferencesCard({
-  prefs,
-  editable,
-  onToggle,
+function AddGuestSearch({
+  restaurantId,
+  sequence,
+  takenGuestIds,
+  pending,
+  onCancel,
+  onSelect,
 }: {
-  prefs: Record<RoomAssignmentPrefId, boolean>;
-  editable: boolean;
-  onToggle: (id: RoomAssignmentPrefId, checked: boolean) => void;
+  restaurantId: string;
+  sequence: number;
+  takenGuestIds: string[];
+  pending: boolean;
+  onCancel: () => void;
+  onSelect: (guestId: string) => void;
 }) {
-  return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="room-preferences"
-    >
-      <h2 className="font-display text-base text-[#251605]">Room Preferences for this Room</h2>
-      <p className="mb-3 text-xs text-muted-foreground">
-        Specific preferences for the assigned room.
-      </p>
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        {ROOM_ASSIGNMENT_PREFS.map((pref) => (
-          <label key={pref.id} className={cn("flex items-center gap-2", !editable && "opacity-60")}>
-            <Checkbox
-              checked={prefs[pref.id]}
-              disabled={!editable}
-              onCheckedChange={(value) => onToggle(pref.id, value === true)}
-            />
-            {pref.label}
-          </label>
-        ))}
-      </div>
-      <p className="mt-2 text-[11px] text-muted-foreground">{ROOM_PREF_SAVE_COPY}</p>
-    </section>
-  );
-}
+  const fetchGuests = useServerFn(listGuests);
+  const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
 
-function AssignmentNotesCard({
-  value,
-  editable,
-  onChange,
-}: {
-  value: string;
-  editable: boolean;
-  onChange: (value: string) => void;
-}) {
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setDebounced(search),
+      CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  const trimmed = debounced.trim();
+  const guestsQuery = useQuery({
+    queryKey: ["guests", restaurantId, "detail-room-guest", sequence, trimmed],
+    queryFn: () =>
+      fetchGuests({
+        data: {
+          restaurantId,
+          status: "active",
+          limit: CREATE_RESERVATION_GUEST_SEARCH_LIMIT,
+          offset: 0,
+          search: trimmed,
+        },
+      }),
+    enabled: trimmed.length > 0,
+  });
+  const matches = guestListItems(guestsQuery.data).filter(
+    (guest) => !takenGuestIds.includes(guest.id),
+  );
+
   return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="assignment-notes"
-    >
-      <h2 className="font-display text-base text-[#251605]">Assignment Notes</h2>
-      <p className="mb-2 text-xs text-muted-foreground">
-        Internal notes about room assignment (visible to hotel staff only).
-      </p>
-      <Textarea
-        id="assignment-notes"
-        maxLength={ASSIGNMENT_NOTES_MAX}
-        disabled={!editable}
-        value={value}
-        onChange={(e) => onChange(e.target.value.slice(0, ASSIGNMENT_NOTES_MAX))}
-        placeholder="Add assignment notes here…"
-        className="min-h-24"
+    <div className="mt-3 space-y-2" data-testid={`add-guest-search-${sequence}`}>
+      <Input
+        value={search}
+        className={cn(FIELD, "text-xs")}
+        placeholder="Search guest profile"
+        onChange={(event) => setSearch(event.target.value)}
       />
-      <p className="mt-1 text-right text-[11px] text-muted-foreground">
-        {value.length}/{ASSIGNMENT_NOTES_MAX}
-      </p>
-      <p className="mt-1 text-[11px] text-muted-foreground">{ASSIGNMENT_NOTES_GAP_COPY}</p>
-    </section>
-  );
-}
-
-function RoomsSummaryRail({
-  reservation,
-  money,
-  coverUrl,
-  nights,
-}: {
-  reservation: ReservationDetail;
-  money: (value: number) => string;
-  coverUrl: string | null;
-  nights: number;
-}) {
-  return (
-    <ReservationDetailSummary
-      testId="reservation-rooms-summary"
-      reservation={reservation}
-      money={money}
-      coverUrl={coverUrl}
-      nights={nights}
-    />
+      {matches.length > 0 ? (
+        <ul className="max-h-32 overflow-auto rounded-lg border border-[#e9dfd0] bg-white">
+          {matches.map((guest) => (
+            <li key={guest.id}>
+              <button
+                type="button"
+                className="block w-full px-3 py-1.5 text-left text-xs text-[#251605] hover:bg-gray-50 disabled:opacity-50"
+                disabled={pending}
+                onClick={() => onSelect(guest.id)}
+              >
+                {guest.fullName}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={() => setFormOpen(true)}
+        >
+          Create Guest
+        </Button>
+        <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+      <GuestFormDialog
+        restaurantId={restaurantId}
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        onSaved={(guestId) => {
+          setFormOpen(false);
+          onSelect(guestId);
+        }}
+      />
+    </div>
   );
 }

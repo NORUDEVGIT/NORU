@@ -79,21 +79,7 @@ export function GuestTravelAgentOverview({
   const others = (contacts.data?.items ?? []).filter((row) => row.id !== primary?.id);
 
   return (
-    <div className="space-y-4" data-testid="travel-agent-overview">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Total Bookings" value={String(data.kpis.totalBookings)} />
-        <Kpi label="Total Guests" value={String(data.kpis.totalGuests)} />
-        <Kpi
-          label="Total Commission"
-          value={
-            data.kpis.commissionConfigured && data.kpis.totalCommission != null
-              ? data.kpis.totalCommission.toLocaleString(undefined, { minimumFractionDigits: 2 })
-              : "Not configured"
-          }
-        />
-        <Kpi label="Default Commission Rate" value={data.kpis.defaultRateLabel ?? "Not configured"} />
-      </div>
-
+    <div className="space-y-4">
       <Card title="Agency Information" action={<Button type="button" variant="outline" size="sm" onClick={onEdit}>Edit Agency</Button>}>
         <dl className="grid gap-2 sm:grid-cols-2 text-sm">
           <Info label="Agency Name" value={data.agency.name} />
@@ -279,15 +265,6 @@ function Card({ title, action, children }: { title: string; action?: React.React
       </div>
       {children}
     </section>
-  );
-}
-
-function Kpi({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 font-display text-2xl">{value}</p>
-    </div>
   );
 }
 

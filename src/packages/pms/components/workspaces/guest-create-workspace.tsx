@@ -8,7 +8,7 @@ import { AlertTriangle, Camera, Check, ChevronDown, ChevronRight, ChevronUp } fr
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
-import { Label } from "@/shared/components/ui/label";
+import { Field } from "@/packages/pms/components/guests/guest-create-field";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Switch } from "@/shared/components/ui/switch";
 import { Checkbox } from "@/shared/components/ui/checkbox";
@@ -774,18 +774,6 @@ export function GuestCreateWorkspace({
   );
 }
 
-function Field({ label, required: isRequired, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <Label className={error ? "text-destructive" : undefined}>{label}{isRequired ? " *" : ""}</Label>
-      <div className={error ? "[&_input]:border-destructive [&_button]:border-destructive [&_textarea]:border-destructive" : undefined}>
-        {children}
-      </div>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-    </div>
-  );
-}
-
 function BasicStep({
   draft,
   set,
@@ -1117,6 +1105,7 @@ function PreferencesStep({
   categories,
   types,
   fieldError,
+  isLoading,
 }: {
   draft: GuestCreateDraft;
   setDraft: React.Dispatch<React.SetStateAction<GuestCreateDraft>>;
@@ -1290,65 +1279,68 @@ function PreferencesStep({
                       label=""
                       error={fieldError(`PREF:${type.id}`, "preferences")}
                     >
-                      {type.valueType === "yes_no" ? (
-                        <div className="flex items-center gap-2 pt-1">
-                          <Switch
-                            checked={values[0] === "yes"}
-                            onCheckedChange={(checked) => setValues(type.id, [checked ? "yes" : "no"])}
-                          />
-                          <span className="text-sm text-muted-foreground">
-                            {values[0] === "yes" ? "Yes" : "No"}
-                          </span>
-                        </div>
-                      ) : type.valueType === "multi" ? (
-                        <div className="space-y-1">
-                          {type.options
-                            .filter((option) => option.active)
-                            .map((option) => (
-                              <label key={option.value} className="flex items-center gap-2 text-sm">
-                                <Checkbox
-                                  checked={values.includes(option.value)}
-                                  onCheckedChange={(checked) =>
-                                    setValues(
-                                      type.id,
-                                      checked
-                                        ? [...values, option.value]
-                                        : values.filter((value) => value !== option.value),
-                                    )
-                                  }
-                                />
-                                {option.label}
-                              </label>
-                            ))}
-                        </div>
-                      ) : type.valueType === "text" || type.valueType === "number" ? (
-                        <Input
-                          type={type.valueType === "number" ? "number" : "text"}
-                          value={values[0] ?? ""}
-                          onChange={(event) =>
-                            setValues(type.id, event.target.value ? [event.target.value] : [])
-                          }
-                        />
-                      ) : (
-                        <Select
-                          value={values[0] || "__none"}
-                          onValueChange={(value) => setValues(type.id, value === "__none" ? [] : [value])}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={placeholder} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none">None</SelectItem>
+                      {/* Required preferences get the same dark brown border as other required fields. */}
+                      <div className={type.required ? REQUIRED_BROWN : undefined}>
+                        {type.valueType === "yes_no" ? (
+                          <div className="flex items-center gap-2 pt-1">
+                            <Switch
+                              checked={values[0] === "yes"}
+                              onCheckedChange={(checked) => setValues(type.id, [checked ? "yes" : "no"])}
+                            />
+                            <span className="text-sm text-muted-foreground">
+                              {values[0] === "yes" ? "Yes" : "No"}
+                            </span>
+                          </div>
+                        ) : type.valueType === "multi" ? (
+                          <div className="space-y-1">
                             {type.options
                               .filter((option) => option.active)
                               .map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
+                                <label key={option.value} className="flex items-center gap-2 text-sm">
+                                  <Checkbox
+                                    checked={values.includes(option.value)}
+                                    onCheckedChange={(checked) =>
+                                      setValues(
+                                        type.id,
+                                        checked
+                                          ? [...values, option.value]
+                                          : values.filter((value) => value !== option.value),
+                                      )
+                                    }
+                                  />
                                   {option.label}
-                                </SelectItem>
+                                </label>
                               ))}
-                          </SelectContent>
-                        </Select>
-                      )}
+                          </div>
+                        ) : type.valueType === "text" || type.valueType === "number" ? (
+                          <Input
+                            type={type.valueType === "number" ? "number" : "text"}
+                            value={values[0] ?? ""}
+                            onChange={(event) =>
+                              setValues(type.id, event.target.value ? [event.target.value] : [])
+                            }
+                          />
+                        ) : (
+                          <Select
+                            value={values[0] || "__none"}
+                            onValueChange={(value) => setValues(type.id, value === "__none" ? [] : [value])}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={placeholder} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none">None</SelectItem>
+                              {type.options
+                                .filter((option) => option.active)
+                                .map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
                     </Field>
                   </div>
                 );
@@ -1495,4 +1487,3 @@ function ReviewStep({
     </div>
   );
 }
-

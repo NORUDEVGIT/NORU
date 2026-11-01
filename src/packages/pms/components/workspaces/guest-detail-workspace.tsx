@@ -3,30 +3,49 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, Pencil, Power, StickyNote } from "lucide-react";
+import {
+  ArrowLeft,
+  Briefcase,
+  CalendarDays,
+  ChevronDown,
+  ClipboardList,
+  Crown,
+  FileText,
+  MapPin,
+  Merge,
+  Pencil,
+  Plus,
+  Printer,
+  ShieldAlert,
+  SlidersHorizontal,
+  StickyNote,
+  UserX,
+  Users,
+} from "lucide-react";
 
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
+import { GuestRestrictionWarn, StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
+import { GuestMergeDialog } from "@/packages/pms/components/guests/guest-merge-dialog";
 import { GuestFormIdentityUpload } from "@/packages/pms/components/guests/guest-form-identity-upload";
 import { GuestIndividualLinks } from "@/packages/pms/components/guests/guest-individual-links";
-import {
-  GuestRestrictionBadges,
-  GuestRestrictionWarn,
-  StatusBadge,
-  VipBadge,
-} from "@/packages/pms/components/guests/guest-bits";
 import { GuestConsentPanel } from "@/packages/pms/components/guests/guest-consent-panel";
-import { GuestMergeDialog } from "@/packages/pms/components/guests/guest-merge-dialog";
-import { GuestPreferencesCard } from "@/packages/pms/components/guests/guest-preferences-card";
 import { MaskedIdNumber } from "@/packages/pms/components/guests/guest-id-mask";
 import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
 import { GUEST_PROFILE_DIRECTORY_PATH } from "@/packages/pms/lib/guest-profile-wave1";
+import {
+  PREFERRED_CONTACT_METHOD_LABELS,
+  PREFERRED_CONTACT_TIME_LABELS,
+} from "@/packages/pms/lib/guest-profile-overview";
 import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
-import { STAFF_VERIFY_COPY } from "@/packages/pms/lib/guest-profile-wave2";
-import { WAVE3_PROFILE_HISTORY_COPY } from "@/packages/pms/lib/guest-profile-wave3";
 import { Button } from "@/shared/components/ui/button";
-import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -44,54 +63,30 @@ import {
 } from "@/packages/pms/lib/guests.functions";
 import {
   GUEST_GENDER_LABELS,
-  GUEST_TITLE_LABELS,
   INDIVIDUAL_LIFT_REASON_REQUIRED,
   RESTRICTION_SEVERITY_LABELS,
   guestRestrictionActive,
 } from "@/packages/pms/lib/guest-profile-individual";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useRestaurantTime } from "@/core/state/property-format";
+import { cn } from "@/shared/lib/utils";
 
-const EVENT_LABEL: Record<string, string> = {
-  created: "Guest created",
-  profile_updated: "Profile updated",
-  vip_changed: "VIP status changed",
-  status_changed: "Guest status changed",
-  preference_updated: "Preferences updated",
-  note_added: "Note added",
-  document_uploaded: "Document uploaded",
-  document_verified: "Document staff-verified",
-  document_rejected: "Document rejected",
-  merged_from: "Merged from another guest",
-  merged_into: "Merged into another guest",
-  consent_updated: "Consent updated",
-  relationship_linked: "Relationship linked",
-  relationship_unlinked: "Relationship unlinked",
-  comms_logged: "Communication recorded",
-  comms_sent: "Email sent",
-  exported: "Profile exported",
-  anonymised: "Profile anonymised",
-  unmerged: "Unmerged",
-  unmerge_blocked: "Unmerge not available",
-  restriction_set: "Restriction set",
-  restriction_cleared: "Restriction cleared",
-  restriction_lifted: "Restriction lifted",
-};
-
+/** Kept so existing imports keep compiling; the page shows the overview only. */
 export type GuestDetailSection = "overview" | "preferences";
+
+/** Card surface shared by the cards (compact version). */
+const CARD =
+  "rounded-2xl border border-[#e9dfd0] bg-white shadow-[0_3px_10px_rgba(74,44,26,0.08)]";
 
 export function GuestDetailWorkspace({
   membership,
   guestId,
   backTo = "guest-profile",
-  section = "overview",
-  onSectionChange,
   hideHeader = false,
 }: {
   membership: RestaurantMembership;
   guestId: string;
   backTo?: "guests" | "reservations" | "guest-profile";
-  /** Overview vs Preferences — kept in sync with the shell card selection. */
+  /** Accepted for older callers; the page has no tabs. */
   section?: GuestDetailSection;
   onSectionChange?: (section: GuestDetailSection) => void;
   hideHeader?: boolean;
@@ -104,7 +99,6 @@ export function GuestDetailWorkspace({
     else void navigate({ to: "/restaurant/guests" });
   };
   const queryClient = useQueryClient();
-  const { dateTime } = useRestaurantTime();
 
   const fetchAccess = useServerFn(getGuestsAccess);
   const fetchGuest = useServerFn(getGuest);
@@ -118,7 +112,6 @@ export function GuestDetailWorkspace({
   const [note, setNote] = useState("");
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeRetiredId, setMergeRetiredId] = useState<string | undefined>(undefined);
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [liftOpen, setLiftOpen] = useState(false);
   const [liftReason, setLiftReason] = useState("");
 
@@ -190,7 +183,7 @@ export function GuestDetailWorkspace({
   }
   if (!canManage) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <h1 className="font-display text-2xl">Front Office</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Only owners and managers can access guest profiles for this property.
@@ -200,7 +193,7 @@ export function GuestDetailWorkspace({
   }
   if (guestQuery.isError || !guestQuery.data) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-6">
         <p className="text-sm text-muted-foreground">
           That guest could not be found for this property.
         </p>
@@ -211,10 +204,21 @@ export function GuestDetailWorkspace({
     );
   }
 
-  const { guest, history } = guestQuery.data;
+  const { guest } = guestQuery.data;
+  const profileNumber = (guest as unknown as { profileNumber?: string | null }).profileNumber;
+  // Optional until the guest query returns it; no upcoming stays are listed without it.
+  const upcomingCount = (guest as unknown as { upcomingCount?: number | null }).upcomingCount ?? 0;
+  const restricted = guestRestrictionActive(guest);
+  // Contact preferences saved on the create form (step 3). Read defensively.
+  const prefs = guest as unknown as {
+    preferredContactMethod?: keyof typeof PREFERRED_CONTACT_METHOD_LABELS | null;
+    preferredContactTime?: keyof typeof PREFERRED_CONTACT_TIME_LABELS | null;
+  };
+  const street = [guest.addressLine1, guest.addressLine2].filter(Boolean).join(", ");
+  const cityCountry = [guest.city, guest.country].filter(Boolean).join(", ");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {hideHeader || backTo === "guest-profile" ? null : (
         <button
           type="button"
@@ -225,248 +229,219 @@ export function GuestDetailWorkspace({
         </button>
       )}
 
+      {/* Title row: guest name, then Edit and More */}
       {hideHeader ? null : (
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-2">
-            <h1 className="font-display text-2xl">{guest.fullName}</h1>
-            <div className="flex flex-wrap items-center gap-2">
-              {guest.vipStatus ? <VipBadge /> : null}
-              <StatusBadge status={guest.guestStatus} />
-              <GuestRestrictionBadges guest={guest} />
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="size-4 sm:mr-2" />
-              <span className="hidden sm:inline">Edit</span>
-            </Button>
-            <Button variant="outline" onClick={() => setNoteOpen(true)}>
-              <StickyNote className="size-4 sm:mr-2" />
-              <span className="hidden sm:inline">Add note</span>
-            </Button>
-            {guest.mergedIntoGuestId ? null : (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setMergeRetiredId(undefined);
-                  setMergeOpen(true);
-                }}
-              >
-                Merge guests
-              </Button>
-            )}
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="truncate font-brand text-2xl font-bold tracking-tight">{guest.fullName}</h1>
+          <div className="flex items-center gap-2 print:hidden">
             <Button
-              variant="outline"
-              disabled={statusMutation.isPending}
-              onClick={() =>
-                statusMutation.mutate(guest.guestStatus === "active" ? "inactive" : "active")
-              }
+              className="bg-[#c9a24a] font-bold text-[#2b1a10] hover:bg-[#b8923f]"
+              data-testid="guest-detail-edit"
+              onClick={() => setEditOpen(true)}
             >
-              <Power className="size-4 sm:mr-2" />
-              <span className="hidden sm:inline">
-                {guest.guestStatus === "active" ? "Deactivate" : "Reactivate"}
-              </span>
+              <Pencil className="mr-2 size-4" /> Edit
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" data-testid="guest-detail-more">
+                  More <ChevronDown className="ml-1 size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[210px]">
+                <DropdownMenuItem onSelect={() => setNoteOpen(true)}>
+                  <StickyNote className="mr-2 size-4 text-[#8a641a]" /> Add Note
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    document
+                      .getElementById("guest-identity-card")
+                      ?.scrollIntoView({ behavior: "smooth", block: "center" })
+                  }
+                >
+                  <FileText className="mr-2 size-4" /> Upload Document
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => window.print()}>
+                  <Printer className="mr-2 size-4" /> Print Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={vipMutation.isPending}
+                  onSelect={() => vipMutation.mutate(!guest.vipStatus)}
+                >
+                  <Crown className="mr-2 size-4" /> {guest.vipStatus ? "Remove VIP" : "Mark as VIP"}
+                </DropdownMenuItem>
+                {restricted ? (
+                  <DropdownMenuItem
+                    data-testid="individual-restriction-lift"
+                    onSelect={() => setLiftOpen(true)}
+                  >
+                    <ShieldAlert className="mr-2 size-4" /> Lift restriction…
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuSeparator />
+                {guest.mergedIntoGuestId ? null : (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setMergeRetiredId(undefined);
+                      setMergeOpen(true);
+                    }}
+                  >
+                    <Merge className="mr-2 size-4" /> Merge Profile
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  className={guest.guestStatus === "active" ? "text-destructive focus:text-destructive" : undefined}
+                  disabled={statusMutation.isPending}
+                  onSelect={() =>
+                    statusMutation.mutate(guest.guestStatus === "active" ? "inactive" : "active")
+                  }
+                >
+                  <UserX className="mr-2 size-4" />
+                  {guest.guestStatus === "active" ? "Deactivate Profile" : "Reactivate Profile"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        </div>
+        </header>
       )}
 
-      <Tabs
-        value={hideHeader ? section : historyOpen ? "history" : section}
-        onValueChange={(next) => {
-          if (next === "history") {
-            setHistoryOpen(true);
-            return;
-          }
-          setHistoryOpen(false);
-          onSectionChange?.(next === "preferences" ? "preferences" : "overview");
-        }}
-      >
-        {hideHeader ? null : (
-          <TabsList>
-            <TabsTrigger value="overview" data-testid="guest-detail-tab-overview">
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="preferences" data-testid="guest-detail-tab-preferences">
-              Preferences
-            </TabsTrigger>
-            <TabsTrigger value="history" data-testid="guest-detail-tab-history">
-              History
-            </TabsTrigger>
-          </TabsList>
-        )}
+      <div className="space-y-3" data-testid="guest-detail-overview">
+        <GuestRestrictionWarn guest={guest} />
 
-        <TabsContent value="overview" className="mt-4 space-y-4">
-          <GuestRestrictionWarn guest={guest} />
-          <div className="grid gap-4 md:grid-cols-2">
-            <Panel title="Basic Information">
-              <Row label="Title" value={guest.title ? GUEST_TITLE_LABELS[guest.title] : null} />
-              <Row label="Preferred name" value={guest.preferredName} />
-              <Row label="Middle name" value={guest.middleName} />
-              <Row label="Gender" value={guest.gender ? GUEST_GENDER_LABELS[guest.gender] : null} />
-              <Row label="Language" value={guest.language} />
-              <Row label="Nationality" value={guest.nationality} />
-              <Row label="Date of birth" value={guest.dateOfBirth} />
-            </Panel>
-            <Panel title="Contact">
-              <Row label="Phone" value={guest.phone} />
-              <Row label="Alternate phone" value={guest.phoneAlt} />
-              <Row label="Email" value={guest.email} />
-              <Row label="Alternate email" value={guest.emailAlt} />
-            </Panel>
-            <Panel title="Address">
-              <Row label="Address line 1" value={guest.addressLine1} />
-              <Row label="Address line 2" value={guest.addressLine2} />
-              <Row label="City" value={guest.city} />
-              <Row label="Region" value={guest.region} />
-              <Row label="Country" value={guest.country} />
-              <Row label="Postal code" value={guest.postalCode} />
-            </Panel>
-            <div className="md:col-span-2">
-              <Panel title="Identity & Documents">
-                <Row
-                  label="ID type"
-                  value={guest.idDocumentType ? ID_DOCUMENT_LABELS[guest.idDocumentType] : null}
-                />
-                <div className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="text-muted-foreground">ID number</span>
-                  <MaskedIdNumber value={guest.idDocumentNumber} />
-                </div>
-                <Row label="ID expiry" value={guest.idDocumentExpiry} />
-                <GuestRestrictionBadges guest={guest} />
-                <p className="text-xs text-muted-foreground">
-                  Ordinary views show the last four digits only.
-                </p>
-                <div data-testid="individual-information-identity-upload">
-                  <GuestFormIdentityUpload restaurantId={restaurantId} guestId={guestId} />
-                </div>
-                <p className="text-xs text-muted-foreground">{STAFF_VERIFY_COPY}</p>
-              </Panel>
+        {restricted ? (
+          <div className="flex items-start gap-3 rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm">
+            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <div>
+              <p className="font-semibold text-destructive">
+                Restriction
+                {guest.restrictionSeverity
+                  ? ` · ${RESTRICTION_SEVERITY_LABELS[guest.restrictionSeverity]}`
+                  : ""}
+              </p>
+              <p className="text-muted-foreground">
+                {guest.restrictionReason ?? "No reason recorded."}
+                {guest.restrictionUntil ? ` Until ${guest.restrictionUntil}.` : ""}
+              </p>
             </div>
-            <Panel title="Employment">
-              <Row label="Position" value={guest.position} />
-              <Row label="Department" value={guest.department} />
-            </Panel>
-            <Panel title="Emergency">
-              {guest.emergencyContacts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No emergency contacts yet.</p>
-              ) : (
-                guest.emergencyContacts.map((contact) => (
-                  <div
-                    key={contact.id}
-                    className="rounded-xl border border-border px-3 py-2 text-sm"
-                  >
-                    <p className="font-medium">{contact.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {[contact.relationship, contact.phone, contact.email]
-                        .filter(Boolean)
-                        .join(" · ") || "No extra details"}
-                    </p>
-                  </div>
-                ))
-              )}
-            </Panel>
           </div>
-          {guestRestrictionActive(guest) ? (
-            <Panel title="Restrictions">
-              <Row
-                label="Severity"
-                value={
-                  guest.restrictionSeverity
-                    ? RESTRICTION_SEVERITY_LABELS[guest.restrictionSeverity]
-                    : null
-                }
-              />
-              <Row label="Reason" value={guest.restrictionReason} />
-              <Row label="Set by" value={guest.restrictionSetByName} />
-              <Row label="Set at" value={guest.restrictionSetAt} />
-              <Row label="Until" value={guest.restrictionUntil} />
+        ) : null}
+
+        {/* Three cards, same layout as the company page */}
+        <div className="grid gap-3 lg:grid-cols-3">
+          <InfoCard icon={Users} title="Guest">
+            <Row label="Profile No." value={profileNumber} />
+            <Row label="Full name" value={guest.fullName} />
+            <Row label="Guest type" value="Individual Guest" />
+            <Row label="Nationality" value={guest.nationality} />
+            <Row label="Gender" value={guest.gender ? GUEST_GENDER_LABELS[guest.gender] : null} />
+            <Row label="Date of birth" value={guest.dateOfBirth} />
+            <Row label="Status" value={<StatusBadge status={guest.guestStatus} />} />
+            <Row label="VIP" value={guest.vipStatus ? <VipBadge /> : "Standard"} />
+            <Row
+              label="ID type"
+              value={guest.idDocumentType ? ID_DOCUMENT_LABELS[guest.idDocumentType] : null}
+            />
+            <Row label="ID number" value={guest.idDocumentNumber ? <MaskedIdNumber value={guest.idDocumentNumber} /> : null} />
+          </InfoCard>
+
+          <InfoCard icon={MapPin} title="Contact & Address">
+            <Row label="Mobile phone" value={guest.phone} />
+            <Row label="Alternate phone" value={guest.phoneAlt} />
+            <Row label="Email" value={guest.email} />
+            <Row label="Alternate email" value={guest.emailAlt} />
+            <Row label="Address" value={street} />
+            <Row label="City / Country" value={cityCountry} />
+          </InfoCard>
+
+          <InfoCard icon={CalendarDays} title="Upcoming Reservation">
+            <div className="flex min-h-[110px] flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+              <p>
+                {upcomingCount > 0
+                  ? `${upcomingCount} upcoming reservation${upcomingCount === 1 ? "" : "s"}.`
+                  : "No upcoming reservations."}
+              </p>
               <Button
                 variant="outline"
-                data-testid="individual-restriction-lift"
-                onClick={() => setLiftOpen(true)}
+                size="sm"
+                className="rounded-full"
+                onClick={() => void navigate({ to: "/restaurant/bookings/new" })}
               >
-                Lift restriction…
+                <Plus className="mr-1.5 size-3.5" /> New reservation
               </Button>
-            </Panel>
-          ) : null}
-          <Panel title="Notes">
-            <p className="text-sm text-muted-foreground">{guest.notes ?? "No notes yet."}</p>
-            {guest.sourceOfBusiness ? (
-              <Row label="Source of business" value={guest.sourceOfBusiness} />
-            ) : null}
-          </Panel>
-          <GuestIndividualLinks restaurantId={restaurantId} guestId={guestId} />
-          <GuestConsentPanel
-            restaurantId={restaurantId}
-            guestId={guestId}
-            consent={guest.consent}
-            onSaved={refresh}
-          />
-          <div className="flex items-center justify-between rounded-2xl border border-border bg-card px-5 py-4">
-            <div>
-              <p className="font-medium">VIP guest</p>
-              <p className="text-sm text-muted-foreground">Flag this guest for priority service.</p>
             </div>
-            <Switch
-              checked={guest.vipStatus}
-              disabled={vipMutation.isPending}
-              onCheckedChange={(v) => vipMutation.mutate(v)}
+          </InfoCard>
+        </div>
+
+        {/* Cards filled in on the create form: steps 2 to 5 */}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <InfoCard icon={FileText} title="Identity Documents" id="guest-identity-card">
+            <Row
+              label="ID type"
+              value={guest.idDocumentType ? ID_DOCUMENT_LABELS[guest.idDocumentType] : null}
             />
-          </div>
-        </TabsContent>
+            <Row
+              label="ID number"
+              value={guest.idDocumentNumber ? <MaskedIdNumber value={guest.idDocumentNumber} /> : null}
+            />
+            <Row label="ID expiry" value={guest.idDocumentExpiry} />
+            <div className="py-2" data-testid="individual-information-identity-upload">
+              <GuestFormIdentityUpload restaurantId={restaurantId} guestId={guestId} />
+            </div>
+          </InfoCard>
 
-        <TabsContent
-          value="preferences"
-          className="mt-4"
-          data-testid="guest-detail-preferences-panel"
-        >
-          <GuestPreferencesCard
-            restaurantId={restaurantId}
-            guestId={guestId}
-            guest={guestQuery.data.guest}
-            preferences={guestQuery.data.preferences}
-            onSaved={refresh}
-          />
-        </TabsContent>
+          <InfoCard icon={SlidersHorizontal} title="Preferences">
+            <Row label="Language" value={guest.language} />
+            <Row
+              label="Preferred contact method"
+              value={prefs.preferredContactMethod ? PREFERRED_CONTACT_METHOD_LABELS[prefs.preferredContactMethod] : null}
+            />
+            <Row
+              label="Preferred contact time"
+              value={prefs.preferredContactTime ? PREFERRED_CONTACT_TIME_LABELS[prefs.preferredContactTime] : null}
+            />
+          </InfoCard>
 
-        <TabsContent value="history" className="mt-4" data-testid="guest-detail-history-panel">
-          <p
-            className="mb-3 text-sm text-muted-foreground"
-            data-testid="guest-profile-history-copy"
-          >
-            {WAVE3_PROFILE_HISTORY_COPY}
-          </p>
-          {history.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
-          ) : (
-            <ol className="space-y-3">
-              {history.map((h) => (
-                <li key={h.id} className="rounded-2xl border border-border bg-card p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-medium">{EVENT_LABEL[h.eventType] ?? h.eventType}</p>
-                    <p className="text-xs text-muted-foreground">{dateTime(h.createdAt)}</p>
-                  </div>
-                  {h.actorName ? (
-                    <p className="mt-1 text-xs text-muted-foreground">by {h.actorName}</p>
-                  ) : null}
-                  {h.notes ? <p className="mt-2 text-sm">{h.notes}</p> : null}
-                  {h.newValues ? (
-                    <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-                      {Object.keys(h.newValues).map((key) => (
-                        <li key={key}>
-                          <span className="font-medium">{key.replace(/_/g, " ")}</span>:{" "}
-                          {formatValue(h.previousValues?.[key])} → {formatValue(h.newValues?.[key])}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-          )}
-        </TabsContent>
-      </Tabs>
+          <InfoCard icon={Briefcase} title="Business & Membership">
+            <Row label="Source of business" value={guest.sourceOfBusiness} />
+            <Row label="Loyalty membership" value="Not available yet" />
+            <div className="py-2">
+              <GuestIndividualLinks restaurantId={restaurantId} guestId={guestId} />
+            </div>
+          </InfoCard>
+
+          <InfoCard icon={ClipboardList} title="Additional Information">
+            <Row label="Position" value={guest.position} />
+            <Row label="Department" value={guest.department} />
+            <Row label="Notes" value={guest.notes} />
+            <div className="border-b border-[#efe7da] py-2 text-xs">
+              <p className="mb-1.5 text-muted-foreground">Emergency contacts</p>
+              {guest.emergencyContacts.length === 0 ? (
+                <p className="text-muted-foreground/60">None added yet.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {guest.emergencyContacts.map((contact) => (
+                    <li key={contact.id}>
+                      <p className="font-semibold">{contact.name}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {[contact.relationship, contact.phone, contact.email]
+                          .filter(Boolean)
+                          .join(" · ") || "No extra details"}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="py-2">
+              <GuestConsentPanel
+                restaurantId={restaurantId}
+                guestId={guestId}
+                consent={guest.consent}
+                onSaved={refresh}
+              />
+            </div>
+          </InfoCard>
+        </div>
+      </div>
 
       <GuestFormDialog
         restaurantId={restaurantId}
@@ -542,26 +517,40 @@ export function GuestDetailWorkspace({
   );
 }
 
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "boolean") return value ? "yes" : "no";
-  return String(value);
-}
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+/** A compact card with a small gold icon and a title, then its rows. */
+function InfoCard({
+  icon: Icon,
+  title,
+  id,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  id?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5">
-      <p className="font-display text-lg">{title}</p>
-      <div className="mt-3 space-y-2">{children}</div>
-    </div>
+    <section id={id} className={cn(CARD, "overflow-hidden")}>
+      <div className="flex items-center gap-2 border-b border-[#e9dfd0] bg-[#fbfbfb] px-4 py-2.5">
+        <span className="grid size-7 place-items-center rounded-full bg-[#f5ead0] text-[#c9a24a]">
+          <Icon className="size-3.5" />
+        </span>
+        <h2 className="text-[13px] font-bold">{title}</h2>
+      </div>
+      <div className="px-4 py-1">{children}</div>
+    </section>
   );
 }
 
-function Row({ label, value }: { label: string; value: string | null }) {
+/** Label on the left, value on the right; empty values show a dash. */
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  const empty = value === null || value === undefined || value === "";
   return (
-    <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right">{value ?? "—"}</span>
+    <div className="flex items-center justify-between gap-3 border-b border-[#efe7da] py-1.5 text-xs last:border-b-0">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <span className={cn("min-w-0 truncate text-right", empty ? "text-muted-foreground/60" : "font-semibold")}>
+        {empty ? "—" : value}
+      </span>
     </div>
   );
 }

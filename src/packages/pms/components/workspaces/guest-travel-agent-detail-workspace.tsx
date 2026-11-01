@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown } from "lucide-react";
 
+import {
+  GuestDetailLoading,
+  GuestDetailMissing,
+} from "@/packages/pms/components/guests/guest-detail-nav";
 import { GuestTravelAgentHeader } from "@/packages/pms/components/guests/guest-travel-agent-header";
 import { GuestTravelAgentOverviewView } from "@/packages/pms/components/guests/guest-travel-agent-overview-view";
 import { GuestTravelAgentDetailsView } from "@/packages/pms/components/guests/guest-travel-agent-details-view";
@@ -17,43 +20,105 @@ import { GuestTravelAgentActivityView } from "@/packages/pms/components/guests/g
 import { GuestTravelAgentSettingsView } from "@/packages/pms/components/guests/guest-travel-agent-settings-view";
 import { GuestTravelAgencyCreateModal } from "@/packages/pms/components/guests/guest-travel-agency-create-modal";
 
-// Canonical views preserve and map:
-// GuestTravelAgentOverview
-// GuestTravelAgentContacts
-// GuestTravelAgentBookings
-// GuestTravelAgentCommission
-// GuestTravelAgentAgreements
-// GuestTravelAgentBilling
-// GuestTravelAgentDocuments
-// GuestTravelAgentNotes
-// GuestActivityHubCard
-// GuestTravelAgentSettings
-
 import {
   GUEST_PROFILE_DETAIL_PATH,
+  GUEST_PROFILE_DIRECTORY_PATH,
   guestProfileSearch,
   type TravelAgentDetailNavId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import {
   TRAVEL_AGENT_DETAIL_MORE_ITEMS,
   TRAVEL_AGENT_DETAIL_PRIMARY_TABS,
-  isMoreTravelAgentView,
   resolveCanonicalTravelAgentNavId,
   resolveInitialTravelAgentCommercialSubTab,
   resolveInitialTravelAgentContactsTravelersSubTab,
   type CanonicalTravelAgentViewId,
 } from "@/packages/pms/lib/guest-travel-agent-detail-view";
-import { TRAVEL_AGENT_DETAIL_NAV, travelAgentDetailNav } from "@/packages/pms/lib/guest-travel-agent-detail-workspace";
+import { travelAgentDetailNav } from "@/packages/pms/lib/guest-travel-agent-detail-workspace";
 import { getTravelAgentDetailWorkspace } from "@/packages/pms/lib/guest-travel-agent-detail.functions";
 import { getGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/shared/components/ui/dropdown-menu";
-import { cn } from "@/shared/lib/utils";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+
+type MenuItem = { id: string; label: string };
+
+/** "Overview" button that opens a dropdown of buttons, one per section. */
+function SectionMenu({
+  items,
+  activeId,
+  onSelect,
+}: {
+  items: MenuItem[];
+  activeId: string;
+  onSelect: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const active = items.find((i) => i.id === activeId);
+
+  return (
+    <div className="relative inline-block" ref={ref} data-testid="travel-agent-detail-nav">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-testid="travel-agent-nav-overview"
+        className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-medium transition hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+      >
+        {active?.label ?? "Overview"}
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          aria-hidden
+          className={`transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute left-0 z-30 mt-2 flex w-56 flex-col gap-1 rounded-xl border border-border bg-popover p-1.5 shadow-lg"
+        >
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              data-testid={`travel-agent-nav-${item.id}`}
+              onClick={() => {
+                setOpen(false);
+                onSelect(item.id);
+              }}
+              className={`w-full rounded-lg px-3 py-2 text-left text-sm transition hover:bg-accent ${
+                item.id === activeId ? "bg-accent font-medium" : ""
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function GuestTravelAgentDetailWorkspace({
   membership,
@@ -93,17 +158,28 @@ export function GuestTravelAgentDetailWorkspace({
     });
   }
 
+  function backToDirectory() {
+    void navigate({
+      to: GUEST_PROFILE_DIRECTORY_PATH,
+      search: guestProfileSearch({ type: "travel-agent" }),
+    });
+  }
+
   if (query.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading travel agency…</p>;
+    return <GuestDetailLoading label="Loading travel agency…" />;
   }
   if (query.error || !query.data) {
     return (
-      <div className="rounded-2xl border border-dashed border-border p-6" data-testid="travel-agent-detail-missing">
-        <p className="font-display text-lg">Travel Agency not found</p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {(query.error as Error | undefined)?.message ?? "This travel agency is not available in the current property."}
-        </p>
-      </div>
+      <GuestDetailMissing
+        testId="travel-agent-detail-missing"
+        title="Travel Agency not found"
+        message={
+          (query.error as Error | undefined)?.message ??
+          "This travel agency is not available in the current property."
+        }
+        backLabel="Back to Travel Agents"
+        onBack={backToDirectory}
+      />
     );
   }
 
@@ -112,14 +188,16 @@ export function GuestTravelAgentDetailWorkspace({
   const canManageRes =
     membership.role === "owner" || membership.role === "manager" || membership.role === "receptionist";
 
-  const isMoreActive = isMoreTravelAgentView(canonicalNavId);
-  const activeMoreItem = TRAVEL_AGENT_DETAIL_MORE_ITEMS.find((item) => item.id === canonicalNavId);
-
   const contactsTravelersSubTab = resolveInitialTravelAgentContactsTravelersSubTab(navProp);
   const commercialSubTab = resolveInitialTravelAgentCommercialSubTab(navProp);
 
+  const menuItems = [
+    ...(TRAVEL_AGENT_DETAIL_PRIMARY_TABS as unknown as MenuItem[]),
+    ...(TRAVEL_AGENT_DETAIL_MORE_ITEMS as unknown as MenuItem[]),
+  ];
+
   return (
-    <div className="space-y-6" data-testid="travel-agent-detail-workspace">
+    <div className="space-y-4" data-testid="travel-agent-detail-workspace">
       <GuestTravelAgentHeader
         restaurantId={restaurantId}
         agency={data.agency}
@@ -128,159 +206,96 @@ export function GuestTravelAgentDetailWorkspace({
         canManageRes={canManageRes}
       />
 
-      {/* Modern 5-Primary Tabs + More Dropdown Navigation */}
-      <nav
-        aria-label="Travel agency sections"
-        className="flex w-full items-center gap-1 overflow-x-auto border-b border-[#DDD4C5] pb-px"
-        role="tablist"
-        data-testid="travel-agent-detail-nav"
-      >
-        {TRAVEL_AGENT_DETAIL_PRIMARY_TABS.map((item) => {
-          const active = item.id === canonicalNavId;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              data-testid={`travel-agent-nav-${item.id}`}
-              onClick={() => selectNav(item.id)}
-              className={cn(
-                "shrink-0 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors",
-                active
-                  ? "border-[#C89933] text-[#251605] font-semibold"
-                  : "border-transparent text-[#756A5B] hover:text-[#251605]",
-              )}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-
-        {/* More ▾ Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={isMoreActive}
-              data-testid="travel-agent-nav-more"
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors",
-                isMoreActive
-                  ? "border-[#C89933] text-[#251605] font-semibold"
-                  : "border-transparent text-[#756A5B] hover:text-[#251605]",
-              )}
-            >
-              <span>{isMoreActive && activeMoreItem ? activeMoreItem.label : "More"}</span>
-              <ChevronDown className="size-3.5 opacity-70" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            {TRAVEL_AGENT_DETAIL_MORE_ITEMS.map((item) => (
-              <DropdownMenuItem
-                key={item.id}
-                onClick={() => selectNav(item.id)}
-                className={cn(
-                  "cursor-pointer text-xs font-medium",
-                  canonicalNavId === item.id ? "bg-[#F7F4EE] text-[#251605] font-bold" : "text-[#756A5B]",
-                )}
-                data-testid={`travel-agent-nav-${item.id}`}
-              >
-                {item.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </nav>
+      {/* Overview button with dropdown of sections */}
+      <SectionMenu
+        items={menuItems}
+        activeId={canonicalNavId}
+        onSelect={(id) => selectNav(id as CanonicalTravelAgentViewId)}
+      />
 
       {/* Canonical View Mounting */}
-      {canonicalNavId === "overview" && (
-        <GuestTravelAgentOverviewView
-          restaurantId={restaurantId}
-          agencyId={agencyId}
-          data={data}
-          onNavigate={(target) => selectNav(target as CanonicalTravelAgentViewId)}
-          onEdit={() => setEditOpen(true)}
-          canManageRes={canManageRes}
-        />
-      )}
+      <div className="pt-1" data-testid={`travel-agent-detail-view-content-${canonicalNavId}`}>
+        {canonicalNavId === "overview" && (
+          <GuestTravelAgentOverviewView
+            restaurantId={restaurantId}
+            agencyId={agencyId}
+            data={data}
+            onNavigate={(target) => selectNav(target as CanonicalTravelAgentViewId)}
+            onEdit={() => setEditOpen(true)}
+            canManageRes={canManageRes}
+          />
+        )}
 
-      {canonicalNavId === "details" && (
-        <GuestTravelAgentDetailsView
-          restaurantId={restaurantId}
-          agencyId={agencyId}
-          onOpenEditDialog={() => setEditOpen(true)}
-        />
-      )}
+        {canonicalNavId === "details" && (
+          <GuestTravelAgentDetailsView
+            restaurantId={restaurantId}
+            agencyId={agencyId}
+            onOpenEditDialog={() => setEditOpen(true)}
+          />
+        )}
 
-      {canonicalNavId === "contacts-travelers" && (
-        <GuestTravelAgentContactsTravelersView
-          restaurantId={restaurantId}
-          agencyId={agencyId}
-          agencyName={data.agency.name}
-          initialSubTab={contactsTravelersSubTab}
-          onEditAgency={() => setEditOpen(true)}
-        />
-      )}
+        {canonicalNavId === "contacts-travelers" && (
+          <GuestTravelAgentContactsTravelersView
+            restaurantId={restaurantId}
+            agencyId={agencyId}
+            agencyName={data.agency.name}
+            initialSubTab={contactsTravelersSubTab}
+            onEditAgency={() => setEditOpen(true)}
+          />
+        )}
 
-      {canonicalNavId === "bookings" && (
-        <GuestTravelAgentBookingsView
-          restaurantId={restaurantId}
-          agencyId={agencyId}
-          canManage={canManageRes}
-        />
-      )}
+        {canonicalNavId === "bookings" && (
+          <GuestTravelAgentBookingsView
+            restaurantId={restaurantId}
+            agencyId={agencyId}
+            canManage={canManageRes}
+          />
+        )}
 
-      {canonicalNavId === "commercial-commission" && (
-        <GuestTravelAgentCommercialCommissionView
-          restaurantId={restaurantId}
-          agencyId={agencyId}
-          agencyName={data.agency.name}
-          initialSubTab={commercialSubTab}
-          onOpenSettings={() => selectNav("settings")}
-        />
-      )}
+        {canonicalNavId === "commercial-commission" && (
+          <GuestTravelAgentCommercialCommissionView
+            restaurantId={restaurantId}
+            agencyId={agencyId}
+            agencyName={data.agency.name}
+            initialSubTab={commercialSubTab}
+            onOpenSettings={() => selectNav("settings")}
+          />
+        )}
 
-      {canonicalNavId === "agreements" && (
-        <GuestTravelAgentAgreementsView
-          restaurantId={restaurantId}
-          agencyId={agencyId}
-          canWrite={canWrite}
-        />
-      )}
+        {canonicalNavId === "agreements" && (
+          <GuestTravelAgentAgreementsView
+            restaurantId={restaurantId}
+            agencyId={agencyId}
+            canWrite={canWrite}
+          />
+        )}
 
-      {canonicalNavId === "documents" && (
-        <GuestTravelAgentDocumentsView
-          restaurantId={restaurantId}
-          agencyId={agencyId}
-        />
-      )}
+        {canonicalNavId === "documents" && (
+          <GuestTravelAgentDocumentsView restaurantId={restaurantId} agencyId={agencyId} />
+        )}
 
-      {canonicalNavId === "communication-notes" && (
-        <GuestTravelAgentCommunicationNotesView
-          restaurantId={restaurantId}
-          agencyId={agencyId}
-        />
-      )}
+        {canonicalNavId === "communication-notes" && (
+          <GuestTravelAgentCommunicationNotesView restaurantId={restaurantId} agencyId={agencyId} />
+        )}
 
-      {canonicalNavId === "activity" && (
-        <GuestTravelAgentActivityView
-          restaurantId={restaurantId}
-          agencyId={agencyId}
-          agencyName={data.agency.name}
-        />
-      )}
+        {canonicalNavId === "activity" && (
+          <GuestTravelAgentActivityView
+            restaurantId={restaurantId}
+            agencyId={agencyId}
+            agencyName={data.agency.name}
+          />
+        )}
 
-      {canonicalNavId === "settings" && (
-        <GuestTravelAgentSettingsView
-          restaurantId={restaurantId}
-          agencyId={agencyId}
-          agency={data.agency}
-          initialSection={rawNavId as any}
-          onNavigateTab={(tab) => selectNav(tab as CanonicalTravelAgentViewId)}
-        />
-      )}
+        {canonicalNavId === "settings" && (
+          <GuestTravelAgentSettingsView
+            restaurantId={restaurantId}
+            agencyId={agencyId}
+            agency={data.agency}
+            initialSection={rawNavId as any}
+            onNavigateTab={(tab) => selectNav(tab as CanonicalTravelAgentViewId)}
+          />
+        )}
+      </div>
 
       {/* Canonical Edit Flow: Single canonical modal dialog */}
       <GuestTravelAgencyCreateModal

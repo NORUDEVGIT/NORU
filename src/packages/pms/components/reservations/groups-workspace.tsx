@@ -1,15 +1,11 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Building2, CalendarPlus, Layers, ListChecks, Users } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { reservationHistoryChanges } from "@/packages/pms/lib/reservation-history-display";
-import {
-  GROUP_STATUSES,
-  GROUP_TYPES,
-  groupWorkspaceKpis,
-} from "@/packages/pms/lib/groups";
+import { GROUP_STATUSES, GROUP_TYPES } from "@/packages/pms/lib/groups";
 import {
   addGroupBlock,
   addRoomingRow,
@@ -84,7 +80,6 @@ export function GroupsWorkspace({
   });
 
   const groups = listQuery.data?.groups ?? [];
-  const kpis = groupWorkspaceKpis(groups);
   const selected = groups.find((row) => row.id === selectedId) ?? null;
 
   function invalidate() {
@@ -105,15 +100,6 @@ export function GroupsWorkspace({
 
   return (
     <div className="space-y-4" data-testid="groups-blocks-workspace">
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6" aria-label="Group KPIs">
-        <Kpi label="Groups" value={kpis.total} loading={listQuery.isLoading} icon={<Users className="size-4" />} />
-        <Kpi label="Tentative" value={kpis.tentative} loading={listQuery.isLoading} icon={<Layers className="size-4" />} />
-        <Kpi label="Definite" value={kpis.definite} loading={listQuery.isLoading} icon={<Building2 className="size-4" />} />
-        <Kpi label="Remaining rooms" value={kpis.remaining} loading={listQuery.isLoading} icon={<ListChecks className="size-4" />} />
-        <Kpi label="Pickup" value={kpis.pickedUp} loading={listQuery.isLoading} icon={<CalendarPlus className="size-4" />} />
-        <Kpi label="Linked stays" value={kpis.reservations} loading={listQuery.isLoading} icon={<Users className="size-4" />} />
-      </section>
-
       <section className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
         <div className="flex flex-wrap items-end gap-3">
           <label className="grid min-w-52 flex-1 gap-1 text-[11px] font-medium text-muted-foreground">
@@ -144,7 +130,9 @@ export function GroupsWorkspace({
             <Button
               className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
               onClick={() => setNewOpen((open) => !open)}
+              data-testid="groups-new-group-button"
             >
+              <Plus className="size-4" />
               New Group
             </Button>
           ) : null}
@@ -244,30 +232,6 @@ export function GroupsWorkspace({
             />
           ) : null}
         </aside>
-      </div>
-    </div>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  loading,
-  icon,
-}: {
-  label: string;
-  value: number;
-  loading: boolean;
-  icon: ReactNode;
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-3 rounded-xl border border-[#DDD4C5] bg-white px-3 py-3 shadow-sm">
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#F4E9D0] text-[#8A641A]">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="truncate text-[10px] font-medium text-[#756A5B]">{label}</p>
-        {loading ? <Skeleton className="mt-1 h-6 w-14" /> : <p className="font-display text-xl font-semibold">{value}</p>}
       </div>
     </div>
   );

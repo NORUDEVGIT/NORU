@@ -4,10 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Check, ChevronRight, Plus, Trash2 } from "lucide-react";
-
+import { Field } from "@/packages/pms/components/guests/guest-create-field";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Switch } from "@/shared/components/ui/switch";
 import {
@@ -52,6 +51,7 @@ import {
   companyTypeLabel,
   createCompanyFieldRules,
   emptyAccountCreateContact,
+  emptyCompanyContractDraft,
   emptyGuestCompanyCreateDraft,
   filled,
   FIELD_CODE_BY_COMPANY_PROP,
@@ -439,7 +439,7 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
     if (context.data?.defaultCurrency) next.currency = context.data.defaultCurrency;
     if (context.data?.nextCompanyCode) next.code = context.data.nextCompanyCode;
     setDraft(next);
-    setStep("basic");
+    setStep("details");
     setHoldState("idle");
     setCreated(null);
     setAttemptedSteps(new Set());
@@ -711,27 +711,6 @@ export function GuestCompanyCreateWorkspace({ restaurantId }: { restaurantId: st
           </div>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function Field({ label, required: isRequired, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <Label className={cn(error ? "!text-destructive font-semibold" : undefined)}>
-        {label}
-        {isRequired ? <span className="text-destructive font-bold"> *</span> : null}
-      </Label>
-      <div
-        className={
-          error
-            ? "[&_input]:!border-destructive [&_input]:ring-1 [&_input]:!ring-destructive/30 [&_button]:!border-destructive [&_button]:ring-1 [&_button]:!ring-destructive/30 [&_textarea]:!border-destructive [&_textarea]:ring-1 [&_textarea]:!ring-destructive/30"
-            : undefined
-        }
-      >
-        {children}
-      </div>
-      {error ? <p className="text-xs font-medium text-destructive mt-1">{error}</p> : null}
     </div>
   );
 }
@@ -1158,14 +1137,14 @@ function ReviewStep({
       <ReviewCard title="Billing & Credit" onEdit={() => onEdit("billing")}>
         <div className="space-y-2 text-xs">
           <div>
-            <p className="font-semibold text-[#8A641A]">Billing Configuration</p>
+            <p className="font-semibold text-[#3E2723]">Billing Configuration</p>
             <p>Billing Rule: {selectedBillingRule?.name || draft.defaultBillingRuleId || "—"}</p>
             <p>Settlement Method: {selectedPaymentMethod?.name || "No preference"}</p>
             <p>Billing Currency: {draft.billingCurrencyCode || "—"}</p>
             <p>Payment Timing: {paymentTimingLabel(draft.paymentTiming)}</p>
           </div>
           <div className="border-t border-border pt-1.5">
-            <p className="font-semibold text-[#8A641A]">Credit Facility</p>
+            <p className="font-semibold text-[#3E2723]">Credit Facility</p>
             <p>Credit: {draft.creditAccountEnabled ? "Enabled" : "Off"}</p>
             {draft.creditAccountEnabled ? (
               <>
@@ -1181,7 +1160,7 @@ function ReviewStep({
             ) : null}
           </div>
           <div className="border-t border-border pt-1.5">
-            <p className="font-semibold text-[#8A641A]">Tax Exemption</p>
+            <p className="font-semibold text-[#3E2723]">Tax Exemption</p>
             <p>Status: {draft.taxExempt ? "Exempt" : "Standard (Non-Exempt)"}</p>
             {draft.taxExempt ? (
               <>
@@ -1195,7 +1174,7 @@ function ReviewStep({
           </div>
           {draft.billingInstruction ? (
             <div className="border-t border-border pt-1.5">
-              <p className="font-semibold text-[#8A641A]">Billing Instructions</p>
+              <p className="font-semibold text-[#3E2723]">Billing Instructions</p>
               <p className="italic">{draft.billingInstruction}</p>
             </div>
           ) : null}

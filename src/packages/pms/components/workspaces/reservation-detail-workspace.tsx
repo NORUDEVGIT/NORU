@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { cn } from "@/shared/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -46,11 +47,8 @@ import {
   ReservationStatusBadge,
   formatStayDate,
 } from "@/packages/pms/components/bookings/reservation-bits";
-import {
-  ReservationDetailKpiStrip,
-  ReservationDetailOverviewDashboard,
-} from "@/packages/pms/components/workspaces/reservation-detail-overview";
-import { ReservationDetailStayTab } from "@/packages/pms/components/workspaces/reservation-detail-stay";
+import { ReservationDetailOverviewDashboard } from "@/packages/pms/components/workspaces/reservation-detail-overview";
+import { ReservationStayTab } from "@/packages/pms/components/workspaces/reservation-detail-stay";
 import { ReservationDetailGuestTab } from "@/packages/pms/components/workspaces/reservation-detail-guest";
 import { ReservationDetailRatesTab } from "@/packages/pms/components/workspaces/reservation-detail-rates";
 import { ReservationDetailRoomsTab } from "@/packages/pms/components/workspaces/reservation-detail-rooms";
@@ -59,19 +57,15 @@ import { ReservationDetailFolioTab } from "@/packages/pms/components/workspaces/
 import { ReservationDetailRequestsTab } from "@/packages/pms/components/workspaces/reservation-detail-requests";
 import { ReservationDetailNotesTab } from "@/packages/pms/components/workspaces/reservation-detail-notes";
 import {
-  arriveInLabel,
   bookedByLabel,
   overviewChannelLabel,
   COMMUNICATION_DEFERRED_COPY,
-  DETAIL_DASH,
   DETAIL_SIDEBAR_ITEMS,
-  depositStatusLabel,
   LINKED_DEFERRED_COPY,
   parseDepositRequirementSnapshot,
   snapshotDisplayName,
   snapshotField,
   sourceLabel,
-  stayStatusLabel,
   storedRatePerNight,
   type DetailWorkspaceTab,
 } from "@/packages/pms/lib/reservation-detail-overview";
@@ -92,11 +86,9 @@ import { reservationAmendImpact } from "@/packages/pms/lib/reservation-amend-imp
 import { reservationHistoryChanges } from "@/packages/pms/lib/reservation-history-display";
 import {
   groupActionGate,
-  groupCombinedSubtotal,
   historyContextLine,
   isGroupReservation,
   reservationHeaderGuestLabel,
-  reservationHeaderRoomKpi,
   resolveHistoryField,
 } from "@/packages/pms/lib/reservation-detail-group";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
@@ -149,15 +141,26 @@ import {
 import { PmsDocumentHeader } from "@/packages/pms/components/settings/pms-document-header";
 import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
 
-import { cn } from "@/shared/lib/utils";
-
 const UNASSIGNED = "unassigned";
+
+// White card / gold button theme
+const BTN_PRIMARY =
+  "bg-[#C9A227] text-gray-900 hover:bg-[#B58F1F] border border-[#C9A227]";
+const BTN_OUTLINE =
+  "border-[#C9A227] bg-white text-gray-900 hover:bg-[#C9A227]/10 hover:text-gray-900";
+const FIELD_GOLD =
+  "border-[#C9A227]/60 bg-white text-gray-900 focus-visible:ring-[#C9A227] focus:ring-[#C9A227]";
 
 type FrontOfficeAction = "assign_room" | "check_in" | "check_out" | "no_show" | "change_room";
 
+// Tabs removed from the navigation bar.
+const HIDDEN_DETAIL_TABS: DetailWorkspaceTab[] = ["rates", "notes", "requests"];
+
 const DETAIL_TABS: Array<{ id: DetailWorkspaceTab; label: string; deferred?: boolean }> = [
   { id: "overview", label: "Overview" },
-  ...DETAIL_SIDEBAR_ITEMS.filter((item) => item.id !== "overview"),
+  ...DETAIL_SIDEBAR_ITEMS.filter(
+    (item) => item.id !== "overview" && !HIDDEN_DETAIL_TABS.includes(item.id),
+  ),
 ];
 
 export function ReservationDetailWorkspace({
@@ -165,7 +168,6 @@ export function ReservationDetailWorkspace({
   reservationId,
   embedded = false,
   onCopiedReservation,
-  onBackToList,
   onEditReservation,
 }: {
   membership: RestaurantMembership;
@@ -175,7 +177,6 @@ export function ReservationDetailWorkspace({
   onBackToList?: () => void;
   onEditReservation?: () => void;
 }) {
-  const navigate = useNavigate();
   const restaurantId = membership.restaurant.id;
   const set1 = usePmsSet1Foundation(restaurantId);
   const queryClient = useQueryClient();
@@ -340,28 +341,28 @@ export function ReservationDetailWorkspace({
   });
 
   if (accessQuery.isLoading)
-    return <p className="text-sm text-muted-foreground">Loading reservation…</p>;
+    return <p className="text-sm text-gray-500">Loading reservation…</p>;
   if (!canManage) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Reservation</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-[#C9A227]/40 bg-white p-6">
+        <h1 className="font-display text-2xl text-gray-900">Reservation</h1>
+        <p className="mt-2 text-sm text-gray-500">
           Only owners and managers can access reservations for this property.
         </p>
       </div>
     );
   }
   if (detailQuery.isLoading)
-    return <p className="text-sm text-muted-foreground">Loading reservation…</p>;
+    return <p className="text-sm text-gray-500">Loading reservation…</p>;
   if (detailQuery.isError || !reservation) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Reservation not found</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-[#C9A227]/40 bg-white p-6">
+        <h1 className="font-display text-2xl text-gray-900">Reservation not found</h1>
+        <p className="mt-2 text-sm text-gray-500">
           This reservation doesn't exist for {membership.restaurant.name}.
         </p>
         {embedded ? null : (
-          <Button asChild className="mt-4" variant="outline">
+          <Button asChild className={`mt-4 ${BTN_OUTLINE}`} variant="outline">
             <Link to="/restaurant/pms/reservations">Back to reservations</Link>
           </Button>
         )}
@@ -431,20 +432,18 @@ export function ReservationDetailWorkspace({
     }
   }
   const groupReservation = isGroupReservation(reservation);
-  const headerRoomTotal = groupReservation
-    ? groupCombinedSubtotal(reservation)
-    : reservation.roomSubtotal;
-  const detailActionBar = detailActions ? (
+  const detailActionBar = (
     <ReservationDetailActionBar
       result={detailActions}
       busy={statusMutation.isPending || copyMutation.isPending}
       onAction={runDetailAction}
+      onPrint={() => window.print()}
       gatedActions={{
         copy: groupActionGate("copy", groupReservation) ?? undefined,
         edit: groupActionGate("amend", groupReservation) ?? undefined,
       }}
     />
-  ) : null;
+  );
 
   const childDialogs = (
     <>
@@ -672,7 +671,7 @@ export function ReservationDetailWorkspace({
         : undefined,
     });
     const stayPanel = (
-      <ReservationDetailStayTab
+      <ReservationStayTab
         restaurantId={restaurantId}
         reservation={reservation}
         editable={detailActions?.editable ?? false}
@@ -780,26 +779,26 @@ export function ReservationDetailWorkspace({
       />
     );
     const deferredPanel = (title: string, copy: string) => (
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-        <h2 className="font-display text-lg">{title}</h2>
-        <p className="mt-3 text-sm text-muted-foreground">{copy}</p>
+      <section className="rounded-xl border border-[#C9A227]/40 bg-white p-5 shadow-sm">
+        <h2 className="font-display text-lg text-gray-900">{title}</h2>
+        <p className="mt-3 text-sm text-gray-500">{copy}</p>
       </section>
     );
 
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-workspace">
         <ReservationPrintDocument data={printData} />
-        <header className="shrink-0 border-b border-[#DDD4C5] bg-white px-5 py-3 pr-12">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <header className="shrink-0 border-b border-[#C9A227]/40 bg-white px-5 py-3 pr-12">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
             Reservation Detail
           </p>
           <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h1 className="flex flex-wrap items-center gap-3 font-display text-2xl text-[#251605]">
+              <h1 className="flex flex-wrap items-center gap-3 font-display text-2xl text-gray-900">
                 {reservation.confirmationNumber}
                 <span className="text-lg font-normal">
                   {reservationHeaderGuestLabel(reservation) ? (
-                    <span className="mr-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    <span className="mr-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
                       {reservationHeaderGuestLabel(reservation)}
                     </span>
                   ) : null}
@@ -807,118 +806,50 @@ export function ReservationDetailWorkspace({
                 </span>
                 <ReservationStatusBadge status={reservation.status} />
               </h1>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs text-gray-500">
                 Created {dateTime(reservation.createdAt)}
                 {createdBy ? ` · ${createdBy}` : ""}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                data-testid="reservation-detail-print"
-                onClick={() => window.print()}
-              >
-                <Printer className="size-3.5" />
-                Print
-              </Button>
               {detailActionBar}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (onBackToList) {
-                    onBackToList();
-                  } else if (typeof window !== "undefined" && window.history.length > 1) {
-                    window.history.back();
-                  } else {
-                    void navigate({ to: "/restaurant/pms/reservations" });
-                  }
-                }}
-              >
-                <ArrowLeft className="size-3.5" />
-                Back to Previous Page
-              </Button>
             </div>
           </div>
         </header>
-        <ReservationDetailKpiStrip
-          items={[
-            {
-              label: "Arrive in",
-              value: arriveInLabel(reservation.arrivalDate, businessDate),
-            },
-            {
-              label: "Stay Status",
-              value: stayStatusLabel({
-                status: reservation.status,
-                arrivalDate: reservation.arrivalDate,
-                departureDate: reservation.departureDate,
-                businessDate,
-              }),
-            },
-            { label: "Nights", value: String(reservation.nights) },
-            reservationHeaderRoomKpi(reservation),
-            {
-              label: "Total Amount",
-              value: headerRoomTotal == null ? DETAIL_DASH : money(headerRoomTotal),
-            },
-            {
-              label: "Deposit",
-              value: deposit?.amount == null ? DETAIL_DASH : money(deposit.amount),
-              hint: depositStatusLabel(deposit),
-            },
-          ]}
-        />
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col">
+          {/* Section navigation: a horizontal list of tabs (replaces the old dropdown) */}
           <nav
-            className="hidden w-52 shrink-0 overflow-y-auto border-r border-[#DDD4C5] bg-white py-2 md:block"
-            aria-label="Reservation detail"
+            className="shrink-0 overflow-x-auto border-b border-[#C9A227]/40 bg-white"
             data-testid="reservation-detail-sidebar"
+            aria-label="Reservation detail sections"
           >
-            {DETAIL_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={detailTab === tab.id}
-                onClick={() => setDetailTab(tab.id)}
-                className={cn(
-                  "flex w-full items-center px-4 py-2 text-left text-sm",
-                  detailTab === tab.id
-                    ? "bg-[#F4E9D0] font-medium text-[#251605]"
-                    : "text-muted-foreground hover:bg-[#F7F4EE]",
-                  tab.deferred && detailTab !== tab.id ? "text-muted-foreground/70" : null,
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
+            <ul role="tablist" className="flex min-w-max items-center gap-1 px-4 sm:px-5">
+              {DETAIL_TABS.map((tab) => {
+                const active = tab.id === detailTab;
+                return (
+                  <li key={tab.id} role="presentation">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      data-testid={`reservation-detail-tab-${tab.id}`}
+                      onClick={() => setDetailTab(tab.id)}
+                      className={cn(
+                        "relative whitespace-nowrap px-3 py-3 text-sm font-medium transition-colors",
+                        "outline-none focus-visible:ring-2 focus-visible:ring-[#C9A227]",
+                        active
+                          ? "text-gray-900 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#C9A227]"
+                          : "text-gray-500 hover:bg-gray-100 hover:text-gray-900",
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </nav>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="border-b border-[#DDD4C5] bg-white px-3 py-2 md:hidden">
-              <div className="flex min-w-max gap-1 overflow-x-auto" role="tablist">
-                {DETAIL_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={detailTab === tab.id}
-                    onClick={() => setDetailTab(tab.id)}
-                    className={cn(
-                      "whitespace-nowrap rounded-full px-3 py-1 text-xs",
-                      detailTab === tab.id
-                        ? "bg-[#F4E9D0] font-medium text-[#251605]"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div className="p-4 sm:p-5">
               {detailTab === "overview" ? (
                 <ReservationDetailOverviewDashboard
@@ -926,21 +857,23 @@ export function ReservationDetailWorkspace({
                   guest={guestQuery.data?.guest ?? null}
                   createdBy={createdBy}
                   coverUrl={roomType?.coverUrl ?? null}
+                  money={(value, currency) => money(value, currency ?? undefined)}
                   roomMeta={{
                     occupancy: roomType
                       ? `${roomType.adultCapacity} adults · ${roomType.childCapacity} children`
                       : null,
                     beds: null,
                   }}
-                  money={(value) => money(value)}
                   editable={detailActions?.editable ?? false}
                   catalogues={{
-                    sources: set6Query.data?.snapshot.sourceCodes ?? [],
                     channels: set6Query.data?.snapshot.salesChannels ?? [],
-                    segments: set6Query.data?.snapshot.marketSegments ?? [],
                     distributionChannels: sourceChannelQuery.data?.channels ?? [],
                   }}
                   onEditTab={setDetailTab}
+                  onAssignRoom={() => {
+                    setFoRoomTarget(null);
+                    setFoAction("assign_room");
+                  }}
                 />
               ) : null}
               {detailTab === "stay" ? stayPanel : null}
@@ -976,16 +909,16 @@ export function ReservationDetailWorkspace({
           {embedded ? null : (
             <Link
               to="/restaurant/pms/reservations"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900"
             >
               <ArrowLeft className="size-3" /> All reservations
             </Link>
           )}
-          <h1 className="mt-1 flex flex-wrap items-center gap-3 font-display text-2xl">
+          <h1 className="mt-1 flex flex-wrap items-center gap-3 font-display text-2xl text-gray-900">
             {reservation.confirmationNumber}
             <ReservationStatusBadge status={reservation.status} />
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-gray-500">
             {reservation.guestName}
             {reservation.guestVip ? " · VIP" : ""} · {formatStayDate(reservation.arrivalDate)} →{" "}
             {formatStayDate(reservation.departureDate)} · {reservation.nights} night
@@ -1000,23 +933,13 @@ export function ReservationDetailWorkspace({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            data-testid="reservation-detail-print"
-            onClick={() => window.print()}
-          >
-            <Printer className="size-3.5" />
-            Print
-          </Button>
           {detailActionBar}
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <section className="rounded-2xl border border-border bg-card p-4 lg:col-span-2">
-          <h2 className="font-display text-lg">Stay</h2>
+        <section className="rounded-2xl border border-[#C9A227]/40 bg-white p-4 lg:col-span-2">
+          <h2 className="font-display text-lg text-gray-900">Stay</h2>
           <dl className="mt-3 grid gap-3 sm:grid-cols-2">
             {(reservation.rooms ?? []).length > 1 ? (
               <Field
@@ -1073,10 +996,10 @@ export function ReservationDetailWorkspace({
                 onValueChange={(v) => assignMutation.mutate(v === UNASSIGNED ? null : v)}
                 disabled={assignMutation.isPending}
               >
-                <SelectTrigger>
+                <SelectTrigger className={FIELD_GOLD}>
                   <SelectValue placeholder="Assign later" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-[#C9A227]/40 bg-white">
                   <SelectItem value={UNASSIGNED}>Assign later</SelectItem>
                   {reservation.roomId && reservation.roomNumber ? (
                     <SelectItem value={reservation.roomId}>
@@ -1097,8 +1020,8 @@ export function ReservationDetailWorkspace({
           ) : null}
         </section>
 
-        <section className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="font-display text-lg">Guest</h2>
+        <section className="rounded-2xl border border-[#C9A227]/40 bg-white p-4">
+          <h2 className="font-display text-lg text-gray-900">Guest</h2>
           {guestQuery.data ? (
             <div className="mt-3">
               <GuestRestrictionWarn guest={guestQuery.data.guest} />
@@ -1110,7 +1033,7 @@ export function ReservationDetailWorkspace({
             <Field label="Email" value={reservation.guestEmail ?? "—"} />
           </dl>
           {embedded ? null : (
-            <Button asChild variant="outline" size="sm" className="mt-4">
+            <Button asChild variant="outline" size="sm" className={`mt-4 ${BTN_OUTLINE}`}>
               <Link to="/restaurant/pms/guests/$guestId" params={{ guestId: reservation.guestId }}>
                 Open guest profile
               </Link>
@@ -1151,7 +1074,7 @@ function displayValue(value: string | null | undefined, fallback = "—"): strin
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dt className="text-xs uppercase tracking-wide text-gray-500">{label}</dt>
       <dd className="text-sm">{value}</dd>
     </div>
   );
@@ -1167,10 +1090,10 @@ function HistoryList({
   reservation: ReservationDetail;
 }) {
   return (
-    <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-      <h2 className="font-display text-lg">History</h2>
+    <section className="rounded-xl border border-[#C9A227]/40 bg-white p-5 shadow-sm">
+      <h2 className="font-display text-lg text-gray-900">History</h2>
       {history.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">No history yet.</p>
+        <p className="mt-3 text-sm text-gray-500">No history yet.</p>
       ) : (
         <ol className="mt-3 space-y-3">
           {history.map((entry) => {
@@ -1181,25 +1104,25 @@ function HistoryList({
             );
             const context = historyContextLine(entry.previousValues, entry.newValues, reservation);
             return (
-              <li key={entry.id} className="rounded-xl border border-border p-3">
+              <li key={entry.id} className="rounded-xl border border-[#C9A227]/40 p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium capitalize">
                     {entry.eventType.replace(/_/g, " ")}
                   </span>
-                  <span className="text-xs text-muted-foreground">{dateTime(entry.createdAt)}</span>
+                  <span className="text-xs text-gray-500">{dateTime(entry.createdAt)}</span>
                   {entry.actorName ? (
-                    <span className="text-xs text-muted-foreground">· {entry.actorName}</span>
+                    <span className="text-xs text-gray-500">· {entry.actorName}</span>
                   ) : null}
                 </div>
-                {context ? <p className="mt-1 text-sm text-[#251605]">{context}</p> : null}
+                {context ? <p className="mt-1 text-sm text-gray-900">{context}</p> : null}
                 {entry.notes ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{entry.notes}</p>
+                  <p className="mt-1 text-sm text-gray-500">{entry.notes}</p>
                 ) : null}
                 {changes.length > 0 ? (
                   <dl className="mt-2 space-y-1">
                     {changes.map((change) => (
                       <div key={change.key} className="text-xs">
-                        <dt className="font-medium capitalize text-muted-foreground">
+                        <dt className="font-medium capitalize text-gray-500">
                           {change.key.replace(/_/g, " ")}
                         </dt>
                         <dd>
@@ -1265,12 +1188,13 @@ function NotesEditor({
   });
 
   return (
-    <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-      <h2 className="font-display text-lg">Notes</h2>
+    <section className="rounded-xl border border-[#C9A227]/40 bg-white p-5 shadow-sm">
+      <h2 className="font-display text-lg text-gray-900">Notes</h2>
       <div className="mt-3 space-y-3">
         <div className="space-y-1">
           <Label htmlFor="detail-special-requests">Special requests</Label>
           <Textarea
+            className={FIELD_GOLD}
             id="detail-special-requests"
             value={specialRequests}
             onChange={(e) => setSpecialRequests(e.target.value)}
@@ -1281,6 +1205,7 @@ function NotesEditor({
         <div className="space-y-1">
           <Label htmlFor="detail-notes">Internal notes</Label>
           <Textarea
+            className={FIELD_GOLD}
             id="detail-notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -1289,7 +1214,7 @@ function NotesEditor({
           />
         </div>
         {canManage ? (
-          <Button disabled={save.isPending} onClick={() => save.mutate()}>
+          <Button className={BTN_PRIMARY} disabled={save.isPending} onClick={() => save.mutate()}>
             {save.isPending ? "Saving…" : "Save notes"}
           </Button>
         ) : null}
@@ -1302,21 +1227,25 @@ function ReservationDetailActionBar({
   result,
   busy,
   onAction,
+  onPrint,
   gatedActions,
 }: {
-  result: ReservationActionResult;
+  result: ReservationActionResult | null;
   busy: boolean;
   onAction: (actionId: ReservationActionId) => void;
+  onPrint: () => void;
   gatedActions?: Partial<Record<ReservationActionId, string>>;
 }) {
-  const secondary = reservationDetailSecondaryActions(result);
-  const primary = result.primaryAction;
+  const secondary = result ? reservationDetailSecondaryActions(result) : [];
+  const primary = result?.primaryAction ?? null;
+  const itemClass = "text-gray-900 focus:bg-gray-100 focus:text-gray-900";
   return (
     <>
       {primary ? (
         <Button
           type="button"
           size="sm"
+          className={BTN_PRIMARY}
           data-testid="reservation-detail-primary"
           disabled={busy || Boolean(gatedActions?.[primary.id])}
           title={gatedActions?.[primary.id]}
@@ -1325,52 +1254,58 @@ function ReservationDetailActionBar({
           {reservationDetailActionLabel(primary)}
         </Button>
       ) : null}
-      {secondary.length > 0 ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-testid="reservation-detail-more-actions"
-            >
-              More Actions
-              <ChevronDown className="size-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="z-[80]">
-            {secondary.map((action, index) => {
-              const destructive = reservationDetailActionIsDestructive(action.id);
-              const previous = secondary[index - 1];
-              const divider =
-                destructive &&
-                previous != null &&
-                !reservationDetailActionIsDestructive(previous.id);
-              return (
-                <Fragment key={action.id}>
-                  {divider ? <DropdownMenuSeparator /> : null}
-                  <DropdownMenuItem
-                    className={destructive ? "text-destructive" : undefined}
-                    disabled={busy || Boolean(gatedActions?.[action.id])}
-                    title={gatedActions?.[action.id]}
-                    data-testid={`reservation-detail-action-${action.id}`}
-                    onClick={() => onAction(action.id)}
-                  >
-                    <span className="flex flex-col items-start">
-                      <span>{reservationDetailActionLabel(action)}</span>
-                      {gatedActions?.[action.id] ? (
-                        <span className="max-w-64 text-[11px] font-normal text-muted-foreground">
-                          {gatedActions[action.id]}
-                        </span>
-                      ) : null}
-                    </span>
-                  </DropdownMenuItem>
-                </Fragment>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={BTN_OUTLINE}
+            data-testid="reservation-detail-more-actions"
+          >
+            More Actions
+            <ChevronDown className="size-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="z-[80] border-[#C9A227]/40 bg-white">
+          <DropdownMenuItem
+            className={itemClass}
+            data-testid="reservation-detail-print"
+            onClick={onPrint}
+          >
+            <Printer className="mr-2 size-3.5 text-[#C9A227]" />
+            Print
+          </DropdownMenuItem>
+          {secondary.length > 0 ? <DropdownMenuSeparator /> : null}
+          {secondary.map((action, index) => {
+            const destructive = reservationDetailActionIsDestructive(action.id);
+            const previous = secondary[index - 1];
+            const divider =
+              destructive && previous != null && !reservationDetailActionIsDestructive(previous.id);
+            return (
+              <Fragment key={action.id}>
+                {divider ? <DropdownMenuSeparator /> : null}
+                <DropdownMenuItem
+                  className={destructive ? "text-destructive" : itemClass}
+                  disabled={busy || Boolean(gatedActions?.[action.id])}
+                  title={gatedActions?.[action.id]}
+                  data-testid={`reservation-detail-action-${action.id}`}
+                  onClick={() => onAction(action.id)}
+                >
+                  <span className="flex flex-col items-start">
+                    <span>{reservationDetailActionLabel(action)}</span>
+                    {gatedActions?.[action.id] ? (
+                      <span className="max-w-64 text-[11px] font-normal text-gray-500">
+                        {gatedActions[action.id]}
+                      </span>
+                    ) : null}
+                  </span>
+                </DropdownMenuItem>
+              </Fragment>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </>
   );
 }
@@ -1582,11 +1517,11 @@ function AmendDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="z-[70] max-h-[90vh] max-w-2xl overflow-y-auto"
+        className="z-[70] max-h-[90vh] max-w-2xl overflow-y-auto border-[#C9A227]/40 bg-white"
         data-testid="amend-stay-dialog"
       >
         <DialogHeader>
-          <DialogTitle>{step === "edit" ? "Amend stay" : "Review amendment"}</DialogTitle>
+          <DialogTitle className="text-gray-900">{step === "edit" ? "Amend stay" : "Review amendment"}</DialogTitle>
           <DialogDescription>
             {step === "edit"
               ? "Change the stay, then review availability, assignment and rate impact before saving."
@@ -1600,18 +1535,19 @@ function AmendDialog({
               <Label htmlFor="amend-guest-search">Guest</Label>
               <p className="text-sm">{guestName}</p>
               <Input
+                className={FIELD_GOLD}
                 id="amend-guest-search"
                 value={guestSearch}
                 onChange={(e) => setGuestSearch(e.target.value)}
                 placeholder="Search guests to change"
               />
               {guestSearch.trim() ? (
-                <div className="max-h-32 overflow-y-auto rounded-xl border border-border">
+                <div className="max-h-32 overflow-y-auto rounded-xl border border-[#C9A227]/40">
                   {(guestsQuery.data ?? []).map((guest) => (
                     <button
                       key={guest.id}
                       type="button"
-                      className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
                       onClick={() => {
                         setGuestId(guest.id);
                         setGuestName(guest.fullName || "Guest");
@@ -1629,6 +1565,7 @@ function AmendDialog({
               <div className="space-y-1">
                 <Label htmlFor="amend-arrival">Arrival</Label>
                 <Input
+                  className={FIELD_GOLD}
                   id="amend-arrival"
                   type="date"
                   value={arrival}
@@ -1638,6 +1575,7 @@ function AmendDialog({
               <div className="space-y-1">
                 <Label htmlFor="amend-departure">Departure</Label>
                 <Input
+                  className={FIELD_GOLD}
                   id="amend-departure"
                   type="date"
                   value={departure}
@@ -1647,6 +1585,7 @@ function AmendDialog({
               <div className="space-y-1">
                 <Label htmlFor="amend-adults">Adults</Label>
                 <Input
+                  className={FIELD_GOLD}
                   id="amend-adults"
                   type="number"
                   min={1}
@@ -1657,6 +1596,7 @@ function AmendDialog({
               <div className="space-y-1">
                 <Label htmlFor="amend-children">Children</Label>
                 <Input
+                  className={FIELD_GOLD}
                   id="amend-children"
                   type="number"
                   min={0}
@@ -1675,10 +1615,10 @@ function AmendDialog({
                   setRoomId(UNASSIGNED);
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className={FIELD_GOLD}>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-[#C9A227]/40 bg-white">
                   {(availabilityQuery.data ?? []).map((a) => (
                     <SelectItem key={a.roomTypeId} value={a.roomTypeId} disabled={a.available <= 0}>
                       {a.name} — {a.available} available
@@ -1691,10 +1631,10 @@ function AmendDialog({
             <div className="space-y-1">
               <Label>Room</Label>
               <Select value={roomId} onValueChange={setRoomId}>
-                <SelectTrigger>
+                <SelectTrigger className={FIELD_GOLD}>
                   <SelectValue placeholder="Assign later" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-[#C9A227]/40 bg-white">
                   <SelectItem value={UNASSIGNED}>Assign later</SelectItem>
                   {(roomsQuery.data ?? []).map((r) => (
                     <SelectItem key={r.id} value={r.id}>
@@ -1708,6 +1648,7 @@ function AmendDialog({
             <div className="space-y-1">
               <Label htmlFor="amend-special-requests">Special requests</Label>
               <Textarea
+                className={FIELD_GOLD}
                 id="amend-special-requests"
                 value={specialRequests}
                 onChange={(e) => setSpecialRequests(e.target.value)}
@@ -1717,6 +1658,7 @@ function AmendDialog({
             <div className="space-y-1">
               <Label htmlFor="amend-notes">Internal notes</Label>
               <Textarea
+                className={FIELD_GOLD}
                 id="amend-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -1733,10 +1675,10 @@ function AmendDialog({
                     setCommercialBookingSource(value === "none" ? "" : value)
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={FIELD_GOLD}>
                     <SelectValue placeholder="None" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="border-[#C9A227]/40 bg-white">
                     <SelectItem value="none">None</SelectItem>
                     {DEFAULT_BOOKING_SOURCES.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
@@ -1752,10 +1694,10 @@ function AmendDialog({
                   value={marketSegment || "none"}
                   onValueChange={(value) => setMarketSegment(value === "none" ? "" : value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={FIELD_GOLD}>
                     <SelectValue placeholder="None" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="border-[#C9A227]/40 bg-white">
                     <SelectItem value="none">None</SelectItem>
                     {DEFAULT_MARKET_SEGMENTS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
@@ -1768,6 +1710,7 @@ function AmendDialog({
               <div className="space-y-1">
                 <Label htmlFor="amend-external-reference">External reference</Label>
                 <Input
+                  className={FIELD_GOLD}
                   id="amend-external-reference"
                   value={externalReference}
                   onChange={(e) => setExternalReference(e.target.value)}
@@ -1779,10 +1722,10 @@ function AmendDialog({
                   value={guaranteeMethod || "none"}
                   onValueChange={(value) => setGuaranteeMethod(value === "none" ? "" : value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={FIELD_GOLD}>
                     <SelectValue placeholder="None" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="border-[#C9A227]/40 bg-white">
                     <SelectItem value="none">None</SelectItem>
                     {FALLBACK_CASHIERING_TENDERS.map((option) => (
                       <SelectItem key={option.code} value={option.code}>
@@ -1794,7 +1737,7 @@ function AmendDialog({
               </div>
             </div>
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-gray-500">
               {datesValid
                 ? `${nights} night${nights === 1 ? "" : "s"}`
                 : "Departure must be after arrival."}
@@ -1803,10 +1746,10 @@ function AmendDialog({
         ) : (
           <div className="space-y-3" data-testid="amend-impact-review">
             {impact.changes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No changes to save.</p>
+              <p className="text-sm text-gray-500">No changes to save.</p>
             ) : (
               <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <thead className="text-left text-xs uppercase tracking-wide text-gray-500">
                   <tr>
                     <th className="py-1">Field</th>
                     <th className="py-1">Current</th>
@@ -1815,7 +1758,7 @@ function AmendDialog({
                 </thead>
                 <tbody>
                   {impact.changes.map((change) => (
-                    <tr key={change.field} className="border-t border-border">
+                    <tr key={change.field} className="border-t border-[#C9A227]/40">
                       <td className="py-2 font-medium">{change.field}</td>
                       <td className="py-2">{change.current}</td>
                       <td className="py-2">{change.proposed}</td>
@@ -1830,10 +1773,10 @@ function AmendDialog({
               </p>
             ) : null}
             {impact.assignmentCleared ? (
-              <p className="text-sm text-muted-foreground">The assigned room will be cleared.</p>
+              <p className="text-sm text-gray-500">The assigned room will be cleared.</p>
             ) : null}
             {impact.rateMayChange ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-gray-500">
                 Stay dates or room type changed — the server will reprice if a rate plan is
                 attached.
               </p>
@@ -1843,20 +1786,21 @@ function AmendDialog({
 
         <DialogFooter>
           {step === "review" ? (
-            <Button variant="outline" onClick={() => setStep("edit")}>
+            <Button variant="outline" className={BTN_OUTLINE} onClick={() => setStep("edit")}>
               Back
             </Button>
           ) : (
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" className={BTN_OUTLINE} onClick={() => onOpenChange(false)}>
               Close
             </Button>
           )}
           {step === "edit" ? (
-            <Button disabled={!datesValid} onClick={() => setStep("review")}>
+            <Button className={BTN_PRIMARY} disabled={!datesValid} onClick={() => setStep("review")}>
               Review changes
             </Button>
           ) : (
             <Button
+              className={BTN_PRIMARY}
               disabled={
                 !datesValid ||
                 impact.availabilityNone ||
@@ -1915,17 +1859,17 @@ function PricingSection({
   const nightly = reservation.nightlyRates ?? [];
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4">
-      <h2 className="font-display text-lg">Pricing</h2>
+    <section className="rounded-2xl border border-[#C9A227]/40 bg-white p-4">
+      <h2 className="font-display text-lg text-gray-900">Pricing</h2>
       {nightly.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">
+        <p className="mt-3 text-sm text-gray-500">
           No pricing snapshot for this reservation. Existing stays keep their original terms — pick
           a rate plan below to price it.
         </p>
       ) : (
-        <div className="mt-3 overflow-x-auto rounded-xl border border-border">
+        <div className="mt-3 overflow-x-auto rounded-xl border border-[#C9A227]/40">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-3 py-2">Night</th>
                 <th className="px-3 py-2 text-right">Rate</th>
@@ -1933,12 +1877,12 @@ function PricingSection({
             </thead>
             <tbody>
               {nightly.map((n) => (
-                <tr key={n.date} className="border-t border-border">
+                <tr key={n.date} className="border-t border-[#C9A227]/40">
                   <td className="px-3 py-2">{formatStayDate(n.date)}</td>
                   <td className="px-3 py-2 text-right">{money(n.rate)}</td>
                 </tr>
               ))}
-              <tr className="border-t border-border bg-muted/30 font-medium">
+              <tr className="border-t border-[#C9A227]/40 bg-gray-50 font-medium">
                 <td className="px-3 py-2">Room subtotal</td>
                 <td className="px-3 py-2 text-right">{money(reservation.roomSubtotal ?? 0)}</td>
               </tr>
@@ -1952,10 +1896,10 @@ function PricingSection({
           <div className="min-w-56 space-y-1">
             <Label>Rate plan</Label>
             <Select value={planId} onValueChange={setPlanId}>
-              <SelectTrigger>
+              <SelectTrigger className={FIELD_GOLD}>
                 <SelectValue placeholder="Select rate plan" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="border-[#C9A227]/40 bg-white">
                 {(plansQuery.data ?? []).map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.code} — {p.name}
@@ -1966,12 +1910,13 @@ function PricingSection({
           </div>
           <Button
             variant="outline"
+            className={BTN_OUTLINE}
             disabled={!planId || reprice.isPending}
             onClick={() => reprice.mutate()}
           >
             {reprice.isPending ? "Repricing…" : "Reprice stay"}
           </Button>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-gray-500">
             Repricing recalculates every night on the server and records a history entry.
           </p>
         </div>

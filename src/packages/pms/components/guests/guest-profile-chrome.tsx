@@ -106,11 +106,14 @@ export function GuestProfileChrome({
       className="flex min-h-[calc(100vh-4rem)] flex-col space-y-4"
       data-testid="guest-profile-chrome"
     >
+      {/* Ethiopian Flag Ribbon Accent */}
+      <div className="ethiopian-ribbon shrink-0" />
+
       {/* Top Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#E8E4DC] pb-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="font-display text-2xl font-bold tracking-tight text-[#251605]">
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-brand text-2xl font-bold tracking-tight text-[#251605]">
               Guest Profiles
             </h1>
             <span className="inline-flex items-center rounded-full bg-[#F4EFE6] px-2.5 py-0.5 text-xs font-semibold text-[#8C6D23] border border-[#C89933]/30">

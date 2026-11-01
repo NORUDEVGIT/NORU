@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
+import { useEffect, useMemo, useState } from "react";
 import {
   GROUP_RATE_CHANGE_UNAVAILABLE,
   groupCombinedSubtotal,
@@ -9,18 +8,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import {
-  BedDouble,
-  CalendarDays,
-  CreditCard,
-  FileText,
-  Package,
-  Percent,
-  Plus,
-  Shield,
-  Tag,
-  UserRound,
-} from "lucide-react";
+import { BedDouble, Package, Percent, Plus, Tag } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
@@ -39,20 +27,9 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
-import {
-  formatStayDate,
-  ReservationStatusBadge,
-} from "@/packages/pms/components/bookings/reservation-bits";
-import { guestInitials, reviewDash } from "@/packages/pms/lib/create-reservation-review";
-import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
-import {
-  DETAIL_DASH,
-  depositStatusLabel,
-  parseDepositRequirementSnapshot,
-  snapshotDisplayName,
-  snapshotField,
-} from "@/packages/pms/lib/reservation-detail-overview";
-import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
+import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import { reviewDash } from "@/packages/pms/lib/create-reservation-review";
+import { DETAIL_DASH } from "@/packages/pms/lib/reservation-detail-overview";
 import {
   assignmentLabel,
   marketSegmentLabel,
@@ -86,8 +63,17 @@ import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 import { cn } from "@/shared/lib/utils";
 
+// Simple white card theme
 const FIELD =
-  "h-8 w-full rounded-md border border-[#DDD4C5] bg-white px-2 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#F7F2EA]";
+  "h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-gray-50";
+const CARD = "rounded-xl border border-gray-200 bg-white p-4";
+const BTN_PRIMARY = "bg-[#4A2C0F] text-white hover:bg-[#3a2209]";
+const BTN_OUTLINE = "border-gray-200 bg-white text-[#4A2C0F] hover:bg-gray-50";
+const BTN_GHOST = "text-[#4A2C0F] hover:bg-gray-50";
+const MUTED = "text-muted-foreground";
+const TH = "border-b border-gray-200 text-[11px] uppercase tracking-wide";
+const ROW = "border-b border-gray-100";
+const EMPTY = "rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm";
 
 export function ReservationDetailRatesTab({
   restaurantId,
@@ -103,7 +89,7 @@ export function ReservationDetailRatesTab({
   reservation: ReservationDetail;
   canManage: boolean;
   money: (value: number) => string;
-  coverUrl: string | null;
+  coverUrl?: string | null;
   occupancyLabel: string | null;
   onBackToRooms: () => void;
   onSaved: () => void;
@@ -153,7 +139,6 @@ export function ReservationDetailRatesTab({
     null;
   const rows = useMemo(() => nightlyBreakdownRows(reservation, plan), [reservation, plan]);
   const assigned = assignmentLabel(reservation);
-  const nights = nightsBetween(reservation.arrivalDate, reservation.departureDate);
   const perNight = stayRatePerNight(reservation);
   const currency = reservation.currency?.trim() || "ETB";
   const promotion = commercialQuery.data?.promotion ?? null;
@@ -180,95 +165,100 @@ export function ReservationDetailRatesTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-rates">
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="space-y-4">
-          {isGroupReservation(reservation) ? (
-            <GroupRoomRates reservation={reservation} money={money} />
-          ) : (
-            <>
-              <RateInformationCard
-                reservation={reservation}
-                plan={plan}
-                assigned={assigned}
-                coverUrl={coverUrl}
-                occupancyLabel={occupancyLabel}
-                perNight={perNight}
-                money={money}
-                currency={currency}
-                editable={editable}
-                onChangePlan={() => setPlanOpen(true)}
-                onApplyDiscount={() => toast.message(RATE_DISCOUNT_GAP_COPY)}
-                onAddPackage={() => toast.message(RATE_PACKAGE_ADD_GAP_COPY)}
-              />
-              <DailyRateBreakdownCard
-                rows={rows}
-                reservation={reservation}
-                money={money}
-                currency={currency}
-              />
-            </>
+      <div className="min-h-0 flex-1 space-y-4">
+        {isGroupReservation(reservation) ? (
+          <GroupRoomRates reservation={reservation} money={money} />
+        ) : (
+          <>
+            <RateInformationCard
+              reservation={reservation}
+              plan={plan}
+              assigned={assigned}
+              coverUrl={coverUrl ?? null}
+              occupancyLabel={occupancyLabel}
+              perNight={perNight}
+              money={money}
+              currency={currency}
+              editable={editable}
+              onChangePlan={() => setPlanOpen(true)}
+              onApplyDiscount={() => toast.message(RATE_DISCOUNT_GAP_COPY)}
+              onAddPackage={() => toast.message(RATE_PACKAGE_ADD_GAP_COPY)}
+            />
+            <DailyRateBreakdownCard
+              rows={rows}
+              reservation={reservation}
+              money={money}
+              currency={currency}
+            />
+          </>
+        )}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {isGroupReservation(reservation) ? null : (
+            <RatePlanDetailsCard reservation={reservation} plan={plan} />
           )}
-          <div className="grid gap-4 lg:grid-cols-2">
-            {isGroupReservation(reservation) ? null : (
-              <RatePlanDetailsCard reservation={reservation} plan={plan} />
-            )}
-            <DiscountsCard
-              promotion={promotion}
-              money={money}
-              editable={editable}
-              onAdd={() => toast.message(RATE_DISCOUNT_GAP_COPY)}
-            />
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <PackagesCard
-              packages={packages}
-              catalogue={catalogueQuery.data?.snapshot.packages ?? []}
-              ratePlanId={reservation.ratePlanId}
-              stayNights={reservation.nights}
-              money={money}
-              editable={editable}
-              onAdd={() => toast.message(RATE_PACKAGE_ADD_GAP_COPY)}
-            />
-            <RateNotesCard value={rateNotes} onChange={setRateNotes} editable={editable} />
-          </div>
+          <DiscountsCard
+            promotion={promotion}
+            money={money}
+            editable={editable}
+            onAdd={() => toast.message(RATE_DISCOUNT_GAP_COPY)}
+          />
         </div>
-        <RatesSummaryRail
-          reservation={reservation}
-          money={money}
-          coverUrl={coverUrl}
-          nights={nights}
-        />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <PackagesCard
+            packages={packages}
+            catalogue={catalogueQuery.data?.snapshot.packages ?? []}
+            ratePlanId={reservation.ratePlanId}
+            stayNights={reservation.nights}
+            money={money}
+            editable={editable}
+            onAdd={() => toast.message(RATE_PACKAGE_ADD_GAP_COPY)}
+          />
+          <RateNotesCard value={rateNotes} onChange={setRateNotes} editable={editable} />
+        </div>
       </div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white py-3">
-        <Button type="button" variant="outline" size="sm" onClick={onBackToRooms}>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 bg-white py-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={BTN_OUTLINE}
+          onClick={onBackToRooms}
+        >
           Back to Rooms
         </Button>
         <div className="flex gap-2">
           <Button
             type="button"
             size="sm"
+            className={BTN_PRIMARY}
             disabled={!editable}
             onClick={() => toast.message(RATE_NOTES_GAP_COPY)}
           >
             Save Changes
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => setRateNotes("")}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={BTN_OUTLINE}
+            onClick={() => setRateNotes("")}
+          >
             Cancel
           </Button>
         </div>
       </div>
       <Dialog open={planOpen} onOpenChange={setPlanOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white">
           <DialogHeader>
-            <DialogTitle>Change Rate Plan</DialogTitle>
+            <DialogTitle className="text-[#251605]">Change Rate Plan</DialogTitle>
           </DialogHeader>
           <div className="space-y-1">
-            <Label>Rate plan</Label>
+            <Label className="text-[#4A2C0F]">Rate plan</Label>
             <Select value={planId} onValueChange={setPlanId}>
               <SelectTrigger className={FIELD}>
                 <SelectValue placeholder="Select rate plan" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white">
                 {(plansQuery.data ?? []).map((row) => (
                   <SelectItem key={row.id} value={row.id}>
                     {row.code} — {row.name}
@@ -276,17 +266,23 @@ export function ReservationDetailRatesTab({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
+            <p className={cn("text-xs", MUTED)}>
               Repricing recalculates every night on the server from the selected plan. Browser
               totals are not used.
             </p>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPlanOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className={BTN_OUTLINE}
+              onClick={() => setPlanOpen(false)}
+            >
               Cancel
             </Button>
             <Button
               type="button"
+              className={BTN_PRIMARY}
               disabled={!planId || reprice.isPending}
               onClick={() => reprice.mutate()}
             >
@@ -309,37 +305,34 @@ function GroupRoomRates({
   const sections = groupRoomRateSections(reservation);
   const combined = groupCombinedSubtotal(reservation);
   return (
-    <section
-      className="space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="rates-group-rooms"
-    >
+    <section className={cn("space-y-3", CARD)} data-testid="rates-group-rooms">
       <div>
         <h2 className="font-display text-base text-[#251605]">Rate Information</h2>
-        <p className="text-xs text-muted-foreground" data-testid="rates-group-change-gated">
+        <p className={cn("text-xs", MUTED)} data-testid="rates-group-change-gated">
           {GROUP_RATE_CHANGE_UNAVAILABLE}
         </p>
       </div>
       {sections.map((section) => (
-        <div key={section.sequence} className="border-t border-[#EEE6D8] pt-3 text-sm">
+        <div key={section.sequence} className="border-t border-gray-100 pt-3 text-sm">
           <p className="font-medium text-[#251605]">Room {section.sequence}</p>
-          <p className="text-xs text-muted-foreground">Primary Occupant: {section.occupant}</p>
-          <p className="text-xs text-muted-foreground">Room Type: {section.roomTypeName}</p>
-          <p className="text-xs text-muted-foreground">Rate Plan: {section.ratePlanName}</p>
+          <p className={cn("text-xs", MUTED)}>Primary Occupant: {section.occupant}</p>
+          <p className={cn("text-xs", MUTED)}>Room Type: {section.roomTypeName}</p>
+          <p className={cn("text-xs", MUTED)}>Rate Plan: {section.ratePlanName}</p>
           {section.nights.length === 0 ? (
-            <p className="mt-2 text-xs text-muted-foreground">No nightly snapshot for this room.</p>
+            <p className={cn("mt-2 text-xs", MUTED)}>No nightly snapshot for this room.</p>
           ) : (
-            <table className="mt-2 w-full text-left text-xs">
-              <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <table className="mt-2 w-full text-left text-xs text-[#251605]">
+              <thead className={cn(TH, MUTED)}>
                 <tr>
-                  <th className="py-1 pr-2">Date</th>
-                  <th className="py-1 text-right">Rate</th>
+                  <th className="px-2 py-1">Date</th>
+                  <th className="py-1 pr-2 text-right">Rate</th>
                 </tr>
               </thead>
               <tbody>
                 {section.nights.map((night) => (
-                  <tr key={`${section.sequence}-${night.date}`}>
-                    <td className="py-1 pr-2">{formatStayDate(night.date)}</td>
-                    <td className="py-1 text-right">{money(night.rate)}</td>
+                  <tr key={`${section.sequence}-${night.date}`} className={ROW}>
+                    <td className="px-2 py-1">{formatStayDate(night.date)}</td>
+                    <td className="py-1 pr-2 text-right">{money(night.rate)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -350,7 +343,7 @@ function GroupRoomRates({
           </p>
         </div>
       ))}
-      <p className="border-t border-[#EEE6D8] pt-3 text-sm font-medium text-[#251605]">
+      <p className="rounded bg-gray-100 px-2 py-1.5 text-sm font-semibold text-[#251605]">
         Combined Room Total {combined == null ? DETAIL_DASH : money(combined)}
       </p>
     </section>
@@ -385,32 +378,40 @@ function RateInformationCard({
   onAddPackage: () => void;
 }) {
   return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="rate-information"
-    >
+    <section className={CARD} data-testid="rate-information">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="font-display text-base text-[#251605]">Rate Information</h2>
-          <p className="text-xs text-muted-foreground">
+          <p className={cn("text-xs", MUTED)}>
             View and manage the applied rate plan, daily rates, discounts and rate adjustments.
           </p>
         </div>
-        <Button type="button" variant="ghost" size="sm" disabled={!editable} onClick={onChangePlan}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={BTN_GHOST}
+          disabled={!editable}
+          onClick={onChangePlan}
+        >
           Edit Rate
         </Button>
       </div>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto]">
         <div className="flex gap-3">
           {coverUrl ? (
-            <img src={coverUrl} alt="" className="h-24 w-32 rounded-md object-cover" />
+            <img
+              src={coverUrl}
+              alt=""
+              className="h-24 w-32 rounded-md border border-gray-200 object-cover"
+            />
           ) : (
-            <div className="flex h-24 w-32 items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68]">
+            <div className="flex h-24 w-32 items-center justify-center rounded-md bg-gray-100 text-muted-foreground">
               <BedDouble className="size-8" />
             </div>
           )}
           <div className="min-w-0 text-sm">
-            <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <p className={cn("flex flex-wrap items-center gap-2 text-xs", MUTED)}>
               Room 1
               <span
                 className={cn(
@@ -424,7 +425,7 @@ function RateInformationCard({
               </span>
             </p>
             <p className="font-medium text-[#251605]">{reviewDash(reservation.roomTypeName)}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className={cn("text-xs", MUTED)}>
               {reservation.adults} Adults
               {occupancyLabel ? ` · ${occupancyLabel}` : ""}
             </p>
@@ -439,7 +440,7 @@ function RateInformationCard({
           />
           <Info label="Rate per Night" value={perNight == null ? DETAIL_DASH : money(perNight)} />
           <Info
-            label={`Total for Stay`}
+            label="Total for Stay"
             value={reservation.roomSubtotal == null ? DETAIL_DASH : money(reservation.roomSubtotal)}
           />
           <Info label="Currency" value={reviewDash(currency)} />
@@ -449,6 +450,7 @@ function RateInformationCard({
             type="button"
             variant="outline"
             size="sm"
+            className={BTN_OUTLINE}
             disabled={!editable}
             onClick={onChangePlan}
           >
@@ -459,6 +461,7 @@ function RateInformationCard({
             type="button"
             variant="outline"
             size="sm"
+            className={BTN_OUTLINE}
             disabled={!editable}
             onClick={onApplyDiscount}
           >
@@ -469,6 +472,7 @@ function RateInformationCard({
             type="button"
             variant="outline"
             size="sm"
+            className={BTN_OUTLINE}
             disabled={!editable}
             onClick={onAddPackage}
           >
@@ -495,24 +499,21 @@ function DailyRateBreakdownCard({
   const snapshotTotal = snapshotNightlyTotal(rows);
   const stayTotal = reservation.roomSubtotal;
   return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="daily-rate-breakdown"
-    >
+    <section className={CARD} data-testid="daily-rate-breakdown">
       <h2 className="font-display text-base text-[#251605]">Daily Rate Breakdown</h2>
-      <p className="mb-3 text-xs text-muted-foreground">
+      <p className={cn("mb-3 text-xs", MUTED)}>
         View nightly rates, inclusions and charges for this reservation.
       </p>
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className={cn("text-sm", MUTED)}>
           No pricing snapshot for this reservation. Nightly rows are not invented.
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-[#EEE6D8] text-[11px] uppercase tracking-wide text-muted-foreground">
+          <table className="w-full min-w-[720px] text-left text-sm text-[#251605]">
+            <thead className={cn(TH, MUTED)}>
               <tr>
-                <th className="py-2 pr-2">Date</th>
+                <th className="px-2 py-2">Date</th>
                 <th className="py-2 pr-2">Day</th>
                 <th className="py-2 pr-2">Room Type</th>
                 <th className="py-2 pr-2">Rate Plan</th>
@@ -525,8 +526,8 @@ function DailyRateBreakdownCard({
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.date} className="border-b border-[#F4EEE4]">
-                  <td className="py-2 pr-2">{formatStayDate(row.date)}</td>
+                <tr key={row.date} className={ROW}>
+                  <td className="px-2 py-2">{formatStayDate(row.date)}</td>
                   <td className="py-2 pr-2">{row.weekday}</td>
                   <td className="py-2 pr-2">{reviewDash(row.roomTypeName)}</td>
                   <td className="py-2 pr-2">{reviewDash(row.ratePlanName)}</td>
@@ -537,14 +538,14 @@ function DailyRateBreakdownCard({
                   <td className="py-2">{row.inclusion ? row.inclusion : DETAIL_DASH}</td>
                 </tr>
               ))}
-              <tr className="font-medium">
-                <td className="py-2 pr-2" colSpan={7}>
+              <tr className="bg-gray-100 font-semibold">
+                <td className="px-2 py-2" colSpan={7}>
                   Total
                 </td>
                 <td className="py-2 pr-2 text-right">
                   {stayTotal == null ? DETAIL_DASH : money(stayTotal)}
                 </td>
-                <td className="py-2 text-xs text-muted-foreground">
+                <td className={cn("py-2 text-xs font-normal", MUTED)}>
                   {snapshotTotal != null && stayTotal != null && snapshotTotal !== stayTotal
                     ? "Stay total from reservation pricing snapshot"
                     : null}
@@ -566,10 +567,7 @@ function RatePlanDetailsCard({
   plan: RatePlan | null;
 }) {
   return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="rate-plan-details"
-    >
+    <section className={CARD} data-testid="rate-plan-details">
       <h2 className="font-display text-base text-[#251605]">Rate Plan Details</h2>
       <dl className="mt-3 space-y-1.5 text-sm">
         <Info label="Rate Plan Name" value={reviewDash(reservation.ratePlanName ?? plan?.name)} />
@@ -602,22 +600,25 @@ function DiscountsCard({
   onAdd: () => void;
 }) {
   return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="rate-discounts"
-    >
+    <section className={CARD} data-testid="rate-discounts">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="font-display text-base text-[#251605]">Discounts & Adjustments</h2>
-        <Button type="button" size="sm" disabled={!editable} onClick={onAdd}>
+        <Button
+          type="button"
+          size="sm"
+          className={BTN_PRIMARY}
+          disabled={!editable}
+          onClick={onAdd}
+        >
           <Plus className="mr-1 size-3.5" />
           Add
         </Button>
       </div>
       {promotion ? (
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-[#EEE6D8] text-[11px] uppercase tracking-wide text-muted-foreground">
+        <table className="w-full text-left text-sm text-[#251605]">
+          <thead className={cn(TH, MUTED)}>
             <tr>
-              <th className="py-2 pr-2">Type</th>
+              <th className="px-2 py-2">Type</th>
               <th className="py-2 pr-2">Description</th>
               <th className="py-2 pr-2 text-right">Amount</th>
               <th className="py-2">Applied To</th>
@@ -625,7 +626,7 @@ function DiscountsCard({
           </thead>
           <tbody>
             <tr>
-              <td className="py-2 pr-2">{reviewDash(promotion.promoKind || "Promotion")}</td>
+              <td className="px-2 py-2">{reviewDash(promotion.promoKind || "Promotion")}</td>
               <td className="py-2 pr-2">
                 {reviewDash(promotion.promotionName || promotion.promotionCode)}
               </td>
@@ -635,10 +636,7 @@ function DiscountsCard({
           </tbody>
         </table>
       ) : (
-        <div
-          className="rounded-lg border border-dashed border-[#E4D6B8] px-4 py-8 text-center text-sm text-muted-foreground"
-          data-testid="rate-discounts-empty"
-        >
+        <div className={cn(EMPTY, MUTED)} data-testid="rate-discounts-empty">
           No discounts or adjustments.
           <p className="mt-1 text-xs">{RATE_DISCOUNT_GAP_COPY}</p>
         </div>
@@ -674,30 +672,30 @@ function PackagesCard({
   onAdd: () => void;
 }) {
   return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="rate-packages"
-    >
+    <section className={CARD} data-testid="rate-packages">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="font-display text-base text-[#251605]">Packages & Promotions</h2>
-        <Button type="button" size="sm" disabled={!editable} onClick={onAdd}>
+        <Button
+          type="button"
+          size="sm"
+          className={BTN_PRIMARY}
+          disabled={!editable}
+          onClick={onAdd}
+        >
           <Plus className="mr-1 size-3.5" />
           Add
         </Button>
       </div>
       {packages.length === 0 ? (
-        <div
-          className="rounded-lg border border-dashed border-[#E4D6B8] px-4 py-8 text-center text-sm text-muted-foreground"
-          data-testid="rate-packages-empty"
-        >
+        <div className={cn(EMPTY, MUTED)} data-testid="rate-packages-empty">
           No packages added.
           <p className="mt-1 text-xs">{RATE_PACKAGE_ADD_GAP_COPY}</p>
         </div>
       ) : (
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-[#EEE6D8] text-[11px] uppercase tracking-wide text-muted-foreground">
+        <table className="w-full text-left text-sm text-[#251605]">
+          <thead className={cn(TH, MUTED)}>
             <tr>
-              <th className="py-2 pr-2">Package Name</th>
+              <th className="px-2 py-2">Package Name</th>
               <th className="py-2 pr-2">Description</th>
               <th className="py-2 pr-2 text-right">Amount</th>
               <th className="py-2">Nights</th>
@@ -716,19 +714,17 @@ function PackagesCard({
                 reviewDash(row.packageCode) ||
                 chargeTypeLabel(configuredBasis);
               return (
-                <tr key={row.id}>
-                  <td className="py-2 pr-2">
+                <tr key={row.id} className={ROW}>
+                  <td className="px-2 py-2">
                     <p>{reviewDash(row.packageName)}</p>
                     {row.roomUnitLabel ? (
-                      <p className="text-[11px] text-muted-foreground">{row.roomUnitLabel}</p>
+                      <p className={cn("text-[11px]", MUTED)}>{row.roomUnitLabel}</p>
                     ) : null}
-                    {inclusion ? <p className="text-[10px] text-[#5C4A2A]">{inclusion}</p> : null}
+                    {inclusion ? <p className="text-[10px] text-[#4A2C0F]">{inclusion}</p> : null}
                   </td>
                   <td className="py-2 pr-2">
                     <p>{description}</p>
-                    {honesty ? (
-                      <p className="mt-0.5 text-[10px] text-amber-900/80">{honesty}</p>
-                    ) : null}
+                    {honesty ? <p className={cn("mt-0.5 text-[10px]", MUTED)}>{honesty}</p> : null}
                   </td>
                   <td className="py-2 pr-2 text-right">{money(row.appliedAmount)}</td>
                   <td className="py-2">
@@ -754,12 +750,9 @@ function RateNotesCard({
   editable: boolean;
 }) {
   return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="rate-notes"
-    >
+    <section className={CARD} data-testid="rate-notes">
       <h2 className="font-display text-base text-[#251605]">Rate Notes</h2>
-      <p className="mb-2 text-xs text-muted-foreground">
+      <p className={cn("mb-2 text-xs", MUTED)}>
         Internal notes about rates, discounts or special arrangements (visible to hotel staff only).
       </p>
       <Textarea
@@ -769,41 +762,20 @@ function RateNotesCard({
         value={value}
         onChange={(e) => onChange(e.target.value.slice(0, RATE_NOTES_MAX))}
         placeholder="Add rate notes here…"
-        className="min-h-24"
+        className="min-h-24 border-gray-200 bg-white text-[#251605]"
       />
-      <p className="mt-1 text-right text-[11px] text-muted-foreground">
+      <p className={cn("mt-1 text-right text-[11px]", MUTED)}>
         {value.length}/{RATE_NOTES_MAX}
       </p>
-      <p className="mt-1 text-[11px] text-muted-foreground">{RATE_NOTES_GAP_COPY}</p>
+      <p className={cn("mt-1 text-[11px]", MUTED)}>{RATE_NOTES_GAP_COPY}</p>
     </section>
   );
 }
 
-function RatesSummaryRail({
-  reservation,
-  money,
-  coverUrl,
-  nights,
-}: {
-  reservation: ReservationDetail;
-  money: (value: number) => string;
-  coverUrl: string | null;
-  nights: number;
-}) {
-  return (
-    <ReservationDetailSummary
-      testId="reservation-rates-summary"
-      reservation={reservation}
-      money={money}
-      coverUrl={coverUrl}
-      nights={nights}
-    />
-  );
-}
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <>
-      <dt className="text-muted-foreground">{label}</dt>
+      <dt className={MUTED}>{label}</dt>
       <dd className="text-[#251605]">{value}</dd>
     </>
   );

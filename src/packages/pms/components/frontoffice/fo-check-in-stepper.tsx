@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { Check, ChevronDown, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -14,12 +15,12 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -87,6 +88,21 @@ import { etaTiming, GUARANTEE_HOLD_UNSUPPORTED } from "@/packages/pms/lib/fo-arr
 import { getFrontOfficeApprovalRequirement } from "@/packages/pms/lib/fo-approvals.functions";
 import { FoAuthorizationCard } from "@/packages/pms/components/frontoffice/fo-authorization-card";
 import { cn } from "@/shared/lib/utils";
+
+/* Palette: brown text, gold accents, white surfaces (matches the rest of the PMS). */
+const PRIMARY_BUTTON =
+  "h-10 rounded-full bg-[#C89933] px-6 font-bold text-[#251605] hover:bg-[#B98B2D] disabled:opacity-50";
+const OUTLINE_BUTTON =
+  "h-10 rounded-full border-[#e9dfd0] bg-white px-5 font-semibold text-[#4a2c1a] shadow-none hover:bg-[#f5ead0]";
+const GHOST_BUTTON = "h-10 rounded-full px-4 font-semibold text-[#4a2c1a] hover:bg-[#f5ead0]";
+
+const STEP_COPY: Record<CheckInStepId, { title: string; hint: string }> = {
+  stay: { title: "Room", hint: "Choose the room this guest will stay in." },
+  registration: { title: "Guest registration", hint: "Confirm who is checking in." },
+  deposit: { title: "Deposit", hint: "Collect a deposit or waive it." },
+  key: { title: "Room key", hint: "Record how the guest will get into the room." },
+  complete: { title: "Review and check in", hint: "Everything below must be green to continue." },
+};
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
@@ -559,569 +575,669 @@ export function FoCheckInStepper({
     rooms: roomsQuery.data,
   });
   const roomTypeLabel = formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode);
+  const copy = STEP_COPY[step];
 
   return (
     <>
-      <Sheet
+      <Dialog
         open={open}
         onOpenChange={(next) => {
           if (!next) requestClose();
         }}
       >
-        <SheetContent
-          side="right"
+        <DialogContent
           data-testid="fo-check-in-stepper"
-          className="z-[70] flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[720px]"
+          className="z-[70] flex h-[90vh] max-h-[860px] w-[calc(100vw-2rem)] max-w-5xl flex-col gap-0 overflow-hidden rounded-2xl border-[#e9dfd0] bg-[#fbfbfb] p-0 sm:max-w-5xl"
         >
-          <SheetHeader className="shrink-0 border-b border-[#CCCCCC] px-5 py-4 text-left">
-            <SheetTitle className="text-[#251605]">Check in</SheetTitle>
-            <SheetDescription>
-              {guestLabel} · {confirmation} · {dates}
-            </SheetDescription>
-          </SheetHeader>
+          {/* Header: who is checking in, and where they are in the flow. */}
+          <DialogHeader className="shrink-0 space-y-4 border-b border-[#e9dfd0] bg-white px-6 py-5 pr-14 text-left">
+            <div>
+              <DialogTitle className="font-display text-xl font-semibold text-[#4a2c1a]">
+                Check in {guestLabel}
+              </DialogTitle>
+              <DialogDescription className="mt-1 text-sm text-[#7A6B58]">
+                {confirmation} · {dates} · {roomTypeLabel}
+              </DialogDescription>
+            </div>
 
-          <nav className="sticky top-0 z-10 shrink-0 border-b border-[#CCCCCC] bg-background px-4 py-3">
-            <ol className="flex flex-wrap gap-2">
-              {CHECK_IN_STEP_META.map((meta, index) => {
-                const state = stepRailState(index, currentIndex, currentBlocked);
-                return (
-                  <li key={meta.id}>
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-                        state === "done" && "bg-[#436436]/15 text-[#436436]",
-                        state === "current" &&
-                          "bg-[#C89933]/20 text-[#251605] ring-1 ring-[#C89933]",
-                        state === "blocked" && "bg-destructive/10 text-destructive",
-                        state === "locked" && "bg-[#CCCCCC]/40 text-muted-foreground",
-                      )}
-                    >
-                      <span className="font-semibold">{meta.letter}</span>
-                      {meta.label}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-          </nav>
+            <nav aria-label="Check-in steps">
+              <ol className="flex items-center">
+                {CHECK_IN_STEP_META.map((meta, index) => {
+                  const state = stepRailState(index, currentIndex, currentBlocked);
+                  const isLast = index === CHECK_IN_STEP_META.length - 1;
+                  return (
+                    <li key={meta.id} className={cn("flex items-center", !isLast && "flex-1")}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "grid size-7 shrink-0 place-items-center rounded-full text-xs font-bold",
+                            state === "done" && "bg-[#4a2c1a] text-white",
+                            state === "current" && "bg-[#C89933] text-[#251605]",
+                            state === "blocked" &&
+                              "bg-destructive/10 text-destructive ring-1 ring-destructive/40",
+                            state === "locked" && "bg-[#f1ede6] text-[#7A6B58]",
+                          )}
+                        >
+                          {state === "done" ? <Check className="size-3.5" /> : index + 1}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-xs",
+                            state === "current"
+                              ? "font-bold text-[#4a2c1a]"
+                              : "hidden font-medium text-[#7A6B58] md:inline",
+                          )}
+                        >
+                          {meta.label}
+                        </span>
+                      </span>
+                      {!isLast ? (
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "mx-3 h-px flex-1",
+                            state === "done" ? "bg-[#4a2c1a]" : "bg-[#e9dfd0]",
+                          )}
+                        />
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ol>
+            </nav>
+          </DialogHeader>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {/* Body: one card per step. */}
+          <div className="flex min-h-0 flex-1">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             {contextQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading check-in…</p>
+              <p className="text-sm text-[#7A6B58]">Loading check-in…</p>
             ) : contextQuery.isError && isPermissionDeniedMessage(contextQuery.error) ? (
               <PermissionDeniedPanel message={errorText(contextQuery.error)} />
             ) : (
-              <>
-                {denyMessage ? (
-                  <PermissionDeniedPanel className="mb-4" message={denyMessage} />
-                ) : null}
+              <div className="space-y-4">
+                {denyMessage ? <PermissionDeniedPanel message={denyMessage} /> : null}
 
-                {step === "stay" ? (
-                  <div className="space-y-4">
-                    <RoomUnitTargetSelect
-                      units={stay.roomUnits}
-                      value={reservationRoomId}
-                      onChange={(id) => {
-                        setReservationRoomId(id);
-                        markDirty();
-                      }}
-                    />
-                    <RoomUnitOccupantContext
-                      stayGuestId={stay.guestId}
-                      units={stay.roomUnits}
-                      selectedId={reservationRoomId}
-                    />
-                    {multiRoom ? (
-                      <p className="text-xs text-[#6B5E4E]">
-                        Registration stays on the Primary Guest / Booker.
-                      </p>
-                    ) : null}
-                    <div className="space-y-2">
-                      <Label>Room</Label>
-                      <Select
-                        value={roomId}
-                        onValueChange={(v) => {
-                          setRoomId(v);
-                          markDirty();
-                        }}
-                        disabled={
-                          roomsState.status === "loading" ||
-                          roomsState.status === "error" ||
-                          (multiRoom && !reservationRoomId)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue
-                            placeholder={
-                              roomsState.status === "loading" ? "Loading rooms…" : "Select a room"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {rooms.map((room) => (
-                            <SelectItem key={room.id} value={room.id}>
-                              Room {room.roomNumber}
-                              {room.housekeepingStatus ? ` · ${room.housekeepingStatus}` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <AssignableRoomsHint
-                        status={roomsState.status}
-                        roomTypeLabel={roomTypeLabel}
-                        onRetry={() => void roomsQuery.refetch()}
-                        detail={roomsQuery.error instanceof Error ? roomsQuery.error.message : null}
-                      />
-                    </div>
-                    {roomGate.reason ? (
-                      <p className="text-sm text-destructive">{roomGate.reason}</p>
-                    ) : null}
-                    {ctx?.stay.expectedArrivalAt && ctx.checkInTime
-                      ? (() => {
-                          const timing = etaTiming({
-                            expectedArrivalAt: ctx.stay.expectedArrivalAt,
-                            checkInTime: ctx.checkInTime,
-                            timezone: ctx.timezone,
-                          });
-                          if (timing !== "early") return null;
-                          return (
-                            <p className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-3 py-2 text-sm text-[#251605]">
-                              Expected arrival is before property check-in time
-                              {ctx.earlyCheckinAllowed === false
-                                ? ". Early check-in is not allowed in Settings."
-                                : ctx.earlyCheckinNeedsApproval
-                                  ? ". Settings require approval — there is no approval inbox yet."
-                                  : "."}
-                            </p>
-                          );
-                        })()
-                      : null}
-                    {ctx?.rateMissing ? (
-                      <p className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-3 py-2 text-sm text-[#251605]">
-                        This stay has no rate on file. You can still continue.
-                      </p>
-                    ) : null}
-                    <p className="text-xs text-muted-foreground">
-                      {roomTypeLabel} · {stay.adults} adult{stay.adults === 1 ? "" : "s"}
-                      {stay.children ? ` · ${stay.children} child` : ""}
-                    </p>
-                  </div>
-                ) : null}
-
-                {step === "registration" ? (
-                  <div className="space-y-4">
-                    {!registrationOk ? (
-                      <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
-                        {REGISTRATION_INCOMPLETE_BANNER}
-                      </p>
-                    ) : null}
-                    {ctx?.progress.registrationWaived ? (
-                      <p className="inline-flex rounded-full bg-[#C89933]/20 px-2.5 py-1 text-xs font-medium text-[#251605]">
-                        Registration waived
-                      </p>
-                    ) : null}
-                    <Field label="Full name" required>
-                      <Input
-                        value={fullName}
-                        onChange={(e) => {
-                          setFullName(e.target.value);
+                <StepCard title={copy.title} hint={copy.hint}>
+                  {step === "stay" ? (
+                    <div className="space-y-4">
+                      <RoomUnitTargetSelect
+                        units={stay.roomUnits}
+                        value={reservationRoomId}
+                        onChange={(id) => {
+                          setReservationRoomId(id);
                           markDirty();
                         }}
                       />
-                    </Field>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Field label="Phone">
-                        <Input
-                          value={phone}
-                          onChange={(e) => {
-                            setPhone(e.target.value);
-                            markDirty();
-                          }}
-                        />
-                      </Field>
-                      <Field label="Email">
-                        <Input
-                          type="email"
-                          value={email}
-                          onChange={(e) => {
-                            setEmail(e.target.value);
-                            markDirty();
-                          }}
-                        />
-                      </Field>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Phone or email is required, plus ID type and number.
-                    </p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>
-                          ID type
-                          <span className="text-destructive"> *</span>
-                        </Label>
+                      <RoomUnitOccupantContext
+                        stayGuestId={stay.guestId}
+                        units={stay.roomUnits}
+                        selectedId={reservationRoomId}
+                      />
+                      {multiRoom ? (
+                        <p className="text-xs text-[#7A6B58]">
+                          Registration stays on the Primary Guest / Booker.
+                        </p>
+                      ) : null}
+
+                      <Field label="Room">
                         <Select
-                          value={idType}
+                          value={roomId}
                           onValueChange={(v) => {
-                            setIdType(v as IdDocumentType);
+                            setRoomId(v);
                             markDirty();
                           }}
+                          disabled={
+                            roomsState.status === "loading" ||
+                            roomsState.status === "error" ||
+                            (multiRoom && !reservationRoomId)
+                          }
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select ID type" />
+                          <SelectTrigger className="h-10">
+                            <SelectValue
+                              placeholder={
+                                roomsState.status === "loading" ? "Loading rooms…" : "Select a room"
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
-                            {ID_DOCUMENT_TYPES.map((t) => (
-                              <SelectItem key={t} value={t}>
-                                {ID_DOCUMENT_LABELS[t]}
+                            {rooms.map((room) => (
+                              <SelectItem key={room.id} value={room.id}>
+                                Room {room.roomNumber}
+                                {room.housekeepingStatus ? ` · ${room.housekeepingStatus}` : ""}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                      </div>
-                      <Field label="ID number" required>
-                        <Input
-                          value={idNumber}
-                          onChange={(e) => {
-                            setIdNumber(e.target.value);
-                            markDirty();
-                          }}
+                        <AssignableRoomsHint
+                          status={roomsState.status}
+                          roomTypeLabel={roomTypeLabel}
+                          onRetry={() => void roomsQuery.refetch()}
+                          detail={
+                            roomsQuery.error instanceof Error ? roomsQuery.error.message : null
+                          }
                         />
                       </Field>
-                    </div>
-                    <Field label="ID expiry">
-                      <Input
-                        type="date"
-                        value={idExpiry}
-                        onChange={(e) => {
-                          setIdExpiry(e.target.value);
-                          markDirty();
-                        }}
-                      />
-                    </Field>
-                    {promptPassportExpiry(idType || null, idExpiry) ? (
-                      <p className="text-xs text-[#C89933]">Passport expiry is recommended.</p>
-                    ) : null}
-                    <Field label="Nationality">
-                      <Input
-                        value={nationality}
-                        onChange={(e) => {
-                          setNationality(e.target.value);
-                          markDirty();
-                        }}
-                      />
-                    </Field>
-                    <Field label="Address">
-                      <Input
-                        value={addressLine1}
-                        onChange={(e) => {
-                          setAddressLine1(e.target.value);
-                          markDirty();
-                        }}
-                      />
-                    </Field>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Field label="City">
-                        <Input
-                          value={city}
-                          onChange={(e) => {
-                            setCity(e.target.value);
-                            markDirty();
-                          }}
-                        />
-                      </Field>
-                      <Field label="Country">
-                        <Input
-                          value={country}
-                          onChange={(e) => {
-                            setCountry(e.target.value);
-                            markDirty();
-                          }}
-                        />
-                      </Field>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Field label="Adults">
-                        <Input
-                          type="number"
-                          min={1}
-                          max={20}
-                          value={adults}
-                          onChange={(e) => {
-                            setAdults(Math.max(1, Number(e.target.value) || 1));
-                            markDirty();
-                          }}
-                        />
-                      </Field>
-                      <Field label="Children">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={20}
-                          value={children}
-                          onChange={(e) => {
-                            setChildren(Math.max(0, Number(e.target.value) || 0));
-                            markDirty();
-                          }}
-                        />
-                      </Field>
-                    </div>
-                    {stay.specialRequests ? (
-                      <p className="text-sm text-muted-foreground">
-                        Special requests: {stay.specialRequests}
-                      </p>
-                    ) : null}
-                    {ctx?.progress.registrationWaived ? null : (
-                      <FoAuthorizationCard
-                        requirement={checkInAuth}
-                        guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
-                        reason={regReason}
-                        onReasonChange={setRegReason}
-                        pending={waiveRegMut.isPending}
-                        confirmLabel="Waive registration"
-                        onAuthorize={() => waiveRegMut.mutate()}
-                        reasonId="reg-waiver"
-                      />
-                    )}
-                  </div>
-                ) : null}
 
-                {step === "deposit" ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <FolioChip label="open" on={ctx?.folio.open ?? false} />
-                      <FolioChip label="required" on />
-                      <FolioChip label="already posted" on={(ctx?.folio.postedAmount ?? 0) > 0} />
-                      <FolioChip
-                        label="outstanding"
-                        on={(ctx?.folio.outstanding ?? 0) > 0 && !depositOk}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">{GUARANTEE_HOLD_UNSUPPORTED}</p>
-                    {depositOk ? (
-                      <p className="rounded-xl bg-[#436436]/15 px-3 py-2 text-sm font-medium text-[#436436]">
-                        {ctx?.progress.depositWaived
-                          ? "Deposit waived"
-                          : `Deposit satisfied${ctx?.folio.postedAmount ? ` · ${money(ctx.folio.postedAmount)}` : ""}`}
+                      {roomGate.reason ? <Notice tone="error">{roomGate.reason}</Notice> : null}
+
+                      {ctx?.stay.expectedArrivalAt && ctx.checkInTime
+                        ? (() => {
+                            const timing = etaTiming({
+                              expectedArrivalAt: ctx.stay.expectedArrivalAt,
+                              checkInTime: ctx.checkInTime,
+                              timezone: ctx.timezone,
+                            });
+                            if (timing !== "early") return null;
+                            return (
+                              <Notice tone="warn">
+                                Expected arrival is before property check-in time
+                                {ctx.earlyCheckinAllowed === false
+                                  ? ". Early check-in is not allowed in Settings."
+                                  : ctx.earlyCheckinNeedsApproval
+                                    ? ". Settings require approval — there is no approval inbox yet."
+                                    : "."}
+                              </Notice>
+                            );
+                          })()
+                        : null}
+
+                      {ctx?.rateMissing ? (
+                        <Notice tone="warn">
+                          This stay has no rate on file. You can still continue.
+                        </Notice>
+                      ) : null}
+
+                      <p className="text-xs text-[#7A6B58]">
+                        {roomTypeLabel} · {stay.adults} adult{stay.adults === 1 ? "" : "s"}
+                        {stay.children ? ` · ${stay.children} child` : ""}
                       </p>
-                    ) : (
-                      <>
-                        <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
-                          {DEPOSIT_REQUIRED_BANNER}
-                        </p>
-                        <Field label="Amount">
+                    </div>
+                  ) : null}
+
+                  {step === "registration" ? (
+                    <div className="space-y-4">
+                      {!registrationOk ? (
+                        <Notice tone="error">{REGISTRATION_INCOMPLETE_BANNER}</Notice>
+                      ) : null}
+                      {ctx?.progress.registrationWaived ? (
+                        <Notice tone="success">Registration waived</Notice>
+                      ) : null}
+
+                      <Field label="Full name" required>
+                        <Input
+                          className="h-10"
+                          value={fullName}
+                          onChange={(e) => {
+                            setFullName(e.target.value);
+                            markDirty();
+                          }}
+                        />
+                      </Field>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Phone">
                           <Input
-                            type="number"
-                            min={0.01}
-                            step="0.01"
-                            value={depositAmount}
+                            className="h-10"
+                            value={phone}
                             onChange={(e) => {
-                              setDepositAmount(e.target.value);
+                              setPhone(e.target.value);
                               markDirty();
                             }}
                           />
                         </Field>
-                        {tenders.length === 0 ? (
-                          <p className="text-sm text-[#C89933]">
-                            No active payment methods. Configure them in{" "}
-                            <a href={POLISH1_PAYMENT_METHODS_HREF} className="underline">
-                              Payment methods
-                            </a>
-                            .
-                          </p>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {tenders.map((tender) => (
-                              <button
-                                key={tender.code}
-                                type="button"
-                                className={cn(
-                                  "rounded-full border px-3 py-1.5 text-sm",
-                                  depositMethod === tender.code
-                                    ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
-                                    : "border-[#CCCCCC] text-muted-foreground",
-                                )}
-                                onClick={() => setDepositMethod(tender.code)}
-                              >
-                                {tender.name}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        <Field label="Reference">
+                        <Field label="Email">
                           <Input
-                            value={depositRef}
-                            onChange={(e) => setDepositRef(e.target.value)}
+                            className="h-10"
+                            type="email"
+                            value={email}
+                            onChange={(e) => {
+                              setEmail(e.target.value);
+                              markDirty();
+                            }}
                           />
                         </Field>
-                        <Button
-                          type="button"
-                          className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-                          disabled={
-                            !Number(depositAmount) || !depositMethod || postDepMut.isPending
-                          }
-                          onClick={() => postDepMut.mutate()}
-                        >
-                          {postDepMut.isPending ? "Posting…" : "Post deposit"}
-                        </Button>
-                      </>
-                    )}
-                    {ctx?.progress.depositWaived ? null : (
-                      <FoAuthorizationCard
-                        requirement={checkInAuth}
-                        guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
-                        reason={depositReason}
-                        onReasonChange={setDepositReason}
-                        pending={waiveDepMut.isPending}
-                        confirmLabel="Waive deposit"
-                        onAuthorize={() => waiveDepMut.mutate()}
-                        reasonId="dep-waiver"
-                      />
-                    )}
-                  </div>
-                ) : null}
-
-                {step === "key" ? (
-                  <div className="space-y-4">
-                    {ctx?.progress.keyWaived ? (
-                      <p className="inline-flex rounded-full bg-[#C89933]/20 px-2.5 py-1 text-xs font-medium text-[#251605]">
-                        Keys later
+                      </div>
+                      <p className="-mt-2 text-xs text-[#7A6B58]">
+                        Add a phone or email, plus an ID type and number.
                       </p>
-                    ) : null}
-                    <div className="space-y-2">
-                      <Label>Access type</Label>
-                      <Select
-                        value={keyType}
-                        onValueChange={(v) => {
-                          setKeyType(v as KeyAccessType);
-                          markDirty();
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select access type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {KEY_ACCESS_TYPES.map((t) => (
-                            <SelectItem key={t} value={t}>
-                              {KEY_ACCESS_LABELS[t]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="ID type" required>
+                          <Select
+                            value={idType}
+                            onValueChange={(v) => {
+                              setIdType(v as IdDocumentType);
+                              markDirty();
+                            }}
+                          >
+                            <SelectTrigger className="h-10">
+                              <SelectValue placeholder="Select ID type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ID_DOCUMENT_TYPES.map((t) => (
+                                <SelectItem key={t} value={t}>
+                                  {ID_DOCUMENT_LABELS[t]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label="ID number" required>
+                          <Input
+                            className="h-10"
+                            value={idNumber}
+                            onChange={(e) => {
+                              setIdNumber(e.target.value);
+                              markDirty();
+                            }}
+                          />
+                        </Field>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="ID expiry">
+                          <Input
+                            className="h-10"
+                            type="date"
+                            value={idExpiry}
+                            onChange={(e) => {
+                              setIdExpiry(e.target.value);
+                              markDirty();
+                            }}
+                          />
+                        </Field>
+                        <Field label="Nationality">
+                          <Input
+                            className="h-10"
+                            value={nationality}
+                            onChange={(e) => {
+                              setNationality(e.target.value);
+                              markDirty();
+                            }}
+                          />
+                        </Field>
+                      </div>
+                      {promptPassportExpiry(idType || null, idExpiry) ? (
+                        <p className="-mt-2 text-xs text-[#8C6D23]">
+                          Passport expiry is recommended.
+                        </p>
+                      ) : null}
+
+                      <Field label="Address">
+                        <Input
+                          className="h-10"
+                          value={addressLine1}
+                          onChange={(e) => {
+                            setAddressLine1(e.target.value);
+                            markDirty();
+                          }}
+                        />
+                      </Field>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="City">
+                          <Input
+                            className="h-10"
+                            value={city}
+                            onChange={(e) => {
+                              setCity(e.target.value);
+                              markDirty();
+                            }}
+                          />
+                        </Field>
+                        <Field label="Country">
+                          <Input
+                            className="h-10"
+                            value={country}
+                            onChange={(e) => {
+                              setCountry(e.target.value);
+                              markDirty();
+                            }}
+                          />
+                        </Field>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Adults">
+                          <Input
+                            className="h-10"
+                            type="number"
+                            min={1}
+                            max={20}
+                            value={adults}
+                            onChange={(e) => {
+                              setAdults(Math.max(1, Number(e.target.value) || 1));
+                              markDirty();
+                            }}
+                          />
+                        </Field>
+                        <Field label="Children">
+                          <Input
+                            className="h-10"
+                            type="number"
+                            min={0}
+                            max={20}
+                            value={children}
+                            onChange={(e) => {
+                              setChildren(Math.max(0, Number(e.target.value) || 0));
+                              markDirty();
+                            }}
+                          />
+                        </Field>
+                      </div>
+
+                      {stay.specialRequests ? (
+                        <p className="rounded-xl bg-[#faf7f1] px-3 py-2 text-sm text-[#4a2c1a]">
+                          <span className="font-semibold">Special requests:</span>{" "}
+                          {stay.specialRequests}
+                        </p>
+                      ) : null}
+
+                      {ctx?.progress.registrationWaived ? null : (
+                        <SkipStep label="Skip registration">
+                          <FoAuthorizationCard
+                            requirement={checkInAuth}
+                            guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                            reason={regReason}
+                            onReasonChange={setRegReason}
+                            pending={waiveRegMut.isPending}
+                            confirmLabel="Waive registration"
+                            onAuthorize={() => waiveRegMut.mutate()}
+                            reasonId="reg-waiver"
+                          />
+                        </SkipStep>
+                      )}
                     </div>
-                    <Field label="Identifier">
-                      <Input
-                        value={keyId}
-                        onChange={(e) => {
-                          setKeyId(e.target.value);
-                          markDirty();
-                        }}
-                      />
-                    </Field>
-                    <Field label="Number of keys">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={keyCount}
-                        onChange={(e) => setKeyCount(Math.max(1, Number(e.target.value) || 1))}
-                      />
-                    </Field>
-                    <p className="text-xs text-muted-foreground">
-                      Issued at{" "}
-                      {ctx?.progress.keyIssuedAt
-                        ? formatStayDate(ctx.progress.keyIssuedAt.slice(0, 10))
-                        : "now"}
-                      {ctx?.actorName ? ` · ${ctx.actorName}` : ""}
-                    </p>
-                    {ctx?.progress.keyWaived ? null : (
-                      <FoAuthorizationCard
-                        requirement={checkInAuth}
-                        guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
-                        reason={keyReason}
-                        onReasonChange={setKeyReason}
-                        pending={waiveKeyMut.isPending}
-                        confirmLabel="Keys later"
-                        onAuthorize={() => waiveKeyMut.mutate()}
-                        reasonId="key-waiver"
-                      />
-                    )}
-                  </div>
-                ) : null}
+                  ) : null}
 
-                {step === "complete" ? (
-                  <div className="space-y-3 text-sm">
-                    <SummaryRow label="Guest" value={guestLabel} ok={registrationOk} />
-                    <SummaryRow
-                      label="Reservation"
-                      value={`${confirmation} · ${stay.status.replace("_", " ")}`}
-                      ok={stay.status === "confirmed"}
-                    />
-                    <SummaryRow label="Dates" value={dates} ok />
-                    <SummaryRow
-                      label="Room"
-                      value={
-                        assignedRoom
-                          ? `Room ${assignedRoom.roomNumber}${roomGate.ready ? " · ready" : ""}`
-                          : stay.roomNumber
-                            ? `Room ${stay.roomNumber}`
-                            : "Unassigned"
-                      }
-                      ok={roomGate.ready}
-                    />
-                    <SummaryRow
-                      label="Registration"
-                      value={ctx?.progress.registrationWaived ? "waived" : "complete"}
-                      ok={registrationOk}
-                    />
-                    <SummaryRow
-                      label="Deposit"
-                      value={
-                        ctx?.progress.depositWaived
-                          ? "waived"
-                          : ctx?.folio.postedAmount
-                            ? `${money(ctx.folio.postedAmount)}${ctx.folio.postedMethod ? ` · ${ctx.folio.postedMethod}` : ""}`
-                            : "required"
-                      }
-                      ok={depositOk}
-                    />
-                    <SummaryRow
-                      label="Key"
-                      value={ctx?.progress.keyWaived ? "waived" : "recorded"}
-                      ok={keyOk}
-                    />
-                    {!completeOk ? (
-                      <p className="text-sm text-destructive">
-                        Check-in stays disabled until every gate above is green.
+                  {step === "deposit" ? (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <FolioChip label="Folio open" on={ctx?.folio.open ?? false} />
+                        <FolioChip label="Deposit required" on />
+                        <FolioChip
+                          label="Deposit posted"
+                          on={(ctx?.folio.postedAmount ?? 0) > 0}
+                        />
+                        <FolioChip
+                          label="Balance due"
+                          on={(ctx?.folio.outstanding ?? 0) > 0 && !depositOk}
+                        />
+                      </div>
+                      <p className="text-xs text-[#7A6B58]">{GUARANTEE_HOLD_UNSUPPORTED}</p>
+
+                      {depositOk ? (
+                        <Notice tone="success">
+                          {ctx?.progress.depositWaived
+                            ? "Deposit waived"
+                            : `Deposit received${ctx?.folio.postedAmount ? ` · ${money(ctx.folio.postedAmount)}` : ""}`}
+                        </Notice>
+                      ) : (
+                        <>
+                          <Notice tone="error">{DEPOSIT_REQUIRED_BANNER}</Notice>
+                          <Field label="Amount">
+                            <Input
+                              className="h-10"
+                              type="number"
+                              min={0.01}
+                              step="0.01"
+                              value={depositAmount}
+                              onChange={(e) => {
+                                setDepositAmount(e.target.value);
+                                markDirty();
+                              }}
+                            />
+                          </Field>
+
+                          {tenders.length === 0 ? (
+                            <Notice tone="warn">
+                              No active payment methods. Set them up in{" "}
+                              <a href={POLISH1_PAYMENT_METHODS_HREF} className="underline">
+                                Payment methods
+                              </a>
+                              .
+                            </Notice>
+                          ) : (
+                            <Field label="Payment method">
+                              <div className="flex flex-wrap gap-2">
+                                {tenders.map((tender) => (
+                                  <button
+                                    key={tender.code}
+                                    type="button"
+                                    className={cn(
+                                      "rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
+                                      depositMethod === tender.code
+                                        ? "border-[#C89933] bg-[#f5ead0] text-[#4a2c1a]"
+                                        : "border-[#e9dfd0] bg-white text-[#7A6B58] hover:bg-[#faf7f1]",
+                                    )}
+                                    onClick={() => setDepositMethod(tender.code)}
+                                  >
+                                    {tender.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </Field>
+                          )}
+
+                          <Field label="Reference">
+                            <Input
+                              className="h-10"
+                              value={depositRef}
+                              onChange={(e) => setDepositRef(e.target.value)}
+                            />
+                          </Field>
+                          <Button
+                            type="button"
+                            className={PRIMARY_BUTTON}
+                            disabled={
+                              !Number(depositAmount) || !depositMethod || postDepMut.isPending
+                            }
+                            onClick={() => postDepMut.mutate()}
+                          >
+                            {postDepMut.isPending ? "Posting…" : "Post deposit"}
+                          </Button>
+                        </>
+                      )}
+
+                      {ctx?.progress.depositWaived ? null : (
+                        <SkipStep label="Waive deposit">
+                          <FoAuthorizationCard
+                            requirement={checkInAuth}
+                            guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                            reason={depositReason}
+                            onReasonChange={setDepositReason}
+                            pending={waiveDepMut.isPending}
+                            confirmLabel="Waive deposit"
+                            onAuthorize={() => waiveDepMut.mutate()}
+                            reasonId="dep-waiver"
+                          />
+                        </SkipStep>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {step === "key" ? (
+                    <div className="space-y-4">
+                      {ctx?.progress.keyWaived ? <Notice tone="success">Keys later</Notice> : null}
+
+                      <Field label="Access type">
+                        <Select
+                          value={keyType}
+                          onValueChange={(v) => {
+                            setKeyType(v as KeyAccessType);
+                            markDirty();
+                          }}
+                        >
+                          <SelectTrigger className="h-10">
+                            <SelectValue placeholder="Select access type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {KEY_ACCESS_TYPES.map((t) => (
+                              <SelectItem key={t} value={t}>
+                                {KEY_ACCESS_LABELS[t]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Identifier">
+                          <Input
+                            className="h-10"
+                            value={keyId}
+                            onChange={(e) => {
+                              setKeyId(e.target.value);
+                              markDirty();
+                            }}
+                          />
+                        </Field>
+                        <Field label="Number of keys">
+                          <Input
+                            className="h-10"
+                            type="number"
+                            min={1}
+                            max={20}
+                            value={keyCount}
+                            onChange={(e) => setKeyCount(Math.max(1, Number(e.target.value) || 1))}
+                          />
+                        </Field>
+                      </div>
+
+                      <p className="text-xs text-[#7A6B58]">
+                        Issued{" "}
+                        {ctx?.progress.keyIssuedAt
+                          ? formatStayDate(ctx.progress.keyIssuedAt.slice(0, 10))
+                          : "now"}
+                        {ctx?.actorName ? ` by ${ctx.actorName}` : ""}
                       </p>
-                    ) : null}
-                  </div>
-                ) : null}
-              </>
+
+                      {ctx?.progress.keyWaived ? null : (
+                        <SkipStep label="Hand over keys later">
+                          <FoAuthorizationCard
+                            requirement={checkInAuth}
+                            guestLine={`${stay.guestName} · ${stay.confirmationNumber}`}
+                            reason={keyReason}
+                            onReasonChange={setKeyReason}
+                            pending={waiveKeyMut.isPending}
+                            confirmLabel="Keys later"
+                            onAuthorize={() => waiveKeyMut.mutate()}
+                            reasonId="key-waiver"
+                          />
+                        </SkipStep>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {step === "complete" ? (
+                    <div className="space-y-2">
+                      <SummaryRow label="Guest" value={guestLabel} ok={registrationOk} />
+                      <SummaryRow
+                        label="Reservation"
+                        value={`${confirmation} · ${stay.status.replace("_", " ")}`}
+                        ok={stay.status === "confirmed"}
+                      />
+                      <SummaryRow label="Dates" value={dates} ok />
+                      <SummaryRow
+                        label="Room"
+                        value={
+                          assignedRoom
+                            ? `Room ${assignedRoom.roomNumber}${roomGate.ready ? " · ready" : ""}`
+                            : stay.roomNumber
+                              ? `Room ${stay.roomNumber}`
+                              : "Unassigned"
+                        }
+                        ok={roomGate.ready}
+                      />
+                      <SummaryRow
+                        label="Registration"
+                        value={ctx?.progress.registrationWaived ? "Waived" : "Complete"}
+                        ok={registrationOk}
+                      />
+                      <SummaryRow
+                        label="Deposit"
+                        value={
+                          ctx?.progress.depositWaived
+                            ? "Waived"
+                            : ctx?.folio.postedAmount
+                              ? `${money(ctx.folio.postedAmount)}${ctx.folio.postedMethod ? ` · ${ctx.folio.postedMethod}` : ""}`
+                              : "Required"
+                        }
+                        ok={depositOk}
+                      />
+                      <SummaryRow
+                        label="Key"
+                        value={ctx?.progress.keyWaived ? "Later" : "Recorded"}
+                        ok={keyOk}
+                      />
+                      {!completeOk ? (
+                        <Notice tone="error">
+                          Check-in stays disabled until every item above is green.
+                        </Notice>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </StepCard>
+              </div>
             )}
           </div>
 
-          <div className="shrink-0 border-t border-[#CCCCCC] bg-background px-5 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Button type="button" variant="ghost" onClick={requestClose}>
+          <SummaryAside
+            guest={guestLabel}
+            confirmation={confirmation}
+            dates={dates}
+            nights={stay.nights}
+            roomType={roomTypeLabel}
+            room={
+              assignedRoom
+                ? `Room ${assignedRoom.roomNumber}`
+                : stay.roomNumber
+                  ? `Room ${stay.roomNumber}`
+                  : "Unassigned"
+            }
+            guests={`${adults} adult${adults === 1 ? "" : "s"}${children ? ` · ${children} child${children === 1 ? "" : "ren"}` : ""}`}
+            deposit={
+              ctx?.progress.depositWaived
+                ? "Waived"
+                : ctx?.folio.postedAmount
+                  ? money(ctx.folio.postedAmount)
+                  : "Not paid yet"
+            }
+          />
+          </div>
+
+          {/* Footer */}
+          <div className="shrink-0 border-t border-[#e9dfd0] bg-white px-6 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <Button type="button" variant="ghost" className={GHOST_BUTTON} onClick={requestClose}>
                 Cancel
               </Button>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" disabled={step === "stay"} onClick={goBack}>
+              <span className="hidden text-xs text-[#7A6B58] sm:inline">
+                Step {currentIndex + 1} of {CHECK_IN_STEPS.length}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={OUTLINE_BUTTON}
+                  disabled={step === "stay"}
+                  onClick={goBack}
+                >
                   Back
                 </Button>
                 {step === "complete" ? (
                   <Button
                     type="button"
-                    className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+                    className={PRIMARY_BUTTON}
                     disabled={continueDisabled}
                     onClick={() => completeMut.mutate()}
                   >
-                    {completeMut.isPending ? "Checking in…" : "Check In"}
+                    {completeMut.isPending ? "Checking in…" : "Check in"}
                   </Button>
                 ) : (
                   <Button
                     type="button"
-                    className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+                    className={PRIMARY_BUTTON}
                     disabled={continueDisabled}
                     onClick={onContinue}
                   >
@@ -1131,8 +1247,8 @@ export function FoCheckInStepper({
               </div>
             </div>
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
         <AlertDialogContent>
@@ -1159,23 +1275,131 @@ export function FoCheckInStepper({
   );
 }
 
+/* ----------------------------------------------------------------- pieces */
+
+/** Read-only summary shown beside the steps, like the Create Reservation page. */
+function SummaryAside({
+  guest,
+  confirmation,
+  dates,
+  nights,
+  roomType,
+  room,
+  guests,
+  deposit,
+}: {
+  guest: string;
+  confirmation: string;
+  dates: string;
+  nights: number;
+  roomType: string;
+  room: string;
+  guests: string;
+  deposit: string;
+}) {
+  return (
+    <aside className="hidden w-[260px] shrink-0 overflow-y-auto border-l border-[#e9dfd0] bg-white p-5 md:block">
+      <h2 className="font-display text-base font-semibold text-[#4a2c1a]">Summary</h2>
+      <p className="mb-4 text-xs text-[#7A6B58]">Updates as you move through the steps.</p>
+      <dl className="space-y-4 text-sm text-[#4a2c1a]">
+        <div>
+          <dt className="text-xs font-bold text-[#8C6D23]">Guest</dt>
+          <dd className="font-semibold">{guest}</dd>
+          <dd className="text-xs text-[#7A6B58]">{confirmation}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-bold text-[#8C6D23]">Stay</dt>
+          <dd>{dates}</dd>
+          <dd className="text-xs text-[#7A6B58]">
+            {nights} night{nights === 1 ? "" : "s"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-bold text-[#8C6D23]">Room</dt>
+          <dd className="font-semibold">{room}</dd>
+          <dd className="text-xs text-[#7A6B58]">{roomType}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-bold text-[#8C6D23]">Guests</dt>
+          <dd>{guests}</dd>
+        </div>
+        <div className="flex items-center justify-between rounded-xl bg-[#f5ead0] px-3 py-2.5">
+          <dt className="text-sm font-semibold">Deposit</dt>
+          <dd className="font-bold">{deposit}</dd>
+        </div>
+      </dl>
+    </aside>
+  );
+}
+
+function StepCard({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-[#e9dfd0] bg-white p-5 shadow-sm">
+      <header className="mb-4">
+        <h2 className="font-display text-base font-semibold text-[#4a2c1a]">{title}</h2>
+        <p className="text-xs text-[#7A6B58]">{hint}</p>
+      </header>
+      {children}
+    </section>
+  );
+}
+
 function Field({
   label,
   children,
   required,
 }: {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
   required?: boolean;
 }) {
   return (
-    <div className="space-y-2">
-      <Label>
+    <div className="space-y-1.5">
+      <Label className="text-[13px] font-medium text-[#4a2c1a]">
         {label}
-        {required ? <span className="text-destructive"> *</span> : null}
+        {required ? <span className="text-[#C89933]"> *</span> : null}
       </Label>
       {children}
     </div>
+  );
+}
+
+function Notice({
+  tone,
+  children,
+}: {
+  tone: "warn" | "error" | "success";
+  children: ReactNode;
+}) {
+  return (
+    <p
+      className={cn(
+        "flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm",
+        tone === "warn" && "border border-[#c9a24a] bg-[#f5ead0] text-[#4a2c1a]",
+        tone === "error" && "border border-destructive/30 bg-destructive/5 text-destructive",
+        tone === "success" && "bg-[#436436]/10 font-medium text-[#436436]",
+      )}
+    >
+      {tone === "success" ? (
+        <Check className="mt-0.5 size-4 shrink-0" />
+      ) : (
+        <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+      )}
+      <span>{children}</span>
+    </p>
+  );
+}
+
+/** Keeps the waiver flow out of the way until someone needs it. */
+function SkipStep({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <details className="group rounded-xl border border-dashed border-[#e9dfd0] px-3 py-2">
+      <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium text-[#7A6B58] hover:text-[#4a2c1a]">
+        {label}
+        <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="mt-3">{children}</div>
+    </details>
   );
 }
 
@@ -1183,8 +1407,8 @@ function FolioChip({ label, on }: { label: string; on: boolean }) {
   return (
     <span
       className={cn(
-        "rounded-full px-2.5 py-1 text-center",
-        on ? "bg-[#436436]/15 text-[#436436]" : "bg-[#CCCCCC]/40 text-muted-foreground",
+        "rounded-full px-3 py-1 font-medium",
+        on ? "bg-[#f5ead0] text-[#4a2c1a]" : "bg-[#f1ede6] text-[#7A6B58]",
       )}
     >
       {label}
@@ -1194,9 +1418,19 @@ function FolioChip({ label, on }: { label: string; on: boolean }) {
 
 function SummaryRow({ label, value, ok }: { label: string; value: string; ok: boolean }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={ok ? "font-medium text-[#436436]" : "font-medium text-destructive"}>
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-[#efe7d8] px-3 py-2.5 text-sm">
+      <span className="flex items-center gap-2 text-[#7A6B58]">
+        <span
+          className={cn(
+            "grid size-5 place-items-center rounded-full",
+            ok ? "bg-[#436436]/15 text-[#436436]" : "bg-destructive/10 text-destructive",
+          )}
+        >
+          {ok ? <Check className="size-3" /> : <TriangleAlert className="size-3" />}
+        </span>
+        {label}
+      </span>
+      <span className={cn("text-right font-medium", ok ? "text-[#4a2c1a]" : "text-destructive")}>
         {value}
       </span>
     </div>

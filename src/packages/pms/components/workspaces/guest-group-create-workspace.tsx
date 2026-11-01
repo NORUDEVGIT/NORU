@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Check, ChevronRight, Plus, Trash2 } from "lucide-react";
-
+import { Field } from "@/packages/pms/components/guests/guest-create-field";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -651,21 +651,6 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
           </div>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function Field({ label, required: isRequired, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <Label className={error ? "text-destructive" : undefined}>
-        {label}
-        {isRequired ? " *" : ""}
-      </Label>
-      <div className={error ? "[&_input]:border-destructive [&_button]:border-destructive [&_textarea]:border-destructive" : undefined}>
-        {children}
-      </div>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

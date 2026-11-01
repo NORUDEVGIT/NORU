@@ -42,6 +42,12 @@ import {
   Clock,
 } from "lucide-react";
 import { NoruLogo } from "@/core/components/noru-logo";
+import {
+  AppTopHeader,
+  type HeaderNavItem,
+  type HeaderPackage,
+  type SearchableModule,
+} from "@/core/components/app-top-header";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRestaurants, type RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -108,6 +114,28 @@ export type WorkspaceModule =
   | "reports"
   | "configuration"
   | "settings";
+
+const ACTIVE_RESTAURANT_KEY = "noru-active-restaurant";
+
+/**
+ * When true the left package rail (and its mobile drawer) is not rendered and
+ * the header's module row is the only navigation. Set to false to bring the
+ * rail back.
+ */
+const TOP_NAV_ONLY = true;
+
+/** Always-visible entries in the header's module row. Everything else goes under "More". */
+const PRIMARY_NAV: HeaderNavItem[] = [
+  { key: "dashboard", title: "Dashboard", to: "/restaurant/pms/dashboard", exact: true },
+  { key: "front-office", title: "Front Office", to: "/restaurant/pms/front-office" },
+  { key: "reservations", title: "Reservations", to: "/restaurant/pms/reservations" },
+  { key: "guest-profiles", title: "Guest Profiles", to: "/restaurant/pms/guests" },
+  { key: "housekeeping", title: "Housekeeping", to: "/restaurant/pms/housekeeping" },
+  { key: "room-inventory", title: "Room Inventory", to: "/restaurant/rooms" },
+  { key: "rates-revenue", title: "Rates & Revenue", to: "/restaurant/pms/rates-revenue" },
+  { key: "cashiering", title: "Cashiering", to: "/restaurant/pms/cashiering" },
+  { key: "night-audit", title: "Night Audit", to: "/restaurant/pms/night-audit" },
+];
 
 const FO = ["owner", "manager", "receptionist"];
 const HK_ALL = [
@@ -481,7 +509,6 @@ export function RestaurantShell({
   posModule,
   sidebarDefaultCollapsed,
   hidePackageRail: hidePackageRailProp,
-  hideTopHeader = false,
   children,
 }: {
   active: RestaurantNavLabel;
@@ -525,7 +552,10 @@ export function RestaurantShell({
   sidebarDefaultCollapsed?: boolean;
   /** Hide the left package / SETTINGS rail (FO chrome and Card 1 full-screen). */
   hidePackageRail?: boolean;
-  /** Let a full-screen workspace supply the single approved application chrome. */
+  /**
+   * @deprecated Ignored. The NORU application header is fixed and always rendered on
+   * every page that uses this shell. Kept only so existing callers still compile.
+   */
   hideTopHeader?: boolean;
   children: (membership: RestaurantMembership) => ReactNode;
 }) {
@@ -541,12 +571,33 @@ export function RestaurantShell({
   }, [sidebarDefaultCollapsed]);
   const search = useSearch({ strict: false }) as { tab?: string };
 
+  // Property selector — remembers which property the user last picked.
+  const [activeRestaurantId, setActiveRestaurantId] = useState<string>();
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(ACTIVE_RESTAURANT_KEY);
+      if (saved) setActiveRestaurantId(saved);
+    } catch {
+      /* storage can be unavailable */
+    }
+  }, []);
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ["my-restaurants", user?.id],
     queryFn: () => fetchRestaurants(),
     enabled: !!session && !!user?.id,
     retry: false,
   });
+
+  function selectProperty(id: string) {
+    setActiveRestaurantId(id);
+    try {
+      localStorage.setItem(ACTIVE_RESTAURANT_KEY, id);
+    } catch {
+      /* ignore */
+    }
+    void queryClient.invalidateQueries({ queryKey: ["my-module-access"] });
+  }
 
   async function signOut() {
     await queryClient.cancelQueries();
@@ -556,27 +607,123 @@ export function RestaurantShell({
     void navigate({ to: "/restaurant/login", replace: true });
   }
 
-  const membership = data?.[0];
+  const membership = data?.find((m) => m.restaurantId === activeRestaurantId) ?? data?.[0];
   const restaurant = membership?.restaurant;
   const operational = restaurant?.status === "approved";
   const pmsMod = pmsModule ? getPmsModule(pmsModule) : undefined;
   const hidePackageRail = Boolean(hidePackageRailProp) || shouldSuppressRestaurantPmsRail(pmsModule);
+  // The package rail only renders when neither the page nor TOP_NAV_ONLY hides it.
+  const showRail = !hidePackageRail && !TOP_NAV_ONLY;
   const rmMod = rmModule ? RM_MODULES.find((m) => m.key === rmModule) : undefined;
   const boMod = boModule ? getBoModule(boModule) : undefined;
   const posMod = posModule ? getPosModule(posModule) : undefined;
 
+  // Loaded on every page (not only module pages) so the header search can list modules.
   const moduleAccess = useQuery({
     queryKey: ["my-module-access", membership?.restaurantId],
     queryFn: () => fetchModules({ data: { restaurantId: membership!.restaurantId } }),
-    enabled: (!!pmsMod || !!rmMod || !!boMod) && !!membership?.restaurantId,
+    enabled: !!membership?.restaurantId,
     retry: false,
   });
 
   const allowedModules = moduleAccess.data?.modules ?? [];
+
+  // Modules the header search can jump to.
+  const searchableModules: SearchableModule[] = [
+    ...pmsLauncherModules()
+      .filter((m) => allowedModules.includes(m.moduleKey))
+      .map((m) => ({
+        key: `pms-${m.key}`,
+        title: m.key === "property-setup" ? "Settings" : m.title,
+        to: m.canonicalRoute,
+        icon: m.icon,
+        group: "PMS",
+      })),
+    ...RM_MODULES.filter((m) => allowedModules.includes(m.moduleKey)).map((m) => ({
+      key: `rm-${m.key}`,
+      title: m.title,
+      to: m.canonicalRoute,
+      search: m.canonicalSearch,
+      icon: m.icon,
+      group: "Restaurant Management",
+    })),
+    ...BO_MODULES.map((m) => ({
+      key: `bo-${m.key}`,
+      title: m.title,
+      to: m.canonicalRoute,
+      icon: m.icon,
+      group: "Back Office",
+    })),
+  ];
+
   // Phase 8C — package entitlement hides package-level entry points only.
   const packages = usePackageEntitlements(membership?.restaurantId);
   const pmsPackage = packages.has("pms");
   const showSettingsNav = !pmsPackage || canEditSet1(membership?.role ?? "");
+
+  // Clicking the logo goes to the PMS dashboard when the property has the PMS
+  // package, otherwise to the property home.
+  const logoHref = pmsPackage ? "/restaurant/pms/dashboard" : "/restaurant/home";
+
+  // Header module row: the primary entries the user may open, then the
+  // remaining PMS features (and Settings) under "More".
+  const blockedRoutes = new Set(
+    moduleAccess.data
+      ? pmsLauncherModules()
+          .filter((m) => !allowedModules.includes(m.moduleKey))
+          .map((m) => m.canonicalRoute as string)
+      : [],
+  );
+  const primaryNav: HeaderNavItem[] = pmsPackage
+    ? PRIMARY_NAV.filter((item) => !blockedRoutes.has(item.to))
+    : [];
+  const primaryRoutes = new Set(PRIMARY_NAV.map((item) => item.to));
+  const seenMore = new Set<string>();
+  // More lists PMS features only. Header search still uses the full searchableModules list.
+  const pmsMoreModules = pmsPackage
+    ? searchableModules.filter((m) => m.group === "PMS")
+    : [];
+  const moreNav: HeaderNavItem[] = [
+    ...pmsMoreModules,
+    ...(showSettingsNav
+      ? [
+          {
+            key: "settings",
+            title: "Settings",
+            to: "/restaurant/settings",
+            icon: Settings,
+            group: undefined as string | undefined,
+            search: undefined as Record<string, string> | undefined,
+          },
+        ]
+      : []),
+  ].filter((m) => {
+    const id = `${m.to}|${JSON.stringify(m.search ?? {})}`;
+    if (primaryRoutes.has(m.to) && !m.search) return false;
+    if (seenMore.has(id)) return false;
+    seenMore.add(id);
+    return true;
+  });
+
+  // Packages dropdown beside the logo (names only). Same rules as the Property Home tiles.
+  // "Property Home" is always listed first so it stays reachable now that the logo
+  // goes to the PMS dashboard.
+  const PMS_MODULE_KEYS = ["pms", "front_office", "housekeeping", "reports_analytics", "configuration"];
+  const packageList: HeaderPackage[] = [
+    { key: "home", title: "Property Home", to: "/restaurant/home" },
+    ...(packages.has("restaurant_management") && allowedModules.includes("food_and_beverage")
+      ? [{ key: "restaurant-management", title: "Restaurant Management", to: "/restaurant/restaurant-management" }]
+      : []),
+    ...(packages.has("pms") && PMS_MODULE_KEYS.some((k) => (allowedModules as string[]).includes(k))
+      ? [{ key: "pms", title: "PMS", to: "/restaurant/pms" }]
+      : []),
+    ...(packages.has("pos") && allowedModules.includes("standalone_pos")
+      ? [{ key: "pos", title: "Standalone POS", to: "/restaurant/pos" }]
+      : []),
+    ...(packages.has("back_office")
+      ? [{ key: "back-office", title: "Back Office", to: "/restaurant/back-office" }]
+      : []),
+  ];
 
   const workspace = module ?? LABEL_MODULE[active];
   // Restaurant Management is a package-level nav group: it disappears from
@@ -754,10 +901,10 @@ export function RestaurantShell({
   const restrictedSidebar = (
     <div className="flex h-full flex-col gap-5 p-4">
       <Link
-        to="/restaurant/home"
+        to={logoHref}
         className="flex items-center gap-2 px-2 font-display text-lg"
         onClick={() => setNavOpen(false)}
-        aria-label="NORU property home"
+        aria-label="Go to dashboard"
       >
         <NoruLogo size="sm" wordmarkClassName="text-sidebar-foreground" />
       </Link>
@@ -799,10 +946,10 @@ export function RestaurantShell({
   const sidebar = !operational && membership ? restrictedSidebar : (
     <div className="flex h-full flex-col gap-5 p-4">
       <Link
-        to="/restaurant/home"
+        to={logoHref}
         className="flex items-center gap-2 px-2 font-display text-lg"
         onClick={() => setNavOpen(false)}
-        aria-label="NORU property home"
+        aria-label="Go to dashboard"
       >
         <NoruLogo size="sm" wordmarkClassName="text-sidebar-foreground" />
       </Link>
@@ -954,10 +1101,16 @@ export function RestaurantShell({
   );
 
   return (
-    <div className={cn("min-h-dvh", hidePackageRail ? "bg-background" : "bg-muted/30")}>
+    <div
+      className={cn(
+        "min-h-dvh",
+        hidePackageRail ? "bg-background" : "bg-muted/30",
+        pmsMod && "noru-pms-refresh"
+      )}
+    >
       <div className={cn("mx-auto flex w-full", hidePackageRail ? "max-w-none" : "max-w-[1600px]")}>
         {/* Desktop sidebar — FO-FS0: omit the package rail and its w-60 width on Front Office. */}
-        {hidePackageRail || sidebarCollapsed ? null : (
+        {!showRail || sidebarCollapsed ? null : (
           <aside
             className="sticky top-0 hidden h-dvh w-60 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block"
             data-testid="app-sidebar-rail"
@@ -967,7 +1120,7 @@ export function RestaurantShell({
         )}
 
         {/* Mobile drawer — never open the package drawer on Front Office. */}
-        {!hidePackageRail && navOpen ? (
+        {showRail && navOpen ? (
           <div className="fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-foreground/40" onClick={() => setNavOpen(false)} />
             <aside className="absolute inset-y-0 left-0 w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
@@ -985,75 +1138,51 @@ export function RestaurantShell({
         ) : null}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          {hideTopHeader ? null : (
-          <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
-            <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
-              {hidePackageRail ? null : (
-                <>
+          {/* Fixed application header: always rendered, never hidden per page. */}
+          <AppTopHeader
+              logoHref={logoHref}
+              onOpenNavigation={showRail ? () => setNavOpen(true) : undefined}
+              leading={
+                !showRail ? null : sidebarCollapsed ? (
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="lg:hidden"
-                    aria-label="Open navigation"
-                    onClick={() => setNavOpen(true)}
+                    className="hidden lg:inline-flex"
+                    aria-label="Expand navigation"
+                    data-testid="expand-app-sidebar"
+                    onClick={() => setSidebarCollapsed(false)}
                   >
                     <MenuIcon className="size-5" />
                   </Button>
-                  {sidebarCollapsed ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="hidden lg:inline-flex"
-                      aria-label="Expand navigation"
-                      data-testid="expand-app-sidebar"
-                      onClick={() => setSidebarCollapsed(false)}
-                    >
-                      <MenuIcon className="size-5" />
-                    </Button>
-                  ) : sidebarDefaultCollapsed ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="hidden lg:inline-flex"
-                      aria-label="Collapse navigation"
-                      data-testid="collapse-app-sidebar"
-                      onClick={() => setSidebarCollapsed(true)}
-                    >
-                      <MenuIcon className="size-5" />
-                    </Button>
-                  ) : null}
-                </>
-              )}
-              <div className="min-w-0">
-                <p className="truncate font-sans text-lg font-semibold leading-tight">
-                  {restaurant?.name ?? "Restaurant"}
-                </p>
-                <p className="text-xs text-muted-foreground">{contextLabel}</p>
-              </div>
-              <div className="ml-auto flex items-center gap-3">
-                <span className="hidden text-xs text-muted-foreground sm:inline">
-                  {new Date().toLocaleDateString(hidePackageRail ? "en-GB" : undefined, {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </span>
-                {restaurant ? <StatusPill status={restaurant.status} /> : null}
-                <div className="hidden text-right sm:block">
-                  <p className="max-w-[180px] truncate text-xs font-medium">{user?.email ?? ""}</p>
-                  <p className="text-[11px] capitalize text-muted-foreground">
-                    {membership?.role ?? ""}
-                  </p>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => void signOut()}>
-                  <LogOut className="size-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Log out</span>
-                </Button>
-              </div>
-            </div>
-          </header>
-          )}
+                ) : sidebarDefaultCollapsed ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hidden lg:inline-flex"
+                    aria-label="Collapse navigation"
+                    data-testid="collapse-app-sidebar"
+                    onClick={() => setSidebarCollapsed(true)}
+                  >
+                    <MenuIcon className="size-5" />
+                  </Button>
+                ) : null
+              }
+              properties={(data ?? []).map((m) => ({
+                id: m.restaurantId,
+                name: m.restaurant.name,
+              }))}
+              activePropertyId={membership?.restaurantId}
+              onSelectProperty={selectProperty}
+              modules={searchableModules}
+              navItems={operational ? primaryNav : []}
+              moreItems={operational ? moreNav : []}
+              packages={operational ? packageList : []}
+              userEmail={user?.email ?? ""}
+              userRole={membership?.role}
+              settingsHref={showSettingsNav ? "/restaurant/settings" : undefined}
+              onSignOut={() => void signOut()}
+              trailing={restaurant ? <StatusPill status={restaurant.status} /> : null}
+            />
 
           <main className={cn("min-w-0 flex-1", hidePackageRail ? "flex flex-col p-0" : "px-4 py-6 sm:px-6")}>
             {isLoading ? (
