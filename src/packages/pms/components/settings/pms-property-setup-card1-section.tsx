@@ -74,11 +74,20 @@ export function PmsPropertySetupCard1Section({
   const [addressErrors, setAddressErrors] = useState<Card1AddressFieldErrors>({});
   const [logoPreviewUrl, setLogoPreviewUrl] = useState(snapshot.logoPreviewUrl);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState(snapshot.coverPreviewUrl);
+  const [propertyImagePreviews, setPropertyImagePreviews] = useState<Record<string, string>>(
+    snapshot.propertyImagePreviews ?? {},
+  );
   useEffect(() => {
     setDraft(snapshot.draft);
     setLogoPreviewUrl(snapshot.logoPreviewUrl);
     setCoverPreviewUrl(snapshot.coverPreviewUrl);
-  }, [snapshot.draft, snapshot.logoPreviewUrl, snapshot.coverPreviewUrl]);
+    setPropertyImagePreviews(snapshot.propertyImagePreviews ?? {});
+  }, [
+    snapshot.draft,
+    snapshot.logoPreviewUrl,
+    snapshot.coverPreviewUrl,
+    snapshot.propertyImagePreviews,
+  ]);
   const composedAddress = useMemo(() => composeFullAddress(draft), [draft]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(snapshot.draft);
 
@@ -115,6 +124,7 @@ export function PmsPropertySetupCard1Section({
         setDraft(result.snapshot.draft);
         setLogoPreviewUrl(result.snapshot.logoPreviewUrl);
         setCoverPreviewUrl(result.snapshot.coverPreviewUrl);
+        setPropertyImagePreviews(result.snapshot.propertyImagePreviews ?? {});
       }
     },
     onError: (error: Error) => toast.error(error.message),
@@ -262,6 +272,7 @@ export function PmsPropertySetupCard1Section({
               canEdit={canEdit}
               logoPreviewUrl={logoPreviewUrl}
               coverPreviewUrl={coverPreviewUrl}
+              propertyImagePreviews={propertyImagePreviews}
               errors={identityErrors}
               onClearError={(key) => setIdentityErrors((prev) => ({ ...prev, [key]: undefined }))}
             />

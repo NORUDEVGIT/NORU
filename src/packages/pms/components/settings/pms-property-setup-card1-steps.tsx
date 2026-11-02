@@ -8,8 +8,9 @@ import {
 } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Lock } from "lucide-react";
+import { Lock, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/shared/lib/utils";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -94,6 +95,7 @@ import {
   STAR_RATINGS,
   card1LanguageOptions,
   emptyCurrentState,
+  isHttpOrDataAsset,
   validateBrandImageFile,
   liveBlockPreview,
   structureRoomCodeExample,
@@ -223,6 +225,7 @@ export function IdentityStep({
   canEdit,
   logoPreviewUrl,
   coverPreviewUrl,
+  propertyImagePreviews = {},
   errors,
   onClearError,
 }: {
@@ -232,6 +235,7 @@ export function IdentityStep({
   canEdit: boolean;
   logoPreviewUrl: string;
   coverPreviewUrl: string;
+  propertyImagePreviews?: Record<string, string>;
   errors: Card1IdentityFieldErrors;
   onClearError: (key: keyof Card1IdentityFieldErrors) => void;
 }) {
@@ -501,7 +505,7 @@ export function IdentityStep({
         <p className="sr-only">
           Hotel brand colours are accents only — they do not recolour PMS chrome.
         </p>
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <BrandImageField
             id="card1-logo"
             label="Property Logo"
@@ -514,20 +518,6 @@ export function IdentityStep({
             onChange={(logoUrl) => {
               onClearError("logoUrl");
               setDraft((p) => ({ ...p, logoUrl }));
-            }}
-          />
-          <BrandImageField
-            id="card1-cover"
-            label="Cover Image"
-            kind="cover"
-            restaurantId={restaurantId}
-            value={draft.coverImageUrl}
-            previewUrl={coverPreviewUrl}
-            disabled={!canEdit}
-            error={errors.coverImageUrl}
-            onChange={(coverImageUrl) => {
-              onClearError("coverImageUrl");
-              setDraft((p) => ({ ...p, coverImageUrl }));
             }}
           />
           <ColourField
@@ -550,6 +540,31 @@ export function IdentityStep({
             onChange={(secondaryBrandColour) => {
               onClearError("secondaryBrandColour");
               setDraft((p) => ({ ...p, secondaryBrandColour }));
+            }}
+          />
+        </div>
+
+        <div className="mt-5 border-t border-[#E8E2D6] pt-5">
+          <PropertyImagesField
+            id="card1-property-images"
+            label="Property Images"
+            restaurantId={restaurantId}
+            coverImageUrl={draft.coverImageUrl}
+            coverPreviewUrl={coverPreviewUrl}
+            images={draft.locationExtras.propertyImages ?? []}
+            previewMap={propertyImagePreviews}
+            disabled={!canEdit}
+            error={errors.coverImageUrl}
+            onChange={(updatedImages, updatedCover) => {
+              onClearError("coverImageUrl");
+              setDraft((p) => ({
+                ...p,
+                coverImageUrl: updatedCover,
+                locationExtras: {
+                  ...p.locationExtras,
+                  propertyImages: updatedImages,
+                },
+              }));
             }}
           />
         </div>
@@ -3037,6 +3052,268 @@ function BrandImageField({
         disabled={disabled}
         onChange={(event) => void onFile(event.target.files?.[0])}
       />
+    </div>
+  );
+}
+
+function PropertyImagesField({
+  id,
+  label = "Property Images",
+  restaurantId,
+  coverImageUrl,
+  coverPreviewUrl,
+  images,
+  previewMap = {},
+  disabled,
+  error,
+  onChange,
+}: {
+  id: string;
+  label?: string;
+  restaurantId: string;
+  coverImageUrl: string;
+  coverPreviewUrl: string;
+  images: string[];
+  previewMap?: Record<string, string>;
+  disabled?: boolean;
+  error?: string;
+  onChange: (images: string[], coverUrl: string) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const startUpload = useServerFn(createPropertyBrandImageUpload);
+  const [localPreviews, setLocalPreviews] = useState<Record<string, string>>({});
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  const allImages = useMemo(() => {
+    const list = [...images];
+    if (coverImageUrl && !list.includes(coverImageUrl)) {
+      list.unshift(coverImageUrl);
+    }
+    return list;
+  }, [images, coverImageUrl]);
+
+  function getPreview(path: string): string {
+    if (!path) return "";
+    if (localPreviews[path]) return localPreviews[path];
+    if (isHttpOrDataAsset(path)) return path;
+    if (path === coverImageUrl && coverPreviewUrl) return coverPreviewUrl;
+    return previewMap[path] || "";
+  }
+
+  async function onFiles(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0 || disabled) return;
+    const files = Array.from(fileList);
+    setUploading(true);
+    setUploadError("");
+    const newPaths: string[] = [];
+    const newLocalPreviews: Record<string, string> = {};
+
+    try {
+      for (const file of files) {
+        const invalid = validateBrandImageFile(file);
+        if (invalid) {
+          toast.error(`${file.name}: ${invalid}`);
+          continue;
+        }
+        const ticket = await startUpload({
+          data: {
+            restaurantId,
+            kind: "cover",
+            contentType: file.type as "image/png" | "image/jpeg" | "image/webp",
+            size: file.size,
+          },
+        });
+        if (!ticket.ok) {
+          toast.error(ticket.message ?? `${file.name}: upload failed`);
+          continue;
+        }
+        const { error: uploadErr } = await supabase.storage
+          .from("property-images")
+          .uploadToSignedUrl(ticket.path, ticket.token, file);
+        if (uploadErr) {
+          toast.error(`${file.name}: upload failed`);
+          continue;
+        }
+        newPaths.push(ticket.path);
+        newLocalPreviews[ticket.path] = URL.createObjectURL(file);
+      }
+
+      if (newPaths.length > 0) {
+        setLocalPreviews((prev) => ({ ...prev, ...newLocalPreviews }));
+        const updatedList = [...allImages, ...newPaths];
+        const updatedCover = coverImageUrl || updatedList[0] || "";
+        onChange(updatedList, updatedCover);
+        toast.success(`Uploaded ${newPaths.length} ${newPaths.length === 1 ? "image" : "images"}.`);
+      }
+    } catch {
+      setUploadError("Image upload encountered an error. Please try again.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  function makeCover(path: string) {
+    if (disabled) return;
+    const reordered = [path, ...allImages.filter((p) => p !== path)];
+    onChange(reordered, path);
+    toast.success("Cover image updated.");
+  }
+
+  function removeImage(path: string) {
+    if (disabled) return;
+    const remaining = allImages.filter((p) => p !== path);
+    const nextCover = path === coverImageUrl ? remaining[0] ?? "" : coverImageUrl;
+    if (localPreviews[path]) {
+      URL.revokeObjectURL(localPreviews[path]);
+      setLocalPreviews((prev) => {
+        const next = { ...prev };
+        delete next[path];
+        return next;
+      });
+    }
+    onChange(remaining, nextCover);
+  }
+
+  const message = uploadError || error;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="space-y-0.5">
+          <Label className="text-sm font-semibold text-[#251605]">
+            {label}
+            {allImages.length > 0 && (
+              <span className="ml-2 rounded-full bg-[#E8E2D6] px-2 py-0.5 text-[11px] font-normal text-[#251605]">
+                {allImages.length} {allImages.length === 1 ? "image" : "images"}
+              </span>
+            )}
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Add multiple photos of your property. The designated cover photo will be displayed on guest documents and booking headers.
+          </p>
+        </div>
+        {!disabled && allImages.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={uploading}
+            onClick={() => fileRef.current?.click()}
+            className="h-8 gap-1.5 text-xs font-medium"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add More Images
+          </Button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        {allImages.map((path, index) => {
+          const isCover = path === coverImageUrl || (index === 0 && !coverImageUrl);
+          const previewSrc = getPreview(path);
+          return (
+            <div
+              key={path}
+              className={cn(
+                "group relative flex flex-col overflow-hidden rounded-xl border bg-[#F7F4EE] shadow-sm transition-all",
+                isCover
+                  ? "border-[#251605] ring-2 ring-[#251605]/20"
+                  : "border-[#E8E2D6] hover:border-[#DDD4C5]",
+              )}
+            >
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#ECE6DA]">
+                {previewSrc ? (
+                  <img
+                    src={previewSrc}
+                    alt={`Property photo ${index + 1}`}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                    Photo {index + 1}
+                  </div>
+                )}
+                {isCover && (
+                  <div className="absolute left-2 top-2 rounded-md bg-[#251605] px-1.5 py-0.5 text-[10px] font-semibold text-[#F7F4EE] shadow">
+                    ★ Cover
+                  </div>
+                )}
+                {!disabled && (
+                  <button
+                    type="button"
+                    aria-label="Remove image"
+                    onClick={() => removeImage(path)}
+                    className="absolute right-2 top-2 rounded-md bg-white/90 p-1 text-red-600 opacity-90 shadow hover:bg-white hover:text-red-700 hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center justify-between p-2 text-xs">
+                <span className="truncate text-[11px] font-medium text-muted-foreground">
+                  {isCover ? "Main cover" : `Photo ${index + 1}`}
+                </span>
+                {!isCover && !disabled && (
+                  <button
+                    type="button"
+                    onClick={() => makeCover(path)}
+                    className="text-[11px] font-semibold text-[#251605] underline hover:text-[#000]"
+                  >
+                    Set as cover
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {!disabled && (
+          <label
+            htmlFor={`${id}-file`}
+            className={cn(
+              "flex aspect-[4/3] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#DDD4C5] bg-[#FAF8F5] p-3 text-center transition-colors hover:border-[#251605] hover:bg-[#F5F1E8]",
+              uploading && "pointer-events-none opacity-60",
+            )}
+          >
+            {uploading ? (
+              <div className="space-y-1">
+                <div className="mx-auto h-5 w-5 animate-spin rounded-full border-2 border-[#251605] border-t-transparent" />
+                <p className="text-xs font-medium text-[#251605]">Uploading…</p>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-full bg-white p-2 shadow-sm border border-[#E8E2D6]">
+                  <Plus className="h-4 w-4 text-[#251605]" />
+                </div>
+                <span className="mt-1.5 text-xs font-semibold text-[#251605]">Upload Images</span>
+                <span className="text-[10px] text-muted-foreground">Select multiple files</span>
+              </>
+            )}
+            <input
+              id={`${id}-file`}
+              ref={fileRef}
+              type="file"
+              multiple
+              accept="image/png,image/jpeg,image/webp"
+              className="sr-only"
+              disabled={disabled || uploading}
+              onChange={(e) => void onFiles(e.target.files)}
+            />
+          </label>
+        )}
+      </div>
+
+      {allImages.length === 0 && disabled && (
+        <p className="text-xs text-muted-foreground">No property images uploaded yet.</p>
+      )}
+
+      {message ? (
+        <p id={`${id}-error`} className="text-xs text-red-600" role="alert">
+          {message}
+        </p>
+      ) : null}
     </div>
   );
 }

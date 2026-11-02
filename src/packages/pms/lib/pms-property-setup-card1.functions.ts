@@ -165,6 +165,7 @@ const draftSchema = z.object({
     googleMapsLink: z.string().trim().max(300),
     nearbyLandmark: z.string().trim().max(200),
     pinVisible: z.boolean(),
+    propertyImages: z.array(z.string().trim().max(2000)).optional().default([]),
   }),
   phone: z.string().trim().max(30).optional().nullable(),
   email: z.string().trim().max(254).optional().nullable().or(z.literal("")),
@@ -347,6 +348,11 @@ function snapshotFromRow(
   lastSuccessfulNightAudit = "",
 ): Card1Snapshot {
   const social = parseSocialContacts(card1ColumnsAvailable ? row?.social_contacts : null);
+  const coverImageUrl = fidelityColumnsAvailable ? text(row, "cover_image_url") : "";
+  const locationExtras = parseLocationExtras(fidelityColumnsAvailable ? row?.location_extras : null);
+  if (coverImageUrl && (!locationExtras.propertyImages || locationExtras.propertyImages.length === 0)) {
+    locationExtras.propertyImages = [coverImageUrl];
+  }
   const draft = emptyCard1Draft({
     name: String(row?.name ?? ""),
     tradingName: card1ColumnsAvailable ? text(row, "trading_name") : "",
@@ -360,7 +366,7 @@ function snapshotFromRow(
     timezone: String(row?.timezone ?? DEFAULT_TIMEZONE),
     currencyCode: String(row?.currency_code ?? DEFAULT_CURRENCY),
     logoUrl: String(row?.logo_url ?? ""),
-    coverImageUrl: fidelityColumnsAvailable ? text(row, "cover_image_url") : "",
+    coverImageUrl,
     primaryBrandColour: fidelityColumnsAvailable ? text(row, "primary_brand_colour") : "",
     secondaryBrandColour: fidelityColumnsAvailable ? text(row, "secondary_brand_colour") : "",
     websiteUrl: fidelityColumnsAvailable ? text(row, "website_url") : social.website,
@@ -381,7 +387,7 @@ function snapshotFromRow(
     country: String(row?.country ?? "Ethiopia"),
     latitude: card1ColumnsAvailable && row?.latitude != null ? String(row.latitude) : "",
     longitude: card1ColumnsAvailable && row?.longitude != null ? String(row.longitude) : "",
-    locationExtras: parseLocationExtras(fidelityColumnsAvailable ? row?.location_extras : null),
+    locationExtras,
     phone: String(row?.phone ?? ""),
     email: String(row?.email ?? ""),
     whatsapp: card1ColumnsAvailable ? text(row, "whatsapp") : "",
@@ -449,6 +455,7 @@ function snapshotFromRow(
     }),
     logoPreviewUrl: isHttpOrDataAsset(draft.logoUrl) ? draft.logoUrl : "",
     coverPreviewUrl: isHttpOrDataAsset(draft.coverImageUrl) ? draft.coverImageUrl : "",
+    propertyImagePreviews: {},
     departmentOptions: [],
     propertyAreaEntities: [],
     functionalHardeningAvailable: false,
@@ -456,11 +463,24 @@ function snapshotFromRow(
 }
 
 async function withBrandPreviews(snapshot: Card1Snapshot): Promise<Card1Snapshot> {
-  const paths = [snapshot.draft.logoUrl, snapshot.draft.coverImageUrl].filter(
-    (value) => value.trim() && !isHttpOrDataAsset(value),
+  const propertyImages = snapshot.draft.locationExtras.propertyImages ?? [];
+  const paths = [snapshot.draft.logoUrl, snapshot.draft.coverImageUrl, ...propertyImages].filter(
+    (value) => Boolean(value && value.trim()) && !isHttpOrDataAsset(value),
   );
-  if (paths.length === 0) return snapshot;
+  const propertyImagePreviews: Record<string, string> = {};
+  for (const p of propertyImages) {
+    if (isHttpOrDataAsset(p)) propertyImagePreviews[p] = p;
+  }
+  if (paths.length === 0) {
+    return {
+      ...snapshot,
+      propertyImagePreviews,
+    };
+  }
   const signed = await signRoomImages(paths);
+  for (const [path, url] of signed.entries()) {
+    propertyImagePreviews[path] = url;
+  }
   return {
     ...snapshot,
     logoPreviewUrl: isHttpOrDataAsset(snapshot.draft.logoUrl)
@@ -469,6 +489,7 @@ async function withBrandPreviews(snapshot: Card1Snapshot): Promise<Card1Snapshot
     coverPreviewUrl: isHttpOrDataAsset(snapshot.draft.coverImageUrl)
       ? snapshot.draft.coverImageUrl
       : (signed.get(snapshot.draft.coverImageUrl) ?? ""),
+    propertyImagePreviews,
   };
 }
 
@@ -1096,7 +1117,7 @@ export const createPropertyBrandImageUpload = createServerFn({ method: "POST" })
     z
       .object({
         restaurantId: idSchema,
-        kind: z.enum(["logo", "cover"]),
+        kind: z.enum(["logo", "cover", "property"]),
         contentType: z.enum(CARD1_BRAND_IMAGE_TYPES),
         size: z.number().int().positive().max(CARD1_BRAND_IMAGE_MAX_BYTES),
       })
