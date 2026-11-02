@@ -92,6 +92,9 @@ import {
   RatePlanPricingSetup,
 } from "@/packages/pms/components/settings/rate-plan-pricing-setup";
 import { suggestRatePlanCode } from "@/packages/pms/lib/rates-card2-code";
+import { MealPlanSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-meals";
+import { saveMealPlanCard3 } from "@/packages/pms/lib/meals-card3.functions";
+import type { MealPlanCard3Row } from "@/packages/pms/lib/meals-card3.server";
 import { cn } from "@/shared/lib/utils";
 
 type PolicySectionType = "cancellation" | "refundability" | "no-show" | "early-departure";
@@ -129,6 +132,7 @@ export function PmsPropertySetupCard2Rates({
   const saveNoShow = useServerFn(saveRateNoShowPolicyCard2);
   const saveEarlyDeparture = useServerFn(saveRateEarlyDeparturePolicyCard2);
   const setEarlyDepartureActive = useServerFn(setRateEarlyDeparturePolicyActiveCard2);
+  const saveMealPlan = useServerFn(saveMealPlanCard3);
 
   const [activePolicyType, setActivePolicyType] = useState<PolicySectionType>("cancellation");
   const [inlineTargetPolicy, setInlineTargetPolicy] = useState<PolicySectionType | null>(null);
@@ -136,6 +140,9 @@ export function PmsPropertySetupCard2Rates({
     type: PolicySectionType;
     id: string;
   } | null>(null);
+  const [mealPlanDraft, setMealPlanDraft] = useState<MealPlanCard3Row | "new" | null>(null);
+  const [inlineMealPlanTarget, setInlineMealPlanTarget] = useState<boolean>(false);
+  const [newlyCreatedMealPlanId, setNewlyCreatedMealPlanId] = useState<string | null>(null);
 
   const [categorySearch, setCategorySearch] = useState("");
   const [planSearch, setPlanSearch] = useState("");
@@ -384,6 +391,29 @@ export function PmsPropertySetupCard2Rates({
     mutationFn: (input: { id: string; active: boolean }) =>
       setEarlyDepartureActive({ data: { restaurantId, ...input } }),
     onSuccess: () => invalidate(),
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const mealPlanMut = useMutation({
+    mutationFn: (input: Parameters<typeof saveMealPlan>[0]["data"]) =>
+      saveMealPlan({ data: input }),
+    onSuccess: async (data, variables) => {
+      toast.success("Meal plan saved.");
+      setMealPlanDraft(null);
+      await queryClient.invalidateQueries({ queryKey: ["pms-card2-rates", restaurantId] });
+      await queryClient.invalidateQueries({ queryKey: ["pms-card3-meals", restaurantId] });
+      if (inlineMealPlanTarget && data?.snapshot?.mealPlans) {
+        const created = data.snapshot.mealPlans.find(
+          (m: { code: string }) =>
+            m.code.trim().toUpperCase() === variables.code.trim().toUpperCase(),
+        );
+        if (created) {
+          setNewlyCreatedMealPlanId(created.id);
+          toast.success(`Selected "${created.name}" for rate plan.`);
+        }
+      }
+      setInlineMealPlanTarget(false);
+    },
     onError: (error: Error) => toast.error(error.message),
   });
 
@@ -854,6 +884,11 @@ export function PmsPropertySetupCard2Rates({
               setEarlyDepartureDraft("new");
             }}
             newlyCreatedPolicy={newlyCreatedPolicy}
+            onAddMealPlan={() => {
+              setInlineMealPlanTarget(true);
+              setMealPlanDraft("new");
+            }}
+            newlyCreatedMealPlanId={newlyCreatedMealPlanId}
           />
 
           <CancellationDrawer
@@ -914,6 +949,25 @@ export function PmsPropertySetupCard2Rates({
               setInlineTargetPolicy(null);
             }}
             onSave={(payload) => earlyDepartureMut.mutate({ restaurantId, ...payload })}
+          />
+
+          <MealPlanSheet
+            key={mealPlanDraft === "new" ? "meal-new" : (mealPlanDraft?.id ?? "meal-closed")}
+            open={mealPlanDraft !== null}
+            canEdit={canEdit}
+            value={mealPlanDraft === "new" || mealPlanDraft === null ? null : mealPlanDraft}
+            pending={mealPlanMut.isPending}
+            className="z-[60]"
+            onClose={() => {
+              setMealPlanDraft(null);
+              setInlineMealPlanTarget(false);
+            }}
+            onSave={(payload) =>
+              mealPlanMut.mutate({
+                restaurantId,
+                ...payload,
+              })
+            }
           />
         </div>
       )}
@@ -1292,6 +1346,8 @@ function PlanDrawer({
   onAddNoShow,
   onAddEarlyDeparture,
   newlyCreatedPolicy,
+  onAddMealPlan,
+  newlyCreatedMealPlanId,
 }: {
   open: boolean;
   canEdit: boolean;
@@ -1332,6 +1388,8 @@ function PlanDrawer({
   onAddNoShow?: () => void;
   onAddEarlyDeparture?: () => void;
   newlyCreatedPolicy?: { type: PolicySectionType; id: string } | null;
+  onAddMealPlan?: () => void;
+  newlyCreatedMealPlanId?: string | null;
 }) {
   const [categoryId, setCategoryId] = useState(value?.categoryId ?? categories[0]?.id ?? "");
   const [roomTypeId, setRoomTypeId] = useState(value?.roomTypeId ?? roomTypes[0]?.id ?? "");
@@ -1391,6 +1449,12 @@ function PlanDrawer({
       setEarlyDeparturePolicyId(newlyCreatedPolicy.id);
     }
   }, [newlyCreatedPolicy]);
+
+  useEffect(() => {
+    if (newlyCreatedMealPlanId) {
+      setMealPlanId(newlyCreatedMealPlanId);
+    }
+  }, [newlyCreatedMealPlanId]);
 
   function applyPricingMethod(method: RatePlanPricingMethod, percent = methodPercent) {
     setPricingMethod(method);
@@ -1459,7 +1523,7 @@ function PlanDrawer({
               <SelectTrigger>
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[190px] overflow-y-auto">
                 {categories.map((row) => (
                   <SelectItem key={row.id} value={row.id}>
                     {row.code} — {row.name}
@@ -1498,7 +1562,7 @@ function PlanDrawer({
               <SelectTrigger>
                 <SelectValue placeholder="Select a room type" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[190px] overflow-y-auto">
                 {roomTypes.map((row) => (
                   <SelectItem key={row.id} value={row.id}>
                     {row.code} — {row.name}
@@ -1581,12 +1645,26 @@ function PlanDrawer({
         </div>
 
         <div className="space-y-1">
-          <Label>Meal plan</Label>
+          <div className="flex items-center justify-between">
+            <Label>Meal plan</Label>
+            {canEdit && onAddMealPlan ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-5 px-1.5 text-xs text-[#8A641A] hover:bg-[#F4EDE0]"
+                onClick={onAddMealPlan}
+              >
+                <Plus className="mr-1 size-3" />
+                New
+              </Button>
+            ) : null}
+          </div>
           <Select value={mealPlanId} disabled={!canEdit} onValueChange={setMealPlanId}>
             <SelectTrigger>
               <SelectValue placeholder="None" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-[190px] overflow-y-auto">
               <SelectItem value={NONE}>None</SelectItem>
               {mealPlans.map((row) => (
                 <SelectItem key={row.id} value={row.id}>
