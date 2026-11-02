@@ -108,8 +108,8 @@ export function GuestCompanyHeader({
         </div>
       )}
 
-      <header
-        className="rounded-xl border border-[#DDD4C5] bg-white p-4 sm:p-5 shadow-sm"
+            <header
+        className="rounded-xl border border-[#3d2a1c] bg-[#2a1810] p-4 sm:p-5 shadow-sm"
         data-testid="company-detail-header"
       >
         {!settingsEnabled ? (
@@ -126,10 +126,10 @@ export function GuestCompanyHeader({
                 <img
                   src={company.logoUrl}
                   alt={company.name}
-                  className="size-16 rounded-xl object-cover ring-2 ring-[#E5DECE]"
+                  className="size-16 rounded-xl object-cover ring-2 ring-white/30"
                 />
               ) : (
-                <div className="flex size-16 items-center justify-center rounded-xl bg-[#F4E9D0] font-display text-xl font-bold text-[#8A641A] ring-2 ring-[#E5DECE]">
+                <div className="flex size-16 items-center justify-center rounded-xl bg-[#F4E9D0] font-display text-xl font-bold text-[#8A641A] ring-2 ring-white/30">
                   {company.name.slice(0, 1).toUpperCase()}
                 </div>
               )}
@@ -138,7 +138,7 @@ export function GuestCompanyHeader({
             <div className="space-y-1.5 min-w-0">
               {/* Name + Status Badges */}
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-display text-2xl font-bold tracking-tight text-[#251605]">
+                <h1 className="font-display text-2xl font-bold tracking-tight text-white">
                   {company.name}
                 </h1>
 
@@ -177,8 +177,8 @@ export function GuestCompanyHeader({
               </div>
 
               {/* Sub-row 1: Contact Details */}
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[#756A5B]">
-                {company.phone ? <span className="font-medium text-[#251605]">{company.phone}</span> : null}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[#f5ead0]">
+                {company.phone ? <span className="font-medium text-white">{company.phone}</span> : null}
                 {company.phone && (company.email || location || company.website) ? <span>·</span> : null}
                 {company.email ? <span>{company.email}</span> : null}
                 {company.email && (location || company.website) ? <span>·</span> : null}
@@ -189,23 +189,23 @@ export function GuestCompanyHeader({
                     href={company.website.startsWith("http") ? company.website : `https://${company.website}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="hover:underline text-[#8A641A]"
+                    className="hover:underline text-[#e6c36a]"
                   >
                     {company.website}
                   </a>
                 ) : null}
                 {!company.phone && !company.email && !location && !company.website ? (
-                  <span className="italic text-[#8C827A]">No contact details yet</span>
+                  <span className="italic text-[#f5ead0]/70">No contact details yet</span>
                 ) : null}
               </div>
 
               {/* Sub-row 2: Primary Contact Person */}
               {company.primaryContactName ? (
-                <div className="text-xs text-[#756A5B]">
+                <div className="text-xs text-[#f5ead0]">
                   <span>Primary Contact: </span>
-                  <span className="font-medium text-[#251605]">{company.primaryContactName}</span>
+                  <span className="font-medium text-white">{company.primaryContactName}</span>
                   {company.primaryContactTitle ? (
-                    <span className="text-[#756A5B]"> · {company.primaryContactTitle}</span>
+                    <span className="text-[#f5ead0]"> · {company.primaryContactTitle}</span>
                   ) : null}
                 </div>
               ) : null}
@@ -229,7 +229,7 @@ export function GuestCompanyHeader({
               type="button"
               variant="outline"
               onClick={onEdit}
-              className="border-[#DDD4C5] text-[#251605] hover:bg-[#F7F4EE]"
+              className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
               data-testid="company-edit"
             >
               <Pencil className="mr-1.5 size-3.5" />
@@ -242,7 +242,7 @@ export function GuestCompanyHeader({
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="border-[#DDD4C5] text-[#251605] hover:bg-[#F7F4EE]"
+                  className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
                   aria-label="More company actions"
                   data-testid="company-more-actions"
                 >
@@ -277,6 +277,7 @@ export function GuestCompanyHeader({
             </DropdownMenu>
           </div>
         </div>
+      </header>
       </header>
     </div>
   );

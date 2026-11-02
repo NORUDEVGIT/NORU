@@ -6,21 +6,17 @@ import { GuestCompanyDetailWorkspace } from "./guest-company-detail-workspace";
 import { GuestGroupDetailWorkspace } from "./guest-group-detail-workspace";
 import { GuestTravelAgentDetailWorkspace } from "./guest-travel-agent-detail-workspace";
 import { GuestDetailWorkspace } from "./guest-detail-workspace";
-import { GuestCreateWorkspace } from "./guest-create-workspace";
-import { GuestCompanyCreateWorkspace } from "./guest-company-create-workspace";
-import { GuestGroupCreateWorkspace } from "./guest-group-create-workspace";
-import { GuestTravelAgentCreateWorkspace } from "./guest-travel-agent-create-workspace";
+import { GuestCreateModal } from "@/packages/pms/components/guests/guest-create-modal";
+import { GuestCompanyCreateModal } from "@/packages/pms/components/guests/guest-company-create-modal";
+import { GuestTravelAgencyCreateModal } from "@/packages/pms/components/guests/guest-travel-agency-create-modal";
+import { GuestGroupCreateModal } from "@/packages/pms/components/guests/guest-group-create-modal";
 import {
+  GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
   guestProfileSearch,
   type GuestProfileTypeId,
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { GuestDetailMissing } from "@/packages/pms/components/guests/guest-detail-nav";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 // Same side gap as the listing page.
@@ -31,34 +27,16 @@ const DETAIL_CONTAINER =
 // link shows what it contained instead of a raw validation error.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Dark brown texture tile (102x25) repeated behind the form header.
-const CREATE_HEADER_TEXTURE =
-  "url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGYAAAAZCAYAAADDq1t2AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABaSURBVGhD7dEhAQAhAMDA5xMgyUD/fuBJcGInZzf2mucL539DDI1BNQbVGFRjUI1BNQbVGFRjUI1BNQbVGFRjUI1BNQbVGFRjUI1BNQbVGFRjUI1BNQbVGNQFoX0BgwxHIlkAAAAASUVORK5CYII=)";
+type CreateKind = "individual" | "company" | "travel-agent" | "group";
 
-// Header look shared by the create pop-ups: dark brown textured background, white text.
-// The form header (breadcrumb, title, step pills) is painted from here, so the
-// create files stay untouched. The texture is passed in as --create-header-texture.
-const CREATE_HEADER_STYLES = [
-  "[&_header]:border-b-0 [&_header]:bg-[#2a1810] [&_header]:bg-[image:var(--create-header-texture)] [&_header]:bg-repeat [&_header]:text-white",
-  "[&_header_h1]:text-white [&_header_h2]:text-white",
-  // Header shows only the title: hide the breadcrumb and the description line.
-  "[&_header_p]:hidden [&_header_nav]:hidden",
-  // Header action buttons (e.g. "Check for Duplicates") are gold. Step pills and select boxes are left alone.
-  "[&_header_button:not(ol_button):not([role=combobox])]:border-[#c9a24a] [&_header_button:not(ol_button):not([role=combobox])]:bg-[#c9a24a] [&_header_button:not(ol_button):not([role=combobox])]:text-[#2b1a10] [&_header_button:not(ol_button):not([role=combobox])]:hover:bg-[#b8923f]",
-  "[&_header_.text-muted-foreground]:text-[#f5ead0]",
-  "[&_header_a]:text-[#f5ead0]",
-  "[&_header_.text-foreground]:text-white",
-  "[&_header_.bg-primary]:bg-[#c9a24a] [&_header_.text-primary-foreground]:text-[#2b1a10] [&_header_.border-primary]:border-[#c9a24a]",
-  "[&_header_.border-border]:border-white/30",
-  "[&_header_.text-destructive]:text-[#ffb4a8] [&_header_.border-destructive]:border-[#ffb4a8]",
-].join(" ");
-
-// Pop-up create form (individual, company, travel agency, group).
-const CREATE_DIALOG_CONTENT = [
-  "w-[95vw] max-w-[1100px] gap-0 overflow-hidden rounded-2xl border-0 p-0 sm:max-w-[1100px]",
-  "[&>button]:z-10 [&>button]:text-white",
-  CREATE_HEADER_STYLES,
-].join(" ");
+function isCreateKind(value: unknown): value is CreateKind {
+  return (
+    value === "individual" ||
+    value === "company" ||
+    value === "travel-agent" ||
+    value === "group"
+  );
+}
 
 /**
  * Props are the ones passed by the routes:
@@ -92,59 +70,49 @@ export function GuestProfileWorkspace({
       search: guestProfileSearch({ type: profileType as GuestProfileTypeId }),
     });
 
-  // Directory page, or a create workspace when ?create=... is set.
+  // Directory page, or a create modal when ?create=... is set.
   if (!guestId) {
     const restaurantId = membership.restaurant.id;
 
-    // New individual guest, company, travel agency or group: pop-up form over the listing.
-    if (
-      create === "individual" ||
-      create === "company" ||
-      create === "travel-agent" ||
-      create === "group"
-    ) {
+    if (isCreateKind(create)) {
+      // After a successful create, open the new profile. Dropping ?create=
+      // from the URL also unmounts the modal.
+      const openCreated = (id: string) =>
+        void navigate({
+          to: GUEST_PROFILE_DETAIL_PATH,
+          params: { guestId: id },
+          search: guestProfileSearch({ type: create as GuestProfileTypeId }),
+        });
+
+      // Each modal calls onOpenChange(false) and then onCancel when dismissed,
+      // and the individual modal also calls onOpenChange(false) right before
+      // onCreated on success. Navigation is therefore driven only by onCancel
+      // (dismiss) and onCreated (success), so the two never race.
+      const modalProps = {
+        restaurantId,
+        open: true,
+        onOpenChange: () => undefined,
+        onCancel: goToDirectory,
+        onCreated: openCreated,
+      };
+
       return (
         <>
-          {/* Listing stays visible behind the pop-up */}
+          {/* Listing stays visible behind the modal */}
           <GuestListingWorkspace
             membership={membership}
             listingType={profileType as any}
             returnCard={returnCard}
             directorySearch={directorySearch}
           />
-          <Dialog
-            open
-            onOpenChange={(open) => {
-              if (!open) goToDirectory();
-            }}
-          >
-            <DialogContent
-              data-testid="guest-create-dialog"
-              className={CREATE_DIALOG_CONTENT}
-              style={{ "--create-header-texture": CREATE_HEADER_TEXTURE } as React.CSSProperties}
-            >
-              <DialogTitle className="sr-only">
-                {create === "company"
-                  ? "Register New Company"
-                  : create === "travel-agent"
-                    ? "Register New Travel Agency"
-                    : create === "group"
-                      ? "Register New Group"
-                      : "Create New Guest"}
-              </DialogTitle>
-              <div className="max-h-[90vh] overflow-y-auto">
-                {create === "company" ? (
-                  <GuestCompanyCreateWorkspace restaurantId={restaurantId} />
-                ) : create === "travel-agent" ? (
-                  <GuestTravelAgentCreateWorkspace restaurantId={restaurantId} />
-                ) : create === "group" ? (
-                  <GuestGroupCreateWorkspace restaurantId={restaurantId} />
-                ) : (
-                  <GuestCreateWorkspace restaurantId={restaurantId} />
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
+          {create === "individual" ? (
+            <GuestCreateModal {...modalProps} mode="create" />
+          ) : null}
+          {create === "company" ? <GuestCompanyCreateModal {...modalProps} /> : null}
+          {create === "travel-agent" ? (
+            <GuestTravelAgencyCreateModal {...modalProps} mode="create" />
+          ) : null}
+          {create === "group" ? <GuestGroupCreateModal {...modalProps} mode="create" /> : null}
         </>
       );
     }

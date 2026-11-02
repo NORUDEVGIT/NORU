@@ -121,8 +121,6 @@ function ActionIcon({ actionId }: { actionId: ReservationContextActionId }) {
   switch (actionId) {
     case "open":
       return <ExternalLink className={className} />;
-    case "edit":
-      return <Pencil className={className} />;
     case "copy":
       return <Copy className={className} />;
     case "assign_room":

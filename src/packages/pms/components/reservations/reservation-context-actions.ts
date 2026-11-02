@@ -6,7 +6,6 @@ import type {
 
 export type ReservationContextActionId =
   | "open"
-  | "edit"
   | "copy"
   | "assign_room"
   | "change_room"
@@ -51,12 +50,8 @@ export function getReservationContextActions(
   input: ReservationContextActionInput,
 ): ReservationContextAction[] {
   const actions: ReservationContextAction[] = [
-    { id: "open", label: "Open Reservation", group: "view_edit" },
+    { id: "open", label: "Amend Reservation", group: "view_edit" },
   ];
-
-  if (input.canManage && (input.status === "pending" || input.status === "confirmed")) {
-    actions.push({ id: "edit", label: "Edit Reservation", group: "view_edit" });
-  }
 
   if (input.canManage) {
     actions.push({ id: "copy", label: "Copy stay", group: "reservation" });
