@@ -86,6 +86,8 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
 
 const UNASSIGNED = "unassigned";
+const OUTLINE_BUTTON =
+  "rounded-full border-[#e9dfd0] bg-white font-semibold text-[#4a2c1a] shadow-none hover:bg-[#f5ead0]";
 const NONE = "__none__";
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
@@ -118,9 +120,9 @@ function Field({
 }) {
   return (
     <label className="grid gap-1.5 text-sm" data-edited={changed ? "true" : undefined}>
-      <span className="text-[11px] font-medium text-muted-foreground">
+      <span className="text-[11px] font-medium text-[#7A6B58]">
         {label}
-        {required ? <span className="text-destructive"> *</span> : null}
+        {required ? <span className="text-[#C89933]"> *</span> : null}
         {changed ? (
           <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-medium normal-case tracking-normal text-[#8A6A1F]">
             <span className="size-1.5 rounded-full bg-[#C4A35A]" />
@@ -147,12 +149,14 @@ function SectionCard({
   className?: string;
 }) {
   return (
-    <section className={cn("rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm", className)}>
+    <section
+      className={cn("rounded-2xl border border-[#e9dfd0] bg-white p-5 shadow-sm", className)}
+    >
       <header className="mb-4 flex items-start gap-2">
-        <span className="mt-0.5 text-[#1F6FEB]">{icon}</span>
+        <span className="mt-0.5 text-[#c9a24a]">{icon}</span>
         <div>
-          <h2 className="text-sm font-semibold text-[#251605]">{title}</h2>
-          <p className="text-xs text-muted-foreground">{subtitle}</p>
+          <h2 className="font-display text-base font-semibold text-[#4a2c1a]">{title}</h2>
+          <p className="text-xs text-[#7A6B58]">{subtitle}</p>
         </div>
       </header>
       {children}
@@ -775,14 +779,14 @@ export function ReservationEditWorkspace({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col bg-[#F7F4EE]"
+      className="flex min-h-0 flex-1 flex-col bg-[#fbfbfb]"
       data-testid="edit-reservation-workspace"
     >
-      <header className="shrink-0 border-b border-[#DDD4C5] bg-white py-3 pl-5 pr-14">
+      <header className="shrink-0 border-b border-[#e9dfd0] bg-white py-4 pl-5 pr-14">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-xl font-semibold text-[#251605]">
+              <h1 className="font-display text-xl font-semibold text-[#4a2c1a]">
                 {step === "confirm"
                   ? "Modification Confirmed"
                   : step === "review"
@@ -791,12 +795,12 @@ export function ReservationEditWorkspace({
               </h1>
               {step === "confirm" ? null : <ReservationStatusBadge status={reservation.status} />}
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-[#7A6B58]">
               Current reservation · {formatStayDate(reservation.arrivalDate)} →{" "}
               {formatStayDate(reservation.departureDate)} · {reservation.roomTypeName}
             </p>
             {step === "confirm" ? (
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs text-[#7A6B58]">
                 Reservation {reservation.confirmationNumber} · Updated{" "}
                 {dateTime(reservation.updatedAt)}
               </p>
@@ -804,39 +808,55 @@ export function ReservationEditWorkspace({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {step === "confirm" ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={OUTLINE_BUTTON}
+                onClick={() => window.print()}
+              >
                 <Printer className="size-3.5" />
                 Print Amendment
               </Button>
             ) : null}
           </div>
         </div>
-        <ol className="mt-4 grid grid-cols-3 gap-2" data-testid="edit-reservation-stepper">
+        <ol
+          className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2"
+          data-testid="edit-reservation-stepper"
+        >
           {EDIT_RESERVATION_STEPS.map((item, index) => {
             const current = EDIT_RESERVATION_STEPS.findIndex((row) => row.id === step);
             const done = step === "confirm" || index < current;
             const active = step !== "confirm" && item.id === step;
             const label = step === "confirm" && item.id === "confirm" ? "Confirmed" : item.label;
             return (
-              <li
-                key={item.id}
-                className={cn(
-                  "rounded-lg border px-3 py-2 text-sm",
-                  active ? "border-[#1F6FEB] bg-[#EEF4FF]" : "border-[#E6DFD4] bg-white",
-                )}
-              >
-                <p
-                  className={cn(
-                    "font-medium",
-                    done || active ? "text-[#1F6FEB]" : "text-[#251605]",
-                  )}
-                >
-                  {done ? <Check className="mr-1 inline size-3.5" /> : `${index + 1}. `}
-                  {label}
-                </p>
-                {step === "confirm" ? null : (
-                  <p className="text-xs text-muted-foreground">{item.hint}</p>
-                )}
+              <li key={item.id} className="flex items-center gap-3" title={item.hint}>
+                <span className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "grid size-6 place-items-center rounded-full text-xs font-bold",
+                      active
+                        ? "bg-[#C89933] text-[#251605]"
+                        : done
+                          ? "bg-[#4a2c1a] text-white"
+                          : "bg-[#f1ede6] text-[#7A6B58]",
+                    )}
+                  >
+                    {done ? <Check className="size-3.5" /> : index + 1}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-sm",
+                      active ? "font-bold text-[#4a2c1a]" : "font-medium text-[#7A6B58]",
+                    )}
+                  >
+                    {label}
+                  </span>
+                </span>
+                {index < EDIT_RESERVATION_STEPS.length - 1 ? (
+                  <span aria-hidden="true" className="h-px w-8 bg-[#e9dfd0]" />
+                ) : null}
               </li>
             );
           })}
@@ -844,9 +864,14 @@ export function ReservationEditWorkspace({
       </header>
 
       {step === "confirm" ? (
-        <div className="mx-5 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          <p className="font-semibold">Changes Saved Successfully</p>
-          <p>Reservation {reservation.confirmationNumber} was updated successfully.</p>
+        <div className="mx-5 mt-4 flex items-start gap-3 rounded-2xl border border-[#c9a24a] bg-[#f5ead0] px-4 py-3 text-sm text-[#4a2c1a]">
+          <Check className="mt-0.5 size-4 shrink-0 text-[#8C6D23]" />
+          <div>
+            <p className="font-bold">Changes Saved Successfully</p>
+            <p className="text-[#7A6B58]">
+              Reservation {reservation.confirmationNumber} was updated successfully.
+            </p>
+          </div>
         </div>
       ) : null}
 

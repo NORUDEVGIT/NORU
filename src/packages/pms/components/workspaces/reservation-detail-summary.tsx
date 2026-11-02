@@ -1,11 +1,14 @@
+import type { ReactNode } from "react";
 import {
+  ArrowRight,
   BedDouble,
-  CalendarDays,
+  ChevronDown,
   Coins,
   CreditCard,
-  FileText,
-  Shield,
-  UserRound,
+  Mail,
+  Phone,
+  ShieldCheck,
+  Users,
   Wallet,
 } from "lucide-react";
 
@@ -74,8 +77,7 @@ export function ReservationDetailSummary({
     snapshot: reservation.earlyDeparturePolicySnapshot,
     legacyRefundabilitySnapshot: reservation.refundabilitySnapshot,
   });
-  const stayNightsLabel =
-    nights || nightsBetween(reservation.arrivalDate, reservation.departureDate);
+  const stayNights = nights || nightsBetween(reservation.arrivalDate, reservation.departureDate);
   const group = isGroupReservation(reservation);
   const occupancy = groupOccupancyTotals(reservation);
   const assignment = groupAssignmentSummary(reservation);
@@ -100,217 +102,286 @@ export function ReservationDetailSummary({
       ? Math.round((paymentReceived - paymentRefunded) * 100) / 100
       : null;
 
+  const guestsLine = group
+    ? `${occupancy.rooms} rooms · ${occupancy.adults} adults · ${occupancy.children} children · ${occupancy.infants} infants`
+    : `${reservation.adults} adults · ${reservation.children} children · ${
+        reservation.infants == null ? DETAIL_DASH : reservation.infants
+      } infants`;
+
   return (
     <aside
-      className="sticky top-4 h-fit space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm self-start"
+      className="sticky top-4 h-fit self-start overflow-hidden rounded-2xl border border-[#e9dfd0] bg-white shadow-[0_2px_12px_rgba(74,44,26,0.10)]"
       data-testid={testId}
       data-reservation-summary={group ? "group" : "single"}
     >
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          Reservation Summary
+      <div className="border-b border-[#e9dfd0] bg-white px-4 pb-4 pt-3.5 text-[#4a2c1a]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#C89933]">
+          {group ? "Group Reservation" : "Reservation Summary"}
         </p>
-        <div className="mt-1 flex items-center gap-2">
-          <p className="font-display text-lg text-[#251605]">{reservation.confirmationNumber}</p>
-          <ReservationStatusBadge status={reservation.status} />
-        </div>
-        {group ? <p className="mt-1 text-xs text-[#251605]">Group Reservation</p> : null}
-      </div>
-      <div className="flex items-start gap-3 border-t border-[#EEE6D8] pt-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#F4E9D0] text-xs font-semibold text-[#765719]">
-          {guestInitials(reservation.guestName)}
-        </div>
-        <div className="min-w-0">
-          {group ? (
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Primary Guest / Booker
-            </p>
-          ) : null}
-          <p className="flex items-center gap-1 font-medium text-[#251605]">
-            <UserRound className="size-3.5 text-[#B8954F]" />
-            {reservation.guestName}
-            {reservation.guestVip ? (
-              <span className="rounded-full bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-semibold text-[#765719]">
-                VIP
-              </span>
-            ) : null}
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <p className="truncate font-display text-xl font-semibold text-[#4a2c1a]">
+            {reservation.confirmationNumber}
           </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {reviewDash(reservation.guestPhone)}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {reviewDash(reservation.guestEmail)}
-          </p>
+          <span className="shrink-0">
+            <ReservationStatusBadge status={reservation.status} />
+          </span>
         </div>
       </div>
-      <SummaryBlock
-        icon={<CalendarDays className="size-3.5 text-[#B8954F]" />}
-        title="Stay Information"
-      >
-        <p>
-          {formatStayDate(reservation.arrivalDate)} → {formatStayDate(reservation.departureDate)} (
-          {stayNightsLabel} night{stayNightsLabel === 1 ? "" : "s"})
-        </p>
-        {group ? (
-          <>
-            <p>
-              {occupancy.rooms} rooms · {occupancy.adults} adults · {occupancy.children} children ·{" "}
-              {occupancy.infants} infants
-            </p>
-          </>
-        ) : (
-          <>
-            <p>
-              {reservation.adults} Adults · {reservation.children} Children ·{" "}
-              {reservation.infants == null ? DETAIL_DASH : reservation.infants} Infants
-            </p>
-            <p>Purpose: {reviewDash(reservation.purposeOfStay)}</p>
-            <p>Room: {assigned ? reservation.roomNumber : "Not Assigned"}</p>
-            <p>This reservation has one room.</p>
-          </>
-        )}
-      </SummaryBlock>
-      <SummaryBlock
-        icon={<BedDouble className="size-3.5 text-[#B8954F]" />}
-        title={group ? "Rooms" : "Room Information"}
-      >
-        {group ? (
-          <div className="space-y-1">
-            {groupRoomSummaryLines(reservation).map((line) => (
-              <p key={line}>{line}</p>
-            ))}
-            <p>{assignment.label}</p>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            {coverUrl ? (
-              <img src={coverUrl} alt="" className="h-12 w-16 rounded-md object-cover" />
-            ) : (
-              <div className="flex h-12 w-16 items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68]">
-                <BedDouble className="size-5" />
-              </div>
-            )}
-            <div>
-              <p className="font-medium">{reviewDash(reservation.roomTypeName)}</p>
-              <p>{assigned ? `Room ${reservation.roomNumber}` : "Not Assigned"}</p>
-              <p>{reviewDash(reservation.ratePlanName)}</p>
-            </div>
-          </div>
-        )}
-      </SummaryBlock>
-      <SummaryBlock icon={<FileText className="size-3.5 text-[#B8954F]" />} title="Rate & Total">
-        {group ? (
-          <>
-            <p>
-              {occupancy.rooms} room unit{occupancy.rooms === 1 ? "" : "s"}
-            </p>
-            <p className="font-medium text-[#251605]">
-              {roomTotalLabel} {guestFacingTotal == null ? DETAIL_DASH : money(guestFacingTotal)}
-            </p>
-          </>
-        ) : (
-          <>
-            <p>Room Rate {roomRateAmount == null ? DETAIL_DASH : money(roomRateAmount)}</p>
-            {packagesTotal != null ? <p>Packages {money(packagesTotal)}</p> : null}
-            {servicesTotal != null && servicesTotal > 0 ? (
-              <p data-testid="rates-services-total">Services {money(servicesTotal)}</p>
-            ) : null}
-            <p className="font-medium text-[#251605]">
-              {roomTotalLabel} {guestFacingTotal == null ? DETAIL_DASH : money(guestFacingTotal)}
-            </p>
-          </>
-        )}
-      </SummaryBlock>
-      {showFolioBalance ? (
-        <SummaryBlock icon={<Wallet className="size-3.5 text-[#B8954F]" />} title="Folio balance">
-          <p>{folioBalance == null ? DETAIL_DASH : money(folioBalance)}</p>
-        </SummaryBlock>
-      ) : null}
 
-      <div className="space-y-2 border-t border-[#EEE6D8] pt-3">
-        <div className="flex items-center gap-2.5 rounded-lg border border-[#BBE3C5] bg-[#EAF7EE] p-2.5">
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[#D4EED8] text-[#16A34A]">
-            <Wallet className="size-4" />
+      <div className="space-y-4 p-4">
+        <div className="flex items-center gap-3">
+          <div className="grid size-11 shrink-0 place-items-center rounded-full bg-[#C89933] text-sm font-bold text-[#4a2c1a]">
+            {guestInitials(reservation.guestName)}
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-1 text-xs font-semibold text-[#1F542C]">
-              <span>Payment Received</span>
-              <span>{paymentFigure}</span>
-            </div>
-            <p className="text-[11px] text-[#2F7B42]">
-              {paymentReceived === 0
-                ? "No payment received"
-                : paymentReceived === null
-                  ? NO_FOLIO_LABEL
-                  : null}
-            </p>
-            {paymentRefunded != null ? (
-              <p className="text-[11px] text-[#2F7B42]">
-                Refunded {money(paymentRefunded)}
-                {netPaid != null ? ` · Net paid ${money(netPaid)}` : ""}
+          <div className="min-w-0">
+            {group ? (
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7A6B58]">
+                Primary Guest / Booker
               </p>
             ) : null}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2.5 rounded-lg border border-[#F3DFC1] bg-[#FDF5E8] p-2.5">
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[#FCE8CC] text-[#D97706]">
-            <Coins className="size-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-1 text-xs font-semibold text-[#7A4B0C]">
-              <span>Guest Deposit</span>
-              <span>{depositFigure}</span>
-            </div>
-            <p className="text-[11px] font-medium text-[#C2410C]">
-              {guestDeposit === 0
-                ? "No deposit received"
-                : guestDeposit === null
-                  ? NO_FOLIO_LABEL
-                  : null}
+            <p className="flex items-center gap-1.5 truncate text-sm font-bold text-[#4a2c1a]">
+              {reservation.guestName}
+              {reservation.guestVip ? (
+                <span className="rounded-full bg-[#f5ead0] px-1.5 py-0.5 text-[10px] font-bold text-[#8C6D23]">
+                  VIP
+                </span>
+              ) : null}
+            </p>
+            <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-[#7A6B58]">
+              <Phone className="size-3 text-[#c9a24a]" />
+              {reviewDash(reservation.guestPhone)}
+            </p>
+            <p className="flex items-center gap-1 truncate text-xs text-[#7A6B58]">
+              <Mail className="size-3 text-[#c9a24a]" />
+              {reviewDash(reservation.guestEmail)}
             </p>
           </div>
         </div>
-      </div>
 
-      <SummaryBlock
-        icon={<CreditCard className="size-3.5 text-[#B8954F]" />}
-        title="Payment Method"
-      >
-        <p className="font-medium text-[#251605]">
-          {reviewDash(reservation.guaranteeMethod).toUpperCase()}
-        </p>
-        <p>
-          Payment requirement {deposit?.amount == null ? DETAIL_DASH : money(deposit.amount)}
-          {deposit?.required ? " · Required" : ""}
-        </p>
-      </SummaryBlock>
-      <SummaryBlock icon={<Shield className="size-3.5 text-[#B8954F]" />} title="Stay Policies">
-        {group ? <p>{groupPoliciesNote(reservation)}</p> : null}
-        <p>Cancellation: {reviewDash(cancellation)}</p>
-        <p>No-show: {reviewDash(noShow)}</p>
-        <p>Early departure: {reviewDash(earlyDeparture)}</p>
-      </SummaryBlock>
+        <div className="rounded-xl bg-[#fbf7ee] p-3">
+          <div className="flex items-center justify-between gap-2">
+            <DateTile label="Arrival" value={formatStayDate(reservation.arrivalDate)} />
+            <div className="flex flex-col items-center gap-1">
+              <span className="rounded-full bg-[#C89933] px-2 py-0.5 text-[10px] font-bold text-[#4a2c1a]">
+                {stayNights} night{stayNights === 1 ? "" : "s"}
+              </span>
+              <ArrowRight className="size-4 text-[#c9a24a]" />
+            </div>
+            <DateTile
+              label="Departure"
+              value={formatStayDate(reservation.departureDate)}
+              align="right"
+            />
+          </div>
+          <p className="mt-3 flex items-center gap-1.5 border-t border-[#e9dfd0] pt-2.5 text-xs text-[#4a2c1a]">
+            <Users className="size-3.5 text-[#c9a24a]" />
+            {guestsLine}
+          </p>
+          {group ? null : (
+            <p className="mt-1 text-xs text-[#7A6B58]">This reservation has one room.</p>
+          )}
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-[#e9dfd0]">
+          {group ? (
+            <div className="space-y-1 p-3 text-xs text-[#4a2c1a]">
+              <p className="mb-1 flex items-center gap-1.5 font-bold">
+                <BedDouble className="size-3.5 text-[#c9a24a]" />
+                Rooms
+              </p>
+              {groupRoomSummaryLines(reservation).map((line) => (
+                <p key={line} className="text-[#7A6B58]">
+                  {line}
+                </p>
+              ))}
+              <p className="pt-1 font-medium">{assignment.label}</p>
+            </div>
+          ) : (
+            <>
+              {coverUrl ? (
+                <img src={coverUrl} alt="" className="h-24 w-full object-cover" />
+              ) : (
+                <div className="grid h-20 w-full place-items-center bg-[#f5ead0] text-[#c9a24a]">
+                  <BedDouble className="size-7" />
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-2 p-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-[#4a2c1a]">
+                    {reviewDash(reservation.roomTypeName)}
+                  </p>
+                  <p className="truncate text-xs text-[#7A6B58]">
+                    {reviewDash(reservation.ratePlanName)}
+                  </p>
+                </div>
+                <span
+                  className={
+                    assigned
+                      ? "shrink-0 rounded-full bg-[#4a2c1a] px-2.5 py-1 text-xs font-bold text-white"
+                      : "shrink-0 rounded-full bg-[#f5ead0] px-2.5 py-1 text-xs font-bold text-[#8C6D23]"
+                  }
+                >
+                  {assigned ? `Room ${reservation.roomNumber}` : "Not Assigned"}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-[#f5ead0] p-3.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7A6B58]">
+            {roomTotalLabel}
+          </p>
+          <p className="font-display text-2xl font-bold leading-tight text-[#4a2c1a]">
+            {guestFacingTotal == null ? DETAIL_DASH : money(guestFacingTotal)}
+          </p>
+          <div className="mt-2.5 space-y-1 border-t border-[#e6d6ad] pt-2.5 text-xs text-[#4a2c1a]">
+            {group ? (
+              <SummaryRow
+                label="Room units"
+                value={`${occupancy.rooms} room unit${occupancy.rooms === 1 ? "" : "s"}`}
+              />
+            ) : (
+              <>
+                <SummaryRow
+                  label="Room Rate"
+                  value={roomRateAmount == null ? DETAIL_DASH : money(roomRateAmount)}
+                />
+                {packagesTotal != null ? (
+                  <SummaryRow label="Packages" value={money(packagesTotal)} />
+                ) : null}
+                {servicesTotal != null && servicesTotal > 0 ? (
+                  <div data-testid="rates-services-total">
+                    <SummaryRow label="Services" value={money(servicesTotal)} />
+                  </div>
+                ) : null}
+              </>
+            )}
+            {showFolioBalance ? (
+              <SummaryRow
+                label="Folio balance"
+                value={folioBalance == null ? DETAIL_DASH : money(folioBalance)}
+                icon={<Wallet className="size-3 text-[#c9a24a]" />}
+              />
+            ) : null}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-2.5 rounded-xl border border-[#BBE3C5] bg-[#EAF7EE] p-2.5">
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[#D4EED8] text-[#16A34A]">
+              <Wallet className="size-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-1 text-xs font-semibold text-[#1F542C]">
+                <span>Payment Received</span>
+                <span>{paymentFigure}</span>
+              </div>
+              <p className="text-[11px] text-[#2F7B42]">
+                {paymentReceived === 0
+                  ? "No payment received"
+                  : paymentReceived === null
+                    ? NO_FOLIO_LABEL
+                    : null}
+              </p>
+              {paymentRefunded != null ? (
+                <p className="text-[11px] text-[#2F7B42]">
+                  Refunded {money(paymentRefunded)}
+                  {netPaid != null ? ` · Net paid ${money(netPaid)}` : ""}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 rounded-xl border border-[#F3DFC1] bg-[#FDF5E8] p-2.5">
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-[#FCE8CC] text-[#D97706]">
+              <Coins className="size-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-1 text-xs font-semibold text-[#7A4B0C]">
+                <span>Guest Deposit</span>
+                <span>{depositFigure}</span>
+              </div>
+              <p className="text-[11px] font-medium text-[#C2410C]">
+                {guestDeposit === 0
+                  ? "No deposit received"
+                  : guestDeposit === null
+                    ? NO_FOLIO_LABEL
+                    : null}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-[#e9dfd0] px-3 py-2.5 text-xs">
+          <p className="mb-1.5 flex items-center gap-1.5 font-bold text-[#4a2c1a]">
+            <CreditCard className="size-3.5 text-[#c9a24a]" />
+            Payment Method
+          </p>
+          <div className="space-y-1">
+            <SummaryRow
+              label="Guarantee"
+              value={reviewDash(reservation.guaranteeMethod).toUpperCase()}
+            />
+            <SummaryRow
+              label="Payment requirement"
+              value={`${deposit?.amount == null ? DETAIL_DASH : money(deposit.amount)}${
+                deposit?.required ? " · Required" : ""
+              }`}
+            />
+          </div>
+        </div>
+
+        <details className="group rounded-xl border border-[#e9dfd0] px-3 py-2.5 text-xs">
+          <summary className="flex cursor-pointer list-none items-center justify-between font-bold text-[#4a2c1a]">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck className="size-3.5 text-[#c9a24a]" />
+              Stay Policies
+            </span>
+            <ChevronDown className="size-4 text-[#7A6B58] transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="mt-2.5 space-y-1.5 border-t border-[#EEE6D8] pt-2.5">
+            {group ? <p className="text-[#7A6B58]">{groupPoliciesNote(reservation)}</p> : null}
+            <SummaryRow label="Cancellation" value={reviewDash(cancellation)} />
+            <SummaryRow label="No-show" value={reviewDash(noShow)} />
+            <SummaryRow label="Early departure" value={reviewDash(earlyDeparture)} />
+            {!group ? (
+              <SummaryRow label="Purpose" value={reviewDash(reservation.purposeOfStay)} />
+            ) : null}
+          </div>
+        </details>
+      </div>
     </aside>
   );
 }
 
-function SummaryBlock({
-  icon,
-  title,
-  children,
+function DateTile({
+  label,
+  value,
+  align = "left",
 }: {
-  icon: ReactNode;
-  title: string;
-  children: ReactNode;
+  label: string;
+  value: string;
+  align?: "left" | "right";
 }) {
   return (
-    <div className="border-t border-[#EEE6D8] pt-3 text-xs text-muted-foreground">
-      <p className="mb-1 flex items-center gap-1 font-medium text-[#251605]">
-        {icon}
-        {title}
+    <div className={align === "right" ? "text-right" : "text-left"}>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7A6B58]">
+        {label}
       </p>
-      <div className="space-y-0.5">{children}</div>
+      <p className="text-sm font-bold text-[#4a2c1a]">{value}</p>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value, icon }: { label: string; value: ReactNode; icon?: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="flex items-center gap-1 text-[#7A6B58]">
+        {icon}
+        {label}
+      </span>
+      <span className="text-right font-medium text-[#4a2c1a]">{value}</span>
     </div>
   );
 }

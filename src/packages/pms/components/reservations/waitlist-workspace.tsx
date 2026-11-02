@@ -1,14 +1,18 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { CalendarClock, CircleCheck, Hourglass, ListTodo, Users } from "lucide-react";
+import { Search, X } from "lucide-react";
 
 import { getOverbookingControls } from "@/packages/pms/lib/overbooking.functions";
+import {
+  FilterGroup,
+  FilterOption,
+  MoreFiltersMenu,
+} from "@/packages/pms/components/more-filters-menu";
 import { reservationHistoryChanges } from "@/packages/pms/lib/reservation-history-display";
 import {
   WAITLIST_DISPLAY_STATUSES,
-  waitlistWorkspaceKpis,
   type WaitlistDetail,
   type WaitlistListRow,
   type WaitlistMatchCandidate,
@@ -44,14 +48,43 @@ type WaitlistRequestWrite = {
   notes?: string | null;
 };
 
+type WaitlistStatusFilter = (typeof WAITLIST_DISPLAY_STATUSES)[number] | "all";
+
+/** Choices staged inside the More filters menu; applied with "Apply filters". */
+type WaitlistMenuDraft = {
+  status: WaitlistStatusFilter;
+  roomTypeId: string;
+  priority: string;
+  arrivalFrom: string;
+  arrivalTo: string;
+};
+
+const DEFAULT_MENU_DRAFT: WaitlistMenuDraft = {
+  status: "all",
+  roomTypeId: "all",
+  priority: "all",
+  arrivalFrom: "",
+  arrivalTo: "",
+};
+
+function statusLabel(value: string): string {
+  const text = value.replaceAll("_", " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 type WaitlistFn<TIn, TOut> = (input: { data: TIn }) => Promise<TOut>;
 
 export function WaitlistWorkspace({
   restaurantId,
+  search = "",
+  onSearchChange,
   canWrite,
   onOpenReservation,
 }: {
   restaurantId: string;
+  /** Search text (guest, request number, notes). Owned by the parent so the header search can drive it too. */
+  search?: string;
+  onSearchChange?: (value: string) => void;
   canWrite: boolean;
   onOpenReservation: (reservationId: string) => void;
 }) {
@@ -68,18 +101,25 @@ export function WaitlistWorkspace({
   const submitConvert = useServerFn(convertWaitlist);
   const submitCancel = useServerFn(cancelWaitlistRequest);
 
-  const [search, setSearch] = useState("");
   const [status, setStatus] = useState<(typeof WAITLIST_DISPLAY_STATUSES)[number] | "all">("all");
+  const [roomTypeFilter, setRoomTypeFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [arrivalFrom, setArrivalFrom] = useState("");
+  const [arrivalTo, setArrivalTo] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
 
+  // More filters menu: choices are staged in `menuDraft` and applied together.
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
+  const [menuDraft, setMenuDraft] = useState<WaitlistMenuDraft>(DEFAULT_MENU_DRAFT);
+
   const listQuery = useQuery({
-    queryKey: ["pms-waitlist", restaurantId, search, status],
+    queryKey: ["pms-waitlist", restaurantId, status],
     queryFn: () =>
       loadList({
         data: {
           restaurantId,
-          search: search.trim().length >= 2 ? search.trim() : undefined,
           status: status === "all" ? undefined : status,
         },
       }) as Promise<{ requests: WaitlistListRow[] }>,
@@ -99,9 +139,94 @@ export function WaitlistWorkspace({
     staleTime: 5 * 60_000,
   });
 
-  const requests = listQuery.data?.requests ?? [];
-  const kpis = waitlistWorkspaceKpis(requests);
-  const selected = requests.find((row) => row.id === selectedId) ?? null;
+  const allRequests = listQuery.data?.requests ?? [];
+  const selected = allRequests.find((row) => row.id === selectedId) ?? null;
+
+  // Search + filters run on the rows already loaded.
+  const requests = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allRequests.filter(
+      (row) =>
+        (!q ||
+          [row.guestName, row.confirmationNumber, row.notes].some((field) =>
+            field?.toLowerCase().includes(q),
+          )) &&
+        (roomTypeFilter === "all" || row.requestedRoomTypeId === roomTypeFilter) &&
+        (priorityFilter === "all" || String(row.priority) === priorityFilter) &&
+        (!arrivalFrom || row.arrivalDate >= arrivalFrom) &&
+        (!arrivalTo || row.arrivalDate <= arrivalTo),
+    );
+  }, [allRequests, search, roomTypeFilter, priorityFilter, arrivalFrom, arrivalTo]);
+
+  function clearFilters() {
+    setStatus("all");
+    setRoomTypeFilter("all");
+    setPriorityFilter("all");
+    setArrivalFrom("");
+    setArrivalTo("");
+  }
+
+  function patchMenuDraft(patch: Partial<WaitlistMenuDraft>) {
+    setMenuDraft((current) => ({ ...current, ...patch }));
+  }
+
+  function toggleFilterGroup(id: string) {
+    setOpenGroups((current) =>
+      current.includes(id) ? current.filter((group) => group !== id) : [...current, id],
+    );
+  }
+
+  function applyMenuFilters(next: WaitlistMenuDraft) {
+    setStatus(next.status);
+    setRoomTypeFilter(next.roomTypeId);
+    setPriorityFilter(next.priority);
+    setArrivalFrom(next.arrivalFrom);
+    setArrivalTo(next.arrivalTo);
+    setFilterMenuOpen(false);
+  }
+
+  function handleFilterMenuOpenChange(open: boolean) {
+    setFilterMenuOpen(open);
+    if (open) {
+      setMenuDraft({
+        status,
+        roomTypeId: roomTypeFilter,
+        priority: priorityFilter,
+        arrivalFrom,
+        arrivalTo,
+      });
+    }
+  }
+
+  const filterChips: Array<{ id: string; label: string; remove: () => void }> = [];
+  if (status !== "all") {
+    filterChips.push({ id: "status", label: statusLabel(status), remove: () => setStatus("all") });
+  }
+  if (roomTypeFilter !== "all") {
+    filterChips.push({
+      id: "room-type",
+      label:
+        (roomTypesQuery.data ?? []).find((type) => type.id === roomTypeFilter)?.name ?? "Room type",
+      remove: () => setRoomTypeFilter("all"),
+    });
+  }
+  if (priorityFilter !== "all") {
+    filterChips.push({
+      id: "priority",
+      label: `Priority ${priorityFilter}`,
+      remove: () => setPriorityFilter("all"),
+    });
+  }
+  if (arrivalFrom || arrivalTo) {
+    filterChips.push({
+      id: "arrival",
+      label: `Arrival ${arrivalFrom || "…"} – ${arrivalTo || "…"}`,
+      remove: () => {
+        setArrivalFrom("");
+        setArrivalTo("");
+      },
+    });
+  }
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["pms-waitlist", restaurantId] });
@@ -117,51 +242,187 @@ export function WaitlistWorkspace({
       setSelectedId(row.id);
       invalidate();
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not create waitlist request."),
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Could not create waitlist request."),
   });
 
   return (
     <div className="space-y-4" data-testid="waitlist-workspace">
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5" aria-label="Waitlist KPIs">
-        <Kpi label="Requests" value={kpis.total} loading={listQuery.isLoading} icon={<Users className="size-4" />} />
-        <Kpi label="Open" value={kpis.open} loading={listQuery.isLoading} icon={<ListTodo className="size-4" />} />
-        <Kpi label="Offered" value={kpis.offered} loading={listQuery.isLoading} icon={<Hourglass className="size-4" />} />
-        <Kpi label="Expired" value={kpis.expired} loading={listQuery.isLoading} icon={<CalendarClock className="size-4" />} />
-        <Kpi label="Converted" value={kpis.converted} loading={listQuery.isLoading} icon={<CircleCheck className="size-4" />} />
-      </section>
-
       <section className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="grid min-w-52 flex-1 gap-1 text-[11px] font-medium text-muted-foreground">
-            Search waitlist
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Confirmation number"
-              aria-label="Search waitlist"
-            />
-          </label>
-          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-            Status
-            <select
-              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-              value={status}
-              onChange={(event) => setStatus(event.target.value as typeof status)}
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          {onSearchChange ? (
+            <div className="relative min-w-56 flex-1">
+              <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#c9a24a]" />
+              <Input
+                value={search}
+                onChange={(event) => onSearchChange(event.target.value)}
+                className="h-9 rounded-full border-[#c9a24a] bg-white pl-10 text-sm font-medium"
+                placeholder="Search waitlist by guest, number or notes"
+                aria-label="Search waitlist"
+              />
+            </div>
+          ) : (
+            <div className="flex-1" />
+          )}
+
+          <MoreFiltersMenu
+            open={filterMenuOpen}
+            onOpenChange={handleFilterMenuOpenChange}
+            activeCount={filterChips.length}
+            title="Filter waitlist"
+            onApply={() => applyMenuFilters(menuDraft)}
+            onClear={() => applyMenuFilters(DEFAULT_MENU_DRAFT)}
+          >
+            <FilterGroup
+              id="status"
+              title="Status"
+              count={menuDraft.status !== "all" ? 1 : 0}
+              open={openGroups.includes("status")}
+              onToggle={toggleFilterGroup}
             >
-              <option value="all">All statuses</option>
+              <FilterOption
+                type="radio"
+                name="waitlist-filter-status"
+                label="All statuses"
+                checked={menuDraft.status === "all"}
+                onChange={() => patchMenuDraft({ status: "all" })}
+              />
               {WAITLIST_DISPLAY_STATUSES.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
+                <FilterOption
+                  key={value}
+                  type="radio"
+                  name="waitlist-filter-status"
+                  label={statusLabel(value)}
+                  checked={menuDraft.status === value}
+                  onChange={() => patchMenuDraft({ status: value })}
+                />
               ))}
-            </select>
-          </label>
+            </FilterGroup>
+
+            <FilterGroup
+              id="room-type"
+              title="Room type"
+              count={menuDraft.roomTypeId !== "all" ? 1 : 0}
+              open={openGroups.includes("room-type")}
+              onToggle={toggleFilterGroup}
+            >
+              <FilterOption
+                type="radio"
+                name="waitlist-filter-room-type"
+                label="All room types"
+                checked={menuDraft.roomTypeId === "all"}
+                onChange={() => patchMenuDraft({ roomTypeId: "all" })}
+              />
+              {(roomTypesQuery.data ?? []).map((type) => (
+                <FilterOption
+                  key={type.id}
+                  type="radio"
+                  name="waitlist-filter-room-type"
+                  label={type.name}
+                  checked={menuDraft.roomTypeId === type.id}
+                  onChange={() => patchMenuDraft({ roomTypeId: type.id })}
+                />
+              ))}
+            </FilterGroup>
+
+            <FilterGroup
+              id="priority"
+              title="Priority"
+              count={menuDraft.priority !== "all" ? 1 : 0}
+              open={openGroups.includes("priority")}
+              onToggle={toggleFilterGroup}
+            >
+              <FilterOption
+                type="radio"
+                name="waitlist-filter-priority"
+                label="All priorities"
+                checked={menuDraft.priority === "all"}
+                onChange={() => patchMenuDraft({ priority: "all" })}
+              />
+              {[1, 2, 3, 4, 5].map((value) => (
+                <FilterOption
+                  key={value}
+                  type="radio"
+                  name="waitlist-filter-priority"
+                  label={`Priority ${value}`}
+                  checked={menuDraft.priority === String(value)}
+                  onChange={() => patchMenuDraft({ priority: String(value) })}
+                />
+              ))}
+            </FilterGroup>
+
+            <FilterGroup
+              id="arrival"
+              title="Arrival dates"
+              count={menuDraft.arrivalFrom || menuDraft.arrivalTo ? 1 : 0}
+              open={openGroups.includes("arrival")}
+              onToggle={toggleFilterGroup}
+            >
+              <div className="grid gap-2 py-1">
+                <label className="grid gap-1 text-[11px] font-medium text-[#7A6B58]">
+                  From
+                  <Input
+                    type="date"
+                    className="h-9"
+                    value={menuDraft.arrivalFrom}
+                    onChange={(event) => patchMenuDraft({ arrivalFrom: event.target.value })}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  />
+                </label>
+                <label className="grid gap-1 text-[11px] font-medium text-[#7A6B58]">
+                  To
+                  <Input
+                    type="date"
+                    className="h-9"
+                    value={menuDraft.arrivalTo}
+                    onChange={(event) => patchMenuDraft({ arrivalTo: event.target.value })}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  />
+                </label>
+              </div>
+            </FilterGroup>
+          </MoreFiltersMenu>
+
+          {filterChips.length > 0 || search.trim() ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                clearFilters();
+                onSearchChange?.("");
+              }}
+            >
+              Clear
+            </Button>
+          ) : null}
+
           {canWrite ? (
-            <Button className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]" onClick={() => setNewOpen((open) => !open)}>
+            <Button
+              className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+              onClick={() => setNewOpen((open) => !open)}
+            >
               New request
             </Button>
           ) : null}
         </div>
+
+        {filterChips.length > 0 ? (
+          <ul className="mt-3 flex flex-wrap gap-2" data-testid="waitlist-filter-chips">
+            {filterChips.map((chip) => (
+              <li key={chip.id}>
+                <button
+                  type="button"
+                  aria-label={`Remove filter ${chip.label}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#c9a24a] bg-[#f5ead0] py-0.5 pl-3 pr-2 text-xs font-bold text-[#4a2c1a]"
+                  onClick={chip.remove}
+                >
+                  {chip.label}
+                  <X className="size-3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {newOpen && canWrite ? (
           <WaitlistRequestForm
             roomTypes={roomTypesQuery.data ?? []}
@@ -177,7 +438,9 @@ export function WaitlistWorkspace({
         <section className="min-w-0 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
           {listQuery.isError ? (
             <p className="p-4 text-sm text-destructive">
-              {listQuery.error instanceof Error ? listQuery.error.message : "Could not load waitlist."}
+              {listQuery.error instanceof Error
+                ? listQuery.error.message
+                : "Could not load waitlist."}
             </p>
           ) : listQuery.isLoading ? (
             <div className="space-y-2 p-4">
@@ -186,7 +449,11 @@ export function WaitlistWorkspace({
               ))}
             </div>
           ) : requests.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">No waitlist requests for these filters.</p>
+            <p className="p-6 text-sm text-muted-foreground">
+              {search.trim()
+                ? "No waitlist requests match your search."
+                : "No waitlist requests for these filters."}
+            </p>
           ) : (
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-[#F7F4EE] text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -223,14 +490,21 @@ export function WaitlistWorkspace({
           )}
         </section>
 
-        <aside className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm" data-testid="waitlist-quick-view">
+        <aside
+          className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+          data-testid="waitlist-quick-view"
+        >
           {!selectedId ? (
-            <p className="text-sm text-muted-foreground">Select a waitlist request to match, offer, convert and view history.</p>
+            <p className="text-sm text-muted-foreground">
+              Select a waitlist request to match, offer, convert and view history.
+            </p>
           ) : detailQuery.isLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : detailQuery.isError ? (
             <p className="text-sm text-destructive">
-              {detailQuery.error instanceof Error ? detailQuery.error.message : "Could not load waitlist request."}
+              {detailQuery.error instanceof Error
+                ? detailQuery.error.message
+                : "Could not load waitlist request."}
             </p>
           ) : detailQuery.data ? (
             <WaitlistQuickView
@@ -252,28 +526,6 @@ export function WaitlistWorkspace({
           ) : null}
         </aside>
       </div>
-    </div>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  loading,
-  icon,
-}: {
-  label: string;
-  value: number;
-  loading: boolean;
-  icon: ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-      <div className="flex items-center justify-between text-muted-foreground">
-        <p className="text-[11px] font-medium uppercase tracking-wide">{label}</p>
-        {icon}
-      </div>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{loading ? "—" : value}</p>
     </div>
   );
 }
@@ -302,7 +554,9 @@ function WaitlistRequestForm({
   const [departureDate, setDepartureDate] = useState(initial?.departureDate ?? "");
   const [adults, setAdults] = useState(initial?.adults ?? 1);
   const [children, setChildren] = useState(initial?.children ?? 0);
-  const [requestedRoomTypeId, setRequestedRoomTypeId] = useState(initial?.requestedRoomTypeId ?? "");
+  const [requestedRoomTypeId, setRequestedRoomTypeId] = useState(
+    initial?.requestedRoomTypeId ?? "",
+  );
   const [flexibleDates, setFlexibleDates] = useState(initial?.flexibleDates ?? false);
   const [priority, setPriority] = useState(initial?.priority ?? 3);
   const [notes, setNotes] = useState(initial?.notes ?? "");
@@ -365,10 +619,30 @@ function WaitlistRequestForm({
           ))}
         </ul>
       ) : null}
-      <Input type="date" value={arrivalDate} onChange={(event) => setArrivalDate(event.target.value)} required />
-      <Input type="date" value={departureDate} onChange={(event) => setDepartureDate(event.target.value)} required />
-      <Input type="number" min={1} value={adults} onChange={(event) => setAdults(Number(event.target.value))} />
-      <Input type="number" min={0} value={children} onChange={(event) => setChildren(Number(event.target.value))} />
+      <Input
+        type="date"
+        value={arrivalDate}
+        onChange={(event) => setArrivalDate(event.target.value)}
+        required
+      />
+      <Input
+        type="date"
+        value={departureDate}
+        onChange={(event) => setDepartureDate(event.target.value)}
+        required
+      />
+      <Input
+        type="number"
+        min={1}
+        value={adults}
+        onChange={(event) => setAdults(Number(event.target.value))}
+      />
+      <Input
+        type="number"
+        min={0}
+        value={children}
+        onChange={(event) => setChildren(Number(event.target.value))}
+      />
       <select
         className="h-9 rounded-md border border-input bg-background px-2 text-sm"
         value={requestedRoomTypeId}
@@ -393,7 +667,11 @@ function WaitlistRequestForm({
         ))}
       </select>
       <label className="flex items-center gap-2 text-sm sm:col-span-2">
-        <input type="checkbox" checked={flexibleDates} onChange={(event) => setFlexibleDates(event.target.checked)} />
+        <input
+          type="checkbox"
+          checked={flexibleDates}
+          onChange={(event) => setFlexibleDates(event.target.checked)}
+        />
         Flexible dates
       </label>
       <Input
@@ -435,7 +713,10 @@ function WaitlistQuickView({
     Array<{ id: string; fullName: string }>
   >;
   onAmend: WaitlistFn<WaitlistRequestWrite & { requestId: string }, unknown>;
-  onMatch: WaitlistFn<{ restaurantId: string; requestId: string }, { candidates: WaitlistMatchCandidate[] }>;
+  onMatch: WaitlistFn<
+    { restaurantId: string; requestId: string },
+    { candidates: WaitlistMatchCandidate[] }
+  >;
   onOffer: WaitlistFn<
     {
       restaurantId: string;
@@ -491,7 +772,9 @@ function WaitlistQuickView({
   return (
     <div className="space-y-4 text-sm">
       <div>
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{request.confirmationNumber}</p>
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          {request.confirmationNumber}
+        </p>
         <h2 className="text-lg font-semibold">{request.guestName ?? "Guest"}</h2>
         <p className="capitalize text-muted-foreground">
           {request.displayStatus} · priority {request.priority}
@@ -503,12 +786,18 @@ function WaitlistQuickView({
       </div>
 
       {request.reservationId ? (
-        <Button size="sm" variant="outline" onClick={() => onOpenReservation(request.reservationId!)}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onOpenReservation(request.reservationId!)}
+        >
           Open reservation
         </Button>
       ) : null}
 
-      {canWrite && request.displayStatus !== "converted" && request.displayStatus !== "cancelled" ? (
+      {canWrite &&
+      request.displayStatus !== "converted" &&
+      request.displayStatus !== "cancelled" ? (
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => setAmendOpen((open) => !open)}>
             Amend
@@ -520,7 +809,9 @@ function WaitlistQuickView({
               void onMatch({ data: { restaurantId, requestId: request.id } })
                 .then((result) => setCandidates(result.candidates))
                 .catch((error: unknown) =>
-                  toast.error(error instanceof Error ? error.message : "Could not match availability."),
+                  toast.error(
+                    error instanceof Error ? error.message : "Could not match availability.",
+                  ),
                 )
             }
           >
@@ -536,7 +827,9 @@ function WaitlistQuickView({
                   onChanged();
                 })
                 .catch((error: unknown) =>
-                  toast.error(error instanceof Error ? error.message : "Could not cancel waitlist."),
+                  toast.error(
+                    error instanceof Error ? error.message : "Could not cancel waitlist.",
+                  ),
                 )
             }
           >
@@ -577,9 +870,15 @@ function WaitlistQuickView({
                 <li key={candidate.roomTypeId} className="rounded-md border border-border p-2">
                   <p className="font-medium">
                     {candidate.name} · {candidate.available} available
-                    {candidate.requested ? " · requested" : candidate.alternate ? " · alternate" : ""}
+                    {candidate.requested
+                      ? " · requested"
+                      : candidate.alternate
+                        ? " · alternate"
+                        : ""}
                   </p>
-                  {!candidate.occupancyFits ? <p className="text-xs text-destructive">Occupancy exceeds this type.</p> : null}
+                  {!candidate.occupancyFits ? (
+                    <p className="text-xs text-destructive">Occupancy exceeds this type.</p>
+                  ) : null}
                   {canWrite && candidate.occupancyFits && candidate.available > 0 ? (
                     <Button
                       size="sm"
@@ -590,7 +889,9 @@ function WaitlistQuickView({
                             restaurantId,
                             requestId: request.id,
                             roomTypeId: candidate.roomTypeId,
-                            ratePlanId: candidate.quotes.find((quote) => !quote.unavailableReason)?.ratePlanId ?? null,
+                            ratePlanId:
+                              candidate.quotes.find((quote) => !quote.unavailableReason)
+                                ?.ratePlanId ?? null,
                           },
                         })
                           .then(() => {
@@ -599,7 +900,9 @@ function WaitlistQuickView({
                             onChanged();
                           })
                           .catch((error: unknown) =>
-                            toast.error(error instanceof Error ? error.message : "Could not create offer."),
+                            toast.error(
+                              error instanceof Error ? error.message : "Could not create offer.",
+                            ),
                           )
                       }
                     >
@@ -626,7 +929,9 @@ function WaitlistQuickView({
                 </p>
                 <p className="capitalize text-muted-foreground">
                   {offer.displayStatus}
-                  {offer.quotedTotal != null ? ` · ${offer.quotedTotal} ${offer.quotedCurrency ?? ""}` : ""}
+                  {offer.quotedTotal != null
+                    ? ` · ${offer.quotedTotal} ${offer.quotedCurrency ?? ""}`
+                    : ""}
                 </p>
                 {canWrite && offer.displayStatus === "pending" ? (
                   <div className="mt-2 flex gap-2">
@@ -634,14 +939,21 @@ function WaitlistQuickView({
                       size="sm"
                       onClick={() =>
                         void onRespond({
-                          data: { restaurantId, requestId: request.id, offerId: offer.id, response: "accepted" },
+                          data: {
+                            restaurantId,
+                            requestId: request.id,
+                            offerId: offer.id,
+                            response: "accepted",
+                          },
                         })
                           .then(() => {
                             toast.success("Offer accepted.");
                             onChanged();
                           })
                           .catch((error: unknown) =>
-                            toast.error(error instanceof Error ? error.message : "Could not accept offer."),
+                            toast.error(
+                              error instanceof Error ? error.message : "Could not accept offer.",
+                            ),
                           )
                       }
                     >
@@ -652,14 +964,21 @@ function WaitlistQuickView({
                       variant="outline"
                       onClick={() =>
                         void onRespond({
-                          data: { restaurantId, requestId: request.id, offerId: offer.id, response: "declined" },
+                          data: {
+                            restaurantId,
+                            requestId: request.id,
+                            offerId: offer.id,
+                            response: "declined",
+                          },
                         })
                           .then(() => {
                             toast.success("Offer declined.");
                             onChanged();
                           })
                           .catch((error: unknown) =>
-                            toast.error(error instanceof Error ? error.message : "Could not decline offer."),
+                            toast.error(
+                              error instanceof Error ? error.message : "Could not decline offer.",
+                            ),
                           )
                       }
                     >
@@ -677,14 +996,17 @@ function WaitlistQuickView({
         <div className="space-y-2">
           <Button
             onClick={() =>
-              void onConvert({ data: { restaurantId, requestId: request.id, offerId: acceptedOffer.id } })
+              void onConvert({
+                data: { restaurantId, requestId: request.id, offerId: acceptedOffer.id },
+              })
                 .then((result) => {
                   toast.success(`Reservation ${result.confirmationNumber ?? ""} created.`);
                   onChanged();
                   onOpenReservation(result.reservationId);
                 })
                 .catch((error: unknown) => {
-                  const message = error instanceof Error ? error.message : "Could not convert waitlist.";
+                  const message =
+                    error instanceof Error ? error.message : "Could not convert waitlist.";
                   if (message.includes("No rooms of that type are available")) {
                     setNeedsOverbook(true);
                     return;
@@ -728,7 +1050,9 @@ function WaitlistQuickView({
                       onOpenReservation(result.reservationId);
                     })
                     .catch((error: unknown) =>
-                      toast.error(error instanceof Error ? error.message : "Could not convert waitlist."),
+                      toast.error(
+                        error instanceof Error ? error.message : "Could not convert waitlist.",
+                      ),
                     )
                 }
               >
@@ -748,7 +1072,9 @@ function WaitlistQuickView({
         <ul className="space-y-2">
           {detail.history.map((event) => {
             const changes = reservationHistoryChanges(
-              event.previous_values ? (JSON.parse(event.previous_values) as Record<string, unknown>) : null,
+              event.previous_values
+                ? (JSON.parse(event.previous_values) as Record<string, unknown>)
+                : null,
               event.new_values ? (JSON.parse(event.new_values) as Record<string, unknown>) : null,
             );
             return (

@@ -12,6 +12,7 @@ import {
   ChevronRight,
   DoorOpen,
   House,
+  Download,
   List,
   LogIn,
   LogOut,
@@ -36,6 +37,14 @@ import { CreateReservationPage } from "@/packages/pms/components/bookings/create
 import type { ReservationContextActionId } from "@/packages/pms/components/reservations/reservation-context-actions";
 import { ReservationContextMenu } from "@/packages/pms/components/reservations/reservation-context-menu";
 import { ReservationDeskMoreFilters } from "@/packages/pms/components/reservations/reservation-desk-more-filters";
+import {
+  ExportPdfDialog,
+  type ExportRange,
+} from "@/packages/pms/components/guests/guest-export-pdf";
+import {
+  exportReservationsToPdf,
+  openPdfWindow,
+} from "@/packages/pms/components/reservations/reservation-export-pdf";
 import { ReservationQuickViewPanel } from "@/packages/pms/components/reservations/reservation-quick-view";
 import { BookingCalendarPanel } from "@/packages/pms/components/reservations/booking-calendar";
 import { GroupsWorkspace } from "@/packages/pms/components/reservations/groups-workspace";
@@ -102,6 +111,11 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 
 const PAGE_SIZE = 25;
+/**
+ * Export to PDF reads the desk page by page. Stop after this many pages
+ * (40 x 25 = 1,000 reservations) so one export cannot run forever.
+ */
+const EXPORT_MAX_PAGES = 40;
 const ALL = DESK_FILTER_ALL;
 
 type SourceFilter = DeskSourceFilter;
@@ -305,6 +319,8 @@ export function ReservationsWorkspace({
     row: ReservationDeskRow;
   } | null>(null);
   const [overlay, setOverlay] = useState<ReservationWorkspaceOverlayState>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [workspaceSection, setWorkspaceSection] = useState<CalendarWorkspaceSection>(() =>
     workspaceSectionFromTab(initialTab),
   );
@@ -583,6 +599,67 @@ export function ReservationsWorkspace({
   }
 
   const editCloseGuardRef = useRef<(() => boolean) | null>(null);
+
+  /**
+   * Reads every reservation arriving in the chosen period (not just the page on
+   * screen). The current view, search and filters still apply. The print window
+   * is opened by the caller, inside the click, so the browser does not block it.
+   */
+  async function exportReservations(range: ExportRange, printWindow: Window) {
+    setExporting(true);
+    try {
+      const exportBar: DeskBarFilters =
+        range.preset === "all"
+          ? arrivalError
+            ? { ...bar, arrivalFrom: "", arrivalTo: "" }
+            : bar
+          : { ...bar, arrivalFrom: range.from ?? "", arrivalTo: range.to ?? "" };
+      const slice = toDeskSearchQuerySlice(debouncedSearch, exportBar, advanced);
+      const collected: ReservationDeskRow[] = [];
+      let nextPage = 1;
+      let hasMore = true;
+      while (hasMore && nextPage <= EXPORT_MAX_PAGES) {
+        const result = await loadDesk({
+          data: { restaurantId, view, page: nextPage, pageSize: PAGE_SIZE, ...slice },
+        });
+        collected.push(...result.rows);
+        hasMore = result.query.hasMore;
+        nextPage += 1;
+      }
+      if (hasMore) {
+        toast.message(
+          `Exported the first ${collected.length} reservations. Narrow the period to export the rest.`,
+        );
+      }
+      exportReservationsToPdf({
+        printWindow,
+        title: "Reservations",
+        restaurantName: membership.restaurant.name,
+        scope: VIEWS.find((item) => item.id === view)?.label ?? "All Reservations",
+        rangeLabel: range.label,
+        rows: collected.map((row) => ({
+          confirmationNumber: row.confirmationNumber,
+          guestName: row.guestName,
+          roomTypeName: row.roomTypeName,
+          room: row.roomNumber ?? "Unassigned",
+          arrival: formatDate(row.arrivalDate),
+          departure: formatDate(row.departureDate),
+          nights: row.nights,
+          adults: row.adults,
+          children: row.children,
+          status: row.status.replaceAll("_", " "),
+          source: sourceLabel(row.source),
+          ratePlan: row.ratePlanName ?? "—",
+          total: formatMoney(row.roomSubtotal, row.currency),
+        })),
+      });
+    } catch (error) {
+      printWindow.close();
+      toast.error(error instanceof Error ? error.message : "Could not export reservations.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function closeWorkspaceOverlay(open: boolean) {
     if (open) return;
@@ -901,6 +978,21 @@ export function ReservationsWorkspace({
                   </Button>
                   <Button variant="ghost" size="sm" onClick={clearFilters}>
                     Clear
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="size-9 rounded-full border-[#e9dfd0] bg-white text-[#4a2c1a] shadow-none hover:bg-[#f5ead0]"
+                    disabled={exporting}
+                    onClick={() => setExportOpen(true)}
+                    aria-label="Export PDF"
+                    title="Export PDF"
+                    data-testid="reservation-desk-export-pdf"
+                  >
+                    <Download
+                      className={cn("size-4 text-[#c9a24a]", exporting && "animate-pulse")}
+                    />
                   </Button>
                   <Button
                     className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
@@ -1233,6 +1325,18 @@ export function ReservationsWorkspace({
         onApply={(next) => {
           setAdvanced(next);
           resetPage();
+        }}
+      />
+
+      <ExportPdfDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export reservations to PDF"
+        description="Choose the arrival period. Reservations arriving in that period are exported. Your current view, search and filters still apply."
+        onExport={(range) => {
+          const printWindow = openPdfWindow();
+          if (!printWindow) return;
+          void exportReservations(range, printWindow);
         }}
       />
 

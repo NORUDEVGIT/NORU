@@ -237,7 +237,9 @@ export function AssignRoomDialog({
           <DialogTitle>Assign room</DialogTitle>
           <DialogDescription>
             {stay.confirmationNumber} · {stay.guestName} ·{" "}
-            {formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode)}
+            <span className="font-bold text-[#8C6D23]">
+              {formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode)}
+            </span>
           </DialogDescription>
         </DialogHeader>
         <RoomUnitTargetSelect

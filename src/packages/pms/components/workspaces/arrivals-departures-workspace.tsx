@@ -7,13 +7,17 @@ import {
   BedDouble,
   CalendarDays,
   ClipboardList,
-  LogIn,
-  LogOut,
+  RefreshCw,
+  SlidersHorizontal,
   TriangleAlert,
   Users,
+  X,
 } from "lucide-react";
 
-import { ReservationStatusBadge, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import {
+  ReservationStatusBadge,
+  formatStayDate,
+} from "@/packages/pms/components/bookings/reservation-bits";
 import { VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   AssignRoomDialog,
@@ -41,6 +45,14 @@ import { listRoomTypes } from "@/packages/pms/lib/rooms.functions";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatClockInZone } from "@/shared/lib/property-time";
@@ -48,6 +60,9 @@ import { cn } from "@/shared/lib/utils";
 
 type Mode = "arrivals" | "departures";
 type FoKind = "assign_room" | "check_in" | "check_out" | "no_show" | "extend_stay";
+
+const PILL_BUTTON =
+  "h-9 rounded-full border-[#e9dfd0] bg-white text-sm font-semibold text-[#4a2c1a] shadow-none hover:bg-[#f5ead0]";
 
 const ARRIVAL_EXCEPTION_LABELS: Record<ArrivalExceptionKey, string> = {
   unassigned: "Unassigned",
@@ -142,15 +157,53 @@ function formatMoney(value: number | null, currency: string): string {
   }
 }
 
-function financialLabel(
-  financial: ArrivalRow["financial"],
-  currency: string,
-): string {
+function financialLabel(financial: ArrivalRow["financial"], currency: string): string {
   if (financial.state === "permission_denied") return "Permission denied";
   if (financial.state !== "available") return "Coming soon";
   if (financial.balance != null) return formatMoney(financial.balance, currency);
   if (financial.folioId) return "Folio open";
   return "No folio";
+}
+
+/** Titled block inside the Filter menu. */
+function FilterSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="space-y-2 border-b border-[#efe7d8] px-4 py-3 last:border-b-0">
+      <p className="text-xs font-bold text-[#4a2c1a]">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm text-[#4a2c1a] hover:bg-[#faf7f1]">
+      {label}
+      <Checkbox checked={checked} onCheckedChange={(value) => onChange(value === true)} />
+    </label>
+  );
+}
+
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onRemove}
+      aria-label={`Remove filter ${label}`}
+      className="inline-flex items-center gap-1.5 rounded-full border border-[#c9a24a] bg-[#f5ead0] py-0.5 pl-3 pr-2 text-xs font-bold text-[#4a2c1a]"
+    >
+      {label}
+      <X className="size-3" />
+    </button>
+  );
 }
 
 export function ArrivalsDeparturesWorkspace({
@@ -179,6 +232,7 @@ export function ArrivalsDeparturesWorkspace({
   const [arrivalStatus, setArrivalStatus] = useState<"all" | "pending" | "confirmed">("all");
   const [departureStatus, setDepartureStatus] = useState<"all" | "confirmed" | "checked_in">("all");
   const [overstay, setOverstay] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedArrivalIds, setSelectedArrivalIds] = useState<string[]>([]);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -250,149 +304,415 @@ export function ArrivalsDeparturesWorkspace({
     onOpenReservation(id);
   }
 
+  /* Filter menu bookkeeping */
+  const businessDate = snapshot?.businessDate ?? "";
+  const dateChanged = !!date && !!businessDate && date !== businessDate;
+
+  const activeFilterCount =
+    (dateChanged ? 1 : 0) +
+    (roomTypeId !== "all" ? 1 : 0) +
+    (mode === "arrivals"
+      ? (assignment !== "all" ? 1 : 0) + (arrivalStatus !== "all" ? 1 : 0) + (vip ? 1 : 0)
+      : (departureStatus !== "all" ? 1 : 0) + (overstay ? 1 : 0));
+
+  function resetFilters() {
+    setDate(businessDate);
+    setRoomTypeId("all");
+    setAssignment("all");
+    setArrivalStatus("all");
+    setVip(false);
+    setDepartureStatus("all");
+    setOverstay(false);
+  }
+
+  const roomTypeChipName =
+    roomTypeId !== "all"
+      ? ((roomTypesQuery.data ?? []).find((type) => type.id === roomTypeId)?.name ?? "Room type")
+      : null;
+
+  const shownDate = date || businessDate;
   const totals = snapshot?.totals;
-  const kpis = useMemo(
-    () =>
-      totals
-        ? [
-            { label: "Arrivals", value: totals.arrivals, icon: <LogIn className="size-4" /> },
-            { label: "Departures", value: totals.departures, icon: <LogOut className="size-4" /> },
-            { label: "Unassigned Arrivals", value: totals.unassignedArrivals, icon: <BedDouble className="size-4" /> },
-            { label: "Not Ready", value: totals.notReadyArrivals, icon: <TriangleAlert className="size-4" /> },
-            { label: "Arrival Exceptions", value: totals.arrivalExceptions, icon: <AlertTriangle className="size-4" /> },
-            { label: "Departure Exceptions", value: totals.departureExceptions, icon: <AlertTriangle className="size-4" /> },
-            { label: "Overstays", value: totals.overstays, icon: <CalendarDays className="size-4" /> },
-            { label: "Financial Issues", value: totals.departurePaymentIssues, icon: <ClipboardList className="size-4" /> },
-          ]
-        : [],
-    [totals],
+
+  const kpis = useMemo(() => {
+    if (!totals) return [];
+    return mode === "arrivals"
+      ? [
+          {
+            label: "Arrivals",
+            value: totals.arrivals,
+            icon: <CalendarDays className="size-4" />,
+            warn: false,
+          },
+          {
+            label: "Unassigned Arrivals",
+            value: totals.unassignedArrivals,
+            icon: <BedDouble className="size-4" />,
+            warn: true,
+          },
+          {
+            label: "Not Ready",
+            value: totals.notReadyArrivals,
+            icon: <TriangleAlert className="size-4" />,
+            warn: true,
+          },
+          {
+            label: "Exceptions",
+            value: totals.arrivalExceptions,
+            icon: <AlertTriangle className="size-4" />,
+            warn: true,
+          },
+        ]
+      : [
+          {
+            label: "Departures",
+            value: totals.departures,
+            icon: <CalendarDays className="size-4" />,
+            warn: false,
+          },
+          {
+            label: "Overstays",
+            value: totals.overstays,
+            icon: <TriangleAlert className="size-4" />,
+            warn: true,
+          },
+          {
+            label: "Financial Issues",
+            value: totals.departurePaymentIssues,
+            icon: <ClipboardList className="size-4" />,
+            warn: true,
+          },
+          {
+            label: "Exceptions",
+            value: totals.departureExceptions,
+            icon: <AlertTriangle className="size-4" />,
+            warn: true,
+          },
+        ];
+  }, [totals, mode]);
+
+  const quickViewArrival = (
+    <ArrivalQuickView
+      row={selectedArrival}
+      timezone={timezone}
+      currencyCode={currencyCode}
+      canManage={canManage}
+      onOpen={openStay}
+      onEta={setEtaRow}
+      onAssign={(row) => setFoAction({ kind: "assign_room", stay: stayFromArrival(row) })}
+      onCheckIn={(row) => setFoAction({ kind: "check_in", stay: stayFromArrival(row) })}
+    />
+  );
+
+  const quickViewDeparture = (
+    <DepartureQuickView
+      row={selectedDeparture}
+      timezone={timezone}
+      currencyCode={currencyCode}
+      canManage={canManage}
+      onOpen={openStay}
+      onCheckOut={(row) => setFoAction({ kind: "check_out", stay: stayFromDeparture(row) })}
+      onExtend={(row) => setFoAction({ kind: "extend_stay", stay: stayFromDeparture(row) })}
+      onLate={setLateRow}
+    />
   );
 
   return (
-    <div className="space-y-4" data-testid="arrivals-departures-workspace">
-      <section className="flex flex-wrap items-center gap-2" aria-label="Arrivals or departures">
-        <ModeButton active={mode === "arrivals"} onClick={() => setMode("arrivals")}>
-          Arrivals
-        </ModeButton>
-        <ModeButton active={mode === "departures"} onClick={() => setMode("departures")}>
-          Departures
-        </ModeButton>
-        <p className="text-xs text-muted-foreground">
-          Business date {snapshot?.businessDate ?? "—"}
-        </p>
+    <div className="space-y-3" data-testid="arrivals-departures-workspace">
+      {/* Toolbar */}
+      <section className="space-y-3 rounded-2xl border border-[#e9dfd0] bg-white p-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <div
+            className="flex items-center rounded-full bg-[#f1ede6] p-1"
+            role="group"
+            aria-label="Arrivals or departures"
+          >
+            <ModeButton
+              active={mode === "arrivals"}
+              count={totals?.arrivals}
+              onClick={() => setMode("arrivals")}
+            >
+              Arrivals
+            </ModeButton>
+            <ModeButton
+              active={mode === "departures"}
+              count={totals?.departures}
+              onClick={() => setMode("departures")}
+            >
+              Departures
+            </ModeButton>
+          </div>
+
+          {shownDate ? (
+            <div className="min-w-0">
+              <p className="truncate font-display text-lg font-semibold leading-tight text-[#4a2c1a]">
+                {formatStayDate(shownDate)}
+              </p>
+              {snapshot ? (
+                <p className="text-[11px] text-[#7A6B58]">
+                  Business date {formatStayDate(snapshot.businessDate)}
+                  {snapshotQuery.isFetching ? " · Updating…" : ""}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="ml-auto flex items-center gap-2">
+            {/* One Filter menu for everything */}
+            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(PILL_BUTTON, "gap-2 px-4")}
+                  data-testid="arrivals-departures-filter-button"
+                >
+                  <SlidersHorizontal className="size-4 text-[#c9a24a]" />
+                  More filters
+                  {activeFilterCount > 0 ? (
+                    <span className="rounded-full bg-[#c9a24a] px-2 text-[11px] font-extrabold text-[#2b1a10]">
+                      {activeFilterCount}
+                    </span>
+                  ) : null}
+                </Button>
+              </PopoverTrigger>
+
+              <PopoverContent
+                align="end"
+                className="max-h-[75vh] w-[340px] overflow-y-auto rounded-2xl border-[#e9dfd0] p-0 shadow-[0_8px_24px_rgba(74,44,26,0.15)]"
+              >
+                <div className="flex items-center justify-between border-b border-[#efe7d8] px-4 py-3">
+                  <p className="text-sm font-bold text-[#4a2c1a]">Filter {mode}</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-[#8C6D23]"
+                    disabled={activeFilterCount === 0}
+                    onClick={resetFilters}
+                  >
+                    Reset all
+                  </Button>
+                </div>
+
+                <FilterSection title="Operational date">
+                  <Input
+                    type="date"
+                    className="h-9"
+                    value={date}
+                    onChange={(event) => setDate(event.target.value)}
+                    onKeyDown={(event) => event.stopPropagation()}
+                    aria-label="Operational date"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full rounded-full border-[#e9dfd0] text-xs font-semibold text-[#4a2c1a] hover:bg-[#f5ead0]"
+                    disabled={!businessDate || date === businessDate}
+                    onClick={() => setDate(businessDate)}
+                  >
+                    Jump to business date
+                  </Button>
+                </FilterSection>
+
+                <FilterSection title="Room type">
+                  <Select value={roomTypeId} onValueChange={setRoomTypeId}>
+                    <SelectTrigger className="h-9 w-full" aria-label="Room type">
+                      <SelectValue placeholder="All room types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All room types</SelectItem>
+                      {(roomTypesQuery.data ?? []).map((type) => (
+                        <SelectItem key={type.id} value={type.id}>
+                          {type.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FilterSection>
+
+                {mode === "arrivals" ? (
+                  <>
+                    <FilterSection title="Assignment">
+                      <Select
+                        value={assignment}
+                        onValueChange={(value) => setAssignment(value as typeof assignment)}
+                      >
+                        <SelectTrigger className="h-9 w-full" aria-label="Assignment">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="assigned">Assigned</SelectItem>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FilterSection>
+
+                    <FilterSection title="Status">
+                      <Select
+                        value={arrivalStatus}
+                        onValueChange={(value) => setArrivalStatus(value as typeof arrivalStatus)}
+                      >
+                        <SelectTrigger className="h-9 w-full" aria-label="Arrival status">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Pending and confirmed</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="confirmed">Confirmed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FilterSection>
+
+                    <FilterSection title="Guests">
+                      <div className="-mx-2">
+                        <ToggleRow label="VIP only" checked={vip} onChange={setVip} />
+                      </div>
+                    </FilterSection>
+                  </>
+                ) : (
+                  <>
+                    <FilterSection title="Status">
+                      <Select
+                        value={departureStatus}
+                        onValueChange={(value) =>
+                          setDepartureStatus(value as typeof departureStatus)
+                        }
+                      >
+                        <SelectTrigger className="h-9 w-full" aria-label="Departure status">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Confirmed and in-house</SelectItem>
+                          <SelectItem value="confirmed">Confirmed</SelectItem>
+                          <SelectItem value="checked_in">In-house</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FilterSection>
+
+                    <FilterSection title="Stay">
+                      <div className="-mx-2">
+                        <ToggleRow
+                          label="Overstay only"
+                          checked={overstay}
+                          onChange={setOverstay}
+                        />
+                      </div>
+                    </FilterSection>
+                  </>
+                )}
+              </PopoverContent>
+            </Popover>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Refresh"
+              onClick={() => void snapshotQuery.refetch()}
+              disabled={snapshotQuery.isFetching}
+            >
+              <RefreshCw className={cn("size-4", snapshotQuery.isFetching && "animate-spin")} />
+            </Button>
+          </div>
+        </div>
+
+        {/* Active filter chips */}
+        {dateChanged ||
+        roomTypeChipName ||
+        (mode === "arrivals" && (assignment !== "all" || arrivalStatus !== "all" || vip)) ||
+        (mode === "departures" && (departureStatus !== "all" || overstay)) ? (
+          <ul className="flex flex-wrap gap-2" data-testid="arrivals-departures-filter-chips">
+            {dateChanged ? (
+              <li>
+                <FilterChip label={formatStayDate(date)} onRemove={() => setDate(businessDate)} />
+              </li>
+            ) : null}
+            {roomTypeChipName ? (
+              <li>
+                <FilterChip label={roomTypeChipName} onRemove={() => setRoomTypeId("all")} />
+              </li>
+            ) : null}
+            {mode === "arrivals" && assignment !== "all" ? (
+              <li>
+                <FilterChip label={assignment} onRemove={() => setAssignment("all")} />
+              </li>
+            ) : null}
+            {mode === "arrivals" && arrivalStatus !== "all" ? (
+              <li>
+                <FilterChip label={arrivalStatus} onRemove={() => setArrivalStatus("all")} />
+              </li>
+            ) : null}
+            {mode === "arrivals" && vip ? (
+              <li>
+                <FilterChip label="VIP only" onRemove={() => setVip(false)} />
+              </li>
+            ) : null}
+            {mode === "departures" && departureStatus !== "all" ? (
+              <li>
+                <FilterChip
+                  label={departureStatus.replaceAll("_", " ")}
+                  onRemove={() => setDepartureStatus("all")}
+                />
+              </li>
+            ) : null}
+            {mode === "departures" && overstay ? (
+              <li>
+                <FilterChip label="Overstay only" onRemove={() => setOverstay(false)} />
+              </li>
+            ) : null}
+          </ul>
+        ) : null}
       </section>
 
+      {/* Summary */}
       <section
-        className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8"
-        aria-label="Daily arrival and departure control"
+        className="grid grid-cols-2 gap-3 md:grid-cols-4"
+        aria-label="Daily arrival and departure summary"
       >
         {snapshotQuery.isLoading && !snapshot
-          ? Array.from({ length: 8 }, (_, index) => <Skeleton key={index} className="h-20 rounded-xl" />)
+          ? Array.from({ length: 4 }, (_, index) => (
+              <Skeleton key={index} className="h-16 rounded-2xl" />
+            ))
           : kpis.map((kpi) => (
-              <KpiCard key={kpi.label} label={kpi.label} value={kpi.value} icon={kpi.icon} />
+              <KpiCard
+                key={kpi.label}
+                label={kpi.label}
+                value={kpi.value}
+                icon={kpi.icon}
+                warn={kpi.warn}
+              />
             ))}
       </section>
 
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-            Operational date
-            <Input
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              aria-label="Operational date"
-              className="h-9 w-40"
-            />
-          </label>
-          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-            Room type
-            <select
-              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-              value={roomTypeId}
-              onChange={(event) => setRoomTypeId(event.target.value)}
-              aria-label="Room type"
-            >
-              <option value="all">All room types</option>
-              {(roomTypesQuery.data ?? []).map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          {mode === "arrivals" ? (
-            <>
-              <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-                Assignment
-                <select
-                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                  value={assignment}
-                  onChange={(event) => setAssignment(event.target.value as typeof assignment)}
-                  aria-label="Assignment"
-                >
-                  <option value="all">All</option>
-                  <option value="assigned">Assigned</option>
-                  <option value="unassigned">Unassigned</option>
-                </select>
-              </label>
-              <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-                Status
-                <select
-                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                  value={arrivalStatus}
-                  onChange={(event) => setArrivalStatus(event.target.value as typeof arrivalStatus)}
-                  aria-label="Arrival status"
-                >
-                  <option value="all">Pending and confirmed</option>
-                  <option value="pending">Pending</option>
-                  <option value="confirmed">Confirmed</option>
-                </select>
-              </label>
-              <label className="flex h-9 items-center gap-2 text-sm">
-                <Checkbox checked={vip} onCheckedChange={(value) => setVip(value === true)} />
-                VIP only
-              </label>
-            </>
-          ) : (
-            <>
-              <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-                Status
-                <select
-                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                  value={departureStatus}
-                  onChange={(event) => setDepartureStatus(event.target.value as typeof departureStatus)}
-                  aria-label="Departure status"
-                >
-                  <option value="all">Confirmed and in-house</option>
-                  <option value="confirmed">Confirmed</option>
-                  <option value="checked_in">In-house</option>
-                </select>
-              </label>
-              <label className="flex h-9 items-center gap-2 text-sm">
-                <Checkbox checked={overstay} onCheckedChange={(value) => setOverstay(value === true)} />
-                Overstay only
-              </label>
-            </>
-          )}
-        </div>
-      </section>
-
       {mode === "arrivals" && selectedArrivalIds.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DDD4C5] bg-white px-3 py-2">
-          <p className="text-sm">{selectedArrivalIds.length} selected</p>
-          <Button
-            size="sm"
-            className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-            onClick={() => setBulkEtaOpen(true)}
-          >
-            Bulk expected arrival
-          </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#e9dfd0] bg-[#f5ead0] px-4 py-2">
+          <p className="text-sm font-semibold text-[#4a2c1a]">
+            {selectedArrivalIds.length} selected
+          </p>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="rounded-full text-xs text-[#4a2c1a]"
+              onClick={() => setSelectedArrivalIds([])}
+            >
+              Clear
+            </Button>
+            <Button
+              size="sm"
+              className="rounded-full bg-[#C89933] text-xs font-bold text-[#251605] hover:bg-[#B98B2D]"
+              onClick={() => setBulkEtaOpen(true)}
+            >
+              Set expected arrival
+            </Button>
+          </div>
         </div>
       ) : null}
 
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <section className="min-w-0 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-[#e9dfd0] bg-white shadow-sm">
           {snapshotQuery.isError ? (
             <div className="space-y-2 p-4">
               <p className="text-sm text-destructive">
@@ -401,7 +721,7 @@ export function ArrivalsDeparturesWorkspace({
                   : "Could not load arrivals and departures."}
               </p>
               <Button variant="outline" size="sm" onClick={() => void snapshotQuery.refetch()}>
-                Retry
+                Try again
               </Button>
             </div>
           ) : snapshotQuery.isLoading && !snapshot ? (
@@ -411,24 +731,32 @@ export function ArrivalsDeparturesWorkspace({
               ))}
             </div>
           ) : mode === "arrivals" && arrivals.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">No arrivals for these filters.</p>
+            <EmptyState
+              message="No arrivals for these filters."
+              canReset={activeFilterCount > 0}
+              onReset={resetFilters}
+            />
           ) : mode === "departures" && departures.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">No departures for these filters.</p>
+            <EmptyState
+              message="No departures for these filters."
+              canReset={activeFilterCount > 0}
+              onReset={resetFilters}
+            />
           ) : mode === "arrivals" ? (
             <ArrivalsTable
               rows={arrivals}
               selectedId={selectedId}
               selectedIds={selectedArrivalIds}
               timezone={timezone}
-              currencyCode={currencyCode}
               onToggleSelect={(id, checked) =>
                 setSelectedArrivalIds((current) =>
-                  checked ? [...new Set([...current, id])] : current.filter((value) => value !== id),
+                  checked
+                    ? [...new Set([...current, id])]
+                    : current.filter((value) => value !== id),
                 )
               }
               onSelect={selectArrival}
               onOpen={openStay}
-              onEta={setEtaRow}
               onAssign={(row) => setFoAction({ kind: "assign_room", stay: stayFromArrival(row) })}
               onCheckIn={(row) => setFoAction({ kind: "check_in", stay: stayFromArrival(row) })}
             />
@@ -441,67 +769,18 @@ export function ArrivalsDeparturesWorkspace({
               onSelect={selectDeparture}
               onOpen={openStay}
               onCheckOut={(row) => setFoAction({ kind: "check_out", stay: stayFromDeparture(row) })}
-              onExtend={(row) => setFoAction({ kind: "extend_stay", stay: stayFromDeparture(row) })}
-              onLate={setLateRow}
             />
           )}
         </section>
 
         <aside className="hidden min-w-0 xl:block">
-          {mode === "arrivals" ? (
-            <ArrivalQuickView
-              row={selectedArrival}
-              timezone={timezone}
-              currencyCode={currencyCode}
-              canManage={canManage}
-              onOpen={openStay}
-              onEta={setEtaRow}
-              onAssign={(row) => setFoAction({ kind: "assign_room", stay: stayFromArrival(row) })}
-              onCheckIn={(row) => setFoAction({ kind: "check_in", stay: stayFromArrival(row) })}
-            />
-          ) : (
-            <DepartureQuickView
-              row={selectedDeparture}
-              timezone={timezone}
-              currencyCode={currencyCode}
-              canManage={canManage}
-              onOpen={openStay}
-              onCheckOut={(row) => setFoAction({ kind: "check_out", stay: stayFromDeparture(row) })}
-              onExtend={(row) => setFoAction({ kind: "extend_stay", stay: stayFromDeparture(row) })}
-              onLate={setLateRow}
-            />
-          )}
+          {mode === "arrivals" ? quickViewArrival : quickViewDeparture}
         </aside>
       </div>
 
-      <Sheet
-        open={!desktop && mobileOpen && selectedId !== null}
-        onOpenChange={setMobileOpen}
-      >
+      <Sheet open={!desktop && mobileOpen && selectedId !== null} onOpenChange={setMobileOpen}>
         <SheetContent className="w-full overflow-y-auto p-4 sm:max-w-md xl:hidden">
-          {mode === "arrivals" ? (
-            <ArrivalQuickView
-              row={selectedArrival}
-              timezone={timezone}
-              currencyCode={currencyCode}
-              canManage={canManage}
-              onOpen={openStay}
-              onEta={setEtaRow}
-              onAssign={(row) => setFoAction({ kind: "assign_room", stay: stayFromArrival(row) })}
-              onCheckIn={(row) => setFoAction({ kind: "check_in", stay: stayFromArrival(row) })}
-            />
-          ) : (
-            <DepartureQuickView
-              row={selectedDeparture}
-              timezone={timezone}
-              currencyCode={currencyCode}
-              canManage={canManage}
-              onOpen={openStay}
-              onCheckOut={(row) => setFoAction({ kind: "check_out", stay: stayFromDeparture(row) })}
-              onExtend={(row) => setFoAction({ kind: "extend_stay", stay: stayFromDeparture(row) })}
-              onLate={setLateRow}
-            />
-          )}
+          {mode === "arrivals" ? quickViewArrival : quickViewDeparture}
         </SheetContent>
       </Sheet>
 
@@ -609,10 +888,12 @@ export function ArrivalsDeparturesWorkspace({
 
 function ModeButton({
   active,
+  count,
   children,
   onClick,
 }: {
   active: boolean;
+  count?: number;
   children: ReactNode;
   onClick: () => void;
 }) {
@@ -620,24 +901,83 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
-        "flex h-8 items-center rounded-md px-3 text-xs font-medium",
-        active ? "bg-[#F4E9D0] text-[#251605]" : "text-muted-foreground",
+        "flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold transition-colors",
+        active ? "bg-[#C89933] text-[#251605] shadow-sm" : "text-[#7A6B58] hover:text-[#4a2c1a]",
       )}
     >
       {children}
+      {count !== undefined ? (
+        <span
+          className={cn(
+            "rounded-full px-1.5 text-[11px] tabular-nums",
+            active ? "bg-white/60" : "bg-white",
+          )}
+        >
+          {count}
+        </span>
+      ) : null}
     </button>
   );
 }
 
-function KpiCard({ label, value, icon }: { label: string; value: number; icon: ReactNode }) {
+function KpiCard({
+  label,
+  value,
+  icon,
+  warn,
+}: {
+  label: string;
+  value: number;
+  icon: ReactNode;
+  warn: boolean;
+}) {
+  const alert = warn && value > 0;
   return (
-    <div className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-      <div className="flex items-center justify-between gap-2 text-muted-foreground">
-        <p className="text-[11px] font-medium uppercase tracking-wide">{label}</p>
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-2xl border bg-white px-4 py-3 shadow-sm",
+        alert ? "border-amber-200 bg-amber-50/60" : "border-[#e9dfd0]",
+      )}
+    >
+      <span
+        className={cn(
+          "grid size-9 shrink-0 place-items-center rounded-full",
+          alert ? "bg-amber-100 text-amber-900" : "bg-[#f5ead0] text-[#8C6D23]",
+        )}
+      >
         {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="font-display text-xl font-semibold leading-none tabular-nums text-[#4a2c1a]">
+          {value}
+        </p>
+        <p className="mt-1 truncate text-[11px] text-[#7A6B58]">{label}</p>
       </div>
-      <p className="mt-1 font-display text-xl tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function EmptyState({
+  message,
+  canReset,
+  onReset,
+}: {
+  message: string;
+  canReset: boolean;
+  onReset: () => void;
+}) {
+  return (
+    <div className="grid min-h-56 place-items-center p-6 text-center">
+      <div>
+        <p className="font-medium text-[#4a2c1a]">{message}</p>
+        {canReset ? (
+          <Button variant="outline" size="sm" className="mt-3 rounded-full" onClick={onReset}>
+            Reset filters
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -658,16 +998,32 @@ function ExceptionBadges({ keys, labels }: { keys: string[]; labels: Record<stri
   );
 }
 
+function ReadinessPill({ assigned, ready }: { assigned: boolean; ready: boolean }) {
+  const label = assigned ? (ready ? "Ready" : "Not ready") : "Unassigned";
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2 py-0.5 text-[11px] font-medium",
+        !assigned && "bg-[#f1ede6] text-[#7A6B58]",
+        assigned && ready && "bg-emerald-100 text-emerald-900",
+        assigned && !ready && "bg-amber-100 text-amber-950",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+const TABLE_HEAD = "border-b border-[#efe7d8] bg-[#faf7f1] text-xs font-semibold text-[#7A6B58]";
+
 function ArrivalsTable({
   rows,
   selectedId,
   selectedIds,
   timezone,
-  currencyCode,
   onToggleSelect,
   onSelect,
   onOpen,
-  onEta,
   onAssign,
   onCheckIn,
 }: {
@@ -675,30 +1031,29 @@ function ArrivalsTable({
   selectedId: string | null;
   selectedIds: string[];
   timezone: string;
-  currencyCode: string;
   onToggleSelect: (id: string, checked: boolean) => void;
   onSelect: (row: ArrivalRow) => void;
   onOpen: (id: string) => void;
-  onEta: (row: ArrivalRow) => void;
   onAssign: (row: ArrivalRow) => void;
   onCheckIn: (row: ArrivalRow) => void;
 }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] text-left text-sm">
-        <thead className="border-b border-border bg-[#F7F4EE] text-[11px] uppercase tracking-wide text-muted-foreground">
+        <thead className={TABLE_HEAD}>
           <tr>
-            <th className="px-3 py-2">
+            <th className="w-10 px-3 py-2.5">
               <span className="sr-only">Select</span>
             </th>
-            <th className="px-3 py-2">Guest / Reservation</th>
-            <th className="px-3 py-2">Stay</th>
-            <th className="px-3 py-2">Room</th>
-            <th className="px-3 py-2">Readiness</th>
-            <th className="px-3 py-2">ETA</th>
-            <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2">Exceptions</th>
-            <th className="px-3 py-2 text-right">Actions</th>
+            <th className="px-3 py-2.5 font-semibold">Guest</th>
+            <th className="px-3 py-2.5 font-semibold">Stay</th>
+            <th className="px-3 py-2.5 font-semibold">Room</th>
+            <th className="px-3 py-2.5 font-semibold">ETA</th>
+            <th className="px-3 py-2.5 font-semibold">Status</th>
+            <th className="px-3 py-2.5 font-semibold">Exceptions</th>
+            <th className="px-3 py-2.5 text-right font-semibold">
+              <span className="sr-only">Actions</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -706,60 +1061,77 @@ function ArrivalsTable({
             <tr
               key={row.reservationId}
               className={cn(
-                "cursor-pointer border-b border-border/70 hover:bg-[#F7F4EE]",
-                selectedId === row.reservationId && "bg-[#F4E9D0]",
+                "cursor-pointer border-b border-[#efe7d8] last:border-b-0 hover:bg-[#faf7f1]",
+                selectedId === row.reservationId && "bg-[#f5ead0]/60",
               )}
               onClick={() => onSelect(row)}
             >
-              <td className="px-3 py-2" onClick={(event) => event.stopPropagation()}>
+              <td className="px-3 py-2.5" onClick={(event) => event.stopPropagation()}>
                 <Checkbox
                   checked={selectedIds.includes(row.reservationId)}
                   onCheckedChange={(value) => onToggleSelect(row.reservationId, value === true)}
                   aria-label={`Select ${row.confirmationNumber}`}
                 />
               </td>
-              <td className="px-3 py-2">
-                <p className="flex items-center gap-1 font-medium">
+              <td className="px-3 py-2.5">
+                <p className="flex items-center gap-1 font-semibold text-[#4a2c1a]">
                   {row.guest.name}
                   {row.guest.vip ? <VipBadge /> : null}
                 </p>
-                <p className="text-[11px] text-muted-foreground">{row.confirmationNumber}</p>
+                <p className="text-[11px] text-[#7A6B58]">{row.confirmationNumber}</p>
               </td>
-              <td className="px-3 py-2 text-muted-foreground">
+              <td className="px-3 py-2.5 text-[#7A6B58]">
                 {formatStayDate(row.stay.arrivalDate)} → {formatStayDate(row.stay.departureDate)}
               </td>
-              <td className="px-3 py-2">
-                <p>{row.room.roomNumber ?? "Unassigned"}</p>
-                <p className="text-[11px] text-muted-foreground">{row.room.roomTypeName}</p>
+              <td className="px-3 py-2.5">
+                <p className="font-medium text-[#4a2c1a]">{row.room.roomNumber ?? "—"}</p>
+                <div className="mt-0.5 flex items-center gap-1.5">
+                  <ReadinessPill assigned={row.room.assigned} ready={row.room.ready} />
+                  <span className="truncate text-[11px] text-[#7A6B58]">
+                    {row.room.roomTypeName}
+                  </span>
+                </div>
               </td>
-              <td className="px-3 py-2">{row.room.assigned ? (row.room.ready ? "Ready" : "Not ready") : "Unassigned"}</td>
-              <td className="px-3 py-2">{formatClockInZone(row.operational.expectedArrivalTime, timezone)}</td>
-              <td className="px-3 py-2">
+              <td className="px-3 py-2.5">
+                {formatClockInZone(row.operational.expectedArrivalTime, timezone)}
+              </td>
+              <td className="px-3 py-2.5">
                 <ReservationStatusBadge status={row.stay.status} />
               </td>
-              <td className="px-3 py-2">
-                <ExceptionBadges keys={row.operational.exceptionKeys} labels={ARRIVAL_EXCEPTION_LABELS} />
+              <td className="px-3 py-2.5">
+                <ExceptionBadges
+                  keys={row.operational.exceptionKeys}
+                  labels={ARRIVAL_EXCEPTION_LABELS}
+                />
               </td>
-              <td className="px-3 py-2 text-right" onClick={(event) => event.stopPropagation()}>
-                <div className="flex justify-end gap-1">
-                  {row.hints.canOpen ? (
-                    <Button size="sm" variant="outline" onClick={() => onOpen(row.reservationId)}>
-                      Open
-                    </Button>
-                  ) : null}
-                  {row.hints.canUpdateEta ? (
-                    <Button size="sm" variant="outline" onClick={() => onEta(row)}>
-                      ETA
-                    </Button>
-                  ) : null}
-                  {row.hints.canAssignRoom ? (
-                    <Button size="sm" variant="outline" onClick={() => onAssign(row)}>
-                      Assign
-                    </Button>
-                  ) : null}
+              <td className="px-3 py-2.5 text-right" onClick={(event) => event.stopPropagation()}>
+                <div className="flex justify-end gap-1.5">
                   {row.hints.canCheckIn ? (
-                    <Button size="sm" variant="outline" onClick={() => onCheckIn(row)}>
+                    <Button
+                      size="sm"
+                      className="rounded-full bg-[#C89933] text-xs font-bold text-[#251605] hover:bg-[#B98B2D]"
+                      onClick={() => onCheckIn(row)}
+                    >
                       Check in
+                    </Button>
+                  ) : row.hints.canAssignRoom ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full border-[#e9dfd0] text-xs font-semibold text-[#4a2c1a] hover:bg-[#f5ead0]"
+                      onClick={() => onAssign(row)}
+                    >
+                      Assign room
+                    </Button>
+                  ) : null}
+                  {row.hints.canOpen ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-full text-xs font-semibold text-[#4a2c1a]"
+                      onClick={() => onOpen(row.reservationId)}
+                    >
+                      Open
                     </Button>
                   ) : null}
                 </div>
@@ -768,7 +1140,6 @@ function ArrivalsTable({
           ))}
         </tbody>
       </table>
-      <p className="sr-only">{currencyCode}</p>
     </div>
   );
 }
@@ -781,8 +1152,6 @@ function DeparturesTable({
   onSelect,
   onOpen,
   onCheckOut,
-  onExtend,
-  onLate,
 }: {
   rows: DepartureRow[];
   selectedId: string | null;
@@ -791,22 +1160,22 @@ function DeparturesTable({
   onSelect: (row: DepartureRow) => void;
   onOpen: (id: string) => void;
   onCheckOut: (row: DepartureRow) => void;
-  onExtend: (row: DepartureRow) => void;
-  onLate: (row: DepartureRow) => void;
 }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] text-left text-sm">
-        <thead className="border-b border-border bg-[#F7F4EE] text-[11px] uppercase tracking-wide text-muted-foreground">
+        <thead className={TABLE_HEAD}>
           <tr>
-            <th className="px-3 py-2">Guest / Reservation</th>
-            <th className="px-3 py-2">Room</th>
-            <th className="px-3 py-2">Departure</th>
-            <th className="px-3 py-2">Financial</th>
-            <th className="px-3 py-2">Late Checkout</th>
-            <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2">Exceptions</th>
-            <th className="px-3 py-2 text-right">Actions</th>
+            <th className="px-3 py-2.5 font-semibold">Guest</th>
+            <th className="px-3 py-2.5 font-semibold">Room</th>
+            <th className="px-3 py-2.5 font-semibold">Departure</th>
+            <th className="px-3 py-2.5 font-semibold">Balance</th>
+            <th className="px-3 py-2.5 font-semibold">Late checkout</th>
+            <th className="px-3 py-2.5 font-semibold">Status</th>
+            <th className="px-3 py-2.5 font-semibold">Exceptions</th>
+            <th className="px-3 py-2.5 text-right font-semibold">
+              <span className="sr-only">Actions</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -814,55 +1183,57 @@ function DeparturesTable({
             <tr
               key={row.reservationId}
               className={cn(
-                "cursor-pointer border-b border-border/70 hover:bg-[#F7F4EE]",
-                selectedId === row.reservationId && "bg-[#F4E9D0]",
+                "cursor-pointer border-b border-[#efe7d8] last:border-b-0 hover:bg-[#faf7f1]",
+                selectedId === row.reservationId && "bg-[#f5ead0]/60",
               )}
               onClick={() => onSelect(row)}
             >
-              <td className="px-3 py-2">
-                <p className="flex items-center gap-1 font-medium">
+              <td className="px-3 py-2.5">
+                <p className="flex items-center gap-1 font-semibold text-[#4a2c1a]">
                   {row.guest.name}
                   {row.guest.vip ? <VipBadge /> : null}
                 </p>
-                <p className="text-[11px] text-muted-foreground">{row.confirmationNumber}</p>
+                <p className="text-[11px] text-[#7A6B58]">{row.confirmationNumber}</p>
               </td>
-              <td className="px-3 py-2">
-                <p>{row.room.roomNumber ?? "—"}</p>
-                <p className="text-[11px] text-muted-foreground">{row.room.roomTypeName}</p>
+              <td className="px-3 py-2.5">
+                <p className="font-medium text-[#4a2c1a]">{row.room.roomNumber ?? "—"}</p>
+                <p className="text-[11px] text-[#7A6B58]">{row.room.roomTypeName}</p>
               </td>
-              <td className="px-3 py-2">{formatStayDate(row.stay.departureDate)}</td>
-              <td className="px-3 py-2">{financialLabel(row.financial, currencyCode)}</td>
-              <td className="px-3 py-2">
+              <td className="px-3 py-2.5">{formatStayDate(row.stay.departureDate)}</td>
+              <td className="px-3 py-2.5">{financialLabel(row.financial, currencyCode)}</td>
+              <td className="px-3 py-2.5">
                 {row.operational.lateCheckout.granted
                   ? formatClockInZone(row.operational.lateCheckout.until, timezone)
                   : "—"}
               </td>
-              <td className="px-3 py-2">
+              <td className="px-3 py-2.5">
                 <ReservationStatusBadge status={row.stay.status} />
               </td>
-              <td className="px-3 py-2">
-                <ExceptionBadges keys={row.operational.exceptionKeys} labels={DEPARTURE_EXCEPTION_LABELS} />
+              <td className="px-3 py-2.5">
+                <ExceptionBadges
+                  keys={row.operational.exceptionKeys}
+                  labels={DEPARTURE_EXCEPTION_LABELS}
+                />
               </td>
-              <td className="px-3 py-2 text-right" onClick={(event) => event.stopPropagation()}>
-                <div className="flex justify-end gap-1">
-                  {row.hints.canOpen ? (
-                    <Button size="sm" variant="outline" onClick={() => onOpen(row.reservationId)}>
-                      Open
-                    </Button>
-                  ) : null}
+              <td className="px-3 py-2.5 text-right" onClick={(event) => event.stopPropagation()}>
+                <div className="flex justify-end gap-1.5">
                   {row.hints.canCheckOut ? (
-                    <Button size="sm" variant="outline" onClick={() => onCheckOut(row)}>
+                    <Button
+                      size="sm"
+                      className="rounded-full bg-[#C89933] text-xs font-bold text-[#251605] hover:bg-[#B98B2D]"
+                      onClick={() => onCheckOut(row)}
+                    >
                       Check out
                     </Button>
                   ) : null}
-                  {row.hints.canExtendStay ? (
-                    <Button size="sm" variant="outline" onClick={() => onExtend(row)}>
-                      Extend
-                    </Button>
-                  ) : null}
-                  {row.hints.canGrantLateCheckout ? (
-                    <Button size="sm" variant="outline" onClick={() => onLate(row)}>
-                      Late checkout
+                  {row.hints.canOpen ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-full text-xs font-semibold text-[#4a2c1a]"
+                      onClick={() => onOpen(row.reservationId)}
+                    >
+                      Open
                     </Button>
                   ) : null}
                 </div>
@@ -871,6 +1242,23 @@ function DeparturesTable({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function QuickViewShell({
+  children,
+  "data-testid": testId,
+}: {
+  children: ReactNode;
+  "data-testid": string;
+}) {
+  return (
+    <div
+      className="rounded-2xl border border-[#e9dfd0] bg-white p-4 shadow-sm"
+      data-testid={testId}
+    >
+      {children}
     </div>
   );
 }
@@ -896,28 +1284,42 @@ function ArrivalQuickView({
 }) {
   if (!row) {
     return (
-      <div className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm" data-testid="arrival-quick-view">
-        <p className="text-sm text-muted-foreground">Select an arrival to view guest, room readiness, ETA and actions.</p>
-      </div>
+      <QuickViewShell data-testid="arrival-quick-view">
+        <p className="text-sm text-[#7A6B58]">
+          Select an arrival to see the guest, room, ETA and actions.
+        </p>
+      </QuickViewShell>
     );
   }
   return (
-    <div className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm" data-testid="arrival-quick-view">
-      <p className="flex items-center gap-2 font-display text-lg">
-        <Users className="size-4" />
+    <QuickViewShell data-testid="arrival-quick-view">
+      <p className="flex items-center gap-2 font-display text-lg text-[#4a2c1a]">
+        <Users className="size-4 text-[#c9a24a]" />
         {row.guest.name}
         {row.guest.vip ? <VipBadge /> : null}
       </p>
-      <p className="text-xs text-muted-foreground">{row.confirmationNumber}</p>
+      <p className="text-xs text-[#7A6B58]">{row.confirmationNumber}</p>
       <dl className="mt-3 space-y-2 text-sm">
-        <Field label="Stay" value={`${formatStayDate(row.stay.arrivalDate)} → ${formatStayDate(row.stay.departureDate)}`} />
+        <Field
+          label="Stay"
+          value={`${formatStayDate(row.stay.arrivalDate)} → ${formatStayDate(row.stay.departureDate)}`}
+        />
         <Field label="Room" value={row.room.roomNumber ?? "Unassigned"} />
         <Field label="Room type" value={row.room.roomTypeName} />
-        <Field label="Readiness" value={row.room.assigned ? (row.room.ready ? "Ready" : "Not ready") : "Unassigned"} />
-        <Field label="ETA" value={formatClockInZone(row.operational.expectedArrivalTime, timezone)} />
+        <Field
+          label="Readiness"
+          value={row.room.assigned ? (row.room.ready ? "Ready" : "Not ready") : "Unassigned"}
+        />
+        <Field
+          label="ETA"
+          value={formatClockInZone(row.operational.expectedArrivalTime, timezone)}
+        />
         <Field label="Guarantee" value={row.commercial.guaranteeMethod ?? "—"} />
-        <Field label="Financial" value={financialLabel(row.financial, currencyCode)} />
-        <Field label="Contact" value={[row.guest.phone, row.guest.email].filter(Boolean).join(" · ") || "—"} />
+        <Field label="Balance" value={financialLabel(row.financial, currencyCode)} />
+        <Field
+          label="Contact"
+          value={[row.guest.phone, row.guest.email].filter(Boolean).join(" · ") || "—"}
+        />
         <Field label="Special requests" value={row.operational.specialRequests ?? "—"} />
       </dl>
       <div className="mt-3">
@@ -925,42 +1327,71 @@ function ArrivalQuickView({
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {row.hints.canOpen ? (
-          <Button size="sm" onClick={() => onOpen(row.reservationId)}>
+          <Button
+            size="sm"
+            className="rounded-full bg-[#C89933] font-bold text-[#251605] hover:bg-[#B98B2D]"
+            onClick={() => onOpen(row.reservationId)}
+          >
             Open Reservation
           </Button>
         ) : null}
         {row.hints.canViewGuest ? (
-          <Button asChild size="sm" variant="outline">
+          <Button asChild size="sm" variant="outline" className="rounded-full border-[#e9dfd0]">
             <Link to="/restaurant/pms/guests/$guestId" params={{ guestId: row.guest.id }}>
-              View Guest
+              View guest
             </Link>
           </Button>
         ) : null}
         {canManage && row.hints.canAssignRoom ? (
-          <Button size="sm" variant="outline" onClick={() => onAssign(row)}>
-            Assign Room
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full border-[#e9dfd0]"
+            onClick={() => onAssign(row)}
+          >
+            Assign room
           </Button>
         ) : null}
         {canManage && row.hints.canCheckIn ? (
-          <Button size="sm" variant="outline" onClick={() => onCheckIn(row)}>
-            Check In
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full border-[#e9dfd0]"
+            onClick={() => onCheckIn(row)}
+          >
+            Check in
           </Button>
         ) : null}
         {canManage && row.hints.canUpdateEta ? (
-          <Button size="sm" variant="outline" onClick={() => onEta(row)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full border-[#e9dfd0]"
+            onClick={() => onEta(row)}
+          >
             Update ETA
           </Button>
         ) : null}
         {row.hints.canOpenFolio ? (
-          <Button size="sm" variant="outline" onClick={() => onOpen(row.reservationId)}>
-            Open Folio
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full border-[#e9dfd0]"
+            onClick={() => onOpen(row.reservationId)}
+          >
+            Open folio
           </Button>
         ) : null}
-        <Button size="sm" variant="ghost" onClick={() => onOpen(row.reservationId)}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="rounded-full"
+          onClick={() => onOpen(row.reservationId)}
+        >
           History
         </Button>
       </div>
-    </div>
+    </QuickViewShell>
   );
 }
 
@@ -985,26 +1416,29 @@ function DepartureQuickView({
 }) {
   if (!row) {
     return (
-      <div className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm" data-testid="departure-quick-view">
-        <p className="text-sm text-muted-foreground">Select a departure to view folio context, late checkout and actions.</p>
-      </div>
+      <QuickViewShell data-testid="departure-quick-view">
+        <p className="text-sm text-[#7A6B58]">
+          Select a departure to see the balance, late checkout and actions.
+        </p>
+      </QuickViewShell>
     );
   }
   const late = row.operational.lateCheckout;
   return (
-    <div className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm" data-testid="departure-quick-view">
-      <p className="flex items-center gap-2 font-display text-lg">
+    <QuickViewShell data-testid="departure-quick-view">
+      <p className="flex items-center gap-2 font-display text-lg text-[#4a2c1a]">
+        <Users className="size-4 text-[#c9a24a]" />
         {row.guest.name}
         {row.guest.vip ? <VipBadge /> : null}
       </p>
-      <p className="text-xs text-muted-foreground">{row.confirmationNumber}</p>
+      <p className="text-xs text-[#7A6B58]">{row.confirmationNumber}</p>
       <dl className="mt-3 space-y-2 text-sm">
         <Field label="Departure" value={formatStayDate(row.stay.departureDate)} />
         <Field label="In-house" value={row.stay.inHouse ? "Yes" : "No"} />
         <Field label="Overstay" value={row.stay.overstay ? "Yes" : "No"} />
         <Field label="Room" value={row.room.roomNumber ?? "—"} />
         <Field label="Housekeeping" value={row.room.housekeepingStatus ?? "—"} />
-        <Field label="Financial" value={financialLabel(row.financial, currencyCode)} />
+        <Field label="Balance" value={financialLabel(row.financial, currencyCode)} />
         <Field
           label="Deposit"
           value={
@@ -1028,43 +1462,72 @@ function DepartureQuickView({
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {row.hints.canOpen ? (
-          <Button size="sm" onClick={() => onOpen(row.reservationId)}>
+          <Button
+            size="sm"
+            className="rounded-full bg-[#C89933] font-bold text-[#251605] hover:bg-[#B98B2D]"
+            onClick={() => onOpen(row.reservationId)}
+          >
             Open Reservation
           </Button>
         ) : null}
         {canManage && row.hints.canCheckOut ? (
-          <Button size="sm" variant="outline" onClick={() => onCheckOut(row)}>
-            Check Out
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full border-[#e9dfd0]"
+            onClick={() => onCheckOut(row)}
+          >
+            Check out
           </Button>
         ) : null}
         {canManage && row.hints.canExtendStay ? (
-          <Button size="sm" variant="outline" onClick={() => onExtend(row)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full border-[#e9dfd0]"
+            onClick={() => onExtend(row)}
+          >
             Extend Stay
           </Button>
         ) : null}
         {canManage && row.hints.canGrantLateCheckout ? (
-          <Button size="sm" variant="outline" onClick={() => onLate(row)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full border-[#e9dfd0]"
+            onClick={() => onLate(row)}
+          >
             Grant Late Checkout
           </Button>
         ) : null}
         {row.hints.canOpenFolio ? (
-          <Button size="sm" variant="outline" onClick={() => onOpen(row.reservationId)}>
-            Open Folio
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full border-[#e9dfd0]"
+            onClick={() => onOpen(row.reservationId)}
+          >
+            Open folio
           </Button>
         ) : null}
-        <Button size="sm" variant="ghost" onClick={() => onOpen(row.reservationId)}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="rounded-full"
+          onClick={() => onOpen(row.reservationId)}
+        >
           History
         </Button>
       </div>
-    </div>
+    </QuickViewShell>
   );
 }
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-3">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right">{value}</dd>
+      <dt className="text-[#7A6B58]">{label}</dt>
+      <dd className="text-right text-[#4a2c1a]">{value}</dd>
     </div>
   );
 }
