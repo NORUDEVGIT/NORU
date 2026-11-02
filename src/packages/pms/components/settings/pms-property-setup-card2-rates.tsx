@@ -3,9 +3,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { ArrowLeft, Check, Plus, Search } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Plus, Search } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
@@ -18,10 +24,15 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import {
+  Card3EmptyRow,
   Card3ListSection,
   Card3OverlapSheet,
+  Card3RowActions,
+  Card3Section,
   Card3StatusDot,
+  Card3Table,
 } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
+import { PROPERTY_SETUP_CONTROL_CLASS } from "@/packages/pms/lib/pms-property-setup-ui";
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
   getRatesCard2,
@@ -83,6 +94,8 @@ import {
 import { suggestRatePlanCode } from "@/packages/pms/lib/rates-card2-code";
 import { cn } from "@/shared/lib/utils";
 
+type PolicySectionType = "cancellation" | "refundability" | "no-show" | "early-departure";
+
 const NONE = "__none__";
 const REFUNDABILITY_KIND_LABELS: Record<RateRefundabilityKind, string> = {
   refundable: "Refundable",
@@ -116,6 +129,13 @@ export function PmsPropertySetupCard2Rates({
   const saveNoShow = useServerFn(saveRateNoShowPolicyCard2);
   const saveEarlyDeparture = useServerFn(saveRateEarlyDeparturePolicyCard2);
   const setEarlyDepartureActive = useServerFn(setRateEarlyDeparturePolicyActiveCard2);
+
+  const [activePolicyType, setActivePolicyType] = useState<PolicySectionType>("cancellation");
+  const [inlineTargetPolicy, setInlineTargetPolicy] = useState<PolicySectionType | null>(null);
+  const [newlyCreatedPolicy, setNewlyCreatedPolicy] = useState<{
+    type: PolicySectionType;
+    id: string;
+  } | null>(null);
 
   const [categorySearch, setCategorySearch] = useState("");
   const [planSearch, setPlanSearch] = useState("");
@@ -268,10 +288,23 @@ export function PmsPropertySetupCard2Rates({
   const cancelMut = useMutation({
     mutationFn: (input: Parameters<typeof saveCancellation>[0]["data"]) =>
       saveCancellation({ data: input }),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       toast.success("Cancellation policy saved.");
       setCancelDraft(null);
+      if (data) {
+        queryClient.setQueryData(["pms-card2-rates", restaurantId], data);
+      }
       invalidate();
+      if (inlineTargetPolicy === "cancellation" && data?.snapshot?.cancellationPolicies) {
+        const created = data.snapshot.cancellationPolicies.find(
+          (p) => p.code.trim().toUpperCase() === variables.code.trim().toUpperCase(),
+        );
+        if (created) {
+          setNewlyCreatedPolicy({ type: "cancellation", id: created.id });
+          toast.success(`Selected "${created.name}" for rate plan.`);
+        }
+        setInlineTargetPolicy(null);
+      }
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -279,20 +312,46 @@ export function PmsPropertySetupCard2Rates({
   const refundMut = useMutation({
     mutationFn: (input: Parameters<typeof saveRefundability>[0]["data"]) =>
       saveRefundability({ data: input }),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       toast.success("Refundability saved.");
       setRefundDraft(null);
+      if (data) {
+        queryClient.setQueryData(["pms-card2-rates", restaurantId], data);
+      }
       invalidate();
+      if (inlineTargetPolicy === "refundability" && data?.snapshot?.refundabilityCodes) {
+        const created = data.snapshot.refundabilityCodes.find(
+          (p) => p.code.trim().toUpperCase() === variables.code.trim().toUpperCase(),
+        );
+        if (created) {
+          setNewlyCreatedPolicy({ type: "refundability", id: created.id });
+          toast.success(`Selected "${created.name}" for rate plan.`);
+        }
+        setInlineTargetPolicy(null);
+      }
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   const noShowMut = useMutation({
     mutationFn: (input: Parameters<typeof saveNoShow>[0]["data"]) => saveNoShow({ data: input }),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       toast.success("No-show policy saved.");
       setNoShowDraft(null);
+      if (data) {
+        queryClient.setQueryData(["pms-card2-rates", restaurantId], data);
+      }
       invalidate();
+      if (inlineTargetPolicy === "no-show" && data?.snapshot?.noShowPolicies) {
+        const created = data.snapshot.noShowPolicies.find(
+          (p) => p.code.trim().toUpperCase() === variables.code.trim().toUpperCase(),
+        );
+        if (created) {
+          setNewlyCreatedPolicy({ type: "no-show", id: created.id });
+          toast.success(`Selected "${created.name}" for rate plan.`);
+        }
+        setInlineTargetPolicy(null);
+      }
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -300,10 +359,23 @@ export function PmsPropertySetupCard2Rates({
   const earlyDepartureMut = useMutation({
     mutationFn: (input: Parameters<typeof saveEarlyDeparture>[0]["data"]) =>
       saveEarlyDeparture({ data: input }),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       toast.success("Early departure policy saved.");
       setEarlyDepartureDraft(null);
+      if (data) {
+        queryClient.setQueryData(["pms-card2-rates", restaurantId], data);
+      }
       invalidate();
+      if (inlineTargetPolicy === "early-departure" && data?.snapshot?.earlyDeparturePolicies) {
+        const created = data.snapshot.earlyDeparturePolicies.find(
+          (p) => p.code.trim().toUpperCase() === variables.code.trim().toUpperCase(),
+        );
+        if (created) {
+          setNewlyCreatedPolicy({ type: "early-departure", id: created.id });
+          toast.success(`Selected "${created.name}" for rate plan.`);
+        }
+        setInlineTargetPolicy(null);
+      }
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -364,6 +436,343 @@ export function PmsPropertySetupCard2Rates({
             }))}
           />
 
+          {/* Dynamic General Policy Section between Categories and Room rates */}
+          {(() => {
+            const policyToolbar = (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                  <div className="relative min-w-0 flex-1 sm:max-w-sm">
+                    <Search
+                      className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                      aria-hidden
+                    />
+                    <Input
+                      value={
+                        activePolicyType === "cancellation"
+                          ? cancelSearch
+                          : activePolicyType === "refundability"
+                            ? refundSearch
+                            : activePolicyType === "no-show"
+                              ? noShowSearch
+                              : earlyDepartureSearch
+                      }
+                      onChange={(event) => {
+                        const val = event.target.value;
+                        if (activePolicyType === "cancellation") setCancelSearch(val);
+                        else if (activePolicyType === "refundability") setRefundSearch(val);
+                        else if (activePolicyType === "no-show") setNoShowSearch(val);
+                        else setEarlyDepartureSearch(val);
+                      }}
+                      placeholder={
+                        activePolicyType === "cancellation"
+                          ? "Search cancellation policies"
+                          : activePolicyType === "refundability"
+                            ? "Search refundability"
+                            : activePolicyType === "no-show"
+                              ? "Search no-show policies"
+                              : "Search early departure policies"
+                      }
+                      aria-label="Search policies"
+                      className={cn(PROPERTY_SETUP_CONTROL_CLASS, "pl-9")}
+                    />
+                  </div>
+
+                  <Select
+                    value={activePolicyType}
+                    onValueChange={(val) => setActivePolicyType(val as PolicySectionType)}
+                  >
+                    <SelectTrigger
+                      className="h-11 w-[240px] border-[#CCCCCC] bg-white text-sm font-medium text-[#251605]"
+                      aria-label="Policy type"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cancellation">
+                        Cancellation policies ({cancellationPolicies.length})
+                      </SelectItem>
+                      <SelectItem value="refundability">
+                        Refundability ({refundabilityCodes.length})
+                      </SelectItem>
+                      <SelectItem value="no-show">
+                        No-show policies ({noShowPolicies.length})
+                      </SelectItem>
+                      <SelectItem value="early-departure">
+                        Early departure policies ({earlyDeparturePolicies.length})
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {canEdit ? (
+                  <div className="inline-flex rounded-[6px] shadow-sm">
+                    <Button
+                      type="button"
+                      className="h-11 rounded-r-none border border-r-0 border-[#C89933] bg-[#F4EDE0] px-3 text-sm font-medium text-[#251605] hover:bg-[#C89933]/20"
+                      onClick={() => {
+                        if (activePolicyType === "cancellation") setCancelDraft("new");
+                        else if (activePolicyType === "refundability") setRefundDraft("new");
+                        else if (activePolicyType === "no-show") setNoShowDraft("new");
+                        else setEarlyDepartureDraft("new");
+                      }}
+                    >
+                      <Plus className="mr-1.5 size-4" />
+                      {activePolicyType === "cancellation"
+                        ? "Add cancellation policy"
+                        : activePolicyType === "refundability"
+                          ? "Add refundability"
+                          : activePolicyType === "no-show"
+                            ? "Add no-show policy"
+                            : "Add early departure policy"}
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          className="h-11 rounded-l-none border border-[#C89933] bg-[#F4EDE0] px-2 text-[#251605] hover:bg-[#C89933]/20"
+                          aria-label="Add policy type options"
+                        >
+                          <ChevronDown className="size-4 text-[#8A641A]" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56 text-xs">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setActivePolicyType("cancellation");
+                            setCancelDraft("new");
+                          }}
+                        >
+                          <Plus className="mr-2 size-3.5 text-[#8A641A]" />
+                          Add cancellation policy
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setActivePolicyType("refundability");
+                            setRefundDraft("new");
+                          }}
+                        >
+                          <Plus className="mr-2 size-3.5 text-[#8A641A]" />
+                          Add refundability
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setActivePolicyType("no-show");
+                            setNoShowDraft("new");
+                          }}
+                        >
+                          <Plus className="mr-2 size-3.5 text-[#8A641A]" />
+                          Add no-show policy
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setActivePolicyType("early-departure");
+                            setEarlyDepartureDraft("new");
+                          }}
+                        >
+                          <Plus className="mr-2 size-3.5 text-[#8A641A]" />
+                          Add early departure policy
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                ) : null}
+              </div>
+            );
+
+            return (
+              <>
+                {activePolicyType === "cancellation" && (
+                  <Card3Section
+                    title="Cancellation policies"
+                    addLabel="Add cancellation policy"
+                    helper="Reusable window and cutoff. Linked rate plans pick this catalogue. Confirmed reservations keep their snapshot."
+                    icon="tag"
+                  >
+                    {policyToolbar}
+                    <Card3Table headers={["Code", "Name", "Kind", "Window", "Status", ""]}>
+                      {filteredCancellations.length === 0 ? (
+                        <Card3EmptyRow colSpan={6}>
+                          No cancellation policies yet. Optional on rate plans.
+                        </Card3EmptyRow>
+                      ) : (
+                        filteredCancellations.map((row) => (
+                          <tr key={row.id} className="border-t border-[#E6E1D8]">
+                            <td className="px-3 py-2 text-[#251605]">{row.code}</td>
+                            <td className="px-3 py-2 text-[#251605]">{row.name}</td>
+                            <td className="px-3 py-2 text-[#251605]">
+                              {CANCELLATION_POLICY_KIND_LABELS[row.policyKind]}
+                            </td>
+                            <td className="px-3 py-2 text-[#251605]">
+                              {row.policyKind === "non_refundable"
+                                ? "—"
+                                : row.windowValue == null
+                                  ? "—"
+                                  : `${row.windowValue} ${CANCELLATION_WINDOW_UNIT_LABELS[row.windowUnit].toLowerCase()}`}
+                            </td>
+                            <td className="px-3 py-2 text-[#251605]">
+                              <Card3StatusDot active={row.active} />
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <Card3RowActions
+                                label="Actions for Cancellation policies"
+                                onEdit={() => setCancelDraft(row)}
+                                editDisabled={!canEdit}
+                              />
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </Card3Table>
+                  </Card3Section>
+                )}
+
+                {activePolicyType === "refundability" && (
+                  <Card3Section
+                    title="Refundability"
+                    addLabel="Add refundability"
+                    helper="Define refundability codes for rate plans. Does not change confirmed reservations."
+                    icon="tag"
+                  >
+                    {policyToolbar}
+                    <Card3Table headers={["Code", "Name", "Kind", "Status", ""]}>
+                      {filteredRefundability.length === 0 ? (
+                        <Card3EmptyRow colSpan={5}>
+                          No refundability codes yet. Optional on rate plans.
+                        </Card3EmptyRow>
+                      ) : (
+                        filteredRefundability.map((row) => (
+                          <tr key={row.id} className="border-t border-[#E6E1D8]">
+                            <td className="px-3 py-2 text-[#251605]">{row.code}</td>
+                            <td className="px-3 py-2 text-[#251605]">{row.name}</td>
+                            <td className="px-3 py-2 text-[#251605]">
+                              {REFUNDABILITY_KIND_LABELS[row.kind]}
+                            </td>
+                            <td className="px-3 py-2 text-[#251605]">
+                              <Card3StatusDot active={row.active} />
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <Card3RowActions
+                                label="Actions for Refundability"
+                                onEdit={() => setRefundDraft(row)}
+                                editDisabled={!canEdit}
+                              />
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </Card3Table>
+                  </Card3Section>
+                )}
+
+                {activePolicyType === "no-show" && (
+                  <Card3Section
+                    title="No-show policies"
+                    addLabel="Add no-show policy"
+                    helper="Defines charge and release time when a guest fails to arrive."
+                    icon="checklist"
+                  >
+                    {policyToolbar}
+                    <Card3Table
+                      headers={["Code", "Name", "Release time", "Penalty", "Default", "Status", ""]}
+                    >
+                      {filteredNoShowPolicies.length === 0 ? (
+                        <Card3EmptyRow colSpan={7}>
+                          No no-show policies yet. Defines charge and release time when a guest fails to
+                          arrive.
+                        </Card3EmptyRow>
+                      ) : (
+                        filteredNoShowPolicies.map((row) => (
+                          <tr key={row.id} className="border-t border-[#E6E1D8]">
+                            <td className="px-3 py-2 text-[#251605]">{row.code}</td>
+                            <td className="px-3 py-2 text-[#251605]">{row.name}</td>
+                            <td className="px-3 py-2 text-[#251605]">
+                              {String(row.releaseHour).padStart(2, "0")}:00
+                            </td>
+                            <td className="px-3 py-2 text-[#251605]">
+                              {row.penaltyType === "percent_stay"
+                                ? `${row.penaltyValue}% stay`
+                                : row.penaltyType === "fixed_amount"
+                                  ? `${currencyCode} ${row.penaltyValue}`
+                                  : (POLICY_PENALTY_TYPE_LABELS[row.penaltyType] ??
+                                    row.penaltyType)}
+                            </td>
+                            <td className="px-3 py-2 text-[#251605]">
+                              {row.isDefault ? "Default" : "—"}
+                            </td>
+                            <td className="px-3 py-2 text-[#251605]">
+                              <Card3StatusDot active={row.active} />
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <Card3RowActions
+                                label="Actions for No-show policies"
+                                onEdit={() => setNoShowDraft(row)}
+                                editDisabled={!canEdit}
+                              />
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </Card3Table>
+                  </Card3Section>
+                )}
+
+                {activePolicyType === "early-departure" && (
+                  <Card3Section
+                    title="Early departure policies"
+                    addLabel="Add early departure policy"
+                    helper="Stay terms used by rate plans. This does not post a checkout charge."
+                    icon="checklist"
+                  >
+                    {policyToolbar}
+                    <Card3Table headers={["Code", "Name", "Penalty", "Status", ""]}>
+                      {filteredEarlyDeparturePolicies.length === 0 ? (
+                        <Card3EmptyRow colSpan={5}>
+                          No early departure policies yet.
+                        </Card3EmptyRow>
+                      ) : (
+                        filteredEarlyDeparturePolicies.map((row) => (
+                          <tr key={row.id} className="border-t border-[#E6E1D8]">
+                            <td className="px-3 py-2 text-[#251605]">{row.code}</td>
+                            <td className="px-3 py-2 text-[#251605]">{row.name}</td>
+                            <td className="px-3 py-2 text-[#251605]">
+                              {row.penaltyType === "percent_stay"
+                                ? `${row.penaltyValue}% of stay`
+                                : row.penaltyType === "fixed_amount"
+                                  ? `${currencyCode} ${row.penaltyValue}`
+                                  : EARLY_DEPARTURE_PENALTY_TYPE_LABELS[row.penaltyType]}
+                            </td>
+                            <td className="px-3 py-2 text-[#251605]">
+                              <span
+                                onClick={(event) => event.stopPropagation()}
+                                onKeyDown={(event) => event.stopPropagation()}
+                              >
+                                <Switch
+                                  checked={row.active}
+                                  disabled={!canEdit || earlyDepartureActiveMut.isPending}
+                                  aria-label={`${row.code} active`}
+                                  onCheckedChange={(active) =>
+                                    earlyDepartureActiveMut.mutate({ id: row.id, active })
+                                  }
+                                />
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <Card3RowActions
+                                label="Actions for Early departure policies"
+                                onEdit={() => setEarlyDepartureDraft(row)}
+                                editDisabled={!canEdit}
+                              />
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </Card3Table>
+                  </Card3Section>
+                )}
+              </>
+            );
+          })()}
+
           <Card3ListSection
             title="Room rates"
             icon="money"
@@ -400,126 +809,6 @@ export function PmsPropertySetupCard2Rates({
             }))}
           />
 
-          <Card3ListSection
-            title="Cancellation policies"
-            icon="tag"
-            search={cancelSearch}
-            onSearch={setCancelSearch}
-            placeholder="Search cancellation policies"
-            addLabel="Add cancellation policy"
-            onAdd={() => setCancelDraft("new")}
-            canEdit={canEdit}
-            empty="No cancellation policies yet. Optional on rate plans."
-            columns={["Code", "Name", "Kind", "Window", "Status"]}
-            rows={filteredCancellations.map((row) => ({
-              id: row.id,
-              cells: [
-                row.code,
-                row.name,
-                CANCELLATION_POLICY_KIND_LABELS[row.policyKind],
-                row.policyKind === "non_refundable"
-                  ? "—"
-                  : row.windowValue == null
-                    ? "—"
-                    : `${row.windowValue} ${CANCELLATION_WINDOW_UNIT_LABELS[row.windowUnit].toLowerCase()}`,
-                <Card3StatusDot key="status" active={row.active} />,
-              ],
-              onEdit: () => setCancelDraft(row),
-            }))}
-          />
-
-          <Card3ListSection
-            title="Refundability"
-            icon="tag"
-            search={refundSearch}
-            onSearch={setRefundSearch}
-            placeholder="Search refundability"
-            addLabel="Add refundability"
-            onAdd={() => setRefundDraft("new")}
-            canEdit={canEdit}
-            empty="No refundability codes yet. Optional on rate plans."
-            columns={["Code", "Name", "Kind", "Status"]}
-            rows={filteredRefundability.map((row) => ({
-              id: row.id,
-              cells: [
-                row.code,
-                row.name,
-                REFUNDABILITY_KIND_LABELS[row.kind],
-                <Card3StatusDot key="status" active={row.active} />,
-              ],
-              onEdit: () => setRefundDraft(row),
-            }))}
-          />
-
-          <Card3ListSection
-            title="No-show policies"
-            icon="checklist"
-            search={noShowSearch}
-            onSearch={setNoShowSearch}
-            placeholder="Search no-show policies"
-            addLabel="Add no-show policy"
-            onAdd={() => setNoShowDraft("new")}
-            canEdit={canEdit}
-            empty="No no-show policies yet. Defines charge and release time when a guest fails to arrive."
-            columns={["Code", "Name", "Release time", "Penalty", "Default", "Status"]}
-            rows={filteredNoShowPolicies.map((row) => ({
-              id: row.id,
-              cells: [
-                row.code,
-                row.name,
-                `${String(row.releaseHour).padStart(2, "0")}:00`,
-                row.penaltyType === "percent_stay"
-                  ? `${row.penaltyValue}% stay`
-                  : row.penaltyType === "fixed_amount"
-                    ? `${currencyCode} ${row.penaltyValue}`
-                    : (POLICY_PENALTY_TYPE_LABELS[row.penaltyType] ?? row.penaltyType),
-                row.isDefault ? "Default" : "—",
-                <Card3StatusDot key="status" active={row.active} />,
-              ],
-              onEdit: () => setNoShowDraft(row),
-            }))}
-          />
-
-          <Card3ListSection
-            title="Early departure policies"
-            icon="checklist"
-            search={earlyDepartureSearch}
-            onSearch={setEarlyDepartureSearch}
-            placeholder="Search early departure policies"
-            addLabel="Add early departure policy"
-            onAdd={() => setEarlyDepartureDraft("new")}
-            canEdit={canEdit}
-            empty="No early departure policies yet."
-            columns={["Code", "Name", "Penalty", "Status"]}
-            rows={filteredEarlyDeparturePolicies.map((row) => ({
-              id: row.id,
-              cells: [
-                row.code,
-                row.name,
-                row.penaltyType === "percent_stay"
-                  ? `${row.penaltyValue}% of stay`
-                  : row.penaltyType === "fixed_amount"
-                    ? `${currencyCode} ${row.penaltyValue}`
-                    : EARLY_DEPARTURE_PENALTY_TYPE_LABELS[row.penaltyType],
-                <span
-                  key="status"
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => event.stopPropagation()}
-                >
-                  <Switch
-                    checked={row.active}
-                    disabled={!canEdit || earlyDepartureActiveMut.isPending}
-                    aria-label={`${row.code} active`}
-                    onCheckedChange={(active) =>
-                      earlyDepartureActiveMut.mutate({ id: row.id, active })
-                    }
-                  />
-                </span>,
-              ],
-              onEdit: () => setEarlyDepartureDraft(row),
-            }))}
-          />
-
           <CategoryDrawer
             key={categoryDraft === "new" ? "cat-new" : (categoryDraft?.id ?? "cat-closed")}
             open={categoryDraft !== null}
@@ -548,6 +837,23 @@ export function PmsPropertySetupCard2Rates({
             pending={planMut.isPending}
             onClose={() => setPlanDraft(null)}
             onSave={(payload) => planMut.mutate({ restaurantId, ...payload })}
+            onAddCancellationPolicy={() => {
+              setInlineTargetPolicy("cancellation");
+              setCancelDraft("new");
+            }}
+            onAddRefundability={() => {
+              setInlineTargetPolicy("refundability");
+              setRefundDraft("new");
+            }}
+            onAddNoShow={() => {
+              setInlineTargetPolicy("no-show");
+              setNoShowDraft("new");
+            }}
+            onAddEarlyDeparture={() => {
+              setInlineTargetPolicy("early-departure");
+              setEarlyDepartureDraft("new");
+            }}
+            newlyCreatedPolicy={newlyCreatedPolicy}
           />
 
           <CancellationDrawer
@@ -556,7 +862,10 @@ export function PmsPropertySetupCard2Rates({
             canEdit={canEdit}
             value={cancelDraft === "new" || cancelDraft === null ? null : cancelDraft}
             pending={cancelMut.isPending}
-            onClose={() => setCancelDraft(null)}
+            onClose={() => {
+              setCancelDraft(null);
+              setInlineTargetPolicy(null);
+            }}
             onSave={(payload) => cancelMut.mutate({ restaurantId, ...payload })}
           />
 
@@ -566,7 +875,10 @@ export function PmsPropertySetupCard2Rates({
             canEdit={canEdit}
             value={refundDraft === "new" || refundDraft === null ? null : refundDraft}
             pending={refundMut.isPending}
-            onClose={() => setRefundDraft(null)}
+            onClose={() => {
+              setRefundDraft(null);
+              setInlineTargetPolicy(null);
+            }}
             onSave={(payload) => refundMut.mutate({ restaurantId, ...payload })}
           />
 
@@ -577,7 +889,10 @@ export function PmsPropertySetupCard2Rates({
             value={noShowDraft === "new" || noShowDraft === null ? null : noShowDraft}
             currencyCode={currencyCode}
             pending={noShowMut.isPending}
-            onClose={() => setNoShowDraft(null)}
+            onClose={() => {
+              setNoShowDraft(null);
+              setInlineTargetPolicy(null);
+            }}
             onSave={(payload) => noShowMut.mutate({ restaurantId, ...payload })}
           />
 
@@ -594,7 +909,10 @@ export function PmsPropertySetupCard2Rates({
             }
             currencyCode={currencyCode}
             pending={earlyDepartureMut.isPending}
-            onClose={() => setEarlyDepartureDraft(null)}
+            onClose={() => {
+              setEarlyDepartureDraft(null);
+              setInlineTargetPolicy(null);
+            }}
             onSave={(payload) => earlyDepartureMut.mutate({ restaurantId, ...payload })}
           />
         </div>
@@ -969,6 +1287,11 @@ function PlanDrawer({
   pending,
   onClose,
   onSave,
+  onAddCancellationPolicy,
+  onAddRefundability,
+  onAddNoShow,
+  onAddEarlyDeparture,
+  newlyCreatedPolicy,
 }: {
   open: boolean;
   canEdit: boolean;
@@ -1004,6 +1327,11 @@ function PlanDrawer({
     extraChildRate: number | null;
     active: boolean;
   }) => void;
+  onAddCancellationPolicy?: () => void;
+  onAddRefundability?: () => void;
+  onAddNoShow?: () => void;
+  onAddEarlyDeparture?: () => void;
+  newlyCreatedPolicy?: { type: PolicySectionType; id: string } | null;
 }) {
   const [categoryId, setCategoryId] = useState(value?.categoryId ?? categories[0]?.id ?? "");
   const [roomTypeId, setRoomTypeId] = useState(value?.roomTypeId ?? roomTypes[0]?.id ?? "");
@@ -1051,6 +1379,19 @@ function PlanDrawer({
   );
   const [active, setActive] = useState(value?.active ?? true);
 
+  useEffect(() => {
+    if (!newlyCreatedPolicy) return;
+    if (newlyCreatedPolicy.type === "cancellation") {
+      setCancellationPolicyId(newlyCreatedPolicy.id);
+    } else if (newlyCreatedPolicy.type === "refundability") {
+      setRefundabilityId(newlyCreatedPolicy.id);
+    } else if (newlyCreatedPolicy.type === "no-show") {
+      setNoShowPolicyId(newlyCreatedPolicy.id);
+    } else if (newlyCreatedPolicy.type === "early-departure") {
+      setEarlyDeparturePolicyId(newlyCreatedPolicy.id);
+    }
+  }, [newlyCreatedPolicy]);
+
   function applyPricingMethod(method: RatePlanPricingMethod, percent = methodPercent) {
     setPricingMethod(method);
     if (value) return;
@@ -1080,6 +1421,7 @@ function PlanDrawer({
     <Card3OverlapSheet
       open={open}
       onClose={onClose}
+      maxWidth="max-w-4xl"
       title={value ? "Edit rate plan" : "Add rate plan"}
       description="Choose an existing Card 2 room type. Pricing method is create-time only — only the final base rate is saved. Room Type changes do not update this Rate Plan."
       canEdit={canEdit && Boolean(categoryId) && Boolean(roomTypeId)}
@@ -1109,106 +1451,113 @@ function PlanDrawer({
         })
       }
     >
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <Label>Category</Label>
-          <Select value={categoryId} disabled={!canEdit} onValueChange={setCategoryId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a category" />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  {row.code} — {row.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label>Room type (Card 2)</Label>
-          <Select
-            value={roomTypeId}
-            disabled={!canEdit}
-            onValueChange={(nextId) => {
-              setRoomTypeId(nextId);
-              const nextType = roomTypes.find((row) => row.id === nextId);
-              if (!value && nextType) {
-                const next = occupancyFieldsFromRoomTypeDefaults(nextType);
-                setIncludedOccupancy(next.includedOccupancy);
-                setExtraAdultRate(next.extraAdultRate);
-                setExtraChildRate(next.extraChildRate);
-                const nextMethod = roomTypeBaseIsConfigured(nextType.baseNightlyRate)
-                  ? pricingMethod
-                  : "fixed";
-                setPricingMethod(nextMethod);
-                const computed = computeRatePlanBaseFromDefaults({
-                  method: nextMethod,
-                  roomTypeBase: nextType.baseNightlyRate,
-                  percent: methodPercent,
-                  fixedPrice: nextType.baseNightlyRate ?? 0,
-                });
-                if (computed.ok) setBaseRate(computed.baseRate);
-              }
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select a room type" />
-            </SelectTrigger>
-            <SelectContent>
-              {roomTypes.map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  {row.code} — {row.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="plan-name">Rate Plan Name</Label>
-          <Input
-            id="plan-name"
-            value={name}
-            disabled={!canEdit}
-            placeholder="e.g. Best Available Rate"
-            onChange={(event) => {
-              const newName = event.target.value;
-              setName(newName);
-              if (!codeManuallyEdited) {
-                setCode(suggestRatePlanCode(newName));
-              }
-            }}
-          />
-        </div>
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="plan-code">Rate Plan Code</Label>
-            {!codeManuallyEdited && code && (
-              <span className="text-[10px] text-muted-foreground">Auto-generated from name</span>
-            )}
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label>Category</Label>
+            <Select value={categoryId} disabled={!canEdit} onValueChange={setCategoryId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.code} — {row.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <Input
-            id="plan-code"
-            value={code}
-            disabled={!canEdit}
-            placeholder="e.g. BAR"
-            onChange={(event) => {
-              setCodeManuallyEdited(true);
-              setCode(event.target.value.toUpperCase());
-            }}
-          />
+          <div className="space-y-1">
+            <Label>Room type (Card 2)</Label>
+            <Select
+              value={roomTypeId}
+              disabled={!canEdit}
+              onValueChange={(nextId) => {
+                setRoomTypeId(nextId);
+                const nextType = roomTypes.find((row) => row.id === nextId);
+                if (!value && nextType) {
+                  const next = occupancyFieldsFromRoomTypeDefaults(nextType);
+                  setIncludedOccupancy(next.includedOccupancy);
+                  setExtraAdultRate(next.extraAdultRate);
+                  setExtraChildRate(next.extraChildRate);
+                  const nextMethod = roomTypeBaseIsConfigured(nextType.baseNightlyRate)
+                    ? pricingMethod
+                    : "fixed";
+                  setPricingMethod(nextMethod);
+                  const computed = computeRatePlanBaseFromDefaults({
+                    method: nextMethod,
+                    roomTypeBase: nextType.baseNightlyRate,
+                    percent: methodPercent,
+                    fixedPrice: nextType.baseNightlyRate ?? 0,
+                  });
+                  if (computed.ok) setBaseRate(computed.baseRate);
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a room type" />
+              </SelectTrigger>
+              <SelectContent>
+                {roomTypes.map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.code} — {row.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor="plan-name">Rate Plan Name</Label>
+            <Input
+              id="plan-name"
+              value={name}
+              disabled={!canEdit}
+              placeholder="e.g. Best Available Rate"
+              onChange={(event) => {
+                const newName = event.target.value;
+                setName(newName);
+                if (!codeManuallyEdited) {
+                  setCode(suggestRatePlanCode(newName));
+                }
+              }}
+            />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="plan-code">Rate Plan Code</Label>
+              {!codeManuallyEdited && code && (
+                <span className="text-[10px] text-muted-foreground">Auto-generated from name</span>
+              )}
+            </div>
+            <Input
+              id="plan-code"
+              value={code}
+              disabled={!canEdit}
+              placeholder="e.g. BAR"
+              onChange={(event) => {
+                setCodeManuallyEdited(true);
+                setCode(event.target.value.toUpperCase());
+              }}
+            />
+          </div>
+        </div>
+
         <div className="space-y-1">
           <Label htmlFor="plan-description">Description</Label>
           <Textarea
             id="plan-description"
             value={description}
             disabled={!canEdit}
-            rows={3}
+            rows={2}
             onChange={(event) => setDescription(event.target.value)}
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor="plan-valid-from">Valid from</Label>
             <Input
@@ -1230,6 +1579,7 @@ function PlanDrawer({
             />
           </div>
         </div>
+
         <div className="space-y-1">
           <Label>Meal plan</Label>
           <Select value={mealPlanId} disabled={!canEdit} onValueChange={setMealPlanId}>
@@ -1247,115 +1597,201 @@ function PlanDrawer({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-3 rounded-xl border px-3 py-3">
-          <p className="text-xs font-medium text-muted-foreground">Policies</p>
-          <div className="space-y-1">
-            <Label>Cancellation policy</Label>
-            <Select
-              value={cancellationPolicyId}
-              disabled={!canEdit}
-              onValueChange={setCancellationPolicyId}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>None</SelectItem>
-                {cancellationPolicies.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.code} — {row.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+        <div className="space-y-3 rounded-xl border border-[#E6E1D8] bg-[#FAF8F5]/60 p-4">
+          <div className="flex items-center justify-between border-b border-[#E6E1D8] pb-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#251605]">
+                Policies
+              </p>
+              <p className="text-[11px] text-[#756A5B]">
+                Assign policies or create new ones inline without leaving this rate plan.
+              </p>
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label>Refundability</Label>
-            <Select value={refundabilityId} disabled={!canEdit} onValueChange={setRefundabilityId}>
-              <SelectTrigger>
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>None</SelectItem>
-                {refundabilityCodes.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.code} — {row.name} ({REFUNDABILITY_KIND_LABELS[row.kind]})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label>Deposit policy</Label>
-            <Select value={depositPolicyId} disabled={!canEdit} onValueChange={setDepositPolicyId}>
-              <SelectTrigger>
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>None</SelectItem>
-                {depositPolicies.length === 0 ? (
-                  <SelectItem value="__empty_deposit__" disabled>
-                    No deposit policies configured
-                  </SelectItem>
-                ) : (
-                  depositPolicies.map((row) => (
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label>Cancellation policy</Label>
+                {canEdit && onAddCancellationPolicy ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1.5 text-xs text-[#8A641A] hover:bg-[#F4EDE0]"
+                    onClick={onAddCancellationPolicy}
+                  >
+                    <Plus className="mr-1 size-3" />
+                    New
+                  </Button>
+                ) : null}
+              </div>
+              <Select
+                value={cancellationPolicyId}
+                disabled={!canEdit}
+                onValueChange={setCancellationPolicyId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>None</SelectItem>
+                  {cancellationPolicies.map((row) => (
                     <SelectItem key={row.id} value={row.id}>
                       {row.code} — {row.name}
                     </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label>No-show policy</Label>
-            <Select value={noShowPolicyId} disabled={!canEdit} onValueChange={setNoShowPolicyId}>
-              <SelectTrigger>
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>None</SelectItem>
-                {noShowPolicies.length === 0 ? (
-                  <SelectItem value="__empty_no_show__" disabled>
-                    No no-show policies configured
-                  </SelectItem>
-                ) : (
-                  noShowPolicies.map((row) => (
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label>Refundability</Label>
+                {canEdit && onAddRefundability ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1.5 text-xs text-[#8A641A] hover:bg-[#F4EDE0]"
+                    onClick={onAddRefundability}
+                  >
+                    <Plus className="mr-1 size-3" />
+                    New
+                  </Button>
+                ) : null}
+              </div>
+              <Select
+                value={refundabilityId}
+                disabled={!canEdit}
+                onValueChange={setRefundabilityId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>None</SelectItem>
+                  {refundabilityCodes.map((row) => (
                     <SelectItem key={row.id} value={row.id}>
-                      {row.code} — {row.name}
+                      {row.code} — {row.name} ({REFUNDABILITY_KIND_LABELS[row.kind]})
                     </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label>Early departure policy</Label>
-            <Select
-              value={earlyDeparturePolicyId}
-              disabled={!canEdit}
-              onValueChange={setEarlyDeparturePolicyId}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>None</SelectItem>
-                {earlyDeparturePolicies.length === 0 ? (
-                  <SelectItem value="__empty_early_departure__" disabled>
-                    No early departure policies configured
-                  </SelectItem>
-                ) : (
-                  earlyDeparturePolicies.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.code} — {row.name}
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Deposit policy</Label>
+              <Select
+                value={depositPolicyId}
+                disabled={!canEdit}
+                onValueChange={setDepositPolicyId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>None</SelectItem>
+                  {depositPolicies.length === 0 ? (
+                    <SelectItem value="__empty_deposit__" disabled>
+                      No deposit policies configured
                     </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+                  ) : (
+                    depositPolicies.map((row) => (
+                      <SelectItem key={row.id} value={row.id}>
+                        {row.code} — {row.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label>No-show policy</Label>
+                {canEdit && onAddNoShow ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1.5 text-xs text-[#8A641A] hover:bg-[#F4EDE0]"
+                    onClick={onAddNoShow}
+                  >
+                    <Plus className="mr-1 size-3" />
+                    New
+                  </Button>
+                ) : null}
+              </div>
+              <Select
+                value={noShowPolicyId}
+                disabled={!canEdit}
+                onValueChange={setNoShowPolicyId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>None</SelectItem>
+                  {noShowPolicies.length === 0 ? (
+                    <SelectItem value="__empty_no_show__" disabled>
+                      No no-show policies configured
+                    </SelectItem>
+                  ) : (
+                    noShowPolicies.map((row) => (
+                      <SelectItem key={row.id} value={row.id}>
+                        {row.code} — {row.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1 sm:col-span-2 sm:max-w-[calc(50%-0.375rem)]">
+              <div className="flex items-center justify-between">
+                <Label>Early departure policy</Label>
+                {canEdit && onAddEarlyDeparture ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1.5 text-xs text-[#8A641A] hover:bg-[#F4EDE0]"
+                    onClick={onAddEarlyDeparture}
+                  >
+                    <Plus className="mr-1 size-3" />
+                    New
+                  </Button>
+                ) : null}
+              </div>
+              <Select
+                value={earlyDeparturePolicyId}
+                disabled={!canEdit}
+                onValueChange={setEarlyDeparturePolicyId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>None</SelectItem>
+                  {earlyDeparturePolicies.length === 0 ? (
+                    <SelectItem value="__empty_early_departure__" disabled>
+                      No early departure policies configured
+                    </SelectItem>
+                  ) : (
+                    earlyDeparturePolicies.map((row) => (
+                      <SelectItem key={row.id} value={row.id}>
+                        {row.code} — {row.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
+
         <RatePlanPricingSetup
           canEdit={canEdit}
           isCreate={!value}
@@ -1445,6 +1881,7 @@ function CancellationDrawer({
     <Card3OverlapSheet
       open={open}
       onClose={onClose}
+      className="z-[60]"
       title={value ? "Edit cancellation policy" : "Add cancellation policy"}
       description="Reusable window and cutoff. Linked rate plans pick this catalogue. Confirmed reservations keep their snapshot."
       canEdit={canEdit}
@@ -1638,6 +2075,7 @@ function RefundabilityDrawer({
     <Card3OverlapSheet
       open={open}
       onClose={onClose}
+      className="z-[60]"
       title={value ? "Edit refundability" : "Add refundability"}
       description="Linked to rate plans. Does not change confirmed reservations."
       canEdit={canEdit}
@@ -1757,6 +2195,7 @@ function NoShowDrawer({
     <Card3OverlapSheet
       open={open}
       onClose={onClose}
+      className="z-[60]"
       title={value ? "Edit no-show policy" : "Add no-show policy"}
       description="Defines the charge and unclaimed room release time when a guest fails to arrive."
       canEdit={canEdit}
@@ -1929,6 +2368,7 @@ function EarlyDepartureDrawer({
     <Card3OverlapSheet
       open={open}
       onClose={onClose}
+      className="z-[60]"
       title={value ? "Edit early departure policy" : "Add early departure policy"}
       description="Stay terms used by rate plans. This does not post a checkout charge."
       canEdit={canEdit}
