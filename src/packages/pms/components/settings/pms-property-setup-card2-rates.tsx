@@ -95,9 +95,12 @@ import { suggestRatePlanCode } from "@/packages/pms/lib/rates-card2-code";
 import { MealPlanSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-meals";
 import { saveMealPlanCard3 } from "@/packages/pms/lib/meals-card3.functions";
 import type { MealPlanCard3Row } from "@/packages/pms/lib/meals-card3.server";
+import { DepositPolicySheet } from "@/packages/pms/components/settings/pms-property-setup-card3-payments";
+import { saveDepositPolicyCard3 } from "@/packages/pms/lib/payments-card3.functions";
+import type { DepositPolicyCard3Row } from "@/packages/pms/lib/payments-card3";
 import { cn } from "@/shared/lib/utils";
 
-type PolicySectionType = "cancellation" | "refundability" | "no-show" | "early-departure";
+type PolicySectionType = "cancellation" | "refundability" | "deposit" | "no-show" | "early-departure";
 
 const NONE = "__none__";
 const REFUNDABILITY_KIND_LABELS: Record<RateRefundabilityKind, string> = {
@@ -133,6 +136,7 @@ export function PmsPropertySetupCard2Rates({
   const saveEarlyDeparture = useServerFn(saveRateEarlyDeparturePolicyCard2);
   const setEarlyDepartureActive = useServerFn(setRateEarlyDeparturePolicyActiveCard2);
   const saveMealPlan = useServerFn(saveMealPlanCard3);
+  const saveDepositPolicy = useServerFn(saveDepositPolicyCard3);
 
   const [activePolicyType, setActivePolicyType] = useState<PolicySectionType>("cancellation");
   const [inlineTargetPolicy, setInlineTargetPolicy] = useState<PolicySectionType | null>(null);
@@ -143,6 +147,7 @@ export function PmsPropertySetupCard2Rates({
   const [mealPlanDraft, setMealPlanDraft] = useState<MealPlanCard3Row | "new" | null>(null);
   const [inlineMealPlanTarget, setInlineMealPlanTarget] = useState<boolean>(false);
   const [newlyCreatedMealPlanId, setNewlyCreatedMealPlanId] = useState<string | null>(null);
+  const [depositDraft, setDepositDraft] = useState<DepositPolicyCard3Row | "new" | null>(null);
 
   const [categorySearch, setCategorySearch] = useState("");
   const [planSearch, setPlanSearch] = useState("");
@@ -413,6 +418,29 @@ export function PmsPropertySetupCard2Rates({
         }
       }
       setInlineMealPlanTarget(false);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const depositMut = useMutation({
+    mutationFn: (input: Parameters<typeof saveDepositPolicy>[0]["data"]) =>
+      saveDepositPolicy({ data: input }),
+    onSuccess: async (data, variables) => {
+      toast.success("Deposit policy saved.");
+      setDepositDraft(null);
+      await queryClient.invalidateQueries({ queryKey: ["pms-card2-rates", restaurantId] });
+      await queryClient.invalidateQueries({ queryKey: ["pms-card3-payments", restaurantId] });
+      if (inlineTargetPolicy === "deposit" && data?.snapshot?.depositPolicies) {
+        const created = data.snapshot.depositPolicies.find(
+          (d: { code: string }) =>
+            d.code.trim().toUpperCase() === variables.code.trim().toUpperCase(),
+        );
+        if (created) {
+          setNewlyCreatedPolicy({ type: "deposit", id: created.id });
+          toast.success(`Selected "${created.name}" for rate plan.`);
+        }
+        setInlineTargetPolicy(null);
+      }
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -883,6 +911,10 @@ export function PmsPropertySetupCard2Rates({
               setInlineTargetPolicy("early-departure");
               setEarlyDepartureDraft("new");
             }}
+            onAddDepositPolicy={() => {
+              setInlineTargetPolicy("deposit");
+              setDepositDraft("new");
+            }}
             newlyCreatedPolicy={newlyCreatedPolicy}
             onAddMealPlan={() => {
               setInlineMealPlanTarget(true);
@@ -968,6 +1000,21 @@ export function PmsPropertySetupCard2Rates({
                 ...payload,
               })
             }
+          />
+
+          <DepositPolicySheet
+            key={depositDraft === "new" ? "dep-new" : (depositDraft?.id ?? "dep-closed")}
+            open={depositDraft !== null}
+            canEdit={canEdit}
+            currencyCode={currencyCode}
+            value={depositDraft === "new" || depositDraft === null ? null : depositDraft}
+            pending={depositMut.isPending}
+            className="z-[60]"
+            onClose={() => {
+              setDepositDraft(null);
+              setInlineTargetPolicy(null);
+            }}
+            onSave={(payload) => depositMut.mutate({ restaurantId, ...payload })}
           />
         </div>
       )}
@@ -1343,6 +1390,7 @@ function PlanDrawer({
   onSave,
   onAddCancellationPolicy,
   onAddRefundability,
+  onAddDepositPolicy,
   onAddNoShow,
   onAddEarlyDeparture,
   newlyCreatedPolicy,
@@ -1385,6 +1433,7 @@ function PlanDrawer({
   }) => void;
   onAddCancellationPolicy?: () => void;
   onAddRefundability?: () => void;
+  onAddDepositPolicy?: () => void;
   onAddNoShow?: () => void;
   onAddEarlyDeparture?: () => void;
   newlyCreatedPolicy?: { type: PolicySectionType; id: string } | null;
@@ -1443,6 +1492,8 @@ function PlanDrawer({
       setCancellationPolicyId(newlyCreatedPolicy.id);
     } else if (newlyCreatedPolicy.type === "refundability") {
       setRefundabilityId(newlyCreatedPolicy.id);
+    } else if (newlyCreatedPolicy.type === "deposit") {
+      setDepositPolicyId(newlyCreatedPolicy.id);
     } else if (newlyCreatedPolicy.type === "no-show") {
       setNoShowPolicyId(newlyCreatedPolicy.id);
     } else if (newlyCreatedPolicy.type === "early-departure") {
@@ -1760,7 +1811,21 @@ function PlanDrawer({
             </div>
 
             <div className="space-y-1">
-              <Label>Deposit policy</Label>
+              <div className="flex items-center justify-between">
+                <Label>Deposit policy</Label>
+                {canEdit && onAddDepositPolicy ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1.5 text-xs text-[#8A641A] hover:bg-[#F4EDE0]"
+                    onClick={onAddDepositPolicy}
+                  >
+                    <Plus className="mr-1 size-3" />
+                    New
+                  </Button>
+                ) : null}
+              </div>
               <Select
                 value={depositPolicyId}
                 disabled={!canEdit}
@@ -1769,7 +1834,7 @@ function PlanDrawer({
                 <SelectTrigger>
                   <SelectValue placeholder="None" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[100]">
                   <SelectItem value={NONE}>None</SelectItem>
                   {depositPolicies.length === 0 ? (
                     <SelectItem value="__empty_deposit__" disabled>
@@ -2015,12 +2080,18 @@ function CancellationDrawer({
           <Select
             value={policyKind}
             disabled={!canEdit}
-            onValueChange={(next) => setPolicyKind(next as CancellationPolicyKind)}
+            onValueChange={(next) => {
+              const k = next as CancellationPolicyKind;
+              setPolicyKind(k);
+              if (k === "non_refundable" && penaltyType === "none") {
+                setPenaltyType("full_stay");
+              }
+            }}
           >
             <SelectTrigger id="cancel-kind">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[100]">
               {CANCELLATION_POLICY_KINDS.map((kind) => (
                 <SelectItem key={kind} value={kind}>
                   {CANCELLATION_POLICY_KIND_LABELS[kind]}
@@ -2052,7 +2123,7 @@ function CancellationDrawer({
                 <SelectTrigger id="cancel-window-unit">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[100]">
                   {CANCELLATION_WINDOW_UNITS.map((unit) => (
                     <SelectItem key={unit} value={unit}>
                       {CANCELLATION_WINDOW_UNIT_LABELS[unit]}
@@ -2072,9 +2143,20 @@ function CancellationDrawer({
               />
             </div>
           </>
-        ) : null}
+        ) : (
+          <div className="rounded-xl border border-[#C89933]/40 bg-[#FAF8F5] p-3 text-xs text-[#251605]">
+            <p className="font-semibold text-[#8A641A] uppercase tracking-wider text-[10px]">
+              Cancellation Policy — Non-Refundable
+            </p>
+            <p className="mt-1 font-medium">
+              Free cancellation window does not apply. Any cancellation at any time will forfeit the booking according to the cancellation penalty below.
+            </p>
+          </div>
+        )}
         <div className="space-y-1">
-          <Label htmlFor="cancel-penalty-type">Penalty after the window</Label>
+          <Label htmlFor="cancel-penalty-type">
+            {showWindow ? "Penalty after the window" : "Cancellation penalty"}
+          </Label>
           <Select
             value={penaltyType}
             disabled={!canEdit}
@@ -2083,7 +2165,7 @@ function CancellationDrawer({
             <SelectTrigger id="cancel-penalty-type">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[100]">
               {CANCELLATION_PENALTY_TYPES.filter(
                 (type) => type !== "percent" && type !== "nights" && type !== "fixed",
               ).map((type) => (
@@ -2192,7 +2274,7 @@ function RefundabilityDrawer({
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[100]">
               {RATE_REFUNDABILITY_KINDS.map((row) => (
                 <SelectItem key={row} value={row}>
                   {REFUNDABILITY_KIND_LABELS[row]}
@@ -2349,7 +2431,7 @@ function NoShowDrawer({
             <SelectTrigger id="ns-penalty">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[100]">
               {POLICY_PENALTY_TYPES.map((pt) => (
                 <SelectItem key={pt} value={pt}>
                   {POLICY_PENALTY_TYPE_LABELS[pt]}
@@ -2495,7 +2577,7 @@ function EarlyDepartureDrawer({
             <SelectTrigger id="ed-penalty">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[100]">
               {EARLY_DEPARTURE_PENALTY_TYPES.map((type) => (
                 <SelectItem key={type} value={type}>
                   {EARLY_DEPARTURE_PENALTY_TYPE_LABELS[type]}

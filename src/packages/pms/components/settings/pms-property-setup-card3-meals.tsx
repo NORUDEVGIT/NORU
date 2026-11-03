@@ -1047,7 +1047,7 @@ export function MealPlanSheet({
 
             </SelectTrigger>
 
-            <SelectContent>
+            <SelectContent className="z-[100]">
 
               {MEAL_PLAN_TYPES.map((row) => (
 
@@ -1143,7 +1143,7 @@ export function MealPlanSheet({
 
             </SelectTrigger>
 
-            <SelectContent>
+            <SelectContent className="z-[100]">
 
               {TAX_POSTURES.map((row) => (
 

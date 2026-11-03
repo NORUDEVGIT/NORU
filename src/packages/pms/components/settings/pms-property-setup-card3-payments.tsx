@@ -396,12 +396,13 @@ function PaymentMethodSheet({
   );
 }
 
-function DepositPolicySheet({
+export function DepositPolicySheet({
   open,
   canEdit,
   currencyCode,
   value,
   pending,
+  className,
   onClose,
   onSave,
 }: {
@@ -410,6 +411,7 @@ function DepositPolicySheet({
   currencyCode: string;
   value: DepositPolicyCard3Row | null;
   pending: boolean;
+  className?: string;
   onClose: () => void;
   onSave: (payload: {
     id?: string;
@@ -438,6 +440,7 @@ function DepositPolicySheet({
     <Card3OverlapSheet
       open={open}
       onClose={onClose}
+      className={className ?? "z-[60]"}
       title={value ? "Edit deposit policy" : "Add deposit policy"}
       description={`Stored setup figure in ${currencyCode || "the property base currency"}. Not a posted deposit.`}
       canEdit={canEdit}
@@ -507,7 +510,7 @@ function DepositPolicySheet({
             <SelectTrigger id="policy-type" className={goldFocus}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[100]">
               {DEPOSIT_POLICY_TYPES.map((item) => (
                 <SelectItem key={item} value={item}>
                   {DEPOSIT_POLICY_TYPE_LABELS[item]}
