@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown, ChevronUp, MoreHorizontal, Plus } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  MoreHorizontal,
+  Plus,
+  RotateCw,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -384,6 +392,13 @@ export function IdentityDocumentCatalogSheet({
     checkIn: true,
     reservation: false,
   };
+
+  useEffect(() => {
+    if (open) {
+      void query.refetch();
+    }
+  }, [open]);
+
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<IdentityDocumentTypeRecord | null>(null);
   const [reorderOpen, setReorderOpen] = useState(false);
@@ -553,7 +568,50 @@ export function IdentityDocumentCatalogSheet({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {documentTypes.map((row) => (
+              {query.isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-44 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="size-6 animate-spin text-[#C89933]" />
+                      <span className="text-sm font-medium text-[#251605]">Loading document catalog...</span>
+                      <span className="text-xs text-muted-foreground">Fetching property identity documents</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : query.isError ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-44 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <AlertCircle className="size-6 text-destructive" />
+                      <span className="text-sm font-semibold text-[#251605]">Failed to load identity documents</span>
+                      <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                        {query.error instanceof Error ? query.error.message : "An error occurred while loading documents."}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 text-xs h-8 border-[#DDD4C5]"
+                        onClick={() => query.refetch()}
+                      >
+                        <RotateCw className="mr-1.5 size-3" /> Retry
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : documentTypes.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-44 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <span className="text-sm font-medium text-[#251605]">No identity documents in catalog</span>
+                      <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                        No identity document types configured yet. Click &quot;Add Document Type&quot; above to add one.
+                      </p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                documentTypes.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
                   <TableCell>{row.code}</TableCell>
@@ -604,7 +662,8 @@ export function IdentityDocumentCatalogSheet({
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              ))
+              )}
             </TableBody>
           </Table>
         </div>

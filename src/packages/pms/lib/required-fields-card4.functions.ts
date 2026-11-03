@@ -217,6 +217,7 @@ async function loadSnapshot(
   );
   if (missingDefs.length > 0) {
     const nextOrder = (fieldsRes.data ?? []).length;
+    const payloads = [];
     for (let index = 0; index < missingDefs.length; index++) {
       const def = missingDefs[index];
       let fieldName = def.name;
@@ -230,7 +231,7 @@ async function loadSnapshot(
       existingNames.add(fieldName.trim().toLowerCase());
       const isCompanyField = def.code.startsWith("COMPANY_");
       const isTaField = def.code.startsWith("TA_") || def.code.startsWith("TRAVEL_AGENCY_");
-      const rowPayload = {
+      payloads.push({
         restaurant_id: restaurantId,
         name: fieldName,
         code: def.code,
@@ -247,8 +248,16 @@ async function loadSnapshot(
         min_value: null,
         max_value: null,
         updated_by: userId || null,
-      };
-      await db.from("pms_guest_fields").insert(rowPayload).catch(() => undefined);
+      });
+    }
+    if (payloads.length > 0) {
+      const batchRes = await db.from("pms_guest_fields").insert(payloads);
+      if (batchRes.error) {
+        // Fallback to inserting individually if batch insert encounters an unexpected issue
+        for (const row of payloads) {
+          await db.from("pms_guest_fields").insert(row).catch(() => undefined);
+        }
+      }
     }
     const refreshed = await db
       .from("pms_guest_fields")

@@ -1,7 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown, ChevronUp, MoreHorizontal, Plus } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  MoreHorizontal,
+  Plus,
+  RotateCw,
+  Search,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -403,11 +412,30 @@ export function GuestFieldCatalogSheet({
 
   const rawFields = query.data?.fields ?? [];
   const fields = rawFields.filter((row) => row.code !== "IDENTITY_DOCUMENT");
+
+  useEffect(() => {
+    if (open) {
+      void query.refetch();
+    }
+  }, [open]);
+
+  const [search, setSearch] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedField, setSelectedField] = useState<GuestFieldRecord | null>(null);
   const [reorderOpen, setReorderOpen] = useState(false);
   const [reorderIds, setReorderIds] = useState<string[]>([]);
   const [pendingDelete, setPendingDelete] = useState<GuestFieldRecord | null>(null);
+
+  const filteredFields = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return fields;
+    return fields.filter(
+      (f) =>
+        f.name.toLowerCase().includes(q) ||
+        f.code.toLowerCase().includes(q) ||
+        (GUEST_FIELD_TYPE_LABELS[f.fieldType]?.toLowerCase().includes(q) ?? false),
+    );
+  }, [fields, search]);
 
   const flagsMutation = useMutation({
     mutationFn: (input: {
@@ -469,6 +497,7 @@ export function GuestFieldCatalogSheet({
                   type="button"
                   variant="outline"
                   size="sm"
+                  disabled={fields.length === 0}
                   onClick={() => {
                     setReorderIds(fields.map((f) => f.id));
                     setReorderOpen(true);
@@ -492,7 +521,24 @@ export function GuestFieldCatalogSheet({
           </div>
         </SheetHeader>
 
-        <div className="mt-4 border rounded-xl overflow-hidden bg-white">
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search fields..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 text-xs"
+            />
+          </div>
+          {fields.length > 0 ? (
+            <span className="text-xs text-muted-foreground">
+              {filteredFields.length} of {fields.length} fields
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mt-3 border rounded-xl overflow-hidden bg-white">
           <Table>
             <TableHeader>
               <TableRow>
@@ -505,75 +551,138 @@ export function GuestFieldCatalogSheet({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {fields.map((row) => {
-                const isSystemRequired = row.code === "FIRST_NAME";
-                return (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium text-[#251605]">
-                      <div className="flex items-center gap-2">
-                        <span>{row.name}</span>
+              {query.isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-44 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="size-6 animate-spin text-[#C89933]" />
+                      <span className="text-sm font-medium text-[#251605]">Loading field catalog...</span>
+                      <span className="text-xs text-muted-foreground">Fetching property guest field definitions</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : query.isError ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-44 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <AlertCircle className="size-6 text-destructive" />
+                      <span className="text-sm font-semibold text-[#251605]">Failed to load guest fields</span>
+                      <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                        {query.error instanceof Error ? query.error.message : "An error occurred while loading the catalog."}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 text-xs h-8 border-[#DDD4C5]"
+                        onClick={() => query.refetch()}
+                      >
+                        <RotateCw className="mr-1.5 size-3" /> Retry
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : fields.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-44 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <span className="text-sm font-medium text-[#251605]">No guest fields in catalog</span>
+                      <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                        No guest profile fields found for this property. Click &quot;Add Field&quot; to create custom fields.
+                      </p>
+                      {canEdit ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="mt-2 bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 text-xs"
+                          onClick={() => {
+                            setSelectedField(null);
+                            setEditorOpen(true);
+                          }}
+                        >
+                          <Plus className="mr-1 size-3.5" /> Add Field
+                        </Button>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : filteredFields.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-32 text-center text-xs text-muted-foreground">
+                    No fields matching &quot;{search}&quot;.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredFields.map((row) => {
+                  const isSystemRequired = row.code === "FIRST_NAME";
+                  return (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium text-[#251605]">
+                        <div className="flex items-center gap-2">
+                          <span>{row.name}</span>
+                          {isSystemRequired ? (
+                            <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                              System Required
+                            </span>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell>{GUEST_FIELD_TYPE_LABELS[row.fieldType]}</TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={isSystemRequired ? true : row.required}
+                          disabled={isSystemRequired || !canEdit || flagsMutation.isPending || !row.active}
+                          title={isSystemRequired ? "First Name is system required" : undefined}
+                          onCheckedChange={(required) => flagsMutation.mutate({ id: row.id, required })}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={row.checkIn}
+                          disabled={!canEdit || flagsMutation.isPending}
+                          onCheckedChange={(checkIn) => flagsMutation.mutate({ id: row.id, checkIn })}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={isSystemRequired ? true : row.active}
+                          disabled={isSystemRequired || !canEdit || flagsMutation.isPending}
+                          title={isSystemRequired ? "First Name cannot be deactivated" : undefined}
+                          onCheckedChange={(active) => flagsMutation.mutate({ id: row.id, active })}
+                        />
+                      </TableCell>
+                      <TableCell>
                         {isSystemRequired ? (
-                          <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                            System Required
-                          </span>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    <TableCell>{GUEST_FIELD_TYPE_LABELS[row.fieldType]}</TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={isSystemRequired ? true : row.required}
-                        disabled={isSystemRequired || !canEdit || flagsMutation.isPending || !row.active}
-                        title={isSystemRequired ? "First Name is system required" : undefined}
-                        onCheckedChange={(required) => flagsMutation.mutate({ id: row.id, required })}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={row.checkIn}
-                        disabled={!canEdit || flagsMutation.isPending}
-                        onCheckedChange={(checkIn) => flagsMutation.mutate({ id: row.id, checkIn })}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={isSystemRequired ? true : row.active}
-                        disabled={isSystemRequired || !canEdit || flagsMutation.isPending}
-                        title={isSystemRequired ? "First Name cannot be deactivated" : undefined}
-                        onCheckedChange={(active) => flagsMutation.mutate({ id: row.id, active })}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {isSystemRequired ? (
-                        <span className="text-[11px] text-muted-foreground italic px-2">Locked</span>
-                      ) : (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" aria-label={`Actions for ${row.name}`}>
-                              <MoreHorizontal className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onSelect={() => {
-                                setSelectedField(row);
-                                setEditorOpen(true);
-                              }}
-                            >
-                              Edit
-                            </DropdownMenuItem>
-                            {canEdit ? (
-                              <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
-                                Delete
+                          <span className="text-[11px] text-muted-foreground italic px-2">Locked</span>
+                        ) : (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" aria-label={`Actions for ${row.name}`}>
+                                <MoreHorizontal className="size-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  setSelectedField(row);
+                                  setEditorOpen(true);
+                                }}
+                              >
+                                Edit
                               </DropdownMenuItem>
-                            ) : null}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+                              {canEdit ? (
+                                <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
+                                  Delete
+                                </DropdownMenuItem>
+                              ) : null}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
             </TableBody>
           </Table>
         </div>
