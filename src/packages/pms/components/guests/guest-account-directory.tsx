@@ -60,24 +60,28 @@ export function GuestAccountDirectory({
   returnCard,
   search,
   onSearchChange,
+  embedded = false,
 }: {
   membership: RestaurantMembership;
   accountType: GuestAccountType;
   returnCard?: GuestProfileCardId | undefined;
   search?: string;
   onSearchChange?: (value: string) => void;
+  embedded?: boolean;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
   const { date } = useRestaurantTime();
   if (accountType === "company") {
-    return <GuestCompanyDirectory membership={membership} returnCard={returnCard} />;
+    return <GuestCompanyDirectory membership={membership} returnCard={returnCard} embedded={embedded} />;
   }
   if (accountType === "travel_agent") {
-    return <GuestTravelAgentDirectory membership={membership} returnCard={returnCard} />;
+    return (
+      <GuestTravelAgentDirectory membership={membership} returnCard={returnCard} embedded={embedded} />
+    );
   }
   if (accountType === "group") {
-    return <GuestGroupDirectory membership={membership} returnCard={returnCard} />;
+    return <GuestGroupDirectory membership={membership} returnCard={returnCard} embedded={embedded} />;
   }
   const title = GUEST_ACCOUNT_TYPE_LABELS[accountType];
   const profileType = accountTypeToProfileType(accountType);

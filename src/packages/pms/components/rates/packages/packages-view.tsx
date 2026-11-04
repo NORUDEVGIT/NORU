@@ -136,10 +136,6 @@ export function PackagesView({
     null,
   );
 
-  const visiblePlans = context.roomTypeId
-    ? ratePlans.filter((plan) => plan.roomTypeId === context.roomTypeId)
-    : ratePlans;
-
   const rows = useMemo(
     () => filterPackageRows(query.data?.rows ?? [], { search, status, packageType }),
     [query.data?.rows, search, status, packageType],
@@ -318,84 +314,7 @@ export function PackagesView({
           ) : null}
 
           <div className="flex flex-wrap items-end gap-2.5 rounded-xl border border-[#DDD4C5] bg-white px-4 py-3.5 shadow-sm">
-            {onContextChange ? (
-              <>
-                <div className="min-w-36">
-                  <label htmlFor="packages-from" className="text-xs font-semibold text-[#5A4833]">
-                    From
-                  </label>
-                  <input
-                    id="packages-from"
-                    type="date"
-                    value={context.fromDate}
-                    onChange={(event) => onContextChange({ fromDate: event.target.value })}
-                    className="mt-1 flex h-9 w-full rounded-md border border-[#DED7CD] bg-white px-2.5 text-sm text-[#251605]"
-                  />
-                </div>
-                <div className="min-w-36">
-                  <label htmlFor="packages-to" className="text-xs font-semibold text-[#5A4833]">
-                    To
-                  </label>
-                  <input
-                    id="packages-to"
-                    type="date"
-                    value={context.toDate}
-                    onChange={(event) => onContextChange({ toDate: event.target.value })}
-                    className="mt-1 flex h-9 w-full rounded-md border border-[#DED7CD] bg-white px-2.5 text-sm text-[#251605]"
-                  />
-                </div>
-                <div className="min-w-40">
-                  <label
-                    htmlFor="packages-room-type"
-                    className="text-xs font-semibold text-[#5A4833]"
-                  >
-                    Room Type
-                  </label>
-                  <select
-                    id="packages-room-type"
-                    value={context.roomTypeId ?? ""}
-                    onChange={(event) =>
-                      onContextChange({ roomTypeId: event.target.value || null })
-                    }
-                    aria-label="Room type"
-                    className="mt-1 flex h-9 w-full rounded-md border border-[#DED7CD] bg-white px-2.5 text-sm text-[#251605]"
-                  >
-                    <option value="">All room types</option>
-                    {roomTypes.map((room) => (
-                      <option key={room.id} value={room.id}>
-                        {room.active ? room.name : `${room.name} (inactive)`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="min-w-44">
-                  <label
-                    htmlFor="packages-rate-plan"
-                    className="text-xs font-semibold text-[#5A4833]"
-                  >
-                    Rate Plan
-                  </label>
-                  <select
-                    id="packages-rate-plan"
-                    value={context.ratePlanId ?? ""}
-                    onChange={(event) =>
-                      onContextChange({ ratePlanId: event.target.value || null })
-                    }
-                    aria-label="Rate plan"
-                    className="mt-1 flex h-9 w-full rounded-md border border-[#DED7CD] bg-white px-2.5 text-sm text-[#251605]"
-                  >
-                    <option value="">All rate plans</option>
-                    {visiblePlans.map((plan) => (
-                      <option key={plan.id} value={plan.id}>
-                        {plan.active
-                          ? `${plan.code} — ${plan.name}`
-                          : `${plan.code} — ${plan.name} (inactive)`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            ) : null}
+            {null}
             <div className="min-w-36">
               <label htmlFor="packages-status" className="text-xs font-semibold text-[#5A4833]">
                 Status

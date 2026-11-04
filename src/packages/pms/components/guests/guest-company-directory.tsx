@@ -20,6 +20,9 @@ import { toast } from "sonner";
 import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
 import { GuestCompanyCreateModal } from "@/packages/pms/components/guests/guest-company-create-modal";
 import { GuestCompanyQuickViewDrawer } from "@/packages/pms/components/guests/guest-company-quick-view-drawer";
+import { GuestProfileShellSlot } from "@/packages/pms/components/guests/guest-profile-shell-slots";
+import { PmsFilterChoiceRow, PmsFilterMenu, PmsFilterNoteRow } from "@/packages/pms/components/pms-filter-menu";
+import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
@@ -46,6 +49,7 @@ import {
   type CompanyWorkspaceRow,
 } from "@/packages/pms/lib/guest-companies.functions";
 import { ISO_COUNTRIES } from "@/packages/pms/lib/pms-geography";
+import { displayProfileNumber } from "@/packages/pms/lib/guest-profile-listing";
 import { getGuestsAccess } from "@/packages/pms/lib/guests.functions";
 import { GUEST_ACCOUNT_STATUSES } from "@/packages/pms/lib/guest-profile-wave4";
 import { Badge } from "@/shared/components/ui/badge";
@@ -109,9 +113,11 @@ function CompanyKpiCard({
 export function GuestCompanyDirectory({
   membership,
   returnCard,
+  embedded = false,
 }: {
   membership: RestaurantMembership;
   returnCard?: GuestProfileCardId | undefined;
+  embedded?: boolean;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -344,9 +350,128 @@ export function GuestCompanyDirectory({
     );
   }
 
+  const companyFilterCount =
+    (status !== "all" ? 1 : 0) +
+    (typeId !== "all" ? 1 : 0) +
+    (country ? 1 : 0) +
+    (credit !== "all" ? 1 : 0) +
+    (createdFrom ? 1 : 0) +
+    (createdTo ? 1 : 0);
+  const companySearchField = (
+    <div className={cn("relative min-w-0", embedded ? "w-full" : "min-w-56 flex-1 sm:min-w-72")}>
+      <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        className="h-9 pl-8 pr-8 text-xs"
+        placeholder="Search company, trade name, code, contact, email, phone or tax ID…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        aria-label="Search companies"
+        data-testid="companies-search"
+      />
+      {search ? (
+        <button
+          type="button"
+          onClick={() => setSearch("")}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-[#756A5B] hover:text-[#251605]"
+          aria-label="Clear search"
+        >
+          <X className="size-3.5" />
+        </button>
+      ) : null}
+    </div>
+  );
+  const companyFilterMenu = (
+    <PmsFilterMenu
+      activeCount={companyFilterCount}
+      onClear={handleClearAllFilters}
+      buttonTestId="companies-filters-button"
+      menuTestId="companies-filters-menu"
+    >
+      <PmsFilterChoiceRow
+        label="Company Type"
+        value={typeId}
+        current={types.find((type) => type.id === typeId)?.name ?? ""}
+        options={[
+          ["all", "All types"],
+          ...types.map((type) => [type.id, type.active ? type.name : `${type.name} (inactive)`] as const),
+        ]}
+        onChange={setTypeId}
+      />
+      <PmsFilterChoiceRow
+        label="Status"
+        value={status}
+        current={status === "all" ? "" : status}
+        options={[["all", "All statuses"], ...GUEST_ACCOUNT_STATUSES.map((value) => [value, value] as const)]}
+        onChange={(val) => setStatus(val as typeof status)}
+      />
+      <PmsFilterChoiceRow
+        label="Country"
+        value={country || "all"}
+        current={country}
+        options={[["all", "All countries"], ...ISO_COUNTRIES.map((item) => [item.name, item.name] as const)]}
+        onChange={(val) => setCountry(val === "all" ? "" : val)}
+      />
+      <PmsFilterChoiceRow
+        label="Credit"
+        value={credit}
+        current={credit === "yes" ? "Credit account" : credit === "no" ? "No credit" : ""}
+        options={[
+          ["all", "All"],
+          ["yes", "Credit account"],
+          ["no", "No credit"],
+        ]}
+        onChange={(val) => setCredit(val as typeof credit)}
+      />
+      <PmsFilterNoteRow label="Created">
+        <div className="flex flex-col gap-2">
+          <Input
+            type="date"
+            value={createdFrom}
+            onChange={(e) => setCreatedFrom(e.target.value)}
+            className="h-9 border-[#DDD4C5] bg-white text-xs"
+            aria-label="Created from"
+          />
+          <Input
+            type="date"
+            value={createdTo}
+            onChange={(e) => setCreatedTo(e.target.value)}
+            className="h-9 border-[#DDD4C5] bg-white text-xs"
+            aria-label="Created to"
+          />
+        </div>
+      </PmsFilterNoteRow>
+    </PmsFilterMenu>
+  );
+
   return (
     <div className="space-y-4" data-testid="guest-companies-page">
-      {/* Top Header & Action Buttons */}
+      {embedded ? (
+        <>
+          <GuestProfileShellSlot name="search">{companySearchField}</GuestProfileShellSlot>
+          <GuestProfileShellSlot name="filter">{companyFilterMenu}</GuestProfileShellSlot>
+          <GuestProfileShellSlot name="export">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={cn(SHELL_ICON_BUTTON, "relative")}
+              onClick={() => void runExport(selected.length > 0 ? selected : undefined)}
+              aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+              title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+              data-testid="companies-export"
+            >
+              <Download className="size-4" />
+              {selected.length > 0 ? (
+                <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
+                  {selected.length}
+                </span>
+              ) : null}
+            </Button>
+          </GuestProfileShellSlot>
+        </>
+      ) : null}
+      {embedded ? null : (
+      <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-bold text-[#251605]">{COMPANIES_TITLE}</h2>
@@ -356,12 +481,12 @@ export function GuestCompanyDirectory({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void runExport()}
+            onClick={() => void runExport(selected.length > 0 ? selected : undefined)}
             className="h-8 gap-1.5 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE] shadow-sm text-xs font-medium"
             data-testid="companies-export"
           >
             <Download className="size-3.5 text-[#8A641A]" />
-            Export
+            {selected.length > 0 ? `Export (${selected.length})` : "Export"}
           </Button>
           <Button
             size="sm"
@@ -537,6 +662,8 @@ export function GuestCompanyDirectory({
           />
         </div>
       </div>
+      </>
+      )}
 
       {/* Active Filter Chips */}
       {activeChips.length > 0 ? (
@@ -567,51 +694,6 @@ export function GuestCompanyDirectory({
           >
             Clear All
           </button>
-        </div>
-      ) : null}
-
-      {/* Batch Action Toolbar when rows are selected */}
-      {selected.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#DDD4C5] bg-[#FAF8F5] px-3.5 py-2 text-xs shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-[#251605]">
-              {selected.length} {selected.length === 1 ? "company" : "companies"} selected
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelected([])}
-              className="text-xs text-[#756A5B] hover:text-[#251605] underline font-medium"
-            >
-              Deselect all
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => statusMutation.mutate({ ids: selected, status: "active" })}
-            >
-              Activate
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => statusMutation.mutate({ ids: selected, status: "inactive" })}
-            >
-              Deactivate
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => void runExport(selected)}
-            >
-              <Download className="mr-1 size-3 text-[#8A641A]" />
-              Export Selected
-            </Button>
-          </div>
         </div>
       ) : null}
 
@@ -672,7 +754,7 @@ export function GuestCompanyDirectory({
               <p className="font-semibold text-[#251605]">
                 {types.filter((t) => t.active).length === 0 ? COMPANIES_NO_TYPES : COMPANIES_EMPTY}
               </p>
-              {createGate.ok ? (
+              {createGate.ok && !embedded ? (
                 <Button
                   size="sm"
                   className="mt-3 bg-[#8A641A] text-white hover:bg-[#725215]"
@@ -695,7 +777,7 @@ export function GuestCompanyDirectory({
           <table className="w-full min-w-[950px] text-xs text-left" data-testid="companies-table">
             <thead className="border-b border-[#DDD4C5] bg-[#FAF8F5] text-left text-[11px] font-semibold uppercase tracking-wider text-[#756A5B]">
               <tr>
-                <th className="w-10 px-3 py-2.5">
+                <th className="w-10 px-2 py-2.5">
                   <Checkbox
                     checked={items.length > 0 && items.every((row) => selected.includes(row.id))}
                     onCheckedChange={(checked) =>
@@ -704,7 +786,7 @@ export function GuestCompanyDirectory({
                     aria-label="Select all"
                   />
                 </th>
-                <th className="w-12 px-3 py-2.5">Logo</th>
+                <th className="px-3 py-2.5">Profile No.</th>
                 <th className="px-3 py-2.5">Company Name</th>
                 <th className="px-3 py-2.5">Type</th>
                 <th className="px-3 py-2.5">Primary Contact</th>
@@ -860,33 +942,20 @@ function CompanyRow({
       )}
       data-testid={`company-row-${row.id}`}
     >
-      <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+      <td className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
         <Checkbox
           checked={checked}
           onCheckedChange={(val) => onCheck(Boolean(val))}
           aria-label={`Select ${row.name}`}
         />
       </td>
-      <td className="px-3 py-2.5">
-        {row.logoUrl ? (
-          <img
-            src={row.logoUrl}
-            alt=""
-            className="size-8 rounded-lg object-cover border border-[#DDD4C5]"
-          />
-        ) : (
-          <span className="inline-flex size-8 items-center justify-center rounded-lg bg-[#F4E9D0] text-xs font-semibold text-[#8A641A]">
-            {row.name.slice(0, 2).toUpperCase()}
-          </span>
-        )}
+      <td className="px-3 py-2.5 font-mono text-[11px] text-[#7A6B58]">
+        {displayProfileNumber(row.id, row.code)}
       </td>
       <td className="px-3 py-2.5">
         <span className="font-semibold text-[#251605] hover:text-[#8A641A] hover:underline block truncate max-w-[200px]">
           {row.name}
         </span>
-        {row.code ? (
-          <span className="font-mono text-[10px] text-[#756A5B] block">{row.code}</span>
-        ) : null}
       </td>
       <td className="px-3 py-2.5">
         <span className="inline-flex items-center rounded-md border border-[#DDD4C5] bg-[#FAF8F5] px-2 py-0.5 text-[11px] font-medium text-[#251605]">

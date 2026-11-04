@@ -12,6 +12,7 @@ export function MoreFiltersMenu({
   title,
   onApply,
   onClear,
+  iconOnly = false,
   children,
 }: {
   open: boolean;
@@ -20,25 +21,45 @@ export function MoreFiltersMenu({
   title: string;
   onApply: () => void;
   onClear: () => void;
+  /** Square icon trigger with a corner count badge (shared toolbar style). */
+  iconOnly?: boolean;
   children: ReactNode;
 }) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-9 gap-2 rounded-full border-[#e9dfd0] bg-white px-4 font-semibold text-[#4a2c1a] shadow-none hover:bg-[#f5ead0]"
-        >
-          <SlidersHorizontal className="size-4 text-[#c9a24a]" />
-          More filters
-          {activeCount > 0 ? (
-            <span className="inline-flex min-w-5 justify-center rounded-full bg-[#C89933] px-1.5 text-[11px] font-semibold text-[#251605]">
-              {activeCount}
-            </span>
-          ) : null}
-        </Button>
+        {iconOnly ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="relative size-9 border-[#DDD4C5] bg-white text-[#4a2c1a] hover:bg-[#F7F4EE]"
+            aria-label={title}
+            title={title}
+          >
+            <SlidersHorizontal className="size-4" />
+            {activeCount > 0 ? (
+              <span className="absolute -right-1.5 -top-1.5 inline-flex min-w-4 justify-center rounded-full bg-[#C89933] px-1 text-[10px] font-semibold leading-4 text-[#251605]">
+                {activeCount}
+              </span>
+            ) : null}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 gap-2 rounded-full border-[#e9dfd0] bg-white px-4 font-semibold text-[#4a2c1a] shadow-none hover:bg-[#f5ead0]"
+          >
+            <SlidersHorizontal className="size-4 text-[#c9a24a]" />
+            More filters
+            {activeCount > 0 ? (
+              <span className="inline-flex min-w-5 justify-center rounded-full bg-[#C89933] px-1.5 text-[11px] font-semibold text-[#251605]">
+                {activeCount}
+              </span>
+            ) : null}
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align="end"

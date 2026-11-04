@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { SlidersHorizontal, TriangleAlert } from "lucide-react";
+import { BedDouble, SlidersHorizontal, TriangleAlert } from "lucide-react";
 
 import { addDays } from "@/packages/pms/lib/reservation-dates";
 import {
@@ -31,6 +31,18 @@ import { cn } from "@/shared/lib/utils";
 
 const PILL_BUTTON =
   "h-9 rounded-full border-[#e9dfd0] bg-white text-sm font-semibold text-[#4a2c1a] shadow-none hover:bg-[#f5ead0]";
+
+const ICON_BUTTON =
+  "relative size-9 border-[#DDD4C5] bg-white text-[#4a2c1a] hover:bg-[#F7F4EE]";
+
+function IconBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="absolute -right-1.5 -top-1.5 inline-flex min-w-4 justify-center rounded-full bg-[#C89933] px-1 text-[10px] font-semibold leading-4 text-[#251605]">
+      {count}
+    </span>
+  );
+}
 
 /* ---------- Display options owned by the Reservation Desk ---------- */
 
@@ -106,12 +118,24 @@ export function DeskDisplayMenu({
   onCalendarViewChange,
   columns,
   onColumnsChange,
+  iconOnly = false,
+  quick,
 }: {
   layout: "table" | "calendar";
   calendarView: CalendarViewState;
   onCalendarViewChange: (next: CalendarViewState) => void;
   columns: TableColumns;
   onColumnsChange: (next: TableColumns) => void;
+  iconOnly?: boolean;
+  /** Status and room type, so the toolbar can keep a single Filter button. */
+  quick?: {
+    status: string;
+    onStatus: (value: string) => void;
+    statusOptions: Array<[string, string]>;
+    roomTypeId: string;
+    onRoomType: (value: string) => void;
+    roomTypeOptions: Array<[string, string]>;
+  };
 }) {
   const [open, setOpen] = useState(false);
 
@@ -129,7 +153,11 @@ export function DeskDisplayMenu({
     (key) => columns[key] !== DEFAULT_TABLE_COLUMNS[key],
   ).length;
 
-  const changes = layout === "calendar" ? calendarChanges : tableChanges;
+  const quickChanges = quick
+    ? (quick.status !== "all" ? 1 : 0) + (quick.roomTypeId !== "all" ? 1 : 0)
+    : 0;
+
+  const changes = (layout === "calendar" ? calendarChanges : tableChanges) + quickChanges;
 
   function patchCalendar(patch: Partial<CalendarViewState>) {
     onCalendarViewChange({ ...calendarView, ...patch });
@@ -142,20 +170,35 @@ export function DeskDisplayMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className={cn(PILL_BUTTON, "gap-2 px-4")}
-          data-testid="reservation-desk-display-button"
-        >
-          <SlidersHorizontal className="size-4 text-[#c9a24a]" />
-          Display
-          {changes > 0 ? (
-            <span className="rounded-full bg-[#c9a24a] px-2 text-[11px] font-extrabold text-[#2b1a10]">
-              {changes}
-            </span>
-          ) : null}
-        </Button>
+        {iconOnly ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className={ICON_BUTTON}
+            aria-label={layout === "calendar" ? "Calendar filters and display" : "Table display"}
+            title={layout === "calendar" ? "Calendar filters and display" : "Table display"}
+            data-testid="reservation-desk-display-button"
+          >
+            <SlidersHorizontal className="size-4" />
+            <IconBadge count={changes} />
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            className={cn(PILL_BUTTON, "gap-2 px-4")}
+            data-testid="reservation-desk-display-button"
+          >
+            <SlidersHorizontal className="size-4 text-[#c9a24a]" />
+            Display
+            {changes > 0 ? (
+              <span className="rounded-full bg-[#c9a24a] px-2 text-[11px] font-extrabold text-[#2b1a10]">
+                {changes}
+              </span>
+            ) : null}
+          </Button>
+        )}
       </PopoverTrigger>
 
       <PopoverContent
@@ -181,6 +224,37 @@ export function DeskDisplayMenu({
             Reset
           </Button>
         </div>
+
+        {quick ? (
+          <Section title="Reservation">
+            <div className="grid gap-2">
+              <Select value={quick.status} onValueChange={quick.onStatus}>
+                <SelectTrigger className="h-9" aria-label="Status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {quick.statusOptions.map(([id, label]) => (
+                    <SelectItem key={id} value={id}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={quick.roomTypeId} onValueChange={quick.onRoomType}>
+                <SelectTrigger className="h-9" aria-label="Room type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {quick.roomTypeOptions.map(([id, label]) => (
+                    <SelectItem key={id} value={id}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </Section>
+        ) : null}
 
         {layout === "table" ? (
           <Section title="Columns">
@@ -392,12 +466,14 @@ export function DeskAvailabilityMenu({
   restaurantId,
   start,
   days,
+  iconOnly = false,
 }: {
   restaurantId: string;
   /** First day of the window (YYYY-MM-DD). */
   start: string;
   /** Window length in days (1, 7, 14 or 30). */
   days: number;
+  iconOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const loadCalendar = useServerFn(getReservationCalendar);
@@ -423,14 +499,28 @@ export function DeskAvailabilityMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className={cn(PILL_BUTTON, "px-4")}
-          data-testid="reservation-desk-availability-button"
-        >
-          Availability
-        </Button>
+        {iconOnly ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className={ICON_BUTTON}
+            aria-label="Availability"
+            title="Availability"
+            data-testid="reservation-desk-availability-button"
+          >
+            <BedDouble className="size-4" />
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            className={cn(PILL_BUTTON, "px-4")}
+            data-testid="reservation-desk-availability-button"
+          >
+            Availability
+          </Button>
+        )}
       </PopoverTrigger>
 
       <PopoverContent align="end" className="w-72 rounded-2xl border-[#e9dfd0]">

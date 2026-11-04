@@ -12,7 +12,7 @@ function readRel(rel: string) {
 }
 
 describe("FO workspace layout — shared PMS nav", () => {
-  it("uses RoomInventoryChrome and keeps FO tabs under the desk title", () => {
+  it("uses RoomInventoryChrome and keeps FO destinations in the burger nav menu", () => {
     const chrome = readRel("../components/frontoffice/front-office-chrome.tsx");
     const shared = readRel("../components/rooms/room-inventory-chrome.tsx");
     const workspace = readRel("../components/workspaces/front-office-workspace.tsx");

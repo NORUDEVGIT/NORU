@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Search, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
 import { getOverbookingControls } from "@/packages/pms/lib/overbooking.functions";
 import {
@@ -10,6 +10,10 @@ import {
   FilterOption,
   MoreFiltersMenu,
 } from "@/packages/pms/components/more-filters-menu";
+import {
+  ReservationShellSlot,
+  SHELL_PRIMARY_BUTTON,
+} from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { reservationHistoryChanges } from "@/packages/pms/lib/reservation-history-display";
 import {
   WAITLIST_DISPLAY_STATUSES,
@@ -247,25 +251,10 @@ export function WaitlistWorkspace({
   });
 
   return (
-    <div className="space-y-4" data-testid="waitlist-workspace">
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          {onSearchChange ? (
-            <div className="relative min-w-56 flex-1">
-              <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#c9a24a]" />
-              <Input
-                value={search}
-                onChange={(event) => onSearchChange(event.target.value)}
-                className="h-9 rounded-full border-[#c9a24a] bg-white pl-10 text-sm font-medium"
-                placeholder="Search waitlist by guest, number or notes"
-                aria-label="Search waitlist"
-              />
-            </div>
-          ) : (
-            <div className="flex-1" />
-          )}
-
+    <div className="space-y-3" data-testid="waitlist-workspace">
+      <ReservationShellSlot name="filter">
           <MoreFiltersMenu
+            iconOnly
             open={filterMenuOpen}
             onOpenChange={handleFilterMenuOpenChange}
             activeCount={filterChips.length}
@@ -382,32 +371,24 @@ export function WaitlistWorkspace({
               </div>
             </FilterGroup>
           </MoreFiltersMenu>
+      </ReservationShellSlot>
 
-          {filterChips.length > 0 || search.trim() ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                clearFilters();
-                onSearchChange?.("");
-              }}
-            >
-              Clear
-            </Button>
-          ) : null}
+      {canWrite ? (
+        <ReservationShellSlot name="primary">
+          <Button
+            className={SHELL_PRIMARY_BUTTON}
+            data-testid="waitlist-new-request"
+            onClick={() => setNewOpen((open) => !open)}
+          >
+            <Plus className="size-4" />
+            New Request
+          </Button>
+        </ReservationShellSlot>
+      ) : null}
 
-          {canWrite ? (
-            <Button
-              className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-              onClick={() => setNewOpen((open) => !open)}
-            >
-              New request
-            </Button>
-          ) : null}
-        </div>
-
-        {filterChips.length > 0 ? (
-          <ul className="mt-3 flex flex-wrap gap-2" data-testid="waitlist-filter-chips">
+      {filterChips.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <ul className="flex flex-wrap gap-2" data-testid="waitlist-filter-chips">
             {filterChips.map((chip) => (
               <li key={chip.id}>
                 <button
@@ -422,8 +403,38 @@ export function WaitlistWorkspace({
               </li>
             ))}
           </ul>
-        ) : null}
-        {newOpen && canWrite ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              clearFilters();
+              onSearchChange?.("");
+            }}
+          >
+            Clear all
+          </Button>
+        </div>
+      ) : null}
+
+      {newOpen && canWrite ? (
+        <section
+          className="rounded-lg border border-[#DDD4C5] bg-white p-3 shadow-sm"
+          data-testid="waitlist-new-request-form"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-[#251605]">New waitlist request</p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              aria-label="Close new request"
+              onClick={() => setNewOpen(false)}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
           <WaitlistRequestForm
             roomTypes={roomTypesQuery.data ?? []}
             loadGuests={loadGuests}
@@ -431,10 +442,15 @@ export function WaitlistWorkspace({
             submitting={create.isPending}
             onSubmit={(values) => create.mutate({ restaurantId, ...values })}
           />
-        ) : null}
-      </section>
+        </section>
+      ) : null}
 
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div
+        className={cn(
+          "grid min-w-0 gap-3",
+          selectedId && "xl:grid-cols-[minmax(0,1fr)_360px]",
+        )}
+      >
         <section className="min-w-0 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
           {listQuery.isError ? (
             <p className="p-4 text-sm text-destructive">
@@ -490,15 +506,22 @@ export function WaitlistWorkspace({
           )}
         </section>
 
+        {selectedId ? (
         <aside
-          className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+          className="relative rounded-xl border border-[#DDD4C5] bg-white p-4 pt-10 shadow-sm"
           data-testid="waitlist-quick-view"
         >
-          {!selectedId ? (
-            <p className="text-sm text-muted-foreground">
-              Select a waitlist request to match, offer, convert and view history.
-            </p>
-          ) : detailQuery.isLoading ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-2 top-2 size-7"
+            aria-label="Close waitlist quick view"
+            onClick={() => setSelectedId(null)}
+          >
+            <X className="size-4" />
+          </Button>
+          {detailQuery.isLoading ? (
             <Skeleton className="h-40 w-full" />
           ) : detailQuery.isError ? (
             <p className="text-sm text-destructive">
@@ -525,6 +548,7 @@ export function WaitlistWorkspace({
             />
           ) : null}
         </aside>
+        ) : null}
       </div>
     </div>
   );

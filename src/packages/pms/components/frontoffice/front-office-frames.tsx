@@ -199,7 +199,7 @@ export function AmendmentsFrame({
   );
 }
 
-function AmendNotesDialog({
+export function AmendNotesDialog({
   restaurantId,
   stay,
   open,

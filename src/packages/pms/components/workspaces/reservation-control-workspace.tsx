@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Search, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import {
   ReservationStatusBadge,
@@ -18,6 +18,7 @@ import {
   FilterOption,
   MoreFiltersMenu,
 } from "@/packages/pms/components/more-filters-menu";
+import { ReservationShellSlot } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { RESERVATION_STATUSES } from "@/packages/pms/lib/reservation-dates";
 import {
@@ -43,7 +44,6 @@ import {
   RESERVATION_EXCEPTION_SOURCE_MODULES,
 } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
 import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
@@ -310,37 +310,7 @@ export function ReservationControlWorkspace({
   }
 
   return (
-    <div className="space-y-4" data-testid="reservation-control-workspace">
-      <p className="text-xs text-muted-foreground">
-        Business date {snapshot?.businessDate ?? "—"} · derived from current Front Office state.
-        Rows clear only when the underlying issue is fixed.
-      </p>
-
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Exception totals">
-        {snapshotQuery.isLoading && !snapshot
-          ? Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={index} className="h-16 rounded-2xl" />
-            ))
-          : kpis.map((kpi) => (
-              <button
-                key={kpi.id}
-                type="button"
-                className="rounded-2xl border border-[#e9dfd0] bg-white px-4 py-3 text-left shadow-sm transition-colors hover:bg-[#f5ead0]"
-                onClick={() => {
-                  setBlockingOnly(kpi.id === "blocking");
-                  setSeverity(
-                    kpi.id === "high" ? "high" : kpi.id === "standard" ? "standard" : "all",
-                  );
-                }}
-              >
-                <p className="text-xs font-semibold text-[#7A6B58]">{kpi.label}</p>
-                <p className="mt-1 font-display text-2xl font-semibold text-[#4a2c1a]">
-                  {kpi.value}
-                </p>
-              </button>
-            ))}
-      </section>
-
+    <div className="space-y-3" data-testid="reservation-control-workspace">
       {snapshot?.warnings.length ? (
         <p className="text-xs text-amber-800">
           {snapshot.warnings.includes("financial_signals_unavailable")
@@ -355,22 +325,9 @@ export function ReservationControlWorkspace({
         </p>
       ) : null}
 
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          {onSearchChange ? (
-            <div className="relative min-w-56 flex-1">
-              <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#c9a24a]" />
-              <Input
-                value={search}
-                onChange={(event) => onSearchChange(event.target.value)}
-                className="h-9 rounded-full border-[#c9a24a] bg-white pl-10 text-sm font-medium"
-                placeholder="Search exceptions by guest, reservation or room"
-                aria-label="Search exceptions"
-              />
-            </div>
-          ) : null}
-
+      <ReservationShellSlot name="filter">
           <MoreFiltersMenu
+            iconOnly
             open={filterMenuOpen}
             onOpenChange={handleFilterMenuOpenChange}
             activeCount={filterChips.length}
@@ -517,23 +474,11 @@ export function ReservationControlWorkspace({
               />
             </FilterGroup>
           </MoreFiltersMenu>
+      </ReservationShellSlot>
 
-          {filterChips.length > 0 || search.trim() ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                applyMenuFilters(DEFAULT_MENU_DRAFT);
-                onSearchChange?.("");
-              }}
-            >
-              Clear
-            </Button>
-          ) : null}
-        </div>
-
-        {filterChips.length > 0 ? (
-          <ul className="mt-3 flex flex-wrap gap-2" data-testid="exception-filter-chips">
+      {filterChips.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <ul className="flex flex-wrap gap-2" data-testid="exception-filter-chips">
             {filterChips.map((chip) => (
               <li key={chip.id}>
                 <button
@@ -548,10 +493,26 @@ export function ReservationControlWorkspace({
               </li>
             ))}
           </ul>
-        ) : null}
-      </section>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              applyMenuFilters(DEFAULT_MENU_DRAFT);
+              onSearchChange?.("");
+            }}
+          >
+            Clear all
+          </Button>
+        </div>
+      ) : null}
 
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <div
+        className={cn(
+          "grid min-w-0 gap-3",
+          selected && "xl:grid-cols-[minmax(0,1fr)_300px]",
+        )}
+      >
         <section className="min-w-0 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
           {snapshotQuery.isError ? (
             <div className="space-y-2 p-4">
@@ -634,15 +595,27 @@ export function ReservationControlWorkspace({
           )}
         </section>
 
-        <aside className="hidden min-w-0 xl:block">
-          <ExceptionDrawer
-            item={selected}
-            currencyCode={currencyCode}
-            canManage={canManage}
-            onOpenReservation={onOpenReservation}
-            onLaunch={launchTarget}
-          />
-        </aside>
+        {selected ? (
+          <aside className="relative hidden min-w-0 xl:block">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-2 top-2 z-10 size-7"
+              aria-label="Close exception details"
+              onClick={() => setSelectedId(null)}
+            >
+              <X className="size-4" />
+            </Button>
+            <ExceptionDrawer
+              item={selected}
+              currencyCode={currencyCode}
+              canManage={canManage}
+              onOpenReservation={onOpenReservation}
+              onLaunch={launchTarget}
+            />
+          </aside>
+        ) : null}
       </div>
 
       <div className="xl:hidden">

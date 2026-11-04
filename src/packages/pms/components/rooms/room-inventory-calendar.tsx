@@ -32,7 +32,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/shared/components/ui/sheet";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { CompactSelect, InventoryState } from "./room-inventory-shared";
+import {
+  ROOM_SHELL_ICON_BUTTON,
+  RoomShellRefreshButton,
+  RoomShellSlot,
+} from "./room-inventory-shell";
 import {
   activeRoomBlocksOn,
   addDays,
@@ -415,34 +421,103 @@ export function RoomInventoryCalendarView({
     );
   }
 
-  return (
-    <div className="-mx-3 -mt-2 lg:-mx-5">
-      {/* lg:grid-cols-[minmax(0,1fr)_360px] */}
-      <div className="w-full">
-        <main className="w-full min-w-0 bg-[#FAF8F5] px-3 py-3 lg:px-5 space-y-4">
-          <CalendarControls
-            building={building}
-            buildings={buildings}
-            roomTypeId={roomTypeId}
-            rows={availabilityQuery.data ?? []}
-            periodStart={periodStart}
-            moreOpen={moreOpen}
-            onBuilding={setBuilding}
-            onRoomType={setRoomTypeId}
-            onPrevious={() => movePeriod(-1)}
-            onNext={() => movePeriod(1)}
-            onToday={goToday}
-            onPeriod={(value) => {
-              const next = monthStart(`${value}-01`);
-              setPeriodStart(next);
-              setSelectedDate(next);
-            }}
-            onMore={() => setMoreOpen((current) => !current)}
-            onRefresh={() => availabilityQuery.refetch()}
-          />
-          <CalendarLegend />
+  const calendarFilterCount =
+    (building !== "all" ? 1 : 0) + (roomTypeId !== "all" ? 1 : 0);
+  const calendarControls = (
+    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={ROOM_SHELL_ICON_BUTTON}
+        aria-label="Previous month"
+        onClick={() => movePeriod(-1)}
+      >
+        <ChevronLeft className="size-4" />
+      </Button>
+      <input
+        type="month"
+        value={periodStart.slice(0, 7)}
+        onChange={(event) => {
+          const next = monthStart(`${event.target.value}-01`);
+          setPeriodStart(next);
+          setSelectedDate(next);
+        }}
+        className="h-9 rounded-md border border-[#DDD4C5] bg-white px-2 text-xs text-[#251605]"
+        aria-label="Period"
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={ROOM_SHELL_ICON_BUTTON}
+        aria-label="Next month"
+        onClick={() => movePeriod(1)}
+      >
+        <ChevronRight className="size-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-9 border-[#DDD4C5] px-2.5 text-xs"
+        onClick={goToday}
+      >
+        Today
+      </Button>
+    </div>
+  );
+  const calendarFilter = (
+    <PmsFilterMenu
+      activeCount={calendarFilterCount}
+      onClear={() => {
+        setBuilding("all");
+        setRoomTypeId("all");
+      }}
+      buttonTestId="calendar-filters-button"
+      menuTestId="calendar-filters-menu"
+    >
+      <PmsFilterChoiceRow
+        label="Building"
+        value={building}
+        current={building === "all" ? "" : building}
+        options={[["all", "All Buildings"], ...buildings.map((value) => [value, value] as const)]}
+        onChange={setBuilding}
+      />
+      <PmsFilterChoiceRow
+        label="Room Type"
+        value={roomTypeId}
+        current={(availabilityQuery.data ?? []).find((row) => row.roomTypeId === roomTypeId)?.name ?? ""}
+        options={[
+          ["all", "All Room Types"],
+          ...(availabilityQuery.data ?? []).map((row) => [row.roomTypeId, row.name] as const),
+        ]}
+        onChange={setRoomTypeId}
+      />
+      <PmsFilterChoiceRow
+        label="View"
+        value="month"
+        current="Month"
+        options={[["month", "Month"]]}
+        onChange={() => undefined}
+      />
+    </PmsFilterMenu>
+  );
 
-          <section className="overflow-hidden rounded-lg border border-[#E5DED4] bg-white shadow-sm">
+  return (
+    <div className="space-y-3">
+      <RoomShellSlot name="controls">{calendarControls}</RoomShellSlot>
+      <RoomShellSlot name="filter">{calendarFilter}</RoomShellSlot>
+      <RoomShellSlot name="actions">
+        <RoomShellRefreshButton
+          spinning={availabilityQuery.isFetching}
+          onClick={() => void availabilityQuery.refetch()}
+          testId="calendar-refresh"
+        />
+      </RoomShellSlot>
+      <CalendarLegend />
+
+      <section className="overflow-hidden rounded-lg border border-[#DDD4C5] bg-white shadow-sm">
             {loading ? (
               <InventoryState state="loading" />
             ) : availabilityQuery.isError ? (
@@ -475,8 +550,6 @@ export function RoomInventoryCalendarView({
             Building groups show where each room type exists. Availability remains the canonical
             property-wide room-type value; room types spanning buildings are grouped separately.
           </p>
-        </main>
-      </div>
 
       <Sheet open={mobileSummaryOpen} onOpenChange={setMobileSummaryOpen}>
         <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg md:max-w-xl">

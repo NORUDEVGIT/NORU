@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -43,6 +43,10 @@ import type {
   ReservationDeskRow,
 } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
 import { amendReservation, getReservation } from "@/packages/pms/lib/reservations.functions";
+import {
+  useMoveEligibleRoomIds,
+  type MoveDragStay,
+} from "@/packages/pms/components/use-move-eligible-rooms";
 import { Button } from "@/shared/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { Checkbox } from "@/shared/components/ui/checkbox";
@@ -226,6 +230,45 @@ export function BookingCalendarPanel({
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [localShowUnassigned, setShowUnassigned] = useState(true);
   const [proposed, setProposed] = useState<ProposedMove | null>(null);
+  const [dragStay, setDragStay] = useState<MoveDragStay | null>(null);
+  const [calendarDragging, setCalendarDragging] = useState(false);
+  const dragActiveRef = useRef(false);
+  const dragEligibleIds = useMoveEligibleRoomIds(restaurantId, dragStay);
+
+  function beginCalendarDrag(bar: CalendarBar) {
+    dragActiveRef.current = true;
+    setDragStay({
+      reservationId: bar.reservationId,
+      reservationRoomId: bar.reservationRoomId,
+      roomId: bar.roomId,
+      roomTypeId: bar.roomTypeId,
+      arrivalDate: bar.arrivalDate,
+      departureDate: bar.departureDate,
+    });
+    window.requestAnimationFrame(() => {
+      if (dragActiveRef.current) setCalendarDragging(true);
+    });
+  }
+
+  function endCalendarDrag() {
+    dragActiveRef.current = false;
+    setCalendarDragging(false);
+    setDragStay(null);
+  }
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") endCalendarDrag();
+    }
+    document.addEventListener("dragend", endCalendarDrag);
+    document.addEventListener("drop", endCalendarDrag);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("dragend", endCalendarDrag);
+      document.removeEventListener("drop", endCalendarDrag);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
   const [filterOpen, setFilterOpen] = useState(false);
 
   // With the desk in charge, the Display menu in the desk toolbar sets these.
@@ -1040,6 +1083,9 @@ export function BookingCalendarPanel({
             onOpen={onOpen}
             onAction={onAction}
             onDrop={handleDrop}
+            onRoomDragStart={beginCalendarDrag}
+            dragStay={calendarDragging ? dragStay : null}
+            eligibleRoomIds={calendarDragging ? dragEligibleIds : null}
           />
         </>
       )}
@@ -1077,6 +1123,9 @@ function CalendarBoard({
   onOpen,
   onAction,
   onDrop,
+  onRoomDragStart,
+  dragStay,
+  eligibleRoomIds,
 }: {
   snapshot: CalendarRead;
   days: string[];
@@ -1092,6 +1141,9 @@ function CalendarBoard({
   onOpen: (reservationId: string) => void;
   onAction: (actionId: ReservationContextActionId, row: ReservationDeskRow) => void;
   onDrop: (bar: CalendarBar, target: { room: CalendarRoom; date: string }) => void;
+  onRoomDragStart: (bar: CalendarBar) => void;
+  dragStay: MoveDragStay | null;
+  eligibleRoomIds: Set<string> | null;
 }) {
   const lanes: Array<{
     key: string;
@@ -1099,7 +1151,8 @@ function CalendarBoard({
     hint?: string;
     room: CalendarRoom | null;
     bars: CalendarBar[];
-  }> =
+    dropHint: boolean;
+  }> = (
     mode === "room_type"
       ? snapshot.roomTypes.map((type) => ({
           key: type.roomTypeId,
@@ -1107,6 +1160,7 @@ function CalendarBoard({
           hint: `${type.available ?? "—"} available`,
           room: snapshot.rooms.find((room) => room.roomTypeId === type.roomTypeId) ?? null,
           bars: snapshot.bars.filter((bar) => bar.roomTypeId === type.roomTypeId),
+          dropHint: false,
         }))
       : snapshot.rooms.map((room) => ({
           key: room.roomId,
@@ -1120,7 +1174,24 @@ function CalendarBoard({
             .join(" · "),
           room,
           bars: snapshot.bars.filter((bar) => bar.roomId === room.roomId),
-        }));
+          dropHint: false,
+        }))
+  ).filter((lane) => {
+    if (!dragStay || mode !== "room") return lane.bars.length > 0;
+    if (!lane.room) return false;
+    if (lane.room.roomId === dragStay.roomId) return true;
+    return eligibleRoomIds?.has(lane.room.roomId) ?? false;
+  }).map((lane) => ({
+    ...lane,
+    dropHint:
+      mode === "room" &&
+      Boolean(
+        dragStay &&
+          lane.room &&
+          lane.room.roomId !== dragStay.roomId &&
+          eligibleRoomIds?.has(lane.room.roomId),
+      ),
+  }));
 
   return (
     <div className="overflow-auto rounded-2xl border border-[#e9dfd0] bg-white shadow-sm">
@@ -1163,6 +1234,7 @@ function CalendarBoard({
                   onSelectBar={onSelectBar}
                   onOpen={onOpen}
                   onAction={onAction}
+                  onRoomDragStart={onRoomDragStart}
                 />
               ))}
             </div>
@@ -1189,7 +1261,7 @@ function CalendarBoard({
               className={cn(
                 "sticky top-0 z-20 border-b border-l border-border px-1 py-2 text-center text-[11px]",
                 isToday
-                  ? "bg-[#f5ead0] font-bold text-[#4a2c1a]"
+                  ? "bg-[#F4E9D0]/60 font-semibold text-[#251605]"
                   : "bg-[#faf7f1] font-medium text-[#7A6B58]",
               )}
             >
@@ -1203,13 +1275,19 @@ function CalendarBoard({
           );
         })}
 
-        {lanes.map((lane) => (
+        {lanes.length === 0 ? (
+          <p className="col-span-full px-3 py-8 text-center text-sm text-[#7A6B58]">
+            No rooms with guests in this range.
+          </p>
+        ) : (
+          lanes.map((lane) => (
           <LaneRow
             key={lane.key}
             label={lane.label}
             hint={lane.hint}
             room={lane.room}
-            allowDrop={mode === "room" && lane.room !== null}
+            allowDrop={mode === "room" && lane.room !== null && (!dragStay || lane.dropHint)}
+            dropHint={lane.dropHint}
             bars={lane.bars}
             days={days}
             rangeStart={snapshot.range.start}
@@ -1225,8 +1303,10 @@ function CalendarBoard({
             onOpen={onOpen}
             onAction={onAction}
             onDrop={onDrop}
+            onRoomDragStart={onRoomDragStart}
           />
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
@@ -1237,6 +1317,7 @@ function LaneRow({
   hint,
   room,
   allowDrop,
+  dropHint,
   bars,
   days,
   rangeStart,
@@ -1252,11 +1333,13 @@ function LaneRow({
   onOpen,
   onAction,
   onDrop,
+  onRoomDragStart,
 }: {
   label: string;
   hint?: string;
   room: CalendarRoom | null;
   allowDrop: boolean;
+  dropHint: boolean;
   bars: CalendarBar[];
   days: string[];
   rangeStart: string;
@@ -1272,11 +1355,15 @@ function LaneRow({
   onOpen: (reservationId: string) => void;
   onAction: (actionId: ReservationContextActionId, row: ReservationDeskRow) => void;
   onDrop: (bar: CalendarBar, target: { room: CalendarRoom; date: string }) => void;
+  onRoomDragStart: (bar: CalendarBar) => void;
 }) {
   return (
     <>
       <div
-        className="sticky left-0 z-10 flex flex-col justify-center border-b border-border bg-white px-3 py-1"
+        className={cn(
+          "sticky left-0 z-10 flex flex-col justify-center border-b border-border px-3 py-1",
+          dropHint ? "bg-[#F4E9D0]/60" : "bg-white",
+        )}
         style={{ minHeight: rowHeight }}
       >
         <p className="truncate text-sm font-semibold text-[#4a2c1a]">{label}</p>
@@ -1285,7 +1372,7 @@ function LaneRow({
       </div>
 
       <div
-        className="relative border-b border-border"
+        className={cn("relative border-b border-border", dropHint && "bg-[#F4E9D0]/40")}
         style={{
           gridColumn: `2 / span ${days.length}`,
           minHeight: rowHeight,
@@ -1302,7 +1389,7 @@ function LaneRow({
               key={day}
               className={cn(
                 "border-l border-border/70",
-                day === snapshot.businessDate && "bg-[#f5ead0]/40",
+                day === snapshot.businessDate && "bg-[#F4E9D0]/40",
               )}
               onDragOver={(event) => {
                 if (!allowDrop || !room) return;
@@ -1362,6 +1449,7 @@ function LaneRow({
               onSelectBar={onSelectBar}
               onOpen={onOpen}
               onAction={onAction}
+              onRoomDragStart={onRoomDragStart}
             />
           );
         })}
@@ -1383,6 +1471,7 @@ function CalendarStayBar({
   onSelectBar,
   onOpen,
   onAction,
+  onRoomDragStart,
 }: {
   bar: CalendarBar;
   snapshot: CalendarRead;
@@ -1396,6 +1485,7 @@ function CalendarStayBar({
   onSelectBar: (bar: CalendarBar) => void;
   onOpen: (reservationId: string) => void;
   onAction: (actionId: ReservationContextActionId, row: ReservationDeskRow) => void;
+  onRoomDragStart: (bar: CalendarBar) => void;
 }) {
   const row = calendarBarToDeskRow(bar, snapshot.rooms, snapshot.roomTypes);
 
@@ -1421,6 +1511,7 @@ function CalendarStayBar({
           }),
         );
         event.dataTransfer.effectAllowed = "move";
+        onRoomDragStart(bar);
       }}
       onClick={() => onSelectBar(bar)}
       onDoubleClick={() => onOpen(bar.reservationId)}
@@ -1460,6 +1551,7 @@ function CalendarBarChip({
   onSelectBar,
   onOpen,
   onAction,
+  onRoomDragStart,
 }: {
   bar: CalendarBar;
   snapshot: CalendarRead;
@@ -1469,6 +1561,7 @@ function CalendarBarChip({
   onSelectBar: (bar: CalendarBar) => void;
   onOpen: (reservationId: string) => void;
   onAction: (actionId: ReservationContextActionId, row: ReservationDeskRow) => void;
+  onRoomDragStart: (bar: CalendarBar) => void;
 }) {
   const row = calendarBarToDeskRow(bar, snapshot.rooms, snapshot.roomTypes);
 
@@ -1488,6 +1581,8 @@ function CalendarBarChip({
             reservationRoomId: bar.reservationRoomId,
           }),
         );
+        event.dataTransfer.effectAllowed = "move";
+        onRoomDragStart(bar);
       }}
       onClick={() => onSelectBar(bar)}
       onDoubleClick={() => onOpen(bar.reservationId)}

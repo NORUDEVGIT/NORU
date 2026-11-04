@@ -39,6 +39,7 @@ import {
   type HotelRoom,
   type RoomType,
 } from "@/packages/pms/lib/rooms.functions";
+import { PmsFilterChoiceRow, PmsFilterMenu, PmsFilterNoteRow } from "@/packages/pms/components/pms-filter-menu";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
@@ -57,6 +58,16 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+  ROOM_SHELL_PRIMARY_BUTTON,
+  RoomShellRefreshButton,
+  RoomShellSlot,
+  RoomSummaryChips,
+  RoomTableFooter,
+} from "./room-inventory-shell";
 import {
   Sheet,
   SheetContent,
@@ -489,57 +500,109 @@ export function RoomInventoryBlocksView({
     setDetailBlock(null);
   }
 
+  const blockFilterCount =
+    (blockType !== "all" ? 1 : 0) +
+    (status !== "all" ? 1 : 0) +
+    (targetKind !== "all" ? 1 : 0) +
+    (building !== "all" ? 1 : 0) +
+    (fromDate ? 1 : 0) +
+    (toDate ? 1 : 0);
+  const blockSearch = (
+    <div className="relative min-w-0 w-full">
+      <Input
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        className="h-9 min-w-0 text-xs"
+        placeholder="Search block, room, or reason…"
+        aria-label="Search blocks"
+      />
+    </div>
+  );
+  const blockFilter = (
+    <PmsFilterMenu
+      activeCount={blockFilterCount}
+      onClear={clearFilters}
+      buttonTestId="blocks-filters-button"
+      menuTestId="blocks-filters-menu"
+    >
+      <PmsFilterChoiceRow
+        label="Block Type"
+        value={blockType}
+        current={blockType === "all" ? "" : titleCase(blockType)}
+        options={[["all", "All Types"], ...rules.map((rule) => [rule.blockType, titleCase(rule.blockType)] as const)]}
+        onChange={setBlockType}
+      />
+      <PmsFilterChoiceRow
+        label="Status"
+        value={status}
+        current={status === "all" ? "" : titleCase(status)}
+        options={[
+          ["all", "All Statuses"],
+          ["draft", "Draft"],
+          ["pending_approval", "Pending Approval"],
+          ["active", "Active"],
+          ["released", "Released"],
+          ["cancelled", "Cancelled"],
+        ]}
+        onChange={setStatus}
+      />
+      <PmsFilterChoiceRow
+        label="Target Type"
+        value={targetKind}
+        current={targetKind === "all" ? "" : titleCase(targetKind)}
+        options={[
+          ["all", "All Targets"],
+          ["room", "Room"],
+          ["room_type", "Room Type"],
+          ["quantity", "Quantity"],
+        ]}
+        onChange={setTargetKind}
+      />
+      <PmsFilterChoiceRow
+        label="Building"
+        value={building}
+        current={building === "all" ? "" : building}
+        options={[["all", "All Buildings"], ...buildings.map((value) => [value, value] as const)]}
+        onChange={setBuilding}
+      />
+      <PmsFilterNoteRow label="Date Range">
+        <div className="flex flex-col gap-2">
+          <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="h-9 text-xs" />
+          <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className="h-9 text-xs" />
+        </div>
+      </PmsFilterNoteRow>
+    </PmsFilterMenu>
+  );
+
   return (
     <div className="space-y-3">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Room & Inventory
-          </p>
-          <h2 className="mt-0.5 font-display text-2xl font-bold" style={{ color: INK }}>
-            Inventory Blocks
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Manage operational holds, approvals, activation, release, and cancellation.
-          </p>
-        </div>
+      <RoomShellSlot name="controls">{blockSearch}</RoomShellSlot>
+      <RoomShellSlot name="filter">{blockFilter}</RoomShellSlot>
+      <RoomShellSlot name="actions">
+        <RoomShellRefreshButton
+          spinning={blocksQuery.isFetching}
+          onClick={() => void blocksQuery.refetch()}
+          testId="blocks-refresh"
+        />
+      </RoomShellSlot>
+      <RoomShellSlot name="cta">
         <Button
-          size="sm"
-          className="h-9 px-3.5 bg-[#C89933] text-xs font-semibold text-[#251605] hover:bg-[#B5882D]"
+          type="button"
+          className={ROOM_SHELL_PRIMARY_BUTTON}
           disabled={managerDenied}
           onClick={openCreate}
         >
           <Plus className="mr-1.5 size-4" />
-          Create Block
+          New Block
         </Button>
-      </div>
-
-      <BlocksKpis
-        active={activeBlocks.length}
-        pending={pendingApprovals}
-        uniqueRooms={uniqueRoomTargets}
-        typeBlocks={activeTypeBlocks}
-        endingSoon={endingSoon}
-      />
-
-      <BlocksFilters
-        blockType={blockType}
-        blockTypes={rules.map((rule) => rule.blockType)}
-        status={status}
-        targetKind={targetKind}
-        building={building}
-        buildings={buildings}
-        fromDate={fromDate}
-        toDate={toDate}
-        search={search}
-        onBlockType={setBlockType}
-        onStatus={setStatus}
-        onTargetKind={setTargetKind}
-        onBuilding={setBuilding}
-        onFromDate={setFromDate}
-        onToDate={setToDate}
-        onSearch={setSearch}
-        onClear={clearFilters}
+      </RoomShellSlot>
+      <RoomSummaryChips
+        items={[
+          { label: "Active", value: activeBlocks.length, tone: "success" },
+          { label: "Pending", value: pendingApprovals, tone: "warning" },
+          { label: "Rooms", value: uniqueRoomTargets, tone: "info" },
+          { label: "Ending soon", value: endingSoon, tone: "neutral" },
+        ]}
       />
 
       {blocksQuery.isLoading ? (
@@ -558,20 +621,7 @@ export function RoomInventoryBlocksView({
           description="Clear filters or create an operational block."
         />
       ) : (
-        <section className="overflow-hidden rounded-lg border border-[#E5DED4] bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-[#E5DED4] px-4 py-3">
-            <h3 className="text-sm font-bold" style={{ color: INK }}>
-              Blocks ({filteredBlocks.length})
-            </h3>
-            <Button
-              size="sm"
-              className="h-8 bg-[#C89933] px-3 text-xs font-semibold text-[#251605] hover:bg-[#B5882D]"
-              onClick={openCreate}
-            >
-              <Plus className="mr-1.5 size-3.5" />
-              New Block
-            </Button>
-          </div>
+        <section className={ROOM_TABLE_WRAP}>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1280px] text-left text-xs">
               <thead className="border-b border-[#E5DED4] bg-[#F8F5F0] text-xs font-bold uppercase tracking-wider text-[#5C5346]">

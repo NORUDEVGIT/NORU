@@ -6,6 +6,7 @@ import {
   Building2,
   CalendarPlus,
   CheckCircle2,
+  Download,
   ExternalLink,
   MoreHorizontal,
   Pencil,
@@ -16,6 +17,8 @@ import {
 } from "lucide-react";
 
 import { GuestTravelAgentQuickViewDrawer } from "@/packages/pms/components/guests/guest-travel-agent-quick-view-drawer";
+import { GuestProfileShellSlot } from "@/packages/pms/components/guests/guest-profile-shell-slots";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { GuestTravelAgencyCreateModal } from "@/packages/pms/components/guests/guest-travel-agency-create-modal";
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
@@ -36,6 +39,7 @@ import {
 import {
   LISTING_DEFAULT_PAGE_SIZE,
   LISTING_PAGE_SIZES,
+  displayProfileNumber,
   listingCreateAllowed,
 } from "@/packages/pms/lib/guest-profile-listing";
 import { getGuestsAccess } from "@/packages/pms/lib/guests.functions";
@@ -43,7 +47,10 @@ import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
 import { getTravelAgentWorkspaceSummary } from "@/packages/pms/lib/guest-travel-agent-detail.functions";
 import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import { ISO_COUNTRIES } from "@/packages/pms/lib/pms-geography";
+import { csvEscape } from "@/packages/pms/lib/guest-companies-workspace";
+import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { Button } from "@/shared/components/ui/button";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
@@ -106,9 +113,11 @@ function TravelAgentKpiCard({
 export function GuestTravelAgentDirectory({
   membership,
   returnCard,
+  embedded = false,
 }: {
   membership: RestaurantMembership;
   returnCard?: GuestProfileCardId | undefined;
+  embedded?: boolean;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -128,6 +137,7 @@ export function GuestTravelAgentDirectory({
   const [pageSize, setPageSize] = useState<(typeof LISTING_PAGE_SIZES)[number]>(
     LISTING_DEFAULT_PAGE_SIZE,
   );
+  const [selected, setSelected] = useState<string[]>([]);
 
   const [quickViewAgencyId, setQuickViewAgencyId] = useState<string | null>(null);
   const [editAgencyId, setEditAgencyId] = useState<string | null>(null);
@@ -141,6 +151,7 @@ export function GuestTravelAgentDirectory({
 
   useEffect(() => {
     setPage(0);
+    setSelected([]);
   }, [debouncedSearch, status, agencyType, country, pageSize]);
 
   const accessQuery = useQuery({
@@ -208,6 +219,48 @@ export function GuestTravelAgentDirectory({
     });
   }
 
+  function runExport() {
+    const rows = selected.length > 0 ? accounts.filter((row) => selected.includes(row.id)) : accounts;
+    const header = [
+      "Profile No.",
+      "Agency",
+      "Trade Name",
+      "Agency Type",
+      "Primary Contact",
+      "Phone",
+      "Email",
+      "Country",
+      "IATA / License",
+      "Commission",
+      "Status",
+    ];
+    const lines = [header.join(",")];
+    for (const row of rows) {
+      lines.push(
+        [
+          csvEscape(displayProfileNumber(row.id, row.code)),
+          csvEscape(row.name),
+          csvEscape(row.tradeName),
+          csvEscape(row.agencyType),
+          csvEscape(row.primaryContactName),
+          csvEscape(row.phone),
+          csvEscape(row.email),
+          csvEscape(row.country),
+          csvEscape(row.iataLicenseNumber),
+          csvEscape(agencyIdsWithActivePlans.has(row.id) ? "Configured" : "Not Configured"),
+          csvEscape(row.accountStatus),
+        ].join(","),
+      );
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "travel-agencies.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   function handleRegisterNew() {
     void navigate({
       to: GUEST_PROFILE_DIRECTORY_PATH,
@@ -246,10 +299,107 @@ export function GuestTravelAgentDirectory({
   const canCreate = listingCreateAllowed("travel_agent", configQuery.data);
 
   const agencyIdsWithActivePlans = new Set(summaryQuery.data?.agencyIdsWithActivePlans ?? []);
+  const agencyFilterCount =
+    (status !== ALL ? 1 : 0) + (agencyType !== ALL ? 1 : 0) + (country ? 1 : 0);
+  const agencySearchField = (
+    <div className={cn("relative min-w-0", embedded ? "w-full" : "min-w-56 flex-1")}>
+      <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#756A5B]" />
+      <Input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search by agency name, code, contact, phone, email, IATA…"
+        className="h-9 border-[#DDD4C5] bg-white pl-8 pr-8 text-xs"
+        aria-label="Search travel agencies"
+        data-testid="travel-agent-search"
+      />
+      {search ? (
+        <button
+          type="button"
+          onClick={() => setSearch("")}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-[#756A5B] hover:text-[#251605]"
+          aria-label="Clear search"
+        >
+          <X className="size-3.5" />
+        </button>
+      ) : null}
+    </div>
+  );
+  const agencyFilterMenu = (
+    <PmsFilterMenu
+      activeCount={agencyFilterCount}
+      onClear={() => {
+        setStatus(ALL);
+        setAgencyType(ALL);
+        setCountry("");
+        setPage(0);
+      }}
+      buttonTestId="travel-agent-filters-button"
+      menuTestId="travel-agent-filters-menu"
+    >
+      <PmsFilterChoiceRow
+        label="Status"
+        value={status}
+        current={status === ALL ? "" : status}
+        options={[
+          [ALL, "All statuses"],
+          ["active", "Active"],
+          ["inactive", "Inactive"],
+        ]}
+        onChange={setStatus}
+      />
+      <PmsFilterChoiceRow
+        label="Agency Type"
+        value={agencyType}
+        current={
+          agencyType === ALL
+            ? ""
+            : (AGENCY_TYPE_LABELS[agencyType as keyof typeof AGENCY_TYPE_LABELS] ?? "")
+        }
+        options={[
+          [ALL, "All types"],
+          ...AGENCY_TYPES.map((type) => [type, AGENCY_TYPE_LABELS[type]] as const),
+        ]}
+        onChange={setAgencyType}
+      />
+      <PmsFilterChoiceRow
+        label="Country"
+        value={country || ALL}
+        current={country}
+        options={[[ALL, "All countries"], ...ISO_COUNTRIES.map((item) => [item.name, item.name] as const)]}
+        onChange={(val) => setCountry(val === ALL ? "" : val)}
+      />
+    </PmsFilterMenu>
+  );
 
   return (
     <div className="space-y-5" data-testid="guest-travel-agent-directory">
-      {/* Header */}
+      {embedded ? (
+        <>
+          <GuestProfileShellSlot name="search">{agencySearchField}</GuestProfileShellSlot>
+          <GuestProfileShellSlot name="filter">{agencyFilterMenu}</GuestProfileShellSlot>
+          <GuestProfileShellSlot name="export">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={cn(SHELL_ICON_BUTTON, "relative")}
+              onClick={runExport}
+              aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+              title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+              data-testid="travel-agent-export"
+            >
+              <Download className="size-4" />
+              {selected.length > 0 ? (
+                <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
+                  {selected.length}
+                </span>
+              ) : null}
+            </Button>
+          </GuestProfileShellSlot>
+        </>
+      ) : null}
+      {embedded ? null : (
+      <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-display text-2xl font-bold text-[#251605]">Travel Agencies</h2>
@@ -377,6 +527,8 @@ export function GuestTravelAgentDirectory({
           </Button>
         )}
       </div>
+      </>
+      )}
 
       {/* Dense Table */}
       <div className="overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
@@ -384,8 +536,17 @@ export function GuestTravelAgentDirectory({
           <table className="w-full text-left text-xs" data-testid="travel-agent-table">
             <thead>
               <tr className="border-b border-[#DDD4C5] bg-[#FAF8F5] text-[11px] font-semibold text-[#756A5B] uppercase tracking-wider">
+                <th className="w-10 px-2 py-2.5">
+                  <Checkbox
+                    checked={accounts.length > 0 && accounts.every((row) => selected.includes(row.id))}
+                    onCheckedChange={(checked) =>
+                      setSelected(checked === true ? accounts.map((row) => row.id) : [])
+                    }
+                    aria-label="Select page"
+                  />
+                </th>
+                <th className="px-3.5 py-2.5">Profile No.</th>
                 <th className="px-3.5 py-2.5">Agency</th>
-                <th className="px-3 py-2.5">Code</th>
                 <th className="px-3 py-2.5">Agency Type</th>
                 <th className="px-3 py-2.5">Primary Contact</th>
                 <th className="px-3 py-2.5">Phone / Email</th>
@@ -400,14 +561,14 @@ export function GuestTravelAgentDirectory({
               {accountsQuery.isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td className="px-3.5 py-3" colSpan={10}>
+                    <td className="px-3.5 py-3" colSpan={11}>
                       <Skeleton className="h-5 w-full" />
                     </td>
                   </tr>
                 ))
               ) : accounts.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-[#8C827A] italic">
+                  <td colSpan={11} className="px-4 py-12 text-center text-[#8C827A] italic">
                     {debouncedSearch || status !== ALL || agencyType !== ALL || country
                       ? "No travel agencies match these filters."
                       : "No travel agencies registered yet."}
@@ -423,6 +584,22 @@ export function GuestTravelAgentDirectory({
                       className="cursor-pointer transition-colors hover:bg-[#FAF8F5]/80"
                       data-testid={`travel-agent-row-${row.id}`}
                     >
+                      <td className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selected.includes(row.id)}
+                          onCheckedChange={(checked) =>
+                            setSelected((prev) =>
+                              checked === true
+                                ? [...prev, row.id]
+                                : prev.filter((id) => id !== row.id),
+                            )
+                          }
+                          aria-label={`Select ${row.name}`}
+                        />
+                      </td>
+                      <td className="px-3.5 py-2.5 font-mono text-[11px] text-[#7A6B58]">
+                        {displayProfileNumber(row.id, row.code)}
+                      </td>
                       <td className="px-3.5 py-2.5 font-medium text-[#251605]">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-[#251605]">{row.name}</span>
@@ -430,9 +607,6 @@ export function GuestTravelAgentDirectory({
                             <span className="text-[11px] text-[#756A5B]">({row.tradeName})</span>
                           )}
                         </div>
-                      </td>
-                      <td className="px-3 py-2.5 font-mono text-[11px] text-[#8A641A]">
-                        {row.code ?? "—"}
                       </td>
                       <td className="px-3 py-2.5">
                         {row.agencyType ? (

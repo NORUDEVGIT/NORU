@@ -9,13 +9,24 @@ import {
   Check,
   ChevronRight,
   LayoutGrid,
-  List,
   LockKeyhole,
   MoreHorizontal,
   RefreshCw,
   Search,
+  Table2,
   UserRound,
+  X,
 } from "lucide-react";
+
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+  RoomShellRefreshButton,
+  RoomShellSlot,
+  RoomTableFooter,
+} from "./room-inventory-shell";
 
 import { setRoomRestriction } from "@/packages/pms/lib/housekeeping.functions";
 import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
@@ -34,6 +45,9 @@ import {
   type RoomType,
 } from "@/packages/pms/lib/rooms.functions";
 import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Skeleton } from "@/shared/components/ui/skeleton";
+import { cn } from "@/shared/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -57,13 +71,10 @@ import {
   ROOM_STATE_LABELS,
   roomBoardPrimaryState,
   roomStateClasses,
-  selectedRoomClasses,
   type RoomBoardPrimaryState,
 } from "./room-board-utils";
 
-const PAGE_SIZE = 10;
-
-type ViewMode = "grid" | "list";
+type ViewMode = "grid" | "table";
 
 export function RoomsDashboardTab({
   restaurantId,
@@ -98,8 +109,8 @@ export function RoomsDashboardTab({
   const [housekeeping, setHousekeeping] = useState("all");
   const [maintenance, setMaintenance] = useState("all");
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [restrictionTarget, setRestrictionTarget] = useState<{
     room: HotelRoom;
     status: "available" | "out_of_order" | "out_of_service";
@@ -225,29 +236,15 @@ export function RoomsDashboardTab({
   ]);
 
   useEffect(() => {
-    if (selectedRoomId && filteredRooms.some((room) => room.id === selectedRoomId)) return;
-    setSelectedRoomId(filteredRooms[0]?.id ?? null);
+    if (selectedRoomId && !filteredRooms.some((room) => room.id === selectedRoomId)) {
+      setSelectedRoomId(null);
+    }
   }, [filteredRooms, selectedRoomId]);
 
-  const metrics = useMemo(() => {
-    const states = rooms.map((room) =>
-      roomBoardPrimaryState(room, occupancyByRoom.get(room.id), blockByRoom.get(room.id)),
-    );
-    const total = dashboardQuery.data?.totalRooms ?? rooms.length;
-    return {
-      total,
-      available: states.filter((state) => state === "available").length,
-      occupied: states.filter((state) => state === "occupied" || state === "departing").length,
-      dirty: states.filter((state) => state === "dirty").length,
-      ooo: states.filter((state) => state === "out_of_order").length,
-      blocked: states.filter((state) => state === "blocked").length,
-    };
-  }, [blockByRoom, dashboardQuery.data?.totalRooms, occupancyByRoom, rooms]);
-
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
-  const totalPages = Math.max(1, Math.ceil(filteredRooms.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredRooms.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pagedRooms = filteredRooms.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagedRooms = filteredRooms.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const restrictionMutation = useMutation({
     mutationFn: async () => {
@@ -307,6 +304,10 @@ export function RoomsDashboardTab({
 
   function clearFilters() {
     setSearch("");
+    clearFilterFields();
+  }
+
+  function clearFilterFields() {
     setBuilding("all");
     setFloor("all");
     setRoomType("all");
@@ -324,9 +325,6 @@ export function RoomsDashboardTab({
 
   function selectRoom(room: HotelRoom) {
     setSelectedRoomId(room.id);
-    if (typeof window !== "undefined" && !window.matchMedia("(min-width: 1280px)").matches) {
-      setMobileDetailOpen(true);
-    }
   }
 
   function beginRestriction(
@@ -338,21 +336,6 @@ export function RoomsDashboardTab({
     setExpectedReturn(room.restrictionExpectedReturn?.slice(0, 10) ?? "");
   }
 
-  if (loading) return <RoomBoardSkeleton />;
-  if (failed) {
-    return (
-      <div className="rounded-xl border border-destructive/20 bg-card p-8 text-center">
-        <p className="text-sm font-medium text-destructive">We couldn't load the Room Board.</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Refresh the operational room data to try again.
-        </p>
-        <Button variant="outline" size="sm" className="mt-4" onClick={() => void refreshAll()}>
-          <RefreshCw className="mr-2 size-4" /> Retry
-        </Button>
-      </div>
-    );
-  }
-
   const detail = selectedRoom ? (
     <RoomDetailPanel
       room={selectedRoom}
@@ -361,122 +344,236 @@ export function RoomsDashboardTab({
       block={blockByRoom.get(selectedRoom.id)}
       events={eventsQuery.data ?? []}
       canManageRestrictions={canConfigure}
+      onClose={() => setSelectedRoomId(null)}
       onInspect={() => onInspectAssignment?.(selectedRoom)}
       onOpenBlocks={() => onOpenBlocks?.(selectedRoom)}
       onSetRestriction={(status) => beginRestriction(selectedRoom, status)}
     />
   ) : null;
 
-  return (
-    <div className="space-y-3">
-      <KpiRow metrics={metrics} />
-      <FilterBand
-        rooms={rooms}
-        roomTypes={roomTypesQuery.data ?? []}
-        search={search}
-        building={building}
-        floor={floor}
-        roomType={roomType}
-        operational={operational}
-        housekeeping={housekeeping}
-        maintenance={maintenance}
-        locations={locations}
-        onSearch={(value) => {
-          setSearch(value);
+  const floorOptions = Array.from(
+    new Set(
+      rooms
+        .filter((room) => building === "all" || (room.building?.trim() || "Unassigned") === building)
+        .map((room) => room.floor?.trim() || "Unassigned"),
+    ),
+  ).sort(naturalCompare);
+  const roomTypeOptions = roomTypesQuery.data ?? [];
+  const filterCount =
+    (building !== "all" ? 1 : 0) +
+    (floor !== "all" ? 1 : 0) +
+    (roomType !== "all" ? 1 : 0) +
+    (operational !== "all" ? 1 : 0) +
+    (housekeeping !== "all" ? 1 : 0) +
+    (maintenance !== "all" ? 1 : 0);
+  const operationalLabel =
+    operational === "available"
+      ? "Available"
+      : operational === "out_of_order"
+        ? "Out of Order"
+        : operational === "out_of_service"
+          ? "Out of Service"
+          : operational === "inactive"
+            ? "Inactive"
+            : "";
+  const housekeepingLabel =
+    housekeeping === "all" ? "" : housekeeping.charAt(0).toUpperCase() + housekeeping.slice(1);
+  const maintenanceLabel =
+    maintenance === "normal"
+      ? "Clear"
+      : maintenance === "maintenance_required"
+        ? "Required"
+        : maintenance === "in_progress"
+          ? "In Progress"
+          : maintenance === "out_of_service"
+            ? "Out of Service"
+            : maintenance === "out_of_order"
+              ? "Out of Order"
+              : maintenance === "inspection"
+                ? "Inspection"
+                : "";
+  const searchField = (
+    <div className="relative min-w-0 flex-1">
+      <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        value={search}
+        onChange={(event) => {
+          setSearch(event.target.value);
           setPage(1);
         }}
-        onBuilding={selectBuilding}
-        onFloor={(value) => {
+        className="h-9 min-w-0 pl-8 pr-8 text-xs"
+        placeholder="Search room number, type, or status…"
+        aria-label="Search rooms"
+        data-testid="room-board-search"
+      />
+      {search ? (
+        <button
+          type="button"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-[#756A5B] hover:text-[#251605]"
+          aria-label="Clear search"
+          onClick={() => {
+            setSearch("");
+            setPage(1);
+          }}
+        >
+          <X className="size-3.5" />
+        </button>
+      ) : null}
+    </div>
+  );
+  const filterMenu = (
+    <PmsFilterMenu
+      activeCount={filterCount}
+      onClear={clearFilterFields}
+      buttonTestId="room-board-filters-button"
+      menuTestId="room-board-filters-menu"
+    >
+      <PmsFilterChoiceRow
+        label="Building"
+        value={building}
+        current={building === "all" ? "" : building}
+        options={[["all", "All Buildings"], ...locations.map((item) => [item.name, item.name] as const)]}
+        onChange={selectBuilding}
+      />
+      <PmsFilterChoiceRow
+        label="Floor"
+        value={floor}
+        current={floor === "all" ? "" : floor}
+        options={[["all", "All Floors"], ...floorOptions.map((item) => [item, item] as const)]}
+        onChange={(value) => {
           setFloor(value);
           setPage(1);
         }}
-        onRoomType={(value) => {
+      />
+      <PmsFilterChoiceRow
+        label="Room Type"
+        value={roomType}
+        current={roomTypeOptions.find((item) => item.id === roomType)?.name ?? ""}
+        options={[["all", "All Room Types"], ...roomTypeOptions.map((item) => [item.id, item.name] as const)]}
+        onChange={(value) => {
           setRoomType(value);
           setPage(1);
         }}
-        onOperational={(value) => {
+      />
+      <PmsFilterChoiceRow
+        label="Operational Status"
+        value={operational}
+        current={operationalLabel}
+        options={[
+          ["all", "All Statuses"],
+          ["available", "Available"],
+          ["out_of_order", "Out of Order"],
+          ["out_of_service", "Out of Service"],
+          ["inactive", "Inactive"],
+        ]}
+        onChange={(value) => {
           setOperational(value);
           setPage(1);
         }}
-        onHousekeeping={(value) => {
+      />
+      <PmsFilterChoiceRow
+        label="Housekeeping"
+        value={housekeeping}
+        current={housekeepingLabel}
+        options={[
+          ["all", "All HK Statuses"],
+          ["dirty", "Dirty"],
+          ["clean", "Clean"],
+          ["inspected", "Inspected"],
+          ["pickup", "Pickup"],
+        ]}
+        onChange={(value) => {
           setHousekeeping(value);
           setPage(1);
         }}
-        onMaintenance={(value) => {
+      />
+      <PmsFilterChoiceRow
+        label="Maintenance"
+        value={maintenance}
+        current={maintenanceLabel}
+        options={[
+          ["all", "All Conditions"],
+          ["normal", "Clear"],
+          ["maintenance_required", "Required"],
+          ["in_progress", "In Progress"],
+          ["out_of_service", "Out of Service"],
+          ["out_of_order", "Out of Order"],
+          ["inspection", "Inspection"],
+        ]}
+        onChange={(value) => {
           setMaintenance(value);
           setPage(1);
         }}
-        onClear={clearFilters}
       />
+    </PmsFilterMenu>
+  );
+  const boardActions = (
+    <>
+      <RoomShellRefreshButton
+        onClick={() => void refreshAll()}
+        spinning={refreshing}
+        testId="room-board-refresh"
+      />
+      <div
+        className="inline-flex items-center gap-0.5 rounded-md border border-[#DDD4C5] bg-white p-0.5"
+        role="group"
+        aria-label="Room board view"
+        data-testid="room-board-view-switcher"
+      >
+        {(
+          [
+            ["grid", "Grid", LayoutGrid],
+            ["table", "Table", Table2],
+          ] as const
+        ).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            aria-label={label}
+            aria-pressed={viewMode === id}
+            title={label}
+            onClick={() => setViewMode(id)}
+            className={cn(
+              "inline-flex size-8 items-center justify-center rounded-sm transition-colors",
+              viewMode === id
+                ? "bg-[#C89933] text-[#251605]"
+                : "bg-transparent text-muted-foreground hover:bg-[#F3EEE4] hover:text-foreground",
+            )}
+          >
+            <Icon className="size-4" aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+    </>
+  );
 
+  return (
+    <div className="space-y-3">
+      <RoomShellSlot name="controls">{searchField}</RoomShellSlot>
+      <RoomShellSlot name="filter">{filterMenu}</RoomShellSlot>
+      <RoomShellSlot name="actions">{boardActions}</RoomShellSlot>
+
+      {loading ? (
+        <RoomBoardSkeleton />
+      ) : failed ? (
+        <div className="rounded-xl border border-destructive/20 bg-card p-8 text-center">
+          <p className="text-sm font-medium text-destructive">We couldn't load the Room Board.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Refresh the operational room data to try again.
+          </p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => void refreshAll()}>
+            <RefreshCw className="mr-2 size-4" /> Retry
+          </Button>
+        </div>
+      ) : (
+      <>
       {blocksQuery.isError ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           Active room blocks could not be loaded. Other room states remain available.
         </p>
       ) : null}
 
-      <div className="grid min-h-[580px] gap-3 xl:grid-cols-[190px_minmax(0,1fr)_380px]">
-        <div className="hidden xl:block">
-          <LocationNavigator
-            locations={locations}
-            building={building}
-            floor={floor}
-            totalRooms={rooms.length}
-            onBuilding={selectBuilding}
-            onFloor={(nextBuilding, nextFloor) => {
-              setBuilding(nextBuilding);
-              setFloor(nextFloor);
-              setPage(1);
-            }}
-          />
-        </div>
-
-        <section className="min-w-0 overflow-hidden rounded-xl border border-[#E5DED2] bg-card shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-3 py-2.5">
-            <div className="flex min-w-0 items-center gap-1 text-sm">
-              <span className="truncate font-semibold">
-                {building === "all" ? "All Buildings" : building}
-              </span>
-              {floor !== "all" ? (
-                <>
-                  <ChevronRight className="size-3.5 text-muted-foreground" />
-                  <span className="truncate font-medium">Floor {floor}</span>
-                </>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{filteredRooms.length} rooms</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="size-8"
-                onClick={() => void refreshAll()}
-                aria-label="Refresh rooms"
-              >
-                <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              </Button>
-              <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setViewMode("grid")}
-                  className={`rounded-md p-1.5 ${viewMode === "grid" ? "bg-[#E7C97D] text-[#4A3507]" : "text-muted-foreground"}`}
-                  aria-label="Grid view"
-                >
-                  <LayoutGrid className="size-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("list")}
-                  className={`rounded-md p-1.5 ${viewMode === "list" ? "bg-[#E7C97D] text-[#4A3507]" : "text-muted-foreground"}`}
-                  aria-label="List view"
-                >
-                  <List className="size-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-
+      <section className={ROOM_TABLE_WRAP}>
           {filteredRooms.length === 0 ? (
             <div className="flex min-h-96 items-center justify-center p-8 text-center">
               <div>
@@ -502,74 +599,45 @@ export function RoomsDashboardTab({
                   />
                 ))}
               </div>
-              <div className="flex items-center justify-between border-t border-[#E5DED4] px-4 py-3 bg-white rounded-b-xl">
-                <p className="text-xs text-muted-foreground">
-                  Showing {filteredRooms.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–
-                  {Math.min(safePage * PAGE_SIZE, filteredRooms.length)} of {filteredRooms.length} rooms
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-3 text-xs font-medium"
-                    disabled={safePage <= 1}
-                    onClick={() => setPage(safePage - 1)}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Page {safePage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-3 text-xs font-medium"
-                    disabled={safePage >= totalPages}
-                    onClick={() => setPage(safePage + 1)}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
             </div>
           ) : (
             <RoomList
               rooms={pagedRooms}
               occupancyByRoom={occupancyByRoom}
               blockByRoom={blockByRoom}
+              selectedRoomId={selectedRoomId}
               onSelect={selectRoom}
               onInspect={(room) => onInspectAssignment?.(room)}
-              page={safePage}
-              totalPages={totalPages}
-              totalRooms={filteredRooms.length}
-              onPage={setPage}
             />
           )}
-        </section>
-
-        <div className="hidden min-h-0 overflow-hidden rounded-xl border border-[#E5DED2] bg-card shadow-md xl:block">
-          {detail ?? <NoRoomSelected />}
-        </div>
-      </div>
-
-      <Sheet open={mobileDetailOpen && Boolean(selectedRoom)} onOpenChange={setMobileDetailOpen}>
-        <SheetContent side="right" className="w-[92vw] max-w-md p-0 xl:hidden">
-          {selectedRoom ? (
-            <RoomDetailPanel
-              room={selectedRoom}
-              roomType={roomTypeById.get(selectedRoom.roomTypeId)}
-              occupancy={occupancyByRoom.get(selectedRoom.id)}
-              block={blockByRoom.get(selectedRoom.id)}
-              events={eventsQuery.data ?? []}
-              canManageRestrictions={canConfigure}
-              onClose={() => setMobileDetailOpen(false)}
-              onInspect={() => onInspectAssignment?.(selectedRoom)}
-              onOpenBlocks={() => onOpenBlocks?.(selectedRoom)}
-              onSetRestriction={(status) => beginRestriction(selectedRoom, status)}
+          {filteredRooms.length > 0 ? (
+            <RoomTableFooter
+              page={safePage}
+              pageCount={totalPages}
+              total={filteredRooms.length}
+              pageSize={pageSize}
+              noun="rooms"
+              onPage={setPage}
+              onPageSize={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
             />
           ) : null}
+        </section>
+
+      <Sheet
+        open={Boolean(selectedRoom)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedRoomId(null);
+        }}
+      >
+        <SheetContent side="right" className="w-[92vw] max-w-md p-0">
+          {detail}
         </SheetContent>
       </Sheet>
+      </>
+      )}
 
       <Dialog
         open={Boolean(restrictionTarget)}
@@ -665,65 +733,126 @@ function KpiRow({
       value: metrics.total,
       detail: "All rooms",
       icon: BedDouble,
-      tone: "text-[#7A5720] bg-[#F7F0E3]",
+      tone: "bg-[#F4E9D0] text-[#8A641A]",
     },
     {
       label: "Available",
       value: metrics.available,
       detail: metricPercentage(metrics.available, metrics.total),
       icon: Check,
-      tone: "text-emerald-700 bg-emerald-50",
+      tone: "bg-emerald-50 text-emerald-700",
     },
     {
       label: "Occupied",
       value: metrics.occupied,
       detail: metricPercentage(metrics.occupied, metrics.total),
       icon: UserRound,
-      tone: "text-blue-700 bg-blue-50",
+      tone: "bg-blue-50 text-blue-700",
     },
     {
       label: "Dirty",
       value: metrics.dirty,
       detail: metricPercentage(metrics.dirty, metrics.total),
       icon: BrushCleaning,
-      tone: "text-amber-700 bg-amber-50",
+      tone: "bg-amber-50 text-amber-700",
     },
     {
       label: "OOO",
       value: metrics.ooo,
       detail: metricPercentage(metrics.ooo, metrics.total),
       icon: Ban,
-      tone: "text-red-700 bg-red-50",
+      tone: "bg-red-50 text-red-700",
     },
     {
       label: "Blocked",
       value: metrics.blocked,
       detail: metricPercentage(metrics.blocked, metrics.total),
       icon: LockKeyhole,
-      tone: "text-violet-700 bg-violet-50",
+      tone: "bg-violet-50 text-violet-700",
     },
   ];
   return (
-    <section className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+    <section
+      className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
+      aria-label="Room inventory KPIs"
+      data-testid="room-board-kpis"
+    >
       {cards.map((card) => (
         <div
           key={card.label}
-          className="flex items-center gap-3 rounded-xl border border-[#E8E1D7] bg-white px-3.5 py-3 shadow-xs"
+          className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 shadow-sm"
         >
-          <span
-            className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${card.tone}`}
-          >
-            <card.icon className="size-4.5" />
+          <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", card.tone)}>
+            <card.icon className="size-4" />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-xs font-medium text-[#756A5B]">{card.label}</p>
-            <p className="text-2xl font-bold leading-tight text-[#251605]">{card.value}</p>
-            <p className="truncate text-xs text-[#8C8071]">{card.detail}</p>
+            <p className="truncate text-[10px] font-medium text-[#756A5B]">{card.label}</p>
+            <p className="font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
+              {card.value.toLocaleString()}
+            </p>
           </div>
         </div>
       ))}
     </section>
   );
+}
+
+export function RoomBoardKpiStrip({ restaurantId }: { restaurantId: string }) {
+  const fetchDashboard = useServerFn(getRoomsDashboard);
+  const fetchRooms = useServerFn(listRooms);
+  const fetchOccupancy = useServerFn(listRoomBoardOccupancy);
+  const fetchBlocks = useServerFn(listRoomBoardBlocks);
+  const dashboardQuery = useQuery({
+    queryKey: ["rooms-dashboard", restaurantId],
+    queryFn: () => fetchDashboard({ data: { restaurantId } }),
+  });
+  const roomsQuery = useQuery({
+    queryKey: ["room-board-rooms", restaurantId],
+    queryFn: () => fetchRooms({ data: { restaurantId, includeInactive: true } }),
+  });
+  const occupancyQuery = useQuery({
+    queryKey: ["room-board-occupancy", restaurantId],
+    queryFn: () => fetchOccupancy({ data: { restaurantId } }),
+  });
+  const blocksQuery = useQuery({
+    queryKey: ["room-board-blocks", restaurantId],
+    queryFn: () => fetchBlocks({ data: { restaurantId } }),
+    retry: false,
+  });
+  const occupancyByRoom = useMemo(
+    () => new Map((occupancyQuery.data?.rows ?? []).map((row) => [row.roomId, row])),
+    [occupancyQuery.data?.rows],
+  );
+  const blockByRoom = useMemo(
+    () => new Map((blocksQuery.data?.rows ?? []).map((row) => [row.roomId, row])),
+    [blocksQuery.data?.rows],
+  );
+  const rooms = roomsQuery.data ?? [];
+  const metrics = useMemo(() => {
+    const states = rooms.map((room) =>
+      roomBoardPrimaryState(room, occupancyByRoom.get(room.id), blockByRoom.get(room.id)),
+    );
+    const total = dashboardQuery.data?.totalRooms ?? rooms.length;
+    return {
+      total,
+      available: states.filter((state) => state === "available").length,
+      occupied: states.filter((state) => state === "occupied" || state === "departing").length,
+      dirty: states.filter((state) => state === "dirty").length,
+      ooo: states.filter((state) => state === "out_of_order").length,
+      blocked: states.filter((state) => state === "blocked").length,
+    };
+  }, [blockByRoom, dashboardQuery.data?.totalRooms, occupancyByRoom, rooms]);
+  const loading = dashboardQuery.isLoading || roomsQuery.isLoading || occupancyQuery.isLoading;
+  if (loading) {
+    return (
+      <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6" aria-label="Room inventory KPIs">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <Skeleton key={index} className="h-[4.25rem] rounded-lg" />
+        ))}
+      </section>
+    );
+  }
+  return <KpiRow metrics={metrics} />;
 }
 
 type Location = { name: string; count: number; floors: Array<[string, number]> };
@@ -949,7 +1078,10 @@ function RoomCard({
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") onSelect();
       }}
-      className={`min-w-0 cursor-pointer rounded-xl border p-3 transition-all hover:shadow-xs ${selected ? selectedRoomClasses(state) : "border-[#E7E1D8] bg-white"}`}
+      className={cn(
+        "min-w-0 cursor-pointer rounded-lg border p-3 transition-colors hover:bg-[#FAF7EF]",
+        selected ? "border-[#C89933] bg-[#F4E9D0]/70" : "border-[#DDD4C5] bg-white",
+      )}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -1014,129 +1146,88 @@ function RoomList({
   rooms,
   occupancyByRoom,
   blockByRoom,
+  selectedRoomId,
   onSelect,
   onInspect,
-  page,
-  totalPages,
-  totalRooms,
-  onPage,
 }: {
   rooms: HotelRoom[];
   occupancyByRoom: Map<string, RoomBoardOccupancyRow>;
   blockByRoom: Map<string, RoomBoardBlockRow>;
+  selectedRoomId: string | null;
   onSelect: (room: HotelRoom) => void;
   onInspect: (room: HotelRoom) => void;
-  page: number;
-  totalPages: number;
-  totalRooms: number;
-  onPage: (page: number) => void;
 }) {
   return (
     <div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] text-left text-xs">
-          <thead className="border-b border-[#E5DED4] bg-[#F8F5F0] text-xs font-bold uppercase tracking-wider text-[#5C5346]">
+        <table className="w-full min-w-[900px] text-left text-xs" data-testid="room-board-table">
+          <thead className={ROOM_TABLE_HEAD}>
             <tr>
-              {[
-                "Room",
-                "Room Type",
-                "Occupancy",
-                "Housekeeping",
-                "Maintenance",
-                "Operational Status",
-                "Assignment",
-                "Actions",
-              ].map((heading) => (
-                <th key={heading} className="px-3.5 py-2.5 font-bold">
-                  {heading}
-                </th>
-              ))}
+              {["Room", "Room Type", "Building/Floor", "Operational Status", "Housekeeping", "Maintenance", "Actions"].map(
+                (heading) => (
+                  <th key={heading} className={ROOM_TABLE_TH}>
+                    {heading}
+                  </th>
+                ),
+              )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#EEE8E0] bg-white">
+          <tbody>
             {rooms.map((room) => {
               const occupancy = occupancyByRoom.get(room.id);
               const state = roomBoardPrimaryState(room, occupancy, blockByRoom.get(room.id));
+              const building = room.building?.trim() || "Unassigned";
+              const floor = room.floor?.trim() || "Unassigned";
               return (
-                <tr key={room.id} className="hover:bg-[#FAF8F5]/60 transition-colors">
-                  <td className="px-3.5 py-3">
-                    <button className="text-xs font-bold text-[#251605] hover:underline" onClick={() => onSelect(room)}>
-                      {room.roomNumber}
-                    </button>
-                    <p className="text-xs text-muted-foreground">
-                      {room.floor ? `Floor ${room.floor}` : (room.building ?? "—")}
-                    </p>
+                <tr
+                  key={room.id}
+                  onClick={() => onSelect(room)}
+                  className={cn(
+                    "cursor-pointer border-t border-border transition-colors hover:bg-[#FAF7EF]",
+                    room.id === selectedRoomId && "bg-[#F4E9D0]/70",
+                  )}
+                >
+                  <td className="px-2 py-2.5 font-semibold text-[#251605]">{room.roomNumber}</td>
+                  <td className="px-2 py-2.5 text-[#251605]">{room.roomTypeName || "—"}</td>
+                  <td className="px-2 py-2.5 text-[#7A6B58]">
+                    {building} / {floor}
                   </td>
-                  <td className="px-3.5 py-3">
-                    <span className="font-semibold text-[#251605]">{room.roomTypeName}</span>
-                    <p className="text-xs text-muted-foreground">{room.roomTypeCode}</p>
-                  </td>
-                  <td className="px-3.5 py-3 capitalize font-medium">{occupancy?.state ?? "Vacant"}</td>
-                  <td className="px-3.5 py-3 capitalize font-medium">{room.housekeepingStatus ?? "N/A"}</td>
-                  <td className="px-3.5 py-3 capitalize font-medium">
-                    {room.maintenanceStatus.replaceAll("_", " ")}
-                  </td>
-                  <td className="px-3.5 py-3">
+                  <td className="px-2 py-2.5">
                     <span
-                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${roomStateClasses(state)}`}
+                      className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${roomStateClasses(state)}`}
                     >
                       {ROOM_STATE_LABELS[state]}
                     </span>
                   </td>
-                  <td className="px-3.5 py-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-3 text-xs font-medium"
-                      onClick={() => onInspect(room)}
-                    >
-                      Inspect
-                    </Button>
+                  <td className="px-2 py-2.5 capitalize text-[#251605]">
+                    {room.housekeepingStatus?.replaceAll("_", " ") ?? "—"}
                   </td>
-                  <td className="px-3.5 py-3">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-3 text-xs font-medium"
-                      onClick={() => onSelect(room)}
-                    >
-                      Details
-                    </Button>
+                  <td className="px-2 py-2.5 capitalize text-[#251605]">
+                    {room.maintenanceStatus === "normal" ? "Clear" : room.maintenanceStatus.replaceAll("_", " ")}
+                  </td>
+                  <td className="px-2 py-2.5 text-right" onClick={(event) => event.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-7 text-[#7A6B58] hover:text-[#251605]"
+                          aria-label={`Actions for room ${room.roomNumber}`}
+                        >
+                          <MoreHorizontal className="size-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="text-xs">
+                        <DropdownMenuItem onSelect={() => onSelect(room)}>View details</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => onInspect(room)}>Inspect assignment</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-      </div>
-      <div className="flex items-center justify-between border-t border-[#E5DED4] px-4 py-3 bg-white">
-        <p className="text-xs text-muted-foreground">
-          Showing {totalRooms === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–
-          {Math.min(page * PAGE_SIZE, totalRooms)} of {totalRooms} rooms
-        </p>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 px-3 text-xs font-medium"
-            disabled={page <= 1}
-            onClick={() => onPage(page - 1)}
-          >
-            Previous
-          </Button>
-          <span className="text-xs font-medium text-muted-foreground">
-            Page {page} of {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 px-3 text-xs font-medium"
-            disabled={page >= totalPages}
-            onClick={() => onPage(page + 1)}
-          >
-            Next
-          </Button>
-        </div>
       </div>
     </div>
   );
@@ -1155,15 +1246,5 @@ function NoRoomSelected() {
 }
 
 function RoomBoardSkeleton() {
-  return (
-    <div className="space-y-3">
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <div key={index} className="h-20 animate-pulse rounded-xl border border-border bg-card" />
-        ))}
-      </div>
-      <div className="h-20 animate-pulse rounded-xl border border-border bg-card" />
-      <div className="h-[580px] animate-pulse rounded-xl border border-border bg-card" />
-    </div>
-  );
+  return <div className="h-[32rem] animate-pulse rounded-lg border border-[#DDD4C5] bg-white" />;
 }

@@ -1,9 +1,18 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
+import {
+  FilterGroup,
+  FilterOption,
+  MoreFiltersMenu,
+} from "@/packages/pms/components/more-filters-menu";
 import { CreateGroupWizard } from "@/packages/pms/components/reservations/create-group-wizard";
+import {
+  ReservationShellSlot,
+  SHELL_PRIMARY_BUTTON,
+} from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { GroupDetailWorkspace } from "@/packages/pms/components/reservations/group-detail-workspace";
 import { GROUP_STATUSES } from "@/packages/pms/lib/groups";
 import {
@@ -17,12 +26,12 @@ import {
 } from "@/packages/pms/lib/groups.functions";
 import { listRoomTypes } from "@/packages/pms/lib/rooms.functions";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 
 export function GroupsWorkspace({
   restaurantId,
+  search = "",
   canWrite,
   canCreateReservation = false,
   createStayActive = false,
@@ -30,6 +39,8 @@ export function GroupsWorkspace({
   onOpenReservation,
 }: {
   restaurantId: string;
+  /** Name, confirmation, code or reference, from the shared Reservations search. */
+  search?: string;
   canWrite: boolean;
   canCreateReservation?: boolean;
   createStayActive?: boolean;
@@ -46,8 +57,9 @@ export function GroupsWorkspace({
   const submitRooming = useServerFn(addRoomingRow);
   const submitConvert = useServerFn(convertRoomingRow);
 
-  const [search, setSearch] = useState("");
   const [status, setStatus] = useState<(typeof GROUP_STATUSES)[number] | "all">("all");
+  const [statusDraft, setStatusDraft] = useState<(typeof GROUP_STATUSES)[number] | "all">("all");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
 
@@ -88,45 +100,80 @@ export function GroupsWorkspace({
   }
 
   return (
-    <div className="space-y-4" data-testid="groups-blocks-workspace">
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="grid min-w-52 flex-1 gap-1 text-[11px] font-medium text-muted-foreground">
-            Search groups
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Name, confirmation, code or reference"
-              aria-label="Search groups"
+    <div className="space-y-3" data-testid="groups-blocks-workspace">
+      <ReservationShellSlot name="filter">
+        <MoreFiltersMenu
+          iconOnly
+          open={filterOpen}
+          onOpenChange={(open) => {
+            setFilterOpen(open);
+            if (open) setStatusDraft(status);
+          }}
+          activeCount={status !== "all" ? 1 : 0}
+          title="Filter groups"
+          onApply={() => {
+            setStatus(statusDraft);
+            setFilterOpen(false);
+          }}
+          onClear={() => {
+            setStatus("all");
+            setFilterOpen(false);
+          }}
+        >
+          <FilterGroup
+            id="status"
+            title="Status"
+            count={statusDraft !== "all" ? 1 : 0}
+            open
+            onToggle={() => {}}
+          >
+            <FilterOption
+              type="radio"
+              name="groups-filter-status"
+              label="All statuses"
+              checked={statusDraft === "all"}
+              onChange={() => setStatusDraft("all")}
             />
-          </label>
-          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-            Status
-            <select
-              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-              value={status}
-              onChange={(event) => setStatus(event.target.value as typeof status)}
+            {GROUP_STATUSES.map((value) => (
+              <FilterOption
+                key={value}
+                type="radio"
+                name="groups-filter-status"
+                label={value.replaceAll("_", " ")}
+                checked={statusDraft === value}
+                onChange={() => setStatusDraft(value)}
+              />
+            ))}
+          </FilterGroup>
+        </MoreFiltersMenu>
+      </ReservationShellSlot>
+      {canWrite ? (
+        <ReservationShellSlot name="primary">
+          <Button
+            className={SHELL_PRIMARY_BUTTON}
+            data-testid="groups-new-group"
+            onClick={() => setNewOpen(true)}
+          >
+            <Plus className="size-4" />
+            New Group
+          </Button>
+        </ReservationShellSlot>
+      ) : null}
+      {status !== "all" ? (
+        <ul className="flex flex-wrap gap-2" data-testid="groups-filter-chips">
+          <li>
+            <button
+              type="button"
+              aria-label={`Remove filter ${status.replaceAll("_", " ")}`}
+              className="inline-flex items-center gap-1 rounded-full border border-[#DDD4C5] bg-white px-2.5 py-1 text-xs capitalize text-[#251605]"
+              onClick={() => setStatus("all")}
             >
-              <option value="all">All statuses</option>
-              {GROUP_STATUSES.map((value) => (
-                <option key={value} value={value}>
-                  {value.replaceAll("_", " ")}
-                </option>
-              ))}
-            </select>
-          </label>
-          {canWrite ? (
-            <Button
-              className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-              data-testid="groups-new-group"
-              onClick={() => setNewOpen(true)}
-            >
-              <Plus className="size-4" />
-              New Group
-            </Button>
-          ) : null}
-        </div>
-      </section>
+              {status.replaceAll("_", " ")}
+              <X className="size-3" />
+            </button>
+          </li>
+        </ul>
+      ) : null}
       {canWrite ? (
         <CreateGroupWizard
           restaurantId={restaurantId}

@@ -32,7 +32,15 @@ import {
   type HotelRoom,
   type RoomType,
 } from "@/packages/pms/lib/rooms.functions";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import {
+  ROOM_SHELL_ICON_BUTTON,
+  RoomShellRefreshButton,
+  RoomShellSlot,
+  RoomSummaryChips,
+} from "./room-inventory-shell";
 import {
   Sheet,
   SheetContent,
@@ -362,6 +370,135 @@ export function RoomInventoryAvailabilityView({
     onOpenBlocks,
   } satisfies AvailabilityDetailPanelProps;
 
+  const filterCount =
+    (building !== "all" ? 1 : 0) +
+    (roomTypeFilter !== "all" ? 1 : 0) +
+    (operational !== "all" ? 1 : 0) +
+    (floor !== "all" ? 1 : 0);
+  const dateControls = arrival && departure ? (
+    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={ROOM_SHELL_ICON_BUTTON}
+        aria-label="Previous period"
+        onClick={() => moveRange(-1)}
+      >
+        <ChevronLeft className="size-4" />
+      </Button>
+      <div className="flex h-9 min-w-0 items-center rounded-md border border-[#DDD4C5] bg-white px-2">
+        <Input
+          type="date"
+          value={arrival}
+          onChange={(event) => {
+            const value = event.target.value;
+            setArrival(value);
+            if (departure <= value) setDeparture(addDays(value, 7));
+            setSelectedDate(value);
+          }}
+          className="h-8 w-[8.5rem] border-0 bg-transparent px-1 text-xs shadow-none"
+          aria-label="Arrival"
+        />
+        <span className="text-[#756A5B]">–</span>
+        <Input
+          type="date"
+          min={addDays(arrival, 1)}
+          value={departure}
+          onChange={(event) => setDeparture(event.target.value)}
+          className="h-8 w-[8.5rem] border-0 bg-transparent px-1 text-xs shadow-none"
+          aria-label="Departure"
+        />
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={ROOM_SHELL_ICON_BUTTON}
+        aria-label="Next period"
+        onClick={() => moveRange(1)}
+      >
+        <ChevronRight className="size-4" />
+      </Button>
+      {[7, 14, 30].map((days) => (
+        <Button
+          key={days}
+          type="button"
+          size="sm"
+          variant={dateSpan(arrival, departure) === days ? "default" : "outline"}
+          className={
+            dateSpan(arrival, departure) === days
+              ? "h-9 bg-[#C89933] px-2.5 text-xs font-semibold text-[#251605] hover:bg-[#B98B2D]"
+              : "h-9 border-[#DDD4C5] px-2.5 text-xs"
+          }
+          onClick={() => setRange(days)}
+        >
+          {days}d
+        </Button>
+      ))}
+    </div>
+  ) : null;
+  const filterMenu = (
+    <PmsFilterMenu
+      activeCount={filterCount}
+      onClear={clearFilters}
+      buttonTestId="availability-filters-button"
+      menuTestId="availability-filters-menu"
+    >
+      <PmsFilterChoiceRow
+        label="Building"
+        value={building}
+        current={building === "all" ? "" : building}
+        options={[["all", "All Buildings"], ...buildings.map((value) => [value, value] as const)]}
+        onChange={(value) => {
+          setBuilding(value);
+          setFloor("all");
+        }}
+      />
+      <PmsFilterChoiceRow
+        label="Room Type"
+        value={roomTypeFilter}
+        current={
+          (availabilityQuery.data ?? []).find((row) => row.roomTypeId === roomTypeFilter)?.name ?? ""
+        }
+        options={[
+          ["all", "All Room Types"],
+          ...(availabilityQuery.data ?? []).map((row) => [row.roomTypeId, row.name] as const),
+        ]}
+        onChange={setRoomTypeFilter}
+      />
+      <PmsFilterChoiceRow
+        label="Channel"
+        value="all"
+        current=""
+        options={[["all", "All Channels"]]}
+        onChange={() => undefined}
+      />
+      <PmsFilterChoiceRow
+        label="Operational Status"
+        value={operational}
+        current={
+          operational === "available"
+            ? "Available"
+            : operational === "low"
+              ? "Low Inventory"
+              : operational === "sold_out"
+                ? "Sold Out"
+                : operational === "blocked"
+                  ? "Blocked"
+                  : ""
+        }
+        options={[
+          ["all", "All Statuses"],
+          ["available", "Available"],
+          ["low", "Low Inventory"],
+          ["sold_out", "Sold Out"],
+          ["blocked", "Blocked"],
+        ]}
+        onChange={(value) => setOperational(value as OperationalFilter)}
+      />
+    </PmsFilterMenu>
+  );
   const loading =
     businessDateQuery.isLoading ||
     availabilityQuery.isLoading ||
@@ -375,105 +512,28 @@ export function RoomInventoryAvailabilityView({
   }
 
   return (
-    <div className="-mx-3 -mt-2 lg:-mx-5">
-      {/* lg:grid-cols-[minmax(0,1fr)_360px] */}
-      <div className="w-full">
-        <main className="w-full min-w-0 bg-[#FAF8F5] px-3 py-3 lg:px-5 space-y-4">
-          <AvailabilityKpis
-            physicalCapacity={tonightCapacity}
-            availableTonight={tonightAvailable}
-            occupiedTonight={occupiedTonight}
-            blockedInventory={tonightBlocked}
-          />
-
-          <AvailabilityFilters
-            building={building}
-            buildings={buildings}
-            roomType={roomTypeFilter}
-            roomTypes={availabilityQuery.data ?? []}
-            arrival={arrival}
-            departure={departure}
-            operational={operational}
-            floor={floor}
-            floors={floors}
-            advancedOpen={advancedOpen}
-            onBuilding={(value) => {
-              setBuilding(value);
-              setFloor("all");
-            }}
-            onRoomType={setRoomTypeFilter}
-            onArrival={(value) => {
-              setArrival(value);
-              if (departure <= value) setDeparture(addDays(value, 7));
-              setSelectedDate(value);
-            }}
-            onDeparture={setDeparture}
-            onOperational={(value) => setOperational(value as OperationalFilter)}
-            onFloor={setFloor}
-            onClear={clearFilters}
-            onAdvanced={() => setAdvancedOpen((current) => !current)}
-          />
-
-          <section className="overflow-hidden rounded-lg border border-[#E5DED4] bg-white shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5DED4] px-4 py-3">
-              <div>
-                <h2 className="text-base font-bold" style={{ color: INK }}>
-                  Availability Matrix
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  Canonical nightly inventory · {dateLabel(arrival)} –{" "}
-                  {dateLabel(addDays(departure, -1))}
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {[7, 14, 30].map((days) => (
-                  <Button
-                    key={days}
-                    size="sm"
-                    variant={dateSpan(arrival, departure) === days ? "default" : "ghost"}
-                    className={
-                      dateSpan(arrival, departure) === days
-                        ? "h-8 bg-[#B88423] px-3.5 text-xs font-semibold text-white hover:bg-[#9F711A]"
-                        : "h-8 px-3.5 text-xs font-medium text-[#4A3E31]"
-                    }
-                    onClick={() => setRange(days)}
-                  >
-                    {days} days
-                  </Button>
-                ))}
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="ml-2 size-8"
-                  aria-label="Previous period"
-                  onClick={() => moveRange(-1)}
-                >
-                  <ChevronLeft className="size-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="size-8"
-                  aria-label="Next period"
-                  onClick={() => moveRange(1)}
-                >
-                  <ChevronRight className="size-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="ml-1 size-8"
-                  aria-label="Refresh availability"
-                  onClick={() => {
-                    void availabilityQuery.refetch();
-                    void tonightQuery.refetch();
-                  }}
-                >
-                  <RefreshCw className="size-4" />
-                </Button>
-              </div>
-            </div>
-
+    <div className="space-y-3">
+      <RoomShellSlot name="controls">{dateControls}</RoomShellSlot>
+      <RoomShellSlot name="filter">{filterMenu}</RoomShellSlot>
+      <RoomShellSlot name="actions">
+        <RoomShellRefreshButton
+          spinning={availabilityQuery.isFetching || tonightQuery.isFetching}
+          onClick={() => {
+            void availabilityQuery.refetch();
+            void tonightQuery.refetch();
+          }}
+          testId="availability-refresh"
+        />
+      </RoomShellSlot>
+      <RoomSummaryChips
+        items={[
+          { label: "Physical", value: tonightCapacity, tone: "neutral" },
+          { label: "Available tonight", value: tonightAvailable, tone: "success" },
+          { label: "Occupied tonight", value: occupiedTonight, tone: "info" },
+          { label: "Blocked", value: tonightBlocked, tone: "danger" },
+        ]}
+      />
+      <section className="overflow-hidden rounded-lg border border-[#DDD4C5] bg-white shadow-sm">
             {loading ? (
               <InventoryState state="loading" />
             ) : availabilityQuery.isError ? (
@@ -499,9 +559,7 @@ export function RoomInventoryAvailabilityView({
                 onSelect={selectCell}
               />
             )}
-          </section>
-        </main>
-      </div>
+      </section>
 
       <Sheet open={mobileDetailsOpen} onOpenChange={setMobileDetailsOpen}>
         <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg md:max-w-xl">

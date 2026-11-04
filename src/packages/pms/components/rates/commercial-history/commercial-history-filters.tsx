@@ -48,40 +48,7 @@ export function CommercialHistoryFilters({
   return (
     <div className="space-y-2 rounded-xl border border-[#E8E1D7] bg-card px-3.5 py-3">
       <div className="flex flex-wrap items-end gap-2.5">
-        {fromDate !== undefined && onFromDateChange ? (
-          <div className="min-w-36">
-            <label
-              htmlFor="commercial-history-from"
-              className="text-xs font-medium text-muted-foreground"
-            >
-              From
-            </label>
-            <input
-              id="commercial-history-from"
-              type="date"
-              value={fromDate}
-              onChange={(event) => onFromDateChange(event.target.value)}
-              className="mt-1 flex h-9 w-full rounded-md border border-[#DED7CD] bg-white px-2.5 text-sm text-[#251605]"
-            />
-          </div>
-        ) : null}
-        {toDate !== undefined && onToDateChange ? (
-          <div className="min-w-36">
-            <label
-              htmlFor="commercial-history-to"
-              className="text-xs font-medium text-muted-foreground"
-            >
-              To
-            </label>
-            <input
-              id="commercial-history-to"
-              type="date"
-              value={toDate}
-              onChange={(event) => onToDateChange(event.target.value)}
-              className="mt-1 flex h-9 w-full rounded-md border border-[#DED7CD] bg-white px-2.5 text-sm text-[#251605]"
-            />
-          </div>
-        ) : null}
+        {null}
         <div className="min-w-40">
           <label
             htmlFor="commercial-history-entity"

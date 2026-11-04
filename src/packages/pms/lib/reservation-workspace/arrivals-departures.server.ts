@@ -9,6 +9,7 @@ import {
   type FrontOfficeStay,
 } from "../frontoffice.functions";
 import { loadCard2HousekeepingSnapshot } from "../housekeeping-card2.functions";
+import { assertDateOnly, requireReservationManager } from "../reservations.server";
 import {
   dailyControlTotals,
   mapArrivalRow,

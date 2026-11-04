@@ -7,7 +7,6 @@ import {
   BedDouble,
   CalendarDays,
   ClipboardList,
-  RefreshCw,
   SlidersHorizontal,
   TriangleAlert,
   Users,
@@ -26,6 +25,11 @@ import {
   NoShowDialog,
   StayDatesDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
+import {
+  ReservationShellSlot,
+  SHELL_ICON_BUTTON,
+  ShellCountBadge,
+} from "@/packages/pms/components/reservations/reservation-shell-slots";
 import {
   BulkExpectedArrivalDialog,
   ExpectedArrivalDialog,
@@ -208,12 +212,15 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
 
 export function ArrivalsDeparturesWorkspace({
   restaurantId,
+  search = "",
   timezone,
   currencyCode,
   canManage,
   onOpenReservation,
 }: {
   restaurantId: string;
+  /** Guest, confirmation or room, from the shared Reservations search. Runs on loaded rows. */
+  search?: string;
   timezone: string;
   currencyCode: string;
   canManage: boolean;
@@ -280,10 +287,29 @@ export function ArrivalsDeparturesWorkspace({
     if (!date && snapshot?.businessDate) setDate(snapshot.businessDate);
   }, [date, snapshot?.businessDate]);
 
-  const arrivals = snapshot?.arrivals ?? [];
-  const departures = snapshot?.departures ?? [];
+  const searchTerm = search.trim().toLowerCase();
+  const arrivals = useMemo(() => {
+    const rows = snapshot?.arrivals ?? [];
+    if (!searchTerm) return rows;
+    return rows.filter((row) =>
+      [row.guest.name, row.confirmationNumber, row.room.roomNumber, row.room.roomTypeName].some(
+        (field) => field?.toLowerCase().includes(searchTerm),
+      ),
+    );
+  }, [snapshot?.arrivals, searchTerm]);
+  const departures = useMemo(() => {
+    const rows = snapshot?.departures ?? [];
+    if (!searchTerm) return rows;
+    return rows.filter((row) =>
+      [row.guest.name, row.confirmationNumber, row.room.roomNumber, row.room.roomTypeName].some(
+        (field) => field?.toLowerCase().includes(searchTerm),
+      ),
+    );
+  }, [snapshot?.departures, searchTerm]);
   const selectedArrival = arrivals.find((row) => row.reservationId === selectedId) ?? null;
   const selectedDeparture = departures.find((row) => row.reservationId === selectedId) ?? null;
+  const quickViewOpen =
+    selectedId !== null && (mode === "arrivals" ? selectedArrival : selectedDeparture) !== null;
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["pms-arrivals-departures", restaurantId] });
@@ -418,8 +444,7 @@ export function ArrivalsDeparturesWorkspace({
 
   return (
     <div className="space-y-3" data-testid="arrivals-departures-workspace">
-      {/* Toolbar */}
-      <section className="space-y-3 rounded-2xl border border-[#e9dfd0] bg-white p-3 shadow-sm">
+      <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">
           <div
             className="flex items-center rounded-full bg-[#f1ede6] p-1"
@@ -443,36 +468,30 @@ export function ArrivalsDeparturesWorkspace({
           </div>
 
           {shownDate ? (
-            <div className="min-w-0">
-              <p className="truncate font-display text-lg font-semibold leading-tight text-[#4a2c1a]">
-                {formatStayDate(shownDate)}
-              </p>
-              {snapshot ? (
-                <p className="text-[11px] text-[#7A6B58]">
-                  Business date {formatStayDate(snapshot.businessDate)}
-                  {snapshotQuery.isFetching ? " · Updating…" : ""}
-                </p>
-              ) : null}
-            </div>
+            <p className="min-w-0 truncate text-xs text-[#7A6B58]">
+              <span className="font-semibold text-[#4a2c1a]">{formatStayDate(shownDate)}</span>
+              {snapshot && snapshot.businessDate !== shownDate
+                ? ` · Business date ${formatStayDate(snapshot.businessDate)}`
+                : ""}
+              {snapshotQuery.isFetching ? " · Updating…" : ""}
+            </p>
           ) : null}
 
-          <div className="ml-auto flex items-center gap-2">
+          <ReservationShellSlot name="filter">
             {/* One Filter menu for everything */}
             <Popover open={filterOpen} onOpenChange={setFilterOpen}>
               <PopoverTrigger asChild>
                 <Button
                   type="button"
                   variant="outline"
-                  className={cn(PILL_BUTTON, "gap-2 px-4")}
+                  size="icon"
+                  className={SHELL_ICON_BUTTON}
+                  aria-label={`Filter ${mode}`}
+                  title={`Filter ${mode}`}
                   data-testid="arrivals-departures-filter-button"
                 >
-                  <SlidersHorizontal className="size-4 text-[#c9a24a]" />
-                  More filters
-                  {activeFilterCount > 0 ? (
-                    <span className="rounded-full bg-[#c9a24a] px-2 text-[11px] font-extrabold text-[#2b1a10]">
-                      {activeFilterCount}
-                    </span>
-                  ) : null}
+                  <SlidersHorizontal className="size-4" />
+                  <ShellCountBadge count={activeFilterCount} />
                 </Button>
               </PopoverTrigger>
 
@@ -604,18 +623,7 @@ export function ArrivalsDeparturesWorkspace({
                 )}
               </PopoverContent>
             </Popover>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Refresh"
-              onClick={() => void snapshotQuery.refetch()}
-              disabled={snapshotQuery.isFetching}
-            >
-              <RefreshCw className={cn("size-4", snapshotQuery.isFetching && "animate-spin")} />
-            </Button>
-          </div>
+          </ReservationShellSlot>
         </div>
 
         {/* Active filter chips */}
@@ -664,27 +672,7 @@ export function ArrivalsDeparturesWorkspace({
             ) : null}
           </ul>
         ) : null}
-      </section>
-
-      {/* Summary */}
-      <section
-        className="grid grid-cols-2 gap-3 md:grid-cols-4"
-        aria-label="Daily arrival and departure summary"
-      >
-        {snapshotQuery.isLoading && !snapshot
-          ? Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={index} className="h-16 rounded-2xl" />
-            ))
-          : kpis.map((kpi) => (
-              <KpiCard
-                key={kpi.label}
-                label={kpi.label}
-                value={kpi.value}
-                icon={kpi.icon}
-                warn={kpi.warn}
-              />
-            ))}
-      </section>
+      </div>
 
       {mode === "arrivals" && selectedArrivalIds.length > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#e9dfd0] bg-[#f5ead0] px-4 py-2">
@@ -711,8 +699,13 @@ export function ArrivalsDeparturesWorkspace({
         </div>
       ) : null}
 
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <section className="min-w-0 overflow-hidden rounded-2xl border border-[#e9dfd0] bg-white shadow-sm">
+      <div
+        className={cn(
+          "grid min-w-0 gap-3",
+          quickViewOpen && "xl:grid-cols-[minmax(0,1fr)_300px]",
+        )}
+      >
+        <section className="min-w-0 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
           {snapshotQuery.isError ? (
             <div className="space-y-2 p-4">
               <p className="text-sm text-destructive">
@@ -773,9 +766,21 @@ export function ArrivalsDeparturesWorkspace({
           )}
         </section>
 
-        <aside className="hidden min-w-0 xl:block">
-          {mode === "arrivals" ? quickViewArrival : quickViewDeparture}
-        </aside>
+        {quickViewOpen ? (
+          <aside className="relative hidden min-w-0 xl:block">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-2 top-2 z-10 size-7"
+              aria-label="Close quick view"
+              onClick={() => setSelectedId(null)}
+            >
+              <X className="size-4" />
+            </Button>
+            {mode === "arrivals" ? quickViewArrival : quickViewDeparture}
+          </aside>
+        ) : null}
       </div>
 
       <Sheet open={!desktop && mobileOpen && selectedId !== null} onOpenChange={setMobileOpen}>

@@ -69,6 +69,23 @@ import {
 import type { HousekeepingScope } from "@/core/lib/module-access";
 import { occupancyCaption, hkAreaPath, hkRoomQuickViewPath, HK_FIELD_ACTION_CLASS } from "@/packages/pms/lib/housekeeping-shell";
 import { HkDesktopOnly, HkFieldActions, HkFieldCard, HkFieldStack } from "./housekeeping-field";
+import { PmsFilterChoiceRow, PmsFilterMenu, PmsFilterNoteRow } from "@/packages/pms/components/pms-filter-menu";
+import {
+  HkBusinessDate,
+  HkShellExportButton,
+  HkShellSlot,
+  HkToolbarSearch,
+  HkViewSwitcher,
+  downloadCsv,
+  HK_SHELL_PRIMARY_BUTTON,
+} from "@/packages/pms/components/housekeeping/housekeeping-shell-slots";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_ROW,
+  ROOM_TABLE_TD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+} from "@/packages/pms/components/rooms/room-inventory-shell";
 import {
   formatHousekeepingHistoryDetail,
   HK_HISTORY_FILTER_GROUP_LABELS,
@@ -531,6 +548,7 @@ export function NewTaskDialog({
 export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: CleaningProps) {
   const fetchTasks = useServerFn(listHousekeepingTasks);
   const fetchStaff = useServerFn(listHousekeepingStaff);
+  const fetchRack = useServerFn(listRoomRack);
   const assignFn = useServerFn(updateHousekeepingTask);
   const completeFn = useServerFn(completeHousekeepingTask);
   const invalidate = useInvalidateHousekeeping(restaurantId);
@@ -543,10 +561,17 @@ export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: C
     queryKey: ["hk-staff", restaurantId],
     queryFn: () => fetchStaff({ data: { restaurantId } }),
   });
+  const rack = useQuery({
+    queryKey: ["hk-rack", restaurantId, today],
+    queryFn: () => fetchRack({ data: { restaurantId, today } }),
+  });
 
   const [assignTask, setAssignTask] = useState<string | null>(null);
   const [assignee, setAssignee] = useState("");
   const [assignNotes, setAssignNotes] = useState("");
+  const [query, setQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"board" | "table">("board");
+  const [createTaskOpen, setCreateTaskOpen] = useState(false);
 
   const isSupervisor = scope === "supervisor";
   const own = (assignedId: string | null) => assignedId === membershipId;
@@ -584,8 +609,14 @@ export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: C
     onError: (e) => toast.error(errText(e)),
   });
 
-  const all = tasks.data ?? [];
+  const loaded = tasks.data ?? [];
   const todayStr = today;
+  const queryText = query.trim().toLowerCase();
+  const all = loaded.filter((t) => {
+    if (!queryText) return true;
+    const hay = `${t.roomNumber} ${t.roomTypeName} ${t.taskType} ${t.status} ${t.assignedName ?? ""} ${t.notes ?? ""}`.toLowerCase();
+    return hay.includes(queryText);
+  });
   const fieldWork = all.filter(
     (t) => t.status === "pending" || t.status === "assigned" || t.status === "in_progress",
   );
@@ -644,12 +675,34 @@ export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: C
   }
 
   return (
-    <div className="space-y-4" data-testid="hk-cleaning-board">
-      <p className="text-sm text-muted-foreground">
-        {isSupervisor
-          ? "Assign, start, and complete cleaning on the open task. Completing always uses the housekeeping complete RPC."
-          : "Your assignments only. Start and complete rooms assigned to you."}
-      </p>
+    <div className="space-y-3" data-testid="hk-cleaning-board">
+      <HkShellSlot name="date">
+        <HkBusinessDate today={today} />
+      </HkShellSlot>
+      <HkShellSlot name="search">
+        <HkToolbarSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search room, task, attendant, or note…"
+          testId="hk-cleaning-search"
+        />
+      </HkShellSlot>
+      <HkShellSlot name="view">
+        <HkViewSwitcher value={viewMode} onChange={setViewMode} testId="hk-cleaning-view-switcher" />
+      </HkShellSlot>
+      {isSupervisor ? (
+        <HkShellSlot name="cta">
+          <Button
+            className={HK_SHELL_PRIMARY_BUTTON}
+            onClick={() => setCreateTaskOpen(true)}
+            disabled={!(rack.data ?? []).length}
+            data-testid="hk-cleaning-create-task"
+          >
+            Create Task
+          </Button>
+        </HkShellSlot>
+      ) : null}
+      {viewMode === "board" ? (
       <HkFieldStack testId="hk-cleaning-field-worklist">
         {tasks.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading tasks…</p>
@@ -675,6 +728,8 @@ export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: C
           ))
         )}
       </HkFieldStack>
+      ) : null}
+      {viewMode === "board" ? (
       <div className="hidden gap-4 md:grid md:grid-cols-2 lg:grid-cols-4">
         {columns.map(([title, list]) => (
           <div key={title} className="space-y-3">
@@ -716,6 +771,65 @@ export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: C
           </div>
         ))}
       </div>
+      ) : (
+        <div className={ROOM_TABLE_WRAP} data-testid="hk-cleaning-table">
+          <table className="w-full min-w-[880px] text-sm">
+            <thead className={ROOM_TABLE_HEAD}>
+              <tr>
+                <th className={ROOM_TABLE_TH}>Room</th>
+                <th className={ROOM_TABLE_TH}>Type</th>
+                <th className={ROOM_TABLE_TH}>Task</th>
+                <th className={ROOM_TABLE_TH}>Status</th>
+                <th className={ROOM_TABLE_TH}>Priority</th>
+                <th className={ROOM_TABLE_TH}>Attendant</th>
+                <th className={ROOM_TABLE_TH}>Created</th>
+                <th className={ROOM_TABLE_TH}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.isLoading ? (
+                <tr>
+                  <td colSpan={8} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
+                    Loading tasks…
+                  </td>
+                </tr>
+              ) : all.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
+                    No open cleaning tasks.
+                  </td>
+                </tr>
+              ) : (
+                all.map((t) => (
+                  <tr key={t.id} className={ROOM_TABLE_ROW}>
+                    <td className={`${ROOM_TABLE_TD} font-medium`}>{t.roomNumber}</td>
+                    <td className={ROOM_TABLE_TD}>{t.roomTypeName}</td>
+                    <td className={ROOM_TABLE_TD}>{labelTaskType(t.taskType)}</td>
+                    <td className={ROOM_TABLE_TD}>
+                      <TaskStatusBadge status={t.status} />
+                    </td>
+                    <td className={ROOM_TABLE_TD}>
+                      <PriorityBadge priority={t.priority} />
+                    </td>
+                    <td className={ROOM_TABLE_TD}>{t.assignedName ?? "Unassigned"}</td>
+                    <td className={`${ROOM_TABLE_TD} text-muted-foreground`}>{formatWhen(t.createdAt)}</td>
+                    <td className={ROOM_TABLE_TD}>{taskActions(t, false)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <NewTaskDialog
+        restaurantId={restaurantId}
+        open={createTaskOpen}
+        lockedRoom={null}
+        rooms={rack.data ?? []}
+        onClose={() => setCreateTaskOpen(false)}
+        onDone={() => invalidate()}
+      />
 
       <Dialog open={assignTask !== null} onOpenChange={(open) => !open && setAssignTask(null)}>
         <DialogContent>
@@ -782,6 +896,7 @@ export function InspectionsTab({ restaurantId, today }: Props) {
 
   const [notes, setNotes] = useState("");
   const [target, setTarget] = useState<{ room: RackRoom; result: "passed" | "failed" } | null>(null);
+  const [query, setQuery] = useState("");
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -807,17 +922,32 @@ export function InspectionsTab({ restaurantId, today }: Props) {
     onError: (e) => toast.error(errText(e)),
   });
 
-  const awaiting = (rack.data ?? []).filter((r) => r.awaitingInspection);
-  const history = (inspections.data ?? []).filter((i) => i.status === "passed" || i.status === "failed");
+  const queryText = query.trim().toLowerCase();
+  const awaiting = (rack.data ?? []).filter((r) => {
+    if (!r.awaitingInspection) return false;
+    if (!queryText) return true;
+    return `${r.roomNumber} ${r.roomTypeName} ${r.guestName ?? ""}`.toLowerCase().includes(queryText);
+  });
+  const history = (inspections.data ?? []).filter((i) => {
+    if (i.status !== "passed" && i.status !== "failed") return false;
+    if (!queryText) return true;
+    return `${i.roomNumber} ${i.status} ${i.inspectorName ?? ""} ${i.notes ?? ""}`.toLowerCase().includes(queryText);
+  });
   const failNeedsNotes = target?.result === "failed" && notes.trim().length === 0;
 
   return (
     <div className="space-y-6" data-testid="hk-inspections">
-      <p className="text-sm text-muted-foreground">
-        Queue is rooms marked clean when inspection is required. Pass and fail use the existing inspection RPC.
-        Fail notes only — no itemized fail list. Inspected is not sellable inventory; Ready is the Front Office outcome
-        plus reason.
-      </p>
+      <HkShellSlot name="date">
+        <HkBusinessDate today={today} />
+      </HkShellSlot>
+      <HkShellSlot name="search">
+        <HkToolbarSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search room, inspector, or note…"
+          testId="hk-inspections-search"
+        />
+      </HkShellSlot>
       <section className="space-y-3">
         <h3 className="font-display text-lg">Awaiting inspection ({awaiting.length})</h3>
         {awaiting.length === 0 ? (
@@ -881,32 +1011,32 @@ export function InspectionsTab({ restaurantId, today }: Props) {
             ))
           )}
         </HkFieldStack>
-        <HkDesktopOnly className="overflow-x-auto rounded-2xl border border-border">
+        <HkDesktopOnly className={ROOM_TABLE_WRAP}>
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className={ROOM_TABLE_HEAD}>
               <tr>
-                <th className="p-3">Room</th>
-                <th className="p-3">Result</th>
-                <th className="p-3">Inspector</th>
-                <th className="p-3">Notes</th>
-                <th className="p-3">When</th>
+                <th className={ROOM_TABLE_TH}>Room</th>
+                <th className={ROOM_TABLE_TH}>Result</th>
+                <th className={ROOM_TABLE_TH}>Inspector</th>
+                <th className={ROOM_TABLE_TH}>Notes</th>
+                <th className={ROOM_TABLE_TH}>When</th>
               </tr>
             </thead>
             <tbody>
               {history.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-4 text-muted-foreground">
+                  <td colSpan={5} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
                     No inspections yet.
                   </td>
                 </tr>
               ) : (
                 history.map((i) => (
-                  <tr key={i.id} className="border-t border-border">
-                    <td className="p-3 font-medium">{i.roomNumber}</td>
-                    <td className="p-3 capitalize">{i.status}</td>
-                    <td className="p-3">{i.inspectorName ?? "—"}</td>
-                    <td className="p-3 text-muted-foreground">{i.notes ?? "—"}</td>
-                    <td className="p-3">{formatWhen(i.completedAt ?? i.createdAt)}</td>
+                  <tr key={i.id} className={ROOM_TABLE_ROW}>
+                    <td className={`${ROOM_TABLE_TD} font-medium`}>{i.roomNumber}</td>
+                    <td className={`${ROOM_TABLE_TD} capitalize`}>{i.status}</td>
+                    <td className={ROOM_TABLE_TD}>{i.inspectorName ?? "—"}</td>
+                    <td className={`${ROOM_TABLE_TD} text-muted-foreground`}>{i.notes ?? "—"}</td>
+                    <td className={ROOM_TABLE_TD}>{formatWhen(i.completedAt ?? i.createdAt)}</td>
                   </tr>
                 ))
               )}
@@ -1173,6 +1303,7 @@ export function ExceptionsTab({ restaurantId, today }: Props) {
 
   const [open, setOpen] = useState(false);
   const [kindFilter, setKindFilter] = useState<HkExceptionKind | "all">("all");
+  const [query, setQuery] = useState("");
   const [roomId, setRoomId] = useState("");
   const [reportedOcc, setReportedOcc] = useState("vacant");
   const [actualOcc, setActualOcc] = useState("occupied");
@@ -1208,10 +1339,12 @@ export function ExceptionsTab({ restaurantId, today }: Props) {
   });
 
   const rows = list.data ?? [];
-  const filtered = kindFilter === "all" ? rows : rows.filter((row) => row.kind === kindFilter);
-  const derivedCount = rows.filter((row) => row.source === "derived").length;
-  const persistedCount = rows.filter((row) => row.source === "persisted").length;
-  const highCount = rows.filter((row) => row.severity === "high").length;
+  const queryText = query.trim().toLowerCase();
+  const filtered = rows.filter((row) => {
+    if (kindFilter !== "all" && row.kind !== kindFilter) return false;
+    if (!queryText) return true;
+    return `${row.roomNumber} ${row.title} ${row.detail} ${row.source}`.toLowerCase().includes(queryText);
+  });
 
   function go(action: HkExceptionAction) {
     if (action === "resolve_discrepancy") return;
@@ -1221,42 +1354,43 @@ export function ExceptionsTab({ restaurantId, today }: Props) {
 
   return (
     <div className="space-y-4" data-testid="hk-exceptions-workspace">
-      <p className="text-sm text-muted-foreground">
-        Exceptions are derived from live Housekeeping, occupancy, inspection, and maintenance state.
-        Only occupancy discrepancies are stored. Do not disturb and refused service are not stored yet.
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {[
-          ["Derived", derivedCount, "Clear when the room state changes"],
-          ["Logged discrepancies", persistedCount, "Resolve with the discrepancy writer"],
-          ["High priority", highCount, "Arrival, inspection, maintenance, OOO"],
-        ].map(([label, value, hint]) => (
-          <div key={label} className="rounded-2xl border border-border bg-background px-3 py-3">
-            <p className="text-xs font-medium text-muted-foreground">{label}</p>
-            <p className="mt-1 font-display text-2xl font-semibold">{list.isLoading ? "—" : value}</p>
-            <p className="text-[11px] text-muted-foreground">{hint}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1">
-          <Button size="sm" variant={kindFilter === "all" ? "secondary" : "ghost"} onClick={() => setKindFilter("all")}>
-            All
-          </Button>
-          {(Object.keys(EXCEPTION_KIND_LABEL) as HkExceptionKind[]).map((kind) => (
-            <Button
-              key={kind}
-              size="sm"
-              variant={kindFilter === kind ? "secondary" : "ghost"}
-              onClick={() => setKindFilter(kind)}
-            >
-              {EXCEPTION_KIND_LABEL[kind]}
-            </Button>
-          ))}
-        </div>
-        <Button onClick={() => setOpen(true)}>Report discrepancy</Button>
-      </div>
+      <HkShellSlot name="date">
+        <HkBusinessDate today={today} />
+      </HkShellSlot>
+      <HkShellSlot name="search">
+        <HkToolbarSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search room, exception, or detail…"
+          testId="hk-exceptions-search"
+        />
+      </HkShellSlot>
+      <HkShellSlot name="filter">
+        <PmsFilterMenu
+          activeCount={kindFilter !== "all" ? 1 : 0}
+          onClear={() => setKindFilter("all")}
+          buttonTestId="hk-exceptions-filters-button"
+          menuTestId="hk-exceptions-filters-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Exception"
+            value={kindFilter}
+            current={kindFilter === "all" ? "" : EXCEPTION_KIND_LABEL[kindFilter]}
+            options={[
+              ["all", "All"],
+              ...(Object.keys(EXCEPTION_KIND_LABEL) as HkExceptionKind[]).map(
+                (kind) => [kind, EXCEPTION_KIND_LABEL[kind]] as const,
+              ),
+            ]}
+            onChange={(value) => setKindFilter(value as HkExceptionKind | "all")}
+          />
+        </PmsFilterMenu>
+      </HkShellSlot>
+      <HkShellSlot name="cta">
+        <Button className={HK_SHELL_PRIMARY_BUTTON} onClick={() => setOpen(true)}>
+          Report discrepancy
+        </Button>
+      </HkShellSlot>
 
       <HkFieldStack testId="hk-exceptions-field-worklist">
         {list.isLoading ? (
@@ -1288,38 +1422,38 @@ export function ExceptionsTab({ restaurantId, today }: Props) {
           ))
         )}
       </HkFieldStack>
-      <HkDesktopOnly className="overflow-x-auto rounded-2xl border border-border">
+      <HkDesktopOnly className={ROOM_TABLE_WRAP}>
         <table className="w-full min-w-[800px] text-sm">
-          <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <thead className={ROOM_TABLE_HEAD}>
             <tr>
-              <th className="p-3">Room</th>
-              <th className="p-3">Exception</th>
-              <th className="p-3">Detail</th>
-              <th className="p-3">Source</th>
-              <th className="p-3 text-right">Action</th>
+              <th className={ROOM_TABLE_TH}>Room</th>
+              <th className={ROOM_TABLE_TH}>Exception</th>
+              <th className={ROOM_TABLE_TH}>Detail</th>
+              <th className={ROOM_TABLE_TH}>Source</th>
+              <th className={`${ROOM_TABLE_TH} text-right`}>Action</th>
             </tr>
           </thead>
           <tbody>
             {list.isLoading ? (
               <tr>
-                <td colSpan={5} className="p-4 text-muted-foreground">
+                <td colSpan={5} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
                   Loading exceptions…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="p-4 text-muted-foreground">
+                <td colSpan={5} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
                   No housekeeping exceptions.
                 </td>
               </tr>
             ) : (
               filtered.map((row) => (
-                <tr key={row.key} className="border-t border-border">
-                  <td className="p-3 font-medium">{row.roomNumber}</td>
-                  <td className="p-3">{row.title}</td>
-                  <td className="p-3 text-muted-foreground">{row.detail}</td>
-                  <td className="p-3 capitalize">{row.source}</td>
-                  <td className="p-3 text-right">
+                <tr key={row.key} className={ROOM_TABLE_ROW}>
+                  <td className={`${ROOM_TABLE_TD} font-medium`}>{row.roomNumber}</td>
+                  <td className={ROOM_TABLE_TD}>{row.title}</td>
+                  <td className={`${ROOM_TABLE_TD} text-muted-foreground`}>{row.detail}</td>
+                  <td className={`${ROOM_TABLE_TD} capitalize`}>{row.source}</td>
+                  <td className={`${ROOM_TABLE_TD} text-right`}>
                     {row.action === "resolve_discrepancy" && row.discrepancyId ? (
                       <Button
                         size="sm"
@@ -1450,6 +1584,7 @@ export function MaintenanceTab({ restaurantId, today }: Props) {
 
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const [roomId, setRoomId] = useState("");
   const [category, setCategory] = useState("plumbing");
   const [priority, setPriority] = useState("normal");
@@ -1487,47 +1622,40 @@ export function MaintenanceTab({ restaurantId, today }: Props) {
     onError: (e) => toast.error(errText(e)),
   });
 
-  const rows = list.data ?? [];
-  const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
-  const openCount = rows.filter((row) => row.status === "open").length;
-  const highCount = rows.filter((row) => row.priority === "urgent" && row.status !== "resolved").length;
-  const progressCount = rows.filter((row) => row.status === "in_progress").length;
-  const resolvedToday = rows.filter(
-    (row) => row.status === "resolved" && (row.resolvedAt ?? "").slice(0, 10) === today,
-  ).length;
-  const oooCount = (rack.data ?? []).filter((r) => r.restriction === "out_of_order").length;
+  const loaded = list.data ?? [];
+  const queryText = query.trim().toLowerCase();
+  const rows = loaded.filter((row) => {
+    if (!queryText) return true;
+    return `${row.roomNumber} ${row.description} ${row.category} ${row.status} ${row.priority}`.toLowerCase().includes(queryText);
+  });
+  const selected = rows.find((row) => row.id === selectedId) ?? null;
   const roomForSelected = selected ? (rack.data ?? []).find((r) => r.id === selected.roomId) : undefined;
 
   return (
     <div className="space-y-4" data-testid="hk-maintenance-workspace">
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-        {[
-          ["Open work orders", openCount, "Requiring attention"],
-          ["High priority", highCount, "Urgent repairs"],
-          ["In progress", progressCount, "Being worked on"],
-          ["Completed today", resolvedToday, "Resolved today"],
-          ["Rooms out of order", oooCount, "Currently unavailable"],
-        ].map(([label, value, hint]) => (
-          <div key={label} className="rounded-2xl border border-border bg-background px-3 py-3">
-            <p className="text-xs font-medium text-muted-foreground">{label}</p>
-            <p className="mt-1 font-display text-2xl font-semibold">{list.isLoading ? "—" : value}</p>
-            <p className="text-[11px] text-muted-foreground">{hint}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex justify-end">
+      <HkShellSlot name="date">
+        <HkBusinessDate today={today} />
+      </HkShellSlot>
+      <HkShellSlot name="search">
+        <HkToolbarSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search room, issue, or status…"
+          testId="hk-maintenance-search"
+        />
+      </HkShellSlot>
+      <HkShellSlot name="cta">
         <Button
-          className={cn(HK_FIELD_ACTION_CLASS, "bg-[#C89933] text-[#251605] hover:bg-[#b8892c] sm:ml-auto")}
+          className={HK_SHELL_PRIMARY_BUTTON}
           onClick={() => {
             setRoomId("");
             setDescription("");
             setOpen(true);
           }}
         >
-          + Create Work Order
+          Create Work Order
         </Button>
-      </div>
+      </HkShellSlot>
 
       <HkFieldStack testId="hk-maintenance-field-worklist">
         {rows.length === 0 ? (
@@ -1567,23 +1695,23 @@ export function MaintenanceTab({ restaurantId, today }: Props) {
         )}
       </HkFieldStack>
 
-      <div className="hidden gap-4 md:grid xl:grid-cols-[minmax(0,1fr)_340px]">
-        <HkDesktopOnly className="overflow-x-auto rounded-2xl border border-border bg-background !block">
+      <div className={cn("hidden gap-4 md:grid", selected && "xl:grid-cols-[minmax(0,1fr)_340px]")}>
+        <HkDesktopOnly className={`${ROOM_TABLE_WRAP} !block`}>
           <table className="w-full min-w-[800px] text-sm">
-            <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className={ROOM_TABLE_HEAD}>
               <tr>
-                <th className="p-3">Room</th>
-                <th className="p-3">Issue</th>
-                <th className="p-3">Priority</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Created</th>
-                <th className="p-3">Maintenance</th>
+                <th className={ROOM_TABLE_TH}>Room</th>
+                <th className={ROOM_TABLE_TH}>Issue</th>
+                <th className={ROOM_TABLE_TH}>Priority</th>
+                <th className={ROOM_TABLE_TH}>Status</th>
+                <th className={ROOM_TABLE_TH}>Created</th>
+                <th className={ROOM_TABLE_TH}>Maintenance</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-4 text-muted-foreground">
+                  <td colSpan={6} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
                     No maintenance requests.
                   </td>
                 </tr>
@@ -1594,19 +1722,20 @@ export function MaintenanceTab({ restaurantId, today }: Props) {
                     <tr
                       key={m.id}
                       className={cn(
-                        "cursor-pointer border-t border-border",
-                        selected?.id === m.id && "bg-[#F7F4EE]",
+                        ROOM_TABLE_ROW,
+                        "cursor-pointer",
+                        selected?.id === m.id && "bg-[#F4E9D0]/70",
                       )}
                       onClick={() => setSelectedId(m.id)}
                     >
-                      <td className="p-3 font-medium">{m.roomNumber}</td>
-                      <td className="p-3 text-muted-foreground">{m.description}</td>
-                      <td className="p-3">
+                      <td className={`${ROOM_TABLE_TD} font-medium`}>{m.roomNumber}</td>
+                      <td className={`${ROOM_TABLE_TD} text-muted-foreground`}>{m.description}</td>
+                      <td className={ROOM_TABLE_TD}>
                         <PriorityBadge priority={m.priority} />
                       </td>
-                      <td className="p-3 capitalize">{m.status.replace("_", " ")}</td>
-                      <td className="p-3">{formatWhen(m.createdAt)}</td>
-                      <td className="p-3 capitalize">
+                      <td className={`${ROOM_TABLE_TD} capitalize`}>{m.status.replace("_", " ")}</td>
+                      <td className={ROOM_TABLE_TD}>{formatWhen(m.createdAt)}</td>
+                      <td className={`${ROOM_TABLE_TD} capitalize`}>
                         {(room?.maintenanceStatus ?? "normal").replaceAll("_", " ")}
                       </td>
                     </tr>
@@ -1617,12 +1746,21 @@ export function MaintenanceTab({ restaurantId, today }: Props) {
           </table>
         </HkDesktopOnly>
 
+        {selected ? (
         <aside className="rounded-2xl border border-border bg-background p-4">
-          {selected ? (
             <div className="space-y-3">
+              <div className="flex items-start justify-between gap-2">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {selected.id.slice(0, 8).toUpperCase()} · {selected.status.replace("_", " ")}
               </p>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setSelectedId(null)}
+                >
+                  Close
+                </button>
+              </div>
               <h3 className="font-display text-xl">{selected.description}</h3>
               <p className="text-sm text-muted-foreground">
                 Room {selected.roomNumber}
@@ -1685,10 +1823,8 @@ export function MaintenanceTab({ restaurantId, today }: Props) {
                 ) : null}
               </div>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Select a request to see details.</p>
-          )}
         </aside>
+        ) : null}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -1784,6 +1920,7 @@ export function HousekeepingHistoryTab({ restaurantId, today }: Props) {
   const [actorId, setActorId] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [query, setQuery] = useState("");
 
   const rack = useQuery({
     queryKey: ["hk-rack", restaurantId, today],
@@ -1819,76 +1956,124 @@ export function HousekeepingHistoryTab({ restaurantId, today }: Props) {
     .slice()
     .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true }))
     .map((room) => ({ value: room.id, label: room.roomNumber }));
+  const queryText = query.trim().toLowerCase();
+  const rows = (q.data ?? []).filter((h) => {
+    if (!queryText) return true;
+    return `${h.roomNumber ?? ""} ${h.eventType} ${h.actorName ?? ""} ${h.notes ?? ""}`.toLowerCase().includes(queryText);
+  });
+  const eventLabel =
+    eventFilter === "all"
+      ? ""
+      : HK_HISTORY_FILTER_GROUP_LABELS[eventFilter as keyof typeof HK_HISTORY_FILTER_GROUP_LABELS] ??
+        eventFilter.replace(/_/g, " ");
+  const actorLabel =
+    actorId === "all"
+      ? ""
+      : actorId === "system"
+        ? "System"
+        : (staff.data ?? []).find((person) => person.membershipId === actorId)?.name ?? "";
+  const roomLabel = roomId === "all" ? "" : roomOptions.find((room) => room.value === roomId)?.label ?? "";
+  const filterCount =
+    (roomId !== "all" ? 1 : 0) +
+    (eventFilter !== "all" ? 1 : 0) +
+    (actorId !== "all" ? 1 : 0) +
+    (dateFrom ? 1 : 0) +
+    (dateTo ? 1 : 0);
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-border bg-card p-3">
-        <div className="min-w-[10rem] space-y-1">
-          <Label className="text-xs text-muted-foreground">Room</Label>
-          <SearchableSelect
-            id="hk-history-room"
+      <HkShellSlot name="date">
+        <HkBusinessDate today={today} />
+      </HkShellSlot>
+      <HkShellSlot name="search">
+        <HkToolbarSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search room, event, actor, or detail…"
+          testId="hk-history-search"
+        />
+      </HkShellSlot>
+      <HkShellSlot name="filter">
+        <PmsFilterMenu
+          activeCount={filterCount}
+          onClear={() => {
+            setRoomId("all");
+            setEventFilter("all");
+            setActorId("all");
+            setDateFrom("");
+            setDateTo("");
+          }}
+          buttonTestId="hk-history-filters-button"
+          menuTestId="hk-history-filters-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Room"
             value={roomId}
-            options={[{ value: "all", label: "All rooms" }, ...roomOptions]}
-            placeholder="All rooms"
-            searchPlaceholder="Search room"
-            emptyText="No rooms match."
-            onChange={(value) => setRoomId(value || "all")}
+            current={roomLabel}
+            options={[["all", "All rooms"], ...roomOptions.map((room) => [room.value, room.label] as const)]}
+            onChange={setRoomId}
           />
-        </div>
-        <div className="min-w-[12rem] space-y-1">
-          <Label className="text-xs text-muted-foreground">Event type</Label>
-          <Select value={eventFilter} onValueChange={setEventFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="All events" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All events</SelectItem>
-              {HK_HISTORY_FILTER_GROUPS.map((group) => (
-                <SelectItem key={group} value={group}>
-                  {HK_HISTORY_FILTER_GROUP_LABELS[group]}
-                </SelectItem>
-              ))}
-              {HK_HISTORY_EVENT_TYPE_OPTIONS.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {type.replace(/_/g, " ")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="min-w-[12rem] space-y-1">
-          <Label className="text-xs text-muted-foreground">Actor</Label>
-          <Select value={actorId} onValueChange={setActorId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Anyone" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Anyone</SelectItem>
-              <SelectItem value="system">System</SelectItem>
-              {(staff.data ?? []).map((person) => (
-                <SelectItem key={person.membershipId} value={person.membershipId}>
-                  {person.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">From</Label>
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">To</Label>
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </div>
-      </div>
+          <PmsFilterChoiceRow
+            label="Event type"
+            value={eventFilter}
+            current={eventLabel}
+            options={[
+              ["all", "All events"],
+              ...HK_HISTORY_FILTER_GROUPS.map((group) => [group, HK_HISTORY_FILTER_GROUP_LABELS[group]] as const),
+              ...HK_HISTORY_EVENT_TYPE_OPTIONS.map((type) => [type, type.replace(/_/g, " ")] as const),
+            ]}
+            onChange={setEventFilter}
+          />
+          <PmsFilterChoiceRow
+            label="Actor"
+            value={actorId}
+            current={actorLabel}
+            options={[
+              ["all", "Anyone"],
+              ["system", "System"],
+              ...(staff.data ?? []).map((person) => [person.membershipId, person.name] as const),
+            ]}
+            onChange={setActorId}
+          />
+          <PmsFilterNoteRow label="From">
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </PmsFilterNoteRow>
+          <PmsFilterNoteRow label="To">
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </PmsFilterNoteRow>
+        </PmsFilterMenu>
+      </HkShellSlot>
+      <HkShellSlot name="export">
+        <HkShellExportButton
+          disabled={rows.length === 0}
+          testId="hk-history-export"
+          onClick={() =>
+            downloadCsv(
+              `housekeeping-history-${today}.csv`,
+              ["When", "Room", "Event", "Actor", "Detail"],
+              rows.map((h) => [
+                formatWhen(h.createdAt),
+                h.roomNumber ?? "",
+                h.eventType.replace(/_/g, " "),
+                h.actorName ?? "System",
+                formatHousekeepingHistoryDetail({
+                  eventType: h.eventType,
+                  notes: h.notes,
+                  newValues: h.newValues,
+                  previousValues: h.previousValues,
+                }),
+              ]),
+            )
+          }
+        />
+      </HkShellSlot>
       <HkFieldStack testId="hk-history-field-worklist">
         {q.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading history…</p>
-        ) : (q.data ?? []).length === 0 ? (
+        ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">No housekeeping activity yet.</p>
         ) : (
-          (q.data ?? []).map((h) => {
+          rows.map((h) => {
             const qv = h.roomId ? hkRoomQuickViewPath(h.roomId) : null;
             return (
               <HkFieldCard key={h.id}>
@@ -1915,37 +2100,37 @@ export function HousekeepingHistoryTab({ restaurantId, today }: Props) {
           })
         )}
       </HkFieldStack>
-      <HkDesktopOnly className="overflow-x-auto rounded-2xl border border-border">
+      <HkDesktopOnly className={ROOM_TABLE_WRAP}>
         <table className="w-full min-w-[720px] text-sm">
-          <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <thead className={ROOM_TABLE_HEAD}>
             <tr>
-              <th className="p-3">When</th>
-              <th className="p-3">Room</th>
-              <th className="p-3">Event</th>
-              <th className="p-3">Actor</th>
-              <th className="p-3">Detail</th>
+              <th className={ROOM_TABLE_TH}>When</th>
+              <th className={ROOM_TABLE_TH}>Room</th>
+              <th className={ROOM_TABLE_TH}>Event</th>
+              <th className={ROOM_TABLE_TH}>Actor</th>
+              <th className={ROOM_TABLE_TH}>Detail</th>
             </tr>
           </thead>
           <tbody>
             {q.isLoading ? (
               <tr>
-                <td colSpan={5} className="p-4 text-muted-foreground">
+                <td colSpan={5} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
                   Loading history…
                 </td>
               </tr>
-            ) : (q.data ?? []).length === 0 ? (
+            ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={5} className="p-4 text-muted-foreground">
+                <td colSpan={5} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
                   No housekeeping activity yet.
                 </td>
               </tr>
             ) : (
-              (q.data ?? []).map((h) => {
+              rows.map((h) => {
                 const qv = h.roomId ? hkRoomQuickViewPath(h.roomId) : null;
                 return (
-                  <tr key={h.id} className="border-t border-border align-top">
-                    <td className="p-3 whitespace-nowrap">{formatWhen(h.createdAt)}</td>
-                    <td className="p-3">
+                  <tr key={h.id} className={`${ROOM_TABLE_ROW} align-top`}>
+                    <td className={`${ROOM_TABLE_TD} whitespace-nowrap`}>{formatWhen(h.createdAt)}</td>
+                    <td className={ROOM_TABLE_TD}>
                       {qv ? (
                         <Link to={qv.to} search={qv.search} className="font-medium text-foreground underline-offset-2 hover:underline">
                           {h.roomNumber ?? "Room"}
@@ -1954,9 +2139,9 @@ export function HousekeepingHistoryTab({ restaurantId, today }: Props) {
                         (h.roomNumber ?? "—")
                       )}
                     </td>
-                    <td className="p-3">{h.eventType.replace(/_/g, " ")}</td>
-                    <td className="p-3">{h.actorName ?? "System"}</td>
-                    <td className="p-3 text-xs text-muted-foreground">
+                    <td className={ROOM_TABLE_TD}>{h.eventType.replace(/_/g, " ")}</td>
+                    <td className={ROOM_TABLE_TD}>{h.actorName ?? "System"}</td>
+                    <td className={`${ROOM_TABLE_TD} text-xs text-muted-foreground`}>
                       {formatHousekeepingHistoryDetail({
                         eventType: h.eventType,
                         notes: h.notes,
