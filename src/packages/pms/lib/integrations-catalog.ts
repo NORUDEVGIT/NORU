@@ -878,8 +878,8 @@ export const INTEGRATION_CATALOG: readonly IntegrationCategoryDef[] = [
   },
   {
     id: "government",
-    label: "Government / Tax",
-    description: "Fiscal devices and statutory reporting.",
+    label: "Tax & Fiscal",
+    description: "ERP / Fiscal integration, fiscal devices, and statutory tax reporting.",
     events: [
       { value: "receipt.issued", label: "Fiscal receipt issued" },
       { value: "receipt.voided", label: "Fiscal receipt voided" },
@@ -922,10 +922,17 @@ export const INTEGRATION_CATALOG: readonly IntegrationCategoryDef[] = [
       {
         id: "erp_fiscal",
         label: "ERP / Fiscal Integration",
-        blurb: "Authenticate and store fiscal mappings. Invoice registration is a later phase.",
+        blurb: "Authenticate and store fiscal mappings.",
         authMethods: ["basic"],
         supportsWebhook: false,
-        fields: [],
+        fields: [
+          text("baseUrl", "Base URL", { required: true, format: "url" }),
+          text("taxpayerTin", "Taxpayer TIN", { required: true, maxLength: 20 }),
+          text("client", "Client ID", { required: true, maxLength: 40 }),
+          text("deviceId", "Device ID", { required: true, maxLength: 40 }),
+          credential("apiUsername", "API username", { required: true, authMethods: ["basic"] }),
+          credential("apiPassword", "API password", { required: true, authMethods: ["basic"] }),
+        ],
       },
     ],
   },

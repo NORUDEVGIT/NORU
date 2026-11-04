@@ -25,7 +25,7 @@ const idSchema = z.string().uuid();
 const saveSchema = z
   .object({
     restaurantId: idSchema,
-    id: idSchema.optional(),
+    id: z.string().max(120).nullish(),
     code: z.string().max(12),
     name: z.string().max(120),
     description: z.string().max(400).optional().default(""),
@@ -117,13 +117,14 @@ export const savePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
       updated_at: new Date().toISOString(),
     };
 
-    let targetId = data.id;
+    const rawId = data.id && data.id.trim() ? data.id.trim() : null;
+    let targetId = rawId;
 
-    if (data.id && !data.id.startsWith("default-ta-type-")) {
+    if (rawId && !rawId.startsWith("default-ta-type-")) {
       const updateResult = await db
         .from("pms_travel_agency_types")
         .update(payload)
-        .eq("id", data.id)
+        .eq("id", rawId)
         .eq("restaurant_id", data.restaurantId);
       if (updateResult.error && !isMissingSchemaError(updateResult.error)) {
         throw new Error(updateResult.error.message);
@@ -137,7 +138,7 @@ export const savePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
       if (insertResult.error && !isMissingSchemaError(insertResult.error)) {
         throw new Error(insertResult.error.message);
       }
-      targetId = insertResult.data?.id ?? data.id ?? `ta-type-${code.toLowerCase()}`;
+      targetId = insertResult.data?.id ?? rawId ?? `ta-type-${code.toLowerCase()}`;
     }
 
     const createdId = targetId ?? `ta-type-${code.toLowerCase()}`;

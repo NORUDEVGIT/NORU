@@ -21,6 +21,13 @@ import {
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { Switch } from "@/shared/components/ui/switch";
+import { cn } from "@/shared/lib/utils";
+import {
+  FieldShell,
+  IntegrationNotice,
+  IntegrationStatusBadge,
+  SecretInput,
+} from "@/packages/pms/components/settings/pms-card6-integration-bits";
 import {
   getFiscalIntegrationStatus,
   saveFiscalBuyerCodeMapping,
@@ -42,7 +49,7 @@ import {
 type MappingSnapshot = {
   taxes: FiscalCatalogRow[];
   taxMappings: FiscalCatalogRow[];
-  departments: FiscalCatalogRow[];
+  departments?: FiscalCatalogRow[];
   serviceTypes: FiscalCatalogRow[];
   itemMappings: FiscalCatalogRow[];
   chargeSources: readonly string[];
@@ -166,17 +173,21 @@ export function FiscalIntegrationDrawer({
             enabled.
           </SheetDescription>
         </SheetHeader>
-        <div className="flex gap-2 border-b border-[#E5DED1] px-6 py-3">
+        <div className="flex items-center gap-1.5 border-b border-[#E5DED1] bg-[#FAF8F5] px-6 py-2.5">
           {SECTIONS.map((item) => (
-            <Button
+            <button
               key={item}
               type="button"
-              size="sm"
-              variant={section === item ? "default" : "outline"}
               onClick={() => setSection(item)}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                section === item
+                  ? "bg-[#251605] text-white shadow-xs"
+                  : "text-muted-foreground hover:bg-black/5 hover:text-[#251605]",
+              )}
             >
               {item}
-            </Button>
+            </button>
           ))}
         </div>
         <div className="space-y-4 px-6 py-4">
@@ -185,81 +196,134 @@ export function FiscalIntegrationDrawer({
           ) : null}
           {section === "Connection" && status ? (
             <form
-              className="space-y-3"
+              className="space-y-4"
               onSubmit={(event) => {
                 event.preventDefault();
                 configMutation.mutate();
               }}
             >
-              <Label>Environment</Label>
-              <Select
-                value={environment}
-                onValueChange={(value) => setEnvironment(value as "TEST" | "PRODUCTION")}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="TEST">TEST</SelectItem>
-                  <SelectItem value="PRODUCTION">PRODUCTION</SelectItem>
-                </SelectContent>
-              </Select>
-              <Label htmlFor="fiscal-base-url">Base URL</Label>
-              <Input
+              <FieldShell id="fiscal-env" label="Environment" required>
+                <Select
+                  value={environment}
+                  onValueChange={(value) => setEnvironment(value as "TEST" | "PRODUCTION")}
+                  disabled={!canEdit}
+                >
+                  <SelectTrigger id="fiscal-env">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TEST">TEST (Sandbox)</SelectItem>
+                    <SelectItem value="PRODUCTION">PRODUCTION (Live)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FieldShell>
+
+              <FieldShell
                 id="fiscal-base-url"
-                value={baseUrl}
-                onChange={(event) => setBaseUrl(event.target.value)}
-                placeholder="https://"
-                disabled={!canEdit}
-              />
-              <Label htmlFor="fiscal-tin">Taxpayer TIN</Label>
-              <Input
+                label="Base URL"
+                required
+                help="Base endpoint URL for the fiscal service."
+              >
+                <Input
+                  id="fiscal-base-url"
+                  value={baseUrl}
+                  onChange={(event) => setBaseUrl(event.target.value)}
+                  placeholder="https://fiscal-api.example.com"
+                  disabled={!canEdit}
+                />
+              </FieldShell>
+
+              <FieldShell
                 id="fiscal-tin"
-                value={taxpayerTin}
-                onChange={(event) => setTaxpayerTin(event.target.value)}
-                disabled={!canEdit}
-              />
-              <Label htmlFor="fiscal-client">Client</Label>
-              <Input
-                id="fiscal-client"
-                value={client}
-                onChange={(event) => setClient(event.target.value)}
-                disabled={!canEdit}
-              />
-              <Label htmlFor="fiscal-device">Device ID</Label>
-              <Input
-                id="fiscal-device"
-                value={deviceId}
-                onChange={(event) => setDeviceId(event.target.value)}
-                disabled={!canEdit}
-              />
-              <div className="flex items-center justify-between">
-                <Label htmlFor="fiscal-enabled">Enabled</Label>
+                label="Taxpayer TIN"
+                required
+                help="Taxpayer identification number registered with the tax authority."
+              >
+                <Input
+                  id="fiscal-tin"
+                  value={taxpayerTin}
+                  onChange={(event) => setTaxpayerTin(event.target.value)}
+                  placeholder="e.g. 0012345678"
+                  disabled={!canEdit}
+                />
+              </FieldShell>
+
+              <FieldShell id="fiscal-client" label="Client ID" required>
+                <Input
+                  id="fiscal-client"
+                  value={client}
+                  onChange={(event) => setClient(event.target.value)}
+                  placeholder="e.g. NORU_POS_CLIENT"
+                  disabled={!canEdit}
+                />
+              </FieldShell>
+
+              <FieldShell id="fiscal-device" label="Device ID" required>
+                <Input
+                  id="fiscal-device"
+                  value={deviceId}
+                  onChange={(event) => setDeviceId(event.target.value)}
+                  placeholder="e.g. DEV-883921"
+                  disabled={!canEdit}
+                />
+              </FieldShell>
+
+              <div className="flex items-start justify-between gap-4 rounded-xl border border-[#E5DED1] bg-white p-3.5">
+                <div>
+                  <Label htmlFor="fiscal-enabled" className="text-sm font-medium text-[#251605]">
+                    Enabled
+                  </Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Active for fiscal invoice and receipt registration.
+                  </p>
+                </div>
                 <Switch
                   id="fiscal-enabled"
                   checked={enabled}
                   onCheckedChange={setEnabled}
                   disabled={!canEdit}
+                  aria-label="Enabled"
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Production requires an https URL. No production endpoint is assumed.
-              </p>
+
+              <IntegrationNotice>
+                Production requires an HTTPS URL. No production endpoint is assumed.
+              </IntegrationNotice>
+
               {canEdit ? (
                 <Button
                   type="submit"
                   disabled={configMutation.isPending}
                   className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
                 >
-                  Save connection
+                  {configMutation.isPending ? "Saving..." : "Save connection"}
                 </Button>
               ) : null}
             </form>
           ) : null}
           {section === "Credentials" && status ? (
-            <div className="space-y-3">
-              <p className="text-sm text-[#251605]">API Username: {status.credentials.username}</p>
-              <p className="text-sm text-[#251605]">API Password: {status.credentials.password}</p>
+            <div className="space-y-4">
+              <IntegrationNotice tone="warning">
+                Credentials are encrypted before saving and never revealed in plain text.
+              </IntegrationNotice>
+
+              <div className="rounded-xl border border-[#E5DED1] bg-white p-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">API Username</p>
+                    <p className="mt-1 text-sm font-medium text-[#251605]">
+                      {status.credentials.username}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">API Password</p>
+                    <p className="mt-1 text-sm font-medium text-[#251605]">
+                      {status.credentials.password}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {status.credentials.configured && !replaceCredentials ? (
                 canEdit ? (
                   <Button
@@ -272,30 +336,49 @@ export function FiscalIntegrationDrawer({
                 ) : null
               ) : canEdit ? (
                 <form
-                  className="space-y-3"
+                  className="space-y-4 rounded-xl border border-[#E5DED1] bg-white p-4"
                   onSubmit={(event) => {
                     event.preventDefault();
                     credentialMutation.mutate();
                   }}
                 >
-                  <Label htmlFor="fiscal-username">API Username</Label>
-                  <Input
-                    id="fiscal-username"
-                    value={username}
-                    onChange={(event) => setUsername(event.target.value)}
-                    autoComplete="off"
-                  />
-                  <Label htmlFor="fiscal-password">API Password</Label>
-                  <Input
-                    id="fiscal-password"
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    autoComplete="new-password"
-                  />
-                  <Button type="submit" disabled={credentialMutation.isPending}>
-                    Save credentials
-                  </Button>
+                  <FieldShell id="fiscal-username" label="API Username" required>
+                    <Input
+                      id="fiscal-username"
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value)}
+                      placeholder="Enter API username"
+                      autoComplete="off"
+                    />
+                  </FieldShell>
+
+                  <FieldShell id="fiscal-password" label="API Password" required>
+                    <SecretInput
+                      id="fiscal-password"
+                      value={password}
+                      onChange={setPassword}
+                      placeholder="Enter API password"
+                    />
+                  </FieldShell>
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <Button
+                      type="submit"
+                      disabled={credentialMutation.isPending}
+                      className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+                    >
+                      {credentialMutation.isPending ? "Saving..." : "Save credentials"}
+                    </Button>
+                    {status.credentials.configured ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setReplaceCredentials(false)}
+                      >
+                        Cancel
+                      </Button>
+                    ) : null}
+                  </div>
                 </form>
               ) : null}
             </div>
@@ -325,62 +408,122 @@ export function FiscalIntegrationDrawer({
             />
           ) : null}
           {section === "Status" && status ? (
-            <div className="space-y-2 text-sm text-[#251605]">
-              <p>
-                Connection:{" "}
-                {status.lastTestResult === "passed"
-                  ? "Connected"
-                  : status.lastTestResult === "failed"
-                    ? "Failed"
-                    : "Not tested"}
-              </p>
-              <p>Environment: {status.connection.environment}</p>
-              <p>Taxpayer TIN: {status.connection.taxpayerTinMasked || "Not configured"}</p>
-              <p>Device ID: {status.connection.deviceIdMasked || "Not configured"}</p>
-              <p>Credentials: {status.credentials.configured ? "Configured" : "Missing"}</p>
-              <p>Last test: {formatWhen(status.lastTestAt)}</p>
-              <p>
-                Token:{" "}
-                {status.token.hasToken && status.token.expiresAt
-                  ? `Valid until ${formatWhen(status.token.expiresAt)}`
-                  : "Not available"}
-              </p>
-              <p>
-                Tax codes:{" "}
-                {
-                  (status.taxMappings as { mapping_kind: string }[]).filter(
-                    (row) => row.mapping_kind === "TAX",
-                  ).length
-                }{" "}
-                / {status.taxes.length} mapped
-              </p>
-              <p>Items: {status.itemMappings.length} configured</p>
-              <p>Document mode: {FISCAL_DOCUMENT_MODE}</p>
-              <p>Buyer codes: {status.buyerMappings.length} configured</p>
-              <p>
-                Queue: {status.queue.pending} pending, {status.queue.failed} failed,{" "}
-                {status.queue.registered} registered
-              </p>
-              <p className="text-muted-foreground">{status.registrationNotice}</p>
-              <p className="text-muted-foreground">{status.buyerNotice}</p>
-              <p className="text-muted-foreground">
+            <div className="space-y-4">
+              <div className="rounded-xl border border-[#E5DED1] bg-white p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-[#251605]">Integration Status</p>
+                    <p className="text-xs text-muted-foreground">
+                      Last tested: {formatWhen(status.lastTestAt)}
+                    </p>
+                  </div>
+                  <IntegrationStatusBadge
+                    status={
+                      status.lastTestResult === "passed"
+                        ? "connected"
+                        : status.lastTestResult === "failed"
+                          ? "error"
+                          : status.status === "configured"
+                            ? "pending"
+                            : "not_configured"
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-[#E5DED1] bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Environment</p>
+                  <p className="mt-1 font-medium text-[#251605]">{status.connection.environment}</p>
+                </div>
+                <div className="rounded-xl border border-[#E5DED1] bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Taxpayer TIN</p>
+                  <p className="mt-1 font-medium text-[#251605]">
+                    {status.connection.taxpayerTinMasked || "Not configured"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#E5DED1] bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Device ID</p>
+                  <p className="mt-1 font-medium text-[#251605]">
+                    {status.connection.deviceIdMasked || "Not configured"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#E5DED1] bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Credentials</p>
+                  <p className="mt-1 font-medium text-[#251605]">
+                    {status.credentials.configured ? "Configured" : "Missing"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#E5DED1] bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Tax Codes Mapped</p>
+                  <p className="mt-1 font-medium text-[#251605]">
+                    {
+                      (status.taxMappings as { mapping_kind: string }[]).filter(
+                        (row) => row.mapping_kind === "TAX",
+                      ).length
+                    }{" "}
+                    / {status.taxes.length}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#E5DED1] bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Items Configured</p>
+                  <p className="mt-1 font-medium text-[#251605]">{status.itemMappings.length}</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[#E5DED1] bg-white p-3 text-xs text-muted-foreground space-y-1">
+                <p>
+                  <span className="font-medium text-[#251605]">Token: </span>
+                  {status.token.hasToken && status.token.expiresAt
+                    ? `Valid until ${formatWhen(status.token.expiresAt)}`
+                    : "Not available"}
+                </p>
+                <p>
+                  <span className="font-medium text-[#251605]">Document mode: </span>
+                  {FISCAL_DOCUMENT_MODE}
+                </p>
+                <p>
+                  <span className="font-medium text-[#251605]">Buyer codes: </span>
+                  {status.buyerMappings.length} configured
+                </p>
+                <p>
+                  <span className="font-medium text-[#251605]">Registration Queue: </span>
+                  {status.queue.pending} pending, {status.queue.failed} failed,{" "}
+                  {status.queue.registered} registered
+                </p>
+              </div>
+
+              <IntegrationNotice>
+                {status.registrationNotice}
+              </IntegrationNotice>
+
+              <IntegrationNotice>
                 {status.readiness.authReady
                   ? "Authentication can be tested."
                   : "Authentication still needs an endpoint, TIN, client, and credentials."}{" "}
                 Document registration is not active.
-              </p>
+              </IntegrationNotice>
+
               {canEdit ? (
                 <Button
                   type="button"
                   disabled={testMutation.isPending}
                   onClick={() => testMutation.mutate()}
                   data-testid="fiscal-test-connection"
+                  className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
                 >
-                  {testMutation.isPending ? "Testing..." : "Test Connection"}
+                  {testMutation.isPending ? "Testing connection..." : "Test Connection"}
                 </Button>
               ) : null}
               {testMutation.data ? (
-                <p className={testMutation.data.ok ? "text-[#436436]" : "text-destructive"}>
+                <p
+                  className={cn(
+                    "text-xs font-medium rounded-lg p-2.5",
+                    testMutation.data.ok
+                      ? "bg-[#436436]/10 text-[#436436]"
+                      : "bg-destructive/10 text-destructive",
+                  )}
+                >
                   {testMutation.data.message}
                 </p>
               ) : null}
@@ -509,26 +652,7 @@ function FiscalMappings({
             })
           }
         />
-        {status.departments.map((department: FiscalCatalogRow) => (
-          <ItemRow
-            key={department.id}
-            title={department.name}
-            detail={`department ${department.code}`}
-            current={status.itemMappings.find(
-              (row: FiscalCatalogRow) => row.department_id === department.id,
-            )}
-            canEdit={canEdit}
-            onSave={(values) =>
-              onItem({
-                ...values,
-                serviceTypeId: null,
-                departmentId: department.id,
-                chargeSource: null,
-                isDefault: false,
-              })
-            }
-          />
-        ))}
+
         {status.serviceTypes.map((service: FiscalCatalogRow) => (
           <ItemRow
             key={service.id}
@@ -620,13 +744,11 @@ function TaxMappingRow({
   const [nature, setNature] = useState<FiscalNatureOfSupplies>(
     fiscalNatureOfSupplies(current?.nature_of_supplies ?? "") ?? "service",
   );
-  const [harmonization, setHarmonization] = useState(current?.harmonization_code ?? "");
   useEffect(() => {
     setTaxCode(current?.external_tax_code ?? "");
     setTreatment(current?.fiscal_treatment === "SEPARATE_ITEM" ? "SEPARATE_ITEM" : "SAME_LINE_TAX");
     setItemCode(current?.external_item_code ?? "");
     setNature(fiscalNatureOfSupplies(current?.nature_of_supplies ?? "") ?? "service");
-    setHarmonization(current?.harmonization_code ?? "");
   }, [current]);
   return (
     <div className="space-y-2 rounded-xl border border-[#E5DED1] p-3">
@@ -695,15 +817,6 @@ function TaxMappingRow({
               <Label>Unit</Label>
               <Input value={FISCAL_ITEM_UNIT} disabled />
             </div>
-            <div className="space-y-1">
-              <Label>Harmonization code</Label>
-              <Input
-                value={harmonization}
-                placeholder="Optional"
-                onChange={(event) => setHarmonization(event.target.value)}
-                disabled={!canEdit}
-              />
-            </div>
           </>
         ) : null}
       </div>
@@ -729,7 +842,7 @@ function TaxMappingRow({
               fiscalTreatment: treatment,
               externalItemCode: itemCode,
               natureOfSupplies: nature,
-              harmonizationCode: harmonization.trim() || null,
+              harmonizationCode: null,
             }).catch((error: Error) => toast.error(error.message));
           }}
         >
@@ -810,12 +923,10 @@ function ItemRow({
   const [nature, setNature] = useState<FiscalNatureOfSupplies | "">(
     storedNature ?? (current ? "" : (defaultNature ?? "")),
   );
-  const [harmonization, setHarmonization] = useState(current?.harmonization_code ?? "");
   useEffect(() => {
     const nextNature = fiscalNatureOfSupplies(current?.nature_of_supplies ?? "");
     setItemCode(current?.external_item_code ?? "");
     setNature(nextNature ?? (current ? "" : (defaultNature ?? "")));
-    setHarmonization(current?.harmonization_code ?? "");
   }, [current, defaultNature]);
   const complete = Boolean(
     fiscalItemCodeNumber(current?.external_item_code ?? "") &&
@@ -858,15 +969,6 @@ function ItemRow({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1 md:col-span-2">
-          <Label>Harmonization code</Label>
-          <Input
-            value={harmonization}
-            placeholder="Optional"
-            onChange={(event) => setHarmonization(event.target.value)}
-            disabled={!canEdit}
-          />
-        </div>
       </div>
       {canEdit ? (
         <Button
@@ -885,7 +987,7 @@ function ItemRow({
             onSave({
               externalItemCode: itemCode,
               natureOfSupplies: chosen,
-              harmonizationCode: harmonization.trim() || null,
+              harmonizationCode: null,
             }).catch((error: Error) => toast.error(error.message));
           }}
         >

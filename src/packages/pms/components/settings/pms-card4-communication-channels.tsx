@@ -120,7 +120,7 @@ export function PmsCard4CommunicationChannels({
   const [dirty, setDirty] = useState(false);
   const [detailsTab, setDetailsTab] = useState("general");
   const [pendingSelection, setPendingSelection] = useState<CommunicationChannelRecord | null>(null);
-  const handledSaveToken = useRef(0);
+  const handledSaveToken = useRef(saveRequest?.token ?? 0);
   const thenNextRef = useRef(false);
 
   useEffect(() => {

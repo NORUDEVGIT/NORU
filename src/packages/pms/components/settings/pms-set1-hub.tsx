@@ -105,6 +105,9 @@ import { PmsPropertySetupCard4Section } from "@/packages/pms/components/settings
 import { PmsPropertySetupCard6Section } from "@/packages/pms/components/settings/pms-property-setup-card6-section";
 import { PmsPropertySetupCard7Section } from "@/packages/pms/components/settings/pms-property-setup-card7-section";
 import { PmsPropertySetupCard8Section } from "@/packages/pms/components/settings/pms-property-setup-card8-section";
+import { getFiscalIntegrationStatus } from "@/packages/pms/lib/fiscal/fiscal.functions";
+import { getPmsCard6Integrations } from "@/packages/pms/lib/integrations-card6.functions";
+import { getPmsCard4Status } from "@/packages/pms/lib/card4-readiness.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 function currentSection(): Set1SectionId | null {
@@ -218,6 +221,30 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     return () => window.removeEventListener("hashchange", apply);
   }, []);
 
+  const loadFiscalStatus = useServerFn(getFiscalIntegrationStatus);
+  const loadCard6Integrations = useServerFn(getPmsCard6Integrations);
+  const loadCard4Status = useServerFn(getPmsCard4Status);
+
+  const card4StatusQuery = useQuery({
+    queryKey: ["pms-card4-status", restaurantId],
+    queryFn: () => loadCard4Status({ data: { restaurantId } }),
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  const card6FiscalQuery = useQuery({
+    queryKey: ["fiscal-integration", restaurantId],
+    queryFn: () => loadFiscalStatus({ data: { restaurantId } }),
+    retry: false,
+    staleTime: 60_000,
+  });
+  const card6IntegrationsQuery = useQuery({
+    queryKey: ["pms-card6-integrations", restaurantId],
+    queryFn: () => loadCard6Integrations({ data: { restaurantId } }),
+    retry: false,
+    staleTime: 60_000,
+  });
+
   const query = useQuery({
     queryKey: ["pms-set1-foundation", restaurantId],
     queryFn: () => load({ data: { restaurantId } }),
@@ -251,11 +278,38 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
         card1Query.data.set2,
       )
     : "not_started";
-  const dashboardStatuses: PropertySetupCardStatus[] = PROPERTY_SETUP_CARDS.map((card) =>
-    card1Query.data
-      ? evaluateProgrammeCardStatus(card.id, card1Query.data.snapshot.status, card1Status)
-      : "not_started",
-  );
+  const dashboardStatuses: PropertySetupCardStatus[] = PROPERTY_SETUP_CARDS.map((card) => {
+    if (!card1Query.data) return "not_started";
+    const status = evaluateProgrammeCardStatus(
+      card.id,
+      card1Query.data.snapshot.status,
+      card1Status,
+    );
+    if (card.number === 3 && status === "not_started") {
+      const hasPaymentMethods = (polish1?.paymentMethods?.length ?? 0) > 0;
+      const hasRatePlans = (set3?.activeRatePlanCount ?? 0) > 0;
+      if (hasPaymentMethods || hasRatePlans) {
+        return "in_progress";
+      }
+    }
+    if (card.number === 4) {
+      if (card4StatusQuery.data?.status && card4StatusQuery.data.status !== "not_started") {
+        return card4StatusQuery.data.status;
+      }
+      if (status !== "not_started") {
+        return status;
+      }
+    }
+    if (card.number === 6 && status === "not_started") {
+      const hasFiscal =
+        card6FiscalQuery.data?.status && card6FiscalQuery.data.status !== "not_configured";
+      const hasIntegrations = (card6IntegrationsQuery.data?.integrations.length ?? 0) > 0;
+      if (hasFiscal || hasIntegrations) {
+        return "in_progress";
+      }
+    }
+    return status;
+  });
   const dashboardSummaries = PROPERTY_SETUP_CARDS.map((card) => {
     const rows: string[] = [];
     if (card.number === 1) {
@@ -269,11 +323,37 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       if (set2.roomTypeCount > 0) rows.push(`${set2.roomTypeCount} room types`);
       if (set2.roomCount > 0) rows.push(`${set2.roomCount} rooms`);
     }
-    if (card.number === 3 && set3?.activeRatePlanCount > 0) {
-      rows.push(`${set3.activeRatePlanCount} rate plans`);
+    if (card.number === 3) {
+      if (set3?.activeRatePlanCount > 0) {
+        rows.push(`${set3.activeRatePlanCount} rate plans`);
+      }
+      const activeMethods = polish1?.paymentMethods?.filter((m) => m.active).length ?? 0;
+      if (activeMethods > 0) {
+        rows.push(`${activeMethods} payment ${activeMethods === 1 ? "method" : "methods"}`);
+      }
+    }
+    if (card.number === 4) {
+      const profileCount = card4StatusQuery.data?.profileTypesCount ?? 0;
+      const serviceCount = card4StatusQuery.data?.serviceTypesCount ?? 0;
+      if (profileCount > 0) {
+        rows.push(`${profileCount} profile ${profileCount === 1 ? "type" : "types"}`);
+      }
+      if (serviceCount > 0) {
+        rows.push(`${serviceCount} ${serviceCount === 1 ? "service" : "services"}`);
+      }
     }
     if (card.number === 5 && set5?.departments.length) {
       rows.push(`${set5.departments.length} departments`);
+    }
+    if (card.number === 6) {
+      if (card6FiscalQuery.data?.status && card6FiscalQuery.data.status !== "not_configured") {
+        rows.push("Fiscal connected");
+      }
+      const activeCount =
+        card6IntegrationsQuery.data?.integrations.filter((i) => i.enabled).length ?? 0;
+      if (activeCount > 0) {
+        rows.push(`${activeCount} integration${activeCount === 1 ? "" : "s"}`);
+      }
     }
     void `${SET1_HUB_HREF}#${card.hash}`;
     return rows;

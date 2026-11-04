@@ -141,7 +141,7 @@ export function PmsCard4AutomationRules({
   const [dirty, setDirty] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [deleteTarget, setDeleteTarget] = useState<AutomationRuleRecord | null>(null);
-  const handledSaveToken = useRef(0);
+  const handledSaveToken = useRef(saveRequest?.token ?? 0);
   const thenNextRef = useRef(false);
 
   useEffect(() => {

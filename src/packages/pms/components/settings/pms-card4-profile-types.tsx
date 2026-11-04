@@ -207,7 +207,7 @@ export function PmsCard4ProfileTypes({
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ProfileTypeTabId>(initialTab);
   const thenNextRef = useRef(false);
-  const handledSaveToken = useRef(0);
+  const handledSaveToken = useRef(saveRequest?.token ?? 0);
 
   // Sheets state for catalog management & item editors
   const [fieldEditorOpen, setFieldEditorOpen] = useState(false);

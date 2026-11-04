@@ -124,7 +124,7 @@ export function PmsCard4ServiceDepartmentAssignment({
     null,
   );
   const [pendingClose, setPendingClose] = useState(false);
-  const handledSaveToken = useRef(0);
+  const handledSaveToken = useRef(saveRequest?.token ?? 0);
   const thenNextRef = useRef(false);
 
   const errors = validateServiceDepartmentAssignmentDraft(

@@ -111,7 +111,7 @@ export function PmsCard4ServiceTypes({
   const [pendingDelete, setPendingDelete] = useState<ServiceTypeRecord | null>(null);
   const [pendingClose, setPendingClose] = useState(false);
   const thenNextRef = useRef(false);
-  const handledSaveToken = useRef(0);
+  const handledSaveToken = useRef(saveRequest?.token ?? 0);
 
   const errors = validateServiceTypeDraft(draft, types, categories);
   const errorFor = (field: string) => errors.find((row) => row.field === field)?.message ?? null;

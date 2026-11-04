@@ -76,7 +76,7 @@ export function PmsCard4CommunicationDefaults({
   const [draft, setDraft] = useState<CommunicationDefaultsDraft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
-  const handledSaveToken = useRef(0);
+  const handledSaveToken = useRef(saveRequest?.token ?? 0);
   const thenNextRef = useRef(false);
 
   useEffect(() => {

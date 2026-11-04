@@ -252,7 +252,22 @@ export function Card5OutletsTab({
       setValidated(null);
       toast.success("Facility saved.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      try {
+        const issues = JSON.parse(error.message);
+        if (Array.isArray(issues) && issues.length > 0) {
+          const messages = issues.map((item: { path?: string[]; message?: string }) => {
+            const field = item.path?.[0] ? `${item.path[0]}: ` : "";
+            return `${field}${item.message ?? "Invalid value"}`;
+          });
+          toast.error(messages.join("; "));
+          return;
+        }
+      } catch {
+        // Not JSON
+      }
+      toast.error(error.message);
+    },
   });
 
   function openCreate() {
@@ -695,7 +710,22 @@ export function Card5OutletsTab({
             </Tabs>
             <div className="mt-4 flex gap-2">
               {editor ? (
-                <Button onClick={() => mutation.mutate(draft)} disabled={mutation.isPending}>
+                <Button
+                  onClick={() => {
+                    if (!draft.name.trim()) {
+                      setSection("Basic");
+                      toast.error("Facility name is required.");
+                      return;
+                    }
+                    if (!draft.code.trim()) {
+                      setSection("Basic");
+                      toast.error("Facility unique code is required.");
+                      return;
+                    }
+                    mutation.mutate(draft);
+                  }}
+                  disabled={mutation.isPending}
+                >
                   Save
                 </Button>
               ) : null}

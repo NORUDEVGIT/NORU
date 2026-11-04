@@ -87,7 +87,7 @@ export function PmsCard4SenderSettings({
   const [draft, setDraft] = useState<SenderSettingsDraft>(emptySenderSettingsDraft("email"));
   const [dirty, setDirty] = useState(false);
   const [pendingChannel, setPendingChannel] = useState<CommunicationChannelType | null>(null);
-  const handledSaveToken = useRef(0);
+  const handledSaveToken = useRef(saveRequest?.token ?? 0);
   const thenNextRef = useRef(false);
 
   const selected = settings.find((row) => row.channelType === channelType) ?? settings[0] ?? null;
