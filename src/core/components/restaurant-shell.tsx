@@ -58,6 +58,7 @@ import { RestaurantSettingsProvider } from "@/core/state/property-format";
 import { PmsHeadingProvider } from "@/core/state/pms-context";
 import { shouldSuppressRestaurantPmsRail } from "@/packages/pms/lib/front-office-shell";
 import { canEditSet1 } from "@/packages/pms/lib/pms-set1-foundation";
+import { PmsIdleWelcomeWatcher } from "@/packages/pms/components/pms/pms-idle-welcome-watcher";
 
 export type RestaurantNavLabel =
   | "Home"
@@ -1161,6 +1162,7 @@ export function RestaurantShell({
                   ) : null}
 
                   <div className={cn(hidePackageRail && "flex min-h-0 flex-1 flex-col")}>
+                    <PmsIdleWelcomeWatcher restaurantId={membership.restaurant.id} />
                     {children(membership)}
                   </div>
                 </PmsHeadingProvider>

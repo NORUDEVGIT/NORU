@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from "@/shared/components/ui/tooltip";
 import { FO_BRAND, actionsForMenu } from "@/packages/pms/lib/front-office-shell";
+import { cn } from "@/shared/lib/utils";
 
 export function PmsCommandChrome({
   nav,
@@ -36,6 +37,7 @@ export function PmsCommandChrome({
   children,
   contentClassName = "p-3 sm:p-4",
   shellTestId = "fo-command-shell",
+  fillViewport = false,
 }: {
   nav: ReactNode;
   overflow?: ReactNode;
@@ -55,12 +57,19 @@ export function PmsCommandChrome({
   children: ReactNode;
   contentClassName?: string;
   shellTestId?: string;
+  fillViewport?: boolean;
 }) {
   const quick = actionsForMenu("quick");
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div data-testid={shellTestId} className="flex min-h-[calc(100dvh-3.75rem)] flex-1 flex-col">
+      <div
+        data-testid={shellTestId}
+        className={cn(
+          "flex flex-1 flex-col",
+          fillViewport ? "h-dvh min-h-dvh" : "min-h-[calc(100dvh-3.75rem)]",
+        )}
+      >
         <header
           className="flex items-center gap-2 px-3 py-2 text-white sm:px-4"
           style={{ backgroundColor: FO_BRAND.chrome }}
@@ -176,9 +185,22 @@ export function PmsCommandChrome({
         </header>
         {helpSheet}
 
-        <div className="flex min-h-0 flex-1 flex-col bg-background">
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col",
+            fillViewport ? "bg-transparent" : "bg-background",
+          )}
+        >
           {mobile}
-          <div className={`min-h-0 flex-1 overflow-auto ${contentClassName}`}>{children}</div>
+          <div
+            className={cn(
+              "min-h-0 flex-1",
+              fillViewport ? "relative overflow-hidden" : "overflow-auto",
+              contentClassName,
+            )}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </TooltipProvider>

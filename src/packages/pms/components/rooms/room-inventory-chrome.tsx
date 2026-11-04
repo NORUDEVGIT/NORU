@@ -64,6 +64,8 @@ export function RoomInventoryChrome({
   onHelpClick,
   overflowItems = [],
   shellTestId = "room-inventory-command-shell",
+  contentClassName = "p-0",
+  fillViewport = false,
   returnTo,
   returnToLabel,
   suppressReturnButton = false,
@@ -82,6 +84,8 @@ export function RoomInventoryChrome({
   onHelpClick?: () => void;
   overflowItems?: Array<{ label: string; onSelect: () => void; testId?: string }>;
   shellTestId?: string;
+  contentClassName?: string;
+  fillViewport?: boolean;
   returnTo?: string | undefined;
   returnToLabel?: string | undefined;
   suppressReturnButton?: boolean;
@@ -119,7 +123,8 @@ export function RoomInventoryChrome({
   return (
     <PmsCommandChrome
       shellTestId={shellTestId}
-      contentClassName="p-0"
+      contentClassName={contentClassName}
+      fillViewport={fillViewport}
       useDefaultControls={false}
       onGuestSearch={() => void navigate({ to: "/restaurant/pms/guests" })}
       onQuickAction={() => undefined}
