@@ -75,6 +75,7 @@ import {
 import type { FolioDetail } from "@/packages/pms/lib/cashiering.functions";
 import { BILLING_ROUTING_EXECUTABLE } from "@/packages/pms/lib/cashiering-transfer-model";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
+import { addDays } from "@/packages/pms/lib/reservation-dates";
 import { chargeGroupRemainder, isParentTransferCharge } from "@/packages/pms/lib/folio-workspace";
 import { labelTransactionType } from "@/packages/pms/components/cashiering/folio-bits";
 import type { GuestAccountSummary } from "@/packages/pms/lib/guest-profile-wave4";
@@ -89,6 +90,20 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
+import { PmsFilterChoiceRow, PmsFilterMenu, PmsFilterNoteRow } from "@/packages/pms/components/pms-filter-menu";
+import {
+  CASHIERING_SHELL_ICON_BUTTON,
+  CASHIERING_SHELL_PRIMARY_BUTTON,
+  CashieringShellSlot,
+  CashieringToolbarSearch,
+} from "@/packages/pms/components/cashiering/cashiering-shell-slots";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_ROW,
+  ROOM_TABLE_TD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+} from "@/packages/pms/components/rooms/room-inventory-shell";
 
 function idempotencyKey(prefix: string): string {
   return `${prefix}-${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
@@ -528,82 +543,49 @@ export function AccountsPanel({
   }, [rows, statusFilter, search]);
 
   return (
-    <div className="space-y-4" data-testid="cashiering-accounts-panel">
-      {/* KPI Cards */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <Kpi
-          label="Open Accounts"
-          value={String(openRows.length)}
-          hint={`${rows.length} total accounts`}
-          tone="blue"
-          icon={Building2}
+    <div className="space-y-3" data-testid="cashiering-accounts-panel">
+      <CashieringShellSlot name="search">
+        <CashieringToolbarSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search account number or company/group…"
+          testId="cashiering-accounts-search"
         />
-        <Kpi
-          label="Outstanding"
-          value={money(outstanding)}
-          hint="Sum of positive open balances"
-          tone="gold"
-          icon={Wallet}
-        />
-        <Kpi
-          label="Account Types"
-          value="Company / Group"
-          hint="Not Guest Profile stay aggregates"
-          tone="teal"
-          icon={Users}
-        />
-      </div>
-
-      {/* Action & Filter Bar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-[#E8E1D7] bg-white p-3 shadow-2xs">
-        <div className="flex flex-1 items-center gap-2 max-w-md">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#7A7167]" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search account number or company/group..."
-              className="h-9 pl-9 text-xs border-[#E8E1D7] focus-visible:border-[#C89933] focus-visible:ring-1 focus-visible:ring-[#C89933]"
-            />
-          </div>
-          <div className="flex items-center gap-1">
-            {(["all", "open", "closed"] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatusFilter(s)}
-                className={cn(
-                  "px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-colors",
-                  statusFilter === s
-                    ? "bg-[#FAF5EB] text-[#8A6A24] border border-[#EADFCB]"
-                    : "text-[#7A7167] hover:bg-[#FAF8F4]",
-                )}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {canManage ? (
+      </CashieringShellSlot>
+      <CashieringShellSlot name="filter">
+        <PmsFilterMenu
+          activeCount={statusFilter === "all" ? 0 : 1}
+          onClear={() => setStatusFilter("all")}
+          buttonTestId="cashiering-accounts-filters-button"
+          menuTestId="cashiering-accounts-filters-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Status"
+            value={statusFilter}
+            current={statusFilter === "all" ? "" : statusFilter === "open" ? "Open" : "Closed"}
+            options={[
+              ["all", "All"],
+              ["open", "Open"],
+              ["closed", "Closed"],
+            ]}
+            onChange={(value) => setStatusFilter(value as "all" | "open" | "closed")}
+          />
+        </PmsFilterMenu>
+      </CashieringShellSlot>
+      {canManage ? (
+        <CashieringShellSlot name="cta">
           <Button
             type="button"
             onClick={() => setOpenModal(true)}
-            className="h-9 gap-1.5 bg-[#C89933] text-[#251605] hover:bg-[#B5882D] text-xs font-semibold px-3.5 shadow-2xs shrink-0"
+            className={cn(CASHIERING_SHELL_PRIMARY_BUTTON, "gap-1.5 px-3.5 text-xs font-semibold")}
+            data-testid="cashiering-open-account"
           >
             <Plus className="size-4" /> Open Financial Account
           </Button>
-        ) : null}
-      </div>
+        </CashieringShellSlot>
+      ) : null}
 
-      {/* Full-width Financial Accounts Table */}
-      <div className="rounded-xl border border-[#E8E1D7] bg-white shadow-2xs overflow-hidden">
-        <div className="flex items-center justify-between border-b border-[#E8E1D7] px-4 py-3">
-          <h3 className="text-sm font-semibold text-[#251605]">
-            Financial Accounts ({filteredRows.length})
-          </h3>
-          <span className="text-xs text-[#7A7167] font-medium">{openRows.length} active</span>
-        </div>
+      <div className={ROOM_TABLE_WRAP}>
 
         {filteredRows.length === 0 ? (
           <div className="p-8 text-center text-xs text-[#7A7167] italic">
@@ -613,22 +595,22 @@ export function AccountsPanel({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px] text-xs">
-              <thead className="bg-[#FAF8F4] text-left text-[10px] uppercase tracking-wide text-[#7A7167] border-b border-[#E8E1D7]">
+            <table className="w-full min-w-[700px] text-sm">
+              <thead className={ROOM_TABLE_HEAD}>
                 <tr>
-                  <th className="px-3 py-2.5 font-medium">Account</th>
-                  <th className="px-3 py-2.5 font-medium">Master Entity</th>
-                  <th className="px-3 py-2.5 font-medium">Kind</th>
-                  <th className="px-3 py-2.5 text-right font-medium">Balance</th>
-                  <th className="px-3 py-2.5 font-medium">Status</th>
-                  <th className="px-3 py-2.5 text-right font-medium">Actions</th>
+                  <th className={ROOM_TABLE_TH}>Account</th>
+                  <th className={ROOM_TABLE_TH}>Master Entity</th>
+                  <th className={ROOM_TABLE_TH}>Kind</th>
+                  <th className={`${ROOM_TABLE_TH} text-right`}>Balance</th>
+                  <th className={ROOM_TABLE_TH}>Status</th>
+                  <th className={`${ROOM_TABLE_TH} text-right`}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E8E1D7]">
+              <tbody>
                 {filteredRows.map((row: FinancialAccountRow) => (
                   <tr
                     key={row.id}
-                    className="hover:bg-[#FAF6EC] cursor-pointer transition-colors group"
+                    className={cn(ROOM_TABLE_ROW, "cursor-pointer group")}
                     onClick={() =>
                       void navigate({
                         to: "/restaurant/pms/cashiering/accounts/$accountId",
@@ -1165,10 +1147,12 @@ export function ReportsPanel({
   restaurantId,
   money,
   timezone,
+  weekStart,
 }: {
   restaurantId: string;
   money: (n: number) => string;
   timezone: string;
+  weekStart: string | null;
 }) {
   const { currencyCode } = useRestaurantSettings();
   const businessDate = usePropertyBusinessDate(restaurantId, timezone);
@@ -1181,10 +1165,12 @@ export function ReportsPanel({
   const [printLines, setPrintLines] = useState<CashieringReportLine[] | null>(null);
 
   useEffect(() => {
-    if (!businessDate) return;
-    setFromDate((current) => current || businessDate);
-    setToDate((current) => current || businessDate);
-  }, [businessDate]);
+    const start = weekStart ?? (businessDate ? businessDate : "");
+    if (!start) return;
+    setFromDate(start);
+    setToDate(weekStart ? addDays(weekStart, 6) : start);
+    setPage(1);
+  }, [weekStart, businessDate]);
 
   useEffect(() => {
     if (!printing) return;
@@ -1267,110 +1253,52 @@ export function ReportsPanel({
   }
 
   return (
-    <div className="space-y-4" data-testid="cashiering-reports-panel">
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#DDD4C5] bg-card p-3">
-        <div>
-          <Label htmlFor="report-from">From</Label>
-          <Input
-            id="report-from"
-            type="date"
-            value={fromDate}
-            onChange={(event) => {
-              setFromDate(event.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-        <div>
-          <Label htmlFor="report-to">To</Label>
-          <Input
-            id="report-to"
-            type="date"
-            value={toDate}
-            onChange={(event) => {
-              setToDate(event.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            if (!businessDate) return;
-            setFromDate(businessDate);
-            setToDate(businessDate);
-            setPage(1);
-          }}
-        >
-          Today
-        </Button>
-
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="report-limit-top" className="text-xs text-muted-foreground whitespace-nowrap">
-              Limit:
-            </Label>
-            <select
-              id="report-limit-top"
-              aria-label="Rows per page limit"
-              value={limit}
-              onChange={(event) => {
-                setLimit(Number(event.target.value));
-                setPage(1);
-              }}
-              className="h-9 rounded-md border border-[#DDD4C5] bg-background px-2.5 text-xs font-medium text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933]"
+    <div className="space-y-3" data-testid="cashiering-reports-panel">
+      <CashieringShellSlot name="export">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={CASHIERING_SHELL_ICON_BUTTON}
+              disabled={!report || report.lines.length === 0 || exporting}
+              aria-label="Export"
+              title="Export"
+              data-testid="report-export-trigger"
             >
-              <option value={10}>10 per page</option>
-              <option value={25}>25 per page</option>
-              <option value={50}>50 per page</option>
-              <option value={100}>100 per page</option>
-            </select>
-          </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 border-[#DDD4C5] text-xs hover:bg-[#FAF8F4]"
-                disabled={!report || report.lines.length === 0 || exporting}
-                data-testid="report-export-trigger"
-              >
-                <Download className="mr-1.5 size-3.5 text-[#C89933]" />
-                {exporting ? "Exporting…" : "Export"}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="border-[#DDD4C5] text-xs">
-              <DropdownMenuItem
-                onClick={() => exportReport("all")}
-                className="cursor-pointer"
-                data-testid="export-csv-all"
-              >
-                <FileSpreadsheet className="mr-2 size-3.5 text-[#C89933]" />
-                Export Full Range (CSV)
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => exportReport("page")}
-                className="cursor-pointer"
-                data-testid="export-csv-page"
-              >
-                <FileText className="mr-2 size-3.5 text-muted-foreground" />
-                Export Current Page (CSV)
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={handlePrint}
-                className="cursor-pointer"
-                data-testid="export-print"
-              >
-                <Printer className="mr-2 size-3.5 text-[#C89933]" />
-                Print / Save as PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+              <Download className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="border-[#DDD4C5] text-xs">
+            <DropdownMenuItem
+              onClick={() => exportReport("all")}
+              className="cursor-pointer"
+              data-testid="export-csv-all"
+            >
+              <FileSpreadsheet className="mr-2 size-3.5 text-[#C89933]" />
+              Export Full Range (CSV)
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => exportReport("page")}
+              className="cursor-pointer"
+              data-testid="export-csv-page"
+            >
+              <FileText className="mr-2 size-3.5 text-muted-foreground" />
+              Export Current Page (CSV)
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={handlePrint}
+              className="cursor-pointer"
+              data-testid="export-print"
+            >
+              <Printer className="mr-2 size-3.5 text-[#C89933]" />
+              Print / Save as PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </CashieringShellSlot>
 
       {query.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading ledger totals…</p>
@@ -1380,20 +1308,6 @@ export function ReportsPanel({
           {(query.error as Error).message}
         </p>
       ) : null}
-      {totals ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Kpi label="Charges" value={money(totals.charges)} tone="blue" />
-          <Kpi label="Payments" value={money(totals.payments)} tone="green" />
-          <Kpi label="Deposits" value={money(totals.deposits)} tone="gold" />
-          <Kpi label="Refunds" value={money(totals.refunds)} tone="rose" />
-          <Kpi label="Adjustments" value={money(totals.adjustments)} tone="amber" />
-          <Kpi label="Discounts" value={money(totals.discounts)} tone="amber" />
-          <Kpi label="Transfers Out" value={money(totals.transfersOut)} tone="teal" />
-          <Kpi label="Transfers In" value={money(totals.transfersIn)} tone="teal" />
-          <Kpi label="Net movement" value={money(totals.netMovement)} hint="Signed ledger sum" />
-          <Kpi label="Lines" value={String(totals.lineCount)} hint="Total transactions in range" />
-        </div>
-      ) : null}
       {report && report.lines.length === 0 && !query.isLoading && !query.isError ? (
         <p className="rounded-xl border border-dashed border-[#DDD4C5] p-6 text-center text-sm text-muted-foreground">
           No folio transactions were posted in this property-local date range.
@@ -1401,17 +1315,17 @@ export function ReportsPanel({
       ) : null}
       {report && report.lines.length > 0 ? (
         <div className="space-y-3">
-          <div className="overflow-x-auto rounded-xl border border-[#DDD4C5] bg-card">
+          <div className={ROOM_TABLE_WRAP}>
             <table className="w-full min-w-[760px] text-sm">
-              <thead className="bg-[#FAF8F4] text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+              <thead className={ROOM_TABLE_HEAD}>
                 <tr>
-                  <th className="px-3 py-2">Posted</th>
-                  <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2">Guest</th>
-                  <th className="px-3 py-2">Folio</th>
-                  <th className="px-3 py-2">Description</th>
-                  <th className="px-3 py-2">Method</th>
-                  <th className="px-3 py-2 text-right">Amount</th>
+                  <th className={ROOM_TABLE_TH}>Posted</th>
+                  <th className={ROOM_TABLE_TH}>Type</th>
+                  <th className={ROOM_TABLE_TH}>Guest</th>
+                  <th className={ROOM_TABLE_TH}>Folio</th>
+                  <th className={ROOM_TABLE_TH}>Description</th>
+                  <th className={ROOM_TABLE_TH}>Method</th>
+                  <th className={`${ROOM_TABLE_TH} text-right`}>Amount</th>
                 </tr>
               </thead>
               <tbody>

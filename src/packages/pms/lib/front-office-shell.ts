@@ -695,6 +695,27 @@ export function reservationBarColor(status: ReservationStatus): string {
   return RESERVATION_LEGEND.find((item) => item.key === status)?.color ?? FO_BRAND.gold;
 }
 
+/**
+ * FO UI polish — rack bars move from solid fills to one shared soft-transparent
+ * tone: a low-opacity tint background (grid stays faintly visible through it)
+ * with the full-strength status colour carried on the border/icon/text for
+ * contrast. One opacity pair (14% / 55%) is reused everywhere instead of
+ * ad-hoc per-bar values.
+ */
+export const RESERVATION_BAR_SOFT_BG_ALPHA = "24"; // ~14% — low-opacity fill
+export const RESERVATION_BAR_SOFT_BORDER_ALPHA = "8C"; // ~55% — stronger border
+
+export type ReservationBarTone = { background: string; border: string; color: string };
+
+export function reservationBarSoftTone(status: ReservationStatus): ReservationBarTone {
+  const color = reservationBarColor(status);
+  return {
+    background: `${color}${RESERVATION_BAR_SOFT_BG_ALPHA}`,
+    border: `${color}${RESERVATION_BAR_SOFT_BORDER_ALPHA}`,
+    color,
+  };
+}
+
 export function liveHkStatus(status: string | null | undefined): LiveHkStatus | null {
   if (!status) return null;
   return (LIVE_HK_STATUSES as readonly string[]).includes(status) ? (status as LiveHkStatus) : null;
@@ -820,4 +841,55 @@ export function stayMatchesFilters(
     if (!inHouse) return false;
   }
   return true;
+}
+
+/**
+ * Burger-menu-as-filter (Issue burger→in-place filter). Maps each former full-page Front
+ * Office nav target onto the exact eligibility rule its page used to query by, so selecting
+ * it from the burger narrows the current Rack/Table rows instead of navigating away.
+ * - arrivals/inhouse/departures reuse the same staySlice rule as the KPI cards.
+ * - walkins reuses the walk-in source tag (`source === "walk_in"`), same tag the walk-in
+ *   desk and check-in flow write/read.
+ * - amendments reuses the in-house eligibility `AmendmentsFrame` queried by (`checked_in`).
+ * - cancellations reuses the confirmed-stay eligibility `CancellationsFrame` queried by.
+ * - noshows reuses the same "today's confirmed arrivals" eligibility `NoShowsFrame` queried
+ *   by (confirmed + arriving on the focus date).
+ * "exceptions" and "rack" (All) are not expressible as a status/date predicate — callers
+ * handle those separately (exceptions via the existing exception feed's room/reservation
+ * ids; "rack" applies no extra narrowing).
+ */
+export function stayMatchesRackCategory(
+  stay: {
+    status: ReservationStatus;
+    arrivalDate: string;
+    departureDate: string;
+    source?: string | null;
+  },
+  category: FoNavId,
+  focusDate: string,
+): boolean {
+  switch (category) {
+    case "rack":
+    case "exceptions":
+      return true;
+    case "arrivals":
+      return stay.arrivalDate === focusDate;
+    case "departures":
+      return stay.departureDate === focusDate;
+    case "inhouse":
+    case "amendments":
+      return (
+        stay.status === "checked_in" &&
+        stay.arrivalDate <= focusDate &&
+        stay.departureDate > focusDate
+      );
+    case "walkins":
+      return (stay.source ?? "") === "walk_in";
+    case "cancellations":
+      return stay.status === "confirmed";
+    case "noshows":
+      return stay.status === "confirmed" && stay.arrivalDate === focusDate;
+    default:
+      return true;
+  }
 }

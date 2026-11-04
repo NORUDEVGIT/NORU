@@ -41,6 +41,15 @@ import {
   type RoomType,
 } from "@/packages/pms/lib/rooms.functions";
 import { Button } from "@/shared/components/ui/button";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+  ROOM_SHELL_PRIMARY_BUTTON,
+  RoomShellRefreshButton,
+  RoomShellSlot,
+  RoomSummaryChips,
+} from "./room-inventory-shell";
 import { Input } from "@/shared/components/ui/input";
 import { Switch } from "@/shared/components/ui/switch";
 import { cn } from "@/shared/lib/utils";
@@ -193,9 +202,25 @@ export function RoomAssignmentEligibilityView({
   );
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="rounded-xl border border-[#E5DED4] bg-white p-5 shadow-xs space-y-4">
+    <div className="space-y-3">
+      <RoomShellSlot name="cta">
+        <Button
+          type="button"
+          className={ROOM_SHELL_PRIMARY_BUTTON}
+          disabled={
+            !input.roomId ||
+            !input.roomTypeId ||
+            input.departure <= input.arrival ||
+            mutation.isPending
+          }
+          onClick={() => mutation.mutate()}
+        >
+          <Search className="mr-2 size-4" />
+          Inspect Eligibility
+        </Button>
+      </RoomShellSlot>
+      <div className={mutation.data || mutation.isError ? "grid gap-3 lg:grid-cols-[minmax(0,1fr)_380px]" : undefined}>
+        <section className="rounded-lg border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-[#E5DED4]/80 pb-3">
             <div>
               <h3 className="text-sm font-bold" style={{ color: INK }}>
@@ -342,26 +367,12 @@ export function RoomAssignmentEligibilityView({
                 </div>
               </div>
 
-              <div className="pt-2">
-                <Button
-                  className="h-9 px-5 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B5882D] shadow-xs"
-                  disabled={
-                    !input.roomId ||
-                    !input.roomTypeId ||
-                    input.departure <= input.arrival ||
-                    mutation.isPending
-                  }
-                  onClick={() => mutation.mutate()}
-                >
-                  <Search className="mr-2 size-4" />
-                  Inspect eligibility
-                </Button>
-              </div>
             </div>
           )}
         </section>
 
-        <aside className="h-fit rounded-xl border border-[#E5DED4] bg-white shadow-xs lg:sticky lg:top-3">
+        {mutation.data || mutation.isError ? (
+        <aside className="h-fit rounded-lg border border-[#DDD4C5] bg-white shadow-sm lg:sticky lg:top-3">
           <div className="border-b border-[#E5DED4] px-5 py-3.5">
             <h3 className="text-sm font-bold" style={{ color: INK }}>
               Evaluation Results
@@ -460,6 +471,7 @@ export function RoomAssignmentEligibilityView({
             <RoomContextCard room={room} roomType={roomType} />
           </div>
         </aside>
+        ) : null}
       </div>
     </div>
   );
@@ -672,25 +684,29 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
   ].filter(Boolean).length;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-0.5">
-        <p className="text-xs text-muted-foreground">
-          Canonical inventory rules and block-type behaviors configured in Property Setup.
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <SettingsLink step="inventory-rules" />
-          {canConfigure ? (
-            <Button
-              size="sm"
-              className="h-9 px-4 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
-              disabled={pending || query.isLoading}
-              onClick={() => save()}
-            >
-              Save rules
-            </Button>
-          ) : null}
-        </div>
-      </div>
+    <div className="space-y-3">
+      <RoomShellSlot name="actions">
+        <SettingsLink step="inventory-rules" />
+      </RoomShellSlot>
+      {canConfigure ? (
+        <RoomShellSlot name="cta">
+          <Button
+            type="button"
+            className={ROOM_SHELL_PRIMARY_BUTTON}
+            disabled={pending || query.isLoading}
+            onClick={() => save()}
+          >
+            Save Rules
+          </Button>
+        </RoomShellSlot>
+      ) : null}
+      <RoomSummaryChips
+        items={[
+          { label: "Assignment flags", value: enforcedCount, tone: "success" },
+          { label: "Block types", value: enabledBlocks, tone: "info" },
+          { label: "Overbooking", value: rules.overbookingAllowed ? "On" : "Off", tone: rules.overbookingAllowed ? "warning" : "neutral" },
+        ]}
+      />
 
       {query.isLoading ? (
         <InventoryState state="loading" />
@@ -702,43 +718,6 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-            <Kpi
-              icon={SlidersHorizontal}
-              label="Enforced assignment flags"
-              value={enforcedCount}
-              detail="Used by the assignment RPC"
-              tone="bg-emerald-50 text-emerald-700"
-            />
-            <Kpi
-              icon={Layers3}
-              label="Enabled block types"
-              value={enabledBlocks}
-              detail="Copied onto new operational blocks"
-              tone="bg-violet-50 text-violet-700"
-            />
-            <Kpi
-              icon={Ban}
-              label="Overbooking config"
-              value={rules.overbookingAllowed ? "On" : "Off"}
-              detail="Master switch. Numbers are set per room type"
-              tone="bg-amber-50 text-amber-700"
-            />
-            <Kpi
-              icon={Gauge}
-              label="Operational allowance"
-              value={0}
-              detail="Canonical availability v1"
-              tone="bg-blue-50 text-blue-700"
-            />
-            <Kpi
-              icon={CheckCircle2}
-              label="Persisted"
-              value={query.data?.persisted ? "Yes" : "Defaults"}
-              detail={canConfigure ? "Manager can save" : "Read-only for this role"}
-              tone="bg-zinc-100 text-zinc-700"
-            />
-          </div>
 
           {!canConfigure ? (
             <p className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5] px-4 py-3 text-xs text-muted-foreground leading-5">
@@ -963,13 +942,26 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
   });
   const summary = board.data?.nights[0];
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-0.5">
-        <p className="text-xs text-muted-foreground">
-          Operational room-type overbooking for the selected night. Allowances are configured in Property Setup.
-        </p>
+    <div className="space-y-3">
+      <RoomShellSlot name="controls">
+        <Input
+          type="date"
+          value={night ?? ""}
+          onChange={(event) => setNight(event.target.value)}
+          className="h-9 w-40 text-xs"
+          aria-label="Overbooking night"
+        />
+      </RoomShellSlot>
+      <RoomShellSlot name="actions">
         <SettingsLink label="Configure in Property Setup" step="inventory-rules" section="overbooking" />
-      </div>
+      </RoomShellSlot>
+      <RoomSummaryChips
+        items={[
+          { label: "Physical available", value: summary?.physicalAvailable ?? "—", tone: "success" },
+          { label: "Overbooking", value: summary?.propertyOverbookingEnabled ? "Enabled" : "Off", tone: summary?.propertyOverbookingEnabled ? "warning" : "neutral" },
+          { label: "Overbooked rooms", value: summary?.totalOverbookedRooms ?? "—", tone: "info" },
+        ]}
+      />
 
       {query.isLoading ? (
         <InventoryState state="loading" />
@@ -981,36 +973,6 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Kpi
-              icon={Gauge}
-              label="Physical available"
-              value={summary?.physicalAvailable ?? "—"}
-              detail={summary ? `Capacity ${summary.physicalCapacity}` : "Canonical board"}
-              tone="bg-emerald-50 text-emerald-700"
-            />
-            <Kpi
-              icon={ShieldAlert}
-              label="Overbooking"
-              value={summary?.propertyOverbookingEnabled ? "Enabled" : "Off"}
-              detail="Property master switch"
-              tone="bg-amber-50 text-amber-700"
-            />
-            <Kpi
-              icon={Layers3}
-              label="Total overbooked rooms"
-              value={summary?.totalOverbookedRooms ?? "—"}
-              detail="Informational sum of room-type shortages"
-              tone="bg-blue-50 text-blue-700"
-            />
-            <Kpi
-              icon={Ban}
-              label="Room types overbooked"
-              value={summary?.roomTypesOverbooked ?? "—"}
-              detail="Each room type keeps its own allowance"
-              tone="bg-zinc-100 text-zinc-700"
-            />
-          </div>
 
           <section className="rounded-lg border border-[#E5DED4] bg-white p-5 shadow-xs">
             <h3 className="text-base font-bold" style={{ color: INK }}>
@@ -1021,15 +983,6 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
               Allowances are edited in Property Setup.
             </p>
             <div className="mt-4 flex flex-wrap items-end gap-3">
-              <label className="text-xs font-semibold text-[#5F554B]">
-                Night
-                <Input
-                  type="date"
-                  className="mt-1 h-9 text-xs"
-                  value={night ?? ""}
-                  onChange={(event) => setNight(event.target.value)}
-                />
-              </label>
               {summary?.alertEnabled && summary.totalOverbookedRooms > 0 ? (
                 <p className="rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-medium text-amber-950 leading-5">
                   {summary.roomTypesOverbooked} room type

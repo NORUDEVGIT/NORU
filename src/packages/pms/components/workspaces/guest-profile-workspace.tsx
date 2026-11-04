@@ -2,17 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, ChevronDown, Plus } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/shared/components/ui/dropdown-menu";
 import { GuestGroupTemplatesDialog } from "@/packages/pms/components/guests/guest-group-templates-dialog";
 import { GuestProfileChrome } from "@/packages/pms/components/guests/guest-profile-chrome";
+import { SHELL_PRIMARY_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import {
   GUEST_WORKSPACE_SECTIONS,
   domainFromSection,
@@ -84,7 +79,6 @@ import {
 } from "@/packages/pms/lib/guest-profile-wave1";
 import { OVERVIEW_FINANCIAL_COPY } from "@/packages/pms/lib/guest-profile-overview";
 import {
-  GUEST_IMPORT_UNAVAILABLE,
   guestListingSection,
   operationalProfileType,
 } from "@/packages/pms/lib/guest-profile-listing";
@@ -341,166 +335,30 @@ export function GuestProfileWorkspace({
 
   const primaryAction =
     !guestId && !create ? (
-      <div className="flex items-center gap-1.5" data-testid="guest-header-actions">
-        <div className="inline-flex rounded-lg shadow-sm">
-          <Button
-            type="button"
-            size="sm"
-            disabled={!canCreate}
-            onClick={() => {
-              void navigate({
-                to: GUEST_PROFILE_DIRECTORY_PATH,
-                search: guestProfileSearch({
-                  section: activeSection,
-                  type: sectionDef.domain,
-                  create: sectionDef.createType,
-                }),
-              });
-            }}
-            className="h-8 gap-1.5 rounded-r-none bg-[#251605] px-3 text-xs font-semibold text-[#FBF9F5] hover:bg-[#3D2C1D] disabled:opacity-50"
-            data-testid="guest-create-action-btn"
-            title={
-              isTypeInactive
-                ? `${sectionDef.title} is inactive in Property Setup`
-                : `Create ${activeCreateTitle}`
-            }
-          >
-            <Plus className="size-3.5" />
-            <span>{activeCreateTitle}</span>
-          </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                size="sm"
-                className="h-8 rounded-l-none border-l border-white/20 bg-[#251605] px-1.5 text-[#FBF9F5] hover:bg-[#3D2C1D] disabled:opacity-50"
-                aria-label="Create profile options"
-                data-testid="guest-create-dropdown-trigger"
-              >
-                <ChevronDown className="size-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 text-xs">
-              <DropdownMenuItem
-                disabled={!canCreateIndividual}
-                onSelect={() =>
-                  void navigate({
-                    to: GUEST_PROFILE_DIRECTORY_PATH,
-                    search: guestProfileSearch({
-                      section: "guests",
-                      type: "individual",
-                      create: "individual",
-                    }),
-                  })
-                }
-              >
-                New Guest
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!canCreateCompany}
-                onSelect={() =>
-                  void navigate({
-                    to: GUEST_PROFILE_DIRECTORY_PATH,
-                    search: guestProfileSearch({
-                      section: "companies",
-                      type: "company",
-                      create: "company",
-                    }),
-                  })
-                }
-              >
-                New Company
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!canCreateAgency}
-                onSelect={() =>
-                  void navigate({
-                    to: GUEST_PROFILE_DIRECTORY_PATH,
-                    search: guestProfileSearch({
-                      section: "travel-agencies",
-                      type: "travel-agent",
-                      create: "travel-agent",
-                    }),
-                  })
-                }
-              >
-                New Travel Agency
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!canCreateGroup}
-                onSelect={() =>
-                  void navigate({
-                    to: GUEST_PROFILE_DIRECTORY_PATH,
-                    search: guestProfileSearch({
-                      section: "groups",
-                      type: "group",
-                      create: "group",
-                    }),
-                  })
-                }
-              >
-                New Group
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {activeSection === "groups" ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 border-[#D8D2C5] bg-white text-xs font-medium text-[#251605] hover:bg-[#FAF8F5]"
-                data-testid="group-tools-menu"
-              >
-                <span>Group Tools</span>
-                <ChevronDown className="ml-1 size-3 text-[#7A6B58]" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44 text-xs">
-              <DropdownMenuItem
-                disabled={!canCreateGroup}
-                onSelect={() => setHeaderTemplateApplyOpen(true)}
-              >
-                Create from Template
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!canCreateGroup}
-                onSelect={() => setHeaderTemplateManageOpen(true)}
-              >
-                Manage Templates
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 border-[#D8D2C5] bg-white text-xs font-medium text-[#251605] hover:bg-[#FAF8F5]"
-                data-testid="guest-more-actions-menu"
-              >
-                <span>More</span>
-                <ChevronDown className="ml-1 size-3 text-[#7A6B58]" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40 text-xs">
-              <DropdownMenuItem
-                disabled
-                title={GUEST_IMPORT_UNAVAILABLE}
-                data-testid="import-guests"
-              >
-                Import Guests
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
+      <Button
+        type="button"
+        disabled={!canCreate}
+        onClick={() => {
+          void navigate({
+            to: GUEST_PROFILE_DIRECTORY_PATH,
+            search: guestProfileSearch({
+              section: activeSection,
+              type: sectionDef.domain,
+              create: sectionDef.createType,
+            }),
+          });
+        }}
+        className={cn(SHELL_PRIMARY_BUTTON, "shrink-0")}
+        data-testid="guest-create-action-btn"
+        title={
+          isTypeInactive
+            ? `${sectionDef.title} is inactive in Property Setup`
+            : `Create ${activeCreateTitle}`
+        }
+      >
+        <Plus className="size-3.5" />
+        <span>{activeCreateTitle}</span>
+      </Button>
     ) : null;
 
   const createBackBanner = (
@@ -551,6 +409,9 @@ export function GuestProfileWorkspace({
             directorySearch={directorySearch}
             canCreate={canCreate}
             isTypeInactive={isTypeInactive}
+            onRefresh={handleRefresh}
+            isRefreshing={isRefreshing}
+            primaryAction={primaryAction}
           />
         </div>
         <GuestCreateModal
@@ -612,6 +473,9 @@ export function GuestProfileWorkspace({
             directorySearch={directorySearch}
             canCreate={canCreate}
             isTypeInactive={isTypeInactive}
+            onRefresh={handleRefresh}
+            isRefreshing={isRefreshing}
+            primaryAction={primaryAction}
           />
         </div>
         <GuestGroupCreateModal
@@ -673,6 +537,9 @@ export function GuestProfileWorkspace({
             directorySearch={directorySearch}
             canCreate={canCreate}
             isTypeInactive={isTypeInactive}
+            onRefresh={handleRefresh}
+            isRefreshing={isRefreshing}
+            primaryAction={primaryAction}
           />
         </div>
         <GuestCompanyCreateModal
@@ -738,6 +605,9 @@ export function GuestProfileWorkspace({
             directorySearch={directorySearch}
             canCreate={canCreate}
             isTypeInactive={isTypeInactive}
+            onRefresh={handleRefresh}
+            isRefreshing={isRefreshing}
+            primaryAction={primaryAction}
           />
         </div>
         <GuestTravelAgencyCreateModal
@@ -923,6 +793,9 @@ export function GuestProfileWorkspace({
             directorySearch={directorySearch}
             canCreate={canCreate}
             isTypeInactive={isTypeInactive}
+            onRefresh={handleRefresh}
+            isRefreshing={isRefreshing}
+            primaryAction={primaryAction}
           />
         </div>
         <GuestGroupTemplatesDialog
@@ -952,12 +825,7 @@ export function GuestProfileWorkspace({
             profileType={operationalType}
           />
         </>
-      ) : (
-        <div>
-          <h1 className="font-display text-2xl">Guest Profiles</h1>
-          <p className="text-sm text-muted-foreground">Search, manage and open guest profiles.</p>
-        </div>
-      )}
+      ) : null}
 
       {guestId ? null : typeSwitcher}
 

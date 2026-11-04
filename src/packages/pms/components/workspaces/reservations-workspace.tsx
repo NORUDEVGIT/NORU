@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
 
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useIsFetching,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
@@ -10,15 +17,18 @@ import {
   ClipboardList,
   ChevronLeft,
   ChevronRight,
+  Clock,
   DoorOpen,
   House,
+  Download,
   List,
   LogIn,
   LogOut,
+  Menu,
   PanelRight,
   RefreshCw,
   Search,
-  SlidersHorizontal,
+  Table2,
   TriangleAlert,
   Users,
   X,
@@ -35,15 +45,44 @@ import {
 import { CreateReservationPage } from "@/packages/pms/components/bookings/create-reservation-page";
 import type { ReservationContextActionId } from "@/packages/pms/components/reservations/reservation-context-actions";
 import { ReservationContextMenu } from "@/packages/pms/components/reservations/reservation-context-menu";
-import { ReservationDeskMoreFilters } from "@/packages/pms/components/reservations/reservation-desk-more-filters";
+import { ReservationFilterMenu } from "@/packages/pms/components/reservations/reservation-filter-menu";
+import {
+  DaysRangeSelect,
+  WeekRangeControl,
+  mondayOf,
+  readSharedWeekStart,
+  writeSharedWeekStart,
+} from "@/packages/pms/components/pms-week-controls";
+import {
+  ExportPdfDialog,
+  type ExportRange,
+} from "@/packages/pms/components/guests/guest-export-pdf";
+import {
+  exportReservationsToPdf,
+  openPdfWindow,
+} from "@/packages/pms/components/reservations/reservation-export-pdf";
 import { ReservationQuickViewPanel } from "@/packages/pms/components/reservations/reservation-quick-view";
 import { BookingCalendarPanel } from "@/packages/pms/components/reservations/booking-calendar";
+import {
+  DEFAULT_CALENDAR_VIEW,
+  type CalendarViewState,
+} from "@/packages/pms/components/reservations/reservation-desk-toolbar-menu";
+import {
+  ReservationShellProvider,
+  SHELL_ICON_BUTTON,
+  SHELL_PRIMARY_BUTTON,
+} from "@/packages/pms/components/reservations/reservation-shell-slots";
+import { addDays } from "@/packages/pms/lib/reservation-dates";
+import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
+import {
+  CALENDAR_HORIZONS,
+  type CalendarHorizon,
+} from "@/packages/pms/lib/reservation-workspace/shared-read-models";
 import { GroupsWorkspace } from "@/packages/pms/components/reservations/groups-workspace";
 import { WaitlistWorkspace } from "@/packages/pms/components/reservations/waitlist-workspace";
 import { ArrivalsDeparturesWorkspace } from "@/packages/pms/components/workspaces/arrivals-departures-workspace";
 import { ReservationControlWorkspace } from "@/packages/pms/components/workspaces/reservation-control-workspace";
 import {
-  isCalendarSectionEnabled,
   tabFromWorkspaceSection,
   workspaceSectionFromTab,
   type CalendarWorkspaceSection,
@@ -96,12 +135,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 
 const PAGE_SIZE = 25;
+/**
+ * Export to PDF reads the desk page by page. Stop after this many pages
+ * (40 x 25 = 1,000 reservations) so one export cannot run forever.
+ */
+const EXPORT_MAX_PAGES = 40;
 const ALL = DESK_FILTER_ALL;
 
 type SourceFilter = DeskSourceFilter;
@@ -110,6 +155,32 @@ type StatusFilter = DeskStatusFilter;
 type ReservationActionDialog = "assign_room" | "change_room" | "check_in" | "check_out";
 
 const RESERVATION_ACTION_ROLES = new Set(["owner", "manager", "receptionist"]);
+
+/** Reads refreshed by the shared toolbar Refresh button; the KPI row is always included. */
+const SECTION_REFRESH_KEYS: Record<CalendarWorkspaceSection, string[]> = {
+  desk: ["reservation-desk", "reservation-quick-view"],
+  calendar: [
+    "reservation-desk",
+    "reservation-quick-view",
+    "reservation-calendar",
+    "reservation-calendar-search",
+    "reservation-calendar-exceptions",
+    "reservation-desk-availability",
+  ],
+  groups: ["reservation-desk", "pms-groups", "pms-group"],
+  waitlist: ["reservation-desk", "pms-waitlist", "pms-waitlist-detail"],
+  "arrivals-departures": ["reservation-desk", "pms-arrivals-departures"],
+  exceptions: ["reservation-desk", "pms-reservation-exceptions"],
+};
+
+const SECTION_SEARCH_PLACEHOLDER: Record<CalendarWorkspaceSection, string> = {
+  desk: "Search confirmation, guest, phone, email or room…",
+  calendar: "Search confirmation, guest, phone, email or room…",
+  groups: "Search group name, confirmation, code or reference…",
+  waitlist: "Search waitlist by guest, number or notes…",
+  "arrivals-departures": "Search guest, confirmation or room…",
+  exceptions: "Search exceptions by guest, reservation or room…",
+};
 
 const RESERVATION_SECTIONS = [
   "Reservation Desk",
@@ -205,33 +276,28 @@ function SectionTab({
 function KpiCard({
   label,
   value,
-  hint,
   loading,
   icon,
   tone,
 }: {
   label: string;
   value: number;
-  hint?: string;
   loading: boolean;
   icon: React.ReactNode;
   tone: string;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-xl border border-[#DDD4C5] bg-white px-3 py-3 shadow-sm">
-      <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", tone)}>
-        {icon}
-      </span>
+    <div className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 shadow-sm">
+      <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", tone)}>{icon}</span>
       <div className="min-w-0">
         <p className="truncate text-[10px] font-medium text-[#756A5B]">{label}</p>
         {loading ? (
-          <Skeleton className="mt-1 h-6 w-14" />
+          <Skeleton className="mt-1 h-5 w-10" />
         ) : (
-          <p className="font-display text-xl font-semibold leading-tight tracking-tight text-[#251605]">
+          <p className="font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
             {value}
           </p>
         )}
-        {hint ? <p className="truncate text-[9px] text-muted-foreground">{hint}</p> : null}
       </div>
     </div>
   );
@@ -272,6 +338,10 @@ export function ReservationsWorkspace({
   initialReturnTo?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
+  const propertyBusinessDate = usePropertyBusinessDate(
+    restaurantId,
+    membership.restaurant.timezone,
+  );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const loadDesk = useServerFn(getReservationDesk);
@@ -292,12 +362,23 @@ export function ReservationsWorkspace({
   const [roomTypeName, setRoomTypeName] = useState("");
   const [source, setSource] = useState<SourceFilter>("all");
   const [advanced, setAdvanced] = useState<DeskAdvancedFilters>(EMPTY_ADVANCED_FILTERS);
-  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const [viewsCollapsed, setViewsCollapsed] = useState(false);
-  const [quickViewCollapsed, setQuickViewCollapsed] = useState(true);
+  const [quickViewOpen, setQuickViewOpen] = useState(false);
+  const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
+  const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
+  const [primarySlot, setPrimarySlot] = useState<HTMLElement | null>(null);
+  const shellSlots = useMemo(
+    () => ({ filter: filterSlot, primary: primarySlot }),
+    [filterSlot, primarySlot],
+  );
+  const [workspaceSearch, setWorkspaceSearch] = useState("");
+  const [calendarWeekStart, setCalendarWeekStart] = useState<string | null>(() =>
+    readSharedWeekStart(restaurantId),
+  );
+  const [calendarHorizon, setCalendarHorizon] = useState<CalendarHorizon>(7);
+  const [calendarView, setCalendarView] = useState<CalendarViewState>(DEFAULT_CALENDAR_VIEW);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [desktopQuickView, setDesktopQuickView] = useState(false);
   const [actionDialog, setActionDialog] = useState<{
@@ -305,6 +386,8 @@ export function ReservationsWorkspace({
     row: ReservationDeskRow;
   } | null>(null);
   const [overlay, setOverlay] = useState<ReservationWorkspaceOverlayState>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [workspaceSection, setWorkspaceSection] = useState<CalendarWorkspaceSection>(() =>
     workspaceSectionFromTab(initialTab),
   );
@@ -386,6 +469,8 @@ export function ReservationsWorkspace({
     arrivalError ? { ...bar, arrivalFrom: "", arrivalTo: "" } : bar,
     advanced,
   );
+  const tableWeekStart = calendarWeekStart ?? mondayOf(propertyBusinessDate);
+  const tableStayEnd = addDays(tableWeekStart, calendarHorizon - 1);
 
   const deskQuery = useQuery({
     queryKey: [
@@ -400,6 +485,8 @@ export function ReservationsWorkspace({
       source,
       advanced,
       page,
+      tableWeekStart,
+      tableStayEnd,
     ],
     queryFn: () =>
       loadDesk({
@@ -409,6 +496,8 @@ export function ReservationsWorkspace({
           page,
           pageSize: PAGE_SIZE,
           ...deskQuerySlice,
+          stayOverlapStart: tableWeekStart,
+          stayOverlapEnd: tableStayEnd,
         },
       }),
     placeholderData: keepPreviousData,
@@ -500,10 +589,6 @@ export function ReservationsWorkspace({
   }, [debouncedSearch]);
 
   useEffect(() => {
-    if (selectedId) setQuickViewCollapsed(false);
-  }, [selectedId]);
-
-  useEffect(() => {
     const media = window.matchMedia("(min-width: 1280px)");
     const apply = () => setDesktopQuickView(media.matches);
     apply();
@@ -518,6 +603,7 @@ export function ReservationsWorkspace({
     setSelectedId(null);
     setSelectedRoomId(null);
     setMobileDetailOpen(false);
+    setQuickViewOpen(false);
   }, [deskQuery.data?.rows, selectedId, calendarRow]);
 
   function resetPage() {
@@ -534,6 +620,10 @@ export function ReservationsWorkspace({
   function clearFilters() {
     setSearch("");
     setDebouncedSearch("");
+    resetFilterFields();
+  }
+
+  function resetFilterFields() {
     setDateFrom("");
     setDateTo("");
     setStatus("all");
@@ -548,6 +638,7 @@ export function ReservationsWorkspace({
     setSelectedId(row.reservationId);
     setSelectedRoomId(row.reservationRoomId ?? null);
     if (!row.reservationRoomId) setCalendarRow(null);
+    setQuickViewOpen(true);
     setMobileDetailOpen(true);
   }
 
@@ -573,8 +664,10 @@ export function ReservationsWorkspace({
 
   function goWorkspaceSection(section: CalendarWorkspaceSection) {
     setWorkspaceSection(section);
+    setWorkspaceSearch("");
     setSelectedId(null);
     setSelectedRoomId(null);
+    setQuickViewOpen(false);
     setMobileDetailOpen(false);
     void navigate({
       to: "/restaurant/pms/reservations",
@@ -583,6 +676,78 @@ export function ReservationsWorkspace({
   }
 
   const editCloseGuardRef = useRef<(() => boolean) | null>(null);
+
+  /**
+   * Reads every reservation arriving in the chosen period (not just the page on
+   * screen). The current view, search and filters still apply. The print window
+   * is opened by the caller, inside the click, so the browser does not block it.
+   */
+  async function exportReservations(range: ExportRange, printWindow: Window) {
+    setExporting(true);
+    try {
+      const exportBar: DeskBarFilters =
+        range.preset === "all"
+          ? arrivalError
+            ? { ...bar, arrivalFrom: "", arrivalTo: "" }
+            : bar
+          : { ...bar, arrivalFrom: range.from ?? "", arrivalTo: range.to ?? "" };
+      const slice = toDeskSearchQuerySlice(debouncedSearch, exportBar, advanced);
+      const weekScope =
+        range.preset === "all"
+          ? { stayOverlapStart: tableWeekStart, stayOverlapEnd: tableStayEnd }
+          : {};
+      const collected: ReservationDeskRow[] = [];
+      let nextPage = 1;
+      let hasMore = true;
+      while (hasMore && nextPage <= EXPORT_MAX_PAGES) {
+        const result = await loadDesk({
+          data: {
+            restaurantId,
+            view,
+            page: nextPage,
+            pageSize: PAGE_SIZE,
+            ...slice,
+            ...weekScope,
+          },
+        });
+        collected.push(...result.rows);
+        hasMore = result.query.hasMore;
+        nextPage += 1;
+      }
+      if (hasMore) {
+        toast.message(
+          `Exported the first ${collected.length} reservations. Narrow the period to export the rest.`,
+        );
+      }
+      exportReservationsToPdf({
+        printWindow,
+        title: "Reservations",
+        restaurantName: membership.restaurant.name,
+        scope: VIEWS.find((item) => item.id === view)?.label ?? "All Reservations",
+        rangeLabel: range.label,
+        rows: collected.map((row) => ({
+          confirmationNumber: row.confirmationNumber,
+          guestName: row.guestName,
+          roomTypeName: row.roomTypeName,
+          room: row.roomNumber ?? "Unassigned",
+          arrival: formatDate(row.arrivalDate),
+          departure: formatDate(row.departureDate),
+          nights: row.nights,
+          adults: row.adults,
+          children: row.children,
+          status: row.status.replaceAll("_", " "),
+          source: sourceLabel(row.source),
+          ratePlan: row.ratePlanName ?? "—",
+          total: formatMoney(row.roomSubtotal, row.currency),
+        })),
+      });
+    } catch (error) {
+      printWindow.close();
+      toast.error(error instanceof Error ? error.message : "Could not export reservations.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function closeWorkspaceOverlay(open: boolean) {
     if (open) return;
@@ -654,6 +819,62 @@ export function ReservationsWorkspace({
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isInitialLoading = deskQuery.isLoading && !snapshot;
 
+  const isDeskOrCalendar = workspaceSection === "desk" || workspaceSection === "calendar";
+  const toolbarSearch = isDeskOrCalendar ? search : workspaceSearch;
+  const refreshKeys = SECTION_REFRESH_KEYS[workspaceSection];
+  const sectionFetching =
+    useIsFetching({
+      predicate: (query) =>
+        query.queryKey[1] === restaurantId &&
+        refreshKeys.includes(String(query.queryKey[0])),
+    }) > 0;
+
+  function refreshSection() {
+    for (const key of refreshKeys) {
+      void queryClient.invalidateQueries({ queryKey: [key, restaurantId] });
+    }
+  }
+
+  function setToolbarSearch(value: string) {
+    if (isDeskOrCalendar) setSearch(value);
+    else setWorkspaceSearch(value);
+  }
+
+  useEffect(() => {
+    if (calendarWeekStart || !snapshot?.businessDate) return;
+    const monday = mondayOf(snapshot.businessDate);
+    setCalendarWeekStart(monday);
+    writeSharedWeekStart(restaurantId, monday);
+  }, [calendarWeekStart, snapshot?.businessDate, restaurantId]);
+
+  function shiftReservationWeek(direction: -1 | 1) {
+    const base = calendarWeekStart ?? (snapshot?.businessDate ? mondayOf(snapshot.businessDate) : null);
+    if (!base) return;
+    const next = addDays(base, direction * 7);
+    setCalendarWeekStart(next);
+    writeSharedWeekStart(restaurantId, next);
+    setPage(1);
+  }
+
+  function pickReservationWeek(date: string) {
+    const monday = mondayOf(date);
+    setCalendarWeekStart(monday);
+    writeSharedWeekStart(restaurantId, monday);
+    setPage(1);
+  }
+
+  const roomTypeOptions: Array<[string, string]> = useMemo(
+    () => (roomTypesQuery.data ?? []).map((roomType) => [roomType.id, roomType.name] as [string, string]),
+    [roomTypesQuery.data],
+  );
+  const activeFilterCount =
+    countActiveAdvancedFilters(advanced) +
+    (source !== "all" ? 1 : 0) +
+    (status !== "all" ? 1 : 0) +
+    (roomTypeId !== "all" ? 1 : 0) +
+    (dateFrom ? 1 : 0) +
+    (dateTo ? 1 : 0);
+
   return (
     <RoomInventoryChrome
       membership={membership}
@@ -665,260 +886,214 @@ export function ReservationsWorkspace({
         setSearch(value);
       }}
     >
-      <div className="w-full min-w-0 bg-[#F7F4EE]" data-testid="reservation-desk">
-        <header className="border-b border-border bg-background">
-          <div className="px-5 pt-4 sm:px-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              Operations
-            </p>
-            <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-foreground">
-              {workspaceSection === "calendar"
-                ? "Booking Calendar"
-                : workspaceSection === "groups"
-                  ? "Groups & Blocks"
-                  : workspaceSection === "waitlist"
-                    ? "Waitlist"
-                    : workspaceSection === "arrivals-departures"
-                      ? "Arrivals & Departures"
-                      : workspaceSection === "exceptions"
-                        ? "Exceptions"
-                        : "Reservation Desk"}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {workspaceSection === "calendar"
-                ? "Inspect stay occupancy by room, then open Quick View or Front Office actions without leaving the workspace."
-                : workspaceSection === "groups"
-                  ? "Manage operational groups, room blocks, pickup and rooming lists. Guest account masters stay in Guest Profile."
-                  : workspaceSection === "waitlist"
-                    ? "Capture waitlist requests, match availability, offer and convert through create reservation. This is not a pending stay queue."
-                    : workspaceSection === "arrivals-departures"
-                      ? "Manage today’s arrivals and departures, room readiness, expected arrival times, and same-day late checkout."
-                      : workspaceSection === "exceptions"
-                        ? "Inspect derived reservation exceptions and route them to Front Office, inventory, housekeeping, cashiering or guest profile."
-                        : "Manage reservations, availability, and daily reservation operations across your property."}
-            </p>
-          </div>
-          <nav
-            className="mt-3 flex items-end gap-3 overflow-x-auto px-5 sm:px-6"
-            aria-label="Reservation workspace"
-          >
-            {RESERVATION_SECTIONS.map((section, index) => (
-              <SectionTab
-                key={section}
-                active={
-                  workspaceSection === "calendar"
-                    ? section === "Booking Calendar"
-                    : workspaceSection === "groups"
-                      ? section === "Groups & Blocks"
-                      : workspaceSection === "waitlist"
-                        ? section === "Waitlist"
-                        : workspaceSection === "arrivals-departures"
-                          ? section === "Arrivals & Departures"
-                          : workspaceSection === "exceptions"
-                            ? section === "Exceptions"
-                            : section === "Reservation Desk"
-                }
-                disabled={!isCalendarSectionEnabled(section, index)}
-                onClick={() => {
-                  if (section === "Booking Calendar") goWorkspaceSection("calendar");
-                  if (section === "Reservation Desk") goWorkspaceSection("desk");
-                  if (section === "Groups & Blocks") goWorkspaceSection("groups");
-                  if (section === "Waitlist") goWorkspaceSection("waitlist");
-                  if (section === "Arrivals & Departures")
-                    goWorkspaceSection("arrivals-departures");
-                  if (section === "Exceptions") goWorkspaceSection("exceptions");
-                }}
-              >
-                {section}
-              </SectionTab>
-            ))}
-          </nav>
-        </header>
-
-        <main className="min-w-0 w-full space-y-4 p-4 sm:p-5 lg:p-6">
-          {workspaceSection === "groups" ||
-          workspaceSection === "waitlist" ||
-          workspaceSection === "arrivals-departures" ||
-          workspaceSection === "exceptions" ? null : (
+      <div className="relative w-full min-w-0 bg-[#F7F4EE]" data-testid="reservation-desk">
+        <ReservationsBurger
+          active={workspaceSection}
+          toolbarSlot={toolbarSlot}
+          onSelect={goWorkspaceSection}
+        />
+        <ReservationShellProvider value={shellSlots}>
+        <main className="min-w-0 w-full space-y-3 p-3 sm:p-4 lg:p-5">
             <section
-              className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6"
+              className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
               aria-label="Reservation KPIs"
+              data-testid="reservation-kpis"
             >
               <KpiCard
                 label="Total Reservations"
                 value={total}
-                hint="All reservations"
                 loading={isInitialLoading}
                 icon={<ClipboardList className="size-4" />}
                 tone="bg-[#F4E9D0] text-[#8A641A]"
               />
               <KpiCard
-                label="Arrivals Today"
+                label="Arrivals"
                 value={kpis?.arrivalsToday ?? 0}
                 loading={isInitialLoading}
                 icon={<LogIn className="size-4" />}
-                tone="bg-emerald-50 text-emerald-700"
+                tone="bg-blue-50 text-blue-700"
               />
               <KpiCard
-                label="Departures Today"
+                label="Departures"
                 value={kpis?.departuresToday ?? 0}
                 loading={isInitialLoading}
                 icon={<LogOut className="size-4" />}
-                tone="bg-rose-50 text-rose-700"
+                tone="bg-amber-50 text-amber-800"
               />
               <KpiCard
                 label="In-House"
                 value={kpis?.inHouse ?? 0}
                 loading={isInitialLoading}
                 icon={<House className="size-4" />}
-                tone="bg-blue-50 text-blue-700"
+                tone="bg-emerald-50 text-emerald-700"
               />
               <KpiCard
                 label="Unassigned"
                 value={kpis?.unassigned ?? 0}
                 loading={isInitialLoading}
                 icon={<TriangleAlert className="size-4" />}
-                tone="bg-amber-50 text-amber-700"
+                tone="bg-orange-50 text-orange-700"
               />
               <KpiCard
                 label="Available Rooms"
                 value={kpis?.availableRooms ?? 0}
-                hint="Physical vacant rooms"
                 loading={isInitialLoading}
                 icon={<DoorOpen className="size-4" />}
                 tone="bg-indigo-50 text-indigo-700"
               />
             </section>
-          )}
 
-          {workspaceSection === "desk" ? (
-            <>
-              <section className="w-full min-w-0 rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-                <div className="flex min-w-0 flex-wrap items-end gap-3">
-                  <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-                    Arrival From
-                    <Input
-                      type="date"
-                      value={dateFrom}
-                      onChange={(event) => {
-                        setDateFrom(event.target.value);
-                        resetPage();
-                      }}
-                      className="h-9 w-40"
+              <section
+                ref={setToolbarSlot}
+                className="relative w-full min-w-0 rounded-lg border border-[#DDD4C5] bg-white px-2 py-1.5 shadow-sm"
+                data-testid="reservation-toolbar"
+                data-section={workspaceSection}
+              >
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5 pl-10">
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <WeekRangeControl
+                      weekStart={calendarWeekStart}
+                      onShiftWeek={shiftReservationWeek}
+                      onPickDate={pickReservationWeek}
                     />
-                  </label>
-                  <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-                    Arrival To
-                    <Input
-                      type="date"
-                      value={dateTo}
-                      onChange={(event) => {
-                        setDateTo(event.target.value);
-                        resetPage();
+                    <DaysRangeSelect
+                      value={String(calendarHorizon)}
+                      onChange={(value) => {
+                        setCalendarHorizon(Number(value) as CalendarHorizon);
+                        setPage(1);
                       }}
-                      className="h-9 w-40"
+                      options={CALENDAR_HORIZONS.map(
+                        (days) => [String(days), days === 1 ? "1 day" : `${days} days`] as const,
+                      )}
                     />
-                  </label>
-                  <FilterSelect
-                    label="Status"
-                    value={status}
-                    onValueChange={(value) => {
-                      setStatus(value as StatusFilter);
-                      resetPage();
-                    }}
-                    options={[
-                      ["all", "All statuses"],
-                      ["pending", "Pending"],
-                      ["confirmed", "Confirmed"],
-                      ["checked_in", "Checked In"],
-                      ["checked_out", "Checked Out"],
-                      ["cancelled", "Cancelled"],
-                      ["no_show", "No Show"],
-                    ]}
-                  />
-                  <FilterSelect
-                    label="Room Type"
-                    value={roomTypeId}
-                    onValueChange={(value) => {
-                      setRoomTypeId(value);
-                      setRoomTypeName(
-                        (roomTypesQuery.data ?? []).find((roomType) => roomType.id === value)
-                          ?.name ?? "",
-                      );
-                      resetPage();
-                    }}
-                    options={[
-                      ["all", "All room types"],
-                      ...(roomTypesQuery.data ?? []).map(
-                        (roomType) => [roomType.id, roomType.name] as [string, string],
-                      ),
-                    ]}
-                  />
-                  <FilterSelect
-                    label="Source"
-                    value={source}
-                    onValueChange={(value) => {
-                      setSource(value as SourceFilter);
-                      resetPage();
-                    }}
-                    options={[
-                      ["all", "All sources"],
-                      ["staff", "Staff"],
-                      ["walk_in", "Walk-in"],
-                      ["direct_booking", "Direct booking"],
-                      ["future_online", "Future online"],
-                    ]}
-                  />
-                  <label className="grid min-w-52 flex-1 gap-1 text-[11px] font-medium text-muted-foreground">
-                    Search
-                    <span className="relative">
-                      <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  </div>
+                  <div className="flex min-w-[10rem] flex-1 basis-48">
+                    <span className="relative w-full">
+                      <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                       <Input
-                        value={search}
-                        onChange={(event) => {
-                          setSearch(event.target.value);
-                        }}
-                        className="h-9 pl-9"
-                        placeholder="Confirmation, guest, phone, email or room"
+                        value={toolbarSearch}
+                        onChange={(event) => setToolbarSearch(event.target.value)}
+                        className="h-9 pl-8 pr-8 text-xs"
+                        placeholder={SECTION_SEARCH_PLACEHOLDER[workspaceSection]}
                         aria-label="Search reservations"
+                        data-testid="reservation-toolbar-search"
                       />
+                      {toolbarSearch ? (
+                        <button
+                          type="button"
+                          aria-label="Clear search"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                          onClick={() => setToolbarSearch("")}
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      ) : null}
                     </span>
-                  </label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setMoreFiltersOpen(true)}
-                    data-testid="reservation-desk-more-filters-button"
-                  >
-                    <SlidersHorizontal className="size-4" />
-                    More Filters
-                    {countActiveAdvancedFilters(advanced) > 0 ? (
-                      <span className="ml-1 inline-flex min-w-5 justify-center rounded-full bg-[#C89933] px-1.5 text-[11px] font-semibold text-[#251605]">
-                        {countActiveAdvancedFilters(advanced)}
-                      </span>
+                  </div>
+                  <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                    {isDeskOrCalendar ? (
+                      <ReservationFilterMenu
+                        restaurantId={restaurantId}
+                        view={view}
+                        activeCount={activeFilterCount}
+                        status={status}
+                        roomTypeId={roomTypeId}
+                        roomTypeOptions={roomTypeOptions}
+                        source={source}
+                        arrivalFrom={dateFrom}
+                        arrivalTo={dateTo}
+                        advanced={advanced}
+                        calendar={
+                          workspaceSection === "calendar"
+                            ? { view: calendarView, onChange: setCalendarView }
+                            : undefined
+                        }
+                        onStatus={(value) => {
+                          setStatus(value);
+                          resetPage();
+                        }}
+                        onRoomType={(id, name) => {
+                          setRoomTypeId(id);
+                          setRoomTypeName(name);
+                          resetPage();
+                        }}
+                        onSource={(value) => {
+                          setSource(value);
+                          resetPage();
+                        }}
+                        onArrival={(from, to) => {
+                          setDateFrom(from);
+                          setDateTo(to);
+                          resetPage();
+                        }}
+                        onAdvanced={(next) => {
+                          setAdvanced(next);
+                          resetPage();
+                        }}
+                        onClear={resetFilterFields}
+                      />
                     ) : null}
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={clearFilters}>
-                    Clear
-                  </Button>
-                  <Button
-                    className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-                    onClick={() => {
-                      setCreateGroupLink(null);
-                      setOverlay({ type: "new-reservation" });
-                    }}
-                  >
-                    <CalendarPlus className="size-4" />
-                    New Reservation
-                  </Button>
+                    <span ref={setFilterSlot} className="contents" />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className={SHELL_ICON_BUTTON}
+                          aria-label="Refresh"
+                          data-testid="reservation-toolbar-refresh"
+                          onClick={refreshSection}
+                          disabled={sectionFetching}
+                        >
+                          <RefreshCw className={cn("size-4", sectionFetching && "animate-spin")} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Refresh</TooltipContent>
+                    </Tooltip>
+                    {isDeskOrCalendar ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className={SHELL_ICON_BUTTON}
+                        disabled={exporting}
+                        onClick={() => setExportOpen(true)}
+                        aria-label="Export PDF"
+                        title="Export PDF"
+                        data-testid="reservation-desk-export-pdf"
+                      >
+                        <Download className={cn("size-4", exporting && "animate-pulse")} />
+                      </Button>
+                    ) : null}
+                    {isDeskOrCalendar ? (
+                      <ReservationViewSwitcher
+                        section={workspaceSection}
+                        onChange={goWorkspaceSection}
+                      />
+                    ) : null}
+                    {isDeskOrCalendar ? (
+                      <Button
+                        className={SHELL_PRIMARY_BUTTON}
+                        data-testid="reservation-new-reservation"
+                        onClick={() => {
+                          setCreateGroupLink(null);
+                          setOverlay({ type: "new-reservation" });
+                        }}
+                      >
+                        <CalendarPlus className="size-4" />
+                        New Reservation
+                      </Button>
+                    ) : null}
+                    <span ref={setPrimarySlot} className="contents" />
+                  </div>
                 </div>
-                {arrivalError ? (
+                {workspaceSection === "desk" && arrivalError ? (
                   <p className="mt-2 text-xs text-destructive">{arrivalError}</p>
                 ) : null}
-                {deskFilterChips(bar, advanced).length > 0 ? (
+                {workspaceSection === "desk" && deskFilterChips(bar, advanced).length > 0 ? (
                   <ul
-                    className="mt-3 flex flex-wrap gap-2"
+                    className="mt-2 flex flex-wrap items-center gap-2"
                     data-testid="reservation-desk-filter-chips"
                   >
                     {deskFilterChips(bar, advanced).map((chip) => (
@@ -944,61 +1119,29 @@ export function ReservationsWorkspace({
                         </button>
                       </li>
                     ))}
+                    <li>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={clearFilters}
+                      >
+                        Clear all
+                      </Button>
+                    </li>
                   </ul>
                 ) : null}
               </section>
 
+          {workspaceSection === "desk" ? (
+            <>
               <div
                 className={cn(
-                  "grid w-full min-w-0 gap-4",
-                  viewsCollapsed
-                    ? quickViewCollapsed
-                      ? "xl:grid-cols-[56px_minmax(0,1fr)_56px]"
-                      : "xl:grid-cols-[56px_minmax(0,1fr)_300px]"
-                    : quickViewCollapsed
-                      ? "xl:grid-cols-[180px_minmax(0,1fr)_56px]"
-                      : "xl:grid-cols-[180px_minmax(0,1fr)_300px]",
+                  "grid w-full min-w-0 gap-3",
+                  quickViewOpen && "xl:grid-cols-[minmax(0,1fr)_300px]",
                 )}
               >
-                <OperationalViewsRail
-                  collapsed={viewsCollapsed}
-                  onToggle={() => setViewsCollapsed((current) => !current)}
-                  view={view}
-                  snapshot={snapshot}
-                  onSelect={selectView}
-                />
-
                 <section className="min-w-0 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
-                  <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-border px-3">
-                    <div className="flex items-center gap-1">
-                      <ModeButton
-                        active={workspaceSection === "desk"}
-                        icon={<List className="size-3.5" />}
-                        onClick={() => goWorkspaceSection("desk")}
-                      >
-                        Table
-                      </ModeButton>
-                      <ModeButton
-                        active={false}
-                        icon={<CalendarDays className="size-3.5" />}
-                        onClick={() => goWorkspaceSection("calendar")}
-                      >
-                        Calendar
-                      </ModeButton>
-                      <ModeButton disabled icon={<SlidersHorizontal className="size-3.5" />}>
-                        Timeline
-                      </ModeButton>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Refresh reservations"
-                      onClick={() => void deskQuery.refetch()}
-                      disabled={deskQuery.isFetching}
-                    >
-                      <RefreshCw className={cn("size-4", deskQuery.isFetching && "animate-spin")} />
-                    </Button>
-                  </div>
                   {deskQuery.isFetching && !isInitialLoading ? (
                     <p className="border-b border-border px-3 py-1 text-[11px] text-muted-foreground">
                       Updating results…
@@ -1081,32 +1224,35 @@ export function ReservationsWorkspace({
                   </div>
                 </section>
 
-                <aside className="hidden min-w-0 xl:block">
-                  <QuickViewRail
-                    collapsed={quickViewCollapsed}
-                    onToggle={() => setQuickViewCollapsed((current) => !current)}
-                    row={selectedRow}
-                    loading={quickViewQuery.isLoading}
-                    error={quickViewQuery.isError}
-                    errorDetail={quickViewErrorDetail}
-                    quickView={quickViewQuery.data}
-                    onRetry={() => void quickViewQuery.refetch()}
-                    businessDate={snapshot?.businessDate ?? ""}
-                    canManage={canManageActions}
-                    sourceCodes={set6Query.data?.snapshot.sourceCodes}
-                    marketSegments={set6Query.data?.snapshot.marketSegments}
-                    onAction={(actionId) => {
-                      if (selectedRow) {
-                        handleReservationAction(actionId, selectedRow, quickViewQuery.data);
-                      }
-                    }}
-                  />
-                </aside>
+                {quickViewOpen ? (
+                  <aside className="hidden min-w-0 xl:block">
+                    <QuickViewRail
+                      collapsed={false}
+                      onToggle={() => setQuickViewOpen(false)}
+                      row={selectedRow}
+                      loading={quickViewQuery.isLoading}
+                      error={quickViewQuery.isError}
+                      errorDetail={quickViewErrorDetail}
+                      quickView={quickViewQuery.data}
+                      onRetry={() => void quickViewQuery.refetch()}
+                      businessDate={snapshot?.businessDate ?? ""}
+                      canManage={canManageActions}
+                      sourceCodes={set6Query.data?.snapshot.sourceCodes}
+                      marketSegments={set6Query.data?.snapshot.marketSegments}
+                      onAction={(actionId) => {
+                        if (selectedRow) {
+                          handleReservationAction(actionId, selectedRow, quickViewQuery.data);
+                        }
+                      }}
+                    />
+                  </aside>
+                ) : null}
               </div>
             </>
           ) : workspaceSection === "arrivals-departures" ? (
             <ArrivalsDeparturesWorkspace
               restaurantId={restaurantId}
+              search={workspaceSearch}
               timezone={membership.restaurant.timezone}
               currencyCode={membership.restaurant.currencyCode}
               canManage={canManageActions}
@@ -1115,6 +1261,8 @@ export function ReservationsWorkspace({
           ) : workspaceSection === "exceptions" ? (
             <ReservationControlWorkspace
               restaurantId={restaurantId}
+              search={workspaceSearch}
+              onSearchChange={setWorkspaceSearch}
               currencyCode={membership.restaurant.currencyCode}
               canManage={canManageActions}
               onOpenReservation={openReservation}
@@ -1123,6 +1271,7 @@ export function ReservationsWorkspace({
           ) : workspaceSection === "groups" ? (
             <GroupsWorkspace
               restaurantId={restaurantId}
+              search={workspaceSearch}
               canWrite={membership.role === "owner" || membership.role === "manager"}
               canCreateReservation={canManageActions}
               createStayActive={overlay?.type === "new-reservation" && Boolean(createGroupLink)}
@@ -1135,16 +1284,16 @@ export function ReservationsWorkspace({
           ) : workspaceSection === "waitlist" ? (
             <WaitlistWorkspace
               restaurantId={restaurantId}
+              search={workspaceSearch}
+              onSearchChange={setWorkspaceSearch}
               canWrite={membership.role === "owner" || membership.role === "manager"}
               onOpenReservation={openReservation}
             />
           ) : (
             <div
               className={cn(
-                "grid min-w-0 gap-4",
-                quickViewCollapsed
-                  ? "xl:grid-cols-[minmax(0,1fr)_56px]"
-                  : "xl:grid-cols-[minmax(0,1fr)_300px]",
+                "grid min-w-0 gap-3",
+                quickViewOpen && "xl:grid-cols-[minmax(0,1fr)_300px]",
               )}
             >
               <BookingCalendarPanel
@@ -1152,47 +1301,63 @@ export function ReservationsWorkspace({
                 canManage={canManageActions}
                 selectedId={selectedId}
                 selectedReservationRoomId={selectedRoomId}
+                shared={{
+                  search: debouncedSearch,
+                  status,
+                  roomTypeId,
+                  source,
+                  rangeStart: calendarWeekStart,
+                  horizon: calendarHorizon,
+                  view: calendarView,
+                }}
                 onSelect={(row) => {
                   setCalendarRow(row);
                   setSelectedId(row.reservationId);
                   setSelectedRoomId(row.reservationRoomId ?? null);
+                  setQuickViewOpen(true);
                   setMobileDetailOpen(true);
                 }}
                 onOpen={openReservation}
                 onAction={handleReservationAction}
               />
-              <aside className="hidden min-w-0 xl:block">
-                <QuickViewRail
-                  collapsed={quickViewCollapsed}
-                  onToggle={() => setQuickViewCollapsed((current) => !current)}
-                  row={selectedRow}
-                  loading={quickViewQuery.isLoading}
-                  error={quickViewQuery.isError}
-                  errorDetail={quickViewErrorDetail}
-                  quickView={quickViewQuery.data}
-                  onRetry={() => void quickViewQuery.refetch()}
-                  businessDate={snapshot?.businessDate ?? ""}
-                  canManage={canManageActions}
-                  onAction={(actionId) => {
-                    if (selectedRow) {
-                      handleReservationAction(actionId, selectedRow, quickViewQuery.data);
-                    }
-                  }}
-                />
-              </aside>
+              {quickViewOpen ? (
+                <aside className="hidden min-w-0 xl:block">
+                  <QuickViewRail
+                    collapsed={false}
+                    onToggle={() => setQuickViewOpen(false)}
+                    row={selectedRow}
+                    loading={quickViewQuery.isLoading}
+                    error={quickViewQuery.isError}
+                    errorDetail={quickViewErrorDetail}
+                    quickView={quickViewQuery.data}
+                    onRetry={() => void quickViewQuery.refetch()}
+                    businessDate={snapshot?.businessDate ?? ""}
+                    canManage={canManageActions}
+                    onAction={(actionId) => {
+                      if (selectedRow) {
+                        handleReservationAction(actionId, selectedRow, quickViewQuery.data);
+                      }
+                    }}
+                  />
+                </aside>
+              ) : null}
             </div>
           )}
         </main>
+        </ReservationShellProvider>
       </div>
 
       <Sheet
         open={
           !desktopQuickView &&
-          workspaceSection === "desk" &&
+          isDeskOrCalendar &&
           mobileDetailOpen &&
           selectedRow !== null
         }
-        onOpenChange={setMobileDetailOpen}
+        onOpenChange={(open) => {
+          setMobileDetailOpen(open);
+          if (!open) setQuickViewOpen(false);
+        }}
       >
         <SheetContent className="w-full overflow-y-auto p-4 sm:max-w-md xl:hidden">
           <ReservationQuickViewPanel
@@ -1224,15 +1389,15 @@ export function ReservationsWorkspace({
         />
       ) : null}
 
-      <ReservationDeskMoreFilters
-        restaurantId={restaurantId}
-        open={moreFiltersOpen}
-        view={view}
-        applied={advanced}
-        onOpenChange={setMoreFiltersOpen}
-        onApply={(next) => {
-          setAdvanced(next);
-          resetPage();
+      <ExportPdfDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export reservations to PDF"
+        description="Choose the arrival period. Reservations arriving in that period are exported. Your current view, search and filters still apply."
+        onExport={(range) => {
+          const printWindow = openPdfWindow();
+          if (!printWindow) return;
+          void exportReservations(range, printWindow);
         }}
       />
 
@@ -1364,28 +1529,176 @@ function FilterSelect({
   value,
   onValueChange,
   options,
+  compact = false,
 }: {
   label: string;
   value: string;
   onValueChange: (value: string) => void;
   options: Array<[string, string]>;
+  compact?: boolean;
 }) {
+  const control = (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger className="h-9 w-36" aria-label={label}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map(([id, name]) => (
+          <SelectItem key={id} value={id}>
+            {name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+  if (compact) return control;
   return (
     <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
       {label}
-      <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className="h-9 w-40">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map(([id, name]) => (
-            <SelectItem key={id} value={id}>
-              {name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {control}
     </label>
+  );
+}
+
+const RESERVATION_BURGER_ITEMS: Array<{
+  id: CalendarWorkspaceSection;
+  label: string;
+  icon: typeof ClipboardList;
+}> = [
+  { id: "desk", label: "All Reservations", icon: ClipboardList },
+  { id: "groups", label: "Groups & Blocks", icon: Users },
+  { id: "waitlist", label: "Waitlist", icon: Clock },
+  { id: "arrivals-departures", label: "Arrivals & Departures", icon: LogIn },
+  { id: "exceptions", label: "Exceptions", icon: TriangleAlert },
+];
+
+function ReservationsBurger({
+  active,
+  toolbarSlot,
+  onSelect,
+}: {
+  active: CalendarWorkspaceSection;
+  toolbarSlot: HTMLElement | null;
+  onSelect: (section: CalendarWorkspaceSection) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const trigger = (
+    <div
+      className={cn(
+        "pointer-events-none z-30",
+        toolbarSlot ? "absolute left-1 top-1/2 -translate-y-1/2" : "absolute top-3 left-3",
+      )}
+      data-testid="reservation-desk-topbar"
+    >
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label="Reservations navigation"
+            title="Reservations navigation"
+            data-testid="reservation-nav-trigger"
+            className={cn(
+              "pointer-events-auto inline-flex size-8 items-center justify-center rounded-md text-[#251605]",
+              "opacity-50 transition-opacity hover:bg-[#F3EEE4] hover:opacity-100",
+              "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+              "data-[state=open]:bg-[#F3EEE4] data-[state=open]:opacity-100",
+            )}
+          >
+            <Menu className="size-4" aria-hidden="true" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          sideOffset={8}
+          className="pointer-events-auto w-64 p-1.5"
+          data-testid="reservation-workspace-nav"
+          aria-label="Reservations"
+        >
+          <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Reservations
+          </p>
+          <div className="flex flex-col gap-0.5">
+            {RESERVATION_BURGER_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                item.id === "desk"
+                  ? active === "desk" || active === "calendar"
+                  : active === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  data-testid={`reservation-nav-${item.id}`}
+                  onClick={() => {
+                    setOpen(false);
+                    onSelect(item.id);
+                  }}
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
+                    isActive
+                      ? "bg-[#F4E9D0] font-medium text-[#251605]"
+                      : "text-foreground hover:bg-[#F7F4EE]",
+                  )}
+                >
+                  <Icon className="size-4 shrink-0 text-[#8A6A24]" aria-hidden="true" />
+                  <span className="flex-1">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+  return toolbarSlot ? createPortal(trigger, toolbarSlot) : trigger;
+}
+
+function ReservationViewSwitcher({
+  section,
+  onChange,
+}: {
+  section: CalendarWorkspaceSection;
+  onChange: (next: CalendarWorkspaceSection) => void;
+}) {
+  const options = [
+    { id: "desk" as const, label: "Table", icon: Table2 },
+    { id: "calendar" as const, label: "Calendar", icon: CalendarDays },
+  ];
+  return (
+    <div
+      className="inline-flex items-center gap-0.5 rounded-md border border-[#DDD4C5] bg-white p-0.5"
+      data-testid="reservation-view-switcher"
+      role="group"
+      aria-label="Reservation view"
+    >
+      {options.map((option) => {
+        const Icon = option.icon;
+        const active = section === option.id;
+        return (
+          <Tooltip key={option.id}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={option.label}
+                aria-pressed={active}
+                data-testid={`reservation-view-${option.id}`}
+                onClick={() => onChange(option.id)}
+                className={cn(
+                  "inline-flex size-8 items-center justify-center rounded-sm transition-colors",
+                  active
+                    ? "bg-[#C89933] text-[#251605]"
+                    : "bg-transparent text-muted-foreground hover:bg-[#F3EEE4] hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4" aria-hidden="true" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{option.label}</TooltipContent>
+          </Tooltip>
+        );
+      })}
+    </div>
   );
 }
 

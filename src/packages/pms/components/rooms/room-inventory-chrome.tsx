@@ -31,6 +31,26 @@ export const PMS_MODULE_NAV_ITEMS = [
 export type PmsModuleName = (typeof PMS_MODULE_NAV_ITEMS)[number]["label"];
 
 const NAV_ITEMS = PMS_MODULE_NAV_ITEMS;
+
+type PmsModuleNavItemId = (typeof PMS_MODULE_NAV)[number]["id"];
+
+/** Collapses into More on laptop widths. Wide desktops keep these in the bar. */
+const PMS_NAV_MORE_IDS = new Set<PmsModuleNavItemId>([
+  "rates-revenue",
+  "night-audit",
+  "reports",
+  "settings",
+]);
+
+const PMS_NAV_PRIMARY = PMS_MODULE_NAV.filter((item) => !PMS_NAV_MORE_IDS.has(item.id));
+const PMS_NAV_MORE = PMS_MODULE_NAV.filter((item) => PMS_NAV_MORE_IDS.has(item.id));
+
+function moduleNavItemClass(active: boolean): string {
+  return active
+    ? "shrink-0 whitespace-nowrap border-b-2 border-[#C89933] px-2.5 py-2 text-xs font-medium text-white"
+    : "shrink-0 whitespace-nowrap border-b-2 border-transparent px-2.5 py-2 text-xs text-white/75 transition-colors hover:text-white";
+}
+
 export function RoomInventoryChrome({
   membership,
   onRoomSearch,
@@ -94,6 +114,7 @@ export function RoomInventoryChrome({
     .map((part) => part[0])
     .join("")
     .toUpperCase();
+  const moreContainsActive = PMS_NAV_MORE.some((item) => item.label === activeModule);
 
   return (
     <PmsCommandChrome
@@ -119,24 +140,59 @@ export function RoomInventoryChrome({
             </button>
           ) : null}
           <nav
-            className="hidden min-w-0 items-center gap-0.5 overflow-x-auto lg:flex"
+            className="hidden min-w-0 items-center gap-0.5 lg:flex"
             aria-label="PMS modules"
             data-testid="pms-module-nav"
           >
-            {PMS_MODULE_NAV.map((item) => (
+            {PMS_NAV_PRIMARY.map((item) => (
               <Link
                 key={item.label}
                 to={item.to}
                 aria-current={item.label === activeModule ? "page" : undefined}
-                className={
-                  item.label === activeModule
-                    ? "border-b-2 border-[#C89933] px-2.5 py-2 text-xs font-medium text-white"
-                    : "border-b-2 border-transparent px-2.5 py-2 text-xs text-white/75 transition-colors hover:text-white"
-                }
+                className={moduleNavItemClass(item.label === activeModule)}
               >
                 {item.label}
               </Link>
             ))}
+            {PMS_NAV_MORE.map((item) => (
+              <Link
+                key={item.label}
+                to={item.to}
+                aria-current={item.label === activeModule ? "page" : undefined}
+                className={`${moduleNavItemClass(item.label === activeModule)} hidden min-[1680px]:inline`}
+              >
+                {item.label}
+              </Link>
+            ))}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  data-testid="pms-module-nav-more"
+                  aria-current={moreContainsActive ? "page" : undefined}
+                  aria-label="More modules"
+                  className={`${moduleNavItemClass(moreContainsActive)} inline-flex items-center gap-1 min-[1680px]:hidden`}
+                >
+                  More
+                  <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="z-50">
+                {PMS_NAV_MORE.map((item) => (
+                  <DropdownMenuItem key={item.label} asChild>
+                    <Link
+                      to={item.to}
+                      aria-current={item.label === activeModule ? "page" : undefined}
+                      className={
+                        item.label === activeModule ? "font-medium text-[#8A6A24]" : undefined
+                      }
+                    >
+                      {item.label}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </nav>
         </div>
       }
@@ -155,7 +211,11 @@ export function RoomInventoryChrome({
           ) : null}
           <PmsSelect
             aria-label="PMS module"
-            value={NAV_ITEMS.find((item) => item.label === activeModule)?.to ?? ""}
+            value={
+              PMS_MODULE_NAV.find((item) => item.label === activeModule)?.to ??
+              NAV_ITEMS.find((item) => item.label === activeModule)?.to ??
+              ""
+            }
             onChange={(val) => window.location.assign(val)}
             className="h-9 w-full rounded-lg border-input bg-background px-3 text-sm"
             options={NAV_ITEMS.map((item) => [item.to, item.label])}

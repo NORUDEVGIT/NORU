@@ -81,7 +81,7 @@ describe("FO large-screen chrome — command surface", () => {
     assert.doesNotMatch(chromeOpen, /businessDate=/);
   });
 
-  it("exposes nine workspace destinations below the desk title", () => {
+  it("exposes nine workspace destinations inside the Front Office nav menu", () => {
     assert.equal(FO_NAV_ITEMS.length, 9);
     assert.equal(FO_PRIMARY_TITLE, "Room Rack + Calendar");
     const chrome = readChrome();
@@ -137,7 +137,9 @@ describe("FO large-screen chrome — Legend, HK glyph, Filters", () => {
     assert.notEqual(HK_DIRTY_COLOR, FO_BRAND.gold);
     assert.notEqual(ROOM_LEGEND.find((item) => item.key === "available")?.color, FO_BRAND.green);
     assert.deepEqual(foRoomLegendColourCollisions(), []);
-    assert.ok(RESERVATION_LEGEND.some((item) => item.key === "confirmed" && item.color === FO_BRAND.gold));
+    assert.ok(
+      RESERVATION_LEGEND.some((item) => item.key === "confirmed" && item.color === FO_BRAND.gold),
+    );
 
     const calendar = readRel("../components/frontoffice/room-rack-calendar.tsx");
     assert.match(calendar, /fo-rack-legend/);
@@ -193,7 +195,11 @@ describe("FO large-screen chrome — Legend, HK glyph, Filters", () => {
 
 describe("FO large-screen chrome — Guest Request sheet and no new backend", () => {
   it("keeps FoGuestRequestSheet reachable from Quick Action, Amendments and Side Sheet", () => {
-    assert.ok(actionsForMenu("quick").some((action) => action.id === "guest_request" && action.lane === "live"));
+    assert.ok(
+      actionsForMenu("quick").some(
+        (action) => action.id === "guest_request" && action.lane === "live",
+      ),
+    );
 
     const workspace = readRel("../components/workspaces/front-office-workspace.tsx");
     assert.match(workspace, /guest_request/);

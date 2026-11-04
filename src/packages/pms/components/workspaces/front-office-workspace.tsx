@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -22,16 +22,11 @@ import {
 } from "@/packages/pms/lib/fo-check-in-workspace";
 import { foOpenFolioTarget } from "@/packages/pms/lib/fo-folio-tab";
 import {
-  AmendmentsFrame,
-  CancellationsFrame,
+  AmendNotesDialog,
   GuestSearchDialog,
-  NoShowsFrame,
   StayPickerDialog,
 } from "@/packages/pms/components/frontoffice/front-office-frames";
-import {
-  ExceptionsFrame,
-  useFoExceptionDesk,
-} from "@/packages/pms/components/frontoffice/fo-exceptions-frame";
+import { useFoExceptionDesk } from "@/packages/pms/components/frontoffice/fo-exceptions-frame";
 import { FoAuditViewer } from "@/packages/pms/components/frontoffice/fo-audit-viewer";
 import {
   AssignRoomDialog,
@@ -46,9 +41,6 @@ import {
   type FoAmendKind,
 } from "@/packages/pms/components/frontoffice/fo-amend-sheet";
 import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
-import { ArrivalsWorkspace } from "@/packages/pms/components/workspaces/arrivals-workspace";
-import { DeparturesWorkspace } from "@/packages/pms/components/workspaces/departures-workspace";
-import { InHouseWorkspace } from "@/packages/pms/components/workspaces/in-house-workspace";
 import {
   InHouseQuickViewSheet,
   type InHouseQuickViewAction,
@@ -64,7 +56,6 @@ import {
   type FoRackBarActionId,
 } from "@/packages/pms/lib/fo-rack-bar-menu";
 import type { DepartureRow } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
-import { WalkInsWorkspace } from "@/packages/pms/components/workspaces/walk-ins-workspace";
 import {
   RoomQuickViewSheet,
   RoomOperationsHistorySheet,
@@ -72,14 +63,12 @@ import {
 } from "@/packages/pms/components/frontoffice/room-quick-view";
 import type { FoRoomQuickView } from "@/packages/pms/lib/front-office-room-operations";
 import {
-  LIST_COMING_SOON_COLUMNS,
   foRackSearchSlice,
   invokeFoAction,
   resolveFoNav,
   type FoNavId,
   type FoSearch,
 } from "@/packages/pms/lib/front-office-shell";
-import { ComingSoonChip } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import {
   listArrivals,
   listInHouse,
@@ -234,6 +223,7 @@ export function FrontOfficeWorkspace({
   const [picker, setPicker] = useState<PickerKind>(null);
   const [amendKind, setAmendKind] = useState<FoAmendKind | null>(null);
   const [amendStay, setAmendStay] = useState<FrontOfficeStay | null>(null);
+  const [notesStay, setNotesStay] = useState<FrontOfficeStay | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
   const [rackFocus, setRackFocus] = useState<FoRackFocus | null>(null);
@@ -601,6 +591,16 @@ export function FrontOfficeWorkspace({
   const canOpenCashiering = !!cashieringQuery.data;
 
   const exceptionDesk = useFoExceptionDesk(restaurantId, today, canManage);
+  // Reuses the existing exception desk feed (no new fetch, no new business rule) to narrow
+  // Rack/Table rows when the burger's "Exceptions" filter is selected.
+  const exceptionStayIds = useMemo(
+    () => new Set(exceptionDesk.items.map((item) => item.reservationId).filter((id): id is string => Boolean(id))),
+    [exceptionDesk.items],
+  );
+  const exceptionRoomIds = useMemo(
+    () => new Set(exceptionDesk.items.map((item) => item.roomId).filter((id): id is string => Boolean(id))),
+    [exceptionDesk.items],
+  );
 
   const fetchArrivals = useServerFn(listArrivals);
   const fetchInHouse = useServerFn(listInHouse);
@@ -795,8 +795,8 @@ export function FrontOfficeWorkspace({
       no_show: "noshow",
     };
     if (action === "amend_notes") {
-      setView("amendments");
       setSheetStay(null);
+      setNotesStay(stay);
       return;
     }
     const amend = SHEET_AMEND[action];
@@ -858,69 +858,40 @@ export function FrontOfficeWorkspace({
         />
       ) : null}
 
-      {view === "rack" ? (
-        <div className="space-y-3">
-          <RoomRackCalendar
-            restaurantId={restaurantId}
-            today={today}
-            viewport={phone ? "phone" : "wide"}
-            rackFocus={rackFocus}
-            initialHorizon={search.horizon}
-            initialFocusDate={search.date}
-            initialGroup={search.group ?? "none"}
-            onSelectStay={openStayQuickView}
-            onSelectInHouse={openInHouseFromRack}
-            onSelectRoom={openRoomQuickView}
-            onRackAction={onRackBarAction}
-            canOpenCashiering={canOpenCashiering}
-            staffRole={membership.role}
-            onRackSearchChange={onRackSearchChange}
-            onWalkIn={() => openWalkInCreate()}
-          />
-        </div>
-      ) : null}
-      {view === "arrivals" ? (
-        <ListFrame title="Arrivals">
-          <ArrivalsWorkspace
-            membership={membership}
-            variant="arrivals"
-            embedded
-            initialSearch={search.q}
-            initialReservationId={search.reservationId}
-          />
-        </ListFrame>
-      ) : null}
-      {view === "inhouse" ? (
-        <ListFrame title="In-House Guests">
-          <InHouseWorkspace membership={membership} embedded />
-        </ListFrame>
-      ) : null}
-      {view === "departures" ? (
-        <ListFrame title="Departures">
-          <DeparturesWorkspace
-            membership={membership}
-            embedded
-            initialSearch={search.q}
-            initialReservationId={search.reservationId}
-          />
-        </ListFrame>
-      ) : null}
-      {view === "walkins" ? (
-        <ListFrame title="Walk-ins">
-          <WalkInsWorkspace membership={membership} embedded onCreateWalkIn={openWalkInCreate} />
-        </ListFrame>
-      ) : null}
-      {view === "amendments" ? <AmendmentsFrame restaurantId={restaurantId} today={today} /> : null}
-      {view === "cancellations" ? <CancellationsFrame restaurantId={restaurantId} /> : null}
-      {view === "noshows" ? <NoShowsFrame restaurantId={restaurantId} today={today} /> : null}
-      {view === "exceptions" ? (
-        <ExceptionsFrame
+      {/*
+        Front Office is one workspace: Rack and Table only. The burger menu no longer
+        navigates to a separate full-page screen per category — `view` now selects an
+        in-place filter (`category`) applied to this same Rack/Table dataset. Actions
+        those pages used to expose stay reachable through the existing `⋮` menu
+        (onRackBarAction) and existing dialogs/sheets below, unchanged.
+      */}
+      <div className="space-y-3">
+        <RoomRackCalendar
           restaurantId={restaurantId}
+          restaurantName={membership.restaurant.name}
           today={today}
-          onAction={onExceptionAction}
-          onOpenSheet={openStayQuickView}
+          viewport={phone ? "phone" : "wide"}
+          rackFocus={rackFocus}
+          initialHorizon={search.horizon}
+          initialFocusDate={search.date}
+          initialGroup={search.group ?? "none"}
+          category={view}
+          exceptionStayIds={exceptionStayIds}
+          exceptionRoomIds={exceptionRoomIds}
+          onSelectStay={openStayQuickView}
+          onSelectInHouse={openInHouseFromRack}
+          onSelectRoom={openRoomQuickView}
+          onRackAction={onRackBarAction}
+          canOpenCashiering={canOpenCashiering}
+          staffRole={membership.role}
+          onRackSearchChange={onRackSearchChange}
+          onWalkIn={() => openWalkInCreate()}
+          onOpenGuestSearch={() => {
+            setSearchTerm("");
+            setSearchOpen(true);
+          }}
         />
-      ) : null}
+      </div>
 
       {sheetStay && (foOpensPreArrivalCheckInWorkspace(sheetStay) || guestTab === "folio") ? (
         <FoCheckInWorkspaceSheet
@@ -1163,6 +1134,14 @@ export function FrontOfficeWorkspace({
           onOpenChange={(v) => !v && setDialog(null)}
         />
       ) : null}
+      {notesStay ? (
+        <AmendNotesDialog
+          restaurantId={restaurantId}
+          stay={notesStay}
+          open
+          onOpenChange={(v) => !v && setNotesStay(null)}
+        />
+      ) : null}
       {amendStay && amendKind ? (
         <FoAmendKindSheet
           kind={amendKind}
@@ -1249,18 +1228,3 @@ export function FrontOfficeWorkspace({
   );
 }
 
-function ListFrame({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="font-display text-xl">{title}</h2>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {LIST_COMING_SOON_COLUMNS.map((col) => (
-            <ComingSoonChip key={col.id} label={col.label} />
-          ))}
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}

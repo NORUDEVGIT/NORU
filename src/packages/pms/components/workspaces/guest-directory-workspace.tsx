@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Crown,
+  Download,
   MoreHorizontal,
   Plus,
   RotateCcw,
@@ -18,6 +19,9 @@ import {
 } from "lucide-react";
 
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
+import { GuestProfileShellSlot } from "@/packages/pms/components/guests/guest-profile-shell-slots";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { GuestMergeDialog } from "@/packages/pms/components/guests/guest-merge-dialog";
 import { GuestQuickViewDrawer } from "@/packages/pms/components/guests/guest-quick-view-drawer";
 import { GuestRestrictionBadges, StatusBadge } from "@/packages/pms/components/guests/guest-bits";
@@ -39,6 +43,7 @@ import {
   type GuestListSort,
   type LastStayPreset,
 } from "@/packages/pms/lib/guest-profile-listing";
+import { csvEscape } from "@/packages/pms/lib/guest-companies-workspace";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
@@ -114,6 +119,7 @@ export function GuestDirectoryWorkspace({
   searchParams,
   canCreate = true,
   isTypeInactive = false,
+  embedded = false,
 }: {
   membership: RestaurantMembership;
   compact?: boolean;
@@ -123,6 +129,8 @@ export function GuestDirectoryWorkspace({
   searchParams?: GuestProfileSearch | undefined;
   canCreate?: boolean;
   isTypeInactive?: boolean;
+  /** When true, search and filters fill the shared Guest Profile toolbar. */
+  embedded?: boolean;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -296,6 +304,44 @@ export function GuestDirectoryWorkspace({
   const lastStayAvailable = pageData?.lastStayAvailable ?? true;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
+  function runExport() {
+    const rows = selected.length > 0 ? guests.filter((guest) => selected.includes(guest.id)) : guests;
+    const header = [
+      "Profile No.",
+      "Guest",
+      "Phone",
+      "Email",
+      "Nationality",
+      "Last Stay",
+      "Upcoming",
+      "VIP",
+      "Status",
+    ];
+    const lines = [header.join(",")];
+    for (const guest of rows) {
+      lines.push(
+        [
+          csvEscape(displayProfileNumber(guest.id, guest.profileNumber)),
+          csvEscape(guest.fullName),
+          csvEscape(guest.phone),
+          csvEscape(guest.email),
+          csvEscape(guest.nationality),
+          csvEscape(lastStayAvailable && guest.lastStayAt ? date(guest.lastStayAt) : ""),
+          csvEscape(guest.upcomingStayAt ? date(guest.upcomingStayAt) : ""),
+          csvEscape(guest.vipStatus ? "Yes" : "No"),
+          csvEscape(guest.guestStatus),
+        ].join(","),
+      );
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "guests.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   // Determine active filter chips
   const activeChips: Array<{ key: string; label: string; onRemove: () => void }> = [];
   if (status !== ALL) {
@@ -341,133 +387,165 @@ export function GuestDirectoryWorkspace({
   }
 
   const stats = statsQuery.data;
+  const filterCount =
+    (status !== ALL ? 1 : 0) +
+    (vip !== ALL ? 1 : 0) +
+    (lastStay !== ALL ? 1 : 0) +
+    (nationality && nationality !== ALL ? 1 : 0) +
+    (sort !== "updated_at" ? 1 : 0);
+
+  const searchField = (
+    <div className={cn("relative min-w-0", embedded ? "w-full" : "min-w-56 flex-1 sm:min-w-72")}>
+      <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        className="h-9 min-w-0 pl-8 pr-8 text-xs"
+        placeholder="Search name, phone, email, profile, document, reservation or company..."
+        value={searchValue}
+        onChange={(e) => setSearch(e.target.value)}
+        aria-label="Search guests"
+        data-testid="guest-listing-search"
+      />
+      {searchValue ? (
+        <button
+          type="button"
+          onClick={() => setSearch("")}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          aria-label="Clear search"
+        >
+          <X className="size-3.5" />
+        </button>
+      ) : null}
+    </div>
+  );
+
+  const guestFilterMenu = (
+    <PmsFilterMenu
+      activeCount={filterCount}
+      onClear={() => {
+        updateDirectoryUrl({
+          status: undefined,
+          vip: undefined,
+          lastStay: undefined,
+          nationality: undefined,
+          sort: undefined,
+          page: undefined,
+        });
+      }}
+      buttonTestId="guest-filters-button"
+      countTestId="guest-filters-count"
+      menuTestId="guest-filters-menu"
+    >
+      <PmsFilterChoiceRow
+        label="Status"
+        value={status}
+        current={status === "active" ? "Active" : status === "inactive" ? "Inactive" : ""}
+        options={[
+          [ALL, "All statuses"],
+          ["active", "Active"],
+          ["inactive", "Inactive"],
+        ]}
+        onChange={(val) =>
+          updateDirectoryUrl({
+            status: val === ALL ? undefined : (val as "active" | "inactive"),
+            page: undefined,
+          })
+        }
+      />
+      <PmsFilterChoiceRow
+        label="VIP"
+        value={vip}
+        current={vip === "vip" ? "VIP" : vip === "non-vip" ? "Non-VIP" : ""}
+        options={[
+          [ALL, "All guests"],
+          ["vip", "VIP"],
+          ["non-vip", "Non-VIP"],
+        ]}
+        onChange={(val) =>
+          updateDirectoryUrl({
+            vip: val === ALL ? undefined : (val as "vip" | "non-vip"),
+            page: undefined,
+          })
+        }
+      />
+      <PmsFilterChoiceRow
+        label="Nationality"
+        value={nationality || ALL}
+        current={nationality}
+        options={[[ALL, "All nationalities"], ...nationalities.map((val) => [val, val] as const)]}
+        onChange={(val) =>
+          updateDirectoryUrl({ nationality: val === ALL ? undefined : val, page: undefined })
+        }
+      />
+      <PmsFilterChoiceRow
+        label="Last Stay"
+        value={lastStay}
+        current={LAST_STAY_PRESET_LABELS[lastStay] ?? ""}
+        options={LAST_STAY_PRESETS.filter((preset) => lastStayAvailable || preset === ALL).map(
+          (preset) => [preset, LAST_STAY_PRESET_LABELS[preset]] as const,
+        )}
+        onChange={(val) =>
+          updateDirectoryUrl({
+            lastStay: val === ALL ? undefined : (val as LastStayPreset),
+            page: undefined,
+          })
+        }
+      />
+      <PmsFilterChoiceRow
+        label="Last Updated"
+        value={sort}
+        current={
+          sort === "updated_at"
+            ? ""
+            : sort === "name"
+              ? "Name"
+              : sort === "status"
+                ? "Status"
+                : "Last stay"
+        }
+        neutralValue="updated_at"
+        options={[
+          ["updated_at", "Last updated"],
+          ["name", "Name"],
+          ["status", "Status"],
+          ...(lastStayAvailable ? [["last_stay", "Last stay"] as const] : []),
+        ]}
+        onChange={(val) => updateDirectoryUrl({ sort: val as GuestListSort })}
+      />
+    </PmsFilterMenu>
+  );
 
   return (
     <div className="space-y-4" data-testid="guest-profile-directory">
-      {/* Search & Filter Toolbar */}
-      <div className="flex flex-wrap items-center gap-2.5">
-        <div className="relative min-w-56 flex-1 sm:min-w-72">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9 pr-8"
-            placeholder="Search name, phone, email, profile, document, reservation or company..."
-            value={searchValue}
-            onChange={(e) => setSearch(e.target.value)}
-            data-testid="guest-listing-search"
-          />
-          {searchValue ? (
-            <button
+      {embedded ? (
+        <>
+          <GuestProfileShellSlot name="search">{searchField}</GuestProfileShellSlot>
+          <GuestProfileShellSlot name="filter">{guestFilterMenu}</GuestProfileShellSlot>
+          <GuestProfileShellSlot name="export">
+            <Button
               type="button"
-              onClick={() => setSearch("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label="Clear search"
+              variant="outline"
+              size="icon"
+              className={cn(SHELL_ICON_BUTTON, "relative")}
+              onClick={runExport}
+              aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+              title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+              data-testid="guest-profile-export"
             >
-              <X className="size-3.5" />
-            </button>
-          ) : null}
-        </div>
-
-        {/* Status Filter */}
-        <Select
-          value={status}
-          onValueChange={(val) =>
-            updateDirectoryUrl({
-              status: val === ALL ? undefined : (val as "active" | "inactive"),
-              page: undefined,
-            })
-          }
-        >
-          <SelectTrigger className="w-36 text-xs" data-testid="guest-status-filter">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All Statuses</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* VIP Filter */}
-        <Select
-          value={vip}
-          onValueChange={(val) =>
-            updateDirectoryUrl({
-              vip: val === ALL ? undefined : (val as "vip" | "non-vip"),
-              page: undefined,
-            })
-          }
-        >
-          <SelectTrigger className="w-32 text-xs" data-testid="guest-vip-filter">
-            <SelectValue placeholder="VIP" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All VIP</SelectItem>
-            <SelectItem value="vip">VIP Only</SelectItem>
-            <SelectItem value="non-vip">Non-VIP</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Last Stay Filter */}
-        <Select
-          value={lastStay}
-          onValueChange={(val) =>
-            updateDirectoryUrl({
-              lastStay: val === ALL ? undefined : (val as LastStayPreset),
-              page: undefined,
-            })
-          }
-          disabled={!lastStayAvailable}
-        >
-          <SelectTrigger className="w-40 text-xs" data-testid="guest-last-stay-filter">
-            <SelectValue placeholder="Last Stay" />
-          </SelectTrigger>
-          <SelectContent>
-            {LAST_STAY_PRESETS.map((preset) => (
-              <SelectItem key={preset} value={preset}>
-                {LAST_STAY_PRESET_LABELS[preset]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Nationality Filter */}
-        <Select
-          value={nationality || ALL}
-          onValueChange={(val) =>
-            updateDirectoryUrl({ nationality: val === ALL ? undefined : val, page: undefined })
-          }
-        >
-          <SelectTrigger className="w-36 text-xs" data-testid="guest-nationality-filter">
-            <SelectValue placeholder="Nationality" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All Nationalities</SelectItem>
-            {nationalities.map((val) => (
-              <SelectItem key={val} value={val}>
-                {val}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Sort Filter */}
-        <Select
-          value={sort}
-          onValueChange={(val) => updateDirectoryUrl({ sort: val as GuestListSort })}
-        >
-          <SelectTrigger className="w-36 text-xs" data-testid="guest-sort-filter">
-            <SelectValue placeholder="Sort" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="updated_at">Last updated</SelectItem>
-            <SelectItem value="name">Name</SelectItem>
-            <SelectItem value="status">Status</SelectItem>
-            <SelectItem value="last_stay" disabled={!lastStayAvailable}>
-              Last stay
-            </SelectItem>
-          </SelectContent>
-        </Select>
+              <Download className="size-4" />
+              {selected.length > 0 ? (
+                <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
+                  {selected.length}
+                </span>
+              ) : null}
+            </Button>
+          </GuestProfileShellSlot>
+        </>
+      ) : (
+      <div className="flex flex-wrap items-center gap-2.5">
+        {searchField}
+        {guestFilterMenu}
       </div>
+      )}
 
       {/* Active Filter Chips */}
       {activeChips.length > 0 ? (
@@ -502,7 +580,8 @@ export function GuestDirectoryWorkspace({
         </div>
       ) : null}
 
-      {/* Directory KPIs (Separated cards matching Reservation Workspace) */}
+      {embedded ? null : (
+      <>
       <section
         className="grid grid-cols-2 gap-3 sm:grid-cols-4"
         aria-label="Guest directory KPIs"
@@ -571,6 +650,8 @@ export function GuestDirectoryWorkspace({
           <span>New Guest</span>
         </Button>
       </div>
+      </>
+      )}
 
       {/* Dense Table */}
       {guestsQuery.isLoading ? (
@@ -615,6 +696,7 @@ export function GuestDirectoryWorkspace({
             <div>
               <p className="font-medium text-[#251605]">No guests recorded yet</p>
               <p className="mt-1 text-xs text-[#7A6B58]">{DUPLICATE_PREVENTION_TIP}</p>
+              {embedded ? null : (
               <Button
                 size="sm"
                 disabled={!canCreate}
@@ -633,15 +715,16 @@ export function GuestDirectoryWorkspace({
                 <Plus className="mr-1.5 size-3.5" />
                 New Guest
               </Button>
+              )}
             </div>
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[#E8E4DC] bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-lg border border-[#DDD4C5] bg-white shadow-sm">
           <table className="w-full min-w-[900px] text-xs" data-testid="guest-listing-table">
-            <thead className="border-b border-[#E8E4DC] bg-[#FAF8F5] text-left text-[11px] font-semibold uppercase tracking-wider text-[#7A6B58]">
+            <thead className="border-b border-[#DDD4C5] bg-[#FAF8F4] text-left text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
               <tr>
-                <th className="w-10 px-3 py-2.5">
+                <th className="w-10 px-2 py-2.5">
                   <Checkbox
                     checked={selected.length > 0 && selected.length === guests.length}
                     onCheckedChange={(checked) =>
@@ -650,18 +733,18 @@ export function GuestDirectoryWorkspace({
                     aria-label="Select page"
                   />
                 </th>
-                <th className="px-3 py-2.5">Profile No.</th>
-                <th className="px-3 py-2.5">Guest</th>
-                <th className="px-3 py-2.5">Contact</th>
-                <th className="px-3 py-2.5">Nationality</th>
-                <th className="px-3 py-2.5">Last Stay</th>
-                <th className="px-3 py-2.5">Upcoming</th>
-                <th className="px-3 py-2.5">VIP</th>
-                <th className="px-3 py-2.5">Status</th>
-                <th className="w-12 px-3 py-2.5 text-right">Actions</th>
+                <th className="px-2 py-2.5">Profile No.</th>
+                <th className="px-2 py-2.5">Guest</th>
+                <th className="px-2 py-2.5">Contact</th>
+                <th className="px-2 py-2.5">Nationality</th>
+                <th className="px-2 py-2.5">Last Stay</th>
+                <th className="px-2 py-2.5">Upcoming</th>
+                <th className="px-2 py-2.5">VIP</th>
+                <th className="px-2 py-2.5">Status</th>
+                <th className="w-14 px-2 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#F0ECE3]">
+            <tbody>
               {guests.map((g) => {
                 const isSelected = previewId === g.id;
                 return (
@@ -669,8 +752,8 @@ export function GuestDirectoryWorkspace({
                     key={g.id}
                     onClick={() => handleOpenQuickView(g.id)}
                     className={cn(
-                      "cursor-pointer transition-colors hover:bg-[#FAF8F5]",
-                      isSelected && "bg-[#F5EFE6]/60",
+                      "cursor-pointer border-t border-border transition-colors hover:bg-[#FAF7EF]",
+                      isSelected && "bg-[#F4E9D0]/70",
                     )}
                     data-testid={`guest-row-${g.id}`}
                   >

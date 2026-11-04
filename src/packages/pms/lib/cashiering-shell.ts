@@ -3,6 +3,7 @@
 export const CASHIERING_TABS = [
   { id: "overview", label: "Overview" },
   { id: "folios", label: "Folios" },
+  { id: "financial-activity", label: "Financial Activity" },
   { id: "accounts", label: "Accounts" },
   { id: "reports", label: "Reports" },
   { id: "cashier-shift", label: "Cashier Shift" },
@@ -18,13 +19,13 @@ export const CASHIERING_DESK_DESCRIPTION =
 
 const TAB_ALIASES: Record<string, CashieringTabId> = {
   dashboard: "overview",
-  payments: "overview",
-  deposits: "overview",
-  refunds: "overview",
+  payments: "financial-activity",
+  deposits: "financial-activity",
+  refunds: "financial-activity",
   exceptions: "overview",
   shifts: "cashier-shift",
   "cashier-shifts": "cashier-shift",
-  transfers: "overview",
+  transfers: "financial-activity",
 };
 
 export function activityFilterFromLegacyTab(

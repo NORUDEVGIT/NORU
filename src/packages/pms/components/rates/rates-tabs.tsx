@@ -38,6 +38,13 @@ import {
 } from "@/packages/pms/lib/rates.functions";
 import { CARD2_RATES_HREF, withReturnTo } from "@/packages/pms/lib/pms-property-setup-card2";
 import { useMoney } from "@/core/state/property-format";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_ROW,
+  ROOM_TABLE_TD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+} from "@/packages/pms/components/rooms/room-inventory-shell";
 
 function PropertySetupRatesLink({ className }: { className?: string }) {
   return (
@@ -138,11 +145,13 @@ export function RevenueOverviewTab({
 export function RatePlansTab({
   restaurantId,
   roomTypeId,
+  searchQuery,
   onRoomTypeChange,
   onOpenCalendar,
 }: {
   restaurantId: string;
   roomTypeId?: string | null;
+  searchQuery?: string;
   onRoomTypeChange?: (roomTypeId: string | null) => void;
   onOpenCalendar?: (ratePlanId: string, roomTypeId: string) => void;
 }) {
@@ -193,7 +202,7 @@ export function RatePlansTab({
   );
 
   const filteredPlans = useMemo(() => {
-    const queryText = search.trim().toLowerCase();
+    const queryText = (searchQuery ?? search).trim().toLowerCase();
     return allPlans.filter((plan) => {
       if (statusFilter === "active" && !plan.active) return false;
       if (statusFilter === "inactive" && plan.active) return false;
@@ -205,11 +214,11 @@ export function RatePlansTab({
         `${plan.code} ${plan.name} ${plan.categoryName ?? ""} ${plan.roomTypeName ?? ""}`.toLowerCase();
       return haystack.includes(queryText);
     });
-  }, [allPlans, statusFilter, categoryFilter, search]);
+  }, [allPlans, statusFilter, categoryFilter, search, searchQuery]);
 
   useEffect(() => {
     setPage(1);
-  }, [roomTypeFilter, statusFilter, categoryFilter, search, pageSize]);
+  }, [roomTypeFilter, statusFilter, categoryFilter, search, searchQuery, pageSize]);
 
   const pageCount = Math.max(1, Math.ceil(filteredPlans.length / pageSize));
   const safePage = Math.min(page, pageCount);
@@ -257,6 +266,7 @@ export function RatePlansTab({
       <div className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-1 flex-wrap items-center gap-2.5">
+            {usingSharedRoomType ? null : (
             <div className="w-52">
               <Select value={roomTypeFilter} onValueChange={handleRoomTypeChange}>
                 <SelectTrigger
@@ -277,6 +287,7 @@ export function RatePlansTab({
                 </SelectContent>
               </Select>
             </div>
+            )}
 
             <div
               role="group"
@@ -309,6 +320,7 @@ export function RatePlansTab({
               })}
             </div>
 
+            {searchQuery === undefined ? (
             <div className="relative min-w-56 flex-1 sm:max-w-xs">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#756A5B]" />
               <Input
@@ -320,6 +332,7 @@ export function RatePlansTab({
                 className="h-9 pl-9 text-sm text-[#251605]"
               />
             </div>
+            ) : null}
 
             <Button
               type="button"
@@ -385,37 +398,37 @@ export function RatePlansTab({
           No rate plans match the current filters.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
+        <div className={ROOM_TABLE_WRAP}>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-[#E8E1D7] bg-[#F7F4EE] text-left text-xs font-semibold uppercase tracking-wider text-[#5A4833]">
-                  <th className="px-4 py-3">Code</th>
-                  <th className="px-4 py-3">Rate Plan</th>
-                  <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Room Type</th>
-                  <th className="px-4 py-3 text-right">Base Rate</th>
-                  <th className="px-4 py-3">Validity</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+              <thead className={ROOM_TABLE_HEAD}>
+                <tr>
+                  <th className={ROOM_TABLE_TH}>Code</th>
+                  <th className={ROOM_TABLE_TH}>Rate Plan</th>
+                  <th className={ROOM_TABLE_TH}>Category</th>
+                  <th className={ROOM_TABLE_TH}>Room Type</th>
+                  <th className={`${ROOM_TABLE_TH} text-right`}>Base Rate</th>
+                  <th className={ROOM_TABLE_TH}>Validity</th>
+                  <th className={ROOM_TABLE_TH}>Status</th>
+                  <th className={`${ROOM_TABLE_TH} text-right`}>Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#EFE9DF]">
                 {visiblePlans.map((plan) => (
-                  <tr key={plan.id} className="transition-colors hover:bg-[#FAF6F0]/60">
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs font-semibold text-[#251605]">
+                  <tr key={plan.id} className={ROOM_TABLE_ROW}>
+                    <td className={`${ROOM_TABLE_TD} whitespace-nowrap font-mono text-xs font-semibold`}>
                       {plan.code}
                     </td>
-                    <td className="px-4 py-3 text-sm font-medium text-[#251605]">{plan.name}</td>
-                    <td className="px-4 py-3 text-sm text-[#5A4833]">{plan.categoryName || "—"}</td>
-                    <td className="px-4 py-3 text-sm text-[#251605]">{plan.roomTypeName}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-[#251605]">
+                    <td className={`${ROOM_TABLE_TD} font-medium`}>{plan.name}</td>
+                    <td className={ROOM_TABLE_TD}>{plan.categoryName || "—"}</td>
+                    <td className={ROOM_TABLE_TD}>{plan.roomTypeName}</td>
+                    <td className={`${ROOM_TABLE_TD} whitespace-nowrap text-right font-semibold tabular-nums`}>
                       {money(plan.baseRate)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-xs font-medium text-[#5A4833]">
+                    <td className={`${ROOM_TABLE_TD} whitespace-nowrap text-xs`}>
                       {formatRatePlanValidity(plan.validFrom, plan.validTo)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3">
+                    <td className={`${ROOM_TABLE_TD} whitespace-nowrap`}>
                       <span
                         className={[
                           "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",

@@ -23,7 +23,20 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+  ROOM_SHELL_PRIMARY_BUTTON,
+  RoomShellExportButton,
+  RoomShellRefreshButton,
+  RoomShellSlot,
+  RoomSummaryChips,
+  RoomTableFooter,
+} from "./room-inventory-shell";
 import {
   Dialog,
   DialogContent,
@@ -448,42 +461,111 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
     onError: (error: Error) => toast.error(error.message),
   });
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-0.5">
-        <p className="text-xs text-muted-foreground">
-          Room maintenance requests and work orders across your property.
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            className="h-9 gap-1.5 bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] hover:bg-[#B5882D] shadow-xs"
-            onClick={() => setCreateOpen(true)}
-          >
-            <Plus className="size-3.5" />
-            Log request
-          </Button>
-          <Button
-            asChild
-            size="sm"
-            variant="outline"
-            className="h-9 gap-1.5 border-[#D6CDBF] bg-white text-xs font-semibold text-[#251605] hover:bg-[#FAF8F5] shadow-xs"
-          >
-            <a href="/restaurant/pms/maintenance?tab=maintenance&returnTo=/restaurant/pms/room-inventory%3Ftab%3Dmaintenance">
-              Open Maintenance <ArrowRight className="size-3.5" />
-            </a>
-          </Button>
-        </div>
-      </div>
+  const maintenanceFilterCount =
+    (statusFilter !== "all" ? 1 : 0) +
+    (categoryFilter !== "all" ? 1 : 0) +
+    (priorityFilter !== "all" ? 1 : 0);
+  const maintenanceSearch = (
+    <div className="relative min-w-0 w-full">
+      <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        value={searchQuery}
+        onChange={(event) => {
+          setSearchQuery(event.target.value);
+          setPage(1);
+        }}
+        className="h-9 min-w-0 pl-8 text-xs"
+        placeholder="Search room, category, or description…"
+        aria-label="Search maintenance"
+      />
+    </div>
+  );
+  const maintenanceFilter = (
+    <PmsFilterMenu
+      activeCount={maintenanceFilterCount}
+      onClear={() => {
+        setStatusFilter("all");
+        setCategoryFilter("all");
+        setPriorityFilter("all");
+        setPage(1);
+      }}
+      buttonTestId="maintenance-filters-button"
+      menuTestId="maintenance-filters-menu"
+    >
+      <PmsFilterChoiceRow
+        label="Status"
+        value={statusFilter}
+        current={statusFilter === "all" ? "" : statusFilter.replaceAll("_", " ")}
+        options={[
+          ["all", "All statuses"],
+          ["open", "Open"],
+          ["in_progress", "In progress"],
+          ["resolved", "Completed"],
+        ]}
+        onChange={(value) => {
+          setStatusFilter(value as typeof statusFilter);
+          setPage(1);
+        }}
+      />
+      <PmsFilterChoiceRow
+        label="Category"
+        value={categoryFilter}
+        current={categoryFilter === "all" ? "" : categoryFilter}
+        options={[["all", "All categories"], ...MAINTENANCE_CATEGORY_OPTIONS]}
+        onChange={(value) => {
+          setCategoryFilter(value);
+          setPage(1);
+        }}
+      />
+      <PmsFilterChoiceRow
+        label="Priority"
+        value={priorityFilter}
+        current={priorityFilter === "all" ? "" : priorityFilter}
+        options={[["all", "All priorities"], ...MAINTENANCE_PRIORITY_OPTIONS]}
+        onChange={(value) => {
+          setPriorityFilter(value);
+          setPage(1);
+        }}
+      />
+    </PmsFilterMenu>
+  );
 
-      <MaintenanceKpis
-        total={kpiCounts.total}
-        open={kpiCounts.open}
-        inProgress={kpiCounts.inProgress}
-        resolved={kpiCounts.resolved}
-        urgentOrHigh={kpiCounts.urgentOrHigh}
+  return (
+    <div className="space-y-3">
+      <RoomShellSlot name="controls">{maintenanceSearch}</RoomShellSlot>
+      <RoomShellSlot name="filter">{maintenanceFilter}</RoomShellSlot>
+      <RoomShellSlot name="actions">
+        <RoomShellRefreshButton
+          spinning={maintenance.isFetching}
+          onClick={() => void maintenance.refetch()}
+          testId="maintenance-refresh"
+        />
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="h-9 border-[#DDD4C5] px-2.5 text-xs"
+        >
+          <a href="/restaurant/pms/maintenance?tab=maintenance&returnTo=/restaurant/pms/room-inventory%3Ftab%3Dmaintenance">
+            Open Maintenance
+          </a>
+        </Button>
+      </RoomShellSlot>
+      <RoomShellSlot name="cta">
+        <Button type="button" className={ROOM_SHELL_PRIMARY_BUTTON} onClick={() => setCreateOpen(true)}>
+          <Plus className="mr-1.5 size-4" />
+          Log Request
+        </Button>
+      </RoomShellSlot>
+      <RoomSummaryChips
+        items={[
+          { label: "Open", value: kpiCounts.open, tone: "warning" },
+          { label: "In progress", value: kpiCounts.inProgress, tone: "info" },
+          { label: "Urgent", value: kpiCounts.urgentOrHigh, tone: "danger" },
+        ]}
       />
 
+      {false ? (
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-2xs">
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -604,6 +686,7 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
           </div>
         </div>
       </div>
+      ) : null}
 
       {maintenance.isLoading ? (
         <InventoryState state="loading" />
@@ -628,7 +711,7 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
           onRetry={clearFilters}
         />
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className={selected ? "grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]" : undefined}>
           <div className="flex flex-col justify-between overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[860px] text-left text-sm">
@@ -754,8 +837,8 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
             </div>
           </div>
 
-          <aside className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-            {selected ? (
+          {selected ? (
+          <aside className="rounded-lg border border-[#DDD4C5] bg-white p-4 shadow-sm">
               <MaintenanceDetail
                 request={selected}
                 room={affected.get(selected.roomId)}
@@ -767,16 +850,8 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
                 }}
                 onReopen={() => update.mutate({ requestId: selected.id, status: "open" })}
               />
-            ) : (
-              <div className="flex h-64 flex-col items-center justify-center p-6 text-center">
-                <Wrench className="size-8 text-muted-foreground/40 mb-2" />
-                <p className="text-sm font-semibold text-foreground">No request selected</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Select a room issue from the list to view its complete operational context and actions.
-                </p>
-              </div>
-            )}
           </aside>
+          ) : null}
         </div>
       )}
 
@@ -1230,27 +1305,31 @@ export function RoomHistoryAuditView({ restaurantId }: { restaurantId: string })
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
-        <input
-          className="h-9 w-full max-w-sm rounded-lg border border-input bg-background px-3 text-sm"
-          placeholder="Search room, event, actor or context"
-          value={search}
-          onChange={handleSearchChange}
-        />
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCsv}
-            disabled={rows.length === 0}
-            className="h-9 gap-1.5 border-[#D6CDBF] bg-white text-xs font-semibold text-[#251605] shadow-xs hover:bg-[#FAF8F5]"
-          >
-            <Download className="size-3.5" />
-            Export CSV
-          </Button>
+    <div className="space-y-3">
+      <RoomShellSlot name="controls">
+        <div className="relative min-w-0 w-full">
+          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="h-9 min-w-0 pl-8 text-xs"
+            placeholder="Search room, event, actor or context"
+            value={search}
+            onChange={handleSearchChange}
+            aria-label="Search history"
+          />
         </div>
-      </div>
+      </RoomShellSlot>
+      <RoomShellSlot name="actions">
+        <RoomShellRefreshButton
+          spinning={query.isFetching}
+          onClick={() => void query.refetch()}
+          testId="history-refresh"
+        />
+        <RoomShellExportButton
+          disabled={rows.length === 0}
+          onClick={handleExportCsv}
+          testId="history-export"
+        />
+      </RoomShellSlot>
       {query.isLoading ? (
         <InventoryState state="loading" />
       ) : query.isError ? (

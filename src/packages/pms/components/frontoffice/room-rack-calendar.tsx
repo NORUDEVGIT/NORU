@@ -17,16 +17,14 @@ import {
   CalendarMinus,
   CalendarPlus,
   Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
+  Download,
   Circle,
   Clock,
   DoorOpen,
   Eye,
-  Filter,
   GripVertical,
   House,
+  LayoutGrid,
   LogIn,
   LogOut,
   MessageSquare,
@@ -34,8 +32,11 @@ import {
   Pencil,
   Percent,
   Receipt,
+  RefreshCw,
   ScanSearch,
+  Search,
   Sparkles,
+  Table2,
   Triangle,
   UserRound,
   Wrench,
@@ -50,13 +51,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/shared/components/ui/collapsible";
 import { Input } from "@/shared/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
+import {
+  PmsFilterChoiceRow,
+  PmsFilterMenu,
+  PmsFilterNoteRow,
+} from "@/packages/pms/components/pms-filter-menu";
 import {
   Select,
   SelectContent,
@@ -64,34 +64,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/shared/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import {
   ComingSoonChip,
   PermissionDeniedPanel,
 } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { FoRackConfirmSheet } from "@/packages/pms/components/frontoffice/fo-rack-confirm-sheet";
+import { useFoToolbarSlot } from "@/packages/pms/components/frontoffice/front-office-chrome";
 import { StayBadgeStrip } from "@/packages/pms/components/frontoffice/fo-stay-badges";
 import {
   EMPTY_RACK_FILTERS,
   FO_BRAND,
-  FO_LEGEND_DEFAULT_OPEN,
   HK_LEGEND,
   LIVE_HORIZONS,
-  RESERVATION_LEGEND,
-  ROOM_LEGEND,
+  RESERVATION_BAR_SOFT_BG_ALPHA,
+  RESERVATION_BAR_SOFT_BORDER_ALPHA,
   calendarHorizonLabel,
   countActiveRackFilters,
   dateRange,
   hkStatusAriaLabel,
   isLiveHorizon,
-  isOpsStripFilterActive,
   isPermissionDeniedMessage,
   liveHkStatus,
-  reservationBarColor,
   reservationBarPlacement,
   roomMatchesFilters,
   shouldShowDragHandle,
   stayMatchesFilters,
+  stayMatchesRackCategory,
   stayOverlapsRange,
   groupRackRooms,
   rackFrozenGridTemplate,
@@ -102,6 +109,7 @@ import {
   RACK_DATE_TRACK_GRID_COLUMN,
   RACK_FROZEN_COLUMN_COUNT,
   type CalendarHorizon,
+  type FoNavId,
   type LiveHkStatus,
   type RackFilters,
   type RackGroupBy,
@@ -121,7 +129,6 @@ import {
   onRackDrop,
   onRackResizeRelease,
   rackColumnMinPx,
-  rackFiltersActive,
   rackReservationPageSize,
   type RackConfirmDraft,
 } from "@/packages/pms/lib/fo-rack-power";
@@ -133,9 +140,26 @@ import {
 } from "@/packages/pms/lib/frontoffice.functions";
 import { listRoomRack, type RackRoom } from "@/packages/pms/lib/housekeeping.functions";
 import { listReservations } from "@/packages/pms/lib/reservations.functions";
+import {
+  DaysRangeSelect,
+  PMS_ICON_BUTTON,
+  WeekRangeControl,
+  initialWeekFocusDate,
+  mondayOf,
+  readSharedWeekStart,
+  writeSharedWeekStart,
+} from "@/packages/pms/components/pms-week-controls";
+import {
+  exportReservationsToPdf,
+  openPdfWindow,
+} from "@/packages/pms/components/reservations/reservation-export-pdf";
 import { addDays, formatStayDate } from "@/packages/pms/lib/reservation-dates";
+import {
+  useMoveEligibleRoomIds,
+  type MoveDragStay,
+} from "@/packages/pms/components/use-move-eligible-rooms";
 import { cn } from "@/shared/lib/utils";
-import { deriveOpsStrip, type FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
+import { deriveOpsStrip, type FoRackFocus, type OpsStripItem } from "@/packages/pms/lib/fo-exceptions";
 import { listFoExceptionFeeds } from "@/packages/pms/lib/fo-exceptions.functions";
 import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
 import {
@@ -151,10 +175,49 @@ import {
 
 type Viewport = "phone" | "wide";
 
+/** FO UI polish — Rack/Table/List all render the same stay/room data. No second business logic. */
+type FoRackViewMode = "rack" | "table";
+
 const FO_DRAG_MIME = "application/x-fo-reservation";
+
+function exportRackStays(
+  restaurantName: string,
+  rangeStart: string,
+  rangeEnd: string,
+  stays: readonly FoRackStay[],
+) {
+  const printWindow = openPdfWindow();
+  if (!printWindow) return;
+  exportReservationsToPdf({
+    printWindow,
+    title: "Front Office",
+    restaurantName,
+    scope: "Room Rack",
+    rangeLabel: `${formatStayDate(rangeStart)} – ${formatStayDate(rangeEnd)}`,
+    rows: stays.map((stay) => ({
+      confirmationNumber: stay.confirmationNumber,
+      guestName: stay.guestName,
+      roomTypeName: stay.roomTypeName,
+      room: stay.roomNumber ?? "Unassigned",
+      arrival: formatStayDate(stay.arrivalDate),
+      departure: formatStayDate(stay.departureDate),
+      nights: stay.nights,
+      adults: stay.adults,
+      children: stay.children,
+      status: stay.status.replaceAll("_", " "),
+      source: stay.source,
+      ratePlan: stay.ratePlanName ?? "—",
+      total:
+        stay.roomSubtotal == null
+          ? "—"
+          : `${stay.currency ?? ""} ${stay.roomSubtotal.toFixed(2)}`.trim(),
+    })),
+  });
+}
 
 export function RoomRackCalendar({
   restaurantId,
+  restaurantName = "Front Office",
   today,
   viewport,
   rackFocus = null,
@@ -169,8 +232,13 @@ export function RoomRackCalendar({
   staffRole,
   onRackSearchChange,
   onWalkIn,
+  onOpenGuestSearch,
+  category = "rack",
+  exceptionStayIds,
+  exceptionRoomIds,
 }: {
   restaurantId: string;
+  restaurantName?: string;
   today: string;
   viewport: Viewport;
   rackFocus?: FoRackFocus | null;
@@ -189,12 +257,71 @@ export function RoomRackCalendar({
     group: RackGroupBy;
   }) => void;
   onWalkIn?: () => void;
+  /** Reuses the existing module-level guest search dialog — no second search implementation. */
+  onOpenGuestSearch?: () => void;
+  /**
+   * Burger-menu-as-filter: narrows the shared Rack/Table dataset to the selected former
+   * nav target in place. "rack" ("All") applies no extra narrowing.
+   */
+  category?: FoNavId;
+  /** Reservation ids surfaced by the existing exception desk — used only when category is "exceptions". */
+  exceptionStayIds?: ReadonlySet<string>;
+  /** Room ids surfaced by the existing exception desk — used only when category is "exceptions". */
+  exceptionRoomIds?: ReadonlySet<string>;
 }) {
-  const [focusDate, setFocusDate] = useState(rackFocus?.focusDate ?? initialFocusDate ?? today);
-  const [horizon, setHorizon] = useState<CalendarHorizon>(
-    initialHorizon ?? (viewport === "phone" ? 1 : 7),
+  const [horizon, setHorizon] = useState<CalendarHorizon>(initialHorizon ?? 7);
+  const [focusDate, setFocusDate] = useState(() =>
+    initialWeekFocusDate({
+      today,
+      ...(initialFocusDate ? { initialFocusDate } : {}),
+      sharedMonday: readSharedWeekStart(restaurantId),
+      weekAligned: (initialHorizon ?? 7) === 7,
+    }),
   );
   const [groupBy, setGroupBy] = useState<RackGroupBy>(initialGroup);
+  const [rackView, setRackView] = useState<FoRackViewMode>("rack");
+  const [rackDragging, setRackDragging] = useState(false);
+  const [dragStay, setDragStay] = useState<MoveDragStay & { roomTypeName: string } | null>(null);
+  const dragActiveRef = useRef(false);
+  const setToolbarSlot = useFoToolbarSlot();
+  const dragEligibleIds = useMoveEligibleRoomIds(restaurantId, dragStay);
+
+  function beginRoomDrag(stay: FoRackStay) {
+    dragActiveRef.current = true;
+    setDragStay({
+      reservationId: stay.id,
+      reservationRoomId: stay.reservationRoomId,
+      roomId: stay.roomId,
+      roomTypeId: stay.roomTypeId,
+      roomTypeName: stay.roomTypeName,
+      arrivalDate: stay.arrivalDate,
+      departureDate: stay.departureDate,
+    });
+    // Defer so the browser has committed the drag image before rows are added.
+    window.requestAnimationFrame(() => {
+      if (dragActiveRef.current) setRackDragging(true);
+    });
+  }
+
+  function endRoomDrag() {
+    dragActiveRef.current = false;
+    setRackDragging(false);
+    setDragStay(null);
+  }
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") endRoomDrag();
+    }
+    document.addEventListener("dragend", endRoomDrag);
+    document.addEventListener("drop", endRoomDrag);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("dragend", endRoomDrag);
+      document.removeEventListener("drop", endRoomDrag);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
   const [filters, setFilters] = useState<RackFilters>(() =>
     rackFocus
       ? {
@@ -210,7 +337,10 @@ export function RoomRackCalendar({
 
   const liveHorizon = isLiveHorizon(horizon);
   const days = liveHorizon ? horizon : 7;
-  const rangeEnd = addDays(focusDate, days - 1);
+  // 7 days is always the Monday–Sunday week containing the operational date.
+  // Other lengths keep their day count and still start on the selected date.
+  const rangeStart = horizon === 7 ? mondayOf(focusDate) : focusDate;
+  const rangeEnd = addDays(rangeStart, days - 1);
   const pageSize = rackReservationPageSize(days);
   const showDrag = shouldShowDragHandle(viewport);
 
@@ -234,6 +364,10 @@ export function RoomRackCalendar({
     onRackSearchChange?.({ horizon, date: focusDate, group: groupBy });
   }, [horizon, focusDate, groupBy, onRackSearchChange]);
 
+  useEffect(() => {
+    writeSharedWeekStart(restaurantId, focusDate);
+  }, [restaurantId, focusDate]);
+
   const occupancyQuery = useQuery({
     queryKey: ["front-office", "occupancy", restaurantId],
     queryFn: () => fetchOccupancy({ data: { restaurantId } }),
@@ -241,14 +375,14 @@ export function RoomRackCalendar({
     retry: false,
   });
   const reservationsQuery = useQuery({
-    queryKey: ["front-office", "rack-reservations", restaurantId, focusDate, days, pageSize],
+    queryKey: ["front-office", "rack-reservations", restaurantId, rangeStart, days, pageSize],
     queryFn: () =>
       collectRackReservationPages(
         (page, size) =>
           fetchReservations({
             data: {
               restaurantId,
-              fromDate: focusDate,
+              fromDate: rangeStart,
               toDate: rangeEnd,
               page,
               pageSize: size,
@@ -281,8 +415,10 @@ export function RoomRackCalendar({
   });
 
   const rooms = occupancyQuery.data ?? [];
-  const stays = projectRackStays(reservationsQuery.data?.rows ?? []).filter((row) =>
-    stayOverlapsRange(row.arrivalDate, row.departureDate, focusDate, days),
+  const stays = projectRackStays(reservationsQuery.data?.rows ?? []).filter(
+    (row) =>
+      stayOverlapsRange(row.arrivalDate, row.departureDate, rangeStart, days) ||
+      departureFallsInRackRange(row.departureDate, rangeStart, days),
   );
   const hkByRoom = new Map((hkQuery.data ?? []).map((r) => [r.id, r]));
   const hkDenied = hkQuery.isError && isPermissionDeniedMessage(hkQuery.error);
@@ -320,8 +456,51 @@ export function RoomRackCalendar({
   );
 
   const visibleStays = stays.filter((stay) => stayMatchesFilters(stay, filters, focusDate));
-  const unassigned = visibleStays.filter((s) => previewRoomId(s, preview) == null);
-  const filterEmpty = rackFiltersActive(filters) && visibleStays.length === 0;
+  // Presentation only: Rack and Table share this operational projection.
+  // Vacant physical rooms and stays outside the four Front Office phases
+  // (arriving, in-house, departing, historical checked-out) are not rows.
+  const visibleRoomIds = new Set(visibleRooms.map((room) => room.id));
+  const operationalStays = visibleStays.filter((stay) => {
+    if (primaryOperationalPhase(stay, rangeStart, days) == null) return false;
+    if (stay.roomId && !visibleRoomIds.has(stay.roomId)) return false;
+    if (category === "exceptions") {
+      const flagged =
+        Boolean(exceptionStayIds?.has(stay.id)) ||
+        Boolean(stay.roomId && exceptionRoomIds?.has(stay.roomId));
+      if (!flagged) return false;
+    } else if (!stayMatchesRackCategory(stay, category, focusDate)) {
+      return false;
+    }
+    return true;
+  });
+  const operationalRoomIds = new Set(
+    operationalStays
+      .map((stay) => previewRoomId(stay, preview))
+      .filter((roomId): roomId is string => Boolean(roomId)),
+  );
+  // While a stay is dragged, show its current room and rooms the existing
+  // assignment read marks eligible. Other rooms, including vacant ones, stay hidden.
+  const operationalRooms = rackDragging
+    ? visibleRooms.filter((room) => {
+        if (!dragStay) return false;
+        if (room.id === dragStay.roomId) return true;
+        if (!dragEligibleIds?.has(room.id)) return false;
+        return (
+          classifyVerticalDrop({
+            reservationId: dragStay.reservationId,
+            currentRoomId: dragStay.roomId,
+            stayRoomTypeId: dragStay.roomTypeId,
+            stayRoomTypeName: dragStay.roomTypeName,
+            targetRoomId: room.id,
+            targetStatus: room.status,
+            targetRoomTypeId: room.roomTypeId,
+            targetRoomTypeName: room.roomTypeName,
+          }).action === "confirm_sheet"
+        );
+      })
+    : visibleRooms.filter((room) => operationalRoomIds.has(room.id));
+  const unassigned = operationalStays.filter((stay) => previewRoomId(stay, preview) == null);
+  const filterEmpty = operationalStays.length === 0;
 
   function dismissConfirm() {
     setDraft(null);
@@ -369,82 +548,46 @@ export function RoomRackCalendar({
         hkAvailable={hkAvailable}
         occupancyTrusted={!occupancyQuery.isError && !dashboardQuery.isError}
         openDiscrepancies={discrepancyLive ? (feedsQuery.data?.discrepancies.length ?? 0) : null}
-        filters={filters}
-        onFilter={(next) => setFilters({ ...EMPTY_RACK_FILTERS, ...next })}
       />
 
       <section
-        className="rounded-lg border border-[#DDD4C5] bg-white p-2 shadow-sm"
+        ref={setToolbarSlot}
+        className="relative rounded-lg border border-[#DDD4C5] bg-white px-2 py-1.5 shadow-sm"
         data-testid="fo-rack-toolbar"
       >
-        <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
-          <Button variant="outline" size="sm" className="h-9" onClick={() => setFocusDate(today)}>
-            Today
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-9"
-            data-testid="fo-rack-refresh"
-            onClick={() => void queryClient.invalidateQueries({ queryKey: ["front-office"] })}
-          >
-            Refresh
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-9"
-            onClick={() => setFocusDate(addDays(focusDate, -1))}
-            aria-label="Previous day"
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-            Date
-            <Input
-              type="date"
-              className="h-9 w-40"
-              value={focusDate}
-              onChange={(e) => setFocusDate(e.target.value)}
+        <div className="flex flex-wrap items-center gap-1.5 pl-10">
+          <div className="flex shrink-0 items-center gap-1.5">
+            <WeekRangeControl
+              weekStart={mondayOf(focusDate)}
+              onShiftWeek={(direction) => setFocusDate(addDays(focusDate, direction * 7))}
+              onPickDate={setFocusDate}
             />
-          </label>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-9"
-            onClick={() => setFocusDate(addDays(focusDate, 1))}
-            aria-label="Next day"
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-            View range
-            <Select
+            <DaysRangeSelect
               value={String(horizon)}
-              onValueChange={(value) => setHorizon(Number(value) as CalendarHorizon)}
-            >
-              <SelectTrigger
-                className="h-9 w-[9.5rem]"
-                aria-label="View range"
-                data-testid="fo-horizon-select"
-              >
-                <SelectValue placeholder="View range" />
-              </SelectTrigger>
-              <SelectContent>
-                {LIVE_HORIZONS.map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {calendarHorizonLabel(n)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-            Grouping
-            <RackGroupSelect groupBy={groupBy} onGroupBy={setGroupBy} toolbar />
-          </label>
-          <div className="flex flex-wrap items-end gap-2 sm:ml-auto">
+              onChange={(value) => setHorizon(Number(value) as CalendarHorizon)}
+              options={LIVE_HORIZONS.map((n) => [String(n), calendarHorizonLabel(n)] as const)}
+            />
+          </div>
+          {onOpenGuestSearch ? (
+            <div className="flex min-w-[10rem] flex-1 basis-48">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={onOpenGuestSearch}
+                    data-testid="fo-rack-search-trigger"
+                    aria-label="Search guest, room or reservation"
+                    className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-background px-2.5 text-xs text-muted-foreground transition-colors hover:border-[#C89933]/60 hover:text-foreground"
+                  >
+                    <Search className="size-3.5 shrink-0" aria-hidden="true" />
+                    <span className="truncate">Search guest, room or reservation…</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Search guest, room or reservation</TooltipContent>
+              </Tooltip>
+            </div>
+          ) : null}
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <RackFiltersButton
               filters={filters}
               onChange={setFilters}
@@ -452,7 +595,45 @@ export function RoomRackCalendar({
               types={types}
               sources={sources}
               hkAvailable={hkAvailable}
+              groupBy={groupBy}
+              onGroupBy={setGroupBy}
             />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className={PMS_ICON_BUTTON}
+                  data-testid="fo-rack-refresh"
+                  aria-label="Refresh"
+                  onClick={() => void queryClient.invalidateQueries({ queryKey: ["front-office"] })}
+                >
+                  <RefreshCw className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Refresh              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className={PMS_ICON_BUTTON}
+                  data-testid="fo-rack-export"
+                  aria-label="Export PDF"
+                  title="Export PDF"
+                  onClick={() => exportRackStays(restaurantName, rangeStart, rangeEnd, operationalStays)}
+                >
+                  <Download className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Export PDF</TooltipContent>
+            </Tooltip>
+            {viewport === "phone" ? null : (
+              <RackViewSwitcher view={rackView} onChange={setRackView} />
+            )}
             {onWalkIn ? (
               <Button
                 className="h-9 bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
@@ -473,12 +654,6 @@ export function RoomRackCalendar({
         />
       ) : null}
 
-      {filterEmpty ? (
-        <p className="text-sm text-muted-foreground" data-testid="fo-rack-filter-empty">
-          {NO_STAYS_MATCH_FILTERS}
-        </p>
-      ) : null}
-
       {!liveHorizon ? (
         <p className="text-sm text-muted-foreground">
           {horizon}-day calendar is not a live horizon.
@@ -489,10 +664,14 @@ export function RoomRackCalendar({
         <p className="text-sm text-destructive" data-testid="fo-rack-load-error">
           {loadError instanceof Error ? loadError.message : RACK_LOAD_FAILED}
         </p>
+      ) : filterEmpty ? (
+        <p className="text-sm text-muted-foreground" data-testid="fo-rack-filter-empty">
+          {NO_STAYS_MATCH_FILTERS}
+        </p>
       ) : viewport === "phone" ? (
         <PhoneRackList
-          rooms={visibleRooms}
-          stays={visibleStays}
+          rooms={operationalRooms}
+          stays={operationalStays}
           hkByRoom={hkByRoom}
           today={focusDate}
           groupBy={groupBy}
@@ -506,33 +685,50 @@ export function RoomRackCalendar({
           businessDate={today}
           staffRole={staffRole}
         />
-      ) : (
-        <CalendarBoard
+      ) : rackView === "table" ? (
+        <FoRackTableView
           rooms={visibleRooms}
-          stays={visibleStays}
-          unassigned={unassigned}
-          hkByRoom={hkByRoom}
-          hkAvailable={hkAvailable}
-          focusDate={focusDate}
+          stays={operationalStays}
+          focusDate={rangeStart}
           days={days}
-          groupBy={groupBy}
-          showDrag={showDrag}
-          preview={preview}
-          openDiscrepancyRoomIds={openDiscrepancyRoomIds}
-          highlightRoomId={rackFocus?.roomId ?? null}
+          businessDate={today}
+          hkByRoom={hkByRoom}
+          canOpenCashiering={canOpenCashiering}
+          staffRole={staffRole}
           onSelectStay={onSelectStay}
           onSelectInHouse={onSelectInHouse}
-          onSelectRoom={onSelectRoom}
           onRackAction={onRackAction}
-          canOpenCashiering={canOpenCashiering}
-          businessDate={today}
-          staffRole={staffRole}
+        />
+      ) : (
+        <>
+          <CalendarBoard
+            rooms={operationalRooms}
+            stays={operationalStays}
+            unassigned={unassigned}
+            hkByRoom={hkByRoom}
+            hkAvailable={hkAvailable}
+            focusDate={rangeStart}
+            days={days}
+            groupBy={groupBy}
+            showDrag={showDrag}
+            preview={preview}
+            openDiscrepancyRoomIds={openDiscrepancyRoomIds}
+            highlightRoomId={rackFocus?.roomId ?? null}
+            onSelectStay={onSelectStay}
+            onSelectInHouse={onSelectInHouse}
+            onSelectRoom={onSelectRoom}
+            onRackAction={onRackAction}
+            canOpenCashiering={canOpenCashiering}
+            businessDate={today}
+            staffRole={staffRole}
           onPreview={setPreview}
           onOpenConfirm={openConfirm}
+          onRoomDragStart={beginRoomDrag}
+          dragSourceRoomId={rackDragging ? (dragStay?.roomId ?? null) : null}
         />
+          <FoOperationalLegend />
+        </>
       )}
-
-      <RackLegend />
 
       <FoRackConfirmSheet
         restaurantId={restaurantId}
@@ -545,6 +741,99 @@ export function RoomRackCalendar({
       />
     </div>
   );
+}
+
+type FoOperationalPhase = "arriving" | "in_house" | "departing" | "checked_out";
+
+const FO_OPERATIONAL_COLOR: Record<FoOperationalPhase, string> = {
+  arriving: "#3B6EA5",
+  in_house: "#436436",
+  departing: "#C89933",
+  checked_out: "#8A8A8A",
+};
+
+const FO_OPERATIONAL_LEGEND: Array<{ phase: FoOperationalPhase; label: string; color: string }> = [
+  { phase: "arriving", label: "Arriving", color: FO_OPERATIONAL_COLOR.arriving },
+  { phase: "in_house", label: "In-House", color: FO_OPERATIONAL_COLOR.in_house },
+  { phase: "departing", label: "Departing", color: FO_OPERATIONAL_COLOR.departing },
+  { phase: "checked_out", label: "Checked Out", color: FO_OPERATIONAL_COLOR.checked_out },
+];
+
+function operationalPhaseLabel(phase: FoOperationalPhase): string {
+  return FO_OPERATIONAL_LEGEND.find((item) => item.phase === phase)?.label ?? phase;
+}
+
+function operationalBarTone(phase: FoOperationalPhase): {
+  background: string;
+  border: string;
+  color: string;
+} {
+  const color = FO_OPERATIONAL_COLOR[phase];
+  return {
+    background: `${color}${RESERVATION_BAR_SOFT_BG_ALPHA}`,
+    border: `${color}${RESERVATION_BAR_SOFT_BORDER_ALPHA}`,
+    color,
+  };
+}
+
+function dateFallsInRackRange(date: string, rangeStart: string, days: number): boolean {
+  const rangeEnd = addDays(rangeStart, days);
+  return date >= rangeStart && date < rangeEnd;
+}
+
+function departureFallsInRackRange(departure: string, rangeStart: string, days: number): boolean {
+  return dateFallsInRackRange(departure, rangeStart, days);
+}
+
+/**
+ * Front Office presentation phase for one canonical stay bar. Colour and row
+ * inclusion only — the bar itself always spans the stay's own dates.
+ */
+function primaryOperationalPhase(
+  stay: { status: FoRackStay["status"]; arrivalDate: string; departureDate: string },
+  rangeStart: string,
+  days: number,
+): FoOperationalPhase | null {
+  const { status, arrivalDate, departureDate } = stay;
+  if (status === "cancelled" || status === "no_show") return null;
+  const overlaps = stayOverlapsRange(arrivalDate, departureDate, rangeStart, days);
+  const departsInRange = departureFallsInRackRange(departureDate, rangeStart, days);
+  if (!overlaps && !departsInRange) return null;
+  if (status === "checked_out") return "checked_out";
+  if (status === "checked_in") return "in_house";
+  return "arriving";
+}
+
+/**
+ * Original nights-based placement. A stay whose only visible date is its
+ * departure day (e.g. checked out on the first visible day) gets that day so
+ * it stays on the rack as history.
+ */
+function rackStayPlacement(
+  status: FoRackStay["status"],
+  arrival: string,
+  departure: string,
+  rangeStart: string,
+  days: number,
+): { startCol: number; endCol: number; clipped: boolean } | null {
+  const place = reservationBarPlacement(arrival, departure, rangeStart, days);
+  if (place) return place;
+  if (
+    (status === "checked_out" || status === "checked_in") &&
+    departureFallsInRackRange(departure, rangeStart, days)
+  ) {
+    return reservationBarPlacement(departure, addDays(departure, 1), rangeStart, days);
+  }
+  return null;
+}
+
+function rackBarGuestLabel(name: string, confirmation: string, span: number): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "";
+  const first = trimmed.split(/\s+/)[0] ?? trimmed;
+  if (span <= 1) return first;
+  if (span >= 3 && confirmation.trim()) return `${trimmed} · ${confirmation.trim()}`;
+  return trimmed;
 }
 
 function previewRoomId(stay: FoRackStay, preview: RackConfirmDraft | null): string | null {
@@ -570,8 +859,6 @@ function OpsStrip({
   hkAvailable,
   occupancyTrusted = true,
   openDiscrepancies = null,
-  filters,
-  onFilter,
 }: {
   dashboard?: {
     arrivalsToday: number;
@@ -591,8 +878,6 @@ function OpsStrip({
   hkAvailable: boolean;
   occupancyTrusted?: boolean;
   openDiscrepancies?: number | null;
-  filters: RackFilters;
-  onFilter: (next: Partial<RackFilters>) => void;
 }) {
   const cards = dashboard
     ? deriveOpsStrip({
@@ -610,28 +895,27 @@ function OpsStrip({
       })
     : [];
 
+  const visible = frontOfficeKpiCards(cards);
+  if (loading && !dashboard) {
+    return (
+      <p className="text-xs text-muted-foreground" data-testid="fo-ops-strip">
+        Loading occupancy strip…
+      </p>
+    );
+  }
+
   return (
     <div
-      className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-6"
+      className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
       data-testid="fo-ops-strip"
     >
-      {loading ? <p className="text-xs text-muted-foreground">Loading occupancy strip…</p> : null}
-      {cards.map((item) => {
-        const active = isOpsStripFilterActive(filters, item.filter);
+      {visible.map((item) => {
         const meta = opsKpiMeta(item.id);
         return (
-          <button
+          <div
             key={item.id}
-            type="button"
             data-testid={`fo-ops-${item.id}`}
-            aria-pressed={active}
-            className={cn(
-              "flex min-w-0 items-center gap-2.5 rounded-lg border bg-white px-2.5 py-2 text-left shadow-sm transition-colors",
-              active
-                ? "border-[#C89933] ring-1 ring-[#C89933]/40"
-                : "border-[#DDD4C5] hover:border-[#C89933]",
-            )}
-            onClick={() => onFilter(item.filter)}
+            className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 text-left shadow-sm"
           >
             <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", meta.tone)}>
               {meta.icon}
@@ -641,33 +925,54 @@ function OpsStrip({
               <p className="font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
                 {item.display ?? item.value}
               </p>
-              {meta.hint ? (
-                <p className="truncate text-[9px] text-muted-foreground">{meta.hint}</p>
-              ) : null}
             </div>
-          </button>
+          </div>
         );
       })}
     </div>
   );
 }
 
+/** Visible strip only. deriveOpsStrip still returns the full set for other views. */
+function frontOfficeKpiCards(cards: OpsStripItem[]): OpsStripItem[] {
+  const byId = new Map(cards.map((item) => [item.id, item]));
+  const arrivals = byId.get("arrivals");
+  const inHouse = byId.get("in_house");
+  const departures = byId.get("departures");
+  const occupancy = byId.get("occupancy_pct");
+  const available = byId.get("available");
+  const attention = byId.get("discrepancies") ?? byId.get("vacant_dirty");
+  return [
+    { id: "arrivals", label: "Arrivals", value: arrivals?.value ?? 0, filter: arrivals?.filter ?? { staySlice: "arrival" } },
+    { id: "in_house", label: "In-House", value: inHouse?.value ?? 0, filter: inHouse?.filter ?? { staySlice: "in_house" } },
+    { id: "departures", label: "Departures", value: departures?.value ?? 0, filter: departures?.filter ?? { staySlice: "departure" } },
+    {
+      id: "occupancy_pct",
+      label: "Occupancy",
+      value: occupancy?.value ?? 0,
+      display: occupancy?.display ?? "—",
+      filter: occupancy?.filter ?? { roomStatus: "occupied" },
+    },
+    { id: "available", label: "Available", value: available?.value ?? 0, filter: available?.filter ?? { roomStatus: "available" } },
+    {
+      id: "attention",
+      label: "Attention",
+      value: attention?.value ?? 0,
+      filter: attention?.filter ?? { discrepancy: "open" },
+    },
+  ];
+}
+
 function opsKpiMeta(id: string): { icon: ReactNode; tone: string; hint?: string } {
   switch (id) {
     case "arrivals":
-      return {
-        icon: <LogIn className="size-4" />,
-        tone: "bg-emerald-50 text-emerald-700",
-        hint: "Today",
-      };
+      return { icon: <LogIn className="size-4" />, tone: "bg-blue-50 text-blue-700" };
     case "departures":
-      return {
-        icon: <LogOut className="size-4" />,
-        tone: "bg-rose-50 text-rose-700",
-        hint: "Today",
-      };
+      return { icon: <LogOut className="size-4" />, tone: "bg-amber-50 text-amber-800" };
     case "in_house":
-      return { icon: <House className="size-4" />, tone: "bg-blue-50 text-blue-700" };
+      return { icon: <House className="size-4" />, tone: "bg-emerald-50 text-emerald-700" };
+    case "attention":
+      return { icon: <AlertTriangle className="size-4" />, tone: "bg-orange-50 text-orange-700" };
     case "occupied":
       return { icon: <BedDouble className="size-4" />, tone: "bg-amber-50 text-amber-800" };
     case "available":
@@ -698,6 +1003,8 @@ function RackFiltersButton({
   types,
   sources,
   hkAvailable,
+  groupBy,
+  onGroupBy,
 }: {
   filters: RackFilters;
   onChange: (next: RackFilters) => void;
@@ -705,195 +1012,215 @@ function RackFiltersButton({
   types: string[];
   sources: string[];
   hkAvailable: boolean;
+  groupBy: RackGroupBy;
+  onGroupBy: (next: RackGroupBy) => void;
 }) {
   const activeCount = countActiveRackFilters(filters);
 
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="sm" data-testid="fo-filters-button">
-          <Filter className="size-3.5" />
-          Filters
-          {activeCount > 0 ? (
-            <span
-              data-testid="fo-filters-count"
-              className="ml-1 min-w-5 rounded-full bg-[#C89933] px-1.5 text-center text-[10px] leading-5 text-[#251605]"
-            >
-              {activeCount}
-            </span>
-          ) : null}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-3" data-testid="fo-filters-popover">
-        <FilterRow
-          filters={filters}
-          onChange={onChange}
-          floors={floors}
-          types={types}
-          sources={sources}
-          hkAvailable={hkAvailable}
-        />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function FilterRow({
-  filters,
-  onChange,
-  floors,
-  types,
-  sources,
-  hkAvailable,
-}: {
-  filters: RackFilters;
-  onChange: (next: RackFilters) => void;
-  floors: string[];
-  types: string[];
-  sources: string[];
-  hkAvailable: boolean;
-}) {
   function set<K extends keyof RackFilters>(key: K, value: RackFilters[K]) {
     onChange({ ...filters, [key]: value });
   }
 
+  const groupingLabel =
+    groupBy === "floor" ? "Floor" : groupBy === "room_type" ? "Room Type" : "No grouping";
+
   return (
-    <div className="flex flex-wrap gap-2" data-testid="fo-rack-filters">
-      <FilterSelect
-        label="Floor"
-        value={filters.floor}
-        onChange={(v) => set("floor", v)}
-        options={floors.map((f) => [f, `Floor ${f}`] as const)}
-      />
-      <FilterSelect
-        label="Type"
-        value={filters.roomType}
-        onChange={(v) => set("roomType", v)}
-        options={types.map((t) => [t, t] as const)}
-      />
-      <FilterSelect
-        label="Room status"
-        value={filters.roomStatus}
-        onChange={(v) => set("roomStatus", v)}
-        options={[
-          ["vacant", "Vacant"],
-          ["occupied", "Occupied"],
-          ["available", "Available"],
-          ["out_of_order", "Out of order"],
-          ["out_of_service", "Out of service"],
-        ]}
-      />
-      {hkAvailable ? (
-        <FilterSelect
-          label="HK"
-          value={filters.hkStatus}
-          onChange={(v) => set("hkStatus", v)}
+    <PmsFilterMenu
+      activeCount={activeCount}
+      onClear={() => onChange(EMPTY_RACK_FILTERS)}
+      buttonTestId="fo-filters-button"
+      countTestId="fo-filters-count"
+      menuTestId="fo-filters-popover"
+    >
+      <div className="contents" data-testid="fo-rack-filters">
+        <PmsFilterChoiceRow
+          label="Grouping"
+          value={groupBy}
+          current={groupingLabel}
+          neutralValue="none"
           options={[
-            ["clean", "Clean"],
-            ["dirty", "Dirty"],
-            ["inspected", "Inspected"],
-            ["pickup", "Pickup"],
+            ["none", "No grouping"],
+            ["floor", "Floor"],
+            ["room_type", "Room Type"],
           ]}
+          onChange={(value) => onGroupBy(value as RackGroupBy)}
         />
-      ) : (
-        <ComingSoonChip
-          label="HK filter"
-          hint="Housekeeping status is unavailable on this login."
+        <PmsFilterChoiceRow
+          label="Floor"
+          value={filters.floor}
+          current={filters.floor === "all" ? "" : `Floor ${filters.floor}`}
+          options={[["all", "All floors"], ...floors.map((floor) => [floor, `Floor ${floor}`] as const)]}
+          onChange={(value) => set("floor", value)}
         />
-      )}
-      <FilterSelect
-        label="Res status"
-        value={filters.resStatus}
-        onChange={(v) => set("resStatus", v)}
-        options={[
-          ["pending", "Pending"],
-          ["confirmed", "Confirmed"],
-          ["checked_in", "In-house"],
-          ["checked_out", "Checked out"],
-          ["cancelled", "Cancelled"],
-          ["no_show", "No-show"],
-        ]}
-      />
-      <FilterSelect
-        label="Stay"
-        value={filters.staySlice}
-        onChange={(v) => set("staySlice", v as RackFilters["staySlice"])}
-        options={[
-          ["arrival", "Arrival"],
-          ["departure", "Departure"],
-          ["in_house", "In-house"],
-        ]}
-      />
-      <FilterSelect
-        label="VIP"
-        value={filters.vip}
-        onChange={(v) => set("vip", v)}
-        options={[["vip", "VIP only"]]}
-      />
-      <FilterSelect
-        label="Group"
-        value={filters.group}
-        onChange={(v) => set("group", v)}
-        options={[["group", "Group only"]]}
-      />
-      <FilterSelect
-        label="Corporate"
-        value={filters.corporate}
-        onChange={(v) => set("corporate", v)}
-        options={[["corporate", "Corporate only"]]}
-      />
-      <FilterSelect
-        label="Special request"
-        value={filters.specialRequest}
-        onChange={(v) => set("specialRequest", v)}
-        options={[["special", "Special request"]]}
-      />
-      <FilterSelect
-        label="Source"
-        value={filters.source}
-        onChange={(v) => set("source", v)}
-        options={sources.map((s) => [s, s] as const)}
-      />
-      {countActiveRackFilters(filters) > 0 ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => onChange(EMPTY_RACK_FILTERS)}
-        >
-          Clear
-        </Button>
-      ) : null}
-    </div>
+        <PmsFilterChoiceRow
+          label="Room Type"
+          value={filters.roomType}
+          current={filters.roomType === "all" ? "" : filters.roomType}
+          options={[["all", "All room types"], ...types.map((type) => [type, type] as const)]}
+          onChange={(value) => set("roomType", value)}
+        />
+        <PmsFilterChoiceRow
+          label="Room Status"
+          value={filters.roomStatus}
+          current={roomStatusLabel(filters.roomStatus)}
+          options={[
+            ["all", "All room statuses"],
+            ["vacant", "Vacant"],
+            ["occupied", "Occupied"],
+            ["available", "Available"],
+            ["out_of_order", "Out of order"],
+            ["out_of_service", "Out of service"],
+          ]}
+          onChange={(value) => set("roomStatus", value)}
+        />
+        {hkAvailable ? (
+          <PmsFilterChoiceRow
+            label="Housekeeping"
+            value={filters.hkStatus}
+            current={hkStatusAriaLabel(filters.hkStatus) ?? ""}
+            options={[
+              ["all", "All housekeeping"],
+              ["clean", "Clean"],
+              ["dirty", "Dirty"],
+              ["inspected", "Inspected"],
+              ["pickup", "Pickup"],
+            ]}
+            onChange={(value) => set("hkStatus", value)}
+          />
+        ) : (
+          <PmsFilterNoteRow label="Housekeeping">
+            <ComingSoonChip
+              label="HK filter"
+              hint="Housekeeping status is unavailable on this login."
+            />
+          </PmsFilterNoteRow>
+        )}
+        <PmsFilterChoiceRow
+          label="Reservation Status"
+          value={filters.resStatus}
+          current={resStatusLabel(filters.resStatus)}
+          options={[
+            ["all", "All reservation statuses"],
+            ["pending", "Pending"],
+            ["confirmed", "Confirmed"],
+            ["checked_in", "In-house"],
+            ["checked_out", "Checked out"],
+            ["cancelled", "Cancelled"],
+            ["no_show", "No-show"],
+          ]}
+          onChange={(value) => set("resStatus", value)}
+        />
+        <PmsFilterChoiceRow
+          label="Stay Status"
+          value={filters.staySlice}
+          current={staySliceLabel(filters.staySlice)}
+          options={[
+            ["all", "All stay statuses"],
+            ["arrival", "Arrival"],
+            ["departure", "Departure"],
+            ["in_house", "In-house"],
+          ]}
+          onChange={(value) => set("staySlice", value as RackFilters["staySlice"])}
+        />
+        <PmsFilterChoiceRow
+          label="VIP"
+          value={filters.vip}
+          current={filters.vip === "vip" ? "VIP only" : ""}
+          options={[
+            ["all", "All guests"],
+            ["vip", "VIP only"],
+          ]}
+          onChange={(value) => set("vip", value)}
+        />
+        <PmsFilterChoiceRow
+          label="Group"
+          value={filters.group}
+          current={filters.group === "group" ? "Group only" : ""}
+          options={[
+            ["all", "All groups"],
+            ["group", "Group only"],
+          ]}
+          onChange={(value) => set("group", value)}
+        />
+        <PmsFilterChoiceRow
+          label="Corporate"
+          value={filters.corporate}
+          current={filters.corporate === "corporate" ? "Corporate only" : ""}
+          options={[
+            ["all", "All corporate"],
+            ["corporate", "Corporate only"],
+          ]}
+          onChange={(value) => set("corporate", value)}
+        />
+        <PmsFilterChoiceRow
+          label="Special Request"
+          value={filters.specialRequest}
+          current={filters.specialRequest === "special" ? "Special request" : ""}
+          options={[
+            ["all", "All special requests"],
+            ["special", "Special request"],
+          ]}
+          onChange={(value) => set("specialRequest", value)}
+        />
+        <PmsFilterChoiceRow
+          label="Source"
+          value={filters.source}
+          current={filters.source === "all" ? "" : filters.source}
+          options={[["all", "All sources"], ...sources.map((source) => [source, source] as const)]}
+          onChange={(value) => set("source", value)}
+        />
+      </div>
+    </PmsFilterMenu>
   );
 }
 
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: ReadonlyArray<readonly [string, string]>;
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-36">
-        <SelectValue placeholder={label} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">All {label.toLowerCase()}</SelectItem>
-        {options.map(([v, name]) => (
-          <SelectItem key={v} value={v}>
-            {name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
+function roomStatusLabel(value: string): string {
+  switch (value) {
+    case "vacant":
+      return "Vacant";
+    case "occupied":
+      return "Occupied";
+    case "available":
+      return "Available";
+    case "out_of_order":
+      return "Out of order";
+    case "out_of_service":
+      return "Out of service";
+    default:
+      return "";
+  }
+}
+
+function resStatusLabel(value: string): string {
+  switch (value) {
+    case "pending":
+      return "Pending";
+    case "confirmed":
+      return "Confirmed";
+    case "checked_in":
+      return "In-house";
+    case "checked_out":
+      return "Checked out";
+    case "cancelled":
+      return "Cancelled";
+    case "no_show":
+      return "No-show";
+    default:
+      return "";
+  }
+}
+
+function staySliceLabel(value: RackFilters["staySlice"]): string {
+  switch (value) {
+    case "arrival":
+      return "Arrival";
+    case "departure":
+      return "Departure";
+    case "in_house":
+      return "In-house";
+    default:
+      return "";
+  }
 }
 
 function RackGroupSelect({
@@ -960,6 +1287,211 @@ function selectRackStay(
   onSelectStay(foRackActionStay(stay, businessDate));
 }
 
+const RACK_VIEW_OPTIONS: Array<{ id: FoRackViewMode; label: string; icon: typeof LayoutGrid }> = [
+  { id: "rack", label: "Rack view", icon: LayoutGrid },
+  { id: "table", label: "Table view", icon: Table2 },
+];
+
+/** Icon-only Rack/Table switcher. Both read the same operational stays. */
+function RackViewSwitcher({
+  view,
+  onChange,
+}: {
+  view: FoRackViewMode;
+  onChange: (next: FoRackViewMode) => void;
+}) {
+  return (
+    <div
+      className="inline-flex items-center gap-0.5 rounded-md border border-[#DDD4C5] bg-white p-0.5"
+      data-testid="fo-rack-view-switcher"
+      role="group"
+      aria-label="Front Office rack view"
+    >
+      {RACK_VIEW_OPTIONS.map((option) => {
+        const Icon = option.icon;
+        const active = view === option.id;
+        return (
+          <Tooltip key={option.id}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={option.label}
+                aria-pressed={active}
+                data-testid={`fo-rack-view-${option.id}`}
+                onClick={() => onChange(option.id)}
+                className={cn(
+                  "inline-flex size-8 items-center justify-center rounded-sm transition-colors",
+                  active
+                    ? "bg-[#C89933] text-[#251605]"
+                    : "bg-transparent text-muted-foreground hover:bg-[#F3EEE4] hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4" aria-hidden="true" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{option.label}</TooltipContent>
+          </Tooltip>
+        );
+      })}
+    </div>
+  );
+}
+
+function sortedRackStays(stays: FoRackStay[]): FoRackStay[] {
+  return [...stays].sort((a, b) => {
+    const room = (a.roomNumber ?? "~").localeCompare(b.roomNumber ?? "~", undefined, {
+      numeric: true,
+    });
+    return room !== 0 ? room : a.guestName.localeCompare(b.guestName);
+  });
+}
+
+function RackViewMenu({
+  stay,
+  businessDate,
+  canOpenCashiering,
+  staffRole,
+  hkByRoom,
+  onRackAction,
+}: {
+  stay: FoRackStay;
+  businessDate: string;
+  canOpenCashiering: boolean;
+  staffRole?: string;
+  hkByRoom: Map<string, RackRoom>;
+  onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
+}) {
+  const actionStay = foRackActionStay(stay, businessDate);
+  return (
+    <RackStayMenu
+      items={foRackBarMenuItems({
+        status: stay.status,
+        assigned: Boolean(stay.roomId),
+        arrivalDate: stay.arrivalDate,
+        businessDate,
+        canOpenCashiering,
+        maintenanceRelevant: foRackMaintenanceRelevant(
+          stay.roomId ? hkByRoom.get(stay.roomId)?.maintenanceStatus : null,
+        ),
+        staffRole,
+      })}
+      tone="card"
+      onAction={(action) => onRackAction(action, actionStay)}
+    />
+  );
+}
+
+function RackStatusChip({ phase }: { phase: FoOperationalPhase }) {
+  const tone = operationalBarTone(phase);
+  return (
+    <span
+      className="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium"
+      style={{ backgroundColor: tone.background, borderColor: tone.border, color: tone.color }}
+    >
+      {operationalPhaseLabel(phase)}
+    </span>
+  );
+}
+
+type RackViewRowsProps = {
+  rooms: OccupancyRoom[];
+  stays: FoRackStay[];
+  focusDate: string;
+  days: number;
+  businessDate: string;
+  canOpenCashiering: boolean;
+  staffRole?: string;
+  hkByRoom: Map<string, RackRoom>;
+  onSelectStay: (stay: FrontOfficeStay) => void;
+  onSelectInHouse: (target: FoRackInHouseTarget) => void;
+  onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
+};
+
+/**
+ * Table View — same stays/rooms the rack already loaded, read-only summary
+ * rows. No new query, no second write path; the ⋮ menu routes through the
+ * existing onRackAction resolver exactly like the rack bars do.
+ */
+function FoRackTableView({
+  rooms,
+  stays,
+  focusDate,
+  days,
+  businessDate,
+  canOpenCashiering,
+  staffRole,
+  hkByRoom,
+  onSelectStay,
+  onSelectInHouse,
+  onRackAction,
+}: RackViewRowsProps) {
+  const sorted = sortedRackStays(stays);
+  if (sorted.length === 0) {
+    return (
+      <div
+        className="rounded-lg border border-[#DDD4C5] bg-white p-6 text-center text-sm text-muted-foreground"
+        data-testid="fo-rack-view-empty"
+      >
+        {NO_STAYS_MATCH_FILTERS}
+      </div>
+    );
+  }
+  return (
+    <div
+      className="overflow-auto rounded-lg border border-[#DDD4C5] bg-white shadow-sm"
+      data-testid="fo-rack-table-view"
+    >
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Room</TableHead>
+            <TableHead>Guest</TableHead>
+            <TableHead>Reservation</TableHead>
+            <TableHead>Arrival</TableHead>
+            <TableHead>Departure</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="w-10" aria-label="Actions" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sorted.map((stay) => {
+            const room = stay.roomId ? (rooms.find((r) => r.id === stay.roomId) ?? null) : null;
+            const phase = primaryOperationalPhase(stay, focusDate, days);
+            if (!phase) return null;
+            return (
+              <TableRow
+                key={stay.rackKey}
+                data-testid="fo-rack-table-row"
+                className="cursor-pointer"
+                onClick={() => selectRackStay(stay, room, focusDate, onSelectStay, onSelectInHouse)}
+              >
+                <TableCell className="font-medium">{stay.roomNumber ?? "Unassigned"}</TableCell>
+                <TableCell className="truncate">{stay.guestName}</TableCell>
+                <TableCell className="text-muted-foreground">{stay.confirmationNumber}</TableCell>
+                <TableCell>{formatStayDate(stay.arrivalDate)}</TableCell>
+                <TableCell>{formatStayDate(stay.departureDate)}</TableCell>
+                <TableCell>
+                  <RackStatusChip phase={phase} />
+                </TableCell>
+                <TableCell onClick={(event) => event.stopPropagation()}>
+                  <RackViewMenu
+                    stay={stay}
+                    businessDate={businessDate}
+                    canOpenCashiering={canOpenCashiering}
+                    staffRole={staffRole}
+                    hkByRoom={hkByRoom}
+                    onRackAction={onRackAction}
+                  />
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 function CalendarBoard({
   rooms,
   stays,
@@ -982,6 +1514,8 @@ function CalendarBoard({
   staffRole,
   onPreview,
   onOpenConfirm,
+  onRoomDragStart,
+  dragSourceRoomId,
 }: {
   rooms: OccupancyRoom[];
   stays: FoRackStay[];
@@ -1004,6 +1538,8 @@ function CalendarBoard({
   staffRole?: string;
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenConfirm: (next: RackConfirmDraft) => void;
+  onRoomDragStart: (stay: FoRackStay) => void;
+  dragSourceRoomId: string | null;
 }) {
   const dates = dateRange(focusDate, days);
   const colMin = rackColumnMinPx(days);
@@ -1132,6 +1668,7 @@ function CalendarBoard({
             className={cn(
               "border-b border-border px-3 py-2 text-xs font-medium",
               index === 0 && "border-l border-[#DDD4C5]/80 pl-3",
+              d === businessDate && "bg-[#F4E9D0]/60 text-[#251605]",
             )}
           >
             {formatStayDate(d)}
@@ -1155,6 +1692,7 @@ function CalendarBoard({
             staffRole={staffRole}
             onPreview={onPreview}
             onOpenDateConfirm={openDateConfirm}
+            onRoomDragStart={onRoomDragStart}
           />
         ) : null}
 
@@ -1197,6 +1735,9 @@ function CalendarBoard({
                 onDropStay={(id) => dropOnRoom(id, room)}
                 onPreview={onPreview}
                 onOpenDateConfirm={openDateConfirm}
+                onRoomDragStart={onRoomDragStart}
+                acceptDrop={dragSourceRoomId == null || room.id !== dragSourceRoomId}
+                dropHint={dragSourceRoomId != null && room.id !== dragSourceRoomId}
               />
             ))}
           </Fragment>
@@ -1222,6 +1763,7 @@ function UnassignedRow({
   staffRole,
   onPreview,
   onOpenDateConfirm,
+  onRoomDragStart,
 }: {
   stays: FoRackStay[];
   focusDate: string;
@@ -1238,6 +1780,7 @@ function UnassignedRow({
   staffRole?: string;
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenDateConfirm: (stay: FoRackStay, arrival: string, departure: string) => void;
+  onRoomDragStart: (stay: FoRackStay) => void;
 }) {
   return (
     <>
@@ -1278,6 +1821,7 @@ function UnassignedRow({
           maintenanceRelevant={false}
           onPreview={onPreview}
           onOpenDateConfirm={onOpenDateConfirm}
+          onRoomDragStart={onRoomDragStart}
         />
       </div>
     </>
@@ -1308,6 +1852,9 @@ function RoomRow({
   onDropStay,
   onPreview,
   onOpenDateConfirm,
+  onRoomDragStart,
+  acceptDrop,
+  dropHint,
 }: {
   room: OccupancyRoom;
   hk: RackRoom | null;
@@ -1332,9 +1879,12 @@ function RoomRow({
   onDropStay: (reservationId: string) => void;
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenDateConfirm: (stay: FoRackStay, arrival: string, departure: string) => void;
+  onRoomDragStart: (stay: FoRackStay) => void;
+  acceptDrop: boolean;
+  dropHint: boolean;
 }) {
   const status = rackRoomStatusDisplay(room);
-  const dropHandlers = showDrag
+  const dropHandlers = showDrag && acceptDrop
     ? {
         onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
           if (
@@ -1362,6 +1912,8 @@ function RoomRow({
         data-testid="fo-room-row"
         data-room-id={room.id}
         data-highlighted={highlight ? "true" : undefined}
+        data-drop-target={dropHint ? "true" : undefined}
+        className={dropHint ? "bg-[#F4E9D0]/60" : undefined}
         style={highlightStyle}
         {...dropHandlers}
       >
@@ -1392,7 +1944,12 @@ function RoomRow({
           <p className="truncate text-[11px] text-muted-foreground">{room.guestName}</p>
         ) : null}
       </RackFrozenBodyCell>
-      <RackFrozenBodyCell columnIndex={1} style={highlightStyle} {...dropHandlers}>
+      <RackFrozenBodyCell
+        columnIndex={1}
+        className={dropHint ? "bg-[#F4E9D0]/60" : undefined}
+        style={highlightStyle}
+        {...dropHandlers}
+      >
         <p className="line-clamp-2 text-xs leading-snug" data-testid="fo-room-type">
           {room.roomTypeName}
         </p>
@@ -1402,14 +1959,28 @@ function RoomRow({
           </p>
         ) : null}
       </RackFrozenBodyCell>
-      <RackFrozenBodyCell columnIndex={2} style={highlightStyle} {...dropHandlers}>
+      <RackFrozenBodyCell
+        columnIndex={2}
+        className={dropHint ? "bg-[#F4E9D0]/60" : undefined}
+        style={highlightStyle}
+        {...dropHandlers}
+      >
         <RackStatusPill statusKey={status.key} label={status.label} color={status.color} />
       </RackFrozenBodyCell>
-      <RackFrozenBodyCell columnIndex={3} timelineEdge style={highlightStyle} {...dropHandlers}>
+      <RackFrozenBodyCell
+        columnIndex={3}
+        timelineEdge
+        className={dropHint ? "bg-[#F4E9D0]/60" : undefined}
+        style={highlightStyle}
+        {...dropHandlers}
+      >
         <RackHkCell hk={hk} hkAvailable={hkAvailable} />
       </RackFrozenBodyCell>
       <div
-        className="relative border-b border-l border-[#DDD4C5]/80 border-border"
+        className={cn(
+          "relative border-b border-l border-[#DDD4C5]/80 border-border",
+          dropHint && "bg-[#F4E9D0]/60",
+        )}
         style={{
           gridColumn: `${RACK_DATE_TRACK_GRID_COLUMN} / span ${dates.length}`,
           minHeight: 48,
@@ -1417,7 +1988,7 @@ function RoomRow({
         data-testid="fo-room-track"
         data-room-id={room.id}
         onDragOver={
-          showDrag
+          showDrag && acceptDrop
             ? (e) => {
                 if (
                   e.dataTransfer.types.includes(FO_DRAG_MIME) ||
@@ -1430,7 +2001,7 @@ function RoomRow({
             : undefined
         }
         onDrop={
-          showDrag
+          showDrag && acceptDrop
             ? (e) => {
                 e.preventDefault();
                 const id =
@@ -1445,7 +2016,10 @@ function RoomRow({
           style={{ gridTemplateColumns: `repeat(${days}, minmax(${colMin}px, 1fr))` }}
         >
           {dates.map((d) => (
-            <div key={d} className="border-l border-[#CCCCCC]/70" />
+            <div
+              key={d}
+              className={cn("border-l border-[#CCCCCC]/70", d === businessDate && "bg-[#F4E9D0]/40")}
+            />
           ))}
         </div>
         <BarTrack
@@ -1466,6 +2040,7 @@ function RoomRow({
           maintenanceRelevant={maintenanceRelevant}
           onPreview={onPreview}
           onOpenDateConfirm={onOpenDateConfirm}
+          onRoomDragStart={onRoomDragStart}
         />
       </div>
     </>
@@ -1490,6 +2065,7 @@ function BarTrack({
   maintenanceRelevant = false,
   onPreview,
   onOpenDateConfirm,
+  onRoomDragStart,
 }: {
   stays: FoRackStay[];
   room: OccupancyRoom | null;
@@ -1508,6 +2084,7 @@ function BarTrack({
   maintenanceRelevant?: boolean;
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenDateConfirm: (stay: FoRackStay, arrival: string, departure: string) => void;
+  onRoomDragStart: (stay: FoRackStay) => void;
 }) {
   return (
     <div
@@ -1516,13 +2093,20 @@ function BarTrack({
     >
       {stays.map((stay) => {
         const dates = previewDates(stay, preview);
-        const place = reservationBarPlacement(dates.arrival, dates.departure, focusDate, days);
+        const place = rackStayPlacement(stay.status, dates.arrival, dates.departure, focusDate, days);
         if (!place) return null;
+        const phase =
+          primaryOperationalPhase(
+            { status: stay.status, arrivalDate: dates.arrival, departureDate: dates.departure },
+            focusDate,
+            days,
+          ) ?? "arriving";
         const actionStay = foRackActionStay(stay, businessDate);
         return (
           <ReservationBar
             key={stay.rackKey}
             stay={stay}
+            phase={phase}
             startCol={place.startCol}
             endCol={place.endCol}
             days={days}
@@ -1550,6 +2134,7 @@ function BarTrack({
               })
             }
             onCommitDates={(arrival, departure) => onOpenDateConfirm(stay, arrival, departure)}
+            onRoomDragStart={onRoomDragStart}
             hasOpenDiscrepancy={hasOpenDiscrepancy}
             menuItems={foRackBarMenuItems({
               status: stay.status,
@@ -1643,6 +2228,7 @@ function RackStayMenu({
 
 function ReservationBar({
   stay,
+  phase,
   startCol,
   endCol,
   days,
@@ -1654,8 +2240,10 @@ function ReservationBar({
   onAction,
   onPreviewDates,
   onCommitDates,
+  onRoomDragStart,
 }: {
   stay: FoRackStay;
+  phase: FoOperationalPhase;
   startCol: number;
   endCol: number;
   days: number;
@@ -1667,11 +2255,16 @@ function ReservationBar({
   onAction: (action: FoRackBarActionId) => void;
   onPreviewDates: (arrival: string, departure: string) => void;
   onCommitDates: (arrival: string, departure: string) => void;
+  onRoomDragStart: (stay: FoRackStay) => void;
 }) {
   const dragged = useRef(false);
   const badges = liveStayBadges({ ...stay, hasOpenDiscrepancy });
   const compact = badgeDisplayMode(days);
-  const iconOnly = endCol - startCol <= 1;
+  const span = endCol - startCol;
+  const tone = operationalBarTone(phase);
+  const guestLabel = rackBarGuestLabel(stay.guestName, stay.confirmationNumber, span);
+  const departing =
+    phase === "in_house" && departureFallsInRackRange(stay.departureDate, focusDate, days);
 
   return (
     <div
@@ -1699,8 +2292,19 @@ function ReservationBar({
       <button
         type="button"
         data-testid="fo-reservation-bar"
-        className="flex min-w-0 flex-1 items-center gap-1 rounded-md py-1 pl-2 pr-8 text-left text-xs text-white"
-        style={{ backgroundColor: reservationBarColor(stay.status) }}
+        title={stay.guestName}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-md border py-1 text-left text-xs font-medium",
+          span <= 1 ? "pl-1 pr-5" : "pl-2 pr-8",
+        )}
+        style={{
+          backgroundColor: tone.background,
+          borderColor: tone.border,
+          color: tone.color,
+          ...(departing
+            ? { borderRightWidth: 3, borderRightColor: FO_OPERATIONAL_COLOR.departing }
+            : {}),
+        }}
         onPointerDown={
           showDrag
             ? (e) =>
@@ -1729,7 +2333,7 @@ function ReservationBar({
           <span
             data-testid="fo-drag-handle"
             draggable
-            className="shrink-0 cursor-grab text-white/80"
+            className="shrink-0 cursor-grab opacity-70"
             aria-label="Drag to another room"
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
@@ -1737,15 +2341,14 @@ function ReservationBar({
               e.dataTransfer.setData(FO_DRAG_MIME, stay.rackKey);
               e.dataTransfer.setData("text/plain", stay.rackKey);
               e.dataTransfer.effectAllowed = "move";
+              onRoomDragStart(stay);
             }}
           >
             <GripVertical className="size-3.5" />
           </span>
         ) : null}
-        <span className={cn("font-medium", iconOnly ? "sr-only" : "truncate")}>
-          {stay.guestName}
-        </span>
-        {iconOnly ? null : <StayBadgeStrip badges={badges} mode={compact} />}
+        <span className="min-w-0 flex-1 truncate font-medium">{guestLabel}</span>
+        {span >= 3 ? <StayBadgeStrip badges={badges} mode={compact} /> : null}
       </button>
       <div
         className={cn(
@@ -1755,8 +2358,8 @@ function ReservationBar({
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <span aria-hidden className="mr-0.5 h-4 w-px bg-white/35" />
-        <RackStayMenu items={menuItems} tone="bar" onAction={onAction} />
+        <span aria-hidden className="mr-0.5 h-4 w-px" style={{ backgroundColor: tone.border }} />
+        <RackStayMenu items={menuItems} tone="card" onAction={onAction} />
       </div>
       {showDrag ? (
         <span
@@ -1882,7 +2485,7 @@ function PhoneRackList({
         <RackGroupSelect groupBy={groupBy} onGroupBy={onGroupBy} />
       </div>
       <p className="text-sm text-muted-foreground">
-        Phone shows rooms and today&apos;s stays. The week Gantt stays on larger screens.
+        Phone shows operational stays for this date. The week Gantt stays on larger screens.
       </p>
       {groupRackRooms(rooms, groupBy).map((group) => (
         <div key={group.key} className="space-y-2">
@@ -1994,66 +2597,23 @@ function PhoneRackList({
   );
 }
 
-function RackLegend() {
+function FoOperationalLegend() {
   return (
-    <Collapsible defaultOpen={FO_LEGEND_DEFAULT_OPEN} data-testid="fo-rack-legend">
-      <CollapsibleTrigger
-        type="button"
-        data-testid="fo-legend-toggle"
-        className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm"
-      >
-        <span>Legend</span>
-        <span className="text-xs text-muted-foreground">Room · Housekeeping · Reservation</span>
-        <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="mt-3">
-        <div className="grid gap-4 md:grid-cols-3">
-          <Legend title="Room" items={ROOM_LEGEND} />
-          <Legend title="Housekeeping" items={HK_LEGEND} />
-          <Legend title="Reservation" items={RESERVATION_LEGEND} />
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-function Legend({
-  title,
-  items,
-}: {
-  title: string;
-  items: { key: string; label: string; color: string; shape: "swatch" | "glyph" | "bar" }[];
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
-      <ul className="mt-2 flex flex-wrap gap-2">
-        {items.map((item) => (
-          <li key={item.key} className="inline-flex items-center gap-1.5 text-xs">
-            <LegendMark item={item} />
-            {item.label}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function LegendMark({
-  item,
-}: {
-  item: { key: string; color: string; shape: "swatch" | "glyph" | "bar" };
-}) {
-  if (item.shape === "bar") {
-    return (
-      <span className="h-2 w-5 rounded-sm" style={{ backgroundColor: item.color }} aria-hidden />
-    );
-  }
-  if (item.shape === "glyph") {
-    return <FoHkStatusGlyph status={item.key} />;
-  }
-  return (
-    <span className="size-2.5 rounded-sm" style={{ backgroundColor: item.color }} aria-hidden />
+    <ul
+      className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-muted-foreground"
+      data-testid="fo-rack-legend"
+    >
+      {FO_OPERATIONAL_LEGEND.map((item) => (
+        <li key={item.phase} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+          <span
+            className="size-2 rounded-full"
+            style={{ backgroundColor: item.color }}
+            aria-hidden
+          />
+          {item.label}
+        </li>
+      ))}
+    </ul>
   );
 }
 

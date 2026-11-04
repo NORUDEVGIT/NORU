@@ -107,7 +107,10 @@ import {
   resolveHistoryField,
 } from "@/packages/pms/lib/reservation-detail-group";
 import { quoteReservationRoomGuestTotal } from "@/packages/pms/lib/room-charge-guest-total.functions";
-import { packageChargeFigures, sumReservationGuestTotal } from "@/packages/pms/lib/room-charge-guest-total";
+import {
+  packageChargeFigures,
+  sumReservationGuestTotal,
+} from "@/packages/pms/lib/room-charge-guest-total";
 import {
   reservationServicePrintLine,
   serviceLineDetail,
@@ -501,12 +504,13 @@ export function ReservationDetailWorkspace({
     ? groupCombinedSubtotal(reservation)
     : reservation.roomSubtotal;
   const baseGuestTotal = roomGuestTotalQuery.data?.total ?? headerRoomTotal;
-  const headerPackageTotal = Math.round(
-    (commercialQuery.data?.packages ?? []).reduce(
-      (sum, row) => sum + packageChargeFigures(row.appliedAmount, packageChargeRules.data).total,
-      0,
-    ) * 100,
-  ) / 100;
+  const headerPackageTotal =
+    Math.round(
+      (commercialQuery.data?.packages ?? []).reduce(
+        (sum, row) => sum + packageChargeFigures(row.appliedAmount, packageChargeRules.data).total,
+        0,
+      ) * 100,
+    ) / 100;
   const headerServiceTotal = reservationServices.total;
   const headerGuestTotal = sumReservationGuestTotal(
     baseGuestTotal,
@@ -1107,53 +1111,40 @@ export function ReservationDetailWorkspace({
             },
           ]}
         />
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col">
           <nav
-            className="hidden w-52 shrink-0 overflow-y-auto border-r border-[#DDD4C5] bg-white py-2 md:block"
-            aria-label="Reservation detail"
+            className="shrink-0 overflow-x-auto border-b border-[#DDD4C5] bg-white"
+            aria-label="Reservation detail sections"
             data-testid="reservation-detail-sidebar"
           >
-            {DETAIL_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={detailTab === tab.id}
-                onClick={() => setDetailTab(tab.id)}
-                className={cn(
-                  "flex w-full items-center px-4 py-2 text-left text-sm",
-                  detailTab === tab.id
-                    ? "bg-[#F4E9D0] font-medium text-[#251605]"
-                    : "text-muted-foreground hover:bg-[#F7F4EE]",
-                  tab.deferred && detailTab !== tab.id ? "text-muted-foreground/70" : null,
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
+            <ul role="tablist" className="flex min-w-max items-center gap-1 px-4 sm:px-5">
+              {DETAIL_TABS.map((tab) => {
+                const active = tab.id === detailTab;
+                return (
+                  <li key={tab.id} role="presentation">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      data-testid={`reservation-detail-tab-${tab.id}`}
+                      onClick={() => setDetailTab(tab.id)}
+                      className={cn(
+                        "relative whitespace-nowrap px-3 py-3 text-sm font-medium transition-colors",
+                        "outline-none focus-visible:ring-2 focus-visible:ring-[#B8954F]",
+                        active
+                          ? "text-[#251605] after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#B8954F]"
+                          : "text-muted-foreground hover:bg-[#F7F4EE] hover:text-[#251605]",
+                        tab.deferred && !active ? "text-muted-foreground/70" : null,
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </nav>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="border-b border-[#DDD4C5] bg-white px-3 py-2 md:hidden">
-              <div className="flex min-w-max gap-1 overflow-x-auto" role="tablist">
-                {DETAIL_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={detailTab === tab.id}
-                    onClick={() => setDetailTab(tab.id)}
-                    className={cn(
-                      "whitespace-nowrap rounded-full px-3 py-1 text-xs",
-                      detailTab === tab.id
-                        ? "bg-[#F4E9D0] font-medium text-[#251605]"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div className="p-4 sm:p-5">
               {detailTab === "overview" ? (
                 <ReservationDetailOverviewDashboard

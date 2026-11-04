@@ -1,8 +1,6 @@
-import { Link } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, History, Info, SlidersHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info, SlidersHorizontal } from "lucide-react";
 
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
-import { serializeRevenueSearch } from "@/packages/pms/lib/revenue/revenue-context";
 import {
   RATE_CALENDAR_CLAMP_NOTE,
   RATE_CALENDAR_DEFAULT_DAYS,
@@ -32,22 +30,10 @@ export function RateCalendarToolbar({
   onBulkTrigger?: () => void;
 }) {
   const week = RATE_CALENDAR_DEFAULT_DAYS;
-  const bulkSearch = serializeRevenueSearch("bulk-rate-change", context);
-  const historySearch = serializeRevenueSearch("rate-history", context);
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
       <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <h2 className="font-display text-lg font-semibold tracking-tight text-[#251605]">
-            Rate Calendar
-          </h2>
-          <p className="text-xs text-[#756A5B]">
-            Daily effective rates by room type and plan
-            {mixedCurrency ? " · currencies shown on each plan" : currency ? ` · ${currency}` : ""}.
-          </p>
-        </div>
-
         {rangeClamped ? (
           <span
             title={RATE_CALENDAR_CLAMP_NOTE}
@@ -98,36 +84,15 @@ export function RateCalendarToolbar({
           </button>
         </div>
 
-        {canViewRates ? (
-          <>
-            <Link
-              to="/restaurant/pms/rates-revenue"
-              search={historySearch}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#DED7CD] bg-white px-3 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#FAF6F0]"
-            >
-              <History className="size-3.5 text-[#8A641A]" />
-              <span>View Rate History</span>
-            </Link>
-            {onBulkTrigger ? (
-              <button
-                type="button"
-                onClick={onBulkTrigger}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#B5882D]"
-              >
-                <SlidersHorizontal className="size-3.5" />
-                <span>Bulk Rate Change{selectedCount > 0 ? ` (${selectedCount})` : ""}</span>
-              </button>
-            ) : (
-              <Link
-                to="/restaurant/pms/rates-revenue"
-                search={bulkSearch}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#B5882D]"
-              >
-                <SlidersHorizontal className="size-3.5" />
-                <span>Bulk Rate Change</span>
-              </Link>
-            )}
-          </>
+        {canViewRates && selectedCount > 0 && onBulkTrigger ? (
+          <button
+            type="button"
+            onClick={onBulkTrigger}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#B5882D]"
+          >
+            <SlidersHorizontal className="size-3.5" />
+            <span>Bulk Rate Change ({selectedCount})</span>
+          </button>
         ) : null}
       </div>
     </div>
