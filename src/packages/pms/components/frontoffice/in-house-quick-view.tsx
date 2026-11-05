@@ -1,5 +1,4 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Calendar } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
@@ -54,11 +53,11 @@ function Card({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-border bg-card p-3 shadow-sm" data-testid={testId}>
+    <section className="rounded-lg border border-[#DDD4C5] bg-card p-2.5 shadow-sm" data-testid={testId}>
       <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {title}
       </h3>
-      <div className="mt-2">{children}</div>
+      <div className="mt-1.5">{children}</div>
     </section>
   );
 }
@@ -67,11 +66,28 @@ function FieldGroup({ children }: { children: ReactNode }) {
   return <dl className="space-y-1">{children}</dl>;
 }
 
-function DlRow({ label, value }: { label: string; value: ReactNode }) {
+function DlRow({
+  label,
+  value,
+  emphasize = false,
+}: {
+  label: string;
+  value: ReactNode;
+  emphasize?: boolean;
+}) {
   return (
     <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-2 text-sm">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 font-medium text-foreground">{value}</dd>
+      <dt className={cn("text-muted-foreground", emphasize && "font-semibold text-foreground")}>
+        {label}
+      </dt>
+      <dd
+        className={cn(
+          "min-w-0 font-medium text-foreground",
+          emphasize && "font-display text-base font-semibold tracking-tight text-[#251605]",
+        )}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
@@ -154,7 +170,13 @@ export function InHouseQuickViewSheet({
   );
   const canReadFolio = qv?.financial.lane === "live";
   const tabs = qv ? foGuestWorkspaceTabs(qv.stay.status, { canReadFolio }) : [];
-  const activeTab = tabs.some((item) => item.id === tab) ? tab : "overview";
+  const activeTab =
+    tabs.some((item) => item.id === tab) ||
+    tab === "move_room" ||
+    tab === "extend_stay" ||
+    tab === "check_out"
+      ? tab
+      : "overview";
   const inventoryNote = foInHouseRoomInventoryNote(qv?.room.status);
 
   const lateCheckoutLabel = qv
@@ -185,7 +207,11 @@ export function InHouseQuickViewSheet({
         />
         <DlRow label="Total charges" value={folio ? money(folio.charges) : "—"} />
         <DlRow label="Payments & credits" value={folio ? money(folio.credits) : "—"} />
-        <DlRow label="Balance due" value={balance == null ? "—" : money(balance)} />
+        <DlRow
+          label="Balance due"
+          emphasize={typeof balance === "number" && balance !== 0}
+          value={balance == null ? "—" : money(balance)}
+        />
         <DlRow label="Payment status" value={foFolioPaymentStatusLabel(balance)} />
         <DlRow
           label="Folio status"
@@ -237,35 +263,37 @@ export function InHouseQuickViewSheet({
       >
         {qv ? (
           <SheetHeader
-            className="shrink-0 space-y-3 border-b border-[#3A2A16] bg-[#1A1208] pb-0 pl-5 pr-12 pt-4 text-left"
+            className="shrink-0 space-y-1 border-b border-[#3A2A16] bg-[#1A1208] pb-0 pl-4 pr-12 pt-2 text-left"
             data-testid="fo-inhouse-qv-header"
           >
-            <div className="min-w-0 space-y-2">
-              <SheetDescription className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[#C4B39A]">
-                <span className="flex size-7 items-center justify-center rounded-md bg-[#C89933] text-[#1A1208]">
-                  <Calendar className="size-3.5" />
-                </span>
-                <span className="font-semibold text-[#C89933]">{qv.stay.confirmationNumber}</span>
-                <ReservationStatusBadge status={qv.stay.status} />
-                {qv.guest.vip ? <VipBadge /> : null}
-                {qv.room.roomNumber ? (
-                  <span
-                    className="inline-flex rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-[#F6EFE4]"
-                    data-testid="fo-inhouse-qv-room"
-                  >
-                    Room {qv.room.roomNumber}
-                  </span>
-                ) : null}
-              </SheetDescription>
-              <SheetTitle className="font-display text-xl text-[#F6EFE4]">
+            <SheetDescription className="sr-only">
+              {qv.stay.confirmationNumber} · {qv.guest.fullName}
+              {qv.room.roomNumber ? ` · Room ${qv.room.roomNumber}` : ""}
+            </SheetDescription>
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-xs font-semibold text-[#C89933]">
+                {qv.stay.confirmationNumber}
+              </span>
+              <span className="text-[#8C7A64]">·</span>
+              <SheetTitle className="font-display text-base font-semibold leading-none text-[#F6EFE4]">
                 {qv.guest.fullName}
               </SheetTitle>
+              {qv.guest.vip ? <VipBadge /> : null}
+              {qv.room.roomNumber ? (
+                <span
+                  className="inline-flex rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-[#F6EFE4]"
+                  data-testid="fo-inhouse-qv-room"
+                >
+                  Room {qv.room.roomNumber}
+                </span>
+              ) : null}
+              <ReservationStatusBadge status={qv.stay.status} />
             </div>
             <FoGuestWorkspaceTabBar tabs={tabs} active={activeTab} onSelect={setTab} />
           </SheetHeader>
         ) : null}
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-4 py-3">
           {denied ? (
             <PermissionDeniedPanel title="Cannot open this stay" />
           ) : qvQuery.isLoading ? (
@@ -287,62 +315,64 @@ export function InHouseQuickViewSheet({
               </Button>
             </div>
           ) : !qv ? null : activeTab === "overview" ? (
-            <div
-              role="tabpanel"
-              className="grid gap-3 lg:grid-cols-2"
-              data-testid="fo-inhouse-qv-overview"
-            >
-              <Card title="Guest Information" testId="fo-inhouse-qv-guest">
-                <FieldGroup>
-                  <div className="flex items-center gap-2 pb-1">
-                    <p className="font-display text-base font-semibold">{qv.guest.fullName}</p>
-                    {qv.guest.vip ? <VipBadge /> : null}
-                  </div>
-                  <DlRow label="Phone" value={qv.guest.phone || "—"} />
-                  <DlRow label="Email" value={qv.guest.email || "—"} />
-                </FieldGroup>
-              </Card>
+            <div role="tabpanel" className="space-y-2.5" data-testid="fo-inhouse-qv-overview">
+              <div className="grid gap-2.5 lg:grid-cols-2">
+                <Card title="Guest Information" testId="fo-inhouse-qv-guest">
+                  <FieldGroup>
+                    <div className="flex items-center gap-2 pb-0.5">
+                      <p className="font-display text-base font-semibold">{qv.guest.fullName}</p>
+                      {qv.guest.vip ? <VipBadge /> : null}
+                    </div>
+                    <DlRow label="Phone" value={qv.guest.phone || "—"} />
+                    <DlRow label="Email" value={qv.guest.email || "—"} />
+                  </FieldGroup>
+                </Card>
 
-              <Card title="Stay & Accommodation" testId="fo-inhouse-qv-stay-information">
-                <FieldGroup>
-                  <DlRow label="Arrival" value={formatStayDate(qv.stay.arrivalDate)} />
-                  <DlRow label="Departure" value={formatStayDate(qv.stay.departureDate)} />
-                  <DlRow
-                    label="Nights"
-                    value={`${qv.stay.nights} night${qv.stay.nights === 1 ? "" : "s"}`}
-                  />
-                  <DlRow
-                    label="Adults / Children"
-                    value={`${qv.stay.adults} / ${qv.stay.children ?? 0}`}
-                  />
-                  <DlRow label="Room Type" value={qv.stay.roomTypeName} />
-                  <DlRow label="Late Checkout" value={lateCheckoutLabel} />
-                  <DlRow
-                    label="Checkout Time"
-                    value={qv.lateCheckout.policy.checkOutTime || "Not configured"}
-                  />
-                </FieldGroup>
-              </Card>
+                <Card title="Stay & Accommodation" testId="fo-inhouse-qv-stay-information">
+                  <FieldGroup>
+                    <DlRow label="Arrival" value={formatStayDate(qv.stay.arrivalDate)} />
+                    <DlRow label="Departure" value={formatStayDate(qv.stay.departureDate)} />
+                    <DlRow
+                      label="Nights"
+                      value={`${qv.stay.nights} night${qv.stay.nights === 1 ? "" : "s"}`}
+                    />
+                    <DlRow
+                      label="Adults / Children"
+                      value={`${qv.stay.adults} / ${qv.stay.children ?? 0}`}
+                    />
+                    <DlRow label="Room Type" value={qv.stay.roomTypeName} />
+                    <DlRow label="Late Checkout" value={lateCheckoutLabel} />
+                    <DlRow
+                      label="Checkout Time"
+                      value={qv.lateCheckout.policy.checkOutTime || "Not configured"}
+                    />
+                  </FieldGroup>
+                </Card>
 
-              <Card title="Financial Summary" testId="fo-inhouse-qv-financial">
-                {financialRows(qv)}
-              </Card>
+                <Card title="Financial Summary" testId="fo-inhouse-qv-financial">
+                  {financialRows(qv)}
+                </Card>
 
-              <Card title="Room Information" testId="fo-inhouse-qv-room-information">
-                {roomRows(qv)}
-              </Card>
+                <Card title="Room Information" testId="fo-inhouse-qv-room-information">
+                  {roomRows(qv)}
+                </Card>
+              </div>
 
-              <Card title="Special Requests / Notes" testId="fo-inhouse-qv-special-requests">
-                <div className="space-y-3">
+              <Card title="Requests, Notes & Guest Services" testId="fo-inhouse-qv-special-requests">
+                <div className="grid gap-3 md:grid-cols-3">
                   <div>
-                    <p className="text-xs text-muted-foreground">Special requests</p>
-                    <p className="text-sm text-foreground">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Special Requests
+                    </p>
+                    <p className="mt-1 text-sm text-foreground">
                       {qv.stay.specialRequests?.trim() || "No special request."}
                     </p>
                   </div>
                   <div data-testid="fo-inhouse-qv-notes">
-                    <p className="text-xs text-muted-foreground">Internal notes</p>
-                    <p className="text-sm text-foreground" id="fo-inhouse-notes">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Internal Notes
+                    </p>
+                    <p className="mt-1 text-sm text-foreground" id="fo-inhouse-notes">
                       {qv.notes?.trim() || "No internal note."}
                     </p>
                   </div>

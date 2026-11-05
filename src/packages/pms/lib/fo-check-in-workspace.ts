@@ -67,6 +67,16 @@ export function foOpensPreArrivalCheckInWorkspace(stay: { status: ReservationSta
   return stay.status === "pending" || stay.status === "confirmed";
 }
 
+/** Full guest workspace: pre-arrival, checked-out, or Folio & Charges. */
+export function foOpensFullGuestWorkspace(
+  stay: { status: ReservationStatus },
+  tab?: string,
+): boolean {
+  return (
+    foOpensPreArrivalCheckInWorkspace(stay) || stay.status === "checked_out" || tab === "folio"
+  );
+}
+
 /**
  * Room-row click target for a confirmed stay already assigned to the room.
  * Checked-in stays are resolved separately so they open the in-house sheet.

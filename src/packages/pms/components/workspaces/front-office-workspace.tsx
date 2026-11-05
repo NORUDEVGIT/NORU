@@ -17,7 +17,7 @@ import {
 import { FoCheckInWorkspaceSheet } from "@/packages/pms/components/frontoffice/fo-check-in-workspace-sheet";
 import {
   foCheckInWorkspaceInitialStep,
-  foOpensPreArrivalCheckInWorkspace,
+  foOpensFullGuestWorkspace,
   type FoRackInHouseTarget,
 } from "@/packages/pms/lib/fo-check-in-workspace";
 import { foOpenFolioTarget } from "@/packages/pms/lib/fo-folio-tab";
@@ -893,7 +893,7 @@ export function FrontOfficeWorkspace({
         />
       </div>
 
-      {sheetStay && (foOpensPreArrivalCheckInWorkspace(sheetStay) || guestTab === "folio") ? (
+      {sheetStay && foOpensFullGuestWorkspace(sheetStay, guestTab) ? (
         <FoCheckInWorkspaceSheet
           restaurantId={restaurantId}
           stay={sheetStay}

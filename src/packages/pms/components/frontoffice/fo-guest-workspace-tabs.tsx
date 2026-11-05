@@ -33,7 +33,7 @@ export function FoGuestWorkspaceTabBar({
             data-testid={`fo-guest-tab-${tab.id}`}
             onClick={() => onSelect(tab.id)}
             className={cn(
-              "shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
+              "shrink-0 whitespace-nowrap border-b-2 px-2.5 py-1.5 text-sm font-medium transition-colors",
               selected
                 ? "border-[#C89933] text-[#F6EFE4]"
                 : "border-transparent text-[#C4B39A] hover:text-[#F6EFE4]",

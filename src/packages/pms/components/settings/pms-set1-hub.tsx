@@ -6,18 +6,21 @@
  * Rooms stay on Room & Inventory. Rates and Distribution keep their own desks.
  */
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   SettingsDashboardChrome,
-  SettingsDashboardFooter,
   SettingsPropertySetupCards,
   SettingsSetupProgressPanel,
 } from "@/packages/pms/components/settings/pms-settings-dashboard";
 
-import { ArrowLeft } from "lucide-react";
+import { Menu, RefreshCw } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
+import { cn } from "@/shared/lib/utils";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { Set1SectionView } from "@/packages/pms/components/settings/pms-set1-section";
 import { PmsPropertySetupCard1Section } from "@/packages/pms/components/settings/pms-property-setup-card1-section";
@@ -51,12 +54,8 @@ import {
 } from "@/packages/pms/components/settings/pms-set6-section";
 import { getPmsSet1Foundation } from "@/packages/pms/lib/pms-set1-foundation.functions";
 import {
-  SET1_COMING_SOON,
   SET1_DENIED,
-  SET1_FOUNDATION_CHIP,
   SET1_HUB_HREF,
-  SET1_LIVE_CARDS,
-  SET1_PMS_BACK_HREF,
   SET2_LIVE_HASHES,
   SET3_LIVE_HASHES,
   SET4_LIVE_HASHES,
@@ -152,6 +151,53 @@ function currentCard8Open(): boolean {
   return isCard8WorkspaceHash(window.location.hash);
 }
 
+const SETTINGS_BURGER_GROUPS = [
+  { id: "overview", label: "Overview", items: [{ id: "overview", title: "Overview", hash: "" }] },
+  {
+    id: "property",
+    label: "Property",
+    items: PROPERTY_SETUP_CARDS.filter((card) => card.number <= 2).map((card) => ({
+      id: card.id,
+      title: card.title,
+      hash: card.hash,
+    })),
+  },
+  {
+    id: "commercial",
+    label: "Commercial",
+    items: PROPERTY_SETUP_CARDS.filter((card) => card.number === 3 || card.number === 4).map((card) => ({
+      id: card.id,
+      title: card.title,
+      hash: card.hash,
+    })),
+  },
+  {
+    id: "organization",
+    label: "Organization",
+    items: PROPERTY_SETUP_CARDS.filter((card) => card.number === 5 || card.number === 6).map((card) => ({
+      id: card.id,
+      title: card.title,
+      hash: card.hash,
+    })),
+  },
+  {
+    id: "administration",
+    label: "Administration",
+    items: PROPERTY_SETUP_CARDS.filter((card) => card.number >= 7).map((card) => ({
+      id: card.id,
+      title: card.title,
+      hash: card.hash,
+    })),
+  },
+] as const;
+
+function openSettingsWorkspace(hash: string) {
+  if (typeof window === "undefined") return;
+  const next = hash ? `${SET1_HUB_HREF}#${hash}` : SET1_HUB_HREF;
+  window.history.pushState(null, "", next);
+  window.dispatchEvent(new Event("hashchange"));
+}
+
 export function PmsSet1Hub({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
   const load = useServerFn(getPmsSet1Foundation);
@@ -166,7 +212,10 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
   const [card7Open, setCard7Open] = useState(currentCard7Open);
   const [card8Open, setCard8Open] = useState(currentCard8Open);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [showAll, setShowAll] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [areaFilter, setAreaFilter] = useState("all");
+  const qc = useQueryClient();
 
   useEffect(() => {
     const apply = () => {
@@ -289,58 +338,109 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     card7Open ||
     card8Open;
 
+  const activeWorkspace =
+    card1Open
+      ? "property-business"
+      : card2Open
+        ? "rooms-inventory"
+        : card3Open
+          ? "rates-guest-rules"
+          : card4Open
+            ? "housekeeping-maintenance"
+            : card5Open
+              ? "departments-services"
+              : card6Open
+                ? "notifications-security"
+                : card7Open
+                  ? "sales-distribution"
+                  : card8Open
+                    ? "payments-administration"
+                    : "overview";
+  const visibleCardIds = PROPERTY_SETUP_CARDS.filter((card, index) => {
+    const status = dashboardStatuses[index] ?? "not_started";
+    if (statusFilter !== "all") {
+      if (statusFilter === "needs_attention" && status !== "in_progress") return false;
+      if (statusFilter !== "needs_attention" && status !== statusFilter) return false;
+    }
+    if (areaFilter !== "all" && card.id !== areaFilter) return false;
+    const needle = searchQuery.trim().toLowerCase();
+    if (!needle) return true;
+    return `${card.title} ${card.purpose}`.toLowerCase().includes(needle);
+  }).map((card) => card.id);
+  const filterCount = (statusFilter !== "all" ? 1 : 0) + (areaFilter !== "all" ? 1 : 0);
+
   const hubBody = (
-    <div className={workspaceOpen || section ? "space-y-6" : undefined} data-testid="pms-set1-hub">
-      {workspaceOpen ? null : section ? null : (
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-3xl font-extrabold tracking-tight text-[#251605]">Settings</h1>
-              <span className="rounded-full border border-[#E6D7B8] bg-[#F7F1E4] px-2.5 py-0.5 text-xs font-medium text-[#9A6A12]">
-                {SET1_FOUNDATION_CHIP}
-              </span>
-            </div>
-            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-              Configure your hotel's identity, rooms, rates, guest rules, operations and controls.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (typeof window === "undefined") return;
-                const search = new URLSearchParams(window.location.search);
-                const returnTo = search.get("returnTo") || search.get("from");
-                if (returnTo) {
-                  window.location.href = returnTo;
-                  return;
-                }
-                if (window.history.length > 1 && document.referrer && document.referrer.includes("/restaurant/")) {
-                  window.history.back();
-                  return;
-                }
-                if (document.referrer && document.referrer.includes("/restaurant/pms/rates-revenue")) {
-                  window.location.href = "/restaurant/pms/rates-revenue";
-                  return;
-                }
-                window.location.href = "/restaurant/pms/room-inventory";
-              }}
-              className="h-8 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs"
-            >
-              <ArrowLeft className="size-3.5" />
-              Back to previous page
-            </Button>
-            <Link
-              to={SET1_PMS_BACK_HREF}
-              className="text-sm font-medium text-muted-foreground hover:text-foreground"
-            >
-              PMS
-            </Link>
-          </div>
+    <div className="flex min-h-full flex-col gap-3 bg-[#F7F4EE] p-3 sm:p-4" data-testid="pms-set1-hub">
+      <section className="relative w-full min-w-0 rounded-lg border border-[#DDD4C5] bg-white px-2 py-1.5 shadow-sm">
+        <div className="flex w-full min-w-0 items-center gap-1.5">
+          <SettingsBurger active={activeWorkspace} onSelect={openSettingsWorkspace} />
+          <Input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search settings…"
+            aria-label="Search settings"
+            className="h-9 min-w-0 flex-1 text-xs"
+          />
+          <PmsFilterMenu
+            activeCount={filterCount}
+            onClear={() => {
+              setStatusFilter("all");
+              setAreaFilter("all");
+            }}
+            buttonTestId="settings-filters-button"
+            menuTestId="settings-filters-menu"
+          >
+            <PmsFilterChoiceRow
+              label="Status"
+              value={statusFilter}
+              current={
+                statusFilter === "complete"
+                  ? "Ready"
+                  : statusFilter === "in_progress"
+                    ? "In Progress"
+                    : statusFilter === "needs_attention"
+                      ? "Needs Attention"
+                      : statusFilter === "not_started"
+                        ? "Not Started"
+                        : ""
+              }
+              options={[
+                ["all", "All statuses"],
+                ["complete", "Ready"],
+                ["in_progress", "In Progress"],
+                ["needs_attention", "Needs Attention"],
+                ["not_started", "Not Started"],
+              ]}
+              onChange={setStatusFilter}
+            />
+            <PmsFilterChoiceRow
+              label="Area"
+              value={areaFilter}
+              current={PROPERTY_SETUP_CARDS.find((card) => card.id === areaFilter)?.title ?? ""}
+              options={[
+                ["all", "All areas"],
+                ...PROPERTY_SETUP_CARDS.map((card) => [card.id, card.title] as const),
+              ]}
+              onChange={setAreaFilter}
+            />
+          </PmsFilterMenu>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className={SHELL_ICON_BUTTON}
+            aria-label="Refresh"
+            title="Refresh"
+            onClick={() => {
+              void qc.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
+              void qc.invalidateQueries({ queryKey: ["pms-card1", restaurantId] });
+            }}
+          >
+            <RefreshCw className="size-4" />
+          </Button>
         </div>
-      )}
+      </section>
+      <SettingsSetupProgressPanel statuses={dashboardStatuses} />
 
       {card1Open ? (
         card1Query.isLoading ? (
@@ -392,38 +492,6 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
         <PmsPropertySetupCard8Section restaurantId={restaurantId} canEdit={canEdit} />
       ) : section ? (
         <div className="space-y-4">
-          <div className="flex items-center gap-2.5">
-            <Button variant="outline" size="sm" asChild className="h-8 text-xs font-semibold">
-              <a href={SET1_HUB_HREF}>Back to Settings</a>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (typeof window === "undefined") return;
-                const search = new URLSearchParams(window.location.search);
-                const returnTo = search.get("returnTo") || search.get("from");
-                if (returnTo) {
-                  window.location.href = returnTo;
-                  return;
-                }
-                if (window.history.length > 1 && document.referrer && document.referrer.includes("/restaurant/")) {
-                  window.history.back();
-                  return;
-                }
-                if (document.referrer && document.referrer.includes("/restaurant/pms/rates-revenue")) {
-                  window.location.href = "/restaurant/pms/rates-revenue";
-                  return;
-                }
-                window.location.href = "/restaurant/pms/room-inventory";
-              }}
-              className="h-8 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs"
-            >
-              <ArrowLeft className="size-3.5" />
-              Back to previous page
-            </Button>
-          </div>
           {(SET2_LIVE_HASHES as readonly string[]).includes(section) ? (
             section === "structure" ? (
               <Set2StructureSection
@@ -582,65 +650,95 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           )}
         </div>
       ) : (
-        <div className="space-y-4">
-          <SettingsSetupProgressPanel statuses={dashboardStatuses} />
-          <div>
-            <SettingsPropertySetupCards
-              statuses={dashboardStatuses}
-              summaries={dashboardSummaries}
-            />
-            <div className="mt-3 flex items-center justify-end">
-              <button
-                type="button"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground"
-                onClick={() => setShowAll((open) => !open)}
-              >
-                {showAll ? "Hide" : "Show all"}
-              </button>
-            </div>
-            {showAll
-              ? SET1_LIVE_CARDS.map((card) => (
-                  <a
-                    key={card.id}
-                    href={`${SET1_HUB_HREF}#${card.id}`}
-                    className="mt-2 block rounded-xl border border-[#E6E1D8] bg-white px-4 py-3 text-sm"
-                  >
-                    <span className="font-semibold text-[#251605]">{card.title}</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">{card.purpose}</span>
-                  </a>
-                ))
-              : null}
-            {/* Configure is the Card workspace verb; dashboard CTAs use Manage. */}
-            {SET1_COMING_SOON.map((card) => (
-              <article
-                key={`${card.wave}-${card.title}`}
-                className="mt-3 rounded-2xl border border-dashed border-[#CCCCCC] bg-muted/20 p-5"
-                data-testid="set1-coming-soon-card"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <h2 className="text-lg font-semibold text-muted-foreground">{card.title}</h2>
-                  <span className="rounded-full border border-[#CCCCCC] px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {card.wave} · Coming soon
-                  </span>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">{card.purpose}</p>
-              </article>
-            ))}
-          </div>
-          <SettingsDashboardFooter />
-        </div>
+        <SettingsPropertySetupCards
+          statuses={dashboardStatuses}
+          summaries={dashboardSummaries}
+          visibleIds={visibleCardIds}
+        />
       )}
     </div>
   );
 
-  if (section && !workspaceOpen) return hubBody;
   return (
     <SettingsDashboardChrome
+      membership={membership}
       helpOpen={helpOpen}
       onHelpOpenChange={setHelpOpen}
-      contentClassName={workspaceOpen ? "p-0" : undefined}
+      contentClassName="p-0"
     >
       {hubBody}
     </SettingsDashboardChrome>
+  );
+}
+
+function SettingsBurger({
+  active,
+  onSelect,
+}: {
+  active: string;
+  onSelect: (hash: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="Settings navigation"
+          title="Settings navigation"
+          data-testid="settings-nav-trigger"
+          className={cn(
+            "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-[#251605]",
+            "opacity-50 transition-opacity hover:bg-[#F3EEE4] hover:opacity-100",
+            "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+            "data-[state=open]:bg-[#F3EEE4] data-[state=open]:opacity-100",
+          )}
+        >
+          <Menu className="size-4" aria-hidden="true" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={8}
+        className="w-64 p-1.5"
+        data-testid="settings-workspace-nav"
+        aria-label="Settings"
+      >
+        <div className="flex max-h-80 flex-col gap-0.5 overflow-y-auto">
+          {SETTINGS_BURGER_GROUPS.map((group) => (
+            <div key={group.id}>
+              {group.id === "overview" ? null : (
+                <p className="px-2.5 pb-0.5 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  {group.label}
+                </p>
+              )}
+              {group.items.map((item) => {
+                const isActive = item.id === active;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    data-testid={`settings-nav-${item.id}`}
+                    onClick={() => {
+                      setOpen(false);
+                      onSelect(item.hash);
+                    }}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      "flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm transition-colors",
+                      isActive
+                        ? "bg-[#F4E9D0] font-medium text-[#251605]"
+                        : "text-foreground hover:bg-[#F7F4EE]",
+                    )}
+                  >
+                    {item.title}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
